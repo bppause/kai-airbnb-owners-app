@@ -2,6 +2,30 @@ node_modules/
 client/node_modules/
 client/dist/
 client/.env.local
-data/
 .env
 .DS_Store
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Build
+build/
+dist/
+
+# Temp / backup files
+*.bak
+*.old
+*.zip
+*.tmp
+
+# OS / editor
+.vscode/
+.idea/
+Thumbs.db
+
+# Data
+data/
