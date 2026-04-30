@@ -1443,9 +1443,33 @@ const analyticsHandler = async (req, res) => {
   const enabledForAll = String(cfg.analytics_enabled || 'false') === 'true';
   if (!global && !enabledForAll) return res.status(403).json({ error:'Las analíticas están disponibles solo para administrador global.' });
   const now = new Date();
-  const days = Math.max(1, Math.min(365, Number(req.query.days || 90)));
-  const since = new Date(now.getTime() - days * 24 * 3600000).toISOString();
-  const { data: incidentsRaw, error: incErr } = await supabase.from('incidents').select('*, listings(*)').gte('created_at', since).order('created_at', { ascending:false });
+  const daysParam = String(req.query.days || '90').trim();
+  const startParam = String(req.query.start || '').trim();
+  const endParam   = String(req.query.end   || '').trim();
+
+  // Determine date window: all-time, custom range, or preset rolling window
+  let since = null;
+  let until = null;
+  let windowLabel = `${daysParam} days`;
+
+  if (startParam && endParam) {
+    // Custom date range — accept YYYY-MM-DD
+    const s = new Date(startParam); const e = new Date(endParam + 'T23:59:59.999Z');
+    if (!isNaN(s.getTime())) since = s.toISOString();
+    if (!isNaN(e.getTime())) until = e.toISOString();
+    windowLabel = `${startParam} – ${endParam}`;
+  } else if (daysParam === 'all') {
+    since = null; until = null; windowLabel = 'all time';
+  } else {
+    const days = Math.max(1, Math.min(3650, Number(daysParam) || 90));
+    since = new Date(now.getTime() - days * 24 * 3600000).toISOString();
+    windowLabel = `${days} days`;
+  }
+
+  let q = supabase.from('incidents').select('*, listings(*)').order('created_at', { ascending:false });
+  if (since) q = q.gte('created_at', since);
+  if (until) q = q.lte('created_at', until);
+  const { data: incidentsRaw, error: incErr } = await q;
   if (incErr) return sendSupabaseError(res, incErr);
   const incidents = incidentsRaw || [];
   const active = incidents.filter(i => !['verified','resolved'].includes(i.status));
@@ -1464,7 +1488,7 @@ const analyticsHandler = async (req, res) => {
   const operatorCounts = countBy(incidents, i => i.listings?.operator || 'Sin operador');
   const monthCounts = countBy(incidents, i => String(i.created_at || '').slice(0,7));
   const breachRows = breached.map(i => { const listing = i.listings || {}; const hoursOverdue = i.next_sla_reminder_at ? Math.max(0, (now - new Date(i.next_sla_reminder_at))/3600000) : 0; return { id:i.id, apt:listing.apt || String(i.apt_label || '').replace(/[^0-9]/g,'') || '', owner:listing.owner || '', ownerEmail:listing.user_email || '', listingEmail:listing.email || '', operator:listing.operator || '', operatorEmail:listing.operator_email || '', status:i.status, type:i.type, category:i.category, createdAt:i.created_at, incidentDate:i.incident_date, nextSlaReminderAt:i.next_sla_reminder_at, slaHours:i.sla_hours || 24, slaCycleCount:i.sla_cycle_count || 0, hoursOverdue:Number(hoursOverdue.toFixed(1)), description:i.description || '' }; }).sort((a,b)=>b.hoursOverdue-a.hoursOverdue);
-  res.json({ windowDays:days, generatedAt:now.toISOString(), summary:{ totalIncidents:incidents.length, openIncidents:active.length, verifiedIncidents:verified.length, resolvedIncidents:incidents.filter(i=>i.status==='resolved').length, breachedSla:breached.length, dueSoon24h:dueSoon.length, avgResponseHours:Number(avgResponseHours.toFixed(1)), maxResponseHours:Number(maxResponseHours.toFixed(1)), escalationCycles:incidents.reduce((sum,i)=>sum+Number(i.sla_cycle_count||0),0) }, breachRows, rankings:{ byApartment:toRank(aptCounts).slice(0,12), byOperator:toRank(operatorCounts).slice(0,12), byType:toRank(typeCounts), byCategory:toRank(categoryCounts), byStatus:toRank(statusCounts), byMonth:toRank(monthCounts).sort((a,b)=>a.name.localeCompare(b.name)) } });
+  res.json({ windowDays: daysParam, windowLabel, startDate: since, endDate: until, generatedAt:now.toISOString(), summary:{ totalIncidents:incidents.length, openIncidents:active.length, verifiedIncidents:verified.length, resolvedIncidents:incidents.filter(i=>i.status==='resolved').length, breachedSla:breached.length, dueSoon24h:dueSoon.length, avgResponseHours:Number(avgResponseHours.toFixed(1)), maxResponseHours:Number(maxResponseHours.toFixed(1)), escalationCycles:incidents.reduce((sum,i)=>sum+Number(i.sla_cycle_count||0),0) }, breachRows, rankings:{ byApartment:toRank(aptCounts).slice(0,12), byOperator:toRank(operatorCounts).slice(0,12), byType:toRank(typeCounts), byCategory:toRank(categoryCounts), byStatus:toRank(statusCounts), byMonth:toRank(monthCounts).sort((a,b)=>a.name.localeCompare(b.name)) } });
 };
 app.get('/api/analytics', analyticsHandler);
 app.get('/api/admin/analytics', analyticsHandler);

@@ -3081,22 +3081,112 @@ function VerifyIncidentModal({ incident, onSave, onClose, lang="es-CO", config={
 
 
 function AnalyticsDashboard({ user, contactProps={}, showToast=()=>{}, isGlobalAdmin=false, lang="es-CO" }) {
-  const [days,setDays]=useState('90');
+  const [rangeMode, setRangeMode] = useState('preset');   // 'preset' | 'custom'
+  const [days, setDays]           = useState('90');        // preset: 30|90|180|365|all
+  const [startDate, setStartDate] = useState('');          // custom YYYY-MM-DD
+  const [endDate, setEndDate]     = useState('');          // custom YYYY-MM-DD
   const [data,setData]=useState(null);
   const [loading,setLoading]=useState(false);
-  const load=useCallback(()=>{
-    if(!user?.uid) return;
+  const isEn = lang==='en';
+
+  // Today's date for max constraint on date inputs
+  const todayISO = new Date().toISOString().slice(0,10);
+
+  const buildUrl = useCallback(() => {
+    let url = '/api/analytics?uid=' + encodeURIComponent(user.uid) + '&email=' + encodeURIComponent(user.email || '');
+    if (rangeMode === 'custom' && startDate && endDate) {
+      url += '&start=' + encodeURIComponent(startDate) + '&end=' + encodeURIComponent(endDate);
+    } else {
+      url += '&days=' + encodeURIComponent(days);
+    }
+    return url;
+  }, [user?.uid, user?.email, rangeMode, days, startDate, endDate]);
+
+  const load = useCallback(() => {
+    if (!user?.uid) return;
+    if (rangeMode === 'custom' && (!startDate || !endDate)) {
+      showToast(isEn ? 'Select both start and end date' : 'Selecciona fecha inicio y fin', true);
+      return;
+    }
     setLoading(true);
-    api.get('/api/analytics?uid=' + encodeURIComponent(user.uid) + '&email=' + encodeURIComponent(user.email || '') + '&days=' + encodeURIComponent(days))
+    api.get(buildUrl())
       .then(setData)
-      .catch(e=>showToast((lang==='en'?'Error loading analytics: ':'Error cargando analíticas: ') + (e.message || ''), true))
-      .finally(()=>setLoading(false));
-  }, [user?.uid, user?.email, days]);
-  useEffect(()=>{ load(); }, [load]);
-  const s=data?.summary || {};
+      .catch(e => showToast((isEn ? 'Error loading analytics: ' : 'Error cargando analíticas: ') + (e.message || ''), true))
+      .finally(() => setLoading(false));
+  }, [buildUrl, user?.uid, rangeMode, startDate, endDate]);
+
+  // Auto-load when preset changes
+  useEffect(() => { if (rangeMode === 'preset') load(); }, [days, rangeMode]);
+  // Initial load
+  useEffect(() => { load(); }, [user?.uid]);
+
+  const s = data?.summary || {};
   const bar=(rows=[])=> rows.length ? <div className="bar-list">{rows.map(r=>{ const max=Math.max(...rows.map(x=>x.count||0),1); return <div key={r.name} className="bar-row"><div className="bar-label">{r.name}</div><div className="bar-track"><span style={{width:`${Math.max(6,(r.count/max)*100)}%`}}/></div><div className="bar-count">{r.count}</div></div>;})}</div> : <Empty icon="📭" msg={appText(lang,"analytics.noData")}/>;
   const fmt=(d)=>d?new Date(d).toLocaleString(lang === 'en' ? 'en-US' : 'es-CO',{dateStyle:'medium',timeStyle:'short'}):'';
-  return <div className="fade"><div className="ph"><div><h1 className="ptitle">{appText(lang,"analytics.title")}</h1><p className="psub">{isGlobalAdmin ? appText(lang,"analytics.subtitleAdmin") : appText(lang,"analytics.subtitleUser")} · {appText(lang,"analytics.subtitleRest")}</p></div><div style={{display:'flex',gap:8,alignItems:'center'}}><select className="lang-switch" value={days} onChange={e=>setDays(e.target.value)}><option value="30">{appText(lang,"analytics.days",{count:30})}</option><option value="90">{appText(lang,"analytics.days",{count:90})}</option><option value="180">{appText(lang,"analytics.days",{count:180})}</option><option value="365">{appText(lang,"analytics.days",{count:365})}</option></select><button className="btn-p" onClick={load}>{loading?appText(lang,'analytics.loading'):appText(lang,'analytics.refresh')}</button></div></div>
+
+  const windowDesc = data?.windowLabel
+    ? (isEn ? `Showing: ${data.windowLabel}` : `Mostrando: ${data.windowLabel}`)
+    : '';
+
+  const presets = [
+    { v:'30',  label: isEn ? '30 days' : '30 días' },
+    { v:'90',  label: isEn ? '90 days' : '90 días' },
+    { v:'180', label: isEn ? '180 days' : '180 días' },
+    { v:'365', label: isEn ? '1 year'  : '1 año'   },
+    { v:'all', label: isEn ? 'All time' : 'Todo el tiempo' },
+  ];
+
+  return <div className="fade">
+    <div className="ph">
+      <div>
+        <h1 className="ptitle">{appText(lang,"analytics.title")}</h1>
+        <p className="psub">{isGlobalAdmin ? appText(lang,"analytics.subtitleAdmin") : appText(lang,"analytics.subtitleUser")} · {appText(lang,"analytics.subtitleRest")}</p>
+      </div>
+      <div style={{display:'flex',flexDirection:'column',gap:8,alignItems:'flex-end'}}>
+        {/* ── Mode toggle ── */}
+        <div className="an-range-bar">
+          <div className="an-mode-toggle">
+            <button className={`an-mode-btn${rangeMode==='preset'?' an-mode-on':''}`} onClick={()=>setRangeMode('preset')}>
+              {isEn?'Presets':'Predefinido'}
+            </button>
+            <button className={`an-mode-btn${rangeMode==='custom'?' an-mode-on':''}`} onClick={()=>setRangeMode('custom')}>
+              📅 {isEn?'Date range':'Rango de fechas'}
+            </button>
+          </div>
+          {/* ── Preset pills ── */}
+          {rangeMode==='preset' && (
+            <div className="an-preset-pills">
+              {presets.map(p=>(
+                <button key={p.v} className={`an-preset-pill${days===p.v?' an-preset-on':''}`} onClick={()=>setDays(p.v)}>
+                  {p.label}
+                </button>
+              ))}
+            </div>
+          )}
+          {/* ── Custom date range ── */}
+          {rangeMode==='custom' && (
+            <div className="an-custom-range">
+              <div className="an-date-group">
+                <label className="an-date-lbl">{isEn?'From':'Desde'}</label>
+                <input type="date" className="an-date-input" value={startDate} max={endDate||todayISO} onChange={e=>setStartDate(e.target.value)}/>
+              </div>
+              <span className="an-date-sep">→</span>
+              <div className="an-date-group">
+                <label className="an-date-lbl">{isEn?'To':'Hasta'}</label>
+                <input type="date" className="an-date-input" value={endDate} min={startDate} max={todayISO} onChange={e=>setEndDate(e.target.value)}/>
+              </div>
+              <button className="btn-p" style={{alignSelf:'flex-end'}} onClick={load} disabled={!startDate||!endDate||loading}>
+                {loading ? appText(lang,'analytics.loading') : (isEn?'Apply':'Aplicar')}
+              </button>
+            </div>
+          )}
+          {rangeMode==='preset' && <button className="btn-p" onClick={load} disabled={loading}>
+            {loading ? appText(lang,'analytics.loading') : appText(lang,'analytics.refresh')}
+          </button>}
+        </div>
+        {windowDesc && <div className="an-window-desc">{windowDesc}</div>}
+      </div>
+    </div>
     <div className="stats6">{[
       ['⚠️',s.openIncidents||0,appText(lang,'analytics.open'),'#d4634a'],['🚨',s.breachedSla||0,appText(lang,'analytics.breached'),'#c62828'],['⏳',s.dueSoon24h||0,appText(lang,'analytics.dueSoon'),'#e19a4b'],['✅',s.verifiedIncidents||0,appText(lang,'analytics.verified'),'#2F8F46'],['⏱️',`${s.avgResponseHours||0}h`,appText(lang,'analytics.avgResponse'),'#0b7f8c'],['🔁',s.escalationCycles||0,appText(lang,'analytics.cycles'),'#6a1b9a']
     ].map((x,i)=><div className="scard" key={i} style={{borderTop:`3px solid ${x[3]}`}}><div style={{fontSize:'1.4rem'}}>{x[0]}</div><div className="sval" style={{color:x[3]}}>{x[1]}</div><div className="slabel">{x[2]}</div></div>)}</div>
@@ -3981,6 +4071,23 @@ html{font-size:clamp(14px,1.1vw,16px);-webkit-text-size-adjust:100%}body{overflo
 .ir-apt-sub{font-size:.7rem;color:#6a8a9a;line-height:1.3}
 @media(max-width:640px){.bld-door-grid{grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:8px;padding:12px}.bld-floor-hdr{padding:12px 14px;gap:10px}.bld-floor-num{font-size:1.3rem}.door-plate{width:46px;height:46px;font-size:.88rem}.fls-row-main{gap:7px;padding:10px 12px}.fls-row-detail{padding:10px 12px 12px}.fls-op-pill{display:none}.wfg-hdr{padding:12px 14px}}
 @media(max-width:480px){.bld-door-grid{grid-template-columns:repeat(auto-fill,minmax(100px,1fr))}}
+/* ── Analytics date range controls ──────────────────────────────────────── */
+.an-range-bar{display:flex;flex-wrap:wrap;align-items:center;gap:8px;justify-content:flex-end}
+.an-mode-toggle{display:flex;border:1px solid rgba(47,79,58,.2);border-radius:10px;overflow:hidden;flex-shrink:0}
+.an-mode-btn{padding:7px 14px;font-size:.78rem;font-weight:800;color:#496674;background:rgba(255,255,255,.7);border:0;cursor:pointer;transition:background .12s,color .12s;white-space:nowrap}
+.an-mode-btn:hover{background:rgba(255,255,255,.95);color:#17313a}
+.an-mode-on{background:#0b7f4f!important;color:#fff!important}
+.an-preset-pills{display:flex;gap:5px;flex-wrap:wrap}
+.an-preset-pill{padding:6px 13px;border-radius:999px;font-size:.78rem;font-weight:800;border:1px solid rgba(47,79,58,.18);background:rgba(255,255,255,.8);color:#496674;cursor:pointer;transition:all .12s;white-space:nowrap}
+.an-preset-pill:hover{background:#fff;border-color:#0b7f8c;color:#0b5f72}
+.an-preset-on{background:linear-gradient(135deg,#0b7f4f,#0b7f8c)!important;color:#fff!important;border-color:transparent!important;box-shadow:0 3px 10px rgba(11,127,140,.22)}
+.an-custom-range{display:flex;align-items:flex-end;gap:10px;flex-wrap:wrap}
+.an-date-group{display:flex;flex-direction:column;gap:4px}
+.an-date-lbl{font-size:.68rem;font-weight:900;text-transform:uppercase;letter-spacing:.07em;color:#2a5a6a}
+.an-date-input{height:36px;border-radius:10px;border:1px solid rgba(47,79,58,.22)!important;background:rgba(255,255,255,.96)!important;color:#17313a!important;padding:0 10px!important;font-size:.84rem;cursor:pointer;min-width:140px}
+.an-date-sep{font-size:1.1rem;color:#8a9fa5;font-weight:900;padding-bottom:4px;flex-shrink:0}
+.an-window-desc{font-size:.72rem;font-weight:700;color:#496674;background:rgba(47,79,58,.07);border-radius:999px;padding:4px 12px;white-space:nowrap}
+@media(max-width:640px){.an-range-bar{justify-content:flex-start}.an-custom-range{flex-direction:column;align-items:flex-start}.an-date-sep{display:none}}
 /* ── My listings & incidents ─────────────────────────────────────────────── */
 .ml-stats{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:18px}
 .ml-stat{background:rgba(255,255,255,.92);border:1px solid rgba(47,79,58,.14);border-radius:14px;padding:12px 10px;text-align:center;display:flex;flex-direction:column;gap:4px;box-shadow:0 4px 10px rgba(32,46,38,.06)}
