@@ -269,7 +269,8 @@ function enhance() {
     const registrationTarget = getRegistrationClickTarget()
     if (registrationTarget) addOrUpdateBadge(registrationTarget, count)
     placeBanner(count)
-    wireDashboardActionCenter()
+    // BetaCommandCenter renders as a React section inside the dashboard view.
+    // DOM replacement disabled to prevent React reconciliation conflicts.
     document.documentElement.dataset.kaiV75 = 'active'
   } catch (error) {
     console.warn('[KAI_V75_ENHANCER_ERROR]', error)

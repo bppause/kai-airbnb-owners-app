@@ -694,6 +694,7 @@ export default function App() {
   const [pendingRegistrations, setPendingRegistrations] = useState([]);
   const [activeRegistrations, setActiveRegistrations] = useState([]);
   const [adminInfo, setAdminInfo] = useState({role:'user', isGlobalAdmin:false, canManageRegistrations:false, config:{}});
+  const [previewRole, setPreviewRole] = useState(null);
   const [openDropdown, setOpenDropdown] = useState(null);
   const initialView = new URLSearchParams(window.location.search).get('view') || "dashboard";
   const [view,      setView]      = useState(initialView);
@@ -711,6 +712,22 @@ export default function App() {
   const [retryCount, setRetryCount] = useState(0);
   const isApproved = registration?.status === "approved";
   const analyticsEnabledForAll = String(adminInfo?.config?.analytics_enabled || "false") === "true";
+
+  // ── ROLE PREVIEW (Global Admin only, view-only simulation, never writes to DB) ──
+  const ROLE_PREVIEW_PERMS = {
+    global_admin: { isGlobalAdmin:true, role:'global_admin', canManage:true, menu:{ dashboard:true, listings:true, incidents:true, notifications:true, about:true, my:true, analytics:true, approvals:true }, delegate:{ canApproveRegistrations:true, canResolveIncidents:true, canUpdateGlobalListings:true, canDeleteGlobalListings:true, canUpdateGlobalIncidents:true, canDeleteGlobalIncidents:true } },
+    delegate_admin: { isGlobalAdmin:false, role:'delegate_admin', canManage:true, menu:{ ...DEFAULT_STANDARD_MENU_PERMISSIONS, approvals:true }, delegate:{ ...DEFAULT_DELEGATE_PERMISSIONS } },
+    standard_admin: { isGlobalAdmin:false, role:'standard_admin', canManage:false, menu:{ ...DEFAULT_STANDARD_MENU_PERMISSIONS }, delegate:{ ...DEFAULT_DELEGATE_PERMISSIONS, canApproveRegistrations:false, canResolveIncidents:true } },
+    user: { isGlobalAdmin:false, role:'user', canManage:false, menu:{ ...DEFAULT_STANDARD_MENU_PERMISSIONS }, delegate:{ ...DEFAULT_DELEGATE_PERMISSIONS, canApproveRegistrations:false, canResolveIncidents:false } },
+  };
+  const PREVIEW_ROLE_LABELS = {
+    en: { global_admin:'Global Admin', delegate_admin:'Delegate Admin', standard_admin:'Standard Admin', user:'Owner/User' },
+    es: { global_admin:'Admin global', delegate_admin:'Admin delegado', standard_admin:'Admin estándar', user:'Propietario/Usuario' },
+  };
+  const previewPerms = previewRole ? ROLE_PREVIEW_PERMS[previewRole] : null;
+  const effectiveIsGlobalAdmin = previewPerms ? previewPerms.isGlobalAdmin : adminInfo.isGlobalAdmin;
+  const effectiveRole = previewPerms ? previewPerms.role : adminInfo.role;
+  const effectiveCanManageRegistrations = previewPerms ? previewPerms.canManage : adminInfo.canManageRegistrations;
 
   const loadAll = useCallback(async (isInit=false) => {
     if (!user?.uid || registration?.status !== "approved") { setLoading(false); return; }
@@ -865,17 +882,17 @@ export default function App() {
   const unreadNotifications = notifications.filter(n=>!n.isRead).length;
   // Derived set used for action-needed banners; keep safe to avoid home-screen render crashes.
   const myListingIds = new Set((myListings || []).map(l => l.id));
-  const menuPerms = { ...DEFAULT_STANDARD_MENU_PERMISSIONS, ...(adminInfo?.permissions?.menu || {}) };
-  const delegatePerms = { ...DEFAULT_DELEGATE_PERMISSIONS, ...(adminInfo?.permissions?.delegate || {}) };
-  const canSeeMenu = (id) => adminInfo.isGlobalAdmin || id === 'dashboard' || !!menuPerms[id];
+  const menuPerms = previewPerms ? previewPerms.menu : { ...DEFAULT_STANDARD_MENU_PERMISSIONS, ...(adminInfo?.permissions?.menu || {}) };
+  const delegatePerms = previewPerms ? previewPerms.delegate : { ...DEFAULT_DELEGATE_PERMISSIONS, ...(adminInfo?.permissions?.delegate || {}) };
+  const canSeeMenu = (id) => effectiveIsGlobalAdmin || id === 'dashboard' || !!menuPerms[id];
   const needsOwnerVerification = incidents.filter(i => i.status === "open" && myListingIds.has(i.aptId));
-  const canResolveIncidentsNow = Boolean(adminInfo.isGlobalAdmin || adminInfo.role === 'standard_admin' || delegatePerms.canResolveIncidents);
+  const canResolveIncidentsNow = Boolean(effectiveIsGlobalAdmin || effectiveRole === 'standard_admin' || delegatePerms.canResolveIncidents);
   const needsAdminResolution = incidents.filter(i => i.status === "verified" && canResolveIncidentsNow);
   const openSeriousIncidents = incidents.filter(i => i.status !== "resolved" && ["serious","watch","under_watch"].includes(String(i.category || "")));
   const smartAlerts = [
     needsOwnerVerification.length ? { id:"ownerVerification", priority:1, icon:"✅", tone:"owner", title:appText(lang,"smart.ownerTitle"), msg:appText(lang,"smart.ownerMsg",{count:needsOwnerVerification.length}), count:needsOwnerVerification.length, action:()=>{setIncidentQuickFilter("ownerVerification");setView("incidents");setOpenDropdown(null);} } : null,
     needsAdminResolution.length ? { id:"readyResolve", priority:2, icon:"🛠️", tone:"resolve", title:appText(lang,"smart.resolveTitle"), msg:appText(lang,"smart.resolveMsg",{count:needsAdminResolution.length}), count:needsAdminResolution.length, action:()=>{setIncidentQuickFilter("requiresResolution");setView("incidents");setOpenDropdown(null);} } : null,
-    adminInfo.canManageRegistrations && pendingRegistrations.length ? { id:"registrations", priority:3, icon:"📝", tone:"registration", title:appText(lang,"smart.registrationTitle"), msg:appText(lang,"smart.registrationMsg",{count:pendingRegistrations.length}), count:pendingRegistrations.length, action:()=>{setView("approvals");setOpenDropdown(null);} } : null,
+    effectiveCanManageRegistrations && pendingRegistrations.length ? { id:"registrations", priority:3, icon:"📝", tone:"registration", title:appText(lang,"smart.registrationTitle"), msg:appText(lang,"smart.registrationMsg",{count:pendingRegistrations.length}), count:pendingRegistrations.length, action:()=>{setView("approvals");setOpenDropdown(null);} } : null,
     unreadNotifications ? { id:"unread", priority:4, icon:"🔔", tone:"notice", title:appText(lang,"smart.unreadTitle"), msg:appText(lang,"smart.unreadMsg",{count:unreadNotifications}), count:unreadNotifications, action:()=>{setView("notifications");setOpenDropdown(null);} } : null,
     openSeriousIncidents.length ? { id:"serious", priority:5, icon:"🚨", tone:"serious", title:appText(lang,"smart.seriousTitle"), msg:appText(lang,"smart.seriousMsg",{count:openSeriousIncidents.length}), count:openSeriousIncidents.length, action:()=>{setIncidentQuickFilter("seriousOpen");setView("incidents");setOpenDropdown(null);} } : null,
   ].filter(Boolean).sort((a,b)=>a.priority-b.priority);
@@ -887,9 +904,9 @@ export default function App() {
     ...(isApproved && canSeeMenu('notifications') ? [{ id:"notifications", icon:"🔔", label:t.nav.notifications, badge: unreadNotifications }] : []),
     ...(canSeeMenu('about') ? [{ id:"about", icon:"🌊", label:t.nav.about }] : []),
     ...(isApproved ? [
-      ...(adminInfo.canManageRegistrations ? [{ id:"approvals", icon:"📝", label:t.nav.approvals, badge: pendingRegistrations.length }] : []),
-      ...(adminInfo.isGlobalAdmin ? [{ id:"admin", icon:"⚙️", label:t.nav.admin }] : []),
-      ...((adminInfo.isGlobalAdmin || (analyticsEnabledForAll && canSeeMenu('analytics'))) ? [{ id:"analytics", icon:"📈", label:t.nav.analytics }] : []),
+      ...(effectiveCanManageRegistrations ? [{ id:"approvals", icon:"📝", label:t.nav.approvals, badge: pendingRegistrations.length }] : []),
+      ...(effectiveIsGlobalAdmin ? [{ id:"admin", icon:"⚙️", label:t.nav.admin }] : []),
+      ...((effectiveIsGlobalAdmin || (analyticsEnabledForAll && canSeeMenu('analytics'))) ? [{ id:"analytics", icon:"📈", label:t.nav.analytics }] : []),
       ...(canSeeMenu('my') ? [{ id:"my", icon:"🔑", label:t.nav.my, badge: myListings.length }] : [])
     ] : []),
   ];
@@ -1056,6 +1073,14 @@ export default function App() {
           </nav>
 
           <div className="hdr-right">
+            {adminInfo.isGlobalAdmin && (
+              <select className="view-as-select" value={previewRole || ''} onChange={e=>setPreviewRole(e.target.value||null)} title={lang==='en'?'Preview as role':'Vista previa como rol'} aria-label={lang==='en'?'Preview as role':'Vista previa como rol'}>
+                <option value="">{lang==='en'?'👁️ View as...':'👁️ Ver como...'}</option>
+                <option value="delegate_admin">{lang==='en'?'Delegate Admin':'Admin delegado'}</option>
+                <option value="standard_admin">{lang==='en'?'Standard Admin':'Admin estándar'}</option>
+                <option value="user">{lang==='en'?'Owner/User':'Propietario'}</option>
+              </select>
+            )}
             <LanguageSwitch lang={lang} setLang={setLang} compact />
             <div className="smart-dd" onClick={e=>e.stopPropagation()}>
               <button className={`icon-btn ${openDropdown==="smart"||view==="notifications"?"icon-active":""}`} onClick={()=>setOpenDropdown(openDropdown === "smart" ? null : "smart")} title={appText(lang,"smart.title")}>🔔{smartAlertCount>0 && <span className="icon-badge">{smartAlertCount}</span>}</button>
@@ -1076,8 +1101,8 @@ export default function App() {
                   <div className="profile-head"><strong>{user.name}</strong><span>{user.email}</span><small>{myListings.length ? `${myListings.length} ${lang === 'en' ? (myListings.length>1?'listings':'listing') : ('apto' + (myListings.length>1?'s':''))}` : (lang === "en" ? "Visitor" : "Visitante")}</small></div>
                   <button className="dd-item" onClick={()=>{setView('dashboard');setOpenDropdown(null);}}>{lang === "en" ? "👤 My profile" : "👤 Mi perfil"}</button>
                   <button className="dd-item" onClick={()=>{setView('my');setOpenDropdown(null);}}>🔑 {t.nav.my}</button>
-                  {adminInfo.isGlobalAdmin && <button className="dd-item" onClick={()=>{setView('admin');setOpenDropdown(null);}}>⚙️ {t.nav.admin}</button>}
-                  {(adminInfo.isGlobalAdmin || analyticsEnabledForAll) && <button className="dd-item" onClick={()=>{setView('analytics');setOpenDropdown(null);}}>📈 {t.nav.analytics}</button>}
+                  {effectiveIsGlobalAdmin && <button className="dd-item" onClick={()=>{setView('admin');setOpenDropdown(null);}}>⚙️ {t.nav.admin}</button>}
+                  {(effectiveIsGlobalAdmin || analyticsEnabledForAll) && <button className="dd-item" onClick={()=>{setView('analytics');setOpenDropdown(null);}}>📈 {t.nav.analytics}</button>}
                   <div className="profile-lang"><span>{lang === "en" ? "🌐 Language" : "🌐 Idioma"}</span><LanguageSwitch lang={lang} setLang={setLang} compact /></div>
                   <button className="dd-item danger" onClick={()=>{setOpenDropdown(null);logout();}}>{lang === "en" ? "🚪 Log out" : "🚪 Cerrar sesión"}</button>
                 </div>
@@ -1096,6 +1121,12 @@ export default function App() {
           ))}
         </div>
       </header>
+      {adminInfo.isGlobalAdmin && previewRole && (
+        <div className="role-preview-banner" role="alert" aria-live="polite">
+          <span>👁️ {lang==='en' ? `Viewing as: ${PREVIEW_ROLE_LABELS.en[previewRole]} — read-only preview` : `Vista como: ${PREVIEW_ROLE_LABELS.es[previewRole]} — solo vista previa`}</span>
+          <button type="button" onClick={()=>setPreviewRole(null)}>{lang==='en'?'✕ Exit preview':'✕ Salir de vista'}</button>
+        </div>
+      )}
       <ActionNeededBanner
         lang={lang}
         ownerItems={needsOwnerVerification}
@@ -1103,16 +1134,15 @@ export default function App() {
         onOwnerClick={()=>{setIncidentQuickFilter('ownerVerification');setView('incidents');}}
         onResolveClick={()=>{setIncidentQuickFilter('requiresResolution');setView('incidents');}}
       />
-      <RoleOutcomeGuide lang={lang} adminInfo={adminInfo} delegatePerms={delegatePerms} ownerCount={myListings.length} pendingOwner={needsOwnerVerification.length} pendingResolve={needsAdminResolution.length} onGo={(v)=>setView(v)} />
-      <BetaCommandCenter lang={lang} alerts={smartAlerts} pendingOwner={needsOwnerVerification.length} pendingResolve={needsAdminResolution.length} pendingRegistrations={pendingRegistrations.length} openCount={openCount} isAdmin={adminInfo.isGlobalAdmin || adminInfo.canManageRegistrations || adminInfo.role === "standard_admin"} onGo={(target)=>{ if(target==="ownerVerification"){setIncidentQuickFilter("ownerVerification");setView("incidents");return;} if(target==="requiresResolution"){setIncidentQuickFilter("requiresResolution");setView("incidents");return;} if(target==="registrations"){setView("approvals");return;} if(target==="incidents"){setView("incidents");return;} setView(target); }} />
+      <RoleOutcomeGuide lang={lang} adminInfo={{...adminInfo, isGlobalAdmin:effectiveIsGlobalAdmin, role:effectiveRole, canManageRegistrations:effectiveCanManageRegistrations}} delegatePerms={delegatePerms} ownerCount={myListings.length} pendingOwner={needsOwnerVerification.length} pendingResolve={needsAdminResolution.length} onGo={(v)=>setView(v)} />
       <main className="main">
-        {view==="dashboard" && <Dashboard lang={lang} listings={listings} incidents={incidents} user={user} quickFilter={incidentQuickFilter} onQuickFilterApplied={()=>setIncidentQuickFilter(null)} contactProps={contactProps} setView={setView} showBlacklist={false} onReport={()=>{ if(!user){login();return;} setModal({type:"incident"}); }} />}
+        {view==="dashboard" && <><BetaCommandCenter lang={lang} alerts={smartAlerts} pendingOwner={needsOwnerVerification.length} pendingResolve={needsAdminResolution.length} pendingRegistrations={pendingRegistrations.length} openCount={openCount} isAdmin={effectiveIsGlobalAdmin || effectiveCanManageRegistrations || effectiveRole==="standard_admin"} onGo={(target)=>{ if(target==="ownerVerification"){setIncidentQuickFilter("ownerVerification");setView("incidents");return;} if(target==="requiresResolution"){setIncidentQuickFilter("requiresResolution");setView("incidents");return;} if(target==="registrations"){setView("approvals");return;} if(target==="incidents"){setView("incidents");return;} setView(target); }} /><Dashboard lang={lang} listings={listings} incidents={incidents} user={user} quickFilter={incidentQuickFilter} onQuickFilterApplied={()=>setIncidentQuickFilter(null)} contactProps={contactProps} setView={setView} showBlacklist={false} onReport={()=>{ if(!user){login();return;} setModal({type:"incident"}); }} /></>}
         {view==="about" && <CommunityMissionView lang={lang} config={adminInfo.config} />}
-        {view==="listings"  && <ListingsView lang={lang} listings={listings} incidents={incidents} user={user} contactProps={contactProps} isGlobalAdmin={adminInfo.isGlobalAdmin} canEditGlobal={delegatePerms.canUpdateGlobalListings} canDeleteGlobal={delegatePerms.canDeleteGlobalListings} onAdd={()=>{ if(!user){login();return;} setModal({type:"addListing"}); }} onEdit={l=>setModal({type:"editListing",data:l})} onDelete={deleteListing} onReport={l=>{ if(!user){login();return;} setModal({type:"incident",data:{aptId:l.id}}); }} />}
-        {view==="incidents" && <IncidentsView lang={lang} incidents={incidents} listings={listings} user={user} quickFilter={incidentQuickFilter} onQuickFilterApplied={()=>setIncidentQuickFilter(null)} contactProps={contactProps} isGlobalAdmin={adminInfo.isGlobalAdmin} canUpdateGlobal={delegatePerms.canUpdateGlobalIncidents} canDeleteGlobal={delegatePerms.canDeleteGlobalIncidents} canResolveGlobal={canResolveIncidentsNow} onAdd={()=>{ if(!user){login();return;} setModal({type:"incident"}); }} onResolve={resolveIncident} onDelete={deleteIncident} onVerify={inc=>setModal({type:"verifyIncident",data:inc})} />}
+        {view==="listings"  && <ListingsView lang={lang} listings={listings} incidents={incidents} user={user} contactProps={contactProps} isGlobalAdmin={effectiveIsGlobalAdmin} canEditGlobal={delegatePerms.canUpdateGlobalListings} canDeleteGlobal={delegatePerms.canDeleteGlobalListings} onAdd={()=>{ if(!user){login();return;} setModal({type:"addListing"}); }} onEdit={l=>setModal({type:"editListing",data:l})} onDelete={deleteListing} onReport={l=>{ if(!user){login();return;} setModal({type:"incident",data:{aptId:l.id}}); }} />}
+        {view==="incidents" && <IncidentsView lang={lang} incidents={incidents} listings={listings} user={user} quickFilter={incidentQuickFilter} onQuickFilterApplied={()=>setIncidentQuickFilter(null)} contactProps={contactProps} isGlobalAdmin={effectiveIsGlobalAdmin} canUpdateGlobal={delegatePerms.canUpdateGlobalIncidents} canDeleteGlobal={delegatePerms.canDeleteGlobalIncidents} canResolveGlobal={canResolveIncidentsNow} onAdd={()=>{ if(!user){login();return;} setModal({type:"incident"}); }} onResolve={resolveIncident} onDelete={deleteIncident} onVerify={inc=>setModal({type:"verifyIncident",data:inc})} />}
         {view==="notifications" && user && <NotificationsView lang={lang} notifications={notifications} incidents={incidents} listings={listings} contactProps={contactProps} onRead={markNotificationRead} onReadAll={markAllNotificationsRead} />}
-        {view==="approvals" && user && adminInfo.canManageRegistrations && <PendingApprovalsView lang={lang} pending={pendingRegistrations} onApprove={id=>reviewRegistrationAction(id,'approve')} onDecline={id=>reviewRegistrationAction(id,'decline')} active={activeRegistrations} />}
-        {view==="analytics" && user && (adminInfo.isGlobalAdmin || analyticsEnabledForAll) && <AnalyticsDashboard lang={lang} user={user} contactProps={contactProps} showToast={showToast} isGlobalAdmin={adminInfo.isGlobalAdmin} />}
+        {view==="approvals" && user && effectiveCanManageRegistrations && <PendingApprovalsView lang={lang} pending={pendingRegistrations} onApprove={id=>reviewRegistrationAction(id,'approve')} onDecline={id=>reviewRegistrationAction(id,'decline')} active={activeRegistrations} />}
+        {view==="analytics" && user && (effectiveIsGlobalAdmin || analyticsEnabledForAll) && <AnalyticsDashboard lang={lang} user={user} contactProps={contactProps} showToast={showToast} isGlobalAdmin={effectiveIsGlobalAdmin} />}
         {view==="admin" && user && (adminInfo.isGlobalAdmin ? <ErrorBoundary section="admin" fallback={(err)=><AdminFallback lang={lang} error={err}/>}><AdminSettings config={adminInfo.config || {}} user={user} listings={listings} contactProps={contactProps} onSave={saveAdminConfig} showToast={showToast} lang={lang} /></ErrorBoundary> : <AdminAccessHelp user={user} adminInfo={adminInfo} lang={lang} />)}
         {view==="my" && user && <MyListings lang={lang} listings={myListings} incidents={incidents} user={user} contactProps={contactProps} onAdd={()=>setModal({type:"addListing"})} onEdit={l=>setModal({type:"editListing",data:l})} onDelete={deleteListing} onReport={l=>setModal({type:"incident",data:{aptId:l.id}})} />}
       </main>
@@ -2116,5 +2146,24 @@ html{font-size:clamp(14px,1.1vw,16px);-webkit-text-size-adjust:100%}body{overflo
 
 /* --- guest display --------------------------------------------------------- */
 .guest-display-list{font-size:.8rem;color:#235f72;line-height:1.55;padding:4px 0}
+
+/* --- role preview banner (Global Admin only) ------------------------------- */
+.role-preview-banner{position:sticky;top:62px;z-index:89999;background:#fbbf24;color:#1a1200;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:9px 24px;font-weight:700;font-size:.86rem;box-shadow:0 2px 8px rgba(0,0,0,.12)}
+.role-preview-banner>span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.role-preview-banner>button{flex-shrink:0;background:rgba(0,0,0,.14);border:1px solid rgba(0,0,0,.22);border-radius:8px;padding:5px 12px;font-weight:900;cursor:pointer;color:#1a1200;white-space:nowrap;font-size:.82rem}
+.role-preview-banner>button:hover{background:rgba(0,0,0,.24)}
+@media(max-width:600px){.role-preview-banner{padding:8px 12px;font-size:.78rem}.role-preview-banner>span{font-size:.72rem}}
+
+/* --- view-as selector (Global Admin only, in .hdr-right) ------------------- */
+.view-as-select{height:36px;border-radius:10px;border:1px solid rgba(47,79,58,.22)!important;background:rgba(255,255,252,.96)!important;color:#17313a!important;padding:0 8px!important;font-weight:800;font-size:.76rem;cursor:pointer;max-width:148px}
+@media(max-width:1180px){.view-as-select{max-width:120px;font-size:.72rem}}
+@media(max-width:1000px){.view-as-select{display:none}}
+
+/* --- FIX 1: nav overflow at 900-1200 px ----------------------------------- */
+@media(max-width:1200px) and (min-width:1001px){
+  .hdr-inner{gap:6px!important}
+  .nav .nb{font-size:.76rem!important;padding:7px 8px!important}
+  .nav-dd-menu{right:215px!important}
+}
 
 `;
