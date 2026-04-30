@@ -1,6 +1,8 @@
 -- Supabase schema for Propietarios Airbnb KAI
--- v22: listings is the single source of truth, with operator contacts, SLA escalation, admin config, and owner incident verification.
+-- v45: owner WhatsApp stored on app_users profile and propagated to listings.
+--      email_notification_config added to app_config for per-type email routing.
 -- Run this in Supabase Dashboard → SQL Editor → New query → Run.
+-- Safe to run on an existing database — all statements use IF NOT EXISTS / ON CONFLICT DO NOTHING.
 -- No demo/test data is inserted.
 
 create table if not exists public.listings (
@@ -156,6 +158,7 @@ create table if not exists public.app_users (
   role text not null default 'user' check (role in ('user','delegate_admin','global_admin')),
   permissions jsonb not null default '{}'::jsonb,
   language_preference text not null default 'es-CO' check (language_preference in ('es-CO','en')),
+  whatsapp text not null default '',
   updated_at timestamptz not null default now()
 );
 
@@ -326,3 +329,30 @@ insert into public.app_config(key, value) values
   ('standard_menu_permissions','{"dashboard":true,"listings":true,"incidents":true,"notifications":true,"about":true,"my":true,"analytics":false}'),
   ('default_delegate_permissions','{"canApproveRegistrations":true,"canResolveIncidents":true,"canUpdateGlobalListings":false,"canDeleteGlobalListings":false,"canUpdateGlobalIncidents":false,"canDeleteGlobalIncidents":false}')
 on conflict (key) do nothing;
+
+-- v45: owner WhatsApp profile field
+-- Stored on app_users and propagated automatically to listings.contact when the profile is saved.
+alter table public.app_users add column if not exists whatsapp text not null default '';
+
+-- v45: per-type email notification routing config
+-- Admins can toggle each email type and which roles receive it from the Admin → Email Routing panel.
+-- This seed provides the default config; the admin panel writes updates back to this row.
+insert into public.app_config(key, value) values (
+  'email_notification_config',
+  '{
+    "incident_new":              {"enabled":true,  "owner":true,  "operator":true,  "globalAdmin":true,  "delegateAdmin":true },
+    "incident_sla_notification": {"enabled":true,  "owner":true,  "operator":true,  "globalAdmin":false, "delegateAdmin":false},
+    "incident_sla_reminder":     {"enabled":true,  "owner":true,  "operator":true,  "globalAdmin":false, "delegateAdmin":false},
+    "incident_sla":              {"enabled":true,  "owner":true,  "operator":true,  "globalAdmin":true,  "delegateAdmin":false},
+    "incident_verified":         {"enabled":true,  "owner":true,  "operator":true,  "globalAdmin":true,  "delegateAdmin":true },
+    "incident_resolved":         {"enabled":true,  "owner":true,  "operator":true,  "globalAdmin":true,  "delegateAdmin":true },
+    "registration_submitted":    {"enabled":true,  "owner":true,  "operator":false, "globalAdmin":false, "delegateAdmin":false},
+    "registration_approved":     {"enabled":true,  "owner":true,  "operator":false, "globalAdmin":true,  "delegateAdmin":true },
+    "registration_declined":     {"enabled":true,  "owner":true,  "operator":false, "globalAdmin":true,  "delegateAdmin":true },
+    "registration_status_admin": {"enabled":true,  "owner":false, "operator":false, "globalAdmin":true,  "delegateAdmin":true },
+    "registration_reviewer":     {"enabled":true,  "owner":true,  "operator":false, "globalAdmin":true,  "delegateAdmin":true },
+    "listing_created":           {"enabled":true,  "owner":true,  "operator":false, "globalAdmin":false, "delegateAdmin":false},
+    "listing_updated":           {"enabled":true,  "owner":true,  "operator":false, "globalAdmin":false, "delegateAdmin":false},
+    "listing_deleted":           {"enabled":true,  "owner":true,  "operator":false, "globalAdmin":false, "delegateAdmin":false}
+  }'
+) on conflict (key) do nothing;
