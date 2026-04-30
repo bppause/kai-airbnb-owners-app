@@ -503,7 +503,22 @@ const incidentTypeLabel = (value, lang='es-CO') => appText(lang, `incidentType.$
 const categoryLabel = (value, lang='es-CO') => appText(lang, `category.${value || 'minor'}`);
 
 
-const normalizePhoneForWhatsApp = (v='') => String(v || '').replace(/[^0-9]/g, '');
+// Strip everything except digits. Requires ≥10 digits (country code + subscriber)
+// to produce a usable wa.me link; returns '' for short/missing numbers.
+const normalizePhoneForWhatsApp = (v='') => {
+  const digits = String(v || '').replace(/[^0-9]/g, '');
+  return digits.length >= 10 ? digits : '';
+};
+const validateWhatsApp = (v='', lang='es-CO') => {
+  const raw = String(v || '').trim();
+  if (!raw) return ''; // field is optional — blank is fine
+  const digits = raw.replace(/[^0-9]/g, '');
+  if (digits.length < 10) return lang === 'en'
+    ? 'Include country code — e.g. +57 300 000 0000 (Colombia)'
+    : 'Incluya el código de país — ej. +57 300 000 0000 (Colombia)';
+  return '';
+};
+const validateEmail = (v='') => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(v || '').trim());
 const copyText = async (text, showToast=()=>{}, lang='es-CO') => {
   const value = String(text || '').trim();
   if (!value) return;
@@ -1702,10 +1717,12 @@ function RegistrationListingForm({ user, onSubmit, submitText, lang="es-CO" }) {
       seen[apt]=true;
       if(!String(f.rooms||'').trim()) e[`rooms_${i}`]=appText(lang,'validation.roomsRequired');
       if(!f.guests || Number(f.guests)<1) e[`guests_${i}`]=appText(lang,'validation.capacityRequired');
-      if(String(f.operatorEmail||'').trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(f.operatorEmail).trim())) e[`operatorEmail_${i}`]=appText(lang,'validation.operatorEmailInvalid');
+      if(String(f.operatorEmail||'').trim() && !validateEmail(f.operatorEmail)) e[`operatorEmail_${i}`]=appText(lang,'validation.operatorEmailInvalid');
+      const waOpErr=validateWhatsApp(f.operatorWhatsapp,lang); if(waOpErr) e[`operatorWhatsapp_${i}`]=waOpErr;
       if(!String(f.contact||'').trim()) e[`contact_${i}`]=appText(lang,'validation.ownerWhatsappRequired');
+      else { const waErr=validateWhatsApp(f.contact,lang); if(waErr) e[`contact_${i}`]=waErr; }
       if(!String(f.email||'').trim()) e[`email_${i}`]=appText(lang,'validation.emailRequired');
-      else if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(f.email).trim())) e[`email_${i}`]=appText(lang,'validation.emailInvalid');
+      else if(!validateEmail(f.email)) e[`email_${i}`]=appText(lang,'validation.emailInvalid');
       if(f.airbnb && !/^https?:\/\/.+/i.test(String(f.airbnb).trim())) e[`airbnb_${i}`]=appText(lang,'validation.urlInvalid');
     });
     setErrors(prev=>({...prev,...e})); return Object.keys({...errors,...e}).filter(k=>({...errors,...e})[k]).length===0;
@@ -1722,13 +1739,13 @@ function RegistrationListingForm({ user, onSubmit, submitText, lang="es-CO" }) {
         <div className="fg"><label>{appText(lang,"form.guestCapacity")}</label><input className={cls(`guests_${i}`)} type="number" value={f.guests} onChange={e=>setVal(i,'guests',parseInt(e.target.value)||'')} min={1}/>{errors[`guests_${i}`]&&<span className="err-msg">{errors[`guests_${i}`]}</span>}</div>
         <div className="fg"><label>{appText(lang,"form.operatorOptional")} <Tip text={tips.operator}/></label><input className={cls(`operator_${i}`)} value={f.operator} onChange={e=>setVal(i,'operator',e.target.value)} placeholder={appText(lang,"form.operatorPlaceholder")}/>{errors[`operator_${i}`]&&<span className="err-msg">{errors[`operator_${i}`]}</span>}</div>
         <div className="fg"><label>{appText(lang,"form.operatorEmailOptional")} <Tip text={tips.operatorEmail}/></label><input className={cls(`operatorEmail_${i}`)} type="email" value={f.operatorEmail} onChange={e=>setVal(i,'operatorEmail',e.target.value)} placeholder="operador@email.com"/>{errors[`operatorEmail_${i}`]&&<span className="err-msg">{errors[`operatorEmail_${i}`]}</span>}</div>
-        <div className="fg"><label>{appText(lang,"form.operatorWhatsappOptional")} <Tip text={tips.operatorWhatsapp}/></label><input className={cls(`operatorWhatsapp_${i}`)} value={f.operatorWhatsapp} onChange={e=>setVal(i,'operatorWhatsapp',e.target.value)} placeholder="+57 300 000 0000"/>{errors[`operatorWhatsapp_${i}`]&&<span className="err-msg">{errors[`operatorWhatsapp_${i}`]}</span>}</div>
-        <div className="fg"><label>{appText(lang,"form.ownerWhatsapp")} <Tip text={tips.ownerWhatsapp}/></label><input className={cls(`contact_${i}`)} value={f.contact} onChange={e=>setVal(i,'contact',e.target.value)} placeholder="+57 300 000 0000"/>{errors[`contact_${i}`]&&<span className="err-msg">{errors[`contact_${i}`]}</span>}</div>
+        <div className="fg"><label>{appText(lang,"form.operatorWhatsappOptional")} <Tip text={tips.operatorWhatsapp}/></label><input className={cls(`operatorWhatsapp_${i}`)} type="tel" value={f.operatorWhatsapp} onChange={e=>setVal(i,'operatorWhatsapp',e.target.value)} placeholder="+57 300 000 0000"/>{errors[`operatorWhatsapp_${i}`]?<span className="err-msg">{errors[`operatorWhatsapp_${i}`]}</span>:<span className="help-msg">{lang==='en'?'With country code, e.g. +57':'Con código de país, ej. +57'}</span>}</div>
+        <div className="fg"><label>{appText(lang,"form.ownerWhatsapp")} <Tip text={tips.ownerWhatsapp}/></label><input className={cls(`contact_${i}`)} type="tel" value={f.contact} onChange={e=>setVal(i,'contact',e.target.value)} placeholder="+57 300 000 0000"/>{errors[`contact_${i}`]?<span className="err-msg">{errors[`contact_${i}`]}</span>:<span className="help-msg">{lang==='en'?'With country code, e.g. +57':'Con código de país, ej. +57'}</span>}</div>
         <div className="fg full"><label>{appText(lang,"form.listingEmail")} <Tip text={tips.listingEmail}/></label><input className={cls(`email_${i}`)} type="email" value={f.email} onChange={e=>setVal(i,'email',e.target.value)} placeholder={user?.email || 'propietario@email.com'}/>{errors[`email_${i}`]&&<span className="err-msg">{errors[`email_${i}`]}</span>}<span className="help-msg">{appText(lang,"form.listingEmailHelp")}</span></div>
         <div className="fg full"><label>{appText(lang,"form.airbnbOptional")} <span style={{color:"#70d6c6",fontStyle:"italic",textTransform:"none",letterSpacing:0,fontSize:"0.68rem"}}>({appText(lang,"form.optional")})</span></label><input className={cls(`airbnb_${i}`)} value={f.airbnb} onChange={e=>setVal(i,'airbnb',e.target.value)} placeholder="https://www.airbnb.com/rooms/..."/>{errors[`airbnb_${i}`]&&<span className="err-msg">{errors[`airbnb_${i}`]}</span>}</div>
       </div>
     </div>)}
-    <div className="mact"><button className="btn-ghost" onClick={()=>setItems(rows=>[...rows, makeBlank()])}>{appText(lang,"form.addAnotherListing")}</button><button className="btn-p" onClick={()=>{ if(validate()) onSubmit(items.map(x=>({...x,apt:String(x.apt).trim(),tower:'KAI',email:String(x.email).trim(),contact:String(x.contact).trim(),operatorEmail:String(x.operatorEmail||'').trim(),operatorWhatsapp:String(x.operatorWhatsapp||'').trim(),airbnb:String(x.airbnb||'').trim()}))); }}>{submitText}</button></div>
+    <div className="mact"><button className="btn-ghost" onClick={()=>setItems(rows=>[...rows, makeBlank()])}>{appText(lang,"form.addAnotherListing")}</button><button className="btn-p" onClick={()=>{ if(validate()) onSubmit(items.map(x=>({...x,apt:String(x.apt).trim(),tower:'KAI',email:String(x.email).trim().toLowerCase(),contact:String(x.contact).trim(),operatorEmail:String(x.operatorEmail||'').trim().toLowerCase(),operatorWhatsapp:String(x.operatorWhatsapp||'').trim(),airbnb:String(x.airbnb||'').trim()}))); }}>{submitText}</button></div>
   </div>;
 }
 
@@ -2175,10 +2192,12 @@ function ListingModal({ title, user, initial={}, onSave, onClose, lang="es-CO", 
     else if(!/^[0-9]{3}$/.test(String(f.apt).trim())) e.apt=appText(lang,'validation.aptFormat');
     if(!String(f.rooms||"").trim()) e.rooms=appText(lang,'validation.roomsRequired');
     if(!f.guests || Number(f.guests)<1) e.guests=appText(lang,'validation.capacityRequired');
-    if(String(f.operatorEmail||"").trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(f.operatorEmail).trim())) e.operatorEmail=appText(lang,'validation.operatorEmailInvalid');
+    if(String(f.operatorEmail||"").trim() && !validateEmail(f.operatorEmail)) e.operatorEmail=appText(lang,'validation.operatorEmailInvalid');
+    const waOpErr=validateWhatsApp(f.operatorWhatsapp,lang); if(waOpErr) e.operatorWhatsapp=waOpErr;
     if(!String(f.contact||"").trim()) e.contact=appText(lang,'validation.ownerWhatsappRequired');
+    else { const waErr=validateWhatsApp(f.contact,lang); if(waErr) e.contact=waErr; }
     if(!String(f.email||"").trim()) e.email=appText(lang,'validation.emailRequired');
-    else if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(f.email).trim())) e.email=appText(lang,'validation.emailInvalid');
+    else if(!validateEmail(f.email)) e.email=appText(lang,'validation.emailInvalid');
     if(f.airbnb && !/^https?:\/\/.+/i.test(String(f.airbnb).trim())) e.airbnb=appText(lang,'validation.urlInvalid');
     setErrors(e);
     return Object.keys(e).length===0;
@@ -2195,12 +2214,12 @@ function ListingModal({ title, user, initial={}, onSave, onClose, lang="es-CO", 
         <div className="fg"><label>{appText(lang,"form.guestCapacity")}</label><input className={inputCls("guests")} type="number" value={f.guests} onChange={e=>s("guests",parseInt(e.target.value)||"")} min={1} max={20}/>{errors.guests&&<span className="err-msg">{errors.guests}</span>}</div>
         <div className="fg"><label>{appText(lang,"form.operatorOptional")} <Tip text={tips.operator}/></label><input className={inputCls("operator")} value={f.operator} onChange={e=>s("operator",e.target.value)} placeholder={appText(lang,"form.operatorPlaceholder")}/>{errors.operator&&<span className="err-msg">{errors.operator}</span>}</div>
         <div className="fg"><label>{appText(lang,"form.operatorEmailOptional")} <Tip text={tips.operatorEmail}/></label><input className={inputCls("operatorEmail")} type="email" value={f.operatorEmail} onChange={e=>s("operatorEmail",e.target.value)} placeholder="operador@email.com"/>{errors.operatorEmail&&<span className="err-msg">{errors.operatorEmail}</span>}</div>
-        <div className="fg"><label>{appText(lang,"form.operatorWhatsappOptional")} <Tip text={tips.operatorWhatsapp}/></label><input className={inputCls("operatorWhatsapp")} value={f.operatorWhatsapp} onChange={e=>s("operatorWhatsapp",e.target.value)} placeholder="+57 300 000 0000"/>{errors.operatorWhatsapp&&<span className="err-msg">{errors.operatorWhatsapp}</span>}</div>
-        <div className="fg"><label>{appText(lang,"form.ownerWhatsapp")} <Tip text={tips.ownerWhatsapp}/></label><input className={inputCls("contact")} value={f.contact} onChange={e=>s("contact",e.target.value)} placeholder="+57 300 000 0000"/>{errors.contact&&<span className="err-msg">{errors.contact}</span>}</div>
+        <div className="fg"><label>{appText(lang,"form.operatorWhatsappOptional")} <Tip text={tips.operatorWhatsapp}/></label><input className={inputCls("operatorWhatsapp")} type="tel" value={f.operatorWhatsapp} onChange={e=>s("operatorWhatsapp",e.target.value)} placeholder="+57 300 000 0000"/>{errors.operatorWhatsapp?<span className="err-msg">{errors.operatorWhatsapp}</span>:<span className="help-msg">{lang==='en'?'With country code, e.g. +57':'Con código de país, ej. +57'}</span>}</div>
+        <div className="fg"><label>{appText(lang,"form.ownerWhatsapp")} <Tip text={tips.ownerWhatsapp}/></label><input className={inputCls("contact")} type="tel" value={f.contact} onChange={e=>s("contact",e.target.value)} placeholder="+57 300 000 0000"/>{errors.contact?<span className="err-msg">{errors.contact}</span>:<span className="help-msg">{lang==='en'?'With country code, e.g. +57':'Con código de país, ej. +57'}</span>}</div>
         <div className="fg full"><label>{appText(lang,"form.listingEmail")} <Tip text={tips.listingEmail}/></label><input className={inputCls("email")} type="email" value={f.email} onChange={e=>s("email",e.target.value)} placeholder={user?.email || appText(lang,"form.ownerEmailPlaceholder")}/>{errors.email&&<span className="err-msg">{errors.email}</span>}<span className="help-msg">{appText(lang,"form.listingEmailHelp")}</span></div>
         <div className="fg full"><label>{appText(lang,"form.airbnbOptional")} <span style={{color:"#70d6c6",fontStyle:"italic",textTransform:"none",letterSpacing:0,fontSize:"0.68rem"}}>({appText(lang,"form.optional")})</span></label><input className={inputCls("airbnb")} value={f.airbnb} onChange={e=>s("airbnb",e.target.value)} placeholder="https://www.airbnb.com/rooms/..."/>{errors.airbnb&&<span className="err-msg">{errors.airbnb}</span>}</div>
       </div>
-      <div className="mact"><button className="btn-ghost" onClick={onClose}>{appText(lang,"form.cancel")}</button><button className="btn-p" onClick={()=>{if(validate()) onSave({...f,apt:String(f.apt).trim(),tower:"KAI",operatorEmail:String(f.operatorEmail||"").trim(),operatorWhatsapp:String(f.operatorWhatsapp||"").trim(),contact:String(f.contact||"").trim(),email:String(f.email).trim(),airbnb:String(f.airbnb||"").trim()});}}>{appText(lang,"form.save")}</button></div>
+      <div className="mact"><button className="btn-ghost" onClick={onClose}>{appText(lang,"form.cancel")}</button><button className="btn-p" onClick={()=>{if(validate()) onSave({...f,apt:String(f.apt).trim(),tower:"KAI",operatorEmail:String(f.operatorEmail||"").trim().toLowerCase(),operatorWhatsapp:String(f.operatorWhatsapp||"").trim(),contact:String(f.contact||"").trim(),email:String(f.email).trim().toLowerCase(),airbnb:String(f.airbnb||"").trim()});}}>{appText(lang,"form.save")}</button></div>
     </Overlay>
   );
 }
