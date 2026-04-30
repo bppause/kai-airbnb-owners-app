@@ -2,6 +2,7 @@ import React from 'react'
 import ReactDOM from 'react-dom/client'
 import App from './App.jsx'
 import './production-ui.css'
+import { installAdminRegistrationAwareness } from './enhancers/adminRegistrationAwareness'
 
 class RootErrorBoundary extends React.Component {
   constructor(props) {
@@ -43,3 +44,10 @@ class RootErrorBoundary extends React.Component {
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode><RootErrorBoundary><App /></RootErrorBoundary></React.StrictMode>
 )
+
+// Activate v72 enterprise enhancer layer
+try {
+  installAdminRegistrationAwareness()
+} catch (e) {
+  console.warn('[KAI_V72_INIT_ERROR]', e)
+}
