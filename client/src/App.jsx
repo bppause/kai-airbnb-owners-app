@@ -1127,16 +1127,19 @@ export default function App() {
           <button type="button" onClick={()=>setPreviewRole(null)}>{lang==='en'?'✕ Exit preview':'✕ Salir de vista'}</button>
         </div>
       )}
-      <ActionNeededBanner
+      <ActionStrip
         lang={lang}
-        ownerItems={needsOwnerVerification}
-        resolveItems={needsAdminResolution}
+        pendingOwner={needsOwnerVerification.length}
+        pendingResolve={needsAdminResolution.length}
+        pendingRegistrations={effectiveCanManageRegistrations ? pendingRegistrations.length : 0}
+        canResolve={canResolveIncidentsNow}
+        canManageRegistrations={effectiveCanManageRegistrations}
         onOwnerClick={()=>{setIncidentQuickFilter('ownerVerification');setView('incidents');}}
         onResolveClick={()=>{setIncidentQuickFilter('requiresResolution');setView('incidents');}}
+        onRegistrationsClick={()=>setView('approvals')}
       />
-      <RoleOutcomeGuide lang={lang} adminInfo={{...adminInfo, isGlobalAdmin:effectiveIsGlobalAdmin, role:effectiveRole, canManageRegistrations:effectiveCanManageRegistrations}} delegatePerms={delegatePerms} ownerCount={myListings.length} pendingOwner={needsOwnerVerification.length} pendingResolve={needsAdminResolution.length} onGo={(v)=>setView(v)} />
       <main className="main">
-        {view==="dashboard" && <><BetaCommandCenter lang={lang} alerts={smartAlerts} pendingOwner={needsOwnerVerification.length} pendingResolve={needsAdminResolution.length} pendingRegistrations={pendingRegistrations.length} openCount={openCount} isAdmin={effectiveIsGlobalAdmin || effectiveCanManageRegistrations || effectiveRole==="standard_admin"} onGo={(target)=>{ if(target==="ownerVerification"){setIncidentQuickFilter("ownerVerification");setView("incidents");return;} if(target==="requiresResolution"){setIncidentQuickFilter("requiresResolution");setView("incidents");return;} if(target==="registrations"){setView("approvals");return;} if(target==="incidents"){setView("incidents");return;} setView(target); }} /><Dashboard lang={lang} listings={listings} incidents={incidents} user={user} quickFilter={incidentQuickFilter} onQuickFilterApplied={()=>setIncidentQuickFilter(null)} contactProps={contactProps} setView={setView} showBlacklist={false} onReport={()=>{ if(!user){login();return;} setModal({type:"incident"}); }} /></>}
+        {view==="dashboard" && <Dashboard lang={lang} listings={listings} incidents={incidents} user={user} quickFilter={incidentQuickFilter} onQuickFilterApplied={()=>setIncidentQuickFilter(null)} contactProps={contactProps} setView={setView} showBlacklist={false} onReport={()=>{ if(!user){login();return;} setModal({type:"incident"}); }} />}
         {view==="about" && <CommunityMissionView lang={lang} config={adminInfo.config} />}
         {view==="listings"  && <ListingsView lang={lang} listings={listings} incidents={incidents} user={user} contactProps={contactProps} isGlobalAdmin={effectiveIsGlobalAdmin} canEditGlobal={delegatePerms.canUpdateGlobalListings} canDeleteGlobal={delegatePerms.canDeleteGlobalListings} onAdd={()=>{ if(!user){login();return;} setModal({type:"addListing"}); }} onEdit={l=>setModal({type:"editListing",data:l})} onDelete={deleteListing} onReport={l=>{ if(!user){login();return;} setModal({type:"incident",data:{aptId:l.id}}); }} />}
         {view==="incidents" && <IncidentsView lang={lang} incidents={incidents} listings={listings} user={user} quickFilter={incidentQuickFilter} onQuickFilterApplied={()=>setIncidentQuickFilter(null)} contactProps={contactProps} isGlobalAdmin={effectiveIsGlobalAdmin} canUpdateGlobal={delegatePerms.canUpdateGlobalIncidents} canDeleteGlobal={delegatePerms.canDeleteGlobalIncidents} canResolveGlobal={canResolveIncidentsNow} onAdd={()=>{ if(!user){login();return;} setModal({type:"incident"}); }} onResolve={resolveIncident} onDelete={deleteIncident} onVerify={inc=>setModal({type:"verifyIncident",data:inc})} />}
@@ -1180,6 +1183,40 @@ function SmartNotificationsDropdown({ lang="es-CO", open=false, alerts=[], unrea
       {unread > 0 && <button className="dd-item" onClick={onReadAll}>✅ {appText(lang,"smart.markAll")}</button>}
     </div>
   </div>;
+}
+
+function ActionStrip({ lang="es-CO", pendingOwner=0, pendingResolve=0, pendingRegistrations=0, canResolve=false, canManageRegistrations=false, onOwnerClick=()=>{}, onResolveClick=()=>{}, onRegistrationsClick=()=>{} }) {
+  const items = [
+    pendingOwner > 0 ? {
+      key:'verify', icon:'✅',
+      label: lang==='en' ? `${pendingOwner} to verify` : `${pendingOwner} por verificar`,
+      sub: lang==='en' ? 'Owner verification' : 'Verificación requerida',
+      onClick: onOwnerClick, cls:'ap-owner'
+    } : null,
+    pendingResolve > 0 && canResolve ? {
+      key:'resolve', icon:'🛠️',
+      label: lang==='en' ? `${pendingResolve} to resolve` : `${pendingResolve} por resolver`,
+      sub: lang==='en' ? 'Ready to close' : 'Listos para cerrar',
+      onClick: onResolveClick, cls:'ap-resolve'
+    } : null,
+    pendingRegistrations > 0 && canManageRegistrations ? {
+      key:'reg', icon:'📝',
+      label: lang==='en' ? `${pendingRegistrations} pending` : `${pendingRegistrations} pendiente${pendingRegistrations===1?'':'s'}`,
+      sub: lang==='en' ? 'Registrations' : 'Registros',
+      onClick: onRegistrationsClick, cls:'ap-reg'
+    } : null,
+  ].filter(Boolean);
+  if (!items.length) return null;
+  return (
+    <div className="action-strip" role="region" aria-label={lang==='en'?'Action items':'Acciones pendientes'}>
+      {items.map(item => (
+        <button key={item.key} type="button" className={`action-pill ${item.cls}`} onClick={item.onClick}>
+          <span className="ap-icon">{item.icon}</span>
+          <span className="ap-body"><strong>{item.label}</strong><span>{item.sub}</span></span>
+        </button>
+      ))}
+    </div>
+  );
 }
 
 function ActionNeededBanner({ lang="es-CO", ownerItems=[], resolveItems=[], onOwnerClick=()=>{}, onResolveClick=()=>{} }) {
@@ -2146,6 +2183,19 @@ html{font-size:clamp(14px,1.1vw,16px);-webkit-text-size-adjust:100%}body{overflo
 
 /* --- guest display --------------------------------------------------------- */
 .guest-display-list{font-size:.8rem;color:#235f72;line-height:1.55;padding:4px 0}
+
+/* --- action strip (single compact row, replaces banner + guide + command center) */
+.action-strip{display:flex;flex-wrap:wrap;gap:8px;padding:8px 24px;background:rgba(255,255,255,.86);border-bottom:1px solid rgba(47,79,58,.10)}
+.action-pill{display:inline-flex;align-items:center;gap:10px;padding:8px 14px;border-radius:14px;font-size:.82rem;font-weight:700;cursor:pointer;border:1.5px solid;transition:transform .12s ease,box-shadow .12s ease;text-align:left;min-height:44px;touch-action:manipulation}
+.action-pill:hover{transform:translateY(-1px);box-shadow:0 4px 12px rgba(0,0,0,.10)}
+.ap-icon{font-size:1.05rem;line-height:1;flex-shrink:0}
+.ap-body{display:flex;flex-direction:column;gap:1px}
+.ap-body strong{font-size:.84rem;font-weight:900;line-height:1.15}
+.ap-body span{font-size:.7rem;font-weight:600;opacity:.72;line-height:1}
+.ap-owner{background:#fffbeb;color:#92400e;border-color:rgba(217,119,6,.3)}
+.ap-resolve{background:#f0fdf4;color:#14532d;border-color:rgba(22,163,74,.28)}
+.ap-reg{background:#eff6ff;color:#1e3a8a;border-color:rgba(59,130,246,.28)}
+@media(max-width:600px){.action-strip{padding:8px 12px}.action-pill{padding:7px 11px}.ap-body span{display:none}}
 
 /* --- role preview banner (Global Admin only) ------------------------------- */
 .role-preview-banner{position:sticky;top:62px;z-index:89999;background:#fbbf24;color:#1a1200;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:9px 24px;font-weight:700;font-size:.86rem;box-shadow:0 2px 8px rgba(0,0,0,.12)}
