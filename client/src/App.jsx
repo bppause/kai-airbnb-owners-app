@@ -1917,6 +1917,64 @@ function DashboardFocus({ lang="es-CO", effectiveIsGlobalAdmin=false, effectiveR
   );
 }
 
+function DashboardGreeting({ user, lang, role, pendingOwner=0, pendingResolve=0, pendingRegistrations=0, myOpenCount=0, onOwnerClick, onResolveClick, onRegistrationsClick, setView }) {
+  const isEn = lang==='en';
+  const hour = new Date().getHours();
+  const timeGreet = hour<12 ? (isEn?'Good morning':'Buenos días') : hour<17 ? (isEn?'Good afternoon':'Buenas tardes') : (isEn?'Good evening':'Buenas noches');
+  const firstName = String(user?.name||'').split(' ')[0] || (isEn?'there':'hola');
+  const urgentPills = [];
+  let msg = '';
+
+  if (role==='standard') {
+    if (pendingOwner>0) {
+      msg = isEn
+        ? `You have ${pendingOwner} incident${pendingOwner>1?'s':''} waiting for your verification.`
+        : `Tienes ${pendingOwner} incidente${pendingOwner>1?'s':''} esperando tu verificación.`;
+      urgentPills.push(<button key="verify" className="dg-pill dg-pill-amber" onClick={onOwnerClick}>✅ {isEn?`Verify ${pendingOwner} incident${pendingOwner>1?'s':''}`:`Verificar ${pendingOwner} incidente${pendingOwner>1?'s':''}`}</button>);
+    } else if (myOpenCount>0) {
+      msg = isEn
+        ? `Your listings have ${myOpenCount} open report${myOpenCount>1?'s':''}. No immediate action needed from you.`
+        : `Tus listings tienen ${myOpenCount} reporte${myOpenCount>1?'s':''} abierto${myOpenCount>1?'s':''}. Sin acción inmediata de tu parte.`;
+      urgentPills.push(<button key="open" className="dg-pill dg-pill-red" onClick={()=>setView('incidents')}>⚠️ {isEn?`View ${myOpenCount} report${myOpenCount>1?'s':''}`:`Ver ${myOpenCount} reporte${myOpenCount>1?'s':''}`}</button>);
+    } else {
+      msg = isEn ? "You're all caught up — no pending actions today! 🎉" : "¡Estás al día — sin acciones pendientes hoy! 🎉";
+    }
+  } else if (role==='delegate') {
+    const parts = [];
+    if (pendingResolve>0) {
+      parts.push(isEn?`${pendingResolve} ready to resolve`:`${pendingResolve} listos para resolver`);
+      urgentPills.push(<button key="res" className="dg-pill dg-pill-green" onClick={onResolveClick}>🛠️ {isEn?`Resolve ${pendingResolve}`:`Resolver ${pendingResolve}`}</button>);
+    }
+    if (pendingRegistrations>0) {
+      parts.push(isEn?`${pendingRegistrations} registration${pendingRegistrations>1?'s':''} pending`:`${pendingRegistrations} registro${pendingRegistrations>1?'s':''} pendiente${pendingRegistrations>1?'s':''}`);
+      urgentPills.push(<button key="reg" className="dg-pill dg-pill-blue" onClick={onRegistrationsClick}>📝 {isEn?`Review ${pendingRegistrations}`:`Revisar ${pendingRegistrations}`}</button>);
+    }
+    msg = parts.length>0 ? (isEn?'Action needed: ':'Acción requerida: ')+parts.join(' · ')+'.' : (isEn?'No pending actions today — community is up to date!':'Sin acciones pendientes — la comunidad está al día.');
+  } else {
+    // global
+    const parts = [];
+    if (pendingResolve>0) { parts.push(isEn?`${pendingResolve} ready to resolve`:`${pendingResolve} listos para resolver`); urgentPills.push(<button key="res" className="dg-pill dg-pill-green" onClick={onResolveClick}>🛠️ {pendingResolve} {isEn?'to resolve':'por resolver'}</button>); }
+    if (pendingOwner>0) { parts.push(isEn?`${pendingOwner} need verification`:`${pendingOwner} requieren verificación`); urgentPills.push(<button key="ver" className="dg-pill dg-pill-amber" onClick={onOwnerClick}>✅ {pendingOwner} {isEn?'need verification':'requieren verificación'}</button>); }
+    if (pendingRegistrations>0) { parts.push(isEn?`${pendingRegistrations} pending registrations`:`${pendingRegistrations} registros pendientes`); urgentPills.push(<button key="reg" className="dg-pill dg-pill-blue" onClick={onRegistrationsClick}>📝 {pendingRegistrations} {isEn?'registrations':'registros'}</button>); }
+    msg = parts.length>0 ? parts.join(' · ')+'.' : (isEn?'Community is up to date — no pending actions!':'¡Comunidad al día — sin acciones pendientes!');
+  }
+
+  const allClear = urgentPills.length===0;
+  return (
+    <div className={`dash-greeting${allClear?' dg-all-clear':''}`}>
+      {user?.photo
+        ? <img src={user.photo} className="dg-avatar" alt="" referrerPolicy="no-referrer"/>
+        : <div className="dg-initials">{firstName.slice(0,1).toUpperCase()}</div>
+      }
+      <div className="dg-body">
+        <div className="dg-hello">{timeGreet}, <span className="dg-name">{firstName}!</span> 👋</div>
+        <p className="dg-msg">{msg}</p>
+        {urgentPills.length>0 && <div className="dg-pills">{urgentPills}</div>}
+      </div>
+    </div>
+  );
+}
+
 function Dashboard({ listings, incidents, user, contactProps={}, setView, onReport, showBlacklist=false, lang="es-CO",
   effectiveIsGlobalAdmin=false, effectiveRole='user', delegatePerms={},
   pendingOwner=0, pendingResolve=0, pendingRegistrations=0,
@@ -1928,9 +1986,18 @@ function Dashboard({ listings, incidents, user, contactProps={}, setView, onRepo
   // Owner-specific counts for DashboardFocus
   const myListings = user ? listings.filter(l=>l.ownerUid===user.uid) : [];
   const myOpen = incidents.filter(i=>myListings.some(l=>l.id===i.aptId)&&i.status==="open");
+  const dashRole = effectiveIsGlobalAdmin ? 'global' : effectiveRole==='delegate_admin' ? 'delegate' : 'standard';
   return (
     <div className="fade">
-      <div className="ph"><div><h1 className="ptitle">{appText(lang,"dashboard.title")}</h1><p className="psub">{appText(lang,"dashboard.subtitle")}</p></div>{user&&<button className="btn-p btn-report" title={localizedTooltips({}, lang).reportIncident} onClick={onReport}>{appText(lang,"dashboard.reportIncident")}</button>}</div>
+      {/* ── Personalised greeting ── */}
+      <div className="ph" style={{alignItems:'flex-start',flexWrap:'wrap',gap:10}}>
+        <div style={{flex:1,minWidth:0}}>
+          <h1 className="ptitle" style={{fontSize:'1.5rem',marginBottom:4}}>{appText(lang,"dashboard.title")}</h1>
+          <p className="psub" style={{marginBottom:0}}>{appText(lang,"dashboard.subtitle")}</p>
+        </div>
+        {user&&<button className="btn-p btn-report" title={localizedTooltips({},lang).reportIncident} onClick={onReport}>{appText(lang,"dashboard.reportIncident")}</button>}
+      </div>
+      {user && <DashboardGreeting user={user} lang={lang} role={dashRole} pendingOwner={pendingOwner} pendingResolve={pendingResolve} pendingRegistrations={pendingRegistrations} myOpenCount={myOpen.length} onOwnerClick={onOwnerClick} onResolveClick={onResolveClick} onRegistrationsClick={onRegistrationsClick} setView={setView}/>}
       <DashboardFocus lang={lang} effectiveIsGlobalAdmin={effectiveIsGlobalAdmin} effectiveRole={effectiveRole} delegatePerms={delegatePerms} pendingOwner={pendingOwner} pendingResolve={pendingResolve} pendingRegistrations={pendingRegistrations} openCount={open.length} myListingCount={myListings.length} myOpenCount={myOpen.length} canResolve={canResolve} canManageRegistrations={canManageRegistrations} onOwnerClick={onOwnerClick} onResolveClick={onResolveClick} onRegistrationsClick={onRegistrationsClick} onOpenClick={()=>setView('incidents')} setView={setView} />
       <div className="stats6">
         {[{icon:"🏠",val:listings.length,label:appText(lang,"dashboard.apartments"),color:"#2a9aaa",click:()=>setView("listings")},{icon:"👥",val:totalCap,label:appText(lang,"dashboard.capacity"),color:"#c9a84c"},{icon:"⚠️",val:open.length,label:appText(lang,"dashboard.openReports"),color:"#d4634a",click:()=>setView("incidents")},...(showBlacklist?[{icon:"😈",val:naughty.length,label:appText(lang,"dashboard.blacklist"),color:"#b71c1c",click:()=>setView("naughty")}]:[]),{icon:"✅",val:resolved.length,label:appText(lang,"dashboard.resolved"),color:"#2e7d32"},{icon:"🔗",val:listings.filter(l=>l.airbnb).length,label:appText(lang,"dashboard.onAirbnb"),color:"#FF5A5F"}].map((s,i)=>(
@@ -2942,6 +3009,27 @@ html{font-size:clamp(14px,1.1vw,16px);-webkit-text-size-adjust:100%}body{overflo
 .smart-foot{display:flex;flex-direction:column;gap:6px;border-top:1px solid rgba(47,79,58,.10);margin-top:12px;padding-top:10px}
 .smart-foot .dd-item{justify-content:center!important;background:#f5f9f8;border:1px solid rgba(47,79,58,.12);border-radius:11px;font-size:.84rem;min-height:40px;font-weight:800}
 .smart-foot .dd-item:hover{background:#eaf4f2!important}
+/* ── Personalised dashboard greeting ─────────────────────────────────── */
+.dash-greeting{display:flex;align-items:center;gap:16px;padding:16px 20px;background:linear-gradient(135deg,rgba(47,79,58,.05),rgba(11,127,140,.05));border:1px solid rgba(47,79,58,.13);border-radius:18px;margin-bottom:14px;transition:background .2s}
+.dg-all-clear{background:linear-gradient(135deg,rgba(31,122,53,.06),rgba(11,127,140,.04))!important;border-color:rgba(31,122,53,.18)!important}
+.dg-avatar{width:52px;height:52px;border-radius:50%;object-fit:cover;flex-shrink:0;border:2px solid rgba(47,79,58,.16)}
+.dg-initials{width:52px;height:52px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#0b7f4f,#0b7f8c);color:#fff;font-weight:900;font-size:1.3rem;flex-shrink:0}
+.dg-body{flex:1;min-width:0}
+.dg-hello{font-family:'Playfair Display',serif;font-size:1.3rem;color:#203f2b;margin:0 0 4px;font-weight:900;line-height:1.2}
+.dg-name{color:#0b7f8c}
+.dg-msg{font-size:.86rem;color:#2a5a6a;margin:0 0 10px;line-height:1.45}
+.dg-msg:last-child{margin-bottom:0}
+.dg-pills{display:flex;flex-wrap:wrap;gap:7px}
+.dg-pill{display:inline-flex;align-items:center;gap:5px;padding:7px 14px;border-radius:999px;font-size:.78rem;font-weight:800;cursor:pointer;transition:all .14s;white-space:nowrap}
+.dg-pill-amber{background:rgba(217,180,90,.15);color:#8a6200;border:1px solid rgba(217,180,90,.35)}
+.dg-pill-amber:hover{background:rgba(217,180,90,.28);transform:translateY(-1px)}
+.dg-pill-green{background:rgba(47,143,70,.12);color:#1a6b30;border:1px solid rgba(47,143,70,.28)}
+.dg-pill-green:hover{background:rgba(47,143,70,.22);transform:translateY(-1px)}
+.dg-pill-blue{background:rgba(11,127,140,.10);color:#085f6a;border:1px solid rgba(11,127,140,.24)}
+.dg-pill-blue:hover{background:rgba(11,127,140,.20);transform:translateY(-1px)}
+.dg-pill-red{background:rgba(210,90,70,.10);color:#8c2a1a;border:1px solid rgba(210,90,70,.28)}
+.dg-pill-red:hover{background:rgba(210,90,70,.20);transform:translateY(-1px)}
+@media(max-width:640px){.dash-greeting{gap:12px;padding:14px 16px}.dg-hello{font-size:1.1rem}.dg-initials,.dg-avatar{width:44px;height:44px;font-size:1.1rem}}
 /* ── Compact incident workflow stepper ────────────────────────────────── */
 .inc-wf-bar{display:flex;align-items:center;gap:6px;padding:9px 14px;background:rgba(255,255,255,.78);border:1px solid rgba(47,79,58,.13);border-radius:14px;margin-bottom:10px;flex-wrap:wrap}
 .inc-wf-label{font-size:.68rem;font-weight:900;color:#2a5a6a;text-transform:uppercase;letter-spacing:.08em;white-space:nowrap;flex-shrink:0}
