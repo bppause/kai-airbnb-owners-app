@@ -2161,36 +2161,57 @@ function IncidentsView({ incidents, listings, user, quickFilter=null, onQuickFil
         {search && <button className="inc-search-clear" onClick={()=>setSearch('')} aria-label="Clear search">✕</button>}
       </div>
 
-      {/* ── Unified filter bar ────────────────────────────────────────── */}
+      {/* ── Grouped filter bar ───────────────────────────────────────── */}
       <div className="inc-filter-bar">
-        {/* Scope */}
+        {/* ── Scope group ── */}
         {user && <>
-          <button className={`fchip fchip-sm ${scope==='all'?'fchip-on':''}`} onClick={()=>{setScope('all');}}>
-            {isEn?'All':'Todos'}
-          </button>
-          <button className={`fchip fchip-sm ${(scope==='mine'||scope==='ownerVerification')?'fchip-on':''}`} onClick={()=>{setScope('mine');setSf('all');}}>
-            {isEn?'Mine':'Los míos'}
-          </button>
-          {(isGlobalAdmin||canResolveGlobal) && <button className={`fchip fchip-sm ${scope==='requiresResolution'?'fchip-on':''}`} onClick={()=>{setScope('requiresResolution');setSf('verified');}}>
-            {isEn?'Needs resolution':'Sin resolver'}
-          </button>}
-          <span className="inc-fb-sep"/>
+          <div className="inc-fb-group">
+            <span className="inc-fb-lbl">{isEn?'View':'Vista'}</span>
+            <div className="inc-fb-chips">
+              <button className={`fchip fchip-sm ${scope==='all'?'fchip-on':''}`} onClick={()=>setScope('all')}>
+                {isEn?'All':'Todos'}
+              </button>
+              <button className={`fchip fchip-sm ${(scope==='mine'||scope==='ownerVerification')?'fchip-on':''}`} onClick={()=>{setScope('mine');setSf('all');}}>
+                {isEn?'Mine':'Los míos'}
+              </button>
+              {(isGlobalAdmin||canResolveGlobal) && (
+                <button className={`fchip fchip-sm ${scope==='requiresResolution'?'fchip-on':''}`} onClick={()=>{setScope('requiresResolution');setSf('verified');}}>
+                  {isEn?'Needs resolution':'Sin resolver'}
+                </button>
+              )}
+            </div>
+          </div>
+          <div className="inc-fb-div"/>
         </>}
-        {/* Status */}
-        {['open','verified','resolved'].map(f=>(
-          <button key={f} className={`fchip fchip-sm ${sf===f?'fchip-on':''}`} onClick={()=>setSf(sf===f?'all':f)}>
-            {f==='open'?appText(lang,'reports.open'):f==='verified'?appText(lang,'reports.verified'):appText(lang,'reports.resolved')}
+        {/* ── Workflow status group ── */}
+        <div className="inc-fb-group">
+          <span className="inc-fb-lbl">{isEn?'Workflow':'Estado'}</span>
+          <div className="inc-fb-chips">
+            {['open','verified','resolved'].map(f=>(
+              <button key={f} className={`fchip fchip-sm ${sf===f?'fchip-on':''}`} onClick={()=>setSf(sf===f?'all':f)}>
+                {f==='open'?appText(lang,'reports.open'):f==='verified'?appText(lang,'reports.verified'):appText(lang,'reports.resolved')}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="inc-fb-div"/>
+        {/* ── Category / type group ── */}
+        <div className="inc-fb-group">
+          <span className="inc-fb-lbl">{isEn?'Type':'Tipo'}</span>
+          <div className="inc-fb-chips">
+            {GUEST_CATEGORIES.map(c=>(
+              <button key={c.value} className={`fchip fchip-sm ${cf===c.value?'fchip-on':''}`} onClick={()=>setCf(cf===c.value?'all':c.value)}>
+                {c.icon} {categoryLabel(c.value,lang)}
+              </button>
+            ))}
+          </div>
+        </div>
+        {/* ── Reset ── */}
+        {anyFilter && (
+          <button className="fchip fchip-sm fchip-reset inc-fb-reset" onClick={resetAll} title={isEn?'Clear all filters':'Limpiar todos los filtros'}>
+            ✕ {isEn?'Reset':'Limpiar'}
           </button>
-        ))}
-        <span className="inc-fb-sep"/>
-        {/* Category */}
-        {GUEST_CATEGORIES.map(c=>(
-          <button key={c.value} className={`fchip fchip-sm ${cf===c.value?'fchip-on':''}`} onClick={()=>setCf(cf===c.value?'all':c.value)}>
-            {c.icon} {categoryLabel(c.value,lang)}
-          </button>
-        ))}
-        {/* Reset */}
-        {anyFilter && <button className="fchip fchip-sm fchip-reset" onClick={resetAll}>✕ {isEn?'Reset':'Limpiar'}</button>}
+        )}
       </div>
 
       {list.length===0
@@ -2923,12 +2944,17 @@ html{font-size:clamp(14px,1.1vw,16px);-webkit-text-size-adjust:100%}body{overflo
 .inc-search{width:100%;padding-right:36px!important}
 .inc-search-clear{position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;color:#7a9aaa;font-size:.85rem;cursor:pointer;padding:4px 6px;border-radius:6px;line-height:1}
 .inc-search-clear:hover{background:rgba(47,79,58,.08);color:#17313a}
-/* ── Unified filter bar ───────────────────────────────────────────────── */
-.inc-filter-bar{display:flex;align-items:center;gap:5px;flex-wrap:wrap;margin-bottom:14px}
-.fchip-sm{padding:6px 11px!important;font-size:.76rem!important;min-height:32px!important;border-radius:999px!important}
-.inc-fb-sep{width:1px;height:18px;background:rgba(47,79,58,.2);margin:0 1px;flex-shrink:0;align-self:center}
+/* ── Grouped filter bar ───────────────────────────────────────────────── */
+.inc-filter-bar{display:flex;align-items:flex-end;gap:8px 16px;flex-wrap:wrap;margin-bottom:14px;padding:10px 14px;background:rgba(255,255,255,.65);border:1px solid rgba(47,79,58,.11);border-radius:14px}
+.inc-fb-group{display:flex;flex-direction:column;gap:5px}
+.inc-fb-lbl{font-size:.6rem;font-weight:900;text-transform:uppercase;letter-spacing:.1em;color:#2a5a6a;padding-left:2px}
+.inc-fb-chips{display:flex;align-items:center;gap:4px;flex-wrap:wrap}
+.inc-fb-div{width:1px;align-self:stretch;background:rgba(47,79,58,.15);margin:0 2px;flex-shrink:0}
+.inc-fb-reset{align-self:flex-end;margin-bottom:0}
+.fchip-sm{padding:6px 12px!important;font-size:.76rem!important;min-height:32px!important;border-radius:999px!important}
 .fchip-reset{border-color:rgba(233,66,53,.28)!important;color:#c62828!important;background:rgba(233,66,53,.05)!important}
 .fchip-reset:hover{background:rgba(233,66,53,.12)!important}
+@media(max-width:600px){.inc-filter-bar{padding:8px 10px;gap:6px 10px}.inc-fb-div{display:none}}
 @media(max-width:640px){.inc-wf-bar{gap:4px;padding:8px 10px}.inc-wf-label{display:none}.inc-wf-sep{display:none}.inc-wf-step{font-size:.74rem;padding:5px 9px}}
 /* ── Form section headers ─────────────────────────────────────────────── */
 .form-section-hdr{grid-column:1/-1;margin:14px 0 2px;padding:10px 0 6px;border-top:1px solid rgba(47,79,58,.14);font-size:.7rem;font-weight:900;color:#2F4F3A;text-transform:uppercase;letter-spacing:.09em;display:flex;align-items:center;gap:6px}
