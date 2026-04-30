@@ -2166,17 +2166,162 @@ function MyListings({ listings, incidents, user, contactProps={}, onAdd, onEdit,
   );
 }
 
+// ── Floor palette — cycles through teal/green/gold/blue/rust for each floor level
+const FLOOR_PALETTE = ['#0b7f8c','#0b7f4f','#b8860b','#4a6fa5','#8c5230','#5e6d0b','#7c4090'];
+const floorColor = (f) => FLOOR_PALETTE[f % FLOOR_PALETTE.length];
+const getFloorNum = (apt) => Math.floor(parseInt(apt||'0')/100);
+
+function AptRow({ l, incCount, user, contactProps={}, isGlobalAdmin=false, canEditGlobal=false, canDeleteGlobal=false, onEdit, onDelete, onReport, lang, isEn }) {
+  const [expanded, setExpanded] = useState(false);
+  const ownerWa = normalizePhoneForWhatsApp(l.contact);
+  const opWa    = normalizePhoneForWhatsApp(l.operatorWhatsapp);
+  const hasOp   = !!(l.operator || l.operatorEmail || l.operatorWhatsapp);
+  const canEdit   = user?.uid === l.ownerUid || isGlobalAdmin || canEditGlobal;
+  const canDelete = user?.uid === l.ownerUid || isGlobalAdmin || canDeleteGlobal;
+  return (
+    <div className={`fls-row${expanded?' fls-row-open':''}`}>
+      <div className="fls-row-main" onClick={()=>setExpanded(x=>!x)} role="button" aria-expanded={expanded}>
+        <span className="fls-apt-num">Apt {l.apt}</span>
+        <span className="fls-owner-wrap">
+          <UserContact name={l.owner} uid={l.ownerUid} email={l.userEmail||l.email} whatsapp={l.contact} apartments={l.apt?[aptDisplay(l.apt,lang)]:[]} {...contactProps}/>
+        </span>
+        {hasOp && <span className="fls-op-pill">🔧 {l.operator||'—'}</span>}
+        <span className="fls-row-chips">
+          <span className="chip c-teal">🛏️ {l.rooms}</span>
+          <span className="chip c-blue">👥 {l.guests}</span>
+        </span>
+        <span className="fls-row-acts" onClick={e=>e.stopPropagation()}>
+          {(l.userEmail||l.email) && <a href={`mailto:${l.userEmail||l.email}`} className="ac-cbtn" title={l.userEmail||l.email}>✉️</a>}
+          {ownerWa && <a href={`https://wa.me/${ownerWa}`} className="ac-cbtn ac-cbtn-wa" title={l.contact} target="_blank" rel="noreferrer">💬</a>}
+        </span>
+        {incCount>0 && <span className="fls-inc-pill">⚠️ {incCount}</span>}
+        <span className={`fls-chev${expanded?' fls-chev-up':''}`}>›</span>
+      </div>
+
+      {expanded && (
+        <div className="fls-row-detail" onClick={e=>e.stopPropagation()}>
+          {hasOp && (
+            <div className="fls-det-row">
+              <span className="fls-det-lbl">🔧 {isEn?'Operator':'Operador'}</span>
+              <span className="fls-det-val">
+                {l.operator
+                  ? <UserContact name={l.operator} email={l.operatorEmail} whatsapp={l.operatorWhatsapp} apartments={[]} {...contactProps}/>
+                  : <span style={{fontSize:'.8rem',color:'#8a9fa5'}}>{isEn?'No name':'Sin nombre'}</span>}
+                <span className="fls-det-acts">
+                  {l.operatorEmail && <a href={`mailto:${l.operatorEmail}`} className="ac-cbtn" title={l.operatorEmail}>✉️</a>}
+                  {opWa && <a href={`https://wa.me/${opWa}`} className="ac-cbtn ac-cbtn-wa" title={l.operatorWhatsapp} target="_blank" rel="noreferrer">💬</a>}
+                </span>
+              </span>
+            </div>
+          )}
+          <div className="fls-det-row">
+            <span className="fls-det-lbl">Airbnb</span>
+            <span className="fls-det-val">
+              {l.airbnb
+                ? <a className="airbnb-lnk" href={l.airbnb} target="_blank" rel="noreferrer">{isEn?'View listing':'Ver listing'}</a>
+                : <span style={{fontSize:'.8rem',color:'#8a9fa5'}}>{isEn?'No link':'Sin enlace'}</span>}
+            </span>
+          </div>
+          <div className="fls-det-acts-row">
+            <button className="bsm bs-rep" onClick={onReport}>{isEn?'+ Report':'+ Reporte'}</button>
+            {canEdit   && <button className="bsm bs-edit" onClick={onEdit}>✏️ {isEn?'Edit':'Editar'}</button>}
+            {canDelete && <button className="bsm bs-del"  onClick={onDelete}>🗑️</button>}
+            <span className={`inc-b ${incCount>0?'ib-open':'ib-none'}`} style={{cursor:'default',display:'inline-flex',alignItems:'center'}}>
+              {incCount>0
+                ?(incCount>1?appText(lang,'listings.openReportPlural',{count:incCount}):appText(lang,'listings.openReportSingular',{count:incCount}))
+                :appText(lang,'listings.noOpenReports')}
+            </span>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function FloorSection({ floor, apts, openCount, incidents, user, contactProps, isGlobalAdmin, canEditGlobal, canDeleteGlobal, onEdit, onDelete, onReport, lang, isEn }) {
+  const [open, setOpen] = useState(true);
+  const color = floorColor(floor);
+  return (
+    <div className="fls-floor">
+      <button className="fls-floor-hdr" style={{borderLeftColor:color}} onClick={()=>setOpen(o=>!o)}>
+        <span className="fls-floor-badge" style={{background:color}}>F{floor}</span>
+        <span className="fls-floor-label">{isEn?`Floor ${floor}`:`Piso ${floor}`}</span>
+        <span className="fls-floor-meta">
+          <span className="fls-floor-units">{apts.length} {isEn?(apts.length===1?'unit':'units'):'apto'+(apts.length>1?'s':'')}</span>
+          {openCount>0 && <span className="fls-floor-open">⚠️ {openCount} {isEn?'open':'abierto'}{openCount>1&&isEn?'s':''}</span>}
+        </span>
+        <span className={`fls-chev${open?' fls-chev-up':''}`} style={{marginLeft:'auto'}}>›</span>
+      </button>
+      {open && (
+        <div className="fls-floor-body">
+          {apts.map(l=>(
+            <AptRow key={l.id} l={l} incCount={incidents.filter(i=>i.aptId===l.id&&i.status==='open').length} user={user} contactProps={contactProps} isGlobalAdmin={isGlobalAdmin} canEditGlobal={canEditGlobal} canDeleteGlobal={canDeleteGlobal} onEdit={()=>onEdit(l)} onDelete={()=>onDelete(l)} onReport={()=>onReport(l)} lang={lang} isEn={isEn}/>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ListingsView({ listings, incidents, user, contactProps={}, isGlobalAdmin=false, canEditGlobal=false, canDeleteGlobal=false, onAdd, onEdit, onDelete, onReport, lang="es-CO" }) {
-  const [search,setSearch]=useState("");
-  const [scope,setScope]=useState("all");
-  const scoped = scope === "mine" && user ? listings.filter(l=>l.ownerUid===user.uid) : listings;
-  const filtered=scoped.filter(l=>String(l.apt||"").includes(search)||String(l.owner||"").toLowerCase().includes(search.toLowerCase()));
+  const [search, setSearch] = useState('');
+  const [scope,  setScope]  = useState('all');
+  const [viewMode, setViewMode] = useState('floors');
+  const isEn = lang === 'en';
+
+  const scoped   = scope === 'mine' && user ? listings.filter(l=>l.ownerUid===user.uid) : listings;
+  const filtered = scoped.filter(l => {
+    const q = search.toLowerCase();
+    return !q || String(l.apt||'').includes(q) || String(l.owner||'').toLowerCase().includes(q) || String(l.operator||'').toLowerCase().includes(q);
+  });
+  const sorted = [...filtered].sort((a,b)=>String(a.apt||'').localeCompare(String(b.apt||'')));
+
+  // Group by floor
+  const floorNums = [...new Set(sorted.map(l=>getFloorNum(l.apt)))].sort((a,b)=>a-b);
+  const byFloor   = (f) => sorted.filter(l=>getFloorNum(l.apt)===f);
+  const floorOpen = (f) => incidents.filter(i=>byFloor(f).some(l=>l.id===i.aptId)&&i.status==='open').length;
+
   return (
     <div className="fade">
-      <div className="ph"><div><h1 className="ptitle">{appText(lang,"listings.title")}</h1><p className="psub">{appText(lang,"listings.subtitle",{count:scoped.length})}</p></div>{user&&<button className="btn-p" onClick={onAdd}>{appText(lang,"listings.add")}</button>}</div>
-      {user&&<div className="filter-row" style={{marginBottom:12}}><button className={`fchip ${scope==="all"?"fchip-on":""}`} onClick={()=>setScope("all")}>{appText(lang,"filters.scopeAll")}</button><button className={`fchip ${scope==="mine"?"fchip-on":""}`} onClick={()=>setScope("mine")}>{appText(lang,"filters.scopeMine")}</button></div>}
-      <input className="search" placeholder={appText(lang,"listings.search")} value={search} onChange={e=>setSearch(e.target.value)}/>
-      {filtered.length===0?<EmptyState icon="🏠" title={appText(lang,"listings.none")} sub={appText(lang,"listings.noResults")}/>:<div className="lg">{[...filtered].sort((a,b)=>String(a.apt||"").localeCompare(String(b.apt||""))).map(l=><AptCard key={l.id} l={l} contactProps={contactProps} incCount={incidents.filter(i=>i.aptId===l.id&&i.status==="open").length} canEdit={user?.uid===l.ownerUid || isGlobalAdmin || canEditGlobal} canDelete={user?.uid===l.ownerUid || isGlobalAdmin || canDeleteGlobal} onEdit={()=>onEdit(l)} onDelete={()=>onDelete(l)} onReport={()=>onReport(l)} showLogin={!user} lang={lang}/>)}</div>}
+      <div className="ph">
+        <div>
+          <h1 className="ptitle">{appText(lang,'listings.title')}</h1>
+          <p className="psub">{appText(lang,'listings.subtitle',{count:scoped.length})}</p>
+        </div>
+        {user && <button className="btn-p" onClick={onAdd}>{appText(lang,'listings.add')}</button>}
+      </div>
+
+      {/* ── Toolbar: scope filter + view toggle ── */}
+      <div className="fls-toolbar">
+        {user && (
+          <div className="filter-row" style={{margin:0,gap:6}}>
+            <button className={`fchip ${scope==='all'?'fchip-on':''}`} onClick={()=>setScope('all')}>{appText(lang,'filters.scopeAll')}</button>
+            <button className={`fchip ${scope==='mine'?'fchip-on':''}`} onClick={()=>setScope('mine')}>{appText(lang,'filters.scopeMine')}</button>
+          </div>
+        )}
+        <div className="fls-vtoggle">
+          <button className={`fls-vbtn${viewMode==='floors'?' fls-vbtn-on':''}`} onClick={()=>setViewMode('floors')} title={isEn?'Group by floor':'Agrupar por piso'}>🏢 {isEn?'Floors':'Pisos'}</button>
+          <button className={`fls-vbtn${viewMode==='grid'?' fls-vbtn-on':''}`}   onClick={()=>setViewMode('grid')}   title={isEn?'Card grid':'Tarjetas'}>⊞ {isEn?'Cards':'Tarjetas'}</button>
+        </div>
+      </div>
+
+      {/* ── Search ── */}
+      <div style={{position:'relative',marginBottom:14}}>
+        <input className="search" style={{paddingRight:36}} placeholder={appText(lang,'listings.search')} value={search} onChange={e=>setSearch(e.target.value)}/>
+        {search && <button className="inc-search-clear" onClick={()=>setSearch('')} aria-label="Clear">✕</button>}
+      </div>
+
+      {/* ── Content ── */}
+      {filtered.length === 0
+        ? <EmptyState icon="🏠" title={appText(lang,'listings.none')} sub={appText(lang,'listings.noResults')}/>
+        : viewMode === 'grid'
+          ? <div className="lg">{sorted.map(l=><AptCard key={l.id} l={l} contactProps={contactProps} incCount={incidents.filter(i=>i.aptId===l.id&&i.status==='open').length} canEdit={user?.uid===l.ownerUid||isGlobalAdmin||canEditGlobal} canDelete={user?.uid===l.ownerUid||isGlobalAdmin||canDeleteGlobal} onEdit={()=>onEdit(l)} onDelete={()=>onDelete(l)} onReport={()=>onReport(l)} showLogin={!user} lang={lang}/>)}</div>
+          : <div className="fls-list">
+              {floorNums.map(f=>(
+                <FloorSection key={f} floor={f} apts={byFloor(f)} openCount={floorOpen(f)} incidents={incidents} user={user} contactProps={contactProps} isGlobalAdmin={isGlobalAdmin} canEditGlobal={canEditGlobal} canDeleteGlobal={canDeleteGlobal} onEdit={onEdit} onDelete={onDelete} onReport={onReport} lang={lang} isEn={isEn}/>
+              ))}
+            </div>
+      }
     </div>
   );
 }
@@ -3425,6 +3570,47 @@ html{font-size:clamp(14px,1.1vw,16px);-webkit-text-size-adjust:100%}body{overflo
 @media(max-width:600px){.admin-sec-hdr{flex-wrap:wrap;gap:8px}.admin-sec-action{width:100%}}
 @media(max-width:600px){.help-grid{grid-template-columns:1fr}.help-article-hdr{flex-direction:column;gap:10px}.help-article-icon{font-size:2rem}}
 
+/* ── Floor-grouped listings view ─────────────────────────────────────────── */
+.fls-toolbar{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px;flex-wrap:wrap}
+.fls-vtoggle{display:flex;border:1px solid rgba(47,79,58,.2);border-radius:10px;overflow:hidden;flex-shrink:0}
+.fls-vbtn{padding:7px 14px;font-size:.78rem;font-weight:800;color:#496674;background:rgba(255,255,255,.7);border:0;cursor:pointer;transition:background .12s,color .12s;white-space:nowrap}
+.fls-vbtn:hover{background:rgba(255,255,255,.95);color:#17313a}
+.fls-vbtn-on{background:#0b7f4f!important;color:#fff!important}
+/* list */
+.fls-list{display:flex;flex-direction:column;gap:12px}
+/* floor section */
+.fls-floor{background:rgba(255,255,255,.88);border:1px solid rgba(47,79,58,.16);border-radius:16px;overflow:hidden;box-shadow:0 6px 18px rgba(32,46,38,.07)}
+.fls-floor-hdr{width:100%;display:flex;align-items:center;gap:10px;padding:13px 16px;background:none;border:0;border-left:5px solid #0b7f8c;cursor:pointer;text-align:left;transition:background .14s}
+.fls-floor-hdr:hover{background:rgba(11,127,140,.04)}
+.fls-floor-badge{display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:10px;color:#fff;font-size:.78rem;font-weight:900;flex-shrink:0;letter-spacing:.04em}
+.fls-floor-label{font-family:'Playfair Display',serif;font-size:1rem;font-weight:900;color:#203f2b;flex-shrink:0}
+.fls-floor-meta{display:flex;align-items:center;gap:8px;margin-left:4px;flex:1;flex-wrap:wrap}
+.fls-floor-units{font-size:.78rem;color:#496674;font-weight:700;background:rgba(47,79,58,.07);border-radius:999px;padding:3px 9px}
+.fls-floor-open{font-size:.76rem;color:#a05000;font-weight:800;background:rgba(160,80,0,.1);border-radius:999px;padding:3px 9px;border:1px solid rgba(160,80,0,.18)}
+.fls-chev{font-size:1.1rem;color:#8a9fa5;font-weight:900;transition:transform .18s;display:inline-block;flex-shrink:0}
+.fls-chev-up{transform:rotate(90deg)}
+/* floor body */
+.fls-floor-body{border-top:1px solid rgba(47,79,58,.1)}
+/* apartment row */
+.fls-row{border-bottom:1px solid rgba(47,79,58,.07);transition:background .12s}
+.fls-row:last-child{border-bottom:none}
+.fls-row:hover{background:rgba(11,127,140,.03)}
+.fls-row-open{background:rgba(11,127,140,.04)!important}
+.fls-row-main{display:flex;align-items:center;gap:10px;padding:11px 16px;cursor:pointer;flex-wrap:wrap;min-width:0}
+.fls-apt-num{font-family:'Playfair Display',serif;font-weight:900;font-size:.96rem;color:#203f2b;white-space:nowrap;flex-shrink:0;min-width:62px}
+.fls-owner-wrap{flex:1;min-width:110px}
+.fls-op-pill{font-size:.72rem;font-weight:700;color:#496674;background:rgba(47,79,58,.08);border-radius:999px;padding:3px 8px;white-space:nowrap;flex-shrink:0;max-width:120px;overflow:hidden;text-overflow:ellipsis}
+.fls-row-chips{display:flex;gap:5px;flex-shrink:0}
+.fls-row-acts{display:flex;gap:5px;flex-shrink:0}
+.fls-inc-pill{font-size:.72rem;font-weight:800;color:#a05000;background:rgba(160,80,0,.10);border:1px solid rgba(160,80,0,.20);border-radius:999px;padding:3px 8px;white-space:nowrap;flex-shrink:0}
+/* expanded detail */
+.fls-row-detail{padding:12px 16px 14px 78px;background:rgba(245,248,244,.7);border-top:1px solid rgba(47,79,58,.08);display:flex;flex-direction:column;gap:9px}
+.fls-det-row{display:flex;align-items:center;gap:10px;font-size:.84rem;flex-wrap:wrap}
+.fls-det-lbl{font-weight:800;color:#2a5a6a;min-width:72px;font-size:.76rem;text-transform:uppercase;letter-spacing:.05em;flex-shrink:0}
+.fls-det-val{display:flex;align-items:center;gap:6px;flex:1;flex-wrap:wrap}
+.fls-det-acts{display:flex;gap:5px}
+.fls-det-acts-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding-top:6px;border-top:1px solid rgba(47,79,58,.08)}
+@media(max-width:640px){.fls-row-main{gap:7px;padding:10px 12px}.fls-row-detail{padding:10px 12px 12px}.fls-op-pill{display:none}.fls-floor-hdr{padding:11px 12px;gap:8px}.fls-floor-label{font-size:.9rem}.fls-vtoggle .fls-vbtn{padding:6px 10px;font-size:.72rem}}
 /* ── Profile view ────────────────────────────────────────────────────────── */
 .prof-card{max-width:640px;display:flex;flex-direction:column;gap:16px}
 .prof-section{background:rgba(255,255,255,.94);border:1px solid rgba(47,79,58,.16);border-radius:18px;padding:20px 22px;box-shadow:0 8px 22px rgba(32,46,38,.08)}
