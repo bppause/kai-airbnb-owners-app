@@ -347,6 +347,103 @@ button[class*="primary"] {
   align-items: stretch !important;
 }
 
+/* v75 action center grid — injected by adminRegistrationAwareness.js */
+.kai-v75-action-center {
+  background: rgba(255,255,255,0.9);
+  border: 1px solid rgba(47,79,58,0.14);
+  border-radius: 20px;
+  padding: 16px 18px;
+  margin: 0 0 16px;
+  box-shadow: 0 8px 22px rgba(32,46,38,0.07);
+}
+.kai-v75-action-center__header {
+  margin-bottom: 4px;
+}
+.kai-v75-action-center__header small {
+  display: block;
+  font-size: 0.68rem;
+  font-weight: 900;
+  color: #0b7f8c;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  margin-bottom: 2px;
+}
+.kai-v75-action-center__header h2 {
+  margin: 0 0 4px;
+  font-size: 1rem !important;
+  font-weight: 900;
+  color: #203f2b;
+  line-height: 1.2 !important;
+}
+.kai-v75-action-grid {
+  display: grid !important;
+  grid-template-columns: repeat(2, 1fr) !important;
+  gap: 1rem !important;
+  margin-top: 1rem !important;
+}
+.kai-v75-action-chip {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 12px !important;
+  width: 100% !important;
+  padding: 1.25rem !important;
+  border-radius: 12px !important;
+  border: 1px solid #e2e8f0 !important;
+  background: #fff !important;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.08) !important;
+  text-align: left !important;
+  cursor: pointer;
+  transition: box-shadow 0.15s ease, transform 0.15s ease, border-color 0.15s ease;
+  color: #17313a !important;
+  white-space: normal !important;
+  line-height: 1.3 !important;
+}
+.kai-v75-action-chip:hover {
+  box-shadow: 0 4px 14px rgba(32,46,38,0.14) !important;
+  transform: translateY(-1px);
+  border-color: rgba(11,127,140,0.35) !important;
+}
+.kai-v75-action-chip > div {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.kai-v75-action-chip strong {
+  display: block !important;
+  font-size: 0.9rem;
+  font-weight: 900 !important;
+  color: #203f2b;
+  margin-bottom: 4px;
+  white-space: normal !important;
+}
+.kai-v75-action-chip span {
+  display: block !important;
+  font-size: 0.76rem;
+  color: #496674;
+  line-height: 1.35;
+  white-space: normal !important;
+}
+.kai-v75-action-chip > b {
+  flex: 0 0 auto;
+  min-width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  background: #edf5fe;
+  color: #203f2b;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  font-size: 0.82rem;
+  font-weight: 900;
+  font-style: normal;
+  border: 1px solid rgba(47,79,58,0.12);
+}
+@media (max-width: 640px) {
+  .kai-v75-action-grid {
+    grid-template-columns: 1fr !important;
+  }
+}
+
 /* Tables */
 table { width: 100%; border-collapse: collapse; }
 .table-wrap,

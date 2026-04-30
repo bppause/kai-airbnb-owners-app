@@ -835,10 +835,12 @@ export default function App() {
       showToast(lang === 'en' ? 'Google login is not configured. Check Firebase environment variables in Render.' : 'Google login no está configurado. Revise las variables de Firebase en Render.', true);
       return;
     }
+    setAuthLoading(true);
     try {
       await signInWithPopup(auth, provider);
       setLoginOpen(false);
     } catch(e) {
+      setAuthLoading(false);
       if (e.code !== "auth/popup-closed-by-user") showToast("Error al iniciar sesión: " + e.message, true);
     }
   };
