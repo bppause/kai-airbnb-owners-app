@@ -1074,12 +1074,15 @@ export default function App() {
 
           <div className="hdr-right">
             {adminInfo.isGlobalAdmin && (
-              <select className="view-as-select" value={previewRole || ''} onChange={e=>setPreviewRole(e.target.value||null)} title={lang==='en'?'Preview as role':'Vista previa como rol'} aria-label={lang==='en'?'Preview as role':'Vista previa como rol'}>
-                <option value="">{lang==='en'?'👁️ View as...':'👁️ Ver como...'}</option>
-                <option value="delegate_admin">{lang==='en'?'Delegate Admin':'Admin delegado'}</option>
-                <option value="standard_admin">{lang==='en'?'Standard Admin':'Admin estándar'}</option>
-                <option value="user">{lang==='en'?'Owner/User':'Propietario'}</option>
-              </select>
+              <div className="view-as-wrap">
+                <span className="view-as-label">{lang==='en'?'👁 View as:':'👁 Ver como:'}</span>
+                <select className="view-as-select" value={previewRole||''} onChange={e=>setPreviewRole(e.target.value||null)}>
+                  <option value="">{lang==='en'?'Global Admin':'Admin global'}</option>
+                  <option value="delegate_admin">{lang==='en'?'Delegate Admin':'Admin delegado'}</option>
+                  <option value="standard_admin">{lang==='en'?'Standard Admin':'Admin estándar'}</option>
+                  <option value="user">{lang==='en'?'Owner/User':'Propietario/Usuario'}</option>
+                </select>
+              </div>
             )}
             <LanguageSwitch lang={lang} setLang={setLang} compact />
             <div className="smart-dd" onClick={e=>e.stopPropagation()}>
@@ -1104,6 +1107,7 @@ export default function App() {
                   {effectiveIsGlobalAdmin && <button className="dd-item" onClick={()=>{setView('admin');setOpenDropdown(null);}}>⚙️ {t.nav.admin}</button>}
                   {(effectiveIsGlobalAdmin || analyticsEnabledForAll) && <button className="dd-item" onClick={()=>{setView('analytics');setOpenDropdown(null);}}>📈 {t.nav.analytics}</button>}
                   <div className="profile-lang"><span>{lang === "en" ? "🌐 Language" : "🌐 Idioma"}</span><LanguageSwitch lang={lang} setLang={setLang} compact /></div>
+                  {adminInfo.isGlobalAdmin && <div className="profile-view-as"><span>👁 {lang==='en'?'View as:':'Ver como:'}</span><select className="view-as-select" value={previewRole||''} onChange={e=>{setPreviewRole(e.target.value||null);setOpenDropdown(null);}}><option value="">{lang==='en'?'Global Admin':'Admin global'}</option><option value="delegate_admin">{lang==='en'?'Delegate Admin':'Admin delegado'}</option><option value="standard_admin">{lang==='en'?'Standard Admin':'Admin estándar'}</option><option value="user">{lang==='en'?'Owner/User':'Propietario/Usuario'}</option></select></div>}
                   <button className="dd-item danger" onClick={()=>{setOpenDropdown(null);logout();}}>{lang === "en" ? "🚪 Log out" : "🚪 Cerrar sesión"}</button>
                 </div>
               </div>
@@ -1123,8 +1127,8 @@ export default function App() {
       </header>
       {adminInfo.isGlobalAdmin && previewRole && (
         <div className="role-preview-banner" role="alert" aria-live="polite">
-          <span>👁️ {lang==='en' ? `Viewing as: ${PREVIEW_ROLE_LABELS.en[previewRole]} — read-only preview` : `Vista como: ${PREVIEW_ROLE_LABELS.es[previewRole]} — solo vista previa`}</span>
-          <button type="button" onClick={()=>setPreviewRole(null)}>{lang==='en'?'✕ Exit preview':'✕ Salir de vista'}</button>
+          <span>⚠️ {lang==='en' ? `Viewing as: ${PREVIEW_ROLE_LABELS.en[previewRole]} — This is a preview only` : `Vista previa como: ${PREVIEW_ROLE_LABELS.es[previewRole]} — Esto es solo una vista previa`}</span>
+          <button type="button" onClick={()=>setPreviewRole(null)}>{lang==='en'?'Exit preview':'Salir de vista previa'}</button>
         </div>
       )}
       <ActionStrip
@@ -2099,8 +2103,8 @@ html{font-size:clamp(14px,1.1vw,16px);-webkit-text-size-adjust:100%}body{overflo
 
 
 /* v64 smart notifications */
-.smart-dd{position:relative;display:inline-flex;z-index:2147482500}.smart-menu{position:fixed;top:64px;right:84px;width:min(420px,calc(100vw - 20px));max-height:calc(100svh - 82px);overflow:auto;background:rgba(255,255,255,.98);border:1px solid rgba(47,79,58,.16);border-radius:18px;box-shadow:0 24px 70px rgba(18,31,38,.28);padding:12px;z-index:2147483500!important;color:#17313a}.smart-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:8px 8px 12px;border-bottom:1px solid rgba(47,79,58,.12);margin-bottom:8px}.smart-head strong{display:block;font-size:.96rem;color:#17313a}.smart-head span{display:block;font-size:.74rem;color:#496674;line-height:1.35;margin-top:2px}.smart-head em{font-style:normal;background:#e7f8f0;color:#087346;border:1px solid #bdebd5;border-radius:999px;padding:4px 8px;font-size:.68rem;font-weight:900;white-space:nowrap}.smart-list{display:flex;flex-direction:column;gap:8px}.smart-item{width:100%;display:grid;grid-template-columns:38px 1fr auto;align-items:center;gap:10px;border:1px solid rgba(47,79,58,.12);background:#fff;border-radius:14px;padding:10px;text-align:left;cursor:pointer;transition:transform .16s ease, box-shadow .16s ease, border-color .16s ease}.smart-item:hover,.smart-item:focus{transform:translateY(-1px);box-shadow:0 12px 28px rgba(32,46,38,.12);border-color:#19a66a}.smart-icon{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:#f1f6f4;font-size:1.05rem}.smart-copy strong{display:block;color:#17313a;font-size:.86rem}.smart-copy small{display:block;color:#496674;font-size:.73rem;line-height:1.3;margin-top:2px}.smart-count{min-width:26px;height:26px;border-radius:999px;background:#0b7f4f;color:#fff;display:flex;align-items:center;justify-content:center;font-size:.76rem;font-weight:900}.smart-owner .smart-icon{background:#e7f8f0}.smart-resolve .smart-icon{background:#fff0dc}.smart-registration .smart-icon{background:#ecf3ff}.smart-notice .smart-icon{background:#f0ecff}.smart-serious .smart-icon{background:#ffe9e7}.smart-serious{border-color:rgba(190,40,30,.22)}.smart-empty{padding:16px;text-align:center}.smart-empty strong{display:block;color:#17313a}.smart-empty span{display:block;color:#496674;font-size:.78rem;margin-top:4px}.smart-foot{display:flex;gap:8px;flex-wrap:wrap;border-top:1px solid rgba(47,79,58,.12);margin-top:10px;padding-top:8px}.smart-foot .dd-item{flex:1 1 160px;justify-content:center;background:#f7fbfa;border:1px solid rgba(47,79,58,.10);border-radius:12px}.icon-badge{animation:smartPulse 1.8s infinite}@keyframes smartPulse{0%,100%{transform:scale(1)}50%{transform:scale(1.08)}}
-@media(max-width:820px){.smart-menu{left:8px!important;right:8px!important;top:58px!important;width:auto!important;max-height:calc(100svh - 70px)}.smart-item{grid-template-columns:34px 1fr auto}.smart-foot{flex-direction:column}.smart-foot .dd-item{width:100%}}
+.smart-dd{position:relative;display:inline-flex;z-index:2147482500}.smart-menu{position:fixed;top:64px;right:84px;width:min(420px,calc(100vw - 20px));max-height:calc(100svh - 82px);overflow:auto;background:rgba(255,255,255,.98);border:1px solid rgba(47,79,58,.16);border-radius:18px;box-shadow:0 24px 70px rgba(18,31,38,.28);padding:12px;z-index:2147483500!important;color:#17313a}.smart-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:8px 8px 12px;border-bottom:1px solid rgba(47,79,58,.12);margin-bottom:8px}.smart-head strong{display:block;font-size:.96rem;color:#17313a}.smart-head span{display:block;font-size:.74rem;color:#496674;line-height:1.35;margin-top:2px}.smart-head em{font-style:normal;background:#e7f8f0;color:#087346;border:1px solid #bdebd5;border-radius:999px;padding:4px 8px;font-size:.68rem;font-weight:900;white-space:nowrap}.smart-list{display:flex;flex-direction:column;gap:8px}.smart-item{width:100%;display:flex!important;align-items:center!important;justify-content:flex-start!important;gap:10px;border:1px solid rgba(47,79,58,.12);background:#fff;border-radius:14px;padding:10px;text-align:left;cursor:pointer;transition:transform .16s ease, box-shadow .16s ease, border-color .16s ease}.smart-item:hover,.smart-item:focus{transform:translateY(-1px);box-shadow:0 12px 28px rgba(32,46,38,.12);border-color:#19a66a}.smart-icon{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:#f1f6f4;font-size:1.05rem;flex:0 0 36px}.smart-copy{flex:1;min-width:0}.smart-copy strong{display:block;color:#17313a;font-size:.86rem}.smart-copy small{display:block;color:#496674;font-size:.73rem;line-height:1.3;margin-top:2px}.smart-count{min-width:24px;height:24px;border-radius:999px;background:#0b7f4f;color:#fff;display:flex!important;align-items:center!important;justify-content:center!important;font-size:.74rem;font-weight:900;flex-shrink:0;margin-left:auto}.smart-owner .smart-icon{background:#e7f8f0}.smart-resolve .smart-icon{background:#fff0dc}.smart-registration .smart-icon{background:#ecf3ff}.smart-notice .smart-icon{background:#f0ecff}.smart-serious .smart-icon{background:#ffe9e7}.smart-serious{border-color:rgba(190,40,30,.22)}.smart-empty{padding:16px;text-align:center}.smart-empty strong{display:block;color:#17313a}.smart-empty span{display:block;color:#496674;font-size:.78rem;margin-top:4px}.smart-foot{display:flex;gap:8px;flex-wrap:wrap;border-top:1px solid rgba(47,79,58,.12);margin-top:10px;padding-top:8px}.smart-foot .dd-item{flex:1 1 160px;justify-content:center;background:#f7fbfa;border:1px solid rgba(47,79,58,.10);border-radius:12px}.icon-badge{animation:smartPulse 1.8s infinite}@keyframes smartPulse{0%,100%{transform:scale(1)}50%{transform:scale(1.08)}}
+@media(max-width:820px){.smart-menu{left:8px!important;right:8px!important;top:58px!important;width:auto!important;max-height:calc(100svh - 70px)}.smart-foot{flex-direction:column}.smart-foot .dd-item{width:100%}}
 
 /* --- spinners -------------------------------------------------------------- */
 .spinner{width:40px;height:40px;border:3px solid rgba(255,255,255,.18);border-top-color:#17b7b5;border-radius:50%;animation:spin .8s linear infinite}
@@ -2204,10 +2208,16 @@ html{font-size:clamp(14px,1.1vw,16px);-webkit-text-size-adjust:100%}body{overflo
 .role-preview-banner>button:hover{background:rgba(0,0,0,.24)}
 @media(max-width:600px){.role-preview-banner{padding:8px 12px;font-size:.78rem}.role-preview-banner>span{font-size:.72rem}}
 
-/* --- view-as selector (Global Admin only, in .hdr-right) ------------------- */
-.view-as-select{height:36px;border-radius:10px;border:1px solid rgba(47,79,58,.22)!important;background:rgba(255,255,252,.96)!important;color:#17313a!important;padding:0 8px!important;font-weight:800;font-size:.76rem;cursor:pointer;max-width:148px}
-@media(max-width:1180px){.view-as-select{max-width:120px;font-size:.72rem}}
-@media(max-width:1000px){.view-as-select{display:none}}
+/* --- view-as selector (Global Admin only) ---------------------------------- */
+.view-as-wrap{display:flex;align-items:center;gap:5px;flex-shrink:0}
+.view-as-label{font-size:.72rem;font-weight:900;color:#235f72;white-space:nowrap}
+.view-as-select{height:34px;border-radius:10px;border:1px solid rgba(47,79,58,.22)!important;background:rgba(255,255,252,.96)!important;color:#17313a!important;padding:0 8px!important;font-weight:800;font-size:.76rem;cursor:pointer}
+@media(max-width:1180px){.view-as-wrap{max-width:175px}.view-as-label{display:none}.view-as-select{font-size:.72rem}}
+@media(max-width:1000px){.view-as-wrap{display:none}}
+/* "View as" in profile dropdown (always accessible) */
+.profile-view-as{padding:8px 12px;display:flex;align-items:center;gap:8px;border-top:1px solid rgba(47,79,58,.08);margin-top:2px}
+.profile-view-as>span{font-size:.78rem;font-weight:900;color:#235f72;white-space:nowrap;flex-shrink:0}
+.profile-view-as .view-as-select{flex:1;height:32px;font-size:.82rem}
 
 /* --- FIX 1: nav overflow at 900-1200 px ----------------------------------- */
 @media(max-width:1200px) and (min-width:1001px){
