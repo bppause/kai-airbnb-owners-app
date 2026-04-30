@@ -775,6 +775,9 @@ export default function App() {
   const [modal,     setModal]     = useState(null);
   const [incidentQuickFilter, setIncidentQuickFilter] = useState(null);
   const [userProfile, setUserProfile] = useState({ whatsapp:'' });
+  // Listing floor collapse state — lives here so it persists across navigation
+  const [listingFloorOpen, setListingFloorOpen] = useState({});
+  const toggleListingFloor = (f) => setListingFloorOpen(s=>({...s,[f]:!s[f]}));
   const pollRef = useRef(null);
 
   const [loadError, setLoadError] = useState(false);
@@ -1238,13 +1241,13 @@ export default function App() {
       <main className="main">
         {view==="dashboard" && <Dashboard lang={lang} listings={listings} incidents={incidents} user={user} contactProps={contactProps} setView={setView} showBlacklist={false} onReport={()=>{ if(!user){login();return;} setModal({type:"incident"}); }} effectiveIsGlobalAdmin={effectiveIsGlobalAdmin} effectiveRole={effectiveRole} delegatePerms={delegatePerms} pendingOwner={needsOwnerVerification.length} pendingResolve={needsAdminResolution.length} pendingRegistrations={effectiveCanManageRegistrations ? pendingRegistrations.length : 0} canResolve={canResolveIncidentsNow} canManageRegistrations={effectiveCanManageRegistrations} onOwnerClick={()=>{setIncidentQuickFilter('ownerVerification');setView('incidents');}} onResolveClick={()=>{setIncidentQuickFilter('requiresResolution');setView('incidents');}} onRegistrationsClick={()=>setView('approvals')} />}
         {view==="about" && <CommunityMissionView lang={lang} config={adminInfo.config} />}
-        {view==="listings"  && <ListingsView lang={lang} listings={listings} incidents={incidents} user={user} contactProps={contactProps} isGlobalAdmin={effectiveIsGlobalAdmin} canEditGlobal={delegatePerms.canUpdateGlobalListings} canDeleteGlobal={delegatePerms.canDeleteGlobalListings} canResolveGlobal={canResolveIncidentsNow} onAdd={()=>{ if(!user){login();return;} setModal({type:"addListing"}); }} onEdit={l=>setModal({type:"editListing",data:l})} onDelete={deleteListing} onReport={l=>{ if(!user){login();return;} setModal({type:"incident",data:{aptId:l.id}}); }} onVerify={inc=>setModal({type:"verifyIncident",data:inc})} onResolve={resolveIncident} />}
+        {view==="listings"  && <ListingsView lang={lang} listings={listings} incidents={incidents} user={user} contactProps={contactProps} isGlobalAdmin={effectiveIsGlobalAdmin} canEditGlobal={delegatePerms.canUpdateGlobalListings} canDeleteGlobal={delegatePerms.canDeleteGlobalListings} canResolveGlobal={canResolveIncidentsNow} floorOpenState={listingFloorOpen} onFloorToggle={toggleListingFloor} onAdd={()=>{ if(!user){login();return;} setModal({type:"addListing"}); }} onEdit={l=>setModal({type:"editListing",data:l})} onDelete={deleteListing} onReport={l=>{ if(!user){login();return;} setModal({type:"incident",data:{aptId:l.id}}); }} onVerify={inc=>setModal({type:"verifyIncident",data:inc})} onResolve={resolveIncident} />}
         {view==="incidents" && <IncidentsView lang={lang} incidents={incidents} listings={listings} user={user} quickFilter={incidentQuickFilter} onQuickFilterApplied={()=>setIncidentQuickFilter(null)} contactProps={contactProps} isGlobalAdmin={effectiveIsGlobalAdmin} canUpdateGlobal={delegatePerms.canUpdateGlobalIncidents} canDeleteGlobal={delegatePerms.canDeleteGlobalIncidents} canResolveGlobal={canResolveIncidentsNow} onAdd={()=>{ if(!user){login();return;} setModal({type:"incident"}); }} onResolve={resolveIncident} onDelete={deleteIncident} onVerify={inc=>setModal({type:"verifyIncident",data:inc})} />}
         {view==="notifications" && user && <NotificationsView lang={lang} notifications={notifications} incidents={incidents} listings={listings} contactProps={contactProps} onRead={markNotificationRead} onReadAll={markAllNotificationsRead} smartAlerts={smartAlerts} />}
         {view==="approvals" && user && effectiveCanManageRegistrations && <PendingApprovalsView lang={lang} pending={pendingRegistrations} onApprove={id=>reviewRegistrationAction(id,'approve')} onDecline={id=>reviewRegistrationAction(id,'decline')} active={activeRegistrations} />}
         {view==="analytics" && user && (effectiveIsGlobalAdmin || analyticsEnabledForAll) && <AnalyticsDashboard lang={lang} user={user} contactProps={contactProps} showToast={showToast} isGlobalAdmin={effectiveIsGlobalAdmin} />}
         {view==="admin" && user && (effectiveIsGlobalAdmin ? <ErrorBoundary section="admin" fallback={(err)=><AdminFallback lang={lang} error={err}/>}><AdminSettings config={adminInfo.config || {}} user={user} listings={listings} contactProps={contactProps} onSave={saveAdminConfig} showToast={showToast} lang={lang} /></ErrorBoundary> : <AdminAccessHelp user={user} adminInfo={adminInfo} lang={lang} />)}
-        {view==="my" && user && <MyListings lang={lang} listings={myListings} incidents={incidents} user={user} contactProps={contactProps} onAdd={()=>setModal({type:"addListing"})} onEdit={l=>setModal({type:"editListing",data:l})} onDelete={deleteListing} onReport={l=>setModal({type:"incident",data:{aptId:l.id}})} />}
+        {view==="my" && user && <MyListings lang={lang} listings={myListings} incidents={incidents} user={user} contactProps={contactProps} isGlobalAdmin={effectiveIsGlobalAdmin} canResolveGlobal={canResolveIncidentsNow} onAdd={()=>setModal({type:"addListing"})} onEdit={l=>setModal({type:"editListing",data:l})} onDelete={deleteListing} onReport={l=>setModal({type:"incident",data:{aptId:l.id}})} onVerify={inc=>setModal({type:"verifyIncident",data:inc})} onResolve={resolveIncident} />}
         {view==="profile" && user && <ProfileView lang={lang} user={user} userProfile={userProfile} onSave={saveProfile} />}
         {view==="help" && <HelpView lang={lang} effectiveRole={effectiveRole} effectiveIsGlobalAdmin={effectiveIsGlobalAdmin} delegatePerms={delegatePerms} listings={listings} incidents={incidents} user={user} setView={setView} onReport={()=>{ if(!user){login();return;} setModal({type:'incident'}); }} onAddListing={()=>{ if(!user){login();return;} setModal({type:'addListing'}); }} setIncidentQuickFilter={setIncidentQuickFilter} openMore={()=>setOpenDropdown('more')} />}
       </main>
@@ -2154,14 +2157,86 @@ function Dashboard({ listings, incidents, user, contactProps={}, setView, onRepo
   );
 }
 
-function MyListings({ listings, incidents, user, contactProps={}, onAdd, onEdit, onDelete, onReport, lang="es-CO" }) {
-  const totalGuests=listings.reduce((a,l)=>a+(l.guests||0),0), myInc=incidents.filter(i=>listings.some(l=>l.id===i.aptId)), openC=myInc.filter(i=>i.status==="open").length;
+function MyListings({ listings, incidents, user, contactProps={}, isGlobalAdmin=false, canResolveGlobal=false, onAdd, onEdit, onDelete, onReport, onVerify, onResolve, lang="es-CO" }) {
+  const [selectedId, setSelectedId] = useState(null);
+  const isEn = lang==='en';
+  const myListingIds = new Set(listings.map(l=>l.id));
+  const incAgainstMe = incidents.filter(i=>myListingIds.has(i.aptId));
+  const incIReported = incidents.filter(i=>i.reporterUid===user.uid&&!myListingIds.has(i.aptId));
+  const totalGuests  = listings.reduce((a,l)=>a+(l.guests||0),0);
+  const openC    = incAgainstMe.filter(i=>i.status==='open').length;
+  const verifiedC= incAgainstMe.filter(i=>i.status==='verified').length;
+  const resolvedC= incAgainstMe.filter(i=>i.status==='resolved').length;
+  const sorted   = [...listings].sort((a,b)=>a.apt.localeCompare(b.apt));
   return (
     <div className="fade">
-      <div className="ph"><div><h1 className="ptitle">{appText(lang,"my.title")}</h1><p className="psub">{user.name} · {listings.length} {appText(lang,"my.units")} · {totalGuests} {appText(lang,"my.guestsTotal")}</p></div><button className="btn-p" onClick={onAdd}>{appText(lang,"listings.add")}</button></div>
-      <div className="owner-stats">{[{icon:"🏠",val:listings.length,label:appText(lang,"my.myApts"),color:"#2a9aaa"},{icon:"👥",val:totalGuests,label:appText(lang,"my.capacityShort"),color:"#c9a84c"},{icon:"⚠️",val:openC,label:appText(lang,"dashboard.openReports"),color:"#d4634a"},{icon:"🔗",val:listings.filter(l=>l.airbnb).length,label:appText(lang,"dashboard.onAirbnb"),color:"#FF5A5F"}].map((s,i)=><div key={i} className="scard" style={{borderTop:`3px solid ${s.color}`}}><div style={{fontSize:"1.4rem"}}>{s.icon}</div><div className="sval" style={{color:s.color}}>{s.val}</div><div className="slabel">{s.label}</div></div>)}</div>
-      {listings.length===0?<EmptyState icon="🏠" title={appText(lang,"my.noApts")} sub={appText(lang,"my.addFirst")}/>:<div className="lg">{[...listings].sort((a,b)=>a.apt.localeCompare(b.apt)).map(l=><AptCard key={l.id} l={l} contactProps={contactProps} incCount={incidents.filter(i=>i.aptId===l.id&&i.status==="open").length} canEdit canDelete onEdit={()=>onEdit(l)} onDelete={()=>onDelete(l)} onReport={()=>onReport(l)} lang={lang}/>)}</div>}
-      {myInc.length>0&&<div style={{marginTop:32}}><div className="section-label">{appText(lang,"filters.scopeMyIncidents")}</div>{[...myInc].sort((a,b)=>new Date(b.createdAt)-new Date(a.createdAt)).map(i=><IRow key={i.id} inc={i} listings={listings} contactProps={contactProps} lang={lang}/>)}</div>}
+      <div className="ph">
+        <div>
+          <h1 className="ptitle">{appText(lang,"my.title")}</h1>
+          <p className="psub">{user.name} · {listings.length} {appText(lang,"my.units")} · {totalGuests} {appText(lang,"my.guestsTotal")}</p>
+        </div>
+        <button className="btn-p" onClick={onAdd}>{appText(lang,"listings.add")}</button>
+      </div>
+
+      {/* ── Summary stats ── */}
+      <div className="ml-stats">
+        <div className="ml-stat"><span className="ml-stat-val">{listings.length}</span><span className="ml-stat-lbl">🏠 {isEn?'Listings':'Listings'}</span></div>
+        <div className="ml-stat"><span className="ml-stat-val">{totalGuests}</span><span className="ml-stat-lbl">👥 {isEn?'Guest cap.':'Huéspedes'}</span></div>
+        <div className={`ml-stat${openC>0?' ml-stat-warn':''}`}><span className="ml-stat-val">{openC}</span><span className="ml-stat-lbl">⚠️ {isEn?'Open':'Abiertos'}</span></div>
+        <div className={`ml-stat${verifiedC>0?' ml-stat-ver':''}`}><span className="ml-stat-val">{verifiedC}</span><span className="ml-stat-lbl">👤 {isEn?'Verified':'Verificados'}</span></div>
+        <div className={`ml-stat${resolvedC>0?' ml-stat-res':''}`}><span className="ml-stat-val">{resolvedC}</span><span className="ml-stat-lbl">✓ {isEn?'Resolved':'Resueltos'}</span></div>
+      </div>
+
+      {/* ── My listings — click to see incidents ── */}
+      <div className="ml-section">
+        <div className="ml-section-hdr">🏠 {isEn?'My listings':'Mis listings'}</div>
+        {listings.length===0
+          ? <EmptyState icon="🏠" title={appText(lang,"my.noApts")} sub={appText(lang,"my.addFirst")}/>
+          : sorted.map(l=>{
+              const lInc  = incidents.filter(i=>i.aptId===l.id);
+              const lOpen = lInc.filter(i=>i.status==='open').length;
+              const lVer  = lInc.filter(i=>i.status==='verified').length;
+              const lRes  = lInc.filter(i=>i.status==='resolved').length;
+              const isSel = selectedId===l.id;
+              return (
+                <div key={l.id} className={`ml-listing${isSel?' ml-listing-sel':''}`}>
+                  <div className="ml-listing-row" onClick={()=>setSelectedId(isSel?null:l.id)}>
+                    <div className="ml-listing-apt">Apt {l.apt}</div>
+                    <div className="ml-listing-chips">
+                      <span className="chip c-teal">🛏️ {l.rooms}</span>
+                      <span className="chip c-blue">👥 {l.guests}</span>
+                    </div>
+                    <div className="ml-listing-inc-pills">
+                      {lOpen>0&&<span className="ml-pill ml-pill-open">⚠️ {lOpen}</span>}
+                      {lVer>0&&<span className="ml-pill ml-pill-ver">👤 {lVer}</span>}
+                      {lRes>0&&<span className="ml-pill ml-pill-res">✓ {lRes}</span>}
+                      {lInc.length===0&&<span className="ml-pill ml-pill-clear">✓ {isEn?'Clear':'Al día'}</span>}
+                    </div>
+                    <div className="ml-listing-acts" onClick={e=>e.stopPropagation()}>
+                      <button className="bsm bs-rep" onClick={()=>onReport(l)}>+ {isEn?'Report':'Reporte'}</button>
+                      <button className="bsm bs-edit" onClick={()=>onEdit(l)}>✏️</button>
+                      <button className="bsm bs-del" onClick={()=>onDelete(l)}>🗑️</button>
+                    </div>
+                    <span className={`fls-chev${isSel?' fls-chev-up':''}`} style={{marginLeft:'auto',flexShrink:0}}>›</span>
+                  </div>
+                  {isSel&&(
+                    <AptDetailPanel l={l} incidents={incidents} contactProps={contactProps} canEdit canDelete onEdit={()=>onEdit(l)} onDelete={()=>onDelete(l)} onReport={()=>onReport(l)} onClose={()=>setSelectedId(null)} user={user} isGlobalAdmin={isGlobalAdmin} canResolveGlobal={canResolveGlobal} onVerify={onVerify} onResolve={onResolve} lang={lang} isEn={isEn}/>
+                  )}
+                </div>
+              );
+            })
+        }
+      </div>
+
+      {/* ── Incidents I reported against other apts ── */}
+      {incIReported.length>0&&(
+        <div className="ml-section" style={{marginTop:24}}>
+          <div className="ml-section-hdr">📋 {isEn?'Incidents I reported':'Incidentes que reporté'}</div>
+          {[...incIReported].sort((a,b)=>new Date(b.createdAt)-new Date(a.createdAt)).map(i=>(
+            <IRow key={i.id} inc={i} listings={listings} contactProps={contactProps} isGlobalAdmin={isGlobalAdmin} canResolveGlobal={canResolveGlobal} onResolve={onResolve} onDelete={()=>{}} onVerify={onVerify} lang={lang}/>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -2293,7 +2368,10 @@ function AptDetailPanel({ l, incidents, contactProps={}, canEdit, canDelete, onE
 function BuildingFloor({ floor, apts, incidents, user, contactProps, isGlobalAdmin, canEditGlobal, canDeleteGlobal, canResolveGlobal, onEdit, onDelete, onReport, onVerify, onResolve, isOpen, onToggle, lang, isEn }) {
   const [selectedAptId, setSelectedAptId] = useState(null);
   const color = floorColor(floor);
-  const openCount = incidents.filter(i=>apts.some(l=>l.id===i.aptId)&&i.status==='open').length;
+  const floorInc   = incidents.filter(i=>apts.some(l=>l.id===i.aptId));
+  const openCount  = floorInc.filter(i=>i.status==='open').length;
+  const verCount   = floorInc.filter(i=>i.status==='verified').length;
+  const resCount   = floorInc.filter(i=>i.status==='resolved').length;
   const selectedApt = apts.find(l=>l.id===selectedAptId);
   const handleSelect = (id) => setSelectedAptId(id);
 
@@ -2302,12 +2380,14 @@ function BuildingFloor({ floor, apts, incidents, user, contactProps, isGlobalAdm
       <button className="bld-floor-hdr" style={{borderLeftColor:color}} onClick={onToggle}>
         <div className="bld-floor-id">
           <span className="bld-floor-level">{isEn?'FLOOR':'PISO'}</span>
-          <span className="bld-floor-num" style={{color:color}}>{floor}</span>
+          <span className="bld-floor-num" style={{color}}>{floor}</span>
         </div>
         <div className="bld-floor-stats">
-          <span className="bld-stat-pill bld-stat-apts">🏠 {apts.length} {isEn?(apts.length===1?'unit':'units'):(apts.length===1?'apto':'aptos')}</span>
-          {openCount>0 && <span className="bld-stat-pill bld-stat-inc">⚠️ {openCount} {isEn?'open':'abierto'}{openCount>1?'s':''}</span>}
-          {openCount===0 && <span className="bld-stat-pill bld-stat-clear">✓ {isEn?'Clear':'Al día'}</span>}
+          <span className="bld-stat-pill bld-stat-apts">🏠 {apts.length} {isEn?(apts.length===1?'apt':'apts'):'apto'+(apts.length>1?'s':'')}</span>
+          {openCount>0  && <span className="bld-stat-pill bld-stat-inc">⚠️ {openCount} {isEn?'open':'abierto'}{openCount>1&&isEn?'s':''}</span>}
+          {verCount>0   && <span className="bld-stat-pill bld-stat-ver">👤 {verCount} {isEn?'verified':'verificado'}{verCount>1&&isEn?'s':''}</span>}
+          {resCount>0   && <span className="bld-stat-pill bld-stat-res">✓ {resCount} {isEn?'resolved':'resuelto'}{resCount>1&&isEn?'s':''}</span>}
+          {floorInc.length===0 && <span className="bld-stat-pill bld-stat-clear">✓ {isEn?'Clear':'Al día'}</span>}
         </div>
         <span className={`bld-chev${isOpen?' bld-chev-up':''}`}>›</span>
       </button>
@@ -2397,23 +2477,21 @@ function FloorSection({ floor, apts, openCount, incidents, user, contactProps, i
   );
 }
 
-function ListingsView({ listings, incidents, user, contactProps={}, isGlobalAdmin=false, canEditGlobal=false, canDeleteGlobal=false, canResolveGlobal=false, onAdd, onEdit, onDelete, onReport, onVerify, onResolve, lang="es-CO" }) {
+function ListingsView({ listings, incidents, user, contactProps={}, isGlobalAdmin=false, canEditGlobal=false, canDeleteGlobal=false, canResolveGlobal=false, floorOpenState={}, onFloorToggle, onAdd, onEdit, onDelete, onReport, onVerify, onResolve, lang="es-CO" }) {
   const [search, setSearch]   = useState('');
   const [scope, setScope]     = useState('all');
   const [viewMode, setViewMode] = useState('building');
-  const [floorOpen, setFloorOpen] = useState({});
   const isEn = lang === 'en';
-
-  const toggleFloor = (f) => setFloorOpen(s=>({...s,[f]:!s[f]}));
 
   const scoped   = scope==='mine'&&user ? listings.filter(l=>l.ownerUid===user.uid) : listings;
   const filtered = scoped.filter(l=>{
     const q=search.toLowerCase();
     return !q||String(l.apt||'').includes(q)||String(l.owner||'').toLowerCase().includes(q)||String(l.operator||'').toLowerCase().includes(q);
   });
-  const sorted = [...filtered].sort((a,b)=>String(a.apt||'').localeCompare(String(b.apt||'')));
-  const floorNums = [...new Set(sorted.map(l=>getFloorNum(l.apt)))].sort((a,b)=>b-a);
-  const byFloor = (f) => sorted.filter(l=>getFloorNum(l.apt)===f);
+  const sorted    = [...filtered].sort((a,b)=>String(a.apt||'').localeCompare(String(b.apt||'')));
+  // Ascending floor order (floor 1 at top, floor 9 at bottom)
+  const floorNums = [...new Set(sorted.map(l=>getFloorNum(l.apt)))].sort((a,b)=>a-b);
+  const byFloor   = (f) => sorted.filter(l=>getFloorNum(l.apt)===f);
 
   return (
     <div className="fade">
@@ -2445,7 +2523,7 @@ function ListingsView({ listings, incidents, user, contactProps={}, isGlobalAdmi
           ? <div className="lg">{sorted.map(l=><AptCard key={l.id} l={l} contactProps={contactProps} incCount={incidents.filter(i=>i.aptId===l.id&&i.status==='open').length} canEdit={user?.uid===l.ownerUid||isGlobalAdmin||canEditGlobal} canDelete={user?.uid===l.ownerUid||isGlobalAdmin||canDeleteGlobal} onEdit={()=>onEdit(l)} onDelete={()=>onDelete(l)} onReport={()=>onReport(l)} showLogin={!user} lang={lang}/>)}</div>
           : viewMode==='list'
             ? <div className="fls-list">{floorNums.map(f=><FloorSection key={f} floor={f} apts={byFloor(f)} openCount={incidents.filter(i=>byFloor(f).some(l=>l.id===i.aptId)&&i.status==='open').length} incidents={incidents} user={user} contactProps={contactProps} isGlobalAdmin={isGlobalAdmin} canEditGlobal={canEditGlobal} canDeleteGlobal={canDeleteGlobal} onEdit={onEdit} onDelete={onDelete} onReport={onReport} lang={lang} isEn={isEn}/>)}</div>
-            : <div className="bld-building">{floorNums.map(f=><BuildingFloor key={f} floor={f} apts={byFloor(f)} incidents={incidents} user={user} contactProps={contactProps} isGlobalAdmin={isGlobalAdmin} canEditGlobal={canEditGlobal} canDeleteGlobal={canDeleteGlobal} canResolveGlobal={canResolveGlobal} onEdit={onEdit} onDelete={onDelete} onReport={onReport} onVerify={onVerify} onResolve={onResolve} isOpen={!!floorOpen[f]} onToggle={()=>toggleFloor(f)} lang={lang} isEn={isEn}/>)}</div>
+            : <div className="bld-building">{floorNums.map(f=><BuildingFloor key={f} floor={f} apts={byFloor(f)} incidents={incidents} user={user} contactProps={contactProps} isGlobalAdmin={isGlobalAdmin} canEditGlobal={canEditGlobal} canDeleteGlobal={canDeleteGlobal} canResolveGlobal={canResolveGlobal} onEdit={onEdit} onDelete={onDelete} onReport={onReport} onVerify={onVerify} onResolve={onResolve} isOpen={!!floorOpenState[f]} onToggle={()=>onFloorToggle(f)} lang={lang} isEn={isEn}/>)}</div>
       }
     </div>
   );
@@ -3699,44 +3777,47 @@ html{font-size:clamp(14px,1.1vw,16px);-webkit-text-size-adjust:100%}body{overflo
 .fls-vbtn-on{background:#0b7f4f!important;color:#fff!important}
 /* ── Building (floor bands + door grid) */
 .bld-building{display:flex;flex-direction:column;gap:10px}
-.bld-floor{border-radius:16px;overflow:hidden;box-shadow:0 8px 24px rgba(0,0,0,.14);border:1px solid rgba(0,0,0,.08)}
-.bld-floor-hdr{width:100%;display:flex;align-items:center;gap:14px;padding:14px 20px;background:linear-gradient(90deg,#1a2d24,#243c30);border-left:5px solid #0b7f8c;border:0;cursor:pointer;text-align:left;transition:background .14s}
-.bld-floor-hdr:hover{background:linear-gradient(90deg,#1f3529,#2a4538)}
-.bld-floor-id{display:flex;flex-direction:column;gap:1px;flex-shrink:0;min-width:40px}
-.bld-floor-level{font-size:.55rem;font-weight:900;letter-spacing:.18em;color:rgba(180,210,195,.5);text-transform:uppercase}
-.bld-floor-num{font-family:'Playfair Display',serif;font-size:1.6rem;font-weight:900;line-height:1;color:#c8e0d0}
-.bld-floor-stats{display:flex;gap:8px;flex:1;flex-wrap:wrap}
-.bld-stat-pill{border-radius:999px;padding:5px 12px;font-size:.74rem;font-weight:800;white-space:nowrap}
-.bld-stat-apts{background:rgba(200,230,210,.1);color:rgba(200,230,210,.85);border:1px solid rgba(200,230,210,.15)}
-.bld-stat-inc{background:rgba(250,180,0,.18);color:#f0c04a;border:1px solid rgba(250,180,0,.28)}
-.bld-stat-clear{background:rgba(31,160,100,.12);color:rgba(160,220,185,.8);border:1px solid rgba(31,160,100,.2)}
-.bld-chev{color:rgba(200,230,210,.35);font-size:1.1rem;font-weight:900;transition:transform .2s;display:inline-block;flex-shrink:0;margin-left:auto}
+/* ── Building floors — light, on-theme */
+.bld-floor{border-radius:16px;overflow:hidden;box-shadow:0 6px 18px rgba(32,46,38,.08);border:1px solid rgba(47,79,58,.16);background:rgba(255,255,255,.9)}
+.bld-floor-hdr{width:100%;display:flex;align-items:center;gap:14px;padding:13px 18px;background:linear-gradient(90deg,rgba(11,127,79,.07),rgba(11,127,140,.04));border-left:5px solid #0b7f8c;border-top:0;border-right:0;border-bottom:0;cursor:pointer;text-align:left;transition:background .14s}
+.bld-floor-hdr:hover{background:linear-gradient(90deg,rgba(11,127,79,.11),rgba(11,127,140,.07))}
+.bld-floor-id{display:flex;flex-direction:column;gap:0;flex-shrink:0;min-width:38px}
+.bld-floor-level{font-size:.52rem;font-weight:900;letter-spacing:.14em;color:#8a9fa5;text-transform:uppercase}
+.bld-floor-num{font-family:'Playfair Display',serif;font-size:1.5rem;font-weight:900;line-height:1;color:#203f2b}
+.bld-floor-stats{display:flex;gap:6px;flex:1;flex-wrap:wrap;align-items:center}
+.bld-stat-pill{border-radius:999px;padding:4px 10px;font-size:.72rem;font-weight:800;white-space:nowrap}
+.bld-stat-apts{background:rgba(47,79,58,.08);color:#496674;border:1px solid rgba(47,79,58,.14)}
+.bld-stat-inc{background:rgba(160,80,0,.08);color:#a05000;border:1px solid rgba(160,80,0,.18)}
+.bld-stat-ver{background:rgba(11,127,79,.08);color:#0b5f3a;border:1px solid rgba(11,127,79,.18)}
+.bld-stat-res{background:rgba(100,150,120,.08);color:#4a7060;border:1px solid rgba(100,150,120,.18)}
+.bld-stat-clear{background:rgba(31,160,100,.07);color:#1a7a50;border:1px solid rgba(31,160,100,.16)}
+.bld-chev{color:#8a9fa5;font-size:1.1rem;font-weight:900;transition:transform .2s;display:inline-block;flex-shrink:0;margin-left:auto}
 .bld-chev-up{transform:rotate(90deg)}
-.bld-floor-body{background:linear-gradient(180deg,#e8e2d8,#f0ece4)}
+.bld-floor-body{background:rgba(245,248,244,.8);border-top:1px solid rgba(47,79,58,.08)}
 /* ── Door grid */
-.bld-door-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:12px;padding:16px}
-/* ── Door card */
-.apt-door{position:relative;border-radius:12px;overflow:hidden;cursor:pointer;background:linear-gradient(170deg,#2a3d30 0%,#1c2b22 100%);border:2px solid rgba(120,160,130,.2);box-shadow:0 6px 18px rgba(0,0,0,.25),inset 0 1px 0 rgba(255,255,255,.05);transition:transform .15s,box-shadow .15s,border-color .2s;user-select:none}
-.apt-door:hover{transform:translateY(-3px);box-shadow:0 12px 28px rgba(0,0,0,.32)}
-.apt-door-clean{border-color:rgba(31,160,100,.35)!important}
-.apt-door-warn{border-color:rgba(240,160,0,.55)!important;box-shadow:0 6px 18px rgba(0,0,0,.25),0 0 0 1px rgba(240,160,0,.18)!important}
-.apt-door-alert{border-color:rgba(210,80,60,.6)!important;box-shadow:0 6px 18px rgba(0,0,0,.25),0 0 14px rgba(210,80,60,.28)!important}
-.apt-door-sel{border-color:rgba(11,160,200,.7)!important;box-shadow:0 0 0 3px rgba(11,160,200,.22),0 8px 20px rgba(0,0,0,.28)!important;transform:translateY(-2px)}
+.bld-door-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px;padding:14px}
+/* ── Door card — light, like AptCard */
+.apt-door{position:relative;border-radius:12px;overflow:hidden;cursor:pointer;background:rgba(255,255,255,.96);border:1.5px solid rgba(47,79,58,.16);box-shadow:0 4px 12px rgba(32,46,38,.08);transition:transform .15s,box-shadow .15s,border-color .18s;user-select:none}
+.apt-door:hover{transform:translateY(-2px);box-shadow:0 8px 22px rgba(32,46,38,.14)}
+.apt-door-clean{border-color:rgba(31,160,100,.3)!important}
+.apt-door-warn{border-color:rgba(217,160,0,.45)!important;box-shadow:0 4px 12px rgba(32,46,38,.08),0 0 0 1px rgba(217,160,0,.18)!important}
+.apt-door-alert{border-color:rgba(210,80,60,.45)!important;box-shadow:0 4px 12px rgba(32,46,38,.08),0 0 10px rgba(210,80,60,.18)!important}
+.apt-door-sel{border-color:rgba(11,127,140,.55)!important;box-shadow:0 0 0 3px rgba(11,127,140,.14),0 6px 16px rgba(32,46,38,.12)!important;transform:translateY(-1px)}
 /* Status bar at top of door */
-.door-status-bar{height:4px;width:100%}
+.door-status-bar{height:3px;width:100%}
 .door-sb-clean{background:linear-gradient(90deg,#1fa862,#2dda80)}
 .door-sb-warn{background:linear-gradient(90deg,#d9a030,#f0c040)}
 .door-sb-alert{background:linear-gradient(90deg,#d43028,#f05040)}
 /* Incident badge */
-.door-inc-badge{position:absolute;top:10px;right:8px;background:#d9a030;color:#1a0800;border-radius:999px;font-size:.6rem;font-weight:900;padding:2px 7px;min-width:22px;text-align:center;box-shadow:0 2px 6px rgba(0,0,0,.3)}
-/* Door number plate */
-.door-plate{margin:12px auto 0;width:56px;height:56px;border-radius:10px;background:linear-gradient(135deg,#a8903a,#cdb04e);display:flex;align-items:center;justify-content:center;font-family:'Playfair Display',serif;font-size:1rem;font-weight:900;color:#1a1000;box-shadow:0 3px 10px rgba(0,0,0,.4),inset 0 1px 0 rgba(255,255,255,.25);letter-spacing:.02em}
-.door-body{padding:10px 10px 8px}
-.door-owner{font-size:.75rem;font-weight:700;color:rgba(200,220,210,.9);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:3px}
-.door-op{font-size:.65rem;color:rgba(150,180,160,.65);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:5px}
-.door-chips{display:flex;gap:4px;flex-wrap:wrap}
-.door-chip{font-size:.6rem;font-weight:700;padding:2px 6px;border-radius:999px;background:rgba(255,255,255,.07);color:rgba(190,220,205,.75);border:1px solid rgba(255,255,255,.06)}
-.door-footer{text-align:center;font-size:.6rem;font-weight:800;color:rgba(150,185,165,.45);padding:6px 0 8px;text-transform:uppercase;letter-spacing:.08em}
+.door-inc-badge{position:absolute;top:8px;right:7px;background:#d9a030;color:#1a0800;border-radius:999px;font-size:.58rem;font-weight:900;padding:2px 6px;min-width:20px;text-align:center;box-shadow:0 2px 5px rgba(0,0,0,.15)}
+/* Door number plate — dark on light card */
+.door-plate{margin:10px auto 0;width:52px;height:52px;border-radius:10px;background:linear-gradient(135deg,#17313a,#243c30);display:flex;align-items:center;justify-content:center;font-family:'Playfair Display',serif;font-size:.96rem;font-weight:900;color:#c8d8a0;box-shadow:0 3px 8px rgba(0,0,0,.18),inset 0 1px 0 rgba(255,255,255,.08);letter-spacing:.02em}
+.door-body{padding:8px 10px 6px}
+.door-owner{font-size:.72rem;font-weight:700;color:#203f2b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:2px}
+.door-op{font-size:.62rem;color:#496674;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:4px}
+.door-chips{display:flex;gap:3px;flex-wrap:wrap}
+.door-chip{font-size:.58rem;font-weight:700;padding:2px 5px;border-radius:999px;background:rgba(47,79,58,.08);color:#496674;border:1px solid rgba(47,79,58,.1)}
+.door-footer{text-align:center;font-size:.58rem;font-weight:800;color:#8a9fa5;padding:5px 0 7px;text-transform:uppercase;letter-spacing:.08em;border-top:1px solid rgba(47,79,58,.06);margin-top:4px}
 /* ── Apt detail panel */
 .adp-wrap{margin:0 16px 16px;background:rgba(255,255,255,.96);border-radius:14px;border:1px solid rgba(47,79,58,.18);box-shadow:0 8px 24px rgba(0,0,0,.12);overflow:hidden;animation:fadeIn .18s ease}
 .adp-header{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 16px;background:linear-gradient(90deg,rgba(11,127,79,.07),rgba(11,127,140,.05));border-bottom:1px solid rgba(47,79,58,.1);flex-wrap:wrap}
@@ -3809,6 +3890,32 @@ html{font-size:clamp(14px,1.1vw,16px);-webkit-text-size-adjust:100%}body{overflo
 .ir-apt-sub{font-size:.7rem;color:#6a8a9a;line-height:1.3}
 @media(max-width:640px){.bld-door-grid{grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:8px;padding:12px}.bld-floor-hdr{padding:12px 14px;gap:10px}.bld-floor-num{font-size:1.3rem}.door-plate{width:46px;height:46px;font-size:.88rem}.fls-row-main{gap:7px;padding:10px 12px}.fls-row-detail{padding:10px 12px 12px}.fls-op-pill{display:none}.wfg-hdr{padding:12px 14px}}
 @media(max-width:480px){.bld-door-grid{grid-template-columns:repeat(auto-fill,minmax(100px,1fr))}}
+/* ── My listings & incidents ─────────────────────────────────────────────── */
+.ml-stats{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:18px}
+.ml-stat{background:rgba(255,255,255,.92);border:1px solid rgba(47,79,58,.14);border-radius:14px;padding:12px 10px;text-align:center;display:flex;flex-direction:column;gap:4px;box-shadow:0 4px 10px rgba(32,46,38,.06)}
+.ml-stat-val{font-family:'Playfair Display',serif;font-size:1.6rem;font-weight:900;color:#203f2b;line-height:1}
+.ml-stat-lbl{font-size:.68rem;font-weight:700;color:#496674}
+.ml-stat-warn .ml-stat-val{color:#a05000}
+.ml-stat-ver .ml-stat-val{color:#0b5f3a}
+.ml-stat-res .ml-stat-val{color:#4a7060}
+.ml-section{background:rgba(255,255,255,.9);border:1px solid rgba(47,79,58,.14);border-radius:16px;overflow:hidden;box-shadow:0 6px 16px rgba(32,46,38,.07)}
+.ml-section-hdr{padding:12px 16px;font-size:.72rem;font-weight:900;text-transform:uppercase;letter-spacing:.09em;color:#2a5a6a;background:linear-gradient(90deg,rgba(11,127,79,.06),rgba(11,127,140,.03));border-bottom:1px solid rgba(47,79,58,.1)}
+.ml-listing{border-bottom:1px solid rgba(47,79,58,.07)}
+.ml-listing:last-child{border-bottom:none}
+.ml-listing-sel{background:rgba(11,127,140,.04)}
+.ml-listing-row{display:flex;align-items:center;gap:10px;padding:12px 16px;cursor:pointer;flex-wrap:wrap;transition:background .12s}
+.ml-listing-row:hover{background:rgba(11,127,140,.04)}
+.ml-listing-apt{font-family:'Playfair Display',serif;font-weight:900;font-size:1rem;color:#203f2b;flex-shrink:0;min-width:64px}
+.ml-listing-chips{display:flex;gap:5px;flex-shrink:0}
+.ml-listing-inc-pills{display:flex;gap:5px;flex-wrap:wrap;flex-shrink:0}
+.ml-listing-acts{display:flex;gap:5px;flex-shrink:0;margin-left:auto}
+.ml-pill{border-radius:999px;padding:3px 9px;font-size:.7rem;font-weight:800;white-space:nowrap}
+.ml-pill-open{background:rgba(160,80,0,.1);color:#a05000;border:1px solid rgba(160,80,0,.2)}
+.ml-pill-ver{background:rgba(11,127,79,.08);color:#0b5f3a;border:1px solid rgba(11,127,79,.18)}
+.ml-pill-res{background:rgba(100,150,120,.08);color:#4a7060;border:1px solid rgba(100,150,120,.18)}
+.ml-pill-clear{background:rgba(31,160,100,.07);color:#1a7a50;border:1px solid rgba(31,160,100,.16)}
+@media(max-width:640px){.ml-stats{grid-template-columns:repeat(3,1fr)}.ml-listing-row{gap:7px;padding:10px 12px}.ml-listing-acts{margin-left:0;width:100%}}
+@media(max-width:400px){.ml-stats{grid-template-columns:repeat(2,1fr)}}
 /* ── Profile view ────────────────────────────────────────────────────────── */
 .prof-card{max-width:640px;display:flex;flex-direction:column;gap:16px}
 .prof-section{background:rgba(255,255,255,.94);border:1px solid rgba(47,79,58,.16);border-radius:18px;padding:20px 22px;box-shadow:0 8px 22px rgba(32,46,38,.08)}
