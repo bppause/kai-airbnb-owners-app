@@ -83,7 +83,7 @@ const TXT = {
     loginHero:"Estamos construyendo una comunidad de propietarios comprometidos con la excelencia en la operación, el cuidado de nuestras propiedades y una mejor experiencia para nuestros huéspedes.",
     rulesTitle:"📌 Normas de uso de la comunidad", firstAccess:"⏳ Primer acceso:", firstAccessText:"al iniciar sesión por primera vez deberás registrar al menos una propiedad. Tu solicitud quedará pendiente de aprobación antes de acceder a la plataforma.",
     secure:"🔐 Para proteger la información de la comunidad, primero debes iniciar sesión con Google.", google:"Continuar con Google",
-    nav:{dashboard:"Dashboard",about:"Misión",listings:"Apartamentos",incidents:"Reportes",notifications:"Avisos",approvals:"Registros",admin:"Admin",analytics:"Analíticas",my:"Mis propiedades"},
+    nav:{dashboard:"Dashboard",about:"Misión",listings:"Apartamentos",incidents:"Reportes",notifications:"Avisos",approvals:"Registros",admin:"Admin",analytics:"Analíticas",my:"Mis propiedades",help:"Ayuda"},
     cards:[['🏡','Gestión centralizada','Organizar apartamentos, contactos, emails de notificación y enlaces importantes en un solo lugar.'],['⚠️','Reportes transparentes','Documentar incidentes de manera rápida para que el propietario correcto reciba aviso y pueda tomar acción.'],['🤝','Colaboración comunitaria','Compartir información útil entre propietarios aprobados para operar mejor y prevenir problemas repetidos.'],['📊','Mejora continua','Usar datos y tendencias para elevar la calidad del servicio, la comunicación y la experiencia del huésped.']],
     rules:['Reporta incidentes con información clara, objetiva y verificable.','Usa la plataforma con respeto, responsabilidad y enfoque constructivo.','Evita contenido innecesario, ofensivo o no relacionado con la operación.','Colabora para proteger el valor de nuestras propiedades y mejorar el servicio.'],
     missionTitle:"🌊 Misión y normas de la comunidad", missionSub:"Referencia para propietarios aprobados · Propietarios Airbnb KAI", missionHeading:"Crear una comunidad organizada, informada y proactiva.", missionBody:"La aplicación ayuda a proteger el valor de nuestras propiedades, mejorar la coordinación entre propietarios y elevar la experiencia de los huéspedes en Morros KAI."
@@ -94,7 +94,7 @@ const TXT = {
     loginHero:"We are building a community of owners committed to operational excellence, property care, and a better guest experience.",
     rulesTitle:"📌 Community engagement rules", firstAccess:"⏳ First access:", firstAccessText:"when you sign in for the first time, you must register at least one property. Your request will remain pending approval before you can access the platform.",
     secure:"🔐 To protect community information, you must first sign in with Google.", google:"Continue with Google",
-    nav:{dashboard:"Dashboard",about:"Mission",listings:"Apartments",incidents:"Reports",notifications:"Alerts",approvals:"Registrations",admin:"Admin",analytics:"Analytics",my:"My listings"},
+    nav:{dashboard:"Dashboard",about:"Mission",listings:"Apartments",incidents:"Reports",notifications:"Alerts",approvals:"Registrations",admin:"Admin",analytics:"Analytics",my:"My listings",help:"Help"},
     cards:[['🏡','Centralized management','Organize apartments, contacts, notification emails, and important links in one place.'],['⚠️','Transparent reports','Document incidents quickly so the correct owner receives notice and can take action.'],['🤝','Community collaboration','Share useful information among approved owners to operate better and prevent repeated issues.'],['📊','Continuous improvement','Use data and trends to improve service quality, communication, and guest experience.']],
     rules:['Report incidents with clear, objective, and verifiable information.','Use the platform respectfully, responsibly, and constructively.','Avoid unnecessary, offensive, or non-operational content.','Collaborate to protect property value and improve service.'],
     missionTitle:"🌊 Mission and community rules", missionSub:"Reference for approved owners · KAI Airbnb Owners", missionHeading:"Create an organized, informed, and proactive community.", missionBody:"The app helps protect the value of our properties, improve coordination among owners, and elevate the guest experience at Morros KAI."
@@ -961,6 +961,7 @@ export default function App() {
     ...(canSeeMenu('incidents') ? [{ id:"incidents", icon:"⚠️", label:t.nav.incidents, badge: openCount }] : []),
     ...(isApproved && canSeeMenu('notifications') ? [{ id:"notifications", icon:"🔔", label:t.nav.notifications, badge: unreadNotifications }] : []),
     ...(canSeeMenu('about') ? [{ id:"about", icon:"🌊", label:t.nav.about }] : []),
+  { id:"help", icon:"❓", label:t.nav.help },
     ...(isApproved ? [
       ...(effectiveCanManageRegistrations ? [{ id:"approvals", icon:"📝", label:t.nav.approvals, badge: pendingRegistrations.length }] : []),
       ...(effectiveIsGlobalAdmin ? [{ id:"admin", icon:"⚙️", label:t.nav.admin }] : []),
@@ -1208,6 +1209,7 @@ export default function App() {
         {view==="analytics" && user && (effectiveIsGlobalAdmin || analyticsEnabledForAll) && <AnalyticsDashboard lang={lang} user={user} contactProps={contactProps} showToast={showToast} isGlobalAdmin={effectiveIsGlobalAdmin} />}
         {view==="admin" && user && (effectiveIsGlobalAdmin ? <ErrorBoundary section="admin" fallback={(err)=><AdminFallback lang={lang} error={err}/>}><AdminSettings config={adminInfo.config || {}} user={user} listings={listings} contactProps={contactProps} onSave={saveAdminConfig} showToast={showToast} lang={lang} /></ErrorBoundary> : <AdminAccessHelp user={user} adminInfo={adminInfo} lang={lang} />)}
         {view==="my" && user && <MyListings lang={lang} listings={myListings} incidents={incidents} user={user} contactProps={contactProps} onAdd={()=>setModal({type:"addListing"})} onEdit={l=>setModal({type:"editListing",data:l})} onDelete={deleteListing} onReport={l=>setModal({type:"incident",data:{aptId:l.id}})} />}
+        {view==="help" && <HelpView lang={lang} effectiveRole={effectiveRole} effectiveIsGlobalAdmin={effectiveIsGlobalAdmin} delegatePerms={delegatePerms} listings={listings} incidents={incidents} user={user} />}
       </main>
 
       {/* LoginModal removed — Google popup handles auth directly */}
@@ -1254,6 +1256,269 @@ function SmartNotificationsDropdown({ lang="es-CO", open=false, alerts=[], unrea
         <button className="dd-item" onClick={onOpenNotifications}>🔔 {lang === "en" ? "Open alert history" : "Abrir historial de avisos"}</button>
         {unread > 0 && <button className="dd-item" onClick={onReadAll}>✅ {appText(lang,"smart.markAll")}</button>}
       </div>
+    </div>
+  );
+}
+
+// ─── HELP CONTENT ─────────────────────────────────────────────────────────────
+const HL = (es, en) => ({ es, en });
+const HELP_TOPICS = [
+  {
+    id:'start', icon:'🚀', category:'basics', roles:['user','delegate_admin','global_admin'],
+    title:HL('Primeros pasos','Getting started'),
+    summary:HL('Cómo ingresar, registrar tu apartamento y entender tu rol en la app.','How to sign in, register your apartment, and understand your role in the app.'),
+    sections:[
+      { h:HL('¿Qué es KAI Owners App?','What is KAI Owners App?'),
+        b:HL('KAI Owners App es la plataforma privada de los propietarios del edificio KAI. Centraliza el registro de apartamentos, el reporte de incidentes con huéspedes y la comunicación entre propietarios y administración.','KAI Owners App is the private platform for KAI building owners. It centralizes apartment registration, guest incident reporting, and communication between owners and building management.')},
+      { h:HL('Ingreso con Google','Signing in with Google'),
+        b:HL('La app usa exclusivamente Google Sign-In — no hay contraseñas separadas. Al hacer clic en "Ingresar con Google" selecciona la cuenta de Gmail que usas para gestionar tus apartamentos en KAI.','The app uses Google Sign-In only — there are no separate passwords. When you click "Sign in with Google" select the Gmail account you use to manage your KAI apartments.')},
+      { h:HL('Visitante vs. propietario aprobado','Visitor vs. approved owner'),
+        b:HL('Al ingresar por primera vez eres "Visitante". Para participar plenamente debes registrar tu(s) apartamento(s) y esperar que el administrador global apruebe tu solicitud. Una vez aprobado tendrás acceso a Reportes, Avisos y tus propiedades.','When you first sign in you appear as a "Visitor". To fully participate you need to register your apartment(s) and wait for the global admin to approve your request. Once approved you will have access to Reports, Alerts, and your listings.')},
+    ]
+  },
+  {
+    id:'listings', icon:'🏠', category:'basics', roles:['user','delegate_admin','global_admin'],
+    title:HL('Mis apartamentos','My apartments'),
+    summary:HL('Agregar, editar y gestionar tus apartamentos registrados en el edificio.','Add, edit, and manage your registered apartments in the building.'),
+    sections:[
+      { h:HL('Agregar un apartamento','Adding an apartment'),
+        b:HL('Ve a "Mis propiedades" y haz clic en "+ Agregar". Completa el número de 3 dígitos del apartamento (ej. 501), torre (KAI por defecto), habitaciones, máximo de huéspedes, tu WhatsApp de contacto y tu email de notificaciones. El WhatsApp es obligatorio.','Go to "My listings" and click "+ Add". Fill in the 3-digit apartment number (e.g. 501), tower (KAI by default), rooms, maximum guests, your contact WhatsApp and your notification email. WhatsApp is required.')},
+      { h:HL('Editar un apartamento','Editing an apartment'),
+        b:HL('Desde "Mis propiedades" o "Apartamentos", haz clic en el ícono de editar en la tarjeta. Puedes actualizar el operador, email y WhatsApp en cualquier momento. El número de apartamento no puede cambiarse una vez registrado.','From "My listings" or "Apartments", click the edit icon on the card. You can update the operator, email and WhatsApp at any time. The apartment number cannot be changed once registered.')},
+      { h:HL('Operador de apartamento','Apartment operator'),
+        b:HL('El operador es opcional. Es la persona que gestiona el arriendo en tu nombre. Si lo agregas, su email recibirá notificaciones de incidentes y recordatorios de SLA para que pueda actuar sin necesidad de contactarte directamente.','The operator is optional. They manage rentals on your behalf. If added, their email receives incident notifications and SLA reminders so they can act without contacting you directly.')},
+    ]
+  },
+  {
+    id:'incidents', icon:'⚠️', category:'incidents', roles:['user','delegate_admin','global_admin'],
+    title:HL('Reportar un incidente','Reporting an incident'),
+    summary:HL('Cómo documentar un problema con huéspedes de forma objetiva y completa.','How to objectively and completely document a guest problem.'),
+    sections:[
+      { h:HL('¿Qué es un incidente?','What is an incident?'),
+        b:HL('Un incidente es cualquier situación problemática con huéspedes: ruido excesivo, daños a áreas comunes, violaciones de normas del edificio, problemas de limpieza, etc. Documentarlos crea un historial compartido que ayuda a todos los propietarios.','An incident is any problematic situation involving guests: excessive noise, damage to common areas, building rule violations, cleaning issues, etc. Documenting them creates a shared history that helps all owners.')},
+      { h:HL('Llenar el formulario','Filling the form'),
+        b:HL('Haz clic en "Reportar incidente" desde cualquier vista. Debes especificar: apartamento, fecha, tipo (ruido, daños, normas, limpieza…), categoría de seguimiento y una descripción objetiva. El administrador confirmará luego el nombre del huésped, ciudad y país.','Click "Report incident" from any view. You must specify: apartment, date, type (noise, damage, rules, cleaning…), tracking category and an objective description. The admin will later confirm the guest name, city and country.')},
+      { h:HL('Categorías de seguimiento','Tracking categories'),
+        b:HL('Serio: casos graves de atención prioritaria (daños mayores, comportamiento peligroso). En observación: situaciones a monitorear que podrían escalar. Menor: incidentes leves documentados como referencia futura.','Serious: critical cases requiring priority attention (major damage, dangerous behaviour). Under watch: situations to monitor that may escalate. Minor: mild incidents documented as future reference.')},
+    ]
+  },
+  {
+    id:'workflow', icon:'🔄', category:'incidents', roles:['user','delegate_admin','global_admin'],
+    title:HL('Ciclo de vida del incidente','Incident lifecycle'),
+    summary:HL('El flujo de tres etapas: Abierto → Verificado por propietario → Resuelto por admin.','The three-stage flow: Open → Verified by owner → Resolved by admin.'),
+    sections:[
+      { h:HL('Etapa 1 — Abierto','Stage 1 — Open'),
+        b:HL('Un administrador reporta el incidente con apartamento, fecha, tipo, categoría y descripción. El propietario del apartamento recibe una notificación para estar al tanto.','An admin reports the incident with apartment, date, type, category and description. The apartment owner receives a notification to stay informed.')},
+      { h:HL('Etapa 2 — Verificado por propietario','Stage 2 — Verified by owner'),
+        b:HL('Antes de cerrarse, el propietario confirma los datos del huésped: nombre, ciudad y país, y puede agregar comentarios. Esta verificación garantiza que la información sea precisa y que el propietario esté de acuerdo con el reporte.','Before closing, the owner confirms the guest details: name, city and country, and can add comments. This verification ensures accuracy and that the owner agrees with the report.')},
+      { h:HL('Etapa 3 — Resuelto','Stage 3 — Resolved'),
+        b:HL('Solo un administrador global o delegado autorizado puede cerrar el incidente, y solo después de la verificación del propietario. La resolución requiere comentarios sobre qué acción se tomó. Todos los incidentes resueltos quedan en el historial.','Only a global admin or authorized delegate can close the incident, and only after the owner verifies. Resolution requires comments about what action was taken. All resolved incidents remain in the history.')},
+    ]
+  },
+  {
+    id:'verify', icon:'✅', category:'incidents', roles:['user','delegate_admin','global_admin'],
+    title:HL('Verificar un incidente','Verifying an incident'),
+    summary:HL('Como propietario, cómo confirmar la información antes de que el incidente pueda resolverse.','As an owner, how to confirm information before an incident can be resolved.'),
+    sections:[
+      { h:HL('¿Por qué verificar?','Why verify?'),
+        b:HL('Tu verificación confirma que reconoces el incidente y que los datos del huésped son correctos. Sin tu verificación el administrador no puede cerrar el caso. Esto asegura que ningún incidente se resuelva sin tu conocimiento.','Your verification confirms you acknowledge the incident and the guest data is correct. Without your verification the admin cannot close the case. This ensures no incident is resolved without your knowledge.')},
+      { h:HL('Cómo verificar','How to verify'),
+        b:HL('Cuando tengas un incidente pendiente verás una alerta ámbar en la campana de notificaciones inteligentes. En Reportes el incidente mostrará el botón "Verificar". Haz clic, confirma el nombre del huésped, ciudad y país, agrega comentarios opcionales y guarda.','When you have a pending incident you\'ll see an amber alert in the smart notifications bell. In Reports the incident shows a "Verify" button. Click it, confirm guest name, city and country, add optional comments, and save.')},
+    ]
+  },
+  {
+    id:'notifications', icon:'🔔', category:'basics', roles:['user','delegate_admin','global_admin'],
+    title:HL('Avisos y notificaciones','Alerts and notifications'),
+    summary:HL('Cómo funcionan los avisos automáticos y cómo marcarlos como leídos.','How automatic alerts work and how to mark them as read.'),
+    sections:[
+      { h:HL('¿Cuándo recibes avisos?','When do you receive alerts?'),
+        b:HL('Recibes avisos cuando: se reporta un incidente en tu apartamento, el incidente es verificado o resuelto, tu solicitud de registro es aprobada o rechazada, o la administración te envía un mensaje.','You receive alerts when: an incident is reported in your apartment, the incident is verified or resolved, your registration request is approved or declined, or management sends you a message.')},
+      { h:HL('Leer y marcar como leído','Reading and marking as read'),
+        b:HL('Ve a "Avisos" en el menú. Los avisos no leídos aparecen marcados. Haz clic en uno para ver el detalle. Puedes marcar todos como leídos desde el panel de la campana (🔔) con el botón "Marcar avisos leídos".','Go to "Alerts" in the menu. Unread alerts appear marked. Click one to view the detail. You can mark all as read from the bell panel (🔔) using "Mark alerts read".')},
+    ]
+  },
+  {
+    id:'smart', icon:'🎯', category:'basics', roles:['user','delegate_admin','global_admin'],
+    title:HL('Notificaciones inteligentes','Smart notifications'),
+    summary:HL('El panel de la campana que muestra las acciones prioritarias según tu rol actual.','The bell panel showing priority actions based on your current role.'),
+    sections:[
+      { h:HL('¿Qué muestra el panel?','What does the panel show?'),
+        b:HL('Al hacer clic en la campana (🔔) aparece un panel con las acciones más importantes para ti ahora, ordenadas por prioridad. El número rojo en el ícono muestra el total de ítems pendientes.','Clicking the bell (🔔) shows a panel with the most important actions for you right now, ordered by priority. The red number on the icon shows the total pending items.')},
+      { h:HL('Tipos de alertas y sus colores','Alert types and their colours'),
+        b:HL('Ámbar — Verificación de propietario: incidentes de tus apartamentos que necesitan tu confirmación. Naranja — Listos para resolver: incidentes verificados esperando acción admin. Azul — Registros pendientes: solicitudes de nuevos propietarios. Morado — Avisos sin leer. Rojo — Incidentes serios abiertos en la comunidad.','Amber — Owner verification: your apartment incidents needing confirmation. Orange — Ready to resolve: verified incidents awaiting admin action. Blue — Pending registrations: new owner requests. Purple — Unread alerts. Red — Serious incidents still open in the community.')},
+      { h:HL('Acciones directas','Direct actions'),
+        b:HL('Hacer clic en cualquier alerta te lleva directamente a la vista correcta con los filtros aplicados. No necesitas navegar manualmente — el sistema te posiciona exactamente donde debes actuar.','Clicking any alert takes you directly to the right view with filters already applied. You do not need to navigate manually — the system positions you exactly where you need to act.')},
+    ]
+  },
+  {
+    id:'contact', icon:'👤', category:'account', roles:['user','delegate_admin','global_admin'],
+    title:HL('Tarjetas de contacto','Contact cards'),
+    summary:HL('Cómo ver y usar la información de contacto al pasar el mouse sobre un nombre.','How to view and use contact info by hovering over a name.'),
+    sections:[
+      { h:HL('¿Qué son las tarjetas de contacto?','What are contact cards?'),
+        b:HL('En toda la app los nombres de propietarios aparecen subrayados con puntos. Al posicionarte sobre un nombre (o tocar en móvil), aparece una tarjeta con su email, WhatsApp y apartamentos registrados.','Throughout the app owner names appear with a dotted underline. Hovering (or tapping on mobile) shows a card with their email, WhatsApp and registered apartments.')},
+      { h:HL('Acciones disponibles','Available actions'),
+        b:HL('📋 Copiar: copia el email o número al portapapeles. ✉️ Email: abre tu aplicación de correo para enviar un mensaje. 💬 WhatsApp: abre WhatsApp con el número pre-cargado listo para enviar un mensaje. La tarjeta desaparece al mover el mouse fuera.','📋 Copy: copies email or number to clipboard. ✉️ Email: opens your mail app to send a message. 💬 WhatsApp: opens WhatsApp with the number pre-loaded ready to send. The card closes when you move the mouse away.')},
+      { h:HL('Tu propio nombre','Your own name'),
+        b:HL('En el menú de perfil (tu avatar arriba a la derecha) también puedes ver tu propia información de contacto al pasar el mouse sobre tu nombre. Útil para verificar qué datos tuyos ven los demás propietarios.','In the profile menu (your avatar top right) you can also see your own contact info by hovering your name. Useful for checking what information other owners see about you.')},
+    ]
+  },
+  {
+    id:'resolve', icon:'🛠️', category:'incidents', roles:['delegate_admin','global_admin'],
+    title:HL('Resolver incidentes','Resolving incidents'),
+    summary:HL('Cómo cerrar un incidente verificado como administrador o delegado autorizado.','How to close a verified incident as an admin or authorized delegate.'),
+    sections:[
+      { h:HL('Requisitos para resolver','Requirements to resolve'),
+        b:HL('Para resolver necesitas: (1) permiso de resolución (administrador global o delegado autorizado), (2) que el propietario haya verificado el incidente previamente, y (3) agregar comentarios explicando la acción tomada — son obligatorios.','To resolve you need: (1) resolve permission (global admin or authorized delegate), (2) the owner must have previously verified the incident, and (3) add comments explaining the action taken — these are required.')},
+      { h:HL('Cómo resolver','How to resolve'),
+        b:HL('En Reportes los incidentes listos para resolver muestran el botón "Resolver". Haz clic, escribe los comentarios de resolución, y confirma. El incidente pasará a Resuelto y todos los involucrados recibirán un aviso automático.','In Reports, incidents ready to resolve show a "Resolve" button. Click it, write the resolution comments, and confirm. The incident moves to Resolved and everyone involved receives an automatic alert.')},
+    ]
+  },
+  {
+    id:'approvals', icon:'📝', category:'admin', roles:['delegate_admin','global_admin'],
+    title:HL('Aprobar registros','Approving registrations'),
+    summary:HL('Cómo revisar y aprobar o rechazar solicitudes de nuevos propietarios.','How to review and approve or decline new owner requests.'),
+    sections:[
+      { h:HL('¿Qué es un registro pendiente?','What is a pending registration?'),
+        b:HL('Cuando un nuevo usuario inicia sesión y registra sus apartamentos, la solicitud queda pendiente hasta que la apruebes o rechaces. Solo los propietarios aprobados tienen acceso completo a la comunidad.','When a new user signs in and registers their apartments, the request stays pending until you approve or decline it. Only approved owners have full access to the community.')},
+      { h:HL('Proceso de revisión','Review process'),
+        b:HL('Ve a "Registros" en el menú. Verás las solicitudes pendientes con nombre, email y apartamentos solicitados. Puedes aprobar (acceso inmediato) o rechazar (el usuario recibe un email y puede reintentar). Si rechazas, se recomienda agregar un motivo.','Go to "Registrations" in the menu. You\'ll see pending requests with name, email and requested apartments. You can approve (immediate access) or decline (user receives an email and can retry). Adding a reason when declining is recommended.')},
+    ]
+  },
+  {
+    id:'users', icon:'👥', category:'admin', roles:['global_admin'],
+    title:HL('Gestionar usuarios','Managing users'),
+    summary:HL('Asignar roles y configurar permisos globales de administradores delegados.','Assigning roles and configuring global delegate admin permissions.'),
+    sections:[
+      { h:HL('Roles disponibles','Available roles'),
+        b:HL('Usuario estándar: propietario aprobado con acceso a sus propiedades e incidentes. Administrador delegado: puede gestionar incidentes y aprobar registros según los permisos globales configurados. Administrador global: acceso completo, configurado mediante GLOBAL_ADMIN_EMAILS en el servidor.','Standard user: approved owner with access to their properties and incidents. Delegate admin: can manage incidents and approve registrations based on configured global permissions. Global admin: full access, configured via GLOBAL_ADMIN_EMAILS on the server.')},
+      { h:HL('Permisos del delegado','Delegate permissions'),
+        b:HL('En Admin → "Permisos predeterminados del delegado" configura qué pueden hacer todos los delegados: aprobar/rechazar registros, resolver incidentes, editar/eliminar listings e incidentes globales. Todos los delegados heredan exactamente esta configuración — no hay permisos individuales.','In Admin → "Default delegate permissions" configure what all delegates can do: approve/decline registrations, resolve incidents, edit/delete global listings and incidents. All delegates inherit exactly these settings — there are no individual overrides.')},
+    ]
+  },
+  {
+    id:'settings', icon:'⚙️', category:'admin', roles:['global_admin'],
+    title:HL('Configuración de Admin','Admin settings'),
+    summary:HL('SLA de incidentes, emails de escalación, analíticas, misión y tooltips personalizados.','Incident SLA, escalation emails, analytics, mission content and custom tooltips.'),
+    sections:[
+      { h:HL('SLA de incidentes','Incident SLA'),
+        b:HL('Define cuántas horas tiene el administrador para resolver un incidente verificado antes de que se envíe una notificación de escalación. El temporizador empieza cuando el propietario verifica. El valor predeterminado es 48 horas.','Defines how many hours the admin has to resolve a verified incident before an escalation notification fires. The timer starts when the owner verifies. The default is 48 hours.')},
+      { h:HL('Emails de escalación y analíticas','Escalation emails and analytics'),
+        b:HL('Los emails de escalación reciben avisos cuando un incidente supera el SLA sin resolverse. También puedes activar o desactivar el acceso a analíticas para todos los usuarios aprobados sin necesidad de redesplegar la app.','Escalation emails receive notifications when an incident exceeds SLA without being resolved. You can also toggle analytics access for all approved users without needing to redeploy the app.')},
+      { h:HL('Misión y tooltips','Mission and tooltips'),
+        b:HL('Edita el texto de misión y los valores que aparecen en la pantalla de bienvenida directamente desde el admin. También puedes personalizar los textos de ayuda (tooltips) que aparecen al pasar el mouse sobre campos del formulario.','Edit the mission text and values shown on the welcome screen directly from admin. You can also customise the help tooltip texts shown when hovering over form fields.')},
+    ]
+  },
+  {
+    id:'analytics', icon:'📊', category:'admin', roles:['global_admin'],
+    title:HL('Analíticas','Analytics'),
+    summary:HL('Tendencias de incidentes, tipos frecuentes, actividad por apartamento y tiempos de resolución.','Incident trends, frequent types, activity by apartment, and resolution times.'),
+    sections:[
+      { h:HL('¿Qué muestra Analytics?','What does Analytics show?'),
+        b:HL('Incidentes por tipo (ruido, daños, normas…), distribución por categoría (serio/observación/menor), actividad por apartamento y tendencias en el tiempo. El rango de fechas es configurable. Los administradores globales siempre tienen acceso; para otros usuarios se activa desde el panel de Admin.','Incidents by type (noise, damage, rules…), distribution by category (serious/watch/minor), activity by apartment, and trends over time. The date range is configurable. Global admins always have access; for other users it is toggled from the Admin panel.')},
+    ]
+  },
+  {
+    id:'viewas', icon:'👁️', category:'admin', roles:['global_admin'],
+    title:HL('Ver como (Vista previa de rol)','View As (Role preview)'),
+    summary:HL('Simular la experiencia de otro rol sin cambiar tu cuenta ni afectar datos reales.','Simulate another role\'s experience without changing your account or affecting real data.'),
+    sections:[
+      { h:HL('¿Para qué sirve?','What is it for?'),
+        b:HL('Como administrador global puedes simular cómo ve la app un administrador delegado o un propietario estándar. Útil para verificar que los permisos y la navegación funcionen correctamente antes de agregar nuevos usuarios.','As a global admin you can simulate how a delegate admin or standard owner sees the app. Useful for verifying that permissions and navigation work correctly before adding new users.')},
+      { h:HL('Cómo usarlo','How to use it'),
+        b:HL('En el menú "More ▾" en la barra de navegación, busca la sección "Ver como rol". Selecciona el rol que quieres simular. Un ícono 👁 aparece en el botón "More" indicando que estás en modo previsualización. Para regresar a tu vista normal, selecciona "Admin global".','In the "More ▾" navigation menu, find the "View as role" section. Select the role to simulate. A 👁 icon appears on the "More" button indicating preview mode is active. To return to your normal view, select "Global Admin".')},
+    ]
+  },
+];
+
+// ─── HELP VIEW ────────────────────────────────────────────────────────────────
+function HelpView({ lang, effectiveRole, effectiveIsGlobalAdmin, listings=[], incidents=[], user }) {
+  const [query, setQuery] = useState('');
+  const [category, setCategory] = useState('all');
+  const [selected, setSelected] = useState(null);
+  const L = s => s?.[lang === 'en' ? 'en' : 'es'] ?? '';
+  const role = effectiveIsGlobalAdmin ? 'global_admin' : (effectiveRole || 'user');
+  const topics = HELP_TOPICS.filter(t => t.roles.includes(role));
+  const filtered = topics.filter(t => {
+    if (category !== 'all' && t.category !== category) return false;
+    if (!query.trim()) return true;
+    const q = query.toLowerCase();
+    return L(t.title).toLowerCase().includes(q) || L(t.summary).toLowerCase().includes(q) ||
+      t.sections.some(s => L(s.h).toLowerCase().includes(q) || L(s.b).toLowerCase().includes(q));
+  });
+  const CATS = [
+    { id:'all', icon:'🔍', label:HL('Todo','All') },
+    { id:'basics', icon:'📖', label:HL('Básicos','Basics') },
+    { id:'incidents', icon:'⚠️', label:HL('Incidentes','Incidents') },
+    { id:'admin', icon:'⚙️', label:HL('Admin','Admin') },
+    { id:'account', icon:'👤', label:HL('Cuenta','Account') },
+  ].filter(c => c.id === 'all' || topics.some(t => t.category === c.id));
+
+  if (selected) {
+    const t = selected;
+    return (
+      <div className="fade">
+        <button className="btn-ghost" style={{marginBottom:18}} onClick={() => setSelected(null)}>
+          ← {lang === 'en' ? 'Back to Help' : 'Volver a Ayuda'}
+        </button>
+        <div className="card help-article">
+          <div className="help-article-hdr">
+            <span className="help-article-icon">{t.icon}</span>
+            <div>
+              <h1 className="ptitle" style={{margin:0,fontSize:'1.55rem'}}>{L(t.title)}</h1>
+              <p className="psub" style={{margin:'6px 0 0'}}>{L(t.summary)}</p>
+            </div>
+          </div>
+          {t.sections.map((s, i) => (
+            <div key={i} className="help-section">
+              <h3 className="help-section-h">{L(s.h)}</h3>
+              <p className="help-section-b">{L(s.b)}</p>
+            </div>
+          ))}
+          <div className="help-article-foot">
+            <button className="btn-ghost" onClick={() => setSelected(null)}>← {lang === 'en' ? 'Back to Help' : 'Volver a Ayuda'}</button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="fade">
+      <div className="ph" style={{alignItems:'flex-end'}}>
+        <div>
+          <h1 className="ptitle">❓ {lang === 'en' ? 'Help & Guide' : 'Ayuda y guía'}</h1>
+          <p className="psub">{lang === 'en' ? 'Browse topics or search for any feature.' : 'Explora temas o busca cualquier función.'}</p>
+        </div>
+        <span className="help-topic-count">{filtered.length} {lang === 'en' ? (filtered.length===1?'topic':'topics') : (filtered.length===1?'tema':'temas')}</span>
+      </div>
+      <input className="search" type="search"
+        placeholder={lang === 'en' ? '🔍  Search topics…' : '🔍  Buscar temas…'}
+        value={query} onChange={e => setQuery(e.target.value)}
+        style={{marginBottom:14,maxWidth:480,display:'block'}}
+      />
+      <div className="filter-row" style={{marginBottom:20}}>
+        {CATS.map(c => (
+          <button key={c.id} className={`fchip ${category === c.id ? 'fchip-on' : ''}`} onClick={() => setCategory(c.id)}>
+            {c.icon} {L(c.label)}
+          </button>
+        ))}
+      </div>
+      {filtered.length === 0
+        ? <div className="empty"><p>{lang === 'en' ? 'No topics match your search.' : 'Ningún tema coincide con tu búsqueda.'}</p></div>
+        : <div className="help-grid">
+            {filtered.map(t => (
+              <button key={t.id} className="help-card" onClick={() => setSelected(t)}>
+                <span className="help-card-icon">{t.icon}</span>
+                <span className="help-card-body">
+                  <strong>{L(t.title)}</strong>
+                  <span>{L(t.summary)}</span>
+                </span>
+                <span className="help-card-arr">›</span>
+              </button>
+            ))}
+          </div>
+      }
     </div>
   );
 }
@@ -2424,5 +2689,24 @@ html{font-size:clamp(14px,1.1vw,16px);-webkit-text-size-adjust:100%}body{overflo
 .dd-radio-on{background:rgba(11,127,140,.1)!important;color:#0b7f8c!important;font-weight:900!important}
 .dd-radio-dot{font-size:.88rem;width:14px;text-align:center;flex-shrink:0;font-family:monospace}
 .nb-preview-dot{font-size:.72rem;margin-left:4px;vertical-align:middle;line-height:1}
+
+/* ── Help view ─────────────────────────────────────────────────────────────── */
+.help-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(272px,1fr));gap:12px}
+.help-card{display:flex!important;align-items:center!important;gap:14px!important;background:rgba(255,255,255,.94)!important;border:1px solid rgba(47,79,58,.16)!important;border-radius:16px!important;padding:15px 16px!important;text-align:left!important;cursor:pointer!important;transition:transform .14s,box-shadow .14s,border-color .14s!important}
+.help-card:hover,.help-card:focus{transform:translateY(-2px)!important;box-shadow:0 12px 32px rgba(32,46,38,.14)!important;border-color:rgba(11,127,140,.3)!important}
+.help-card-icon{font-size:1.7rem;flex-shrink:0;line-height:1}
+.help-card-body{flex:1;min-width:0}
+.help-card-body strong{display:block;color:#203f2b;font-size:.9rem;font-weight:900;line-height:1.25}
+.help-card-body span{display:block;color:#496674;font-size:.76rem;margin-top:3px;line-height:1.35}
+.help-card-arr{color:#b0bfba;font-size:1.3rem;flex-shrink:0;line-height:1}
+.help-topic-count{font-size:.78rem;color:#496674;font-weight:700;white-space:nowrap;padding-bottom:6px}
+.help-article{max-width:760px}
+.help-article-hdr{display:flex;align-items:flex-start;gap:16px;margin-bottom:22px;padding-bottom:18px;border-bottom:1px solid rgba(47,79,58,.12)}
+.help-article-icon{font-size:2.4rem;line-height:1;flex-shrink:0;margin-top:3px}
+.help-section{margin-top:22px;padding-top:18px;border-top:1px solid rgba(47,79,58,.09)}
+.help-section-h{color:#203f2b;font-size:1rem;font-weight:900;margin:0 0 8px;line-height:1.3}
+.help-section-b{color:#17313a;font-size:.9rem;line-height:1.7;margin:0}
+.help-article-foot{margin-top:24px;padding-top:16px;border-top:1px solid rgba(47,79,58,.10)}
+@media(max-width:600px){.help-grid{grid-template-columns:1fr}.help-article-hdr{flex-direction:column;gap:10px}.help-article-icon{font-size:2rem}}
 
 `;
