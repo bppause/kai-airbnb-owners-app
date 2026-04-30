@@ -774,7 +774,7 @@ export default function App() {
   const [toast,     setToast]     = useState(null);
   const [modal,     setModal]     = useState(null);
   const [incidentQuickFilter, setIncidentQuickFilter] = useState(null);
-  const [userProfile, setUserProfile] = useState({ firstName:'', middleName:'', lastName:'', whatsapp:'' });
+  const [userProfile, setUserProfile] = useState({ whatsapp:'' });
   const pollRef = useRef(null);
 
   const [loadError, setLoadError] = useState(false);
@@ -900,19 +900,21 @@ export default function App() {
       .finally(() => setRegistrationLoading(false));
   }, [user?.uid]);
 
-  // Load owner profile (first/middle/last name + whatsapp)
+  // Load owner profile (whatsapp)
   useEffect(() => {
-    if (!user?.uid) { setUserProfile({ firstName:'', middleName:'', lastName:'', whatsapp:'' }); return; }
+    if (!user?.uid) { setUserProfile({ whatsapp:'' }); return; }
     api.get('/api/users/profile?uid=' + encodeURIComponent(user.uid))
-      .then(p => setUserProfile({ firstName:p.firstName||'', middleName:p.middleName||'', lastName:p.lastName||'', whatsapp:p.whatsapp||'' }))
+      .then(p => setUserProfile({ whatsapp:p.whatsapp||'' }))
       .catch(() => {});
   }, [user?.uid]);
 
   const saveProfile = async (profileData) => {
     setSyncing(true);
     try {
-      const result = await api.put('/api/users/profile', { uid:user.uid, email:user.email, firstName:profileData.firstName, middleName:profileData.middleName, lastName:profileData.lastName, whatsapp:profileData.whatsapp });
-      setUserProfile({ firstName:result.firstName||'', middleName:result.middleName||'', lastName:result.lastName||'', whatsapp:result.whatsapp||'' });
+      const result = await api.put('/api/users/profile', { uid:user.uid, email:user.email, whatsapp:profileData.whatsapp });
+      setUserProfile({ whatsapp:result.whatsapp||'' });
+      // Also update cached whatsapp in listings for the current user
+      setListings(ls => ls.map(l => l.ownerUid===user.uid ? {...l, contact:result.whatsapp||'', email:user.email} : l));
       showToast(lang==='en' ? '✅ Profile updated' : '✅ Perfil actualizado');
     } catch(e) {
       showToast((lang==='en' ? 'Could not save: ' : 'No se pudo guardar: ') + (e.message || ''), true);
@@ -922,11 +924,9 @@ export default function App() {
   const submitRegistration = async ({ listings: listingsToRegister, profile = {} }) => {
     setSyncing(true);
     try {
-      const r = await api.post('/api/registrations', { userUid:user.uid, userName:user.name, userEmail:user.email, listings:listingsToRegister, firstName:profile.firstName||'', middleName:profile.middleName||'', lastName:profile.lastName||'', profileWhatsapp:profile.whatsapp||'' });
+      const r = await api.post('/api/registrations', { userUid:user.uid, userName:user.name, userEmail:user.email, listings:listingsToRegister, profileWhatsapp:profile.whatsapp||'' });
       setRegistration(r);
-      if (profile.firstName || profile.lastName || profile.whatsapp) {
-        setUserProfile({ firstName:profile.firstName||'', middleName:profile.middleName||'', lastName:profile.lastName||'', whatsapp:profile.whatsapp||'' });
-      }
+      if (profile.whatsapp) setUserProfile({ whatsapp:profile.whatsapp });
       showToast('✅ Registro enviado. Pendiente de aprobación.');
     } catch(e) { showToast('Error al enviar registro: ' + (e.message || 'Revise los datos'), true); }
     finally { setSyncing(false); }
@@ -1021,7 +1021,7 @@ export default function App() {
   const addListing = async (data) => {
     setSyncing(true);
     try {
-      const newL = await api.post('/api/listings', { ...data, ownerUid: user.uid, owner: user.name });
+      const newL = await api.post('/api/listings', { ...data, ownerUid: user.uid, owner: user.name, userEmail: user.email });
       setListings(l => [...l, newL]);
       setModal(null); showToast("✅ Apartamento registrado");
     } catch(e) { console.error('Save listing error', e); showToast("Error al guardar: " + (e.message || 'Revise Supabase/Render'), true); } finally { setSyncing(false); }
@@ -1716,14 +1716,11 @@ function RegistrationGate({ user, registration, onSubmit, onLogout, syncing, toa
 
 function RegistrationListingForm({ user, onSubmit, submitText, lang="es-CO" }) {
   const isEn = lang === 'en';
-  // Pre-fill name from Google account
-  const nameParts = String(user?.name || '').split(' ');
-  const makeBlank = () => ({ apt:'', tower:'KAI', rooms:'2', guests:4, operator:'', operatorEmail:'', operatorWhatsapp:'', contact:'', email:user?.email || '', airbnb:'' });
+  const makeBlank = () => ({ apt:'', tower:'KAI', rooms:'2', guests:4, operator:'', operatorEmail:'', operatorWhatsapp:'', airbnb:'' });
   const [items,setItems]=useState([makeBlank()]);
-  const [profile,setProfile]=useState({ firstName: nameParts[0]||'', middleName:'', lastName: nameParts.length>1 ? nameParts.slice(1).join(' ') : '', whatsapp:'' });
+  const [whatsapp,setWhatsapp]=useState('');
   const [errors,setErrors]=useState({});
   const [checking,setChecking]=useState({});
-  const setProfVal=(k,v)=>{ setProfile(p=>({...p,[k]:v})); setErrors(e=>({...e,[k]:undefined})); };
   const setVal=(idx,k,v)=>{ setItems(rows=>rows.map((r,i)=>i===idx?{...r,[k]:v}:r)); setErrors(e=>({...e,[`${k}_${idx}`]:undefined})); };
   const checkApt=async(idx)=>{
     const apt=String(items[idx]?.apt||'').trim();
@@ -1739,10 +1736,9 @@ function RegistrationListingForm({ user, onSubmit, submitText, lang="es-CO" }) {
   };
   const validate=()=>{
     const e={};
-    // Profile validation
-    if(!String(profile.firstName||'').trim()) e.firstName = isEn ? 'First name is required' : 'El nombre es requerido';
-    if(!String(profile.lastName||'').trim()) e.lastName = isEn ? 'Last name is required' : 'El apellido es requerido';
-    if(String(profile.whatsapp||'').trim()) { const waErr=validateWhatsApp(profile.whatsapp,lang); if(waErr) e.whatsapp=waErr; }
+    // Profile validation — WhatsApp required
+    if(!String(whatsapp||'').trim()) e.whatsapp = isEn ? 'WhatsApp is required' : 'WhatsApp es requerido';
+    else { const waErr=validateWhatsApp(whatsapp,lang); if(waErr) e.whatsapp=waErr; }
     // Listing validation
     const seen={};
     items.forEach((f,i)=>{
@@ -1755,10 +1751,6 @@ function RegistrationListingForm({ user, onSubmit, submitText, lang="es-CO" }) {
       if(!f.guests || Number(f.guests)<1) e[`guests_${i}`]=appText(lang,'validation.capacityRequired');
       if(String(f.operatorEmail||'').trim() && !validateEmail(f.operatorEmail)) e[`operatorEmail_${i}`]=appText(lang,'validation.operatorEmailInvalid');
       const waOpErr=validateWhatsApp(f.operatorWhatsapp,lang); if(waOpErr) e[`operatorWhatsapp_${i}`]=waOpErr;
-      if(!String(f.contact||'').trim()) e[`contact_${i}`]=appText(lang,'validation.ownerWhatsappRequired');
-      else { const waErr=validateWhatsApp(f.contact,lang); if(waErr) e[`contact_${i}`]=waErr; }
-      if(!String(f.email||'').trim()) e[`email_${i}`]=appText(lang,'validation.emailRequired');
-      else if(!validateEmail(f.email)) e[`email_${i}`]=appText(lang,'validation.emailInvalid');
       if(f.airbnb && !/^https?:\/\/.+/i.test(String(f.airbnb).trim())) e[`airbnb_${i}`]=appText(lang,'validation.urlInvalid');
     });
     setErrors(prev=>({...prev,...e})); return Object.keys({...errors,...e}).filter(k=>({...errors,...e})[k]).length===0;
@@ -1770,27 +1762,16 @@ function RegistrationListingForm({ user, onSubmit, submitText, lang="es-CO" }) {
 
     {/* ── Owner Profile ─────────────────────────────────────── */}
     <div className="reg-listing-box reg-profile-box">
-      <div className="card-hdr"><span className="card-title">👤 {isEn?'Your information':'Tu información'}</span></div>
+      <div className="card-hdr"><span className="card-title">👤 {isEn?'Your contact information':'Tu información de contacto'}</span></div>
       <div className="fg2">
-        <div className="fg full form-section-hdr" style={{marginTop:0}}>👤 {isEn?'Personal details':'Datos personales'}</div>
-        <div className="fg">
-          <label>{isEn?'First name':'Nombre'} <span style={{color:'#e53935',fontSize:'0.75rem'}}>*</span></label>
-          <input className={cls('firstName')} value={profile.firstName} onChange={e=>setProfVal('firstName',e.target.value)} onBlur={e=>{if(!e.target.value.trim()) setErrors(er=>({...er,firstName:isEn?'First name is required':'El nombre es requerido'}));}} placeholder={isEn?'First name':'Nombre'}/>
-          {errors.firstName&&<span className="err-msg">{errors.firstName}</span>}
+        <div className="fg full" style={{display:'flex',flexDirection:'column',gap:'6px',padding:'4px 0'}}>
+          <div style={{fontSize:'.82rem',color:'#2a5a6a'}}><strong>{isEn?'Name:':'Nombre:'}</strong> {user?.name}</div>
+          <div style={{fontSize:'.82rem',color:'#2a5a6a'}}><strong>Email:</strong> {user?.email}</div>
         </div>
-        <div className="fg">
-          <label>{isEn?'Middle name':'Segundo nombre'} {optLabel}</label>
-          <input value={profile.middleName} onChange={e=>setProfVal('middleName',e.target.value)} placeholder={isEn?'Middle name':'Segundo nombre'}/>
-        </div>
-        <div className="fg">
-          <label>{isEn?'Last name':'Apellido'} <span style={{color:'#e53935',fontSize:'0.75rem'}}>*</span></label>
-          <input className={cls('lastName')} value={profile.lastName} onChange={e=>setProfVal('lastName',e.target.value)} onBlur={e=>{if(!e.target.value.trim()) setErrors(er=>({...er,lastName:isEn?'Last name is required':'El apellido es requerido'}));}} placeholder={isEn?'Last name':'Apellido'}/>
-          {errors.lastName&&<span className="err-msg">{errors.lastName}</span>}
-        </div>
-        <div className="fg">
-          <label>WhatsApp {optLabel}</label>
-          <input className={cls('whatsapp')} type="tel" value={profile.whatsapp} onChange={e=>setProfVal('whatsapp',e.target.value)} onBlur={e=>{const v=String(e.target.value||'').trim();if(v){const err=validateWhatsApp(v,lang);setErrors(er=>({...er,whatsapp:err||undefined}));}}} placeholder="+57 300 000 0000"/>
-          {errors.whatsapp?<span className="err-msg">{errors.whatsapp}</span>:<span className="help-msg">{isEn?'Personal WhatsApp with country code':'WhatsApp personal con código de país'}</span>}
+        <div className="fg full">
+          <label>WhatsApp <span style={{color:'#e53935',fontSize:'0.75rem'}}>*</span></label>
+          <input className={cls('whatsapp')} type="tel" value={whatsapp} onChange={e=>{setWhatsapp(e.target.value);setErrors(er=>({...er,whatsapp:undefined}));}} onBlur={e=>{const v=String(e.target.value||'').trim();if(!v)setErrors(er=>({...er,whatsapp:isEn?'WhatsApp is required':'WhatsApp es requerido'}));else{const err=validateWhatsApp(v,lang);setErrors(er=>({...er,whatsapp:err||undefined}));}}} placeholder="+57 300 000 0000"/>
+          {errors.whatsapp?<span className="err-msg">{errors.whatsapp}</span>:<span className="help-msg">{isEn?'Your WhatsApp with country code — used for all your listings':'Tu WhatsApp con código de país — se usará en todos tus listings'}</span>}
         </div>
       </div>
     </div>
@@ -1806,10 +1787,6 @@ function RegistrationListingForm({ user, onSubmit, submitText, lang="es-CO" }) {
         <div className="fg"><label>{appText(lang,"form.rooms")}</label><select className={cls(`rooms_${i}`)} value={f.rooms} onChange={e=>setVal(i,'rooms',e.target.value)}><option>1</option><option>2</option><option>3</option><option>4</option><option>5+</option></select>{errors[`rooms_${i}`]&&<span className="err-msg">{errors[`rooms_${i}`]}</span>}</div>
         <div className="fg"><label>{appText(lang,"form.guestCapacity")}</label><input className={cls(`guests_${i}`)} type="number" value={f.guests} onChange={e=>setVal(i,'guests',parseInt(e.target.value)||'')} min={1}/>{errors[`guests_${i}`]&&<span className="err-msg">{errors[`guests_${i}`]}</span>}</div>
         <div className="fg full"><label>{appText(lang,"form.airbnbOptional")} {optLabel}</label><input className={cls(`airbnb_${i}`)} value={f.airbnb} onChange={e=>setVal(i,'airbnb',e.target.value)} onBlur={e=>{const v=String(e.target.value||'').trim();const key=`airbnb_${i}`;if(v&&!/^https?:\/\/.+/i.test(v))setErrors(p=>({...p,[key]:appText(lang,'validation.urlInvalid')}));else setErrors(p=>({...p,[key]:undefined}));}} placeholder="https://www.airbnb.com/rooms/..."/>{errors[`airbnb_${i}`]&&<span className="err-msg">{errors[`airbnb_${i}`]}</span>}</div>
-        {/* ── Owner ────────────────────────────────────────── */}
-        <div className="fg full form-section-hdr">👤 {isEn?'Owner':'Propietario'}</div>
-        <div className="fg"><label>{appText(lang,"form.ownerWhatsapp")} <Tip text={tips.ownerWhatsapp}/></label><input className={cls(`contact_${i}`)} type="tel" value={f.contact} onChange={e=>setVal(i,'contact',e.target.value)} onBlur={e=>{const v=String(e.target.value||'').trim();const key=`contact_${i}`;if(!v)setErrors(p=>({...p,[key]:appText(lang,'validation.ownerWhatsappRequired')}));else{const err=validateWhatsApp(v,lang);setErrors(p=>({...p,[key]:err||undefined}));}}} placeholder="+57 300 000 0000"/>{errors[`contact_${i}`]?<span className="err-msg">{errors[`contact_${i}`]}</span>:<span className="help-msg">{isEn?'With country code, e.g. +57':'Con código de país, ej. +57'}</span>}</div>
-        <div className="fg"><label>{appText(lang,"form.listingEmail")} <Tip text={tips.listingEmail}/></label><input className={cls(`email_${i}`)} type="email" value={f.email} onChange={e=>setVal(i,'email',e.target.value)} onBlur={e=>{const v=String(e.target.value||'').trim();const key=`email_${i}`;if(!v)setErrors(p=>({...p,[key]:appText(lang,'validation.emailRequired')}));else if(!validateEmail(v))setErrors(p=>({...p,[key]:appText(lang,'validation.emailInvalid')}));else setErrors(p=>({...p,[key]:undefined}));}} placeholder={user?.email||'propietario@email.com'}/>{errors[`email_${i}`]?<span className="err-msg">{errors[`email_${i}`]}</span>:<span className="help-msg">{appText(lang,"form.listingEmailHelp")}</span>}</div>
         {/* ── Operator ─────────────────────────────────────── */}
         <div className="fg full form-section-hdr">🔧 {isEn?'Operator (optional)':'Operador (opcional)'}</div>
         <div className="fg"><label>{appText(lang,"form.operatorOptional")} <Tip text={tips.operator}/></label><input className={cls(`operator_${i}`)} value={f.operator} onChange={e=>setVal(i,'operator',e.target.value)} placeholder={appText(lang,"form.operatorPlaceholder")}/>{errors[`operator_${i}`]&&<span className="err-msg">{errors[`operator_${i}`]}</span>}</div>
@@ -1817,7 +1794,7 @@ function RegistrationListingForm({ user, onSubmit, submitText, lang="es-CO" }) {
         <div className="fg full"><label>{appText(lang,"form.operatorWhatsappOptional")} <Tip text={tips.operatorWhatsapp}/></label><input className={cls(`operatorWhatsapp_${i}`)} type="tel" value={f.operatorWhatsapp} onChange={e=>setVal(i,'operatorWhatsapp',e.target.value)} onBlur={e=>{const v=String(e.target.value||'').trim();const key=`operatorWhatsapp_${i}`;const err=validateWhatsApp(v,lang);setErrors(p=>({...p,[key]:err||undefined}));}} placeholder="+57 300 000 0000"/>{errors[`operatorWhatsapp_${i}`]?<span className="err-msg">{errors[`operatorWhatsapp_${i}`]}</span>:<span className="help-msg">{isEn?'With country code, e.g. +57':'Con código de país, ej. +57'}</span>}</div>
       </div>
     </div>)}
-    <div className="mact"><button className="btn-ghost" onClick={()=>setItems(rows=>[...rows, makeBlank()])}>{appText(lang,"form.addAnotherListing")}</button><button className="btn-p" onClick={()=>{ if(validate()) onSubmit({ listings: items.map(x=>({...x,apt:String(x.apt).trim(),tower:'KAI',email:String(x.email).trim().toLowerCase(),contact:String(x.contact).trim(),operatorEmail:String(x.operatorEmail||'').trim().toLowerCase(),operatorWhatsapp:String(x.operatorWhatsapp||'').trim(),airbnb:String(x.airbnb||'').trim()})), profile:{ firstName:profile.firstName.trim(), middleName:profile.middleName.trim(), lastName:profile.lastName.trim(), whatsapp:profile.whatsapp.trim() } }); }}>{submitText}</button></div>
+    <div className="mact"><button className="btn-ghost" onClick={()=>setItems(rows=>[...rows, makeBlank()])}>{appText(lang,"form.addAnotherListing")}</button><button className="btn-p" onClick={()=>{ if(validate()) onSubmit({ listings: items.map(x=>({...x,apt:String(x.apt).trim(),tower:'KAI',operatorEmail:String(x.operatorEmail||'').trim().toLowerCase(),operatorWhatsapp:String(x.operatorWhatsapp||'').trim(),airbnb:String(x.airbnb||'').trim()})), profile:{ whatsapp:whatsapp.trim() } }); }}>{submitText}</button></div>
   </div>;
 }
 
@@ -1926,42 +1903,34 @@ function BetaCommandCenter({ lang="es-CO", alerts=[], pendingOwner=0, pendingRes
 
 function ProfileView({ user, lang, userProfile, onSave }) {
   const isEn = lang === 'en';
-  const [form, setForm] = useState({ firstName: userProfile.firstName||'', middleName: userProfile.middleName||'', lastName: userProfile.lastName||'', whatsapp: userProfile.whatsapp||'' });
-  const [errors, setErrors] = useState({});
+  const [whatsapp, setWhatsapp] = useState(userProfile.whatsapp || '');
+  const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
 
-  // Sync form when userProfile loads from server
-  useEffect(() => {
-    setForm({ firstName: userProfile.firstName||'', middleName: userProfile.middleName||'', lastName: userProfile.lastName||'', whatsapp: userProfile.whatsapp||'' });
-  }, [userProfile.firstName, userProfile.middleName, userProfile.lastName, userProfile.whatsapp]);
-
-  const setFld = (k, v) => { setForm(f=>({...f,[k]:v})); setErrors(e=>({...e,[k]:undefined})); };
-  const cls = (k) => errors[k] ? 'field-error' : '';
+  // Sync when profile loads from server
+  useEffect(() => { setWhatsapp(userProfile.whatsapp || ''); }, [userProfile.whatsapp]);
 
   const validate = () => {
-    const e = {};
-    if (!String(form.firstName||'').trim()) e.firstName = isEn ? 'First name is required' : 'El nombre es requerido';
-    if (!String(form.lastName||'').trim()) e.lastName = isEn ? 'Last name is required' : 'El apellido es requerido';
-    if (String(form.whatsapp||'').trim()) { const err = validateWhatsApp(form.whatsapp, lang); if (err) e.whatsapp = err; }
-    setErrors(e);
-    return Object.keys(e).length === 0;
+    if (!String(whatsapp||'').trim()) { setError(isEn ? 'WhatsApp is required' : 'WhatsApp es requerido'); return false; }
+    const err = validateWhatsApp(whatsapp, lang);
+    if (err) { setError(err); return false; }
+    setError('');
+    return true;
   };
 
   const handleSave = async () => {
     if (!validate()) return;
     setSaving(true);
-    try { await onSave({ firstName: form.firstName.trim(), middleName: form.middleName.trim(), lastName: form.lastName.trim(), whatsapp: form.whatsapp.trim() }); }
+    try { await onSave({ whatsapp: whatsapp.trim() }); }
     finally { setSaving(false); }
   };
-
-  const fullName = [form.firstName, form.middleName, form.lastName].filter(Boolean).join(' ');
 
   return (
     <div className="fade">
       <div className="ph">
         <div>
           <h1 className="ptitle">👤 {isEn ? 'My profile' : 'Mi perfil'}</h1>
-          <p className="psub">{isEn ? 'Update your personal information visible to other owners.' : 'Actualiza tu información personal visible para otros propietarios.'}</p>
+          <p className="psub">{isEn ? 'Your contact info is used across all your listings.' : 'Tu información de contacto se usa en todos tus listings.'}</p>
         </div>
       </div>
 
@@ -1971,44 +1940,27 @@ function ProfileView({ user, lang, userProfile, onSave }) {
           <div className="prof-section-hdr">🔒 {isEn ? 'Account (Google)' : 'Cuenta (Google)'}</div>
           <div className="prof-ro-grid">
             <div className="prof-ro-row">
-              <span className="prof-ro-lbl">{isEn ? 'Display name' : 'Nombre de Google'}</span>
+              <span className="prof-ro-lbl">{isEn ? 'Name' : 'Nombre'}</span>
               <span className="prof-ro-val">{user.name || '—'}</span>
             </div>
             <div className="prof-ro-row">
               <span className="prof-ro-lbl">Email</span>
               <span className="prof-ro-val">{user.email || '—'}</span>
             </div>
-            {fullName && fullName !== user.name && (
-              <div className="prof-ro-row">
-                <span className="prof-ro-lbl">{isEn ? 'Full name (profile)' : 'Nombre completo (perfil)'}</span>
-                <span className="prof-ro-val prof-ro-val-hi">{fullName}</span>
-              </div>
-            )}
           </div>
         </div>
 
-        {/* ── Editable profile ────────────────────── */}
+        {/* ── Editable contact ────────────────────── */}
         <div className="prof-section">
-          <div className="prof-section-hdr">✏️ {isEn ? 'Personal details' : 'Datos personales'}</div>
-          <div className="fg2">
-            <div className="fg">
-              <label>{isEn ? 'First name' : 'Nombre'} <span style={{color:'#e53935',fontSize:'0.75rem'}}>*</span></label>
-              <input className={cls('firstName')} value={form.firstName} onChange={e=>setFld('firstName',e.target.value)} onBlur={e=>{if(!e.target.value.trim())setErrors(er=>({...er,firstName:isEn?'First name is required':'El nombre es requerido'}));}} placeholder={isEn?'First name':'Nombre'}/>
-              {errors.firstName && <span className="err-msg">{errors.firstName}</span>}
-            </div>
-            <div className="fg">
-              <label>{isEn ? 'Middle name' : 'Segundo nombre'} <span style={{color:'#70d6c6',fontSize:'0.7rem',fontStyle:'italic'}}>({isEn?'optional':'opcional'})</span></label>
-              <input value={form.middleName} onChange={e=>setFld('middleName',e.target.value)} placeholder={isEn?'Middle name':'Segundo nombre'}/>
-            </div>
-            <div className="fg">
-              <label>{isEn ? 'Last name' : 'Apellido'} <span style={{color:'#e53935',fontSize:'0.75rem'}}>*</span></label>
-              <input className={cls('lastName')} value={form.lastName} onChange={e=>setFld('lastName',e.target.value)} onBlur={e=>{if(!e.target.value.trim())setErrors(er=>({...er,lastName:isEn?'Last name is required':'El apellido es requerido'}));}} placeholder={isEn?'Last name':'Apellido'}/>
-              {errors.lastName && <span className="err-msg">{errors.lastName}</span>}
-            </div>
-            <div className="fg">
-              <label>WhatsApp <span style={{color:'#70d6c6',fontSize:'0.7rem',fontStyle:'italic'}}>({isEn?'optional':'opcional'})</span></label>
-              <input className={cls('whatsapp')} type="tel" value={form.whatsapp} onChange={e=>setFld('whatsapp',e.target.value)} onBlur={e=>{const v=String(e.target.value||'').trim();if(v){const err=validateWhatsApp(v,lang);if(err)setErrors(er=>({...er,whatsapp:err}));else setErrors(er=>({...er,whatsapp:undefined}));}}} placeholder="+57 300 000 0000"/>
-              {errors.whatsapp ? <span className="err-msg">{errors.whatsapp}</span> : <span className="help-msg">{isEn?'With country code, e.g. +57':'Con código de país, ej. +57'}</span>}
+          <div className="prof-section-hdr">📱 WhatsApp</div>
+          <p style={{fontSize:'.84rem',color:'#2a5a6a',margin:'0 0 14px',lineHeight:1.5}}>
+            {isEn ? 'Used as the contact WhatsApp for all your listings. Updating this will apply to all apartments you own.' : 'Se usa como WhatsApp de contacto en todos tus listings. Al actualizar aquí se aplica a todos tus apartamentos.'}
+          </p>
+          <div className="fg2" style={{maxWidth:320}}>
+            <div className="fg full">
+              <label>WhatsApp <span style={{color:'#e53935',fontSize:'0.75rem'}}>*</span></label>
+              <input className={error?'field-error':''} type="tel" value={whatsapp} onChange={e=>{setWhatsapp(e.target.value);setError('');}} onBlur={e=>{const v=String(e.target.value||'').trim();if(!v)setError(isEn?'WhatsApp is required':'WhatsApp es requerido');else{const err=validateWhatsApp(v,lang);if(err)setError(err);else setError('');}}} placeholder="+57 300 000 0000"/>
+              {error ? <span className="err-msg">{error}</span> : <span className="help-msg">{isEn?'With country code, e.g. +57 300 000 0000':'Con código de país, ej. +57 300 000 0000'}</span>}
             </div>
           </div>
         </div>
@@ -2255,10 +2207,10 @@ function AptCard({ l, incCount, contactProps={}, canEdit=false, canDelete=false,
       <div className="ac-party">
         <div className="ac-party-lbl">👤 {isEn?'Owner':'Propietario'}</div>
         <div className="ac-party-row">
-          <UserContact name={l.owner} uid={l.ownerUid} email={l.email} whatsapp={l.contact} apartments={l.apt?[aptDisplay(l.apt,lang)]:[]} {...contactProps}/>
+          <UserContact name={l.owner} uid={l.ownerUid} email={l.userEmail||l.email} whatsapp={l.contact} apartments={l.apt?[aptDisplay(l.apt,lang)]:[]} {...contactProps}/>
           <div className="ac-cbtns">
-            {l.email     && <a href={`mailto:${l.email}`}          className="ac-cbtn"          title={l.email}    >✉️</a>}
-            {ownerWa     && <a href={`https://wa.me/${ownerWa}`}   className="ac-cbtn ac-cbtn-wa" title={l.contact}  target="_blank" rel="noreferrer">💬</a>}
+            {(l.userEmail||l.email) && <a href={`mailto:${l.userEmail||l.email}`} className="ac-cbtn" title={l.userEmail||l.email}>✉️</a>}
+            {ownerWa && <a href={`https://wa.me/${ownerWa}`} className="ac-cbtn ac-cbtn-wa" title={l.contact} target="_blank" rel="noreferrer">💬</a>}
           </div>
         </div>
       </div>
@@ -2564,7 +2516,8 @@ function IRow({ inc, user, listings=[], contactProps={}, isGlobalAdmin=false, ca
 
 function ListingModal({ title, user, initial={}, onSave, onClose, lang="es-CO", config={} }) {
   const tips = localizedTooltips(config, lang);
-  const [f,setF]=useState({apt:"",rooms:"2",guests:4,operator:"",operatorEmail:"",operatorWhatsapp:"",contact:"",airbnb:"",...initial,tower:"KAI",email:initial.email || user?.email || ""});
+  const isEn = lang === 'en';
+  const [f,setF]=useState({apt:"",rooms:"2",guests:4,operator:"",operatorEmail:"",operatorWhatsapp:"",airbnb:"",...initial,tower:"KAI"});
   const [errors,setErrors]=useState({});
   const [checkingApt,setCheckingApt]=useState(false);
   const s=(k,v)=>{ setF(p=>({...p,[k]:v})); setErrors(e=>({...e,[k]:undefined})); };
@@ -2586,38 +2539,34 @@ function ListingModal({ title, user, initial={}, onSave, onClose, lang="es-CO", 
     if(!f.guests || Number(f.guests)<1) e.guests=appText(lang,'validation.capacityRequired');
     if(String(f.operatorEmail||"").trim() && !validateEmail(f.operatorEmail)) e.operatorEmail=appText(lang,'validation.operatorEmailInvalid');
     const waOpErr=validateWhatsApp(f.operatorWhatsapp,lang); if(waOpErr) e.operatorWhatsapp=waOpErr;
-    if(!String(f.contact||"").trim()) e.contact=appText(lang,'validation.ownerWhatsappRequired');
-    else { const waErr=validateWhatsApp(f.contact,lang); if(waErr) e.contact=waErr; }
-    if(!String(f.email||"").trim()) e.email=appText(lang,'validation.emailRequired');
-    else if(!validateEmail(f.email)) e.email=appText(lang,'validation.emailInvalid');
     if(f.airbnb && !/^https?:\/\/.+/i.test(String(f.airbnb).trim())) e.airbnb=appText(lang,'validation.urlInvalid');
     setErrors(e);
     return Object.keys(e).length===0;
   };
   const inputCls=(k)=>errors[k]?"field-error":"";
+  const optLabel = <span style={{color:"#70d6c6",fontStyle:"italic",textTransform:"none",letterSpacing:0,fontSize:"0.68rem"}}>({appText(lang,"form.optional")})</span>;
   return (
     <Overlay onClose={onClose} wide>
-      <div className="modal-title">{title}</div><div className="modal-sub">{appText(lang,"modal.listing.ownerPrefix")}: {user?.name}</div>
-      <div className="form-alert">{appText(lang,"modal.listing.requiredHelp")}</div>
+      <div className="modal-title">{title}</div>
+      <div className="modal-sub">{appText(lang,"modal.listing.ownerPrefix")}: {user?.name}</div>
+      <div className="form-alert" style={{marginBottom:8}}>
+        {isEn ? 'Your Google email and profile WhatsApp are used as contact details for this listing.' : 'Tu email de Google y WhatsApp del perfil se usan como contacto para este listing.'}
+      </div>
       <div className="fg2">
         {/* ── Listing ──────────────────────────────────────── */}
-        <div className="fg full form-section-hdr">🏠 {lang==='en'?'Listing details':'Datos del listing'}</div>
+        <div className="fg full form-section-hdr">🏠 {isEn?'Listing details':'Datos del listing'}</div>
         <div className="fg"><label>{appText(lang,"form.aptNumber")} <Tip text={tips.aptNumber}/></label><input className={inputCls("apt")} value={f.apt} onChange={e=>s("apt",e.target.value)} onBlur={checkApt} placeholder="000"/>{checkingApt&&<span className="help-msg">{appText(lang,'validation.aptChecking')}</span>}{errors.apt&&<span className="err-msg">{errors.apt}</span>}</div>
-        <div className="fg"><label>{appText(lang,"form.tower")}</label><input value="KAI" readOnly disabled className="locked-field"/><span className="help-msg">{appText(lang,"form.towerHelp")}</span></div>
+        <div className="fg"><label>{appText(lang,"form.tower")}</label><input value="KAI" readOnly disabled className="locked-field"/></div>
         <div className="fg"><label>{appText(lang,"form.rooms")}</label><select className={inputCls("rooms")} value={f.rooms} onChange={e=>s("rooms",e.target.value)}><option>1</option><option>2</option><option>3</option><option>4</option><option>5+</option></select>{errors.rooms&&<span className="err-msg">{errors.rooms}</span>}</div>
         <div className="fg"><label>{appText(lang,"form.guestCapacity")}</label><input className={inputCls("guests")} type="number" value={f.guests} onChange={e=>s("guests",parseInt(e.target.value)||"")} min={1} max={20}/>{errors.guests&&<span className="err-msg">{errors.guests}</span>}</div>
-        <div className="fg full"><label>{appText(lang,"form.airbnbOptional")} <span style={{color:"#70d6c6",fontStyle:"italic",textTransform:"none",letterSpacing:0,fontSize:"0.68rem"}}>({appText(lang,"form.optional")})</span></label><input className={inputCls("airbnb")} value={f.airbnb} onChange={e=>s("airbnb",e.target.value)} onBlur={e=>{const v=String(e.target.value||'').trim();if(v&&!/^https?:\/\/.+/i.test(v))setErrors(p=>({...p,airbnb:appText(lang,'validation.urlInvalid')}));else setErrors(p=>({...p,airbnb:undefined}));}} placeholder="https://www.airbnb.com/rooms/..."/>{errors.airbnb&&<span className="err-msg">{errors.airbnb}</span>}</div>
-        {/* ── Owner ────────────────────────────────────────── */}
-        <div className="fg full form-section-hdr">👤 {lang==='en'?'Owner':'Propietario'}</div>
-        <div className="fg"><label>{appText(lang,"form.ownerWhatsapp")} <Tip text={tips.ownerWhatsapp}/></label><input className={inputCls("contact")} type="tel" value={f.contact} onChange={e=>s("contact",e.target.value)} onBlur={e=>{const v=String(e.target.value||'').trim();if(!v)setErrors(p=>({...p,contact:appText(lang,'validation.ownerWhatsappRequired')}));else{const err=validateWhatsApp(v,lang);setErrors(p=>({...p,contact:err||undefined}));}}} placeholder="+57 300 000 0000"/>{errors.contact?<span className="err-msg">{errors.contact}</span>:<span className="help-msg">{lang==='en'?'With country code, e.g. +57':'Con código de país, ej. +57'}</span>}</div>
-        <div className="fg"><label>{appText(lang,"form.listingEmail")} <Tip text={tips.listingEmail}/></label><input className={inputCls("email")} type="email" value={f.email} onChange={e=>s("email",e.target.value)} onBlur={e=>{const v=String(e.target.value||'').trim();if(!v)setErrors(p=>({...p,email:appText(lang,'validation.emailRequired')}));else if(!validateEmail(v))setErrors(p=>({...p,email:appText(lang,'validation.emailInvalid')}));else setErrors(p=>({...p,email:undefined}));}} placeholder={user?.email||appText(lang,"form.ownerEmailPlaceholder")}/>{errors.email?<span className="err-msg">{errors.email}</span>:<span className="help-msg">{appText(lang,"form.listingEmailHelp")}</span>}</div>
+        <div className="fg full"><label>{appText(lang,"form.airbnbOptional")} {optLabel}</label><input className={inputCls("airbnb")} value={f.airbnb} onChange={e=>s("airbnb",e.target.value)} onBlur={e=>{const v=String(e.target.value||'').trim();if(v&&!/^https?:\/\/.+/i.test(v))setErrors(p=>({...p,airbnb:appText(lang,'validation.urlInvalid')}));else setErrors(p=>({...p,airbnb:undefined}));}} placeholder="https://www.airbnb.com/rooms/..."/>{errors.airbnb&&<span className="err-msg">{errors.airbnb}</span>}</div>
         {/* ── Operator ─────────────────────────────────────── */}
-        <div className="fg full form-section-hdr">🔧 {lang==='en'?'Operator (optional)':'Operador (opcional)'}</div>
+        <div className="fg full form-section-hdr">🔧 {isEn?'Operator (optional)':'Operador (opcional)'}</div>
         <div className="fg"><label>{appText(lang,"form.operatorOptional")} <Tip text={tips.operator}/></label><input className={inputCls("operator")} value={f.operator} onChange={e=>s("operator",e.target.value)} placeholder={appText(lang,"form.operatorPlaceholder")}/>{errors.operator&&<span className="err-msg">{errors.operator}</span>}</div>
-        <div className="fg"><label>{appText(lang,"form.operatorEmailOptional")} <Tip text={tips.operatorEmail}/></label><input className={inputCls("operatorEmail")} type="email" value={f.operatorEmail} onChange={e=>s("operatorEmail",e.target.value)} onBlur={e=>{const v=String(e.target.value||'').trim();if(v&&!validateEmail(v))setErrors(p=>({...p,operatorEmail:appText(lang,'validation.operatorEmailInvalid')}));else setErrors(p=>({...p,operatorEmail:undefined}));}} placeholder="operador@email.com"/>{errors.operatorEmail&&<span className="err-msg">{errors.operatorEmail}</span>}</div>
-        <div className="fg full"><label>{appText(lang,"form.operatorWhatsappOptional")} <Tip text={tips.operatorWhatsapp}/></label><input className={inputCls("operatorWhatsapp")} type="tel" value={f.operatorWhatsapp} onChange={e=>s("operatorWhatsapp",e.target.value)} onBlur={e=>{const v=String(e.target.value||'').trim();const err=validateWhatsApp(v,lang);setErrors(p=>({...p,operatorWhatsapp:err||undefined}));}} placeholder="+57 300 000 0000"/>{errors.operatorWhatsapp?<span className="err-msg">{errors.operatorWhatsapp}</span>:<span className="help-msg">{lang==='en'?'With country code, e.g. +57':'Con código de país, ej. +57'}</span>}</div>
+        <div className="fg"><label>{appText(lang,"form.operatorEmailOptional")} {optLabel}</label><input className={inputCls("operatorEmail")} type="email" value={f.operatorEmail} onChange={e=>s("operatorEmail",e.target.value)} onBlur={e=>{const v=String(e.target.value||'').trim();if(v&&!validateEmail(v))setErrors(p=>({...p,operatorEmail:appText(lang,'validation.operatorEmailInvalid')}));else setErrors(p=>({...p,operatorEmail:undefined}));}} placeholder="operador@email.com"/>{errors.operatorEmail&&<span className="err-msg">{errors.operatorEmail}</span>}</div>
+        <div className="fg full"><label>{appText(lang,"form.operatorWhatsappOptional")} {optLabel}</label><input className={inputCls("operatorWhatsapp")} type="tel" value={f.operatorWhatsapp} onChange={e=>s("operatorWhatsapp",e.target.value)} onBlur={e=>{const v=String(e.target.value||'').trim();const err=validateWhatsApp(v,lang);setErrors(p=>({...p,operatorWhatsapp:err||undefined}));}} placeholder="+57 300 000 0000"/>{errors.operatorWhatsapp?<span className="err-msg">{errors.operatorWhatsapp}</span>:<span className="help-msg">{isEn?'With country code, e.g. +57':'Con código de país, ej. +57'}</span>}</div>
       </div>
-      <div className="mact"><button className="btn-ghost" onClick={onClose}>{appText(lang,"form.cancel")}</button><button className="btn-p" onClick={()=>{if(validate()) onSave({...f,apt:String(f.apt).trim(),tower:"KAI",operatorEmail:String(f.operatorEmail||"").trim().toLowerCase(),operatorWhatsapp:String(f.operatorWhatsapp||"").trim(),contact:String(f.contact||"").trim(),email:String(f.email).trim().toLowerCase(),airbnb:String(f.airbnb||"").trim()});}}>{appText(lang,"form.save")}</button></div>
+      <div className="mact"><button className="btn-ghost" onClick={onClose}>{appText(lang,"form.cancel")}</button><button className="btn-p" onClick={()=>{if(validate()) onSave({...f,apt:String(f.apt).trim(),tower:"KAI",operatorEmail:String(f.operatorEmail||"").trim().toLowerCase(),operatorWhatsapp:String(f.operatorWhatsapp||"").trim(),airbnb:String(f.airbnb||"").trim()});}}>{appText(lang,"form.save")}</button></div>
     </Overlay>
   );
 }
