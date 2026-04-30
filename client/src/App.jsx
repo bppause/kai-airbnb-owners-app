@@ -1911,9 +1911,29 @@ function Dashboard({ listings, incidents, user, contactProps={}, setView, onRepo
       <div className="two-col">
         <div className="card"><div className="card-hdr"><span className="card-title">{appText(lang,"dashboard.recentReports")}</span><button className="lnk" onClick={()=>setView("incidents")}>{appText(lang,"dashboard.viewAll")}</button></div>{recent.length===0?<Empty icon="✅" msg={appText(lang,"dashboard.noReports")}/>:recent.map(i=><IRow key={i.id} inc={i} compact lang={lang}/>)}</div>
         <div className="card"><div className="card-hdr"><span className="card-title">🏠 {appText(lang,"dashboard.apartments")}</span><button className="lnk" onClick={()=>setView("listings")}>{appText(lang,"dashboard.viewAll")}</button></div>
-          {[...listings].sort((a,b)=>a.apt.localeCompare(b.apt)).map(l=>(
-            <div key={l.id} className="apt-row"><div className="ar-num">{appText(lang,"listing.apt")} {l.apt}</div><div className="ar-owner">{l.owner}</div><div className="ar-chips"><span className="chip c-teal">🛏️ {l.rooms}</span><span className="chip c-blue">👥 {l.guests}</span>{l.airbnb&&<a className="chip c-red" href={l.airbnb} target="_blank">Airbnb↗</a>}</div></div>
-          ))}
+          {[...listings].sort((a,b)=>a.apt.localeCompare(b.apt)).map(l=>{
+            const waDigits = normalizePhoneForWhatsApp(l.contact||'');
+            return (
+              <div key={l.id} className="apt-row">
+                <div className="ar-info">
+                  <div className="ar-apt">{appText(lang,"listing.apt")} {l.apt}</div>
+                  <div className="ar-meta">
+                    <UserContact name={l.owner} uid={l.ownerUid} email={l.email} whatsapp={l.contact}
+                      apartments={l.apt?[aptDisplay(l.apt,lang)]:[]} {...contactProps}/>
+                    <div className="ar-chips">
+                      <span className="chip c-teal">🛏️ {l.rooms}</span>
+                      <span className="chip c-blue">👥 {l.guests}</span>
+                    </div>
+                  </div>
+                </div>
+                <div className="ar-actions">
+                  {l.email && <a href={`mailto:${l.email}`} className="ar-act" target="_blank" rel="noreferrer" title={l.email} aria-label="Email">✉️</a>}
+                  {waDigits && <a href={`https://wa.me/${waDigits}`} className="ar-act ar-act-wa" target="_blank" rel="noreferrer" title={l.contact} aria-label="WhatsApp">💬</a>}
+                  {l.airbnb && <a href={l.airbnb} className="ar-act ar-act-ab" target="_blank" rel="noreferrer" title="Airbnb" aria-label="Airbnb">↗</a>}
+                </div>
+              </div>
+            );
+          })}
         </div>
       </div>
       {showBlacklist&&naughty.length>0&&<div className="card ncard"><div className="card-hdr"><span className="card-title" style={{color:"#ff6b6b"}}>😈 {appText(lang,"dashboard.blacklist")}</span><button className="lnk" onClick={()=>setView("naughty")}>{appText(lang,"dashboard.view")}</button></div><div className="nrow">{naughty.slice(0,4).map(i=><div key={i.id} className="npill"><div style={{fontSize:"1.2rem"}}>😈</div><div><div className="np-name">{i.guestName}</div><div className="np-loc">📍 {i.guestCity}, {i.guestCountry}</div><div className="np-apt">{i.aptLabel}</div></div></div>)}</div></div>}
@@ -2648,9 +2668,19 @@ html{font-size:clamp(14px,1.1vw,16px);-webkit-text-size-adjust:100%}body{overflo
 .slabel{font-size:.78rem;color:#235f72;font-weight:800}
 
 /* --- dashboard listing rows ------------------------------------------------ */
-.apt-row{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid rgba(47,79,58,.08);flex-wrap:wrap;min-width:0}
-.apt-row:last-child{border-bottom:0}
-.ar-chips{display:flex;gap:6px;flex-wrap:wrap;align-items:center;flex:1;min-width:0}
+.apt-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:11px 2px;border-bottom:1px solid rgba(47,79,58,.08);min-width:0}
+.apt-row:last-child{border-bottom:0;padding-bottom:2px}
+.apt-row:hover{background:rgba(11,127,140,.03);border-radius:10px;margin:0 -6px;padding-left:8px;padding-right:8px}
+.ar-info{flex:1;min-width:0}
+.ar-apt{font-family:'Playfair Display',serif;font-weight:900;font-size:1.05rem;color:#203f2b;line-height:1.2}
+.ar-meta{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:4px}
+.ar-chips{display:flex;gap:5px;flex-wrap:wrap;align-items:center}
+.ar-actions{display:flex;gap:6px;flex-shrink:0;align-items:center}
+.ar-act{display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:10px;background:rgba(255,255,255,.82);border:1px solid rgba(47,79,58,.16);color:#17313a;font-size:.9rem;text-decoration:none;transition:background .13s,box-shadow .13s,transform .13s;flex-shrink:0}
+.ar-act:hover{background:#fff;transform:translateY(-2px);box-shadow:0 6px 14px rgba(32,46,38,.13)}
+.ar-act-wa{color:#1aa361!important;border-color:rgba(26,163,97,.25)!important;background:rgba(26,163,97,.07)!important}
+.ar-act-ab{color:#cc3035!important;border-color:rgba(255,90,95,.22)!important;background:rgba(255,90,95,.07)!important}
+@media(max-width:500px){.ar-apt{font-size:.96rem}.ar-act{width:38px;height:38px;font-size:1rem}}
 
 /* --- chip color variants --------------------------------------------------- */
 .chip{display:inline-flex;align-items:center;gap:3px;padding:3px 9px;border-radius:999px;font-size:.72rem;font-weight:700;line-height:1.3}
