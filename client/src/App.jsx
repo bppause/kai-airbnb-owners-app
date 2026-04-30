@@ -1862,42 +1862,53 @@ function BetaCommandCenter({ lang="es-CO", alerts=[], pendingOwner=0, pendingRes
 
 function DashboardFocus({ lang="es-CO", effectiveIsGlobalAdmin=false, effectiveRole='user', delegatePerms={},
   pendingOwner=0, pendingResolve=0, pendingRegistrations=0, openCount=0,
+  myListingCount=0, myOpenCount=0,
   canResolve=false, canManageRegistrations=false,
   onOwnerClick=()=>{}, onResolveClick=()=>{}, onRegistrationsClick=()=>{}, onOpenClick=()=>{}, setView=()=>{} }) {
-  const role = effectiveIsGlobalAdmin ? 'global' : effectiveRole === 'delegate_admin' ? 'delegate' : 'standard';
-  const titleKey = role === 'global' ? 'roles.globalTitle' : role === 'delegate' ? 'roles.delegateTitle' : 'roles.standardTitle';
-  const textKey  = role === 'global' ? 'roles.globalText'  : role === 'delegate' ? 'roles.delegateText'  : 'roles.standardText';
-  const roleIcon = role === 'global' ? '🌐' : role === 'delegate' ? '🛡️' : '🏠';
-  const actions = role === 'global'
-    ? [{label:appText(lang,'roles.globalAction1'),   view:'analytics'}, {label:appText(lang,'roles.globalAction2'),   view:'admin'}]
-    : role === 'delegate'
-    ? [{label:appText(lang,'roles.delegateAction1'), view:'approvals'}, ...(delegatePerms.canResolveIncidents ? [{label:appText(lang,'roles.delegateAction2'), view:'incidents'}] : [])]
-    : [{label:appText(lang,'roles.ownerAction1'),    view:'incidents'}, {label:appText(lang,'roles.ownerAction2'),    view:'my'}];
-  const cards = [
-    { id:'ownerVerification', icon:'✅', count:pendingOwner,       title:lang==='en'?'My verification':'Mi verificación',         sub:lang==='en'?'Open incidents requiring owner confirmation':'Incidentes abiertos que requieren confirmación del propietario', show:true,                   onClick:onOwnerClick,         accent:pendingOwner>0?'amber':null },
-    { id:'requiresResolution',icon:'🛠️',count:pendingResolve,     title:lang==='en'?'Ready to resolve':'Listos para resolver',    sub:lang==='en'?'Owner-verified incidents pending resolution':'Incidentes verificados pendientes de resolución admin',            show:canResolve,             onClick:onResolveClick,       accent:pendingResolve>0?'green':null },
-    { id:'registrations',     icon:'📝', count:pendingRegistrations,title:lang==='en'?'Registrations':'Registros',                sub:lang==='en'?'Pending registration requests':'Solicitudes pendientes de aprobación',                                             show:canManageRegistrations, onClick:onRegistrationsClick, accent:pendingRegistrations>0?'blue':null },
-    { id:'incidents',         icon:'⚠️', count:openCount,           title:lang==='en'?'All open incidents':'Incidentes abiertos', sub:lang==='en'?'Community incidents still in progress':'Incidentes de la comunidad en progreso',                                   show:true,                   onClick:onOpenClick,          accent:null },
-  ].filter(x=>x.show);
+  const isEn = lang==='en';
+  const role = effectiveIsGlobalAdmin ? 'global' : effectiveRole==='delegate_admin' ? 'delegate' : 'standard';
+
+  // Role-specific card sets — each role sees only what matters to them
+  const cards = role==='standard' ? [
+    { id:'myListings',     icon:'🏠', count:myListingCount, label:isEn?'My listings':'Mis listings',          sub:isEn?'Your registered apartments':'Tus apartamentos registrados',              accent:'teal',  onClick:()=>setView('my') },
+    { id:'myVerification', icon:'✅', count:pendingOwner,   label:isEn?'Need my action':'Requieren mi acción', sub:isEn?'Incidents awaiting your verification':'Incidentes esperando tu verificación', accent:'amber', onClick:onOwnerClick },
+    { id:'myOpen',         icon:'⚠️', count:myOpenCount,   label:isEn?'My open reports':'Mis reportes',       sub:isEn?'Open reports on your listings':'Reportes abiertos en tus listings',       accent:'red',   onClick:()=>setView('incidents') },
+  ] : role==='delegate' ? [
+    { id:'ownerVerification', icon:'✅', count:pendingOwner,         label:isEn?'Need verification':'Requieren verificación',   sub:isEn?'Awaiting owner confirmation':'Esperando confirmación propietario',  accent:'amber', onClick:onOwnerClick,         show:true },
+    { id:'requiresResolution',icon:'🛠️',count:pendingResolve,       label:isEn?'Ready to resolve':'Listos para resolver',       sub:isEn?'Verified, ready to close':'Verificados, listos para cerrar',        accent:'green', onClick:onResolveClick,       show:canResolve },
+    { id:'registrations',     icon:'📝', count:pendingRegistrations,  label:isEn?'Registrations':'Registros',                   sub:isEn?'Pending approval':'Pendientes de aprobación',                         accent:'blue',  onClick:onRegistrationsClick, show:canManageRegistrations },
+    { id:'allOpen',           icon:'⚠️', count:openCount,             label:isEn?'All open':'Total abiertos',                   sub:isEn?'Community incidents in progress':'Incidentes activos comunidad',       accent:null,    onClick:onOpenClick,          show:true },
+  ].filter(x=>x.show!==false) : [
+    { id:'allOpen',           icon:'⚠️', count:openCount,             label:isEn?'Open incidents':'Incidentes abiertos',         sub:isEn?'Community-wide open reports':'Reportes abiertos en comunidad',        accent:'red',   onClick:onOpenClick },
+    { id:'ownerVerification', icon:'✅', count:pendingOwner,          label:isEn?'Need verification':'Requieren verificación',   sub:isEn?'Awaiting owner action':'Esperando acción del propietario',            accent:'amber', onClick:onOwnerClick },
+    { id:'requiresResolution',icon:'🛠️',count:pendingResolve,        label:isEn?'Ready to resolve':'Listos para resolver',       sub:isEn?'Verified, ready to close':'Verificados, listos para cerrar',         accent:'green', onClick:onResolveClick },
+    { id:'registrations',     icon:'📝', count:pendingRegistrations,   label:isEn?'Pending registrations':'Registros pendientes', sub:isEn?'Awaiting approval':'Esperando aprobación',                           accent:'blue',  onClick:onRegistrationsClick, show:canManageRegistrations },
+  ].filter(x=>x.show!==false);
+
+  const roleConfig = {
+    standard: { icon:'🏠', title:isEn?'Your focus':'Tu enfoque',
+      actions:[{label:isEn?'Verify pending':'Verificar pendientes',view:'incidents'},{label:isEn?'Update listing info':'Actualizar listing',view:'my'}] },
+    delegate: { icon:'🛡️', title:isEn?'Admin actions':'Acciones admin',
+      actions:[{label:isEn?'Registrations':'Registros',view:'approvals'},...(canResolve?[{label:isEn?'Resolve incidents':'Resolver incidentes',view:'incidents'}]:[])].slice(0,2) },
+    global:   { icon:'🌐', title:isEn?'Community overview':'Vista comunidad',
+      actions:[{label:isEn?'Analytics':'Analíticas',view:'analytics'},{label:isEn?'Settings':'Configuración',view:'admin'}] },
+  }[role];
+
   return (
     <div className="dash-focus card">
       <div className="dash-focus-head">
-        <div className="dash-focus-title">
-          <strong>{roleIcon} {appText(lang, titleKey)}</strong>
-          <p>{appText(lang, textKey)}</p>
-        </div>
+        <strong className="dfc-role-title">{roleConfig.icon} {roleConfig.title}</strong>
         <div className="dash-focus-actions">
-          <span>{appText(lang,'roles.primaryActions')}:</span>
-          {actions.map((a,i) => <button key={i} type="button" className="role-chip" onClick={()=>setView(a.view)}>{a.label}</button>)}
+          {roleConfig.actions.map((a,i)=><button key={i} type="button" className="role-chip" onClick={()=>setView(a.view)}>{a.label}</button>)}
         </div>
       </div>
       <div className="dash-focus-grid">
-        {cards.map(card => (
+        {cards.map(card=>(
           <button key={card.id} type="button"
             className={`dash-focus-card${card.count>0?' dfc-active':''}${card.accent?' dfc-'+card.accent:''}`}
             onClick={card.onClick} title={card.sub}>
             <span className="dfc-icon">{card.icon}</span>
-            <span className="dfc-copy"><strong>{card.title}</strong><small>{card.sub}</small></span>
+            <span className="dfc-copy"><strong>{card.label}</strong><small>{card.sub}</small></span>
             <span className="dfc-count">{card.count}</span>
           </button>
         ))}
@@ -1914,10 +1925,13 @@ function Dashboard({ listings, incidents, user, contactProps={}, setView, onRepo
   const open=incidents.filter(i=>i.status==="open"), naughty=incidents.filter(i=>i.category==="naughty"), resolved=incidents.filter(i=>i.status==="resolved");
   const totalCap=listings.reduce((a,l)=>a+(l.guests||0),0);
   const recent=[...incidents].sort((a,b)=>new Date(b.createdAt)-new Date(a.createdAt)).slice(0,4);
+  // Owner-specific counts for DashboardFocus
+  const myListings = user ? listings.filter(l=>l.ownerUid===user.uid) : [];
+  const myOpen = incidents.filter(i=>myListings.some(l=>l.id===i.aptId)&&i.status==="open");
   return (
     <div className="fade">
       <div className="ph"><div><h1 className="ptitle">{appText(lang,"dashboard.title")}</h1><p className="psub">{appText(lang,"dashboard.subtitle")}</p></div>{user&&<button className="btn-p btn-report" title={localizedTooltips({}, lang).reportIncident} onClick={onReport}>{appText(lang,"dashboard.reportIncident")}</button>}</div>
-      <DashboardFocus lang={lang} effectiveIsGlobalAdmin={effectiveIsGlobalAdmin} effectiveRole={effectiveRole} delegatePerms={delegatePerms} pendingOwner={pendingOwner} pendingResolve={pendingResolve} pendingRegistrations={pendingRegistrations} openCount={open.length} canResolve={canResolve} canManageRegistrations={canManageRegistrations} onOwnerClick={onOwnerClick} onResolveClick={onResolveClick} onRegistrationsClick={onRegistrationsClick} onOpenClick={()=>setView('incidents')} setView={setView} />
+      <DashboardFocus lang={lang} effectiveIsGlobalAdmin={effectiveIsGlobalAdmin} effectiveRole={effectiveRole} delegatePerms={delegatePerms} pendingOwner={pendingOwner} pendingResolve={pendingResolve} pendingRegistrations={pendingRegistrations} openCount={open.length} myListingCount={myListings.length} myOpenCount={myOpen.length} canResolve={canResolve} canManageRegistrations={canManageRegistrations} onOwnerClick={onOwnerClick} onResolveClick={onResolveClick} onRegistrationsClick={onRegistrationsClick} onOpenClick={()=>setView('incidents')} setView={setView} />
       <div className="stats6">
         {[{icon:"🏠",val:listings.length,label:appText(lang,"dashboard.apartments"),color:"#2a9aaa",click:()=>setView("listings")},{icon:"👥",val:totalCap,label:appText(lang,"dashboard.capacity"),color:"#c9a84c"},{icon:"⚠️",val:open.length,label:appText(lang,"dashboard.openReports"),color:"#d4634a",click:()=>setView("incidents")},...(showBlacklist?[{icon:"😈",val:naughty.length,label:appText(lang,"dashboard.blacklist"),color:"#b71c1c",click:()=>setView("naughty")}]:[]),{icon:"✅",val:resolved.length,label:appText(lang,"dashboard.resolved"),color:"#2e7d32"},{icon:"🔗",val:listings.filter(l=>l.airbnb).length,label:appText(lang,"dashboard.onAirbnb"),color:"#FF5A5F"}].map((s,i)=>(
           <div key={i} className="scard" style={{borderTop:`3px solid ${s.color}`,cursor:s.click?"pointer":"default"}} onClick={s.click}>
