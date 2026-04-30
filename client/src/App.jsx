@@ -2282,10 +2282,15 @@ function AptDoor({ l, incidents, isSelected, onSelect, lang, isEn }) {
   const status = aptDoorStatus(l, incidents);
   const openCount = incidents.filter(i=>i.aptId===l.id&&i.status==='open').length;
   return (
-    <div className={`apt-door apt-door-${status}${isSelected?' apt-door-sel':''}`} onClick={()=>onSelect(isSelected?null:l.id)} role="button" aria-expanded={isSelected} title={`Apt ${l.apt} · ${l.owner}`}>
+    <div className={`apt-door apt-door-${status}${isSelected?' apt-door-sel':''}`} onClick={()=>onSelect(isSelected?null:l.id)} role="button" aria-expanded={isSelected}>
+      {/* Status colour bar across full top edge */}
       <div className={`door-status-bar door-sb-${status}`}/>
-      {openCount>0 && <span className="door-inc-badge">⚠️ {openCount}</span>}
-      <div className="door-plate">{l.apt}</div>
+      {/* Full-width number plate — never clips a 3-digit number */}
+      <div className="door-num-plate">
+        <span className="door-num">{l.apt}</span>
+        {openCount>0 && <span className="door-inc-badge">⚠️ {openCount}</span>}
+      </div>
+      {/* Card body */}
       <div className="door-body">
         <div className="door-owner" title={l.owner}>{l.owner||'—'}</div>
         {l.operator && <div className="door-op" title={l.operator}>🔧 {l.operator}</div>}
@@ -2294,7 +2299,7 @@ function AptDoor({ l, incidents, isSelected, onSelect, lang, isEn }) {
           <span className="door-chip">👥 {l.guests}</span>
         </div>
       </div>
-      <div className="door-footer">{isSelected ? (isEn?'▲ Close':'▲ Cerrar') : (isEn?'▼ Details':'▼ Detalles')}</div>
+      <div className="door-footer">{isSelected ? '▲' : '▼'} {isSelected ? (isEn?'Close':'Cerrar') : (isEn?'Details':'Detalles')}</div>
     </div>
   );
 }
@@ -3969,30 +3974,33 @@ html{font-size:clamp(14px,1.1vw,16px);-webkit-text-size-adjust:100%}body{overflo
 .bld-chev{color:#8a9fa5;font-size:1.1rem;font-weight:900;transition:transform .2s;display:inline-block;flex-shrink:0;margin-left:auto}
 .bld-chev-up{transform:rotate(90deg)}
 .bld-floor-body{background:rgba(245,248,244,.8);border-top:1px solid rgba(47,79,58,.08)}
-/* ── Door grid */
-.bld-door-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px;padding:14px}
-/* ── Door card — light, like AptCard */
-.apt-door{position:relative;border-radius:12px;overflow:hidden;cursor:pointer;background:rgba(255,255,255,.96);border:1.5px solid rgba(47,79,58,.16);box-shadow:0 4px 12px rgba(32,46,38,.08);transition:transform .15s,box-shadow .15s,border-color .18s;user-select:none}
+/* ── Door grid — min 160px so 3-digit numbers and "Details" always fit */
+.bld-door-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px;padding:14px}
+/* ── Door card */
+.apt-door{position:relative;border-radius:12px;overflow:hidden;cursor:pointer;background:rgba(255,255,255,.96);border:1.5px solid rgba(47,79,58,.16);box-shadow:0 4px 12px rgba(32,46,38,.08);transition:transform .15s,box-shadow .15s,border-color .18s;user-select:none;display:flex;flex-direction:column}
 .apt-door:hover{transform:translateY(-2px);box-shadow:0 8px 22px rgba(32,46,38,.14)}
 .apt-door-clean{border-color:rgba(31,160,100,.3)!important}
 .apt-door-warn{border-color:rgba(217,160,0,.45)!important;box-shadow:0 4px 12px rgba(32,46,38,.08),0 0 0 1px rgba(217,160,0,.18)!important}
 .apt-door-alert{border-color:rgba(210,80,60,.45)!important;box-shadow:0 4px 12px rgba(32,46,38,.08),0 0 10px rgba(210,80,60,.18)!important}
 .apt-door-sel{border-color:rgba(11,127,140,.55)!important;box-shadow:0 0 0 3px rgba(11,127,140,.14),0 6px 16px rgba(32,46,38,.12)!important;transform:translateY(-1px)}
-/* Status bar at top of door */
-.door-status-bar{height:3px;width:100%}
+/* Status bar */
+.door-status-bar{height:3px;width:100%;flex-shrink:0}
 .door-sb-clean{background:linear-gradient(90deg,#1fa862,#2dda80)}
 .door-sb-warn{background:linear-gradient(90deg,#d9a030,#f0c040)}
 .door-sb-alert{background:linear-gradient(90deg,#d43028,#f05040)}
-/* Incident badge */
-.door-inc-badge{position:absolute;top:8px;right:7px;background:#d9a030;color:#1a0800;border-radius:999px;font-size:.58rem;font-weight:900;padding:2px 6px;min-width:20px;text-align:center;box-shadow:0 2px 5px rgba(0,0,0,.15)}
-/* Door number plate — dark on light card */
-.door-plate{margin:10px auto 0;width:52px;height:52px;border-radius:10px;background:linear-gradient(135deg,#17313a,#243c30);display:flex;align-items:center;justify-content:center;font-family:'Playfair Display',serif;font-size:.96rem;font-weight:900;color:#c8d8a0;box-shadow:0 3px 8px rgba(0,0,0,.18),inset 0 1px 0 rgba(255,255,255,.08);letter-spacing:.02em}
-.door-body{padding:8px 10px 6px}
-.door-owner{font-size:.72rem;font-weight:700;color:#203f2b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:2px}
-.door-op{font-size:.62rem;color:#496674;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:4px}
-.door-chips{display:flex;gap:3px;flex-wrap:wrap}
-.door-chip{font-size:.58rem;font-weight:700;padding:2px 5px;border-radius:999px;background:rgba(47,79,58,.08);color:#496674;border:1px solid rgba(47,79,58,.1)}
-.door-footer{text-align:center;font-size:.58rem;font-weight:800;color:#8a9fa5;padding:5px 0 7px;text-transform:uppercase;letter-spacing:.08em;border-top:1px solid rgba(47,79,58,.06);margin-top:4px}
+/* Full-width number plate — always shows the complete 3-digit apt number */
+.door-num-plate{display:flex;align-items:center;justify-content:space-between;margin:10px 10px 4px;background:linear-gradient(135deg,#17313a,#243c30);border-radius:8px;padding:7px 10px;flex-shrink:0}
+.door-num{font-family:'Playfair Display',serif;font-size:1.15rem;font-weight:900;color:#c8d8a0;letter-spacing:.05em;line-height:1}
+/* Incident badge — inline inside the plate, no absolute positioning */
+.door-inc-badge{background:#d9a030;color:#1a0800;border-radius:999px;font-size:.6rem;font-weight:900;padding:2px 7px;white-space:nowrap;flex-shrink:0}
+/* Card body */
+.door-body{padding:6px 10px 4px;flex:1}
+.door-owner{font-size:.74rem;font-weight:700;color:#203f2b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:2px}
+.door-op{font-size:.64rem;color:#496674;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:5px}
+.door-chips{display:flex;gap:4px;flex-wrap:wrap}
+.door-chip{font-size:.62rem;font-weight:700;padding:2px 6px;border-radius:999px;background:rgba(47,79,58,.08);color:#496674;border:1px solid rgba(47,79,58,.1)}
+/* Footer */
+.door-footer{text-align:center;font-size:.62rem;font-weight:800;color:#8a9fa5;padding:5px 8px 7px;border-top:1px solid rgba(47,79,58,.06);margin-top:4px;white-space:nowrap;flex-shrink:0}
 /* ── Apt detail panel */
 .adp-wrap{margin:0 16px 16px;background:rgba(255,255,255,.96);border-radius:14px;border:1px solid rgba(47,79,58,.18);box-shadow:0 8px 24px rgba(0,0,0,.12);overflow:hidden;animation:fadeIn .18s ease}
 .adp-header{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 16px;background:linear-gradient(90deg,rgba(11,127,79,.07),rgba(11,127,140,.05));border-bottom:1px solid rgba(47,79,58,.1);flex-wrap:wrap}
