@@ -2369,11 +2369,15 @@ function AptDetailPanel({ l, incidents, contactProps={}, canEdit, canDelete, onE
                     <div className="adp-inc-top">
                       <span className="ir-type" style={{background:ti.bg,color:ti.color}}>{incidentTypeLabel(ti.value,lang)}</span>
                       {ci&&<span className="ir-cat" style={{background:ci.bg,color:ci.color}}>{ci.icon}</span>}
+                      {/* Reporter context — who filed this incident */}
+                      {inc.reporterUid===user?.uid
+                        ? <span className="inc-ctx-tag inc-ctx-reporter">{isEn?'📋 I reported':'📋 Yo reporté'}</span>
+                        : <span className="adp-inc-reporter-name">📋 {isEn?'By':'Por'}: {inc.reporterName||'—'}</span>}
                       <span className="adp-inc-date">{fmtDate(inc.date)}</span>
                     </div>
                     <div className="adp-inc-desc">{inc.desc}</div>
                     {guests.length>0 ? <div className="adp-inc-guest">👥 {guests.map(guestFullName).join(' · ')}</div> : inc.guestName&&<div className="adp-inc-guest">👤 {inc.guestName}{inc.guestCity?` · 📍 ${inc.guestCity}`:''}</div>}
-                    {inc.ownerComments&&<div className="adp-inc-comments"><strong>{isEn?'Owner note:':'Nota:'}</strong> {inc.ownerComments}</div>}
+                    {inc.ownerComments&&<div className="adp-inc-comments"><strong>{isEn?'Owner note:':'Nota propietario:'}</strong> {inc.ownerComments}</div>}
                     {inc.resolutionComments&&<div className="adp-inc-comments"><strong>{isEn?'Resolution:':'Resolución:'}</strong> {inc.resolutionComments}</div>}
                     <div style={{display:'flex',gap:6,marginTop:6,flexWrap:'wrap'}}>
                       {inc.status==='open'&&isOwner&&<button className="bsm bs-resolve" onClick={()=>onVerify(inc)}>{appText(lang,'reports.verify')}</button>}
@@ -2885,15 +2889,54 @@ function NotificationsView({ notifications, incidents, listings=[], contactProps
 }
 
 function IRow({ inc, user, listings=[], contactProps={}, isGlobalAdmin=false, canUpdateGlobal=false, canDeleteGlobal=false, canResolveGlobal=false, onResolve, onDelete, onVerify, compact, naughtyMode, lang="es-CO" }) {
-  const listing = listings.find(l=>l.id===inc.aptId);
-  const isOwner = Boolean(user?.uid && listing?.ownerUid === user.uid);
+  const listing   = listings.find(l=>l.id===inc.aptId);
+  const isOwner   = Boolean(user?.uid && listing?.ownerUid === user.uid);
+  const isReporter= Boolean(user?.uid && inc.reporterUid === user.uid);
   const guests = normalizeOwnerGuests(inc);
   const ti=INCIDENT_TYPES.find(t=>t.value===inc.type)||INCIDENT_TYPES[6], ci=GUEST_CATEGORIES.find(c=>c.value===inc.category); const tiLabel=incidentTypeLabel(ti.value,lang), ciLabel=ci?categoryLabel(ci.value,lang):"";
+  const isEn = lang==='en';
   return (
     <div className={`irow ${(inc.status==="resolved"||inc.status==="verified")?"irow-res":""} ${naughtyMode?"irow-naughty":""}`}>
-      <div className="ir-l"><div className="ir-apt-context"><div className="ir-apt">{inc.aptLabel}</div>{listing&&<div className="ir-apt-sub">👤 {listing.owner||'—'}{listing.operator?` · 🔧 ${listing.operator}`:''}</div>}</div>{guests.length>0?<div className="ir-guest">👥 {guests.map(guestFullName).join(' · ')}</div>:<div className="ir-guest">👤 {inc.guestName || (lang==='en'?'Pending owner verification':'Pendiente por verificar')}</div>}{guests.length>0&&<div className="ir-loc">📍 {[...new Set(guests.map(guestLocation).filter(Boolean))].join(' · ')}</div>}{!guests.length&&inc.guestCity&&<div className="ir-loc">📍 {inc.guestCity}, {inc.guestCountry}</div>}<div className="ir-date">📅 {fmtDate(inc.date)}</div>{!compact&&<div className="ir-rep">{lang==="en"?"By":"Por"}: <UserContact name={inc.reporterName} uid={inc.reporterUid} {...contactProps}/></div>}</div>
-      <div className="ir-c"><div className="ir-tags"><span className="ir-type" style={{background:ti.bg,color:ti.color}}>{tiLabel}</span>{ci&&<span className="ir-cat" style={{background:ci.bg,color:ci.color}}>{ci.icon} {ciLabel}</span>}<span className={`ir-status ${inc.status==="open"?"is-open":inc.status==="resolved"?"is-resolved":"is-verified"}`}>{inc.status==="open"?(lang==="en"?"⚠️ Open":"⚠️ Abierto"):inc.status==="verified"?(lang==="en"?"✅ Verified by owner":"✅ Verificado por propietario"):(lang==="en"?"🛠️ Resolved":"🛠️ Resuelto")}</span>{inc.slaCycleCount>0&&<span className="ir-cat" style={{background:"#fff3e0",color:"#e65100"}}>⏱️ SLA {inc.slaCycleCount}</span>}</div>{!compact&&<div className="ir-desc">{inc.desc}</div>}{guests.length>0&&<div className="ir-desc"><strong>{appText(lang,'form.guestDetails')}:</strong><div className="guest-display-list">{guests.map((g,idx)=><div key={idx}>👤 {guestFullName(g)}{guestLocation(g)?` · ${guestLocation(g)}`:''}</div>)}</div>{inc.ownerComments&&<div style={{marginTop:6}}><strong>{appText(lang,'form.ownerResponse')}:</strong> {inc.ownerComments}</div>}{inc.resolutionComments&&<div style={{marginTop:6}}><strong>{appText(lang,'form.resolutionComments')}:</strong> {inc.resolutionComments}</div>}</div>}</div>
-      {!compact&&user&&<div className="ir-acts">{inc.status==="open"&&isOwner&&<button className="bsm bs-resolve" onClick={()=>onVerify(inc)}>{appText(lang,"reports.verify")}</button>}{inc.status==="verified"&&(isGlobalAdmin || canResolveGlobal)&&<button className="bsm bs-resolve" onClick={()=>onResolve(inc.id)}>{appText(lang,"reports.close")}</button>}{(inc.reporterUid===user.uid || isGlobalAdmin || canDeleteGlobal)&&<button className="bsm bs-del" onClick={()=>onDelete(inc.id)}>🗑️</button>}</div>}
+      <div className="ir-l">
+        <div className="ir-apt-context">
+          <div className="ir-apt">{inc.aptLabel}</div>
+          {listing&&<div className="ir-apt-sub">👤 {listing.owner||'—'}{listing.operator?` · 🔧 ${listing.operator}`:''}</div>}
+        </div>
+        {/* Who the current user is in relation to this incident */}
+        {user&&(isReporter||isOwner)&&(
+          <div className="ir-ctx-tags">
+            {isReporter&&<span className="inc-ctx-tag inc-ctx-reporter">{isEn?'📋 I reported':'📋 Yo reporté'}</span>}
+            {isOwner&&<span className="inc-ctx-tag inc-ctx-mine">{isEn?'🏠 My listing':'🏠 Mi listing'}</span>}
+          </div>
+        )}
+        {guests.length>0?<div className="ir-guest">👥 {guests.map(guestFullName).join(' · ')}</div>:<div className="ir-guest">👤 {inc.guestName||(isEn?'Pending owner verification':'Pendiente por verificar')}</div>}
+        {guests.length>0&&<div className="ir-loc">📍 {[...new Set(guests.map(guestLocation).filter(Boolean))].join(' · ')}</div>}
+        {!guests.length&&inc.guestCity&&<div className="ir-loc">📍 {inc.guestCity}, {inc.guestCountry}</div>}
+        <div className="ir-date">📅 {fmtDate(inc.date)}</div>
+        {!compact&&!isReporter&&<div className="ir-rep">{isEn?'By':'Por'}: <UserContact name={inc.reporterName} uid={inc.reporterUid} {...contactProps}/></div>}
+      </div>
+      <div className="ir-c">
+        <div className="ir-tags">
+          <span className="ir-type" style={{background:ti.bg,color:ti.color}}>{tiLabel}</span>
+          {ci&&<span className="ir-cat" style={{background:ci.bg,color:ci.color}}>{ci.icon} {ciLabel}</span>}
+          <span className={`ir-status ${inc.status==="open"?"is-open":inc.status==="resolved"?"is-resolved":"is-verified"}`}>
+            {inc.status==="open"?(isEn?"⚠️ Open":"⚠️ Abierto"):inc.status==="verified"?(isEn?"✅ Verified":"✅ Verificado"):(isEn?"🛠️ Resolved":"🛠️ Resuelto")}
+          </span>
+          {inc.slaCycleCount>0&&<span className="ir-cat" style={{background:"#fff3e0",color:"#e65100"}}>⏱️ SLA {inc.slaCycleCount}</span>}
+        </div>
+        {!compact&&<div className="ir-desc">{inc.desc}</div>}
+        {guests.length>0&&<div className="ir-desc">
+          <strong>{appText(lang,'form.guestDetails')}:</strong>
+          <div className="guest-display-list">{guests.map((g,idx)=><div key={idx}>👤 {guestFullName(g)}{guestLocation(g)?` · ${guestLocation(g)}`:''}</div>)}</div>
+          {inc.ownerComments&&<div style={{marginTop:6}}><strong>{appText(lang,'form.ownerResponse')}:</strong> {inc.ownerComments}</div>}
+          {inc.resolutionComments&&<div style={{marginTop:6}}><strong>{appText(lang,'form.resolutionComments')}:</strong> {inc.resolutionComments}</div>}
+        </div>}
+      </div>
+      {!compact&&user&&<div className="ir-acts">
+        {inc.status==="open"&&isOwner&&<button className="bsm bs-resolve" onClick={()=>onVerify(inc)}>{appText(lang,"reports.verify")}</button>}
+        {inc.status==="verified"&&(isGlobalAdmin||canResolveGlobal)&&<button className="bsm bs-resolve" onClick={()=>onResolve(inc.id)}>{appText(lang,"reports.close")}</button>}
+        {(isReporter||isGlobalAdmin||canDeleteGlobal)&&<button className="bsm bs-del" onClick={()=>onDelete(inc.id)}>🗑️</button>}
+      </div>}
     </div>
   );
 }
@@ -3884,6 +3927,12 @@ html{font-size:clamp(14px,1.1vw,16px);-webkit-text-size-adjust:100%}body{overflo
 .adp-inc-desc{font-size:.82rem;color:#17313a;line-height:1.45;margin-bottom:4px}
 .adp-inc-guest{font-size:.76rem;color:#496674;margin-top:4px}
 .adp-inc-comments{font-size:.76rem;color:#496674;margin-top:4px;background:rgba(217,180,90,.08);border-radius:6px;padding:4px 8px}
+.adp-inc-reporter-name{font-size:.68rem;color:#6a8a9a;white-space:nowrap}
+/* ── Incident context tags — shown in IRow and AptDetailPanel */
+.ir-ctx-tags{display:flex;gap:4px;flex-wrap:wrap;margin:4px 0 2px}
+.inc-ctx-tag{display:inline-flex;align-items:center;border-radius:999px;font-size:.62rem;font-weight:900;padding:2px 8px;white-space:nowrap;letter-spacing:.02em}
+.inc-ctx-reporter{background:rgba(21,101,192,.1);color:#1565c0;border:1px solid rgba(21,101,192,.22)}
+.inc-ctx-mine{background:rgba(11,127,140,.09);color:#0b5f72;border:1px solid rgba(11,127,140,.22)}
 /* ── List-mode floor groups (kept for ≡ view) */
 .fls-list{display:flex;flex-direction:column;gap:12px}
 .fls-floor{background:rgba(255,255,255,.88);border:1px solid rgba(47,79,58,.16);border-radius:16px;overflow:hidden;box-shadow:0 6px 18px rgba(32,46,38,.07)}
