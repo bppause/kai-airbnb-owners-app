@@ -1240,14 +1240,11 @@ function SmartNotificationsDropdown({ lang="es-CO", open=false, alerts=[], unrea
         ? <div className="smart-empty"><span className="smart-empty-icon">✅</span><strong>{appText(lang,"smart.none")}</strong><span>{appText(lang,"smart.noneSub")}</span></div>
         : <div className="smart-list">
             {alerts.map(a => (
-              <button key={a.id} className={`smart-item smart-${a.tone}`} onClick={a.action} title={a.msg}>
+              <button key={a.id} className={`smart-item smart-${a.tone}`} onClick={a.action}>
                 <span className="smart-count" style={{background: SMART_TONE_COLOR[a.tone]||'#0b7f4f'}}>{a.count}</span>
-                <span className="smart-icon" aria-hidden="true">{a.icon}</span>
-                <span className="smart-copy">
-                  <strong>{a.title}</strong>
-                  <small>{a.msg}</small>
-                </span>
+                <span className="smart-title"><span className="smart-icon-inline" aria-hidden="true">{a.icon}</span>{a.title}</span>
                 <span className="smart-arr" aria-hidden="true">›</span>
+                <span className="smart-desc">{a.msg}</span>
               </button>
             ))}
           </div>
@@ -2501,34 +2498,34 @@ html{font-size:clamp(14px,1.1vw,16px);-webkit-text-size-adjust:100%}body{overflo
 @media (prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.001ms!important;animation-iteration-count:1!important;scroll-behavior:auto!important;transition-duration:.001ms!important}}
 
 
-/* v78 smart notifications – readable wrapping layout */
+/* v79 smart notifications – CSS grid layout, guaranteed readability */
 .smart-dd{position:relative;display:inline-flex;z-index:2147482500}
-.smart-menu{position:fixed!important;top:64px!important;right:clamp(8px,calc(100vw - 396px),80px)!important;width:min(380px,calc(100vw - 16px))!important;max-height:calc(100svh - 78px);overflow-y:auto;background:rgba(255,255,255,.99);border:1px solid rgba(47,79,58,.18);border-radius:18px;box-shadow:0 28px 80px rgba(18,31,38,.32);padding:16px;z-index:2147483500!important;color:#17313a}
-.smart-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;padding-bottom:12px;border-bottom:1px solid rgba(47,79,58,.12);margin-bottom:12px}
+.smart-menu{position:fixed!important;top:64px!important;right:clamp(8px,calc(100vw - 396px),80px)!important;width:min(380px,calc(100vw - 16px))!important;max-height:calc(100svh - 78px);overflow-y:auto;background:rgba(255,255,255,.99);border:1px solid rgba(47,79,58,.18);border-radius:18px;box-shadow:0 28px 80px rgba(18,31,38,.32);padding:14px 16px;z-index:2147483500!important;color:#17313a}
+.smart-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;padding-bottom:10px;border-bottom:1px solid rgba(47,79,58,.10);margin-bottom:12px}
 .smart-head>div>strong{display:block;font-size:.92rem;font-weight:900;color:#17313a}
-.smart-head>div>span{display:block;font-size:.74rem;color:#496674;line-height:1.4;margin-top:3px}
-.smart-live{flex-shrink:0;font-style:normal;background:#e7f8f0;color:#087346;border:1px solid #bdebd5;border-radius:999px;padding:4px 10px;font-size:.68rem;font-weight:900;white-space:nowrap;margin-top:2px}
+.smart-head>div>span{display:block;font-size:.72rem;color:#607872;line-height:1.35;margin-top:2px}
+.smart-live{flex-shrink:0;font-style:normal;background:#e7f8f0;color:#087346;border:1px solid #bdebd5;border-radius:999px;padding:3px 9px;font-size:.67rem;font-weight:900;white-space:nowrap;margin-top:2px}
 .smart-list{display:flex;flex-direction:column;gap:8px}
-.smart-item{width:100%;display:flex!important;align-items:flex-start!important;gap:10px!important;border:1px solid rgba(47,79,58,.12);background:#fff;border-radius:14px;padding:12px 12px;text-align:left;cursor:pointer;transition:transform .14s,box-shadow .14s,border-color .14s}
-.smart-item:hover,.smart-item:focus{transform:translateY(-2px);box-shadow:0 12px 30px rgba(32,46,38,.14);border-color:rgba(11,127,140,.3)!important}
-.smart-owner{border-left:4px solid #c49a14!important}
-.smart-resolve{border-left:4px solid #d96c1a!important}
-.smart-registration{border-left:4px solid #2f6fbf!important}
-.smart-notice{border-left:4px solid #6b44b8!important}
-.smart-serious{border-left:4px solid #c0281e!important;background:rgba(255,246,246,.6)!important}
-.smart-count{width:36px;height:36px;border-radius:10px;color:#fff;display:inline-flex!important;align-items:center!important;justify-content:center!important;font-size:1rem;font-weight:900;flex-shrink:0;line-height:1;margin-top:1px}
-.smart-icon{font-size:1rem;flex-shrink:0;line-height:1;width:22px;text-align:center;margin-top:2px}
-.smart-copy{flex:1;min-width:0}
-.smart-copy strong{display:block;color:#17313a;font-size:.88rem;font-weight:900;line-height:1.3;word-break:break-word}
-.smart-copy small{display:block;color:#556b72;font-size:.76rem;line-height:1.4;margin-top:4px;word-break:break-word}
-.smart-arr{color:#b8c6c2;font-size:1.2rem;flex-shrink:0;line-height:1;margin-top:8px}
+/* 3-col grid: [badge 44px] [content 1fr] [arrow 16px]; badge spans both rows */
+.smart-item{width:100%;display:grid!important;grid-template-columns:44px 1fr 16px!important;grid-template-rows:auto auto!important;column-gap:10px!important;row-gap:2px!important;align-items:center!important;border:1px solid rgba(47,79,58,.10);background:#fff;border-radius:14px;padding:11px 12px!important;text-align:left!important;cursor:pointer!important;transition:transform .14s,box-shadow .14s,border-color .14s}
+.smart-item:hover,.smart-item:focus{transform:translateY(-2px);box-shadow:0 10px 28px rgba(32,46,38,.12);border-color:rgba(11,127,140,.28)!important}
+.smart-count{grid-column:1!important;grid-row:1/3!important;align-self:center!important;justify-self:start!important;width:40px;height:40px;border-radius:10px;color:#fff;display:flex!important;align-items:center!important;justify-content:center!important;font-size:1.05rem;font-weight:900;line-height:1}
+.smart-title{grid-column:2!important;grid-row:1!important;font-size:.87rem;font-weight:900;color:#17313a;line-height:1.3;display:flex;align-items:baseline;gap:5px}
+.smart-icon-inline{font-size:.88rem;flex-shrink:0;line-height:1}
+.smart-arr{grid-column:3!important;grid-row:1!important;align-self:center!important;justify-self:end!important;color:#c4d0ce;font-size:1rem;line-height:1}
+.smart-desc{grid-column:2/4!important;grid-row:2!important;font-size:.73rem;color:#607872;line-height:1.4;margin-top:2px}
+.smart-owner{border-left:3px solid #c49a14!important}
+.smart-resolve{border-left:3px solid #d96c1a!important}
+.smart-registration{border-left:3px solid #2f6fbf!important}
+.smart-notice{border-left:3px solid #6b44b8!important}
+.smart-serious{border-left:3px solid #c0281e!important;background:rgba(255,245,245,.5)!important}
 .smart-empty{padding:20px 8px;text-align:center}
 .smart-empty-icon{font-size:2rem;display:block;margin-bottom:8px}
 .smart-empty strong{display:block;color:#17313a;font-size:.9rem;font-weight:900}
-.smart-empty span{display:block;color:#496674;font-size:.78rem;margin-top:6px;line-height:1.45}
-.smart-foot{display:flex;flex-direction:column;gap:6px;border-top:1px solid rgba(47,79,58,.12);margin-top:12px;padding-top:10px}
-.smart-foot .dd-item{justify-content:center!important;background:#f4f9f8;border:1px solid rgba(47,79,58,.12);border-radius:11px;font-size:.84rem;min-height:42px;font-weight:800}
-.smart-foot .dd-item:hover{background:#eaf4f3!important}
+.smart-empty span{display:block;color:#607872;font-size:.77rem;margin-top:6px;line-height:1.45}
+.smart-foot{display:flex;flex-direction:column;gap:6px;border-top:1px solid rgba(47,79,58,.10);margin-top:12px;padding-top:10px}
+.smart-foot .dd-item{justify-content:center!important;background:#f5f9f8;border:1px solid rgba(47,79,58,.12);border-radius:11px;font-size:.84rem;min-height:40px;font-weight:800}
+.smart-foot .dd-item:hover{background:#eaf4f2!important}
 .icon-badge{animation:smartPulse 1.8s infinite}
 @keyframes smartPulse{0%,100%{transform:scale(1)}50%{transform:scale(1.12)}}
 @media(max-width:860px){.smart-menu{right:8px!important;left:8px!important;width:auto!important;top:60px!important;max-height:calc(100svh - 72px)!important}}
