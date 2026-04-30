@@ -165,6 +165,7 @@ const APP_I18N = {
   "listings.subtitle": { es:"Todas las unidades · Morros KAI · {count} registradas", en:"All units · Morros KAI · {count} registered" },
   "listings.add": { es:"＋ Agregar apto", en:"＋ Add apt" },
   "listings.search": { es:"🔍 Buscar por número de apto o propietario...", en:"🔍 Search by apartment number or owner..." },
+  "incidents.search": { es:"🔍 Buscar por apto, propietario, tipo, descripción...", en:"🔍 Search by apartment, owner, type, description..." },
   "listings.none": { es:"Sin apartamentos", en:"No apartments" },
   "listings.noResults": { es:"No hay resultados", en:"No results found" },
   "listings.noAirbnb": { es:"Sin enlace Airbnb", en:"No Airbnb link" },
@@ -2029,12 +2030,13 @@ const guestFullName = (g={}) => [g.firstName, g.middleName, g.lastName].map(x=>S
 const guestLocation = (g={}) => [g.city, g.country].map(x=>String(x||'').trim()).filter(Boolean).join(', ');
 
 function IncidentsView({ incidents, listings, user, quickFilter=null, onQuickFilterApplied=()=>{}, contactProps={}, isGlobalAdmin=false, canUpdateGlobal=false, canDeleteGlobal=false, canResolveGlobal=false, onAdd, onResolve, onDelete, onVerify, lang="es-CO" }) {
-  const [sf,setSf]=useState("all"), [cf,setCf]=useState("all"), [scope,setScope]=useState("all");
+  const [sf,setSf]=useState("all"), [cf,setCf]=useState("all"), [scope,setScope]=useState("all"), [search,setSearch]=useState("");
   useEffect(()=>{
     if (quickFilter === "ownerVerification") { setScope("ownerVerification"); setSf("open"); setCf("all"); onQuickFilterApplied(); }
     if (quickFilter === "requiresResolution") { setScope("requiresResolution"); setSf("verified"); setCf("all"); onQuickFilterApplied(); }
     if (quickFilter === "seriousOpen") { setScope("all"); setSf("all"); setCf("serious"); onQuickFilterApplied(); }
   }, [quickFilter, onQuickFilterApplied]);
+  const listingMap = Object.fromEntries(listings.map(l=>[l.id, l]));
   const myListingIds = new Set((user ? listings.filter(l=>l.ownerUid===user.uid) : []).map(l=>l.id));
   let list=[...incidents];
   if(scope==="mine" && user) list=list.filter(i=>myListingIds.has(i.aptId) || i.reporterUid===user.uid);
@@ -2042,10 +2044,23 @@ function IncidentsView({ incidents, listings, user, quickFilter=null, onQuickFil
   if(scope==="requiresResolution") list=list.filter(i=>i.status==="verified" && (isGlobalAdmin || canResolveGlobal));
   if(sf!=="all") list=list.filter(i=>i.status===sf);
   if(cf!=="all") list=list.filter(i=>i.category===cf);
+  if(search.trim()){
+    const q=search.trim().toLowerCase();
+    list=list.filter(i=>{
+      const apt=String(i.aptLabel||'').toLowerCase();
+      const owner=String(listingMap[i.aptId]?.owner||'').toLowerCase();
+      const operator=String(listingMap[i.aptId]?.operator||'').toLowerCase();
+      const desc=String(i.desc||'').toLowerCase();
+      const type=String(i.type||'').toLowerCase();
+      const reporter=String(i.reporterName||'').toLowerCase();
+      const guest=String(i.guestName||'').toLowerCase();
+      return apt.includes(q)||owner.includes(q)||operator.includes(q)||desc.includes(q)||type.includes(q)||reporter.includes(q)||guest.includes(q);
+    });
+  }
   list.sort((a,b)=>new Date(b.createdAt)-new Date(a.createdAt));
   const isEn = lang==='en';
-  const anyFilter = sf!=='all' || cf!=='all' || (user && scope!=='all');
-  const resetAll = () => { setSf('all'); setCf('all'); setScope('all'); };
+  const anyFilter = sf!=='all' || cf!=='all' || (user && scope!=='all') || search.trim()!=='';
+  const resetAll = () => { setSf('all'); setCf('all'); setScope('all'); setSearch(''); };
   return (
     <div className="fade">
       <div className="ph">
@@ -2073,6 +2088,12 @@ function IncidentsView({ incidents, listings, user, quickFilter=null, onQuickFil
           </span>
         ))}
         {sf!=='all' && <button className="inc-wf-clear" onClick={()=>{setSf('all');setScope('all');}} title={isEn?'Clear workflow filter':'Limpiar filtro de estado'}>✕</button>}
+      </div>
+
+      {/* ── Search ───────────────────────────────────────────────────── */}
+      <div className="inc-search-wrap">
+        <input className="search inc-search" placeholder={appText(lang,"incidents.search")} value={search} onChange={e=>setSearch(e.target.value)}/>
+        {search && <button className="inc-search-clear" onClick={()=>setSearch('')} aria-label="Clear search">✕</button>}
       </div>
 
       {/* ── Unified filter bar ────────────────────────────────────────── */}
@@ -2832,6 +2853,11 @@ html{font-size:clamp(14px,1.1vw,16px);-webkit-text-size-adjust:100%}body{overflo
 .inc-wf-arrow{color:#b0c4be;font-size:1rem;font-weight:900;line-height:1}
 .inc-wf-clear{padding:4px 8px;border-radius:999px;border:1px solid rgba(233,66,53,.28);background:rgba(233,66,53,.06);color:#c62828;font-size:.72rem;cursor:pointer;font-weight:800;margin-left:auto;flex-shrink:0;transition:all .14s}
 .inc-wf-clear:hover{background:rgba(233,66,53,.14)}
+/* ── Incident search ─────────────────────────────────────────────────── */
+.inc-search-wrap{position:relative;margin-bottom:10px}
+.inc-search{width:100%;padding-right:36px!important}
+.inc-search-clear{position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;color:#7a9aaa;font-size:.85rem;cursor:pointer;padding:4px 6px;border-radius:6px;line-height:1}
+.inc-search-clear:hover{background:rgba(47,79,58,.08);color:#17313a}
 /* ── Unified filter bar ───────────────────────────────────────────────── */
 .inc-filter-bar{display:flex;align-items:center;gap:5px;flex-wrap:wrap;margin-bottom:14px}
 .fchip-sm{padding:6px 11px!important;font-size:.76rem!important;min-height:32px!important;border-radius:999px!important}
