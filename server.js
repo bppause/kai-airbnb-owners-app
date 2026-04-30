@@ -725,7 +725,7 @@ app.get('/api/registrations/status', async (req, res) => {
 
 app.post('/api/registrations', async (req, res) => {
   if (!requireSupabaseEnv(res)) return;
-  const { userUid, userName, userEmail, listings } = req.body || {};
+  const { userUid, userName, userEmail, listings, firstName, middleName, lastName, profileWhatsapp } = req.body || {};
   if (!userUid || !userName || !userEmail || !isValidEmail(userEmail)) return res.status(400).json({ error:'Google login name and email are required.' });
   if (!Array.isArray(listings) || listings.length < 1) return res.status(400).json({ error:'Debe registrar al menos un listing propio.' });
   for (const l of listings) { const msg = validateListingInput({ ...l, email: l.email || userEmail }); if (msg) return res.status(400).json({ error: msg }); }
@@ -750,6 +750,18 @@ app.post('/api/registrations', async (req, res) => {
   }));
   let { data: savedRows, error: rowsError } = await supabase.from('listings').insert(rows).select('*');
   if (rowsError) return sendSupabaseError(res, rowsError);
+
+  // Save owner profile fields alongside registration (best-effort)
+  if (firstName || middleName || lastName || profileWhatsapp) {
+    try {
+      await supabase.from('app_users').upsert({
+        uid: userUid, email: String(userEmail).toLowerCase(), name: userName || '',
+        first_name: String(firstName || '').trim(), middle_name: String(middleName || '').trim(),
+        last_name: String(lastName || '').trim(), whatsapp: String(profileWhatsapp || '').trim(),
+        updated_at: new Date().toISOString()
+      }, { onConflict: 'uid' });
+    } catch(e) { warn('Profile save on registration failed: ' + (e?.message || e)); }
+  }
 
   const appUrl = publicAppUrl(req);
   const bootstrapEmails = String(process.env.BOOTSTRAP_ADMIN_EMAILS || '').split(',').map(x => x.trim().toLowerCase()).filter(Boolean);
@@ -1128,6 +1140,33 @@ app.put('/api/users/preference', async (req, res) => {
   const { error } = await supabase.from('app_users').upsert({ uid, email:String(email).toLowerCase(), name:name||'', language_preference:lang, updated_at:new Date().toISOString() }, { onConflict:'uid' });
   if (error) return sendSupabaseError(res, error);
   res.json({ ok:true, language:lang });
+});
+
+app.get('/api/users/profile', async (req, res) => {
+  if (!requireSupabaseEnv(res)) return;
+  const uid = String(req.query.uid || '').trim();
+  if (!uid) return res.status(400).json({ error:'uid is required.' });
+  const { data, error } = await supabase.from('app_users').select('uid,email,name,first_name,middle_name,last_name,whatsapp').eq('uid', uid).maybeSingle();
+  if (error) return sendSupabaseError(res, error);
+  const row = data || {};
+  res.json({ firstName: row.first_name || '', middleName: row.middle_name || '', lastName: row.last_name || '', whatsapp: row.whatsapp || '' });
+});
+
+app.put('/api/users/profile', async (req, res) => {
+  if (!requireSupabaseEnv(res)) return;
+  const { uid, email, firstName, middleName, lastName, whatsapp } = req.body || {};
+  if (!uid || !email) return res.status(400).json({ error:'uid and email are required.' });
+  const fn = String(firstName || '').trim();
+  const mn = String(middleName || '').trim();
+  const ln = String(lastName || '').trim();
+  const wa = String(whatsapp || '').trim();
+  const { error } = await supabase.from('app_users').upsert({
+    uid, email: String(email).toLowerCase(),
+    first_name: fn, middle_name: mn, last_name: ln, whatsapp: wa,
+    updated_at: new Date().toISOString()
+  }, { onConflict: 'uid' });
+  if (error) return sendSupabaseError(res, error);
+  res.json({ ok: true, firstName: fn, middleName: mn, lastName: ln, whatsapp: wa });
 });
 
 app.get('/api/admin/me', async (req, res) => {
