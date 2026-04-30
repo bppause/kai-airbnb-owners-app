@@ -2363,9 +2363,12 @@ function AdminSettings({ config={}, user, listings=[], contactProps={}, onSave, 
   const [selectedTemplate,setSelectedTemplate]=useState('incident_new');
   const [templateLang,setTemplateLang]=useState('es-CO');
   const [tplLoading,setTplLoading]=useState(false);
+  const [emailNotifConfig,setEmailNotifConfig]=useState({});
+  const [emailNotifLoading,setEmailNotifLoading]=useState(false);
+  const [emailNotifSaving,setEmailNotifSaving]=useState(false);
   const [adminErrors,setAdminErrors]=useState([]);
   const [lastUiError,setLastUiError]=useState('');
-  const ADMIN_SEC_DEFAULT = {sla:false,mission:false,menu:false,delegate:false,users:true,tooltips:false,email:false};
+  const ADMIN_SEC_DEFAULT = {sla:false,mission:false,menu:false,delegate:false,users:true,tooltips:false,email:false,emailNotif:false};
   const [openSections,setOpenSections] = useState(()=>{
     try{ const s=JSON.parse(localStorage.getItem('kai_admin_open')||'null'); return s&&typeof s==='object'?{...ADMIN_SEC_DEFAULT,...s}:ADMIN_SEC_DEFAULT; }catch{ return ADMIN_SEC_DEFAULT; }
   });
@@ -2410,6 +2413,24 @@ function AdminSettings({ config={}, user, listings=[], contactProps={}, onSave, 
     }).catch(e => { captureAdminError('email-templates', e); showToast(lt(lang,'Error cargando plantillas de email') + ': ' + (e.message || ''), true); }).finally(()=>setTplLoading(false));
   }, [user?.uid, user?.email, selectedTemplate, lang, templateLang]);
   useEffect(()=>{ loadTemplates(); }, [loadTemplates]);
+  const loadEmailNotifConfig = useCallback(()=>{
+    if(!user?.uid) return;
+    setEmailNotifLoading(true);
+    api.get('/api/admin/email-notification-config?uid='+encodeURIComponent(user.uid)+'&email='+encodeURIComponent(user.email||''))
+      .then(r=>{ if(r?.config && typeof r.config==='object') setEmailNotifConfig(r.config); })
+      .catch(e=>captureAdminError('email-notif-config',e))
+      .finally(()=>setEmailNotifLoading(false));
+  },[user?.uid,user?.email]);
+  useEffect(()=>{ loadEmailNotifConfig(); },[loadEmailNotifConfig]);
+  const saveEmailNotifConfig = async () => {
+    setEmailNotifSaving(true);
+    try {
+      const r = await api.put('/api/admin/email-notification-config',{ actorUid:user.uid, actorEmail:user.email, config:emailNotifConfig });
+      if(r?.config) setEmailNotifConfig(r.config);
+      showToast('✅ '+lt(lang,'Configuración de notificaciones guardada'));
+    } catch(e) { captureAdminError('save-email-notif-config',e); showToast(lt(lang,'Error guardando')+': '+(e.message||''),true); }
+    finally { setEmailNotifSaving(false); }
+  };
   const loadUsers = useCallback(()=>{
     if(!user?.uid) return;
     setUsersLoading(true);
@@ -2503,6 +2524,101 @@ function AdminSettings({ config={}, user, listings=[], contactProps={}, onSave, 
   <AdminSection title={`📨 ${lt(lang,'Plantillas de emails')}`} subtitle={lt(lang,'Edita y guarda la versión en Español e Inglés por separado. El sistema envía según la preferencia del destinatario.')} action={tplLoading?<span className="sync-pill"><span className="spinner-sm"/> {lt(lang,'Cargando...')}</span>:null} open={openSections.email} onToggle={()=>toggleSection('email')}>
     {templateEntries.length===0?<Empty icon="📨" msg={ui(lang,'templatesEmpty')}/>:<><div className="fg2"><div className="fg"><label>{lt(lang,'Idioma de plantilla')}</label><select value={templateLang} onChange={e=>setTemplateLang(e.target.value)}><option value="es-CO">{lt(lang,'Español')}</option><option value="en">{lt(lang,'Inglés')}</option></select></div><div className="fg"><label>{lt(lang,'Tipo de notificación')}</label><select value={selectedKey} onChange={e=>setSelectedTemplate(e.target.value)}>{templateEntries.map(([k,tpl])=><option key={k} value={k}>{tpl?.label||k}</option>)}</select></div><div className="fg full"><span className="help-msg">{lt(lang,'Variables disponibles')}: {selectedVars.map(v=>'{{'+v+'}}').join(', ')}</span></div><div className="fg full"><label>{lt(lang,'Asunto')}</label><input value={selected?.subject||''} onChange={e=>updateTpl('subject',e.target.value)}/></div><div className="fg full"><label>{lt(lang,'Texto plano')}</label><textarea rows={6} value={selected?.text||''} onChange={e=>updateTpl('text',e.target.value)}/></div><div className="fg full"><label>{lt(lang,'HTML del email')}</label><textarea rows={10} value={selected?.html||''} onChange={e=>updateTpl('html',e.target.value)}/><span className="help-msg">{lt(lang,'Conserva variables como href="{{incidentLink}}".')}</span></div></div><div className="mact"><button className="btn-p" onClick={saveTemplates}>💾 {lt(lang,'Guardar plantillas de email')}</button></div></>}
   </AdminSection>
+
+  {/* ── Email notification routing ─────────────────────────────────────── */}
+  {(()=>{
+    const isEn = lang==='en';
+    const tog = (key,field,val) => setEmailNotifConfig(c=>({...c,[key]:{...c[key],[field]:val}}));
+    const GROUPS = [
+      { id:'incident', label: isEn?'⚠️ Incidents':'⚠️ Incidentes', types:[
+        { key:'incident_new',              label:isEn?'New incident':'Incidente nuevo',                     cols:['owner','operator','globalAdmin','delegateAdmin'] },
+        { key:'incident_sla',              label:isEn?'SLA escalation':'Escalación SLA',                   cols:['owner','operator','globalAdmin'] },
+        { key:'incident_sla_notification', label:isEn?'SLA notification (initial)':'SLA — notificación inicial', cols:['owner','operator','globalAdmin'] },
+        { key:'incident_sla_reminder',     label:isEn?'SLA reminder (cycle)':'SLA — recordatorio (ciclo)', cols:['owner','operator','globalAdmin'] },
+        { key:'incident_verified',         label:isEn?'Incident verified':'Incidente verificado',           cols:['owner','operator','globalAdmin','delegateAdmin'] },
+        { key:'incident_resolved',         label:isEn?'Incident resolved':'Incidente resuelto',             cols:['owner','operator','globalAdmin','delegateAdmin'] },
+      ]},
+      { id:'registration', label: isEn?'📝 Registrations':'📝 Registros', types:[
+        { key:'registration_submitted',    label:isEn?'Received (to registrant)':'Recibido (al registrante)',     cols:['owner'] },
+        { key:'registration_approved',     label:isEn?'Approved (to registrant)':'Aprobado (al registrante)',     cols:['owner','globalAdmin','delegateAdmin'] },
+        { key:'registration_declined',     label:isEn?'Declined (to registrant)':'Rechazado (al registrante)',    cols:['owner','globalAdmin','delegateAdmin'] },
+        { key:'registration_reviewer',     label:isEn?'Pending — notify reviewers':'Pendiente — avisar revisores', cols:['owner','globalAdmin','delegateAdmin'] },
+      ]},
+      { id:'listing', label: isEn?'🏠 Listings':'🏠 Listings', types:[
+        { key:'listing_created',           label:isEn?'Listing created':'Listing creado',   cols:['owner','operator','globalAdmin','delegateAdmin'] },
+        { key:'listing_updated',           label:isEn?'Listing updated':'Listing actualizado', cols:['owner','operator','globalAdmin','delegateAdmin'] },
+        { key:'listing_deleted',           label:isEn?'Listing deleted':'Listing eliminado', cols:['owner','operator','globalAdmin','delegateAdmin'] },
+      ]},
+    ];
+    const COL_INFO = [
+      { key:'owner',         icon:'👤', label: isEn?'Owner / Registrant':'Propietario / Registrante' },
+      { key:'operator',      icon:'🔧', label: isEn?'Operator':'Operador' },
+      { key:'globalAdmin',   icon:'🌍', label: isEn?'Global admin':'Admin global' },
+      { key:'delegateAdmin', icon:'🎯', label: isEn?'Delegate admin (permission-gated)':'Admin delegado (según permisos)' },
+    ];
+    return (
+      <AdminSection
+        title={`📧 ${lt(lang,'Enrutamiento de emails')}`}
+        subtitle={lt(lang,'Activa o desactiva tipos de email y elige a quiénes se envían. Basado en los flujos actuales de la app.')}
+        action={<button className="bsm" onClick={saveEmailNotifConfig} disabled={emailNotifSaving} style={{whiteSpace:'nowrap'}}>{emailNotifSaving?lt(lang,'Guardando...'):`💾 ${lt(lang,'Guardar')}`}</button>}
+        open={openSections.emailNotif}
+        onToggle={()=>toggleSection('emailNotif')}
+      >
+        {emailNotifLoading
+          ? <div style={{padding:'12px 0',color:'#2a5a6a'}}><span className="spinner-sm"/> {lt(lang,'Cargando...')}</div>
+          : <>
+            {/* Legend */}
+            <div className="enc-legend">
+              {COL_INFO.map(c=><span key={c.key}><strong>{c.icon}</strong> {c.label}</span>)}
+              <span style={{color:'#9aafb0'}}>— = {isEn?'not applicable':'no aplica'}</span>
+            </div>
+            <div className="enc-table">
+              {/* Column header */}
+              <div className="enc-hdr">
+                <div className="enc-col-type"/>
+                <div className="enc-col-on">{isEn?'On':'Activo'}</div>
+                {COL_INFO.map(c=><div key={c.key} className="enc-col-r" title={c.label}>{c.icon}</div>)}
+              </div>
+              {GROUPS.map(g=>(
+                <div key={g.id} className="enc-group">
+                  <div className="enc-group-hdr">{g.label}</div>
+                  {g.types.map(t=>{
+                    const cfg = emailNotifConfig[t.key] || {};
+                    const on = !!cfg.enabled;
+                    return (
+                      <div key={t.key} className={`enc-row${on?'':' enc-off'}`}>
+                        <div className="enc-col-type">{t.label}</div>
+                        <div className="enc-col-on">
+                          <label className="enc-pill-toggle">
+                            <input type="checkbox" checked={on} onChange={e=>tog(t.key,'enabled',e.target.checked)}/>
+                            <span className={`enc-pill${on?' enc-pill-on':''}`}/>
+                          </label>
+                        </div>
+                        {COL_INFO.map(c=>(
+                          <div key={c.key} className="enc-col-r">
+                            {t.cols.includes(c.key)
+                              ? <label className={`enc-cb-wrap${!on?' enc-cb-dim':''}`} title={c.label}>
+                                  <input type="checkbox" disabled={!on} checked={!!cfg[c.key]} onChange={e=>tog(t.key,c.key,e.target.checked)}/>
+                                </label>
+                              : <span className="enc-na">—</span>
+                            }
+                          </div>
+                        ))}
+                      </div>
+                    );
+                  })}
+                </div>
+              ))}
+            </div>
+            <div style={{marginTop:12,display:'flex',justifyContent:'flex-end'}}>
+              <button className="btn-p" onClick={saveEmailNotifConfig} disabled={emailNotifSaving}>{emailNotifSaving?lt(lang,'Guardando...'):`💾 ${lt(lang,'Guardar configuración')}`}</button>
+            </div>
+          </>
+        }
+      </AdminSection>
+    );
+  })()}
+
 </div>;
 }
 
@@ -2653,6 +2769,33 @@ html{font-size:clamp(14px,1.1vw,16px);-webkit-text-size-adjust:100%}body{overflo
 .smart-foot{display:flex;flex-direction:column;gap:6px;border-top:1px solid rgba(47,79,58,.10);margin-top:12px;padding-top:10px}
 .smart-foot .dd-item{justify-content:center!important;background:#f5f9f8;border:1px solid rgba(47,79,58,.12);border-radius:11px;font-size:.84rem;min-height:40px;font-weight:800}
 .smart-foot .dd-item:hover{background:#eaf4f2!important}
+/* ── Email notification config table ──────────────────────────────────── */
+.enc-legend{display:flex;flex-wrap:wrap;gap:8px 16px;font-size:.72rem;color:#2a5a6a;margin-bottom:12px;padding:8px 10px;background:rgba(11,127,140,.05);border-radius:10px}
+.enc-legend strong{margin-right:3px}
+.enc-table{border:1px solid rgba(47,79,58,.14);border-radius:12px;overflow:hidden;font-size:.78rem}
+.enc-hdr{display:grid;grid-template-columns:1fr 58px repeat(4,44px);background:rgba(47,79,58,.07);padding:7px 10px;font-size:.68rem;font-weight:900;color:#2a5a6a;text-transform:uppercase;letter-spacing:.06em;align-items:center}
+.enc-group{border-top:1px solid rgba(47,79,58,.10)}
+.enc-group:first-child{border-top:none}
+.enc-group-hdr{padding:7px 10px 4px;font-size:.7rem;font-weight:900;color:#2F4F3A;background:rgba(47,79,58,.04);text-transform:uppercase;letter-spacing:.08em}
+.enc-row{display:grid;grid-template-columns:1fr 58px repeat(4,44px);padding:6px 10px;align-items:center;border-top:1px solid rgba(47,79,58,.07);transition:background .12s}
+.enc-row:hover{background:rgba(255,255,255,.6)}
+.enc-off{opacity:.55}
+.enc-col-type{font-size:.78rem;color:#17313a;padding-right:8px}
+.enc-col-on,.enc-col-r{display:flex;align-items:center;justify-content:center}
+/* pill toggle */
+.enc-pill-toggle{display:inline-flex;align-items:center;cursor:pointer;position:relative}
+.enc-pill-toggle input{position:absolute;opacity:0;width:0;height:0}
+.enc-pill{display:inline-block;width:32px;height:18px;border-radius:999px;background:#d0d8d4;border:1px solid rgba(0,0,0,.08);transition:background .2s;position:relative}
+.enc-pill::after{content:'';position:absolute;top:2px;left:2px;width:12px;height:12px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.18);transition:left .2s}
+.enc-pill-on{background:#0b7f4f}
+.enc-pill-on::after{left:16px}
+/* checkbox */
+.enc-cb-wrap{display:flex;align-items:center;justify-content:center;cursor:pointer}
+.enc-cb-wrap input{width:16px;height:16px;accent-color:#0b7f8c;cursor:pointer}
+.enc-cb-dim{opacity:.38}
+.enc-cb-dim input{cursor:not-allowed}
+.enc-na{color:#aec0be;font-size:.9rem;text-align:center;display:block}
+@media(max-width:640px){.enc-hdr,.enc-row{grid-template-columns:1fr 48px repeat(4,36px)}.enc-hdr{font-size:.6rem}.enc-col-type{font-size:.72rem}}
 .nav-help-btn{padding:8px 10px!important;font-size:1rem!important;flex-shrink:0!important}
 .icon-btn .icon-badge{position:absolute!important;top:-6px!important;right:-6px!important;margin-left:0!important;min-width:20px!important;height:20px!important;font-size:.72rem!important;padding:0 5px!important;box-shadow:0 2px 8px rgba(233,66,53,.45)!important}
 .icon-badge{animation:smartPulse 1.8s infinite}

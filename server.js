@@ -53,6 +53,25 @@ const DEFAULT_DELEGATE_PERMISSIONS = {
   canUpdateGlobalIncidents: false,
   canDeleteGlobalIncidents: false
 };
+// Per email-type routing defaults — matches current workflow behaviour exactly.
+// owner   = listing owner / registrant   operator    = listing operator
+// globalAdmin = env GLOBAL_ADMIN_EMAILS + escalation CC   delegateAdmin = role-gated per type
+const DEFAULT_EMAIL_NOTIFICATION_CONFIG = {
+  incident_new:              { enabled:true,  owner:true,  operator:true,  globalAdmin:false, delegateAdmin:false },
+  incident_sla_notification: { enabled:true,  owner:true,  operator:true,  globalAdmin:false, delegateAdmin:false },
+  incident_sla_reminder:     { enabled:true,  owner:true,  operator:true,  globalAdmin:false, delegateAdmin:false },
+  incident_sla:              { enabled:true,  owner:true,  operator:true,  globalAdmin:true,  delegateAdmin:false },
+  incident_verified:         { enabled:true,  owner:true,  operator:true,  globalAdmin:false, delegateAdmin:false },
+  incident_resolved:         { enabled:true,  owner:true,  operator:true,  globalAdmin:true,  delegateAdmin:true  },
+  registration_submitted:    { enabled:true,  owner:true,  operator:false, globalAdmin:false, delegateAdmin:false },
+  registration_approved:     { enabled:true,  owner:true,  operator:false, globalAdmin:false, delegateAdmin:false },
+  registration_declined:     { enabled:true,  owner:true,  operator:false, globalAdmin:false, delegateAdmin:false },
+  registration_status_admin: { enabled:true,  owner:false, operator:false, globalAdmin:true,  delegateAdmin:true  },
+  registration_reviewer:     { enabled:true,  owner:true,  operator:false, globalAdmin:false, delegateAdmin:false },
+  listing_created:           { enabled:true,  owner:true,  operator:false, globalAdmin:false, delegateAdmin:false },
+  listing_updated:           { enabled:true,  owner:true,  operator:false, globalAdmin:false, delegateAdmin:false },
+  listing_deleted:           { enabled:true,  owner:true,  operator:false, globalAdmin:false, delegateAdmin:false },
+};
 const DEFAULT_STANDARD_MENU_PERMISSIONS = {
   dashboard: true,
   listings: true,
@@ -228,6 +247,19 @@ const getAppConfig = async () => {
 };
 const getSlaHours = async () => { const cfg = await getAppConfig(); const h = Number(cfg.sla_hours || DEFAULT_SLA_HOURS || 24); return Number.isFinite(h) && h > 0 ? h : 24; };
 const getEscalationCcEmails = async () => normalizeRecipients(String((await getAppConfig()).escalation_cc_emails || '').split(','));
+const getEmailNotificationConfig = async () => {
+  const cfg = await getAppConfig();
+  const raw = safeJsonObject(cfg.email_notification_config, {});
+  const result = {};
+  for (const [key, def] of Object.entries(DEFAULT_EMAIL_NOTIFICATION_CONFIG)) {
+    const stored = (raw[key] && typeof raw[key] === 'object') ? raw[key] : {};
+    result[key] = { ...def, ...stored };
+  }
+  return result;
+};
+// Separate owner-only vs operator-only recipient getters (used by config-aware send functions)
+const getListingOwnerEmails = (listing) => normalizeRecipients([listing?.email, listing?.user_email, listing?.userEmail]);
+const getListingOperatorEmails = (listing) => normalizeRecipients([listing?.operator_email, listing?.operatorEmail]);
 const getUserRole = async ({ uid='', email='' } = {}) => {
   const em = String(email || '').trim().toLowerCase();
   if (em && isEnvGlobalAdminEmail(em)) return 'global_admin';
@@ -247,20 +279,39 @@ const getIncidentRecipients = async (listing, { includeEscalationCc=false } = {}
   if (includeEscalationCc) base.push(...await getEscalationCcEmails());
   return normalizeRecipients(base);
 };
-const sendIncidentEmail = async ({ listing, incident, appUrl, to, includeEscalationCc=false, isEscalation=false }) => {
-  if (!emailConfigured) return { sent:false, skipped:true, reason:'Resend email is not configured. Add RESEND_API_KEY and EMAIL_FROM in Render.' };
-  const recipients = normalizeRecipients(to || await getIncidentRecipients(listing, { includeEscalationCc }));
-  if (!recipients.length) return { sent:false, skipped:true, reason:'Listing owner/operator email is missing.' };
-  const apt = listing.apt || String(incident.aptLabel || '').replace(/[^0-9]/g,'');
-  const incidentLink = appUrl + '/?view=incidents&incident=' + incident.id;
-  return sendTemplatedEmail({ key: isEscalation ? 'incident_sla' : 'incident_new', to: recipients, vars: { apt, owner: listing.owner || '', operator: listing.operator || 'No indicado', operatorEmail: listing.operatorEmail || listing.operator_email || '', guestName: incident.guestName || '', date: incident.date || '', type: incident.type || '', category: incident.category || '', status: incident.status || 'open', desc: incident.desc || '', incidentLink, slaCycleCount: String(incident.slaCycleCount || incident.sla_cycle_count || '') } });
+// Build recipients list for an incident email type based on admin notification config.
+const buildIncidentRecipients = async (key, listing, typeCfg) => {
+  const recips = [];
+  if (typeCfg.owner)        recips.push(...getListingOwnerEmails(listing));
+  if (typeCfg.operator)     recips.push(...getListingOperatorEmails(listing));
+  if (typeCfg.globalAdmin)  recips.push(...getGlobalAdminEmails(), ...await getEscalationCcEmails());
+  if (typeCfg.delegateAdmin) {
+    const perm = key === 'incident_resolved' ? 'canResolveIncidents' : 'canUpdateGlobalIncidents';
+    recips.push(...await getDelegateAdminsWithPermission(perm));
+  }
+  return normalizeRecipients(recips);
 };
 
+const sendIncidentEmail = async ({ listing, incident, appUrl, to, isEscalation=false }) => {
+  if (!emailConfigured) return { sent:false, skipped:true, reason:'Resend email is not configured. Add RESEND_API_KEY and EMAIL_FROM in Render.' };
+  const key = isEscalation ? 'incident_sla' : 'incident_new';
+  const notifCfg = await getEmailNotificationConfig();
+  const typeCfg = notifCfg[key];
+  if (!typeCfg.enabled) return { sent:false, skipped:true, reason:`Email type '${key}' is disabled.` };
+  const recipients = to ? normalizeRecipients(to) : await buildIncidentRecipients(key, listing, typeCfg);
+  if (!recipients.length) return { sent:false, skipped:true, reason:'No recipients for this incident email.' };
+  const apt = listing.apt || String(incident.aptLabel || '').replace(/[^0-9]/g,'');
+  const incidentLink = appUrl + '/?view=incidents&incident=' + incident.id;
+  return sendTemplatedEmail({ key, to: recipients, vars: { apt, owner: listing.owner || '', operator: listing.operator || 'No indicado', operatorEmail: listing.operatorEmail || listing.operator_email || '', guestName: incident.guestName || '', date: incident.date || '', type: incident.type || '', category: incident.category || '', status: incident.status || 'open', desc: incident.desc || '', incidentLink, slaCycleCount: String(incident.slaCycleCount || incident.sla_cycle_count || '') } });
+};
 
 const sendIncidentVerifiedEmail = async ({ listing, incident, appUrl }) => {
   if (!emailConfigured) return { sent:false, skipped:true, reason:'Resend email is not configured. Add RESEND_API_KEY and EMAIL_FROM in Render.' };
-  const recipients = await getIncidentRecipients(listing, { includeEscalationCc:false });
-  if (!recipients.length) return { sent:false, skipped:true, reason:'Listing owner/operator email is missing.' };
+  const notifCfg = await getEmailNotificationConfig();
+  const typeCfg = notifCfg['incident_verified'];
+  if (!typeCfg.enabled) return { sent:false, skipped:true, reason:'Email type \'incident_verified\' is disabled.' };
+  const recipients = await buildIncidentRecipients('incident_verified', listing, typeCfg);
+  if (!recipients.length) return { sent:false, skipped:true, reason:'No recipients for verified email.' };
   const apt = listing.apt || String(incident.aptLabel || '').replace(/[^0-9]/g,'');
   const incidentLink = appUrl + '/?view=incidents&incident=' + incident.id;
   return sendTemplatedEmail({ key:'incident_verified', to:recipients, vars:{ apt, owner:listing.owner || '', operator:listing.operator || 'No indicado', operatorEmail:listing.operatorEmail || listing.operator_email || '', ownerGuestNames:incident.ownerGuestNames || '', ownerGuestCity:incident.ownerGuestCity || '', ownerGuestCountry:incident.ownerGuestCountry || '', ownerComments:incident.ownerComments || '', incidentLink } });
@@ -268,11 +319,11 @@ const sendIncidentVerifiedEmail = async ({ listing, incident, appUrl }) => {
 
 const sendIncidentResolvedEmail = async ({ listing, incident, appUrl }) => {
   if (!emailConfigured) return { sent:false, skipped:true, reason:'Resend email is not configured. Add RESEND_API_KEY and EMAIL_FROM in Render.' };
-  const listingRecipients = await getIncidentRecipients(listing, { includeEscalationCc:false });
-  const globalAdminEmails = getGlobalAdminEmails();
-  const delegateEmails = await getDelegateAdminsWithPermission('canResolveIncidents');
-  const recipients = normalizeRecipients([...listingRecipients, ...globalAdminEmails, ...delegateEmails]);
-  if (!recipients.length) return { sent:false, skipped:true, reason:'No recipients found.' };
+  const notifCfg = await getEmailNotificationConfig();
+  const typeCfg = notifCfg['incident_resolved'];
+  if (!typeCfg.enabled) return { sent:false, skipped:true, reason:'Email type \'incident_resolved\' is disabled.' };
+  const recipients = await buildIncidentRecipients('incident_resolved', listing, typeCfg);
+  if (!recipients.length) return { sent:false, skipped:true, reason:'No recipients for resolved email.' };
   const apt = listing.apt || String(incident.aptLabel || '').replace(/[^0-9]/g,'');
   const incidentLink = appUrl + '/?view=incidents&incident=' + incident.id;
   return sendTemplatedEmail({ key:'incident_resolved', to:recipients, vars:{ apt, owner:listing.owner || '', operator:listing.operator || 'No indicado', operatorEmail:listing.operatorEmail || listing.operator_email || '', resolvedBy:incident.resolvedBy || incident.resolved_by || '', resolutionComments:incident.resolutionComments || incident.resolution_comments || '', date:incident.date || '', type:incident.type || '', category:incident.category || '', incidentLink }, relatedEntity:'incident', relatedId:incident.id });
@@ -281,18 +332,17 @@ const sendIncidentResolvedEmail = async ({ listing, incident, appUrl }) => {
 const getListingRecipients = (listing) => normalizeRecipients([listing?.email, listing?.user_email, listing?.userEmail]);
 const sendListingChangeEmail = async ({ listing, action, appUrl }) => {
   const key = action === 'created' ? 'listing_created' : action === 'updated' ? 'listing_updated' : 'listing_deleted';
-  const recipients = getListingRecipients(listing);
-  if (!recipients.length) return { sent:false, skipped:true, reason:'Listing email is missing.' };
-  return sendTemplatedEmail({
-    key,
-    to: recipients,
-    vars: {
-      apt: listing.apt || '',
-      owner: listing.owner || '',
-      listingEmail: listing.email || listing.user_email || '',
-      listingLink: appUrl + '/?view=listings'
-    }
-  });
+  const notifCfg = await getEmailNotificationConfig();
+  const typeCfg = notifCfg[key];
+  if (!typeCfg.enabled) return { sent:false, skipped:true, reason:`Email type '${key}' is disabled.` };
+  const recips = [];
+  if (typeCfg.owner)        recips.push(...getListingOwnerEmails(listing));
+  if (typeCfg.operator)     recips.push(...getListingOperatorEmails(listing));
+  if (typeCfg.globalAdmin)  recips.push(...getGlobalAdminEmails());
+  if (typeCfg.delegateAdmin) recips.push(...await getDelegateAdminsWithPermission('canUpdateGlobalListings'));
+  const recipients = normalizeRecipients(recips);
+  if (!recipients.length) return { sent:false, skipped:true, reason:'No recipients for listing change email.' };
+  return sendTemplatedEmail({ key, to: recipients, vars: { apt: listing.apt || '', owner: listing.owner || '', listingEmail: listing.email || listing.user_email || '', listingLink: appUrl + '/?view=listings' } });
 };
 
 const isThreeDigitApt = (apt) => /^[0-9]{3}$/.test(String(apt || '').trim());
@@ -549,15 +599,32 @@ const validateListingInput = (l) => {
   return '';
 };
 const sendRegistrationSubmittedEmail = async ({ registration, appUrl }) => {
+  const notifCfg = await getEmailNotificationConfig();
+  const typeCfg = notifCfg['registration_submitted'];
+  if (!typeCfg.enabled || !typeCfg.owner) return { sent:false, skipped:true, reason:'Registration submitted email is disabled.' };
   return sendTemplatedEmail({ key:'registration_submitted', to: registration.userEmail, vars: { userName:registration.userName || '', userEmail:registration.userEmail || '', registrationLink: appUrl + '/?view=registration' } });
 };
 const sendRegistrationStatusEmail = async ({ registration, appUrl }) => {
   const approved = registration.status === 'approved';
+  const key = approved ? 'registration_approved' : 'registration_declined';
+  const notifCfg = await getEmailNotificationConfig();
+  const typeCfg = notifCfg[key];
+  if (!typeCfg.enabled || !typeCfg.owner) return { sent:false, skipped:true, reason:`Registration ${key} email is disabled.` };
   const link = appUrl + (approved ? '/?view=dashboard' : '/?view=registration');
   const reason = String(registration.reason || '').trim();
-  return sendTemplatedEmail({ key: approved ? 'registration_approved' : 'registration_declined', to: registration.userEmail, vars: { userName:registration.userName || '', userEmail:registration.userEmail || '', reason, reasonLine: reason ? 'Motivo/nota: ' + reason : '', reasonHtml: reason ? '<p><strong>Motivo/nota:</strong> ' + reason + '</p>' : '', dashboardLink:link, registrationLink:link } });
+  // Also notify admins if configured
+  const recips = [registration.userEmail];
+  const admCfg = notifCfg['registration_status_admin'];
+  if (admCfg?.enabled) {
+    if (admCfg.globalAdmin) recips.push(...getGlobalAdminEmails());
+    if (admCfg.delegateAdmin) recips.push(...await getDelegateAdminsWithPermission('canApproveRegistrations'));
+  }
+  return sendTemplatedEmail({ key, to: normalizeRecipients(recips), vars: { userName:registration.userName || '', userEmail:registration.userEmail || '', reason, reasonLine: reason ? 'Motivo/nota: ' + reason : '', reasonHtml: reason ? '<p><strong>Motivo/nota:</strong> ' + reason + '</p>' : '', dashboardLink:link, registrationLink:link } });
 };
 const sendRegistrationReviewerEmail = async ({ reviewer, registration, appUrl }) => {
+  const notifCfg = await getEmailNotificationConfig();
+  const typeCfg = notifCfg['registration_reviewer'];
+  if (!typeCfg.enabled || !typeCfg.owner) return { sent:false, skipped:true, reason:'Registration reviewer email is disabled.' };
   return sendTemplatedEmail({ key:'registration_reviewer', to: reviewer.user_email, vars: { reviewerName: reviewer.user_name || 'propietario', userName:registration.userName || '', userEmail:registration.userEmail || '', approvalsLink: appUrl + '/?view=approvals' } });
 };
 
@@ -994,7 +1061,29 @@ app.put('/api/admin/email-templates', async (req, res) => {
   res.json({ ok:true, templates: await getEmailTemplates(language) });
 });
 
+app.get('/api/admin/email-notification-config', async (req, res) => {
+  if (!requireSupabaseEnv(res)) return;
+  const { uid, email } = req.query || {};
+  if (!(await isGlobalAdmin(uid, email))) return res.status(403).json({ error:'Global admin only.' });
+  res.json({ config: await getEmailNotificationConfig(), defaults: DEFAULT_EMAIL_NOTIFICATION_CONFIG });
+});
 
+app.put('/api/admin/email-notification-config', async (req, res) => {
+  if (!requireSupabaseEnv(res)) return;
+  const { actorUid, actorEmail, config } = req.body || {};
+  if (!(await isGlobalAdmin(actorUid, actorEmail))) return res.status(403).json({ error:'Global admin only.' });
+  if (!config || typeof config !== 'object') return res.status(400).json({ error:'config object required.' });
+  // Merge submitted config with defaults — only known keys, boolean values only
+  const merged = {};
+  for (const [key, def] of Object.entries(DEFAULT_EMAIL_NOTIFICATION_CONFIG)) {
+    const incoming = (config[key] && typeof config[key] === 'object') ? config[key] : {};
+    merged[key] = { enabled: Boolean(incoming.enabled ?? def.enabled), owner: Boolean(incoming.owner ?? def.owner), operator: Boolean(incoming.operator ?? def.operator), globalAdmin: Boolean(incoming.globalAdmin ?? def.globalAdmin), delegateAdmin: Boolean(incoming.delegateAdmin ?? def.delegateAdmin) };
+  }
+  const { error } = await supabase.from('app_config').upsert({ key:'email_notification_config', value:JSON.stringify(merged) }, { onConflict:'key' });
+  if (error) return sendSupabaseError(res, error);
+  await auditLog({ entity:'app_config', entityId:'email_notification_config', action:'update', actorUid, actorEmail, after:merged });
+  res.json({ ok:true, config: merged });
+});
 
 app.post('/api/contact/send-email', async (req, res) => {
   if (!requireSupabaseEnv(res)) return;
