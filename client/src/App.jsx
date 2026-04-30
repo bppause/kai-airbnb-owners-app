@@ -961,7 +961,6 @@ export default function App() {
     ...(canSeeMenu('incidents') ? [{ id:"incidents", icon:"⚠️", label:t.nav.incidents, badge: openCount }] : []),
     ...(isApproved && canSeeMenu('notifications') ? [{ id:"notifications", icon:"🔔", label:t.nav.notifications, badge: unreadNotifications }] : []),
     ...(canSeeMenu('about') ? [{ id:"about", icon:"🌊", label:t.nav.about }] : []),
-  { id:"help", icon:"❓", label:t.nav.help },
     ...(isApproved ? [
       ...(effectiveCanManageRegistrations ? [{ id:"approvals", icon:"📝", label:t.nav.approvals, badge: pendingRegistrations.length }] : []),
       ...(effectiveIsGlobalAdmin ? [{ id:"admin", icon:"⚙️", label:t.nav.admin }] : []),
@@ -1123,6 +1122,7 @@ export default function App() {
                 {n.badge>0 && <span className="nb-badge">{n.badge}</span>}
               </button>
             ))}
+            <button className={`nb nav-help-btn ${view==='help'?'nb-active':''}`} onClick={()=>{setView('help');setOpenDropdown(null);}} title={t.nav.help} aria-label={t.nav.help}>❓</button>
             {(moreNav.length > 0 || adminInfo.isGlobalAdmin) && <div className="nav-dd" onClick={e=>e.stopPropagation()}>
               <button type="button" className={`nb ${moreNav.some(n=>n.id===view)||previewRole?"nb-active":""}`} onClick={() => setOpenDropdown(openDropdown === "more" ? null : "more")}>{lang === "en" ? "More ▾" : "Más ▾"}{previewRole && <span className="nb-preview-dot" aria-label="preview active">👁</span>}</button>
               <div className={`nav-dd-menu ${openDropdown === "more" ? "menu-open" : ""}`}>
@@ -2498,22 +2498,22 @@ html{font-size:clamp(14px,1.1vw,16px);-webkit-text-size-adjust:100%}body{overflo
 @media (prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.001ms!important;animation-iteration-count:1!important;scroll-behavior:auto!important;transition-duration:.001ms!important}}
 
 
-/* v79 smart notifications – CSS grid layout, guaranteed readability */
+/* v80 smart notifications – grid layout, text wraps, simple positioning */
 .smart-dd{position:relative;display:inline-flex;z-index:2147482500}
-.smart-menu{position:fixed!important;top:64px!important;right:clamp(8px,calc(100vw - 396px),80px)!important;width:min(380px,calc(100vw - 16px))!important;max-height:calc(100svh - 78px);overflow-y:auto;background:rgba(255,255,255,.99);border:1px solid rgba(47,79,58,.18);border-radius:18px;box-shadow:0 28px 80px rgba(18,31,38,.32);padding:14px 16px;z-index:2147483500!important;color:#17313a}
+.smart-menu{position:fixed!important;top:64px!important;right:8px!important;width:min(420px,calc(100vw - 16px))!important;max-height:calc(100svh - 78px);overflow-y:auto;background:rgba(255,255,255,.99);border:1px solid rgba(47,79,58,.18);border-radius:18px;box-shadow:0 28px 80px rgba(18,31,38,.32);padding:14px 16px;z-index:2147483500!important;color:#17313a}
 .smart-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;padding-bottom:10px;border-bottom:1px solid rgba(47,79,58,.10);margin-bottom:12px}
 .smart-head>div>strong{display:block;font-size:.92rem;font-weight:900;color:#17313a}
 .smart-head>div>span{display:block;font-size:.72rem;color:#607872;line-height:1.35;margin-top:2px}
 .smart-live{flex-shrink:0;font-style:normal;background:#e7f8f0;color:#087346;border:1px solid #bdebd5;border-radius:999px;padding:3px 9px;font-size:.67rem;font-weight:900;white-space:nowrap;margin-top:2px}
 .smart-list{display:flex;flex-direction:column;gap:8px}
-/* 3-col grid: [badge 44px] [content 1fr] [arrow 16px]; badge spans both rows */
-.smart-item{width:100%;display:grid!important;grid-template-columns:44px 1fr 16px!important;grid-template-rows:auto auto!important;column-gap:10px!important;row-gap:2px!important;align-items:center!important;border:1px solid rgba(47,79,58,.10);background:#fff;border-radius:14px;padding:11px 12px!important;text-align:left!important;cursor:pointer!important;transition:transform .14s,box-shadow .14s,border-color .14s}
+/* 3-col grid: [badge 44px] [title+desc 1fr] [arrow 16px]; badge spans both rows */
+.smart-item{width:100%;display:grid!important;grid-template-columns:44px 1fr 18px!important;grid-template-rows:auto auto!important;column-gap:10px!important;row-gap:3px!important;align-items:center!important;border:1px solid rgba(47,79,58,.10);background:#fff;border-radius:14px;padding:12px!important;text-align:left!important;cursor:pointer!important;transition:transform .14s,box-shadow .14s,border-color .14s;box-sizing:border-box}
 .smart-item:hover,.smart-item:focus{transform:translateY(-2px);box-shadow:0 10px 28px rgba(32,46,38,.12);border-color:rgba(11,127,140,.28)!important}
-.smart-count{grid-column:1!important;grid-row:1/3!important;align-self:center!important;justify-self:start!important;width:40px;height:40px;border-radius:10px;color:#fff;display:flex!important;align-items:center!important;justify-content:center!important;font-size:1.05rem;font-weight:900;line-height:1}
-.smart-title{grid-column:2!important;grid-row:1!important;font-size:.87rem;font-weight:900;color:#17313a;line-height:1.3;display:flex;align-items:baseline;gap:5px}
-.smart-icon-inline{font-size:.88rem;flex-shrink:0;line-height:1}
-.smart-arr{grid-column:3!important;grid-row:1!important;align-self:center!important;justify-self:end!important;color:#c4d0ce;font-size:1rem;line-height:1}
-.smart-desc{grid-column:2/4!important;grid-row:2!important;font-size:.73rem;color:#607872;line-height:1.4;margin-top:2px}
+.smart-count{grid-column:1!important;grid-row:1/3!important;align-self:center!important;justify-self:center!important;width:40px;height:40px;border-radius:10px;color:#fff;display:flex!important;align-items:center!important;justify-content:center!important;font-size:1.05rem;font-weight:900;line-height:1}
+.smart-title{grid-column:2!important;grid-row:1!important;font-size:.87rem;font-weight:900;color:#17313a;line-height:1.3;word-break:break-word;overflow-wrap:anywhere}
+.smart-icon-inline{font-size:.85rem;margin-right:4px}
+.smart-arr{grid-column:3!important;grid-row:1!important;align-self:start!important;justify-self:end!important;color:#c4d0ce;font-size:1rem;line-height:1.4;margin-top:1px}
+.smart-desc{grid-column:2/4!important;grid-row:2!important;font-size:.74rem;color:#607872;line-height:1.4;word-break:break-word;overflow-wrap:anywhere}
 .smart-owner{border-left:3px solid #c49a14!important}
 .smart-resolve{border-left:3px solid #d96c1a!important}
 .smart-registration{border-left:3px solid #2f6fbf!important}
@@ -2526,6 +2526,7 @@ html{font-size:clamp(14px,1.1vw,16px);-webkit-text-size-adjust:100%}body{overflo
 .smart-foot{display:flex;flex-direction:column;gap:6px;border-top:1px solid rgba(47,79,58,.10);margin-top:12px;padding-top:10px}
 .smart-foot .dd-item{justify-content:center!important;background:#f5f9f8;border:1px solid rgba(47,79,58,.12);border-radius:11px;font-size:.84rem;min-height:40px;font-weight:800}
 .smart-foot .dd-item:hover{background:#eaf4f2!important}
+.nav-help-btn{padding:8px 10px!important;font-size:1rem!important;flex-shrink:0!important}
 .icon-badge{animation:smartPulse 1.8s infinite}
 @keyframes smartPulse{0%,100%{transform:scale(1)}50%{transform:scale(1.12)}}
 @media(max-width:860px){.smart-menu{right:8px!important;left:8px!important;width:auto!important;top:60px!important;max-height:calc(100svh - 72px)!important}}
