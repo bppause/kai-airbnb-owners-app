@@ -424,7 +424,7 @@ Object.assign(APP_I18N, {
   "roles.globalText": { es:"Gobierna la comunidad: usuarios, permisos, SLA, plantillas, misión, reportes y calidad de datos.", en:"Govern the community: users, permissions, SLA, templates, mission, reports, and data quality." },
   "roles.primaryActions": { es:"Acciones recomendadas", en:"Recommended actions" },
   "roles.ownerAction1": { es:"Verifica incidentes pendientes", en:"Verify pending incidents" },
-  "roles.ownerAction2": { es:"Actualiza tus datos de contacto", en:"Update your contact details" },
+  "roles.ownerAction2": { es:"Actualizar mi listing", en:"Update listing info" },
   "roles.delegateAction1": { es:"Revisa registros pendientes", en:"Review pending registrations" },
   "roles.delegateAction2": { es:"Resuelve incidentes verificados", en:"Resolve verified incidents" },
   "roles.globalAction1": { es:"Revisa métricas y SLA", en:"Review metrics and SLA" },
@@ -1964,7 +1964,7 @@ function MyListings({ listings, incidents, user, contactProps={}, onAdd, onEdit,
     <div className="fade">
       <div className="ph"><div><h1 className="ptitle">{appText(lang,"my.title")}</h1><p className="psub">{user.name} · {listings.length} {appText(lang,"my.units")} · {totalGuests} {appText(lang,"my.guestsTotal")}</p></div><button className="btn-p" onClick={onAdd}>{appText(lang,"listings.add")}</button></div>
       <div className="owner-stats">{[{icon:"🏠",val:listings.length,label:appText(lang,"my.myApts"),color:"#2a9aaa"},{icon:"👥",val:totalGuests,label:appText(lang,"my.capacityShort"),color:"#c9a84c"},{icon:"⚠️",val:openC,label:appText(lang,"dashboard.openReports"),color:"#d4634a"},{icon:"🔗",val:listings.filter(l=>l.airbnb).length,label:appText(lang,"dashboard.onAirbnb"),color:"#FF5A5F"}].map((s,i)=><div key={i} className="scard" style={{borderTop:`3px solid ${s.color}`}}><div style={{fontSize:"1.4rem"}}>{s.icon}</div><div className="sval" style={{color:s.color}}>{s.val}</div><div className="slabel">{s.label}</div></div>)}</div>
-      {listings.length===0?<EmptyState icon="🏠" title={appText(lang,"my.noApts")} sub={appText(lang,"my.addFirst")}/>:<div className="lg">{[...listings].sort((a,b)=>a.apt.localeCompare(b.apt)).map(l=><AptCard key={l.id} l={l} contactProps={contactProps} incCount={incidents.filter(i=>i.aptId===l.id&&i.status==="open").length} isOwner onEdit={()=>onEdit(l)} onDelete={()=>onDelete(l)} onReport={()=>onReport(l)} lang={lang}/>)}</div>}
+      {listings.length===0?<EmptyState icon="🏠" title={appText(lang,"my.noApts")} sub={appText(lang,"my.addFirst")}/>:<div className="lg">{[...listings].sort((a,b)=>a.apt.localeCompare(b.apt)).map(l=><AptCard key={l.id} l={l} contactProps={contactProps} incCount={incidents.filter(i=>i.aptId===l.id&&i.status==="open").length} canEdit canDelete onEdit={()=>onEdit(l)} onDelete={()=>onDelete(l)} onReport={()=>onReport(l)} lang={lang}/>)}</div>}
       {myInc.length>0&&<div style={{marginTop:32}}><div className="section-label">{appText(lang,"filters.scopeMyIncidents")}</div>{[...myInc].sort((a,b)=>new Date(b.createdAt)-new Date(a.createdAt)).map(i=><IRow key={i.id} inc={i} listings={listings} contactProps={contactProps} lang={lang}/>)}</div>}
     </div>
   );
