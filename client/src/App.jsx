@@ -165,7 +165,7 @@ const APP_I18N = {
   "listings.subtitle": { es:"Todas las unidades · Morros KAI · {count} registradas", en:"All units · Morros KAI · {count} registered" },
   "listings.add": { es:"＋ Agregar apto", en:"＋ Add apt" },
   "listings.search": { es:"🔍 Buscar por número de apto o propietario...", en:"🔍 Search by apartment number or owner..." },
-  "incidents.search": { es:"🔍 Buscar por apto, propietario, tipo, descripción...", en:"🔍 Search by apartment, owner, type, description..." },
+  "incidents.search": { es:"🔍 Buscar por apto, propietario, huésped, ciudad, país, tipo...", en:"🔍 Search by apartment, owner, guest, city, country, type..." },
   "listings.none": { es:"Sin apartamentos", en:"No apartments" },
   "listings.noResults": { es:"No hay resultados", en:"No results found" },
   "listings.noAirbnb": { es:"Sin enlace Airbnb", en:"No Airbnb link" },
@@ -2101,14 +2101,25 @@ function IncidentsView({ incidents, listings, user, quickFilter=null, onQuickFil
   if(search.trim()){
     const q=search.trim().toLowerCase();
     list=list.filter(i=>{
-      const apt=String(i.aptLabel||'').toLowerCase();
-      const owner=String(listingMap[i.aptId]?.owner||'').toLowerCase();
-      const operator=String(listingMap[i.aptId]?.operator||'').toLowerCase();
-      const desc=String(i.desc||'').toLowerCase();
-      const type=String(i.type||'').toLowerCase();
-      const reporter=String(i.reporterName||'').toLowerCase();
-      const guest=String(i.guestName||'').toLowerCase();
-      return apt.includes(q)||owner.includes(q)||operator.includes(q)||desc.includes(q)||type.includes(q)||reporter.includes(q)||guest.includes(q);
+      const apt      = String(i.aptLabel||'').toLowerCase();
+      const owner    = String(listingMap[i.aptId]?.owner||'').toLowerCase();
+      const operator = String(listingMap[i.aptId]?.operator||'').toLowerCase();
+      const desc     = String(i.desc||'').toLowerCase();
+      const type     = String(i.type||'').toLowerCase();
+      const reporter = String(i.reporterName||'').toLowerCase();
+      // Initial report guest fields
+      const guest    = String(i.guestName||'').toLowerCase();
+      const city     = String(i.guestCity||'').toLowerCase();
+      const country  = String(i.guestCountry||'').toLowerCase();
+      // Owner-verified guest fields (set during verification step)
+      const vGuests  = String(i.ownerGuestNames||'').toLowerCase();
+      const vCity    = String(i.ownerGuestCity||'').toLowerCase();
+      const vCountry = String(i.ownerGuestCountry||'').toLowerCase();
+      // Individual verified guest records (firstName, lastName, city, country)
+      const guestDetails = Array.isArray(i.ownerGuests)
+        ? i.ownerGuests.map(g=>[g.firstName,g.middleName,g.lastName,g.city,g.country].filter(Boolean).join(' ')).join(' ').toLowerCase()
+        : '';
+      return apt.includes(q)||owner.includes(q)||operator.includes(q)||desc.includes(q)||type.includes(q)||reporter.includes(q)||guest.includes(q)||city.includes(q)||country.includes(q)||vGuests.includes(q)||vCity.includes(q)||vCountry.includes(q)||guestDetails.includes(q);
     });
   }
   list.sort((a,b)=>new Date(b.createdAt)-new Date(a.createdAt));
