@@ -2043,40 +2043,74 @@ function IncidentsView({ incidents, listings, user, quickFilter=null, onQuickFil
   if(sf!=="all") list=list.filter(i=>i.status===sf);
   if(cf!=="all") list=list.filter(i=>i.category===cf);
   list.sort((a,b)=>new Date(b.createdAt)-new Date(a.createdAt));
+  const isEn = lang==='en';
+  const anyFilter = sf!=='all' || cf!=='all' || (user && scope!=='all');
+  const resetAll = () => { setSf('all'); setCf('all'); setScope('all'); };
   return (
     <div className="fade">
-      <div className="ph"><div><h1 className="ptitle">{appText(lang,"reports.title")}</h1><p className="psub">{appText(lang,"reports.subtitle",{total:list.length,open:list.filter(i=>i.status==="open").length})}</p></div>{user&&<button className="btn-p btn-report" title={localizedTooltips({}, lang).reportIncident} onClick={onAdd}>{appText(lang,"reports.reportIncident")}</button>}</div>
-      <div className="workflow-card workflow-card-compact">
-        <div className="wf-head">
-          <div>
-            <div className="wf-title">{appText(lang,"workflow.title")}</div>
-            <div className="wf-subtitle">{lang==="en"?"Click a step to filter incidents below":"Haz clic en un paso para filtrar los incidentes abajo"}</div>
-          </div>
+      <div className="ph">
+        <div>
+          <h1 className="ptitle">{appText(lang,"reports.title")}</h1>
+          <p className="psub">{appText(lang,"reports.subtitle",{total:list.length,open:list.filter(i=>i.status==="open").length})}</p>
         </div>
-        <div className="wf-steps wf-steps-interactive" role="tablist" aria-label={appText(lang,"workflow.title")}>
-          <button type="button" className={`wf-step wf-step-click ${sf==="open"?"wf-active":""}`} title={lang==="en"?"Show incidents reported by users that still need owner verification":"Mostrar incidentes reportados que todavía necesitan verificación del propietario"} onClick={()=>{setScope(user?"ownerVerification":"all"); setSf("open"); setCf("all");}}>
-            <span className="wf-icon wf-open">⚠️</span>
-            <span className="wf-copy"><strong>{appText(lang,"workflow.open")}</strong><small>{appText(lang,"workflow.openDesc")}</small></span>
-            <span className="wf-tip">{lang==="en"?"Filters to open incidents needing owner verification":"Filtra incidentes abiertos pendientes de verificación"}</span>
-          </button>
-          <div className="wf-arrow wf-arrow-line">→</div>
-          <button type="button" className={`wf-step wf-step-click ${sf==="verified"?"wf-active":""}`} title={lang==="en"?"Show verified incidents ready for admin resolution":"Mostrar incidentes verificados listos para resolución del administrador"} onClick={()=>{setScope((isGlobalAdmin || canResolveGlobal)?"requiresResolution":"all"); setSf("verified"); setCf("all");}}>
-            <span className="wf-icon wf-verified">👤</span>
-            <span className="wf-copy"><strong>{appText(lang,"workflow.verified")}</strong><small>{appText(lang,"workflow.verifiedDesc")}</small></span>
-            <span className="wf-tip">{lang==="en"?"Filters to verified / ready to resolve incidents":"Filtra incidentes verificados / listos para resolver"}</span>
-          </button>
-          <div className="wf-arrow wf-arrow-line">→</div>
-          <button type="button" className={`wf-step wf-step-click ${sf==="resolved"?"wf-active":""}`} title={lang==="en"?"Show incidents resolved by a Standard or Global Admin":"Mostrar incidentes resueltos por administrador estándar o global"} onClick={()=>{setScope("all"); setSf("resolved"); setCf("all");}}>
-            <span className="wf-icon wf-resolved">✓</span>
-            <span className="wf-copy"><strong>{appText(lang,"workflow.resolved")}</strong><small>{appText(lang,(isGlobalAdmin || canResolveGlobal) ? "workflow.resolvedDesc" : "workflow.resolvedDescGlobalOnly")}</small></span>
-            <span className="wf-tip">{lang==="en"?"Filters to resolved incidents":"Filtra incidentes resueltos"}</span>
-          </button>
-        </div>
+        {user&&<button className="btn-p btn-report" title={localizedTooltips({},lang).reportIncident} onClick={onAdd}>{appText(lang,"reports.reportIncident")}</button>}
       </div>
-      {user&&<div className="filter-row filter-scope" style={{marginBottom:10}}><button className={`fchip ${scope==="all"?"fchip-on":""}`} onClick={()=>setScope("all")}>{appText(lang,"filters.scopeAll")}</button><button className={`fchip ${scope==="mine"||scope==="ownerVerification"?"fchip-on":""}`} onClick={()=>{setScope("mine");setSf("all");}}>{appText(lang,"filters.scopeMyIncidents")}</button>{(isGlobalAdmin || canResolveGlobal)&&<button className={`fchip ${scope==="requiresResolution"?"fchip-on":""}`} onClick={()=>{setScope("requiresResolution");setSf("verified");}}>{appText(lang,"actions.viewReports")}</button>}</div>}
-      <div className="filter-group"><div className="filter-label">{appText(lang,"filters.workflow")}</div><div className="filter-row">{["all","open","verified","resolved"].map(f=><button key={f} className={`fchip ${sf===f?"fchip-on":""}`} onClick={()=>setSf(f)}>{f==="all"?appText(lang,"reports.all"):f==="open"?appText(lang,"reports.open"):f==="verified"?appText(lang,"reports.verified"):appText(lang,"reports.resolved")}</button>)}</div></div>
-      <div className="filter-group"><div className="filter-label">{appText(lang,"filters.category")}</div><div className="filter-row"><button className={`fchip ${cf==="all"?"fchip-on":""}`} onClick={()=>setCf("all")}>{appText(lang,"filters.categoryAll")}</button>{GUEST_CATEGORIES.map(c=><button key={c.value} className={`fchip ${cf===c.value?"fchip-on":""}`} onClick={()=>setCf(cf===c.value?"all":c.value)}>{c.icon} {categoryLabel(c.value,lang)}</button>)}</div></div>
-      {list.length===0?<EmptyState icon="✅" title={appText(lang,"reports.none")} sub={appText(lang,"reports.noneFilter")}/>:list.map(i=><IRow key={i.id} inc={i} user={user} listings={listings} contactProps={contactProps} isGlobalAdmin={isGlobalAdmin} canUpdateGlobal={canUpdateGlobal} canDeleteGlobal={canDeleteGlobal} canResolveGlobal={canResolveGlobal} onResolve={onResolve} onDelete={onDelete} onVerify={onVerify} lang={lang}/>) }
+
+      {/* ── Compact workflow stepper ───────────────────────────────────── */}
+      <div className="inc-wf-bar" role="tablist" aria-label={appText(lang,"workflow.title")}>
+        <span className="inc-wf-label">{appText(lang,"workflow.title")}</span>
+        <div className="inc-wf-sep"/>
+        {[
+          { key:'open',     icon:'⚠️', label:appText(lang,"workflow.open"),     tip:isEn?"Open — pending owner verification":"Abierto — pendiente verificación del propietario",     onClick:()=>{setScope(user?'ownerVerification':'all');setSf('open');setCf('all');} },
+          { key:'verified', icon:'👤', label:appText(lang,"workflow.verified"),  tip:isEn?"Verified — ready for admin resolution":"Verificado — listo para resolución del admin",        onClick:()=>{setScope((isGlobalAdmin||canResolveGlobal)?'requiresResolution':'all');setSf('verified');setCf('all');} },
+          { key:'resolved', icon:'✓',  label:appText(lang,"workflow.resolved"),  tip:isEn?"Resolved — closed by admin":"Resuelto — cerrado por el admin",                              onClick:()=>{setScope('all');setSf('resolved');setCf('all');} },
+        ].map((step,i,arr)=>(
+          <span key={step.key} className="inc-wf-group">
+            <button type="button" className={`inc-wf-step${sf===step.key?' inc-wf-on':''}`} title={step.tip} onClick={step.onClick}>
+              <span>{step.icon}</span><span>{step.label}</span>
+            </button>
+            {i<arr.length-1 && <span className="inc-wf-arrow">›</span>}
+          </span>
+        ))}
+        {sf!=='all' && <button className="inc-wf-clear" onClick={()=>{setSf('all');setScope('all');}} title={isEn?'Clear workflow filter':'Limpiar filtro de estado'}>✕</button>}
+      </div>
+
+      {/* ── Unified filter bar ────────────────────────────────────────── */}
+      <div className="inc-filter-bar">
+        {/* Scope */}
+        {user && <>
+          <button className={`fchip fchip-sm ${scope==='all'?'fchip-on':''}`} onClick={()=>{setScope('all');}}>
+            {isEn?'All':'Todos'}
+          </button>
+          <button className={`fchip fchip-sm ${(scope==='mine'||scope==='ownerVerification')?'fchip-on':''}`} onClick={()=>{setScope('mine');setSf('all');}}>
+            {isEn?'Mine':'Los míos'}
+          </button>
+          {(isGlobalAdmin||canResolveGlobal) && <button className={`fchip fchip-sm ${scope==='requiresResolution'?'fchip-on':''}`} onClick={()=>{setScope('requiresResolution');setSf('verified');}}>
+            {isEn?'Needs resolution':'Sin resolver'}
+          </button>}
+          <span className="inc-fb-sep"/>
+        </>}
+        {/* Status */}
+        {['open','verified','resolved'].map(f=>(
+          <button key={f} className={`fchip fchip-sm ${sf===f?'fchip-on':''}`} onClick={()=>setSf(sf===f?'all':f)}>
+            {f==='open'?appText(lang,'reports.open'):f==='verified'?appText(lang,'reports.verified'):appText(lang,'reports.resolved')}
+          </button>
+        ))}
+        <span className="inc-fb-sep"/>
+        {/* Category */}
+        {GUEST_CATEGORIES.map(c=>(
+          <button key={c.value} className={`fchip fchip-sm ${cf===c.value?'fchip-on':''}`} onClick={()=>setCf(cf===c.value?'all':c.value)}>
+            {c.icon} {categoryLabel(c.value,lang)}
+          </button>
+        ))}
+        {/* Reset */}
+        {anyFilter && <button className="fchip fchip-sm fchip-reset" onClick={resetAll}>✕ {isEn?'Reset':'Limpiar'}</button>}
+      </div>
+
+      {list.length===0
+        ?<EmptyState icon="✅" title={appText(lang,"reports.none")} sub={appText(lang,"reports.noneFilter")}/>
+        :list.map(i=><IRow key={i.id} inc={i} user={user} listings={listings} contactProps={contactProps} isGlobalAdmin={isGlobalAdmin} canUpdateGlobal={canUpdateGlobal} canDeleteGlobal={canDeleteGlobal} canResolveGlobal={canResolveGlobal} onResolve={onResolve} onDelete={onDelete} onVerify={onVerify} lang={lang}/>)
+      }
     </div>
   );
 }
@@ -2787,6 +2821,24 @@ html{font-size:clamp(14px,1.1vw,16px);-webkit-text-size-adjust:100%}body{overflo
 .smart-foot{display:flex;flex-direction:column;gap:6px;border-top:1px solid rgba(47,79,58,.10);margin-top:12px;padding-top:10px}
 .smart-foot .dd-item{justify-content:center!important;background:#f5f9f8;border:1px solid rgba(47,79,58,.12);border-radius:11px;font-size:.84rem;min-height:40px;font-weight:800}
 .smart-foot .dd-item:hover{background:#eaf4f2!important}
+/* ── Compact incident workflow stepper ────────────────────────────────── */
+.inc-wf-bar{display:flex;align-items:center;gap:6px;padding:9px 14px;background:rgba(255,255,255,.78);border:1px solid rgba(47,79,58,.13);border-radius:14px;margin-bottom:10px;flex-wrap:wrap}
+.inc-wf-label{font-size:.68rem;font-weight:900;color:#2a5a6a;text-transform:uppercase;letter-spacing:.08em;white-space:nowrap;flex-shrink:0}
+.inc-wf-sep{width:1px;height:18px;background:rgba(47,79,58,.18);margin:0 4px;flex-shrink:0}
+.inc-wf-group{display:flex;align-items:center;gap:4px}
+.inc-wf-step{display:inline-flex;align-items:center;gap:5px;padding:6px 12px;border-radius:10px;border:1px solid rgba(47,79,58,.16);background:rgba(255,255,255,.85);font-size:.8rem;font-weight:700;color:#17313a;cursor:pointer;transition:all .14s;white-space:nowrap}
+.inc-wf-step:hover{background:#fff;border-color:#0b7f8c;box-shadow:0 4px 12px rgba(32,46,38,.10);transform:translateY(-1px)}
+.inc-wf-on{background:linear-gradient(135deg,#0b7f4f,#0b7f8c)!important;color:#fff!important;border-color:transparent!important;box-shadow:0 4px 12px rgba(11,127,140,.22)!important}
+.inc-wf-arrow{color:#b0c4be;font-size:1rem;font-weight:900;line-height:1}
+.inc-wf-clear{padding:4px 8px;border-radius:999px;border:1px solid rgba(233,66,53,.28);background:rgba(233,66,53,.06);color:#c62828;font-size:.72rem;cursor:pointer;font-weight:800;margin-left:auto;flex-shrink:0;transition:all .14s}
+.inc-wf-clear:hover{background:rgba(233,66,53,.14)}
+/* ── Unified filter bar ───────────────────────────────────────────────── */
+.inc-filter-bar{display:flex;align-items:center;gap:5px;flex-wrap:wrap;margin-bottom:14px}
+.fchip-sm{padding:6px 11px!important;font-size:.76rem!important;min-height:32px!important;border-radius:999px!important}
+.inc-fb-sep{width:1px;height:18px;background:rgba(47,79,58,.2);margin:0 1px;flex-shrink:0;align-self:center}
+.fchip-reset{border-color:rgba(233,66,53,.28)!important;color:#c62828!important;background:rgba(233,66,53,.05)!important}
+.fchip-reset:hover{background:rgba(233,66,53,.12)!important}
+@media(max-width:640px){.inc-wf-bar{gap:4px;padding:8px 10px}.inc-wf-label{display:none}.inc-wf-sep{display:none}.inc-wf-step{font-size:.74rem;padding:5px 9px}}
 /* ── Form section headers ─────────────────────────────────────────────── */
 .form-section-hdr{grid-column:1/-1;margin:14px 0 2px;padding:10px 0 6px;border-top:1px solid rgba(47,79,58,.14);font-size:.7rem;font-weight:900;color:#2F4F3A;text-transform:uppercase;letter-spacing:.09em;display:flex;align-items:center;gap:6px}
 .form-section-hdr:first-child{margin-top:0;padding-top:0;border-top:none}
