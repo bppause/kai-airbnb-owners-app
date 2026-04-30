@@ -1209,7 +1209,7 @@ export default function App() {
         {view==="analytics" && user && (effectiveIsGlobalAdmin || analyticsEnabledForAll) && <AnalyticsDashboard lang={lang} user={user} contactProps={contactProps} showToast={showToast} isGlobalAdmin={effectiveIsGlobalAdmin} />}
         {view==="admin" && user && (effectiveIsGlobalAdmin ? <ErrorBoundary section="admin" fallback={(err)=><AdminFallback lang={lang} error={err}/>}><AdminSettings config={adminInfo.config || {}} user={user} listings={listings} contactProps={contactProps} onSave={saveAdminConfig} showToast={showToast} lang={lang} /></ErrorBoundary> : <AdminAccessHelp user={user} adminInfo={adminInfo} lang={lang} />)}
         {view==="my" && user && <MyListings lang={lang} listings={myListings} incidents={incidents} user={user} contactProps={contactProps} onAdd={()=>setModal({type:"addListing"})} onEdit={l=>setModal({type:"editListing",data:l})} onDelete={deleteListing} onReport={l=>setModal({type:"incident",data:{aptId:l.id}})} />}
-        {view==="help" && <HelpView lang={lang} effectiveRole={effectiveRole} effectiveIsGlobalAdmin={effectiveIsGlobalAdmin} delegatePerms={delegatePerms} listings={listings} incidents={incidents} user={user} />}
+        {view==="help" && <HelpView lang={lang} effectiveRole={effectiveRole} effectiveIsGlobalAdmin={effectiveIsGlobalAdmin} delegatePerms={delegatePerms} listings={listings} incidents={incidents} user={user} setView={setView} onReport={()=>{ if(!user){login();return;} setModal({type:'incident'}); }} onAddListing={()=>{ if(!user){login();return;} setModal({type:'addListing'}); }} setIncidentQuickFilter={setIncidentQuickFilter} openMore={()=>setOpenDropdown('more')} />}
       </main>
 
       {/* LoginModal removed — Google popup handles auth directly */}
@@ -1428,8 +1428,30 @@ const HELP_TOPICS = [
   },
 ];
 
+// ─── HELP ACTIONS (topic-id → CTA buttons) ────────────────────────────────────
+// Each action: { label:HL(), icon, primary, fn(handlers) }
+// handlers = { setView, onReport, onAddListing, setQuickFilter }
+const HELP_ACTIONS = {
+  start:        [{ label:HL('Ver mis propiedades','View my listings'),          icon:'🏠', primary:true,  fn:h=>h.setView('my') }],
+  listings:     [{ label:HL('Mis propiedades','My listings'),                   icon:'🔑', primary:true,  fn:h=>h.setView('my') },
+                 { label:HL('Agregar apartamento','Add apartment'),             icon:'➕', primary:false, fn:h=>h.onAddListing() }],
+  incidents:    [{ label:HL('Reportar incidente','Report incident'),            icon:'⚠️', primary:true,  fn:h=>h.onReport() },
+                 { label:HL('Ver todos los reportes','View all reports'),       icon:'📋', primary:false, fn:h=>h.setView('incidents') }],
+  workflow:     [{ label:HL('Ver reportes','View reports'),                     icon:'📋', primary:true,  fn:h=>h.setView('incidents') }],
+  verify:       [{ label:HL('Ver mis pendientes de verificación','View my pending verifications'), icon:'✅', primary:true, fn:h=>{ h.setQuickFilter('ownerVerification'); h.setView('incidents'); } }],
+  notifications:[{ label:HL('Ver mis avisos','View my alerts'),                 icon:'🔔', primary:true,  fn:h=>h.setView('notifications') }],
+  smart:        [{ label:HL('Ver avisos','View alerts'),                        icon:'🔔', primary:true,  fn:h=>h.setView('notifications') }],
+  resolve:      [{ label:HL('Ver listos para resolver','View ready to resolve'),icon:'🛠️', primary:true,  fn:h=>{ h.setQuickFilter('requiresResolution'); h.setView('incidents'); } }],
+  approvals:    [{ label:HL('Ir a registros','Go to registrations'),            icon:'📝', primary:true,  fn:h=>h.setView('approvals') }],
+  users:        [{ label:HL('Gestionar usuarios','Manage users'),               icon:'👥', primary:true,  fn:h=>h.setView('admin') }],
+  settings:     [{ label:HL('Ir a configuración','Go to Admin settings'),       icon:'⚙️', primary:true,  fn:h=>h.setView('admin') }],
+  analytics:    [{ label:HL('Ver analíticas','View analytics'),                 icon:'📊', primary:true,  fn:h=>h.setView('analytics') }],
+  viewas:       [{ label:HL('Abrir menú "Más"','Open the "More" menu'),         icon:'👁️', primary:false, fn:h=>h.openMore() }],
+};
+
 // ─── HELP VIEW ────────────────────────────────────────────────────────────────
-function HelpView({ lang, effectiveRole, effectiveIsGlobalAdmin, listings=[], incidents=[], user }) {
+function HelpView({ lang, effectiveRole, effectiveIsGlobalAdmin, listings=[], incidents=[], user,
+                    setView=()=>{}, onReport=()=>{}, onAddListing=()=>{}, setIncidentQuickFilter=()=>{}, openMore=()=>{} }) {
   const [query, setQuery] = useState('');
   const [category, setCategory] = useState('all');
   const [selected, setSelected] = useState(null);
@@ -1450,9 +1472,15 @@ function HelpView({ lang, effectiveRole, effectiveIsGlobalAdmin, listings=[], in
     { id:'admin', icon:'⚙️', label:HL('Admin','Admin') },
     { id:'account', icon:'👤', label:HL('Cuenta','Account') },
   ].filter(c => c.id === 'all' || topics.some(t => t.category === c.id));
+  const handlers = { setView, onReport, onAddListing, setQuickFilter: setIncidentQuickFilter, openMore };
 
   if (selected) {
     const t = selected;
+    const actions = (HELP_ACTIONS[t.id] || []).filter(a => {
+      // hide admin-only actions for non-admins
+      if ((t.id==='approvals'||t.id==='users'||t.id==='settings'||t.id==='analytics') && !effectiveIsGlobalAdmin && role!=='delegate_admin') return false;
+      return true;
+    });
     return (
       <div className="fade">
         <button className="btn-ghost" style={{marginBottom:18}} onClick={() => setSelected(null)}>
@@ -1472,6 +1500,20 @@ function HelpView({ lang, effectiveRole, effectiveIsGlobalAdmin, listings=[], in
               <p className="help-section-b">{L(s.b)}</p>
             </div>
           ))}
+          {actions.length > 0 && (
+            <div className="help-actions">
+              <span className="help-actions-label">{lang==='en'?'Quick actions':'Acciones rápidas'}</span>
+              <div className="help-actions-row">
+                {actions.map((a,i) => (
+                  <button key={i}
+                    className={a.primary ? 'btn-p help-action-btn' : 'btn-ghost help-action-btn'}
+                    onClick={() => a.fn(handlers)}>
+                    {a.icon} {L(a.label)}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
           <div className="help-article-foot">
             <button className="btn-ghost" onClick={() => setSelected(null)}>← {lang === 'en' ? 'Back to Help' : 'Volver a Ayuda'}</button>
           </div>
@@ -2704,7 +2746,11 @@ html{font-size:clamp(14px,1.1vw,16px);-webkit-text-size-adjust:100%}body{overflo
 .help-section{margin-top:22px;padding-top:18px;border-top:1px solid rgba(47,79,58,.09)}
 .help-section-h{color:#203f2b;font-size:1rem;font-weight:900;margin:0 0 8px;line-height:1.3}
 .help-section-b{color:#17313a;font-size:.9rem;line-height:1.7;margin:0}
-.help-article-foot{margin-top:24px;padding-top:16px;border-top:1px solid rgba(47,79,58,.10)}
+.help-actions{margin-top:24px;padding:16px 18px;background:linear-gradient(135deg,rgba(11,127,79,.05),rgba(11,127,140,.06));border:1px solid rgba(11,127,140,.16);border-radius:14px}
+.help-actions-label{display:block;font-size:.72rem;font-weight:900;text-transform:uppercase;letter-spacing:.07em;color:#235f72;margin-bottom:10px}
+.help-actions-row{display:flex;gap:10px;flex-wrap:wrap}
+.help-action-btn{flex-shrink:0}
+.help-article-foot{margin-top:20px;padding-top:16px;border-top:1px solid rgba(47,79,58,.10)}
 @media(max-width:600px){.help-grid{grid-template-columns:1fr}.help-article-hdr{flex-direction:column;gap:10px}.help-article-icon{font-size:2rem}}
 
 `;
