@@ -2712,9 +2712,9 @@ function AdminSettings({ config={}, user, listings=[], contactProps={}, onSave, 
     ];
     return (
       <AdminSection
-        title={`📧 ${lt(lang,'Enrutamiento de emails')}`}
-        subtitle={lt(lang,'Activa o desactiva tipos de email y elige a quiénes se envían. Basado en los flujos actuales de la app.')}
-        action={<button className="bsm" onClick={saveEmailNotifConfig} disabled={emailNotifSaving} style={{whiteSpace:'nowrap'}}>{emailNotifSaving?lt(lang,'Guardando...'):`💾 ${lt(lang,'Guardar')}`}</button>}
+        title={`📧 ${isEn?'Email Routing':'Enrutamiento de emails'}`}
+        subtitle={isEn?'Enable or disable email types and choose who receives them. Based on current app workflows.':'Activa o desactiva tipos de email y elige a quiénes se envían. Basado en los flujos actuales de la app.'}
+        action={<button className="bsm" onClick={saveEmailNotifConfig} disabled={emailNotifSaving} style={{whiteSpace:'nowrap'}}>{emailNotifSaving?(isEn?'Saving...':'Guardando...'):`💾 ${isEn?'Save':'Guardar'}`}</button>}
         open={openSections.emailNotif}
         onToggle={()=>toggleSection('emailNotif')}
       >
@@ -2770,7 +2770,7 @@ function AdminSettings({ config={}, user, listings=[], contactProps={}, onSave, 
               ))}
             </div>
             <div style={{marginTop:12,display:'flex',justifyContent:'flex-end'}}>
-              <button className="btn-p" onClick={saveEmailNotifConfig} disabled={emailNotifSaving}>{emailNotifSaving?lt(lang,'Guardando...'):`💾 ${lt(lang,'Guardar configuración')}`}</button>
+              <button className="btn-p" onClick={saveEmailNotifConfig} disabled={emailNotifSaving}>{emailNotifSaving?(isEn?'Saving...':'Guardando...'):`💾 ${isEn?'Save configuration':'Guardar configuración'}`}</button>
             </div>
           </>
         }

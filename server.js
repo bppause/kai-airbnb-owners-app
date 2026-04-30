@@ -64,10 +64,10 @@ const DEFAULT_EMAIL_NOTIFICATION_CONFIG = {
   incident_verified:         { enabled:true,  owner:true,  operator:true,  globalAdmin:true,  delegateAdmin:true  },
   incident_resolved:         { enabled:true,  owner:true,  operator:true,  globalAdmin:true,  delegateAdmin:true  },
   registration_submitted:    { enabled:true,  owner:true,  operator:false, globalAdmin:false, delegateAdmin:false },
-  registration_approved:     { enabled:true,  owner:true,  operator:false, globalAdmin:false, delegateAdmin:false },
-  registration_declined:     { enabled:true,  owner:true,  operator:false, globalAdmin:false, delegateAdmin:false },
+  registration_approved:     { enabled:true,  owner:true,  operator:false, globalAdmin:true,  delegateAdmin:true  },
+  registration_declined:     { enabled:true,  owner:true,  operator:false, globalAdmin:true,  delegateAdmin:true  },
   registration_status_admin: { enabled:true,  owner:false, operator:false, globalAdmin:true,  delegateAdmin:true  },
-  registration_reviewer:     { enabled:true,  owner:true,  operator:false, globalAdmin:false, delegateAdmin:false },
+  registration_reviewer:     { enabled:true,  owner:true,  operator:false, globalAdmin:true,  delegateAdmin:true  },
   listing_created:           { enabled:true,  owner:true,  operator:false, globalAdmin:false, delegateAdmin:false },
   listing_updated:           { enabled:true,  owner:true,  operator:false, globalAdmin:false, delegateAdmin:false },
   listing_deleted:           { enabled:true,  owner:true,  operator:false, globalAdmin:false, delegateAdmin:false },
@@ -286,8 +286,10 @@ const buildIncidentRecipients = async (key, listing, typeCfg) => {
   if (typeCfg.operator)     recips.push(...getListingOperatorEmails(listing));
   if (typeCfg.globalAdmin)  recips.push(...getGlobalAdminEmails(), ...await getEscalationCcEmails());
   if (typeCfg.delegateAdmin) {
-    const perm = key === 'incident_resolved' ? 'canResolveIncidents' : 'canUpdateGlobalIncidents';
-    recips.push(...await getDelegateAdminsWithPermission(perm));
+    // Always gate on canResolveIncidents — those delegates are the action-capable
+    // parties for all incident lifecycle stages (new, verified, resolved).
+    // If a delegate loses this permission they stop receiving all incident emails.
+    recips.push(...await getDelegateAdminsWithPermission('canResolveIncidents'));
   }
   return normalizeRecipients(recips);
 };
@@ -781,6 +783,21 @@ app.post('/api/registrations', async (req, res) => {
         await supabase.from('notifications').insert(notificationToDb(note));
         try { await sendRegistrationReviewerEmail({ reviewer, registration: result, appUrl }); } catch(mailErr) { warn('Reviewer registration email failed: ' + (mailErr?.message || mailErr)); }
       }
+      // Also email global admins + delegate admins (canApproveRegistrations) who are
+      // not already listing owners (seen set avoids duplicates by uid; email list dedup handles rest)
+      try {
+        const notifCfg = await getEmailNotificationConfig();
+        const revCfg = notifCfg['registration_reviewer'];
+        if (revCfg?.enabled) {
+          const adminRecips = [];
+          if (revCfg.globalAdmin) adminRecips.push(...getGlobalAdminEmails());
+          if (revCfg.delegateAdmin) adminRecips.push(...await getDelegateAdminsWithPermission('canApproveRegistrations'));
+          const normalized = normalizeRecipients(adminRecips);
+          if (normalized.length) {
+            await sendTemplatedEmail({ key:'registration_reviewer', to: normalized, vars: { reviewerName:'Admin', userName:result.userName||'', userEmail:result.userEmail||'', approvalsLink: appUrl+'/?view=approvals' } });
+          }
+        }
+      } catch(e) { warn('Admin registration reviewer email failed: ' + (e?.message || e)); }
     } catch(e) { warn('Registration reviewer notification failed: ' + (e?.message || e)); }
   });
 });
