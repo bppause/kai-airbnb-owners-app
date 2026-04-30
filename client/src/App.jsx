@@ -1986,22 +1986,76 @@ function ListingsView({ listings, incidents, user, contactProps={}, isGlobalAdmi
 }
 
 function AptCard({ l, incCount, contactProps={}, canEdit=false, canDelete=false, onEdit, onDelete, onReport, showLogin, lang="es-CO" }) {
+  const isEn = lang==='en';
+  const ownerWa = normalizePhoneForWhatsApp(l.contact);
+  const opWa    = normalizePhoneForWhatsApp(l.operatorWhatsapp);
+  const hasOp   = !!(l.operator || l.operatorEmail || l.operatorWhatsapp);
   return (
     <div className="acard">
+      {/* ── Header: apt number + tower + wave ── */}
       <div className="acard-top">
-        <div><div className="ac-num">{appText(lang,"listing.apt")} {l.apt}</div><div className="ac-owner"><UserContact name={l.owner} uid={l.ownerUid} email={l.email} whatsapp={l.contact} apartments={l.apt?[aptDisplay(l.apt, lang)]:[]} {...contactProps}/></div>{l.tower&&<div className="ac-tower">{appText(lang,"listing.tower")} {l.tower}</div>}</div>
-        <div className={l.operator?"ac-op-badge":"ac-op-none"}>{l.operator?`⚙️ ${l.operator}`:(lang==="en"?"👤 Owner":"👤 Propietario")}</div>
+        <div>
+          <div className="ac-num">{appText(lang,"listing.apt")} {l.apt}</div>
+          {l.tower && <div className="ac-tower">{appText(lang,"listing.tower")} {l.tower}</div>}
+        </div>
         <div className="ac-wave">🌊</div>
       </div>
-      <div className="acard-body">
-        <div className="ac-chips"><span className="chip c-teal">🛏️ {l.rooms} {appText(lang,"listing.roomsShort")}.</span><span className="chip c-blue">👥 {l.guests} {appText(lang,"listing.guests")}</span>{l.contact&&<span className="chip c-gray">📞 {l.contact}</span>}{l.email&&<span className="chip c-gray">✉️ {l.email}</span>}{l.operatorEmail&&<span className="chip c-gray">✉️ {lang==="en"?"Op":"Op"}: {l.operatorEmail}</span>}{l.operatorWhatsapp&&<span className="chip c-gray">📲 Op: {l.operatorWhatsapp}</span>}</div>
-        {l.airbnb?<a className="airbnb-lnk" href={l.airbnb} target="_blank">{appText(lang,"listings.viewAirbnb")}</a>:<div className="no-link">{appText(lang,"listings.noAirbnb")}</div>}
-        <div className={`inc-b ${incCount>0?"ib-open":"ib-none"}`} onClick={onReport}>{incCount>0?(incCount>1?appText(lang,"listings.openReportPlural",{count:incCount}):appText(lang,"listings.openReportSingular",{count:incCount})):appText(lang,"listings.noOpenReports")}</div>
+
+      {/* ── Stats row ── */}
+      <div className="ac-stats">
+        <span className="chip c-teal">🛏️ {l.rooms} {appText(lang,"listing.roomsShort")}.</span>
+        <span className="chip c-blue">👥 {l.guests} {appText(lang,"listing.guests")}</span>
       </div>
+
+      {/* ── Owner ── */}
+      <div className="ac-party">
+        <div className="ac-party-lbl">👤 {isEn?'Owner':'Propietario'}</div>
+        <div className="ac-party-row">
+          <UserContact name={l.owner} uid={l.ownerUid} email={l.email} whatsapp={l.contact} apartments={l.apt?[aptDisplay(l.apt,lang)]:[]} {...contactProps}/>
+          <div className="ac-cbtns">
+            {l.email     && <a href={`mailto:${l.email}`}          className="ac-cbtn"          title={l.email}    >✉️</a>}
+            {ownerWa     && <a href={`https://wa.me/${ownerWa}`}   className="ac-cbtn ac-cbtn-wa" title={l.contact}  target="_blank" rel="noreferrer">💬</a>}
+          </div>
+        </div>
+      </div>
+
+      {/* ── Operator (only if any operator info exists) ── */}
+      {hasOp && (
+        <div className="ac-party ac-party-op">
+          <div className="ac-party-lbl">🔧 {isEn?'Operator':'Operador'}</div>
+          <div className="ac-party-row">
+            {l.operator
+              ? <UserContact name={l.operator} email={l.operatorEmail} whatsapp={l.operatorWhatsapp} apartments={l.apt?[aptDisplay(l.apt,lang)]:[]} {...contactProps}/>
+              : <span className="ac-no-name">{isEn?'No name':'Sin nombre'}</span>
+            }
+            <div className="ac-cbtns">
+              {l.operatorEmail    && <a href={`mailto:${l.operatorEmail}`}        className="ac-cbtn"           title={l.operatorEmail}    >✉️</a>}
+              {opWa               && <a href={`https://wa.me/${opWa}`}           className="ac-cbtn ac-cbtn-wa" title={l.operatorWhatsapp} target="_blank" rel="noreferrer">💬</a>}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Airbnb + reports ── */}
+      <div className="acard-body">
+        {l.airbnb
+          ? <a className="airbnb-lnk" href={l.airbnb} target="_blank" rel="noreferrer">{appText(lang,"listings.viewAirbnb")}</a>
+          : <div className="no-link">{appText(lang,"listings.noAirbnb")}</div>
+        }
+        <div className={`inc-b ${incCount>0?"ib-open":"ib-none"}`} onClick={onReport}>
+          {incCount>0
+            ?(incCount>1?appText(lang,"listings.openReportPlural",{count:incCount}):appText(lang,"listings.openReportSingular",{count:incCount}))
+            :appText(lang,"listings.noOpenReports")
+          }
+        </div>
+      </div>
+
+      {/* ── Actions ── */}
       <div className="acard-foot">
-        <button className="bsm bs-rep" title={localizedTooltips({}, lang).reportIncident} onClick={onReport}>{appText(lang,"reports.reportIncident")}</button>
-        {canEdit&&<button className="bsm bs-edit" onClick={onEdit}>{lang==="en"?"✏️ Edit":"✏️ Editar"}</button>}{canDelete&&<button className="bsm bs-del" onClick={onDelete}>🗑️</button>}
-        {showLogin&&<span className="lock-tag">{lang==="en"?"🔒 Sign in":"🔒 Inicia sesión"}</span>}
+        <button className="bsm bs-rep" title={localizedTooltips({},lang).reportIncident} onClick={onReport}>{appText(lang,"reports.reportIncident")}</button>
+        {canEdit  && <button className="bsm bs-edit" onClick={onEdit}>{isEn?"✏️ Edit":"✏️ Editar"}</button>}
+        {canDelete && <button className="bsm bs-del"  onClick={onDelete}>🗑️</button>}
+        {showLogin && <span className="lock-tag">{isEn?"🔒 Sign in":"🔒 Inicia sesión"}</span>}
       </div>
     </div>
   );
@@ -2993,13 +3047,24 @@ html{font-size:clamp(14px,1.1vw,16px);-webkit-text-size-adjust:100%}body{overflo
 @media(max-width:760px){.dash-focus-grid{grid-template-columns:1fr}.dash-focus-head{flex-direction:column}.dash-focus-actions{margin-top:4px}}
 
 /* --- AptCard internals ----------------------------------------------------- */
-.acard-top{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:10px}
+.acard-top{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:8px}
 .acard-body{margin-bottom:10px}
 .acard-foot{display:flex;gap:8px;flex-wrap:wrap;padding-top:8px;border-top:1px solid rgba(47,79,58,.08)}
-.ac-op-badge{font-size:.74rem;color:#235f72;background:rgba(11,127,140,.08);border:1px solid rgba(11,127,140,.14);border-radius:999px;padding:3px 9px;white-space:nowrap;flex-shrink:0}
-.ac-op-none{font-size:.74rem;color:#8a9fa5;flex-shrink:0}
 .ac-wave{font-size:1.2rem;opacity:.4;flex-shrink:0}
-.ac-chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px}
+/* Stats row */
+.ac-stats{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}
+/* Owner / Operator sections */
+.ac-party{padding:7px 0;border-top:1px solid rgba(47,79,58,.09)}
+.ac-party-op{border-top-style:dashed}
+.ac-party-lbl{font-size:.63rem;font-weight:900;text-transform:uppercase;letter-spacing:.09em;color:#2a5a6a;margin-bottom:4px}
+.ac-party-row{display:flex;align-items:center;justify-content:space-between;gap:8px;min-width:0}
+.ac-no-name{font-size:.8rem;color:#8a9fa5;font-style:italic}
+/* Contact icon buttons */
+.ac-cbtns{display:flex;align-items:center;gap:4px;flex-shrink:0}
+.ac-cbtn{display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;border-radius:9px;border:1px solid rgba(47,79,58,.18);background:rgba(255,255,255,.85);font-size:.9rem;text-decoration:none;transition:all .14s;cursor:pointer;flex-shrink:0}
+.ac-cbtn:hover{background:#fff;border-color:#0b7f8c;box-shadow:0 4px 12px rgba(32,46,38,.12);transform:translateY(-1px)}
+.ac-cbtn-wa{border-color:rgba(37,211,102,.32)!important;background:rgba(37,211,102,.07)!important}
+.ac-cbtn-wa:hover{border-color:#25d366!important;background:rgba(37,211,102,.16)!important}
 .airbnb-lnk{display:inline-flex;align-items:center;font-size:.78rem;color:#FF5A5F!important;text-decoration:none;font-weight:800;padding:4px 10px;border:1px solid rgba(255,90,95,.22);border-radius:999px;background:rgba(255,90,95,.08)}
 .airbnb-lnk:hover{background:rgba(255,90,95,.16)}
 .no-link{font-size:.74rem;color:#8a9fa5;margin-bottom:6px}
