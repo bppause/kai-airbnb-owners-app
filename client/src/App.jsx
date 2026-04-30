@@ -1238,7 +1238,7 @@ export default function App() {
       <main className="main">
         {view==="dashboard" && <Dashboard lang={lang} listings={listings} incidents={incidents} user={user} contactProps={contactProps} setView={setView} showBlacklist={false} onReport={()=>{ if(!user){login();return;} setModal({type:"incident"}); }} effectiveIsGlobalAdmin={effectiveIsGlobalAdmin} effectiveRole={effectiveRole} delegatePerms={delegatePerms} pendingOwner={needsOwnerVerification.length} pendingResolve={needsAdminResolution.length} pendingRegistrations={effectiveCanManageRegistrations ? pendingRegistrations.length : 0} canResolve={canResolveIncidentsNow} canManageRegistrations={effectiveCanManageRegistrations} onOwnerClick={()=>{setIncidentQuickFilter('ownerVerification');setView('incidents');}} onResolveClick={()=>{setIncidentQuickFilter('requiresResolution');setView('incidents');}} onRegistrationsClick={()=>setView('approvals')} />}
         {view==="about" && <CommunityMissionView lang={lang} config={adminInfo.config} />}
-        {view==="listings"  && <ListingsView lang={lang} listings={listings} incidents={incidents} user={user} contactProps={contactProps} isGlobalAdmin={effectiveIsGlobalAdmin} canEditGlobal={delegatePerms.canUpdateGlobalListings} canDeleteGlobal={delegatePerms.canDeleteGlobalListings} onAdd={()=>{ if(!user){login();return;} setModal({type:"addListing"}); }} onEdit={l=>setModal({type:"editListing",data:l})} onDelete={deleteListing} onReport={l=>{ if(!user){login();return;} setModal({type:"incident",data:{aptId:l.id}}); }} />}
+        {view==="listings"  && <ListingsView lang={lang} listings={listings} incidents={incidents} user={user} contactProps={contactProps} isGlobalAdmin={effectiveIsGlobalAdmin} canEditGlobal={delegatePerms.canUpdateGlobalListings} canDeleteGlobal={delegatePerms.canDeleteGlobalListings} canResolveGlobal={canResolveIncidentsNow} onAdd={()=>{ if(!user){login();return;} setModal({type:"addListing"}); }} onEdit={l=>setModal({type:"editListing",data:l})} onDelete={deleteListing} onReport={l=>{ if(!user){login();return;} setModal({type:"incident",data:{aptId:l.id}}); }} onVerify={inc=>setModal({type:"verifyIncident",data:inc})} onResolve={resolveIncident} />}
         {view==="incidents" && <IncidentsView lang={lang} incidents={incidents} listings={listings} user={user} quickFilter={incidentQuickFilter} onQuickFilterApplied={()=>setIncidentQuickFilter(null)} contactProps={contactProps} isGlobalAdmin={effectiveIsGlobalAdmin} canUpdateGlobal={delegatePerms.canUpdateGlobalIncidents} canDeleteGlobal={delegatePerms.canDeleteGlobalIncidents} canResolveGlobal={canResolveIncidentsNow} onAdd={()=>{ if(!user){login();return;} setModal({type:"incident"}); }} onResolve={resolveIncident} onDelete={deleteIncident} onVerify={inc=>setModal({type:"verifyIncident",data:inc})} />}
         {view==="notifications" && user && <NotificationsView lang={lang} notifications={notifications} incidents={incidents} listings={listings} contactProps={contactProps} onRead={markNotificationRead} onReadAll={markAllNotificationsRead} smartAlerts={smartAlerts} />}
         {view==="approvals" && user && effectiveCanManageRegistrations && <PendingApprovalsView lang={lang} pending={pendingRegistrations} onApprove={id=>reviewRegistrationAction(id,'approve')} onDecline={id=>reviewRegistrationAction(id,'decline')} active={activeRegistrations} />}
@@ -2166,72 +2166,212 @@ function MyListings({ listings, incidents, user, contactProps={}, onAdd, onEdit,
   );
 }
 
-// ── Floor palette — cycles through teal/green/gold/blue/rust for each floor level
-const FLOOR_PALETTE = ['#0b7f8c','#0b7f4f','#b8860b','#4a6fa5','#8c5230','#5e6d0b','#7c4090'];
+// ── Building-view helpers
+const FLOOR_PALETTE = ['#0b7f8c','#0b7f4f','#8a6a0a','#4a6fa5','#7a4a2a','#5a7a2a','#6a4a8a'];
 const floorColor = (f) => FLOOR_PALETTE[f % FLOOR_PALETTE.length];
 const getFloorNum = (apt) => Math.floor(parseInt(apt||'0')/100);
 
+function aptDoorStatus(l, incidents) {
+  const open = incidents.filter(i=>i.aptId===l.id&&i.status==='open');
+  if (open.some(i=>i.category==='serious')) return 'alert';
+  if (open.length>0) return 'warn';
+  return 'clean';
+}
+
+function AptDoor({ l, incidents, isSelected, onSelect, lang, isEn }) {
+  const status = aptDoorStatus(l, incidents);
+  const openCount = incidents.filter(i=>i.aptId===l.id&&i.status==='open').length;
+  return (
+    <div className={`apt-door apt-door-${status}${isSelected?' apt-door-sel':''}`} onClick={()=>onSelect(isSelected?null:l.id)} role="button" aria-expanded={isSelected} title={`Apt ${l.apt} · ${l.owner}`}>
+      <div className={`door-status-bar door-sb-${status}`}/>
+      {openCount>0 && <span className="door-inc-badge">⚠️ {openCount}</span>}
+      <div className="door-plate">{l.apt}</div>
+      <div className="door-body">
+        <div className="door-owner" title={l.owner}>{l.owner||'—'}</div>
+        {l.operator && <div className="door-op" title={l.operator}>🔧 {l.operator}</div>}
+        <div className="door-chips">
+          <span className="door-chip">🛏️ {l.rooms}</span>
+          <span className="door-chip">👥 {l.guests}</span>
+        </div>
+      </div>
+      <div className="door-footer">{isSelected ? (isEn?'▲ Close':'▲ Cerrar') : (isEn?'▼ Details':'▼ Detalles')}</div>
+    </div>
+  );
+}
+
+function AptDetailPanel({ l, incidents, contactProps={}, canEdit, canDelete, onEdit, onDelete, onReport, onClose, user, isGlobalAdmin, canResolveGlobal, onVerify, onResolve, lang, isEn }) {
+  const aptInc = [...incidents.filter(i=>i.aptId===l.id)].sort((a,b)=>new Date(b.createdAt)-new Date(a.createdAt));
+  const ownerWa = normalizePhoneForWhatsApp(l.contact);
+  const opWa = normalizePhoneForWhatsApp(l.operatorWhatsapp);
+  const hasOp = !!(l.operator||l.operatorEmail||l.operatorWhatsapp);
+  const incGroups = [
+    { key:'open',     icon:'⚠️', label:isEn?'Open':'Abiertos',       color:'#d9a030', items:aptInc.filter(i=>i.status==='open') },
+    { key:'verified', icon:'👤', label:isEn?'Verified':'Verificados', color:'#0b7f4f', items:aptInc.filter(i=>i.status==='verified') },
+    { key:'resolved', icon:'✓',  label:isEn?'Resolved':'Resueltos',   color:'#6a9a7a', items:aptInc.filter(i=>i.status==='resolved') },
+  ].filter(g=>g.items.length>0);
+
+  return (
+    <div className="adp-wrap">
+      <div className="adp-header">
+        <div className="adp-apt-id">
+          <span className="adp-apt-num">Apt {l.apt}</span>
+          <span className="chip c-teal">🛏️ {l.rooms}</span>
+          <span className="chip c-blue">👥 {l.guests}</span>
+          {l.airbnb && <a className="airbnb-lnk" href={l.airbnb} target="_blank" rel="noreferrer">Airbnb ↗</a>}
+        </div>
+        <div style={{display:'flex',gap:6,alignItems:'center'}}>
+          <button className="bsm bs-rep" onClick={onReport}>+ {isEn?'Report':'Reporte'}</button>
+          {canEdit && <button className="bsm bs-edit" onClick={onEdit}>✏️</button>}
+          {canDelete && <button className="bsm bs-del" onClick={onDelete}>🗑️</button>}
+          <button className="adp-close-btn" onClick={onClose} title="Close">✕</button>
+        </div>
+      </div>
+
+      <div className="adp-contacts">
+        <div className="adp-party">
+          <span className="adp-party-lbl">👤 {isEn?'Owner':'Propietario'}</span>
+          <div className="adp-party-row">
+            <UserContact name={l.owner} uid={l.ownerUid} email={l.userEmail||l.email} whatsapp={l.contact} apartments={l.apt?[aptDisplay(l.apt,lang)]:[]} {...contactProps}/>
+            <div style={{display:'flex',gap:5}}>
+              {(l.userEmail||l.email)&&<a href={`mailto:${l.userEmail||l.email}`} className="ac-cbtn" title={l.userEmail||l.email}>✉️</a>}
+              {ownerWa&&<a href={`https://wa.me/${ownerWa}`} className="ac-cbtn ac-cbtn-wa" target="_blank" rel="noreferrer">💬</a>}
+            </div>
+          </div>
+        </div>
+        {hasOp && (
+          <div className="adp-party">
+            <span className="adp-party-lbl">🔧 {isEn?'Operator':'Operador'}</span>
+            <div className="adp-party-row">
+              {l.operator ? <UserContact name={l.operator} email={l.operatorEmail} whatsapp={l.operatorWhatsapp} apartments={[]} {...contactProps}/> : <span style={{fontSize:'.8rem',color:'#8a9fa5'}}>—</span>}
+              <div style={{display:'flex',gap:5}}>
+                {l.operatorEmail&&<a href={`mailto:${l.operatorEmail}`} className="ac-cbtn">✉️</a>}
+                {opWa&&<a href={`https://wa.me/${opWa}`} className="ac-cbtn ac-cbtn-wa" target="_blank" rel="noreferrer">💬</a>}
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      <div className="adp-incidents">
+        <div className="adp-inc-hdr">{isEn?'Incident history':'Historial de incidentes'} <span className="adp-inc-count">{aptInc.length}</span></div>
+        {aptInc.length===0
+          ? <div className="adp-inc-empty">✅ {isEn?'No incidents on record':'Sin incidentes registrados'}</div>
+          : incGroups.map(g=>(
+            <div key={g.key} className="adp-inc-group">
+              <div className="adp-inc-group-lbl" style={{color:g.color}}>{g.icon} {g.label} ({g.items.length})</div>
+              {g.items.map(inc=>{
+                const ti=INCIDENT_TYPES.find(t=>t.value===inc.type)||INCIDENT_TYPES[6];
+                const ci=GUEST_CATEGORIES.find(c=>c.value===inc.category);
+                const isOwner=user?.uid===l.ownerUid;
+                const guests=normalizeOwnerGuests(inc);
+                return (
+                  <div key={inc.id} className="adp-inc-card">
+                    <div className="adp-inc-top">
+                      <span className="ir-type" style={{background:ti.bg,color:ti.color}}>{incidentTypeLabel(ti.value,lang)}</span>
+                      {ci&&<span className="ir-cat" style={{background:ci.bg,color:ci.color}}>{ci.icon}</span>}
+                      <span className="adp-inc-date">{fmtDate(inc.date)}</span>
+                    </div>
+                    <div className="adp-inc-desc">{inc.desc}</div>
+                    {guests.length>0 ? <div className="adp-inc-guest">👥 {guests.map(guestFullName).join(' · ')}</div> : inc.guestName&&<div className="adp-inc-guest">👤 {inc.guestName}{inc.guestCity?` · 📍 ${inc.guestCity}`:''}</div>}
+                    {inc.ownerComments&&<div className="adp-inc-comments"><strong>{isEn?'Owner note:':'Nota:'}</strong> {inc.ownerComments}</div>}
+                    {inc.resolutionComments&&<div className="adp-inc-comments"><strong>{isEn?'Resolution:':'Resolución:'}</strong> {inc.resolutionComments}</div>}
+                    <div style={{display:'flex',gap:6,marginTop:6,flexWrap:'wrap'}}>
+                      {inc.status==='open'&&isOwner&&<button className="bsm bs-resolve" onClick={()=>onVerify(inc)}>{appText(lang,'reports.verify')}</button>}
+                      {inc.status==='verified'&&(isGlobalAdmin||canResolveGlobal)&&<button className="bsm bs-resolve" onClick={()=>onResolve(inc.id)}>{appText(lang,'reports.close')}</button>}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ))
+        }
+      </div>
+    </div>
+  );
+}
+
+function BuildingFloor({ floor, apts, incidents, user, contactProps, isGlobalAdmin, canEditGlobal, canDeleteGlobal, canResolveGlobal, onEdit, onDelete, onReport, onVerify, onResolve, isOpen, onToggle, lang, isEn }) {
+  const [selectedAptId, setSelectedAptId] = useState(null);
+  const color = floorColor(floor);
+  const openCount = incidents.filter(i=>apts.some(l=>l.id===i.aptId)&&i.status==='open').length;
+  const selectedApt = apts.find(l=>l.id===selectedAptId);
+  const handleSelect = (id) => setSelectedAptId(id);
+
+  return (
+    <div className="bld-floor">
+      <button className="bld-floor-hdr" style={{borderLeftColor:color}} onClick={onToggle}>
+        <div className="bld-floor-id">
+          <span className="bld-floor-level">{isEn?'FLOOR':'PISO'}</span>
+          <span className="bld-floor-num" style={{color:color}}>{floor}</span>
+        </div>
+        <div className="bld-floor-stats">
+          <span className="bld-stat-pill bld-stat-apts">🏠 {apts.length} {isEn?(apts.length===1?'unit':'units'):(apts.length===1?'apto':'aptos')}</span>
+          {openCount>0 && <span className="bld-stat-pill bld-stat-inc">⚠️ {openCount} {isEn?'open':'abierto'}{openCount>1?'s':''}</span>}
+          {openCount===0 && <span className="bld-stat-pill bld-stat-clear">✓ {isEn?'Clear':'Al día'}</span>}
+        </div>
+        <span className={`bld-chev${isOpen?' bld-chev-up':''}`}>›</span>
+      </button>
+
+      {isOpen && (
+        <div className="bld-floor-body">
+          <div className="bld-door-grid">
+            {apts.map(l=>(
+              <AptDoor key={l.id} l={l} incidents={incidents} isSelected={selectedAptId===l.id} onSelect={handleSelect} lang={lang} isEn={isEn}/>
+            ))}
+          </div>
+          {selectedApt && (
+            <AptDetailPanel
+              l={selectedApt}
+              incidents={incidents}
+              contactProps={contactProps}
+              canEdit={user?.uid===selectedApt.ownerUid||isGlobalAdmin||canEditGlobal}
+              canDelete={user?.uid===selectedApt.ownerUid||isGlobalAdmin||canDeleteGlobal}
+              onEdit={()=>onEdit(selectedApt)}
+              onDelete={()=>onDelete(selectedApt)}
+              onReport={()=>onReport(selectedApt)}
+              onClose={()=>setSelectedAptId(null)}
+              user={user}
+              isGlobalAdmin={isGlobalAdmin}
+              canResolveGlobal={canResolveGlobal}
+              onVerify={onVerify}
+              onResolve={onResolve}
+              lang={lang}
+              isEn={isEn}
+            />
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Keep old FloorSection + AptRow for list-mode compatibility
 function AptRow({ l, incCount, user, contactProps={}, isGlobalAdmin=false, canEditGlobal=false, canDeleteGlobal=false, onEdit, onDelete, onReport, lang, isEn }) {
   const [expanded, setExpanded] = useState(false);
   const ownerWa = normalizePhoneForWhatsApp(l.contact);
   const opWa    = normalizePhoneForWhatsApp(l.operatorWhatsapp);
-  const hasOp   = !!(l.operator || l.operatorEmail || l.operatorWhatsapp);
-  const canEdit   = user?.uid === l.ownerUid || isGlobalAdmin || canEditGlobal;
-  const canDelete = user?.uid === l.ownerUid || isGlobalAdmin || canDeleteGlobal;
+  const hasOp   = !!(l.operator||l.operatorEmail||l.operatorWhatsapp);
+  const canEdit   = user?.uid===l.ownerUid||isGlobalAdmin||canEditGlobal;
+  const canDelete = user?.uid===l.ownerUid||isGlobalAdmin||canDeleteGlobal;
   return (
     <div className={`fls-row${expanded?' fls-row-open':''}`}>
       <div className="fls-row-main" onClick={()=>setExpanded(x=>!x)} role="button" aria-expanded={expanded}>
         <span className="fls-apt-num">Apt {l.apt}</span>
-        <span className="fls-owner-wrap">
-          <UserContact name={l.owner} uid={l.ownerUid} email={l.userEmail||l.email} whatsapp={l.contact} apartments={l.apt?[aptDisplay(l.apt,lang)]:[]} {...contactProps}/>
-        </span>
-        {hasOp && <span className="fls-op-pill">🔧 {l.operator||'—'}</span>}
-        <span className="fls-row-chips">
-          <span className="chip c-teal">🛏️ {l.rooms}</span>
-          <span className="chip c-blue">👥 {l.guests}</span>
-        </span>
+        <span className="fls-owner-wrap"><UserContact name={l.owner} uid={l.ownerUid} email={l.userEmail||l.email} whatsapp={l.contact} apartments={l.apt?[aptDisplay(l.apt,lang)]:[]} {...contactProps}/></span>
+        {hasOp&&<span className="fls-op-pill">🔧 {l.operator||'—'}</span>}
+        <span className="fls-row-chips"><span className="chip c-teal">🛏️ {l.rooms}</span><span className="chip c-blue">👥 {l.guests}</span></span>
         <span className="fls-row-acts" onClick={e=>e.stopPropagation()}>
-          {(l.userEmail||l.email) && <a href={`mailto:${l.userEmail||l.email}`} className="ac-cbtn" title={l.userEmail||l.email}>✉️</a>}
-          {ownerWa && <a href={`https://wa.me/${ownerWa}`} className="ac-cbtn ac-cbtn-wa" title={l.contact} target="_blank" rel="noreferrer">💬</a>}
+          {(l.userEmail||l.email)&&<a href={`mailto:${l.userEmail||l.email}`} className="ac-cbtn" title={l.userEmail||l.email}>✉️</a>}
+          {ownerWa&&<a href={`https://wa.me/${ownerWa}`} className="ac-cbtn ac-cbtn-wa" title={l.contact} target="_blank" rel="noreferrer">💬</a>}
         </span>
-        {incCount>0 && <span className="fls-inc-pill">⚠️ {incCount}</span>}
+        {incCount>0&&<span className="fls-inc-pill">⚠️ {incCount}</span>}
         <span className={`fls-chev${expanded?' fls-chev-up':''}`}>›</span>
       </div>
-
-      {expanded && (
+      {expanded&&(
         <div className="fls-row-detail" onClick={e=>e.stopPropagation()}>
-          {hasOp && (
-            <div className="fls-det-row">
-              <span className="fls-det-lbl">🔧 {isEn?'Operator':'Operador'}</span>
-              <span className="fls-det-val">
-                {l.operator
-                  ? <UserContact name={l.operator} email={l.operatorEmail} whatsapp={l.operatorWhatsapp} apartments={[]} {...contactProps}/>
-                  : <span style={{fontSize:'.8rem',color:'#8a9fa5'}}>{isEn?'No name':'Sin nombre'}</span>}
-                <span className="fls-det-acts">
-                  {l.operatorEmail && <a href={`mailto:${l.operatorEmail}`} className="ac-cbtn" title={l.operatorEmail}>✉️</a>}
-                  {opWa && <a href={`https://wa.me/${opWa}`} className="ac-cbtn ac-cbtn-wa" title={l.operatorWhatsapp} target="_blank" rel="noreferrer">💬</a>}
-                </span>
-              </span>
-            </div>
-          )}
-          <div className="fls-det-row">
-            <span className="fls-det-lbl">Airbnb</span>
-            <span className="fls-det-val">
-              {l.airbnb
-                ? <a className="airbnb-lnk" href={l.airbnb} target="_blank" rel="noreferrer">{isEn?'View listing':'Ver listing'}</a>
-                : <span style={{fontSize:'.8rem',color:'#8a9fa5'}}>{isEn?'No link':'Sin enlace'}</span>}
-            </span>
-          </div>
-          <div className="fls-det-acts-row">
-            <button className="bsm bs-rep" onClick={onReport}>{isEn?'+ Report':'+ Reporte'}</button>
-            {canEdit   && <button className="bsm bs-edit" onClick={onEdit}>✏️ {isEn?'Edit':'Editar'}</button>}
-            {canDelete && <button className="bsm bs-del"  onClick={onDelete}>🗑️</button>}
-            <span className={`inc-b ${incCount>0?'ib-open':'ib-none'}`} style={{cursor:'default',display:'inline-flex',alignItems:'center'}}>
-              {incCount>0
-                ?(incCount>1?appText(lang,'listings.openReportPlural',{count:incCount}):appText(lang,'listings.openReportSingular',{count:incCount}))
-                :appText(lang,'listings.noOpenReports')}
-            </span>
-          </div>
+          {hasOp&&<div className="fls-det-row"><span className="fls-det-lbl">🔧 {isEn?'Operator':'Operador'}</span><span className="fls-det-val">{l.operator?<UserContact name={l.operator} email={l.operatorEmail} whatsapp={l.operatorWhatsapp} apartments={[]} {...contactProps}/>:<span style={{fontSize:'.8rem',color:'#8a9fa5'}}>{isEn?'No name':'Sin nombre'}</span>}<span className="fls-det-acts">{l.operatorEmail&&<a href={`mailto:${l.operatorEmail}`} className="ac-cbtn">✉️</a>}{opWa&&<a href={`https://wa.me/${opWa}`} className="ac-cbtn ac-cbtn-wa" target="_blank" rel="noreferrer">💬</a>}</span></span></div>}
+          <div className="fls-det-row"><span className="fls-det-lbl">Airbnb</span><span className="fls-det-val">{l.airbnb?<a className="airbnb-lnk" href={l.airbnb} target="_blank" rel="noreferrer">{isEn?'View listing':'Ver listing'}</a>:<span style={{fontSize:'.8rem',color:'#8a9fa5'}}>{isEn?'No link':'Sin enlace'}</span>}</span></div>
+          <div className="fls-det-acts-row"><button className="bsm bs-rep" onClick={e=>{e.stopPropagation();onReport();}}>+ {isEn?'Report':'Reporte'}</button>{canEdit&&<button className="bsm bs-edit" onClick={e=>{e.stopPropagation();onEdit();}}>✏️</button>}{canDelete&&<button className="bsm bs-del" onClick={e=>{e.stopPropagation();onDelete();}}>🗑️</button>}<span className={`inc-b ${incCount>0?'ib-open':'ib-none'}`} style={{cursor:'default',display:'inline-flex',alignItems:'center'}}>{incCount>0?(incCount>1?appText(lang,'listings.openReportPlural',{count:incCount}):appText(lang,'listings.openReportSingular',{count:incCount})):appText(lang,'listings.noOpenReports')}</span></div>
         </div>
       )}
     </div>
@@ -2248,38 +2388,32 @@ function FloorSection({ floor, apts, openCount, incidents, user, contactProps, i
         <span className="fls-floor-label">{isEn?`Floor ${floor}`:`Piso ${floor}`}</span>
         <span className="fls-floor-meta">
           <span className="fls-floor-units">{apts.length} {isEn?(apts.length===1?'unit':'units'):'apto'+(apts.length>1?'s':'')}</span>
-          {openCount>0 && <span className="fls-floor-open">⚠️ {openCount} {isEn?'open':'abierto'}{openCount>1&&isEn?'s':''}</span>}
+          {openCount>0&&<span className="fls-floor-open">⚠️ {openCount}</span>}
         </span>
         <span className={`fls-chev${open?' fls-chev-up':''}`} style={{marginLeft:'auto'}}>›</span>
       </button>
-      {open && (
-        <div className="fls-floor-body">
-          {apts.map(l=>(
-            <AptRow key={l.id} l={l} incCount={incidents.filter(i=>i.aptId===l.id&&i.status==='open').length} user={user} contactProps={contactProps} isGlobalAdmin={isGlobalAdmin} canEditGlobal={canEditGlobal} canDeleteGlobal={canDeleteGlobal} onEdit={()=>onEdit(l)} onDelete={()=>onDelete(l)} onReport={()=>onReport(l)} lang={lang} isEn={isEn}/>
-          ))}
-        </div>
-      )}
+      {open&&<div className="fls-floor-body">{apts.map(l=><AptRow key={l.id} l={l} incCount={incidents.filter(i=>i.aptId===l.id&&i.status==='open').length} user={user} contactProps={contactProps} isGlobalAdmin={isGlobalAdmin} canEditGlobal={canEditGlobal} canDeleteGlobal={canDeleteGlobal} onEdit={()=>onEdit(l)} onDelete={()=>onDelete(l)} onReport={()=>onReport(l)} lang={lang} isEn={isEn}/>)}</div>}
     </div>
   );
 }
 
-function ListingsView({ listings, incidents, user, contactProps={}, isGlobalAdmin=false, canEditGlobal=false, canDeleteGlobal=false, onAdd, onEdit, onDelete, onReport, lang="es-CO" }) {
-  const [search, setSearch] = useState('');
-  const [scope,  setScope]  = useState('all');
-  const [viewMode, setViewMode] = useState('floors');
+function ListingsView({ listings, incidents, user, contactProps={}, isGlobalAdmin=false, canEditGlobal=false, canDeleteGlobal=false, canResolveGlobal=false, onAdd, onEdit, onDelete, onReport, onVerify, onResolve, lang="es-CO" }) {
+  const [search, setSearch]   = useState('');
+  const [scope, setScope]     = useState('all');
+  const [viewMode, setViewMode] = useState('building');
+  const [floorOpen, setFloorOpen] = useState({});
   const isEn = lang === 'en';
 
-  const scoped   = scope === 'mine' && user ? listings.filter(l=>l.ownerUid===user.uid) : listings;
-  const filtered = scoped.filter(l => {
-    const q = search.toLowerCase();
-    return !q || String(l.apt||'').includes(q) || String(l.owner||'').toLowerCase().includes(q) || String(l.operator||'').toLowerCase().includes(q);
+  const toggleFloor = (f) => setFloorOpen(s=>({...s,[f]:!s[f]}));
+
+  const scoped   = scope==='mine'&&user ? listings.filter(l=>l.ownerUid===user.uid) : listings;
+  const filtered = scoped.filter(l=>{
+    const q=search.toLowerCase();
+    return !q||String(l.apt||'').includes(q)||String(l.owner||'').toLowerCase().includes(q)||String(l.operator||'').toLowerCase().includes(q);
   });
   const sorted = [...filtered].sort((a,b)=>String(a.apt||'').localeCompare(String(b.apt||'')));
-
-  // Group by floor
-  const floorNums = [...new Set(sorted.map(l=>getFloorNum(l.apt)))].sort((a,b)=>a-b);
-  const byFloor   = (f) => sorted.filter(l=>getFloorNum(l.apt)===f);
-  const floorOpen = (f) => incidents.filter(i=>byFloor(f).some(l=>l.id===i.aptId)&&i.status==='open').length;
+  const floorNums = [...new Set(sorted.map(l=>getFloorNum(l.apt)))].sort((a,b)=>b-a);
+  const byFloor = (f) => sorted.filter(l=>getFloorNum(l.apt)===f);
 
   return (
     <div className="fade">
@@ -2288,39 +2422,30 @@ function ListingsView({ listings, incidents, user, contactProps={}, isGlobalAdmi
           <h1 className="ptitle">{appText(lang,'listings.title')}</h1>
           <p className="psub">{appText(lang,'listings.subtitle',{count:scoped.length})}</p>
         </div>
-        {user && <button className="btn-p" onClick={onAdd}>{appText(lang,'listings.add')}</button>}
+        {user&&<button className="btn-p" onClick={onAdd}>{appText(lang,'listings.add')}</button>}
       </div>
 
-      {/* ── Toolbar: scope filter + view toggle ── */}
       <div className="fls-toolbar">
-        {user && (
-          <div className="filter-row" style={{margin:0,gap:6}}>
-            <button className={`fchip ${scope==='all'?'fchip-on':''}`} onClick={()=>setScope('all')}>{appText(lang,'filters.scopeAll')}</button>
-            <button className={`fchip ${scope==='mine'?'fchip-on':''}`} onClick={()=>setScope('mine')}>{appText(lang,'filters.scopeMine')}</button>
-          </div>
-        )}
+        {user&&<div className="filter-row" style={{margin:0,gap:6}}><button className={`fchip ${scope==='all'?'fchip-on':''}`} onClick={()=>setScope('all')}>{appText(lang,'filters.scopeAll')}</button><button className={`fchip ${scope==='mine'?'fchip-on':''}`} onClick={()=>setScope('mine')}>{appText(lang,'filters.scopeMine')}</button></div>}
         <div className="fls-vtoggle">
-          <button className={`fls-vbtn${viewMode==='floors'?' fls-vbtn-on':''}`} onClick={()=>setViewMode('floors')} title={isEn?'Group by floor':'Agrupar por piso'}>🏢 {isEn?'Floors':'Pisos'}</button>
-          <button className={`fls-vbtn${viewMode==='grid'?' fls-vbtn-on':''}`}   onClick={()=>setViewMode('grid')}   title={isEn?'Card grid':'Tarjetas'}>⊞ {isEn?'Cards':'Tarjetas'}</button>
+          <button className={`fls-vbtn${viewMode==='building'?' fls-vbtn-on':''}`} onClick={()=>setViewMode('building')} title={isEn?'Building view':'Vista edificio'}>🏢</button>
+          <button className={`fls-vbtn${viewMode==='list'?' fls-vbtn-on':''}`}     onClick={()=>setViewMode('list')}     title={isEn?'List view':'Lista'}>≡</button>
+          <button className={`fls-vbtn${viewMode==='grid'?' fls-vbtn-on':''}`}     onClick={()=>setViewMode('grid')}     title={isEn?'Card grid':'Tarjetas'}>⊞</button>
         </div>
       </div>
 
-      {/* ── Search ── */}
       <div style={{position:'relative',marginBottom:14}}>
         <input className="search" style={{paddingRight:36}} placeholder={appText(lang,'listings.search')} value={search} onChange={e=>setSearch(e.target.value)}/>
-        {search && <button className="inc-search-clear" onClick={()=>setSearch('')} aria-label="Clear">✕</button>}
+        {search&&<button className="inc-search-clear" onClick={()=>setSearch('')}>✕</button>}
       </div>
 
-      {/* ── Content ── */}
-      {filtered.length === 0
+      {filtered.length===0
         ? <EmptyState icon="🏠" title={appText(lang,'listings.none')} sub={appText(lang,'listings.noResults')}/>
-        : viewMode === 'grid'
+        : viewMode==='grid'
           ? <div className="lg">{sorted.map(l=><AptCard key={l.id} l={l} contactProps={contactProps} incCount={incidents.filter(i=>i.aptId===l.id&&i.status==='open').length} canEdit={user?.uid===l.ownerUid||isGlobalAdmin||canEditGlobal} canDelete={user?.uid===l.ownerUid||isGlobalAdmin||canDeleteGlobal} onEdit={()=>onEdit(l)} onDelete={()=>onDelete(l)} onReport={()=>onReport(l)} showLogin={!user} lang={lang}/>)}</div>
-          : <div className="fls-list">
-              {floorNums.map(f=>(
-                <FloorSection key={f} floor={f} apts={byFloor(f)} openCount={floorOpen(f)} incidents={incidents} user={user} contactProps={contactProps} isGlobalAdmin={isGlobalAdmin} canEditGlobal={canEditGlobal} canDeleteGlobal={canDeleteGlobal} onEdit={onEdit} onDelete={onDelete} onReport={onReport} lang={lang} isEn={isEn}/>
-              ))}
-            </div>
+          : viewMode==='list'
+            ? <div className="fls-list">{floorNums.map(f=><FloorSection key={f} floor={f} apts={byFloor(f)} openCount={incidents.filter(i=>byFloor(f).some(l=>l.id===i.aptId)&&i.status==='open').length} incidents={incidents} user={user} contactProps={contactProps} isGlobalAdmin={isGlobalAdmin} canEditGlobal={canEditGlobal} canDeleteGlobal={canDeleteGlobal} onEdit={onEdit} onDelete={onDelete} onReport={onReport} lang={lang} isEn={isEn}/>)}</div>
+            : <div className="bld-building">{floorNums.map(f=><BuildingFloor key={f} floor={f} apts={byFloor(f)} incidents={incidents} user={user} contactProps={contactProps} isGlobalAdmin={isGlobalAdmin} canEditGlobal={canEditGlobal} canDeleteGlobal={canDeleteGlobal} canResolveGlobal={canResolveGlobal} onEdit={onEdit} onDelete={onDelete} onReport={onReport} onVerify={onVerify} onResolve={onResolve} isOpen={!!floorOpen[f]} onToggle={()=>toggleFloor(f)} lang={lang} isEn={isEn}/>)}</div>
       }
     </div>
   );
@@ -2424,6 +2549,31 @@ const normalizeOwnerGuests = (incident={}) => {
 const guestFullName = (g={}) => [g.firstName, g.middleName, g.lastName].map(x=>String(x||'').trim()).filter(Boolean).join(' ');
 const guestLocation = (g={}) => [g.city, g.country].map(x=>String(x||'').trim()).filter(Boolean).join(', ');
 
+function WorkflowGroup({ statusKey, icon, label, sublabel, color, incidents, listings, isOpen, onToggle, user, contactProps, isGlobalAdmin, canUpdateGlobal, canDeleteGlobal, canResolveGlobal, onResolve, onDelete, onVerify, lang, isEn }) {
+  const count = incidents.length;
+  return (
+    <div className="wfg-section">
+      <button className="wfg-hdr" style={{borderLeftColor:color}} onClick={onToggle}>
+        <span className="wfg-icon">{icon}</span>
+        <div className="wfg-hdr-body">
+          <span className="wfg-label">{label}</span>
+          {sublabel&&<span className="wfg-sublabel">{sublabel}</span>}
+        </div>
+        <span className="wfg-badge" style={{background:color+'22',color}}>{count}</span>
+        <span className={`fls-chev${isOpen?' fls-chev-up':''}`}>›</span>
+      </button>
+      {isOpen&&(
+        <div className="wfg-body">
+          {count===0
+            ? <div className="wfg-empty">✓ {isEn?'None here':'Nada aquí'}</div>
+            : incidents.map(inc=><IRow key={inc.id} inc={inc} user={user} listings={listings} contactProps={contactProps} isGlobalAdmin={isGlobalAdmin} canUpdateGlobal={canUpdateGlobal} canDeleteGlobal={canDeleteGlobal} canResolveGlobal={canResolveGlobal} onResolve={onResolve} onDelete={onDelete} onVerify={onVerify} lang={lang}/>)
+          }
+        </div>
+      )}
+    </div>
+  );
+}
+
 function IncidentsView({ incidents, listings, user, quickFilter=null, onQuickFilterApplied=()=>{}, contactProps={}, isGlobalAdmin=false, canUpdateGlobal=false, canDeleteGlobal=false, canResolveGlobal=false, onAdd, onResolve, onDelete, onVerify, lang="es-CO" }) {
   const [sf,setSf]=useState("all"), [cf,setCf]=useState("all"), [scope,setScope]=useState("all"), [search,setSearch]=useState("");
   useEffect(()=>{
@@ -2465,8 +2615,17 @@ function IncidentsView({ incidents, listings, user, quickFilter=null, onQuickFil
   }
   list.sort((a,b)=>new Date(b.createdAt)-new Date(a.createdAt));
   const isEn = lang==='en';
-  const anyFilter = sf!=='all' || cf!=='all' || (user && scope!=='all') || search.trim()!=='';
+  const anyFilter = sf!=='all'||cf!=='all'||(user&&scope!=='all')||search.trim()!=='';
   const resetAll = () => { setSf('all'); setCf('all'); setScope('all'); setSearch(''); };
+  const [groupOpen, setGroupOpen] = useState({open:true,verified:false,resolved:false});
+  const toggleGroup = (k) => setGroupOpen(s=>({...s,[k]:!s[k]}));
+
+  const wfGroups = [
+    { key:'open',     icon:'⚠️', color:'#d9a030', label:appText(lang,'workflow.open'),     sublabel:isEn?'Pending owner verification':'Pendiente verificación del propietario' },
+    { key:'verified', icon:'👤', color:'#0b7f4f', label:appText(lang,'workflow.verified'),  sublabel:isEn?'Awaiting admin resolution':'Esperando resolución del admin' },
+    { key:'resolved', icon:'✓',  color:'#6a9a7a', label:appText(lang,'workflow.resolved'),  sublabel:isEn?'Closed incidents':'Incidentes cerrados' },
+  ];
+
   return (
     <div className="fade">
       <div className="ph">
@@ -2474,91 +2633,53 @@ function IncidentsView({ incidents, listings, user, quickFilter=null, onQuickFil
           <h1 className="ptitle">{appText(lang,"reports.title")}</h1>
           <p className="psub">{appText(lang,"reports.subtitle",{total:list.length,open:list.filter(i=>i.status==="open").length})}</p>
         </div>
-        {user&&<button className="btn-p btn-report" title={localizedTooltips({},lang).reportIncident} onClick={onAdd}>{appText(lang,"reports.reportIncident")}</button>}
+        {user&&<button className="btn-p btn-report" onClick={onAdd}>{appText(lang,"reports.reportIncident")}</button>}
       </div>
 
-      {/* ── Compact workflow stepper ───────────────────────────────────── */}
-      <div className="inc-wf-bar" role="tablist" aria-label={appText(lang,"workflow.title")}>
-        <span className="inc-wf-label">{appText(lang,"workflow.title")}</span>
-        <div className="inc-wf-sep"/>
-        {[
-          { key:'open',     icon:'⚠️', label:appText(lang,"workflow.open"),     tip:isEn?"Open — pending owner verification":"Abierto — pendiente verificación del propietario",     onClick:()=>{setScope(user?'ownerVerification':'all');setSf('open');setCf('all');} },
-          { key:'verified', icon:'👤', label:appText(lang,"workflow.verified"),  tip:isEn?"Verified — ready for admin resolution":"Verificado — listo para resolución del admin",        onClick:()=>{setScope((isGlobalAdmin||canResolveGlobal)?'requiresResolution':'all');setSf('verified');setCf('all');} },
-          { key:'resolved', icon:'✓',  label:appText(lang,"workflow.resolved"),  tip:isEn?"Resolved — closed by admin":"Resuelto — cerrado por el admin",                              onClick:()=>{setScope('all');setSf('resolved');setCf('all');} },
-        ].map((step,i,arr)=>(
-          <span key={step.key} className="inc-wf-group">
-            <button type="button" className={`inc-wf-step${sf===step.key?' inc-wf-on':''}`} title={step.tip} onClick={step.onClick}>
-              <span>{step.icon}</span><span>{step.label}</span>
-            </button>
-            {i<arr.length-1 && <span className="inc-wf-arrow">›</span>}
-          </span>
-        ))}
-        {sf!=='all' && <button className="inc-wf-clear" onClick={()=>{setSf('all');setScope('all');}} title={isEn?'Clear workflow filter':'Limpiar filtro de estado'}>✕</button>}
-      </div>
-
-      {/* ── Search ───────────────────────────────────────────────────── */}
-      <div className="inc-search-wrap">
+      <div className="inc-search-wrap" style={{marginBottom:10}}>
         <input className="search inc-search" placeholder={appText(lang,"incidents.search")} value={search} onChange={e=>setSearch(e.target.value)}/>
-        {search && <button className="inc-search-clear" onClick={()=>setSearch('')} aria-label="Clear search">✕</button>}
+        {search&&<button className="inc-search-clear" onClick={()=>setSearch('')}>✕</button>}
       </div>
 
-      {/* ── Grouped filter bar ───────────────────────────────────────── */}
-      <div className="inc-filter-bar">
-        {/* ── Scope group ── */}
-        {user && <>
-          <div className="inc-fb-group">
-            <span className="inc-fb-lbl">{isEn?'View':'Vista'}</span>
-            <div className="inc-fb-chips">
-              <button className={`fchip fchip-sm ${scope==='all'?'fchip-on':''}`} onClick={()=>setScope('all')}>
-                {isEn?'All':'Todos'}
-              </button>
-              <button className={`fchip fchip-sm ${(scope==='mine'||scope==='ownerVerification')?'fchip-on':''}`} onClick={()=>{setScope('mine');setSf('all');}}>
-                {isEn?'Mine':'Los míos'}
-              </button>
-              {(isGlobalAdmin||canResolveGlobal) && (
-                <button className={`fchip fchip-sm ${scope==='requiresResolution'?'fchip-on':''}`} onClick={()=>{setScope('requiresResolution');setSf('verified');}}>
-                  {isEn?'Needs resolution':'Sin resolver'}
-                </button>
-              )}
-            </div>
-          </div>
-          <div className="inc-fb-div"/>
-        </>}
-        {/* ── Workflow status group ── */}
-        <div className="inc-fb-group">
-          <span className="inc-fb-lbl">{isEn?'Workflow':'Estado'}</span>
-          <div className="inc-fb-chips">
-            {['open','verified','resolved'].map(f=>(
-              <button key={f} className={`fchip fchip-sm ${sf===f?'fchip-on':''}`} onClick={()=>setSf(sf===f?'all':f)}>
-                {f==='open'?appText(lang,'reports.open'):f==='verified'?appText(lang,'reports.verified'):appText(lang,'reports.resolved')}
-              </button>
-            ))}
-          </div>
+      <div className="wfg-filters">
+        {user&&<div style={{display:'flex',gap:5,alignItems:'center',flexWrap:'wrap'}}>
+          <button className={`fchip fchip-sm ${scope==='all'?'fchip-on':''}`} onClick={()=>setScope('all')}>{isEn?'All':'Todos'}</button>
+          <button className={`fchip fchip-sm ${(scope==='mine'||scope==='ownerVerification')?'fchip-on':''}`} onClick={()=>{setScope('mine');setSf('all');}}>{isEn?'Mine':'Los míos'}</button>
+          {(isGlobalAdmin||canResolveGlobal)&&<button className={`fchip fchip-sm ${scope==='requiresResolution'?'fchip-on':''}`} onClick={()=>{setScope('requiresResolution');setSf('verified');}}>{isEn?'Needs resolution':'Sin resolver'}</button>}
+        </div>}
+        <div style={{display:'flex',gap:5,flexWrap:'wrap'}}>
+          {GUEST_CATEGORIES.map(c=><button key={c.value} className={`fchip fchip-sm ${cf===c.value?'fchip-on':''}`} onClick={()=>setCf(cf===c.value?'all':c.value)}>{c.icon} {categoryLabel(c.value,lang)}</button>)}
+          {anyFilter&&<button className="fchip fchip-sm fchip-reset" onClick={resetAll}>✕ {isEn?'Reset':'Limpiar'}</button>}
         </div>
-        <div className="inc-fb-div"/>
-        {/* ── Category / type group ── */}
-        <div className="inc-fb-group">
-          <span className="inc-fb-lbl">{isEn?'Type':'Tipo'}</span>
-          <div className="inc-fb-chips">
-            {GUEST_CATEGORIES.map(c=>(
-              <button key={c.value} className={`fchip fchip-sm ${cf===c.value?'fchip-on':''}`} onClick={()=>setCf(cf===c.value?'all':c.value)}>
-                {c.icon} {categoryLabel(c.value,lang)}
-              </button>
-            ))}
-          </div>
-        </div>
-        {/* ── Reset ── */}
-        {anyFilter && (
-          <button className="fchip fchip-sm fchip-reset inc-fb-reset" onClick={resetAll} title={isEn?'Clear all filters':'Limpiar todos los filtros'}>
-            ✕ {isEn?'Reset':'Limpiar'}
-          </button>
-        )}
       </div>
 
-      {list.length===0
-        ?<EmptyState icon="✅" title={appText(lang,"reports.none")} sub={appText(lang,"reports.noneFilter")}/>
-        :list.map(i=><IRow key={i.id} inc={i} user={user} listings={listings} contactProps={contactProps} isGlobalAdmin={isGlobalAdmin} canUpdateGlobal={canUpdateGlobal} canDeleteGlobal={canDeleteGlobal} canResolveGlobal={canResolveGlobal} onResolve={onResolve} onDelete={onDelete} onVerify={onVerify} lang={lang}/>)
-      }
+      <div className="wfg-list">
+        {wfGroups.map(g=>(
+          <WorkflowGroup
+            key={g.key}
+            statusKey={g.key}
+            icon={g.icon}
+            color={g.color}
+            label={g.label}
+            sublabel={g.sublabel}
+            incidents={list.filter(i=>i.status===g.key)}
+            listings={listings}
+            isOpen={groupOpen[g.key]}
+            onToggle={()=>toggleGroup(g.key)}
+            user={user}
+            contactProps={contactProps}
+            isGlobalAdmin={isGlobalAdmin}
+            canUpdateGlobal={canUpdateGlobal}
+            canDeleteGlobal={canDeleteGlobal}
+            canResolveGlobal={canResolveGlobal}
+            onResolve={onResolve}
+            onDelete={onDelete}
+            onVerify={onVerify}
+            lang={lang}
+            isEn={isEn}
+          />
+        ))}
+      </div>
     </div>
   );
 }
@@ -2650,7 +2771,7 @@ function IRow({ inc, user, listings=[], contactProps={}, isGlobalAdmin=false, ca
   const ti=INCIDENT_TYPES.find(t=>t.value===inc.type)||INCIDENT_TYPES[6], ci=GUEST_CATEGORIES.find(c=>c.value===inc.category); const tiLabel=incidentTypeLabel(ti.value,lang), ciLabel=ci?categoryLabel(ci.value,lang):"";
   return (
     <div className={`irow ${(inc.status==="resolved"||inc.status==="verified")?"irow-res":""} ${naughtyMode?"irow-naughty":""}`}>
-      <div className="ir-l"><div className="ir-apt">{inc.aptLabel}</div>{guests.length>0?<div className="ir-guest">👥 {guests.map(guestFullName).join(' · ')}</div>:<div className="ir-guest">👤 {inc.guestName || (lang==='en'?'Pending owner verification':'Pendiente por verificar')}</div>}{guests.length>0&&<div className="ir-loc">📍 {[...new Set(guests.map(guestLocation).filter(Boolean))].join(' · ')}</div>}{!guests.length&&inc.guestCity&&<div className="ir-loc">📍 {inc.guestCity}, {inc.guestCountry}</div>}<div className="ir-date">📅 {fmtDate(inc.date)}</div>{!compact&&<div className="ir-rep">{lang==="en"?"By":"Por"}: <UserContact name={inc.reporterName} uid={inc.reporterUid} {...contactProps}/></div>}</div>
+      <div className="ir-l"><div className="ir-apt-context"><div className="ir-apt">{inc.aptLabel}</div>{listing&&<div className="ir-apt-sub">👤 {listing.owner||'—'}{listing.operator?` · 🔧 ${listing.operator}`:''}</div>}</div>{guests.length>0?<div className="ir-guest">👥 {guests.map(guestFullName).join(' · ')}</div>:<div className="ir-guest">👤 {inc.guestName || (lang==='en'?'Pending owner verification':'Pendiente por verificar')}</div>}{guests.length>0&&<div className="ir-loc">📍 {[...new Set(guests.map(guestLocation).filter(Boolean))].join(' · ')}</div>}{!guests.length&&inc.guestCity&&<div className="ir-loc">📍 {inc.guestCity}, {inc.guestCountry}</div>}<div className="ir-date">📅 {fmtDate(inc.date)}</div>{!compact&&<div className="ir-rep">{lang==="en"?"By":"Por"}: <UserContact name={inc.reporterName} uid={inc.reporterUid} {...contactProps}/></div>}</div>
       <div className="ir-c"><div className="ir-tags"><span className="ir-type" style={{background:ti.bg,color:ti.color}}>{tiLabel}</span>{ci&&<span className="ir-cat" style={{background:ci.bg,color:ci.color}}>{ci.icon} {ciLabel}</span>}<span className={`ir-status ${inc.status==="open"?"is-open":inc.status==="resolved"?"is-resolved":"is-verified"}`}>{inc.status==="open"?(lang==="en"?"⚠️ Open":"⚠️ Abierto"):inc.status==="verified"?(lang==="en"?"✅ Verified by owner":"✅ Verificado por propietario"):(lang==="en"?"🛠️ Resolved":"🛠️ Resuelto")}</span>{inc.slaCycleCount>0&&<span className="ir-cat" style={{background:"#fff3e0",color:"#e65100"}}>⏱️ SLA {inc.slaCycleCount}</span>}</div>{!compact&&<div className="ir-desc">{inc.desc}</div>}{guests.length>0&&<div className="ir-desc"><strong>{appText(lang,'form.guestDetails')}:</strong><div className="guest-display-list">{guests.map((g,idx)=><div key={idx}>👤 {guestFullName(g)}{guestLocation(g)?` · ${guestLocation(g)}`:''}</div>)}</div>{inc.ownerComments&&<div style={{marginTop:6}}><strong>{appText(lang,'form.ownerResponse')}:</strong> {inc.ownerComments}</div>}{inc.resolutionComments&&<div style={{marginTop:6}}><strong>{appText(lang,'form.resolutionComments')}:</strong> {inc.resolutionComments}</div>}</div>}</div>
       {!compact&&user&&<div className="ir-acts">{inc.status==="open"&&isOwner&&<button className="bsm bs-resolve" onClick={()=>onVerify(inc)}>{appText(lang,"reports.verify")}</button>}{inc.status==="verified"&&(isGlobalAdmin || canResolveGlobal)&&<button className="bsm bs-resolve" onClick={()=>onResolve(inc.id)}>{appText(lang,"reports.close")}</button>}{(inc.reporterUid===user.uid || isGlobalAdmin || canDeleteGlobal)&&<button className="bsm bs-del" onClick={()=>onDelete(inc.id)}>🗑️</button>}</div>}
     </div>
@@ -3570,28 +3691,89 @@ html{font-size:clamp(14px,1.1vw,16px);-webkit-text-size-adjust:100%}body{overflo
 @media(max-width:600px){.admin-sec-hdr{flex-wrap:wrap;gap:8px}.admin-sec-action{width:100%}}
 @media(max-width:600px){.help-grid{grid-template-columns:1fr}.help-article-hdr{flex-direction:column;gap:10px}.help-article-icon{font-size:2rem}}
 
-/* ── Floor-grouped listings view ─────────────────────────────────────────── */
+/* ── Building view ───────────────────────────────────────────────────────── */
 .fls-toolbar{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px;flex-wrap:wrap}
 .fls-vtoggle{display:flex;border:1px solid rgba(47,79,58,.2);border-radius:10px;overflow:hidden;flex-shrink:0}
 .fls-vbtn{padding:7px 14px;font-size:.78rem;font-weight:800;color:#496674;background:rgba(255,255,255,.7);border:0;cursor:pointer;transition:background .12s,color .12s;white-space:nowrap}
 .fls-vbtn:hover{background:rgba(255,255,255,.95);color:#17313a}
 .fls-vbtn-on{background:#0b7f4f!important;color:#fff!important}
-/* list */
+/* ── Building (floor bands + door grid) */
+.bld-building{display:flex;flex-direction:column;gap:10px}
+.bld-floor{border-radius:16px;overflow:hidden;box-shadow:0 8px 24px rgba(0,0,0,.14);border:1px solid rgba(0,0,0,.08)}
+.bld-floor-hdr{width:100%;display:flex;align-items:center;gap:14px;padding:14px 20px;background:linear-gradient(90deg,#1a2d24,#243c30);border-left:5px solid #0b7f8c;border:0;cursor:pointer;text-align:left;transition:background .14s}
+.bld-floor-hdr:hover{background:linear-gradient(90deg,#1f3529,#2a4538)}
+.bld-floor-id{display:flex;flex-direction:column;gap:1px;flex-shrink:0;min-width:40px}
+.bld-floor-level{font-size:.55rem;font-weight:900;letter-spacing:.18em;color:rgba(180,210,195,.5);text-transform:uppercase}
+.bld-floor-num{font-family:'Playfair Display',serif;font-size:1.6rem;font-weight:900;line-height:1;color:#c8e0d0}
+.bld-floor-stats{display:flex;gap:8px;flex:1;flex-wrap:wrap}
+.bld-stat-pill{border-radius:999px;padding:5px 12px;font-size:.74rem;font-weight:800;white-space:nowrap}
+.bld-stat-apts{background:rgba(200,230,210,.1);color:rgba(200,230,210,.85);border:1px solid rgba(200,230,210,.15)}
+.bld-stat-inc{background:rgba(250,180,0,.18);color:#f0c04a;border:1px solid rgba(250,180,0,.28)}
+.bld-stat-clear{background:rgba(31,160,100,.12);color:rgba(160,220,185,.8);border:1px solid rgba(31,160,100,.2)}
+.bld-chev{color:rgba(200,230,210,.35);font-size:1.1rem;font-weight:900;transition:transform .2s;display:inline-block;flex-shrink:0;margin-left:auto}
+.bld-chev-up{transform:rotate(90deg)}
+.bld-floor-body{background:linear-gradient(180deg,#e8e2d8,#f0ece4)}
+/* ── Door grid */
+.bld-door-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:12px;padding:16px}
+/* ── Door card */
+.apt-door{position:relative;border-radius:12px;overflow:hidden;cursor:pointer;background:linear-gradient(170deg,#2a3d30 0%,#1c2b22 100%);border:2px solid rgba(120,160,130,.2);box-shadow:0 6px 18px rgba(0,0,0,.25),inset 0 1px 0 rgba(255,255,255,.05);transition:transform .15s,box-shadow .15s,border-color .2s;user-select:none}
+.apt-door:hover{transform:translateY(-3px);box-shadow:0 12px 28px rgba(0,0,0,.32)}
+.apt-door-clean{border-color:rgba(31,160,100,.35)!important}
+.apt-door-warn{border-color:rgba(240,160,0,.55)!important;box-shadow:0 6px 18px rgba(0,0,0,.25),0 0 0 1px rgba(240,160,0,.18)!important}
+.apt-door-alert{border-color:rgba(210,80,60,.6)!important;box-shadow:0 6px 18px rgba(0,0,0,.25),0 0 14px rgba(210,80,60,.28)!important}
+.apt-door-sel{border-color:rgba(11,160,200,.7)!important;box-shadow:0 0 0 3px rgba(11,160,200,.22),0 8px 20px rgba(0,0,0,.28)!important;transform:translateY(-2px)}
+/* Status bar at top of door */
+.door-status-bar{height:4px;width:100%}
+.door-sb-clean{background:linear-gradient(90deg,#1fa862,#2dda80)}
+.door-sb-warn{background:linear-gradient(90deg,#d9a030,#f0c040)}
+.door-sb-alert{background:linear-gradient(90deg,#d43028,#f05040)}
+/* Incident badge */
+.door-inc-badge{position:absolute;top:10px;right:8px;background:#d9a030;color:#1a0800;border-radius:999px;font-size:.6rem;font-weight:900;padding:2px 7px;min-width:22px;text-align:center;box-shadow:0 2px 6px rgba(0,0,0,.3)}
+/* Door number plate */
+.door-plate{margin:12px auto 0;width:56px;height:56px;border-radius:10px;background:linear-gradient(135deg,#a8903a,#cdb04e);display:flex;align-items:center;justify-content:center;font-family:'Playfair Display',serif;font-size:1rem;font-weight:900;color:#1a1000;box-shadow:0 3px 10px rgba(0,0,0,.4),inset 0 1px 0 rgba(255,255,255,.25);letter-spacing:.02em}
+.door-body{padding:10px 10px 8px}
+.door-owner{font-size:.75rem;font-weight:700;color:rgba(200,220,210,.9);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:3px}
+.door-op{font-size:.65rem;color:rgba(150,180,160,.65);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:5px}
+.door-chips{display:flex;gap:4px;flex-wrap:wrap}
+.door-chip{font-size:.6rem;font-weight:700;padding:2px 6px;border-radius:999px;background:rgba(255,255,255,.07);color:rgba(190,220,205,.75);border:1px solid rgba(255,255,255,.06)}
+.door-footer{text-align:center;font-size:.6rem;font-weight:800;color:rgba(150,185,165,.45);padding:6px 0 8px;text-transform:uppercase;letter-spacing:.08em}
+/* ── Apt detail panel */
+.adp-wrap{margin:0 16px 16px;background:rgba(255,255,255,.96);border-radius:14px;border:1px solid rgba(47,79,58,.18);box-shadow:0 8px 24px rgba(0,0,0,.12);overflow:hidden;animation:fadeIn .18s ease}
+.adp-header{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 16px;background:linear-gradient(90deg,rgba(11,127,79,.07),rgba(11,127,140,.05));border-bottom:1px solid rgba(47,79,58,.1);flex-wrap:wrap}
+.adp-apt-id{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.adp-apt-num{font-family:'Playfair Display',serif;font-size:1.1rem;font-weight:900;color:#203f2b}
+.adp-close-btn{width:28px;height:28px;border-radius:8px;border:1px solid rgba(47,79,58,.2);background:rgba(255,255,255,.7);color:#496674;font-size:.8rem;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.adp-close-btn:hover{background:#fff;color:#17313a}
+.adp-contacts{display:flex;gap:0;flex-direction:column;border-bottom:1px solid rgba(47,79,58,.08)}
+.adp-party{display:flex;align-items:center;gap:10px;padding:10px 16px;flex-wrap:wrap;border-bottom:1px solid rgba(47,79,58,.06)}
+.adp-party:last-child{border-bottom:none}
+.adp-party-lbl{font-size:.65rem;font-weight:900;text-transform:uppercase;letter-spacing:.09em;color:#2a5a6a;min-width:72px;flex-shrink:0}
+.adp-party-row{display:flex;align-items:center;gap:8px;flex:1;flex-wrap:wrap}
+.adp-incidents{padding:14px 16px}
+.adp-inc-hdr{font-size:.78rem;font-weight:900;color:#2a5a6a;text-transform:uppercase;letter-spacing:.07em;margin-bottom:10px;display:flex;align-items:center;gap:8px}
+.adp-inc-count{background:rgba(47,79,58,.1);border-radius:999px;padding:2px 9px;font-size:.72rem;color:#17313a}
+.adp-inc-empty{font-size:.84rem;color:#6a9a7a;padding:8px 0;font-weight:700}
+.adp-inc-group{margin-bottom:12px}
+.adp-inc-group-lbl{font-size:.72rem;font-weight:900;text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px}
+.adp-inc-card{background:rgba(247,243,234,.8);border:1px solid rgba(47,79,58,.1);border-radius:10px;padding:10px 12px;margin-bottom:6px}
+.adp-inc-top{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:6px}
+.adp-inc-date{font-size:.7rem;color:#8a9fa5;margin-left:auto}
+.adp-inc-desc{font-size:.82rem;color:#17313a;line-height:1.45;margin-bottom:4px}
+.adp-inc-guest{font-size:.76rem;color:#496674;margin-top:4px}
+.adp-inc-comments{font-size:.76rem;color:#496674;margin-top:4px;background:rgba(217,180,90,.08);border-radius:6px;padding:4px 8px}
+/* ── List-mode floor groups (kept for ≡ view) */
 .fls-list{display:flex;flex-direction:column;gap:12px}
-/* floor section */
 .fls-floor{background:rgba(255,255,255,.88);border:1px solid rgba(47,79,58,.16);border-radius:16px;overflow:hidden;box-shadow:0 6px 18px rgba(32,46,38,.07)}
 .fls-floor-hdr{width:100%;display:flex;align-items:center;gap:10px;padding:13px 16px;background:none;border:0;border-left:5px solid #0b7f8c;cursor:pointer;text-align:left;transition:background .14s}
 .fls-floor-hdr:hover{background:rgba(11,127,140,.04)}
-.fls-floor-badge{display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:10px;color:#fff;font-size:.78rem;font-weight:900;flex-shrink:0;letter-spacing:.04em}
+.fls-floor-badge{display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:10px;color:#fff;font-size:.78rem;font-weight:900;flex-shrink:0}
 .fls-floor-label{font-family:'Playfair Display',serif;font-size:1rem;font-weight:900;color:#203f2b;flex-shrink:0}
 .fls-floor-meta{display:flex;align-items:center;gap:8px;margin-left:4px;flex:1;flex-wrap:wrap}
 .fls-floor-units{font-size:.78rem;color:#496674;font-weight:700;background:rgba(47,79,58,.07);border-radius:999px;padding:3px 9px}
 .fls-floor-open{font-size:.76rem;color:#a05000;font-weight:800;background:rgba(160,80,0,.1);border-radius:999px;padding:3px 9px;border:1px solid rgba(160,80,0,.18)}
 .fls-chev{font-size:1.1rem;color:#8a9fa5;font-weight:900;transition:transform .18s;display:inline-block;flex-shrink:0}
 .fls-chev-up{transform:rotate(90deg)}
-/* floor body */
 .fls-floor-body{border-top:1px solid rgba(47,79,58,.1)}
-/* apartment row */
 .fls-row{border-bottom:1px solid rgba(47,79,58,.07);transition:background .12s}
 .fls-row:last-child{border-bottom:none}
 .fls-row:hover{background:rgba(11,127,140,.03)}
@@ -3603,14 +3785,30 @@ html{font-size:clamp(14px,1.1vw,16px);-webkit-text-size-adjust:100%}body{overflo
 .fls-row-chips{display:flex;gap:5px;flex-shrink:0}
 .fls-row-acts{display:flex;gap:5px;flex-shrink:0}
 .fls-inc-pill{font-size:.72rem;font-weight:800;color:#a05000;background:rgba(160,80,0,.10);border:1px solid rgba(160,80,0,.20);border-radius:999px;padding:3px 8px;white-space:nowrap;flex-shrink:0}
-/* expanded detail */
 .fls-row-detail{padding:12px 16px 14px 78px;background:rgba(245,248,244,.7);border-top:1px solid rgba(47,79,58,.08);display:flex;flex-direction:column;gap:9px}
 .fls-det-row{display:flex;align-items:center;gap:10px;font-size:.84rem;flex-wrap:wrap}
 .fls-det-lbl{font-weight:800;color:#2a5a6a;min-width:72px;font-size:.76rem;text-transform:uppercase;letter-spacing:.05em;flex-shrink:0}
 .fls-det-val{display:flex;align-items:center;gap:6px;flex:1;flex-wrap:wrap}
 .fls-det-acts{display:flex;gap:5px}
 .fls-det-acts-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding-top:6px;border-top:1px solid rgba(47,79,58,.08)}
-@media(max-width:640px){.fls-row-main{gap:7px;padding:10px 12px}.fls-row-detail{padding:10px 12px 12px}.fls-op-pill{display:none}.fls-floor-hdr{padding:11px 12px;gap:8px}.fls-floor-label{font-size:.9rem}.fls-vtoggle .fls-vbtn{padding:6px 10px;font-size:.72rem}}
+/* ── Workflow groups (incidents) */
+.wfg-list{display:flex;flex-direction:column;gap:10px}
+.wfg-section{background:rgba(255,255,255,.9);border:1px solid rgba(47,79,58,.14);border-radius:16px;overflow:hidden;box-shadow:0 6px 18px rgba(32,46,38,.07)}
+.wfg-hdr{width:100%;display:flex;align-items:center;gap:10px;padding:14px 18px;background:none;border:0;border-left:5px solid;cursor:pointer;text-align:left;transition:background .14s}
+.wfg-hdr:hover{background:rgba(47,79,58,.03)}
+.wfg-icon{font-size:1.15rem;flex-shrink:0;line-height:1}
+.wfg-hdr-body{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}
+.wfg-label{font-family:'Playfair Display',serif;font-size:.98rem;font-weight:900;color:#203f2b;line-height:1.2}
+.wfg-sublabel{font-size:.72rem;color:#496674}
+.wfg-badge{border-radius:999px;padding:4px 12px;font-size:.78rem;font-weight:900;flex-shrink:0}
+.wfg-body{border-top:1px solid rgba(47,79,58,.08)}
+.wfg-empty{padding:14px 18px;font-size:.84rem;color:#6a9a7a;font-weight:700}
+.wfg-filters{display:flex;align-items:flex-start;gap:10px;flex-wrap:wrap;margin-bottom:12px;justify-content:space-between}
+/* IRow apt context */
+.ir-apt-context{display:flex;flex-direction:column;gap:2px}
+.ir-apt-sub{font-size:.7rem;color:#6a8a9a;line-height:1.3}
+@media(max-width:640px){.bld-door-grid{grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:8px;padding:12px}.bld-floor-hdr{padding:12px 14px;gap:10px}.bld-floor-num{font-size:1.3rem}.door-plate{width:46px;height:46px;font-size:.88rem}.fls-row-main{gap:7px;padding:10px 12px}.fls-row-detail{padding:10px 12px 12px}.fls-op-pill{display:none}.wfg-hdr{padding:12px 14px}}
+@media(max-width:480px){.bld-door-grid{grid-template-columns:repeat(auto-fill,minmax(100px,1fr))}}
 /* ── Profile view ────────────────────────────────────────────────────────── */
 .prof-card{max-width:640px;display:flex;flex-direction:column;gap:16px}
 .prof-section{background:rgba(255,255,255,.94);border:1px solid rgba(47,79,58,.16);border-radius:18px;padding:20px 22px;box-shadow:0 8px 22px rgba(32,46,38,.08)}
