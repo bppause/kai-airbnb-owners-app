@@ -1,7 +1,8 @@
 /*
-  v71 Enterprise UI hardening
-  Purpose: stabilize responsive layout, prevent menu/header cutoffs, and normalize
-  card/button spacing without rewriting the current single-file app.
+  v73 Enterprise UI hardening
+  Stabilizes the legacy App.jsx UI while the app is progressively moved into
+  components. This file is intentionally scoped and avoids broad [class*=actions]
+  selectors that can break inline React layouts.
 */
 
 :root {
@@ -10,11 +11,11 @@
   --kai-green: #087f6f;
   --kai-green-dark: #056859;
   --kai-bg: #f6f8f5;
-  --kai-card: rgba(255,255,255,0.92);
-  --kai-border: rgba(18,50,53,0.12);
+  --kai-card: rgba(255,255,255,0.94);
+  --kai-border: rgba(18,50,53,0.14);
   --kai-shadow: 0 16px 40px rgba(18,50,53,0.12);
   --kai-radius: 22px;
-  --kai-header-h: 92px;
+  --kai-header-h: 88px;
   font-synthesis-weight: none;
 }
 
@@ -29,33 +30,13 @@ body {
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
 }
-
 button, input, select, textarea { font: inherit; max-width: 100%; }
 button, a, select { touch-action: manipulation; }
 img, svg { max-width: 100%; }
 
-/* Make the first app-level header usable even when JSX uses inline styles. */
-body > #root > div:first-child,
-body > #root main,
-body > #root .app,
-body > #root .kai-app {
-  max-width: 100vw;
-  overflow-x: hidden;
-}
-
+/* Header and navigation */
 header,
 [role="banner"],
-.kai-header,
-.app-header,
-.topbar,
-.top-nav,
-.navbar,
-nav {
-  max-width: 100vw !important;
-  min-width: 0 !important;
-}
-
-header,
 .kai-header,
 .app-header,
 .topbar,
@@ -63,7 +44,9 @@ header,
   position: sticky !important;
   top: 0 !important;
   z-index: 9000 !important;
-  background: rgba(255,255,255,0.94) !important;
+  max-width: 100vw !important;
+  min-width: 0 !important;
+  background: rgba(255,255,255,0.96) !important;
   backdrop-filter: blur(14px);
   border-bottom: 1px solid var(--kai-border) !important;
   box-shadow: 0 8px 24px rgba(18,50,53,0.08) !important;
@@ -71,36 +54,38 @@ header,
 }
 
 header *,
+[role="banner"] *,
 .kai-header *,
 .app-header *,
 .topbar *,
-.top-nav *,
-nav * {
-  min-width: 0;
-}
+.top-nav * { min-width: 0; }
 
+/* Only target navs that are actually inside headers. Avoid global nav side effects. */
 header nav,
+[role="banner"] nav,
 .kai-header nav,
 .app-header nav,
 .topbar nav,
-.top-nav nav,
-nav[aria-label],
-nav[role="navigation"] {
+.top-nav nav {
   display: flex !important;
   align-items: center !important;
-  gap: clamp(6px, 0.7vw, 14px) !important;
+  gap: clamp(6px, 0.65vw, 12px) !important;
   flex-wrap: nowrap !important;
   overflow-x: auto !important;
-  overflow-y: visible !important;
+  overflow-y: hidden !important;
   white-space: nowrap !important;
   scrollbar-width: thin;
   -webkit-overflow-scrolling: touch;
-  padding-bottom: 4px;
+  padding: 4px 2px 6px !important;
+  max-width: 100% !important;
 }
 
 header button,
 header a,
 header select,
+[role="banner"] button,
+[role="banner"] a,
+[role="banner"] select,
 .kai-header button,
 .kai-header a,
 .kai-header select,
@@ -112,21 +97,17 @@ header select,
 .topbar select,
 .top-nav button,
 .top-nav a,
-.top-nav select,
-nav button,
-nav a,
-nav select {
+.top-nav select {
   flex: 0 0 auto !important;
-  max-width: min(230px, 28vw) !important;
+  max-width: clamp(96px, 12vw, 210px) !important;
   overflow: hidden !important;
   text-overflow: ellipsis !important;
   white-space: nowrap !important;
-  min-height: 44px;
+  min-height: 44px !important;
 }
 
-/* Dropdown/menu layers must render above cards and never require page scroll to see. */
+/* More menu must not cover language preference. Make dropdowns fixed and layered. */
 [role="menu"],
-[aria-expanded="true"] + *,
 .dropdown,
 .dropdown-menu,
 .menu,
@@ -136,24 +117,23 @@ nav select {
 .tooltip,
 .kai-tooltip,
 [role="tooltip"] {
-  z-index: 99999 !important;
+  z-index: 100000 !important;
   overflow: visible !important;
 }
-
 .dropdown-menu,
 .menu-panel,
 .more-menu,
 .popover {
   position: fixed !important;
   max-width: min(92vw, 360px) !important;
-  max-height: min(75vh, 520px) !important;
+  max-height: min(72vh, 520px) !important;
   overflow-y: auto !important;
   overscroll-behavior: contain;
   border-radius: 16px !important;
   box-shadow: 0 22px 60px rgba(7,20,30,0.28) !important;
 }
 
-/* Content spacing and card normalization */
+/* Page spacing */
 main,
 .kai-main,
 .app-main,
@@ -166,14 +146,10 @@ main,
   min-width: 0 !important;
   overflow-x: hidden !important;
 }
-
 main,
 .page-content,
-.dashboard-page {
-  padding-inline: clamp(14px, 2vw, 32px) !important;
-}
+.dashboard-page { padding-inline: clamp(14px, 2vw, 32px) !important; }
 
-section,
 .card,
 .panel,
 .kai-card,
@@ -182,62 +158,79 @@ section,
 .alert,
 .workflow,
 .action-center,
-.smart-notifications {
+.smart-notifications,
+.kai-admin-pending-banner {
   min-width: 0 !important;
   overflow-wrap: anywhere;
-}
-
-.card,
-.panel,
-.kai-card,
-.dashboard-card,
-.notice,
-.alert,
-.workflow,
-.action-center,
-.smart-notifications {
   background: var(--kai-card) !important;
   border: 1px solid var(--kai-border) !important;
   border-radius: var(--kai-radius) !important;
   box-shadow: var(--kai-shadow) !important;
 }
 
-/* Fix the broken unstyled action-center/tabs shown in v70 screenshot. */
+/* v73 targeted fix for broken action-center text/buttons. */
+.kai-v73-action-center,
+.kai-v73-action-center-fallback,
 .action-center,
-.smart-notifications,
-[class*="actionCenter"],
-[class*="smartNotification"],
-[class*="attention"] {
+.smart-notifications {
   display: grid !important;
   gap: 14px !important;
   padding: clamp(16px, 2vw, 24px) !important;
   margin: clamp(16px, 2vw, 28px) 0 !important;
+  width: 100% !important;
 }
-
+.kai-v73-action-center__title,
 .action-center h2,
-.smart-notifications h2,
-[class*="actionCenter"] h2,
-[class*="attention"] h2 {
-  margin: 0 0 8px 0 !important;
+.smart-notifications h2 {
+  margin: 0 !important;
   font-size: clamp(1.15rem, 1.6vw, 1.55rem) !important;
   line-height: 1.2 !important;
+  font-weight: 900 !important;
+}
+.kai-v73-action-grid,
+.kai-v73-action-center .kai-v73-action-grid {
+  display: grid !important;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)) !important;
+  gap: 12px !important;
+}
+.kai-v73-action-chip {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 12px !important;
+  width: 100% !important;
+  min-height: 64px !important;
+  padding: 12px 14px !important;
+  border: 1px solid rgba(18,50,53,0.16) !important;
+  background: rgba(255,255,255,0.96) !important;
+  color: var(--kai-ink) !important;
+  border-radius: 16px !important;
+  box-shadow: 0 6px 16px rgba(18,50,53,0.08) !important;
+  text-align: left !important;
+  white-space: normal !important;
+  line-height: 1.25 !important;
+}
+.kai-v73-action-chip strong { display: block; font-weight: 900; }
+.kai-v73-action-chip span { display: block; color: var(--kai-muted); font-size: 0.92rem; }
+.kai-v73-action-chip__count {
+  flex: 0 0 auto;
+  min-width: 32px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: #e9463f;
+  color: #fff;
+  font-weight: 900;
 }
 
-/* Normalize button-like elements, including tab buttons that were visually collapsed. */
+/* Buttons */
 button,
 .button,
 .btn,
-[role="button"] {
-  border-radius: 16px;
-}
-
-button:not([disabled]),
-.button,
-.btn,
-[role="button"] {
-  cursor: pointer;
-}
-
+[role="button"] { border-radius: 16px; }
+button:not([disabled]), .button, .btn, [role="button"] { cursor: pointer; }
 button:focus-visible,
 a:focus-visible,
 select:focus-visible,
@@ -246,7 +239,6 @@ textarea:focus-visible {
   outline: 3px solid rgba(8,127,111,0.35) !important;
   outline-offset: 2px;
 }
-
 button,
 .button,
 .btn,
@@ -262,29 +254,22 @@ button,
   line-height: 1.15 !important;
   text-decoration: none !important;
 }
-
 .tabs,
 .filter-tabs,
 .chip-row,
 .action-row,
-.quick-actions,
-[class*="tabs"],
-[class*="chips"],
-[class*="actions"] {
+.quick-actions {
   display: flex !important;
   flex-wrap: wrap !important;
   align-items: center !important;
   gap: 10px !important;
   min-width: 0 !important;
 }
-
 .tabs button,
 .filter-tabs button,
 .chip-row button,
 .filter-chip,
-.chip,
-[class*="tab"] button,
-[class*="chip"] {
+.chip {
   min-height: 42px !important;
   padding: 10px 14px !important;
   border: 1px solid rgba(18,50,53,0.16) !important;
@@ -295,13 +280,10 @@ button,
   white-space: normal !important;
   text-align: left !important;
 }
-
-/* Primary action buttons */
-button[class*="primary"],
 .btn-primary,
 .primary,
 .report-incident,
-button:has(+ .sr-only) {
+button[class*="primary"] {
   background: linear-gradient(135deg, var(--kai-green), var(--kai-green-dark)) !important;
   color: #fff !important;
   border-color: transparent !important;
@@ -313,9 +295,7 @@ button:has(+ .sr-only) {
 .alert,
 .banner,
 .notification-banner,
-[class*="banner"],
-[class*="notice"],
-[class*="alert"] {
+.kai-admin-pending-banner {
   display: grid !important;
   grid-template-columns: minmax(0, 1fr) auto !important;
   gap: 14px !important;
@@ -323,44 +303,59 @@ button:has(+ .sr-only) {
   padding: clamp(16px, 2vw, 22px) !important;
   margin-block: 12px !important;
 }
-
-.notice button,
-.alert button,
-.banner button,
-.notification-banner button {
-  justify-self: end;
+.kai-admin-pending-banner {
+  grid-template-columns: auto minmax(0,1fr) auto !important;
+  margin: 14px clamp(14px, 2vw, 32px) !important;
+  border-left: 8px solid #e9463f !important;
+}
+.kai-admin-pending-banner__icon { font-size: 1.4rem; }
+.kai-admin-pending-banner__copy { display: grid; gap: 3px; }
+.kai-admin-pending-banner__copy strong { font-size: 1.05rem; }
+.kai-admin-pending-banner__copy span { color: var(--kai-muted); }
+.kai-admin-pending-banner__button {
+  background: linear-gradient(135deg, var(--kai-green), var(--kai-green-dark)) !important;
+  color: #fff !important;
+  border: 0 !important;
+  padding: 12px 16px !important;
+  font-weight: 900 !important;
+  white-space: nowrap !important;
+}
+.kai-nav-pending-badge {
+  margin-left: 8px;
+  min-width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #e9463f;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 900;
+}
+.kai-registration-needs-action {
+  border-color: rgba(233,70,63,0.45) !important;
+  box-shadow: 0 0 0 3px rgba(233,70,63,0.08) !important;
 }
 
-/* KPI/stat cards */
+/* Stats */
 .stats,
 .kpis,
 .metrics,
-.stat-grid,
-[class*="stats"],
-[class*="kpi"],
-[class*="metrics"] {
+.stat-grid {
   display: grid !important;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)) !important;
   gap: clamp(12px, 1.4vw, 22px) !important;
   align-items: stretch !important;
 }
 
-/* Tables should scroll horizontally instead of breaking the page. */
+/* Tables */
 table { width: 100%; border-collapse: collapse; }
 .table-wrap,
-.table-container,
-[class*="table"] {
-  max-width: 100% !important;
-  overflow-x: auto !important;
-  -webkit-overflow-scrolling: touch;
-}
+.table-container { max-width: 100% !important; overflow-x: auto !important; -webkit-overflow-scrolling: touch; }
 
-/* Enterprise tooltip behavior: never clip inside parent cards. */
-[data-tooltip],
-[title] {
-  position: relative;
-}
-
+/* Tooltips */
+[data-tooltip] { position: relative; }
 [data-tooltip]:hover::after,
 [data-tooltip]:focus-visible::after {
   content: attr(data-tooltip);
@@ -380,63 +375,36 @@ table { width: 100%; border-collapse: collapse; }
   pointer-events: none;
 }
 
-/* Typography fixes */
 h1, h2, h3, h4, p { overflow-wrap: anywhere; }
 h1 { font-size: clamp(1.75rem, 3vw, 2.7rem) !important; line-height: 1.1 !important; }
 h2 { font-size: clamp(1.25rem, 2vw, 1.8rem) !important; line-height: 1.15 !important; }
 p { line-height: 1.45; }
 
-/* Responsive behavior */
 @media (max-width: 1100px) {
-  header,
-  .kai-header,
-  .app-header,
-  .topbar,
-  .top-nav {
-    align-items: flex-start !important;
-  }
-  header nav,
-  .kai-header nav,
-  .app-header nav,
-  .topbar nav,
-  .top-nav nav {
-    width: 100% !important;
-  }
   header button,
   header a,
   header select,
-  nav button,
-  nav a,
-  nav select {
-    max-width: 190px !important;
-  }
+  [role="banner"] button,
+  [role="banner"] a,
+  [role="banner"] select { max-width: 178px !important; }
 }
-
 @media (max-width: 760px) {
   :root { --kai-header-h: 76px; }
   main,
   .page-content,
-  .dashboard-page {
-    padding-inline: 12px !important;
-  }
+  .dashboard-page { padding-inline: 12px !important; }
   header,
+  [role="banner"],
   .kai-header,
   .app-header,
   .topbar,
-  .top-nav {
-    padding: 10px 12px !important;
-  }
-  header nav,
-  nav[aria-label],
-  nav[role="navigation"] {
-    gap: 8px !important;
-  }
+  .top-nav { padding: 10px 12px !important; }
   header button,
   header a,
   header select,
-  nav button,
-  nav a,
-  nav select {
+  [role="banner"] button,
+  [role="banner"] a,
+  [role="banner"] select {
     max-width: 132px !important;
     min-height: 40px !important;
     padding-inline: 10px !important;
@@ -446,56 +414,36 @@ p { line-height: 1.45; }
   .alert,
   .banner,
   .notification-banner,
-  [class*="banner"],
-  [class*="notice"],
-  [class*="alert"] {
-    grid-template-columns: 1fr !important;
-  }
+  .kai-admin-pending-banner { grid-template-columns: 1fr !important; }
   .notice button,
   .alert button,
   .banner button,
-  .notification-banner button {
-    justify-self: stretch !important;
-    width: 100% !important;
-  }
+  .notification-banner button,
+  .kai-admin-pending-banner__button { justify-self: stretch !important; width: 100% !important; }
   .stats,
   .kpis,
   .metrics,
-  .stat-grid,
-  [class*="stats"],
-  [class*="kpi"],
-  [class*="metrics"] {
-    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-  }
+  .stat-grid { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
 }
-
 @media (max-width: 460px) {
   .stats,
   .kpis,
   .metrics,
-  .stat-grid,
-  [class*="stats"],
-  [class*="kpi"],
-  [class*="metrics"] {
-    grid-template-columns: 1fr !important;
-  }
+  .stat-grid { grid-template-columns: 1fr !important; }
   header button,
   header a,
   header select,
-  nav button,
-  nav a,
-  nav select {
-    max-width: 112px !important;
-  }
+  [role="banner"] button,
+  [role="banner"] a,
+  [role="banner"] select { max-width: 112px !important; }
 }
-
 @media print {
   header,
+  [role="banner"],
   .kai-header,
   .app-header,
   .topbar,
-  .top-nav,
-  nav { position: static !important; box-shadow: none !important; }
+  .top-nav { position: static !important; box-shadow: none !important; }
   .dropdown-menu,
   .menu-panel,
   .more-menu,
