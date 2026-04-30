@@ -941,10 +941,17 @@ export default function App() {
   // Derived set used for action-needed banners; keep safe to avoid home-screen render crashes.
   const myListingIds = new Set((myListings || []).map(l => l.id));
   const menuPerms = previewPerms ? previewPerms.menu : { ...DEFAULT_STANDARD_MENU_PERMISSIONS, ...(adminInfo?.permissions?.menu || {}) };
-  const delegatePerms = previewPerms ? previewPerms.delegate : { ...DEFAULT_DELEGATE_PERMISSIONS, ...(adminInfo?.permissions?.delegate || {}) };
+  // Only delegate_admins and global_admins receive delegate permissions.
+  // Standard users (role='user') always get canResolveIncidents:false and
+  // canApproveRegistrations:false regardless of any DB-stored value.
+  const delegatePerms = previewPerms
+    ? previewPerms.delegate
+    : effectiveRole === 'delegate_admin'
+      ? { ...DEFAULT_DELEGATE_PERMISSIONS, ...(adminInfo?.permissions?.delegate || {}) }
+      : { ...DEFAULT_DELEGATE_PERMISSIONS, canApproveRegistrations:false, canResolveIncidents:false };
   const canSeeMenu = (id) => effectiveIsGlobalAdmin || id === 'dashboard' || !!menuPerms[id];
   const needsOwnerVerification = incidents.filter(i => i.status === "open" && myListingIds.has(i.aptId));
-  const canResolveIncidentsNow = Boolean(effectiveIsGlobalAdmin || effectiveRole === 'standard_admin' || delegatePerms.canResolveIncidents);
+  const canResolveIncidentsNow = Boolean(effectiveIsGlobalAdmin || (effectiveRole === 'delegate_admin' && delegatePerms.canResolveIncidents));
   const needsAdminResolution = incidents.filter(i => i.status === "verified" && canResolveIncidentsNow);
   const openSeriousIncidents = incidents.filter(i => i.status !== "resolved" && ["serious","watch","under_watch"].includes(String(i.category || "")));
   const smartAlerts = [
