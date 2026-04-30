@@ -3070,12 +3070,12 @@ html{font-size:clamp(14px,1.1vw,16px);-webkit-text-size-adjust:100%}body{overflo
 .ac-party-lbl{font-size:.63rem;font-weight:900;text-transform:uppercase;letter-spacing:.09em;color:#2a5a6a;margin-bottom:4px}
 .ac-party-row{display:flex;align-items:center;justify-content:space-between;gap:8px;min-width:0}
 .ac-no-name{font-size:.8rem;color:#8a9fa5;font-style:italic}
-/* Contact icon buttons */
-.ac-cbtns{display:flex;align-items:center;gap:4px;flex-shrink:0}
-.ac-cbtn{display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;border-radius:9px;border:1px solid rgba(47,79,58,.18);background:rgba(255,255,255,.85);font-size:.9rem;text-decoration:none;transition:all .14s;cursor:pointer;flex-shrink:0}
-.ac-cbtn:hover{background:#fff;border-color:#0b7f8c;box-shadow:0 4px 12px rgba(32,46,38,.12);transform:translateY(-1px)}
-.ac-cbtn-wa{border-color:rgba(37,211,102,.32)!important;background:rgba(37,211,102,.07)!important}
-.ac-cbtn-wa:hover{border-color:#25d366!important;background:rgba(37,211,102,.16)!important}
+/* Contact icon buttons — mirrors ar-act from dashboard for consistency */
+.ac-cbtns{display:flex;align-items:center;gap:5px;flex-shrink:0}
+.ac-cbtn{display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:10px;border:1px solid rgba(47,79,58,.20);background:rgba(255,255,255,.92);color:#17313a;font-size:1rem;text-decoration:none;transition:all .14s;cursor:pointer;flex-shrink:0}
+.ac-cbtn:hover{background:#fff;border-color:#0b7f8c;box-shadow:0 5px 14px rgba(32,46,38,.13);transform:translateY(-1px)}
+.ac-cbtn-wa{color:#1aa361!important;border-color:rgba(26,163,97,.28)!important;background:rgba(26,163,97,.08)!important}
+.ac-cbtn-wa:hover{background:rgba(26,163,97,.16)!important;border-color:#1aa361!important}
 .airbnb-lnk{display:inline-flex;align-items:center;font-size:.78rem;color:#FF5A5F!important;text-decoration:none;font-weight:800;padding:4px 10px;border:1px solid rgba(255,90,95,.22);border-radius:999px;background:rgba(255,90,95,.08)}
 .airbnb-lnk:hover{background:rgba(255,90,95,.16)}
 .no-link{font-size:.74rem;color:#8a9fa5;margin-bottom:6px}
