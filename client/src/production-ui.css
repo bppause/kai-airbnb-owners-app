@@ -72,8 +72,7 @@ header nav,
   gap: clamp(6px, 0.65vw, 12px) !important;
   flex-wrap: nowrap !important;
   overflow-x: auto !important;
-  overflow-y: hidden !important;
-  white-space: nowrap !important;
+  overflow-y: visible !important;
   scrollbar-width: thin;
   -webkit-overflow-scrolling: touch;
   padding: 4px 2px 6px !important;
@@ -247,9 +246,9 @@ button,
 .tabs button,
 .filter-chip,
 .chip {
-  display: inline-flex !important;
-  align-items: center !important;
-  justify-content: center !important;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   gap: 8px !important;
   line-height: 1.15 !important;
   text-decoration: none !important;
@@ -268,8 +267,7 @@ button,
 .tabs button,
 .filter-tabs button,
 .chip-row button,
-.filter-chip,
-.chip {
+.filter-chip {
   min-height: 42px !important;
   padding: 10px 14px !important;
   border: 1px solid rgba(18,50,53,0.16) !important;
