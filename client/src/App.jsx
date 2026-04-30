@@ -1226,24 +1226,37 @@ export default function App() {
 
 
 
+const SMART_TONE_COLOR = { owner:'#c49a14', resolve:'#d96c1a', registration:'#2f6fbf', notice:'#6b44b8', serious:'#c0281e' };
 function SmartNotificationsDropdown({ lang="es-CO", open=false, alerts=[], unread=0, onReadAll=()=>{}, onOpenNotifications=()=>{} }) {
   if (!open) return null;
-  return <div className="smart-menu menu-open">
-    <div className="smart-head">
-      <div><strong>{appText(lang,"smart.title")}</strong><span>{appText(lang,"smart.subtitle")}</span></div>
-      <em>{appText(lang,"smart.live")}</em>
+  return (
+    <div className="smart-menu">
+      <div className="smart-head">
+        <div><strong>{appText(lang,"smart.title")}</strong><span>{appText(lang,"smart.subtitle")}</span></div>
+        <em className="smart-live">{appText(lang,"smart.live")}</em>
+      </div>
+      {alerts.length === 0
+        ? <div className="smart-empty"><span className="smart-empty-icon">✅</span><strong>{appText(lang,"smart.none")}</strong><span>{appText(lang,"smart.noneSub")}</span></div>
+        : <div className="smart-list">
+            {alerts.map(a => (
+              <button key={a.id} className={`smart-item smart-${a.tone}`} onClick={a.action} title={a.msg}>
+                <span className="smart-count" style={{background: SMART_TONE_COLOR[a.tone]||'#0b7f4f'}}>{a.count}</span>
+                <span className="smart-icon" aria-hidden="true">{a.icon}</span>
+                <span className="smart-copy">
+                  <strong>{a.title}</strong>
+                  <small>{a.msg}</small>
+                </span>
+                <span className="smart-arr" aria-hidden="true">›</span>
+              </button>
+            ))}
+          </div>
+      }
+      <div className="smart-foot">
+        <button className="dd-item" onClick={onOpenNotifications}>🔔 {lang === "en" ? "Open alert history" : "Abrir historial de avisos"}</button>
+        {unread > 0 && <button className="dd-item" onClick={onReadAll}>✅ {appText(lang,"smart.markAll")}</button>}
+      </div>
     </div>
-    {alerts.length === 0 ? <div className="smart-empty"><strong>{appText(lang,"smart.none")}</strong><span>{appText(lang,"smart.noneSub")}</span></div> :
-      <div className="smart-list">{alerts.map(a => <button key={a.id} className={`smart-item smart-${a.tone}`} onClick={a.action} title={a.msg}>
-        <span className="smart-icon">{a.icon}</span>
-        <span className="smart-copy"><strong>{a.title}</strong><small>{a.msg}</small></span>
-        <span className="smart-count">{a.count}</span>
-      </button>)}</div>}
-    <div className="smart-foot">
-      <button className="dd-item" onClick={onOpenNotifications}>🔔 {lang === "en" ? "Open alert history" : "Abrir historial de avisos"}</button>
-      {unread > 0 && <button className="dd-item" onClick={onReadAll}>✅ {appText(lang,"smart.markAll")}</button>}
-    </div>
-  </div>;
+  );
 }
 
 function ActionStrip({ lang="es-CO", pendingOwner=0, pendingResolve=0, pendingRegistrations=0, canResolve=false, canManageRegistrations=false, onOwnerClick=()=>{}, onResolveClick=()=>{}, onRegistrationsClick=()=>{} }) {
@@ -2213,9 +2226,36 @@ html{font-size:clamp(14px,1.1vw,16px);-webkit-text-size-adjust:100%}body{overflo
 @media (prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.001ms!important;animation-iteration-count:1!important;scroll-behavior:auto!important;transition-duration:.001ms!important}}
 
 
-/* v64 smart notifications */
-.smart-dd{position:relative;display:inline-flex;z-index:2147482500}.smart-menu{position:fixed;top:64px;right:84px;width:min(420px,calc(100vw - 20px));max-height:calc(100svh - 82px);overflow:auto;background:rgba(255,255,255,.98);border:1px solid rgba(47,79,58,.16);border-radius:18px;box-shadow:0 24px 70px rgba(18,31,38,.28);padding:12px;z-index:2147483500!important;color:#17313a}.smart-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:8px 8px 12px;border-bottom:1px solid rgba(47,79,58,.12);margin-bottom:8px}.smart-head strong{display:block;font-size:.96rem;color:#17313a}.smart-head span{display:block;font-size:.74rem;color:#496674;line-height:1.35;margin-top:2px}.smart-head em{font-style:normal;background:#e7f8f0;color:#087346;border:1px solid #bdebd5;border-radius:999px;padding:4px 8px;font-size:.68rem;font-weight:900;white-space:nowrap}.smart-list{display:flex;flex-direction:column;gap:8px}.smart-item{width:100%;display:flex!important;align-items:center!important;justify-content:flex-start!important;gap:10px;border:1px solid rgba(47,79,58,.12);background:#fff;border-radius:14px;padding:10px;text-align:left;cursor:pointer;transition:transform .16s ease, box-shadow .16s ease, border-color .16s ease}.smart-item:hover,.smart-item:focus{transform:translateY(-1px);box-shadow:0 12px 28px rgba(32,46,38,.12);border-color:#19a66a}.smart-icon{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:#f1f6f4;font-size:1.05rem;flex:0 0 36px}.smart-copy{flex:1;min-width:0}.smart-copy strong{display:block;color:#17313a;font-size:.86rem}.smart-copy small{display:block;color:#496674;font-size:.73rem;line-height:1.3;margin-top:2px}.smart-count{min-width:24px;height:24px;border-radius:999px;background:#0b7f4f;color:#fff;display:flex!important;align-items:center!important;justify-content:center!important;font-size:.74rem;font-weight:900;flex-shrink:0;margin-left:auto}.smart-owner .smart-icon{background:#e7f8f0}.smart-resolve .smart-icon{background:#fff0dc}.smart-registration .smart-icon{background:#ecf3ff}.smart-notice .smart-icon{background:#f0ecff}.smart-serious .smart-icon{background:#ffe9e7}.smart-serious{border-color:rgba(190,40,30,.22)}.smart-empty{padding:16px;text-align:center}.smart-empty strong{display:block;color:#17313a}.smart-empty span{display:block;color:#496674;font-size:.78rem;margin-top:4px}.smart-foot{display:flex;gap:8px;flex-wrap:wrap;border-top:1px solid rgba(47,79,58,.12);margin-top:10px;padding-top:8px}.smart-foot .dd-item{flex:1 1 160px;justify-content:center;background:#f7fbfa;border:1px solid rgba(47,79,58,.10);border-radius:12px}.icon-badge{animation:smartPulse 1.8s infinite}@keyframes smartPulse{0%,100%{transform:scale(1)}50%{transform:scale(1.08)}}
-@media(max-width:820px){.smart-menu{left:8px!important;right:8px!important;top:58px!important;width:auto!important;max-height:calc(100svh - 70px)}.smart-foot{flex-direction:column}.smart-foot .dd-item{width:100%}}
+/* v77 smart notifications – count-first layout, tone colours, no overflow */
+.smart-dd{position:relative;display:inline-flex;z-index:2147482500}
+.smart-menu{position:fixed;top:64px;right:80px;width:350px;max-height:calc(100svh - 80px);overflow-y:auto;background:rgba(255,255,255,.99);border:1px solid rgba(47,79,58,.18);border-radius:18px;box-shadow:0 24px 72px rgba(18,31,38,.3);padding:14px;z-index:2147483500!important;color:#17313a}
+.smart-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;padding-bottom:10px;border-bottom:1px solid rgba(47,79,58,.12);margin-bottom:10px}
+.smart-head>div>strong{display:block;font-size:.9rem;font-weight:900;color:#17313a}
+.smart-head>div>span{display:block;font-size:.72rem;color:#496674;line-height:1.35;margin-top:2px}
+.smart-live{flex-shrink:0;font-style:normal;background:#e7f8f0;color:#087346;border:1px solid #bdebd5;border-radius:999px;padding:3px 9px;font-size:.67rem;font-weight:900;white-space:nowrap;margin-top:2px}
+.smart-list{display:flex;flex-direction:column;gap:6px}
+.smart-item{width:100%;display:flex!important;align-items:center!important;gap:8px!important;border:1px solid rgba(47,79,58,.10);background:#fff;border-radius:12px;padding:9px 10px;text-align:left;cursor:pointer;transition:transform .14s,box-shadow .14s;overflow:hidden}
+.smart-item:hover,.smart-item:focus{transform:translateY(-1px);box-shadow:0 10px 26px rgba(32,46,38,.13)}
+.smart-owner{border-left:3px solid #c49a14!important}
+.smart-resolve{border-left:3px solid #d96c1a!important}
+.smart-registration{border-left:3px solid #2f6fbf!important}
+.smart-notice{border-left:3px solid #6b44b8!important}
+.smart-serious{border-left:3px solid #c0281e!important;background:#fdf6f6!important}
+.smart-count{width:32px;height:32px;border-radius:9px;color:#fff;display:inline-flex!important;align-items:center!important;justify-content:center!important;font-size:.9rem;font-weight:900;flex-shrink:0;line-height:1}
+.smart-icon{font-size:.95rem;flex-shrink:0;line-height:1;width:20px;text-align:center}
+.smart-copy{flex:1;min-width:0;overflow:hidden}
+.smart-copy strong{display:block;color:#17313a;font-size:.84rem;font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.25}
+.smart-copy small{display:block;color:#496674;font-size:.71rem;line-height:1.3;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.smart-arr{color:#b0bfba;font-size:1.15rem;flex-shrink:0;line-height:1}
+.smart-empty{padding:18px 8px;text-align:center}
+.smart-empty-icon{font-size:1.8rem;display:block;margin-bottom:6px}
+.smart-empty strong{display:block;color:#17313a;font-size:.88rem;font-weight:900}
+.smart-empty span{display:block;color:#496674;font-size:.76rem;margin-top:5px;line-height:1.4}
+.smart-foot{display:flex;flex-direction:column;gap:6px;border-top:1px solid rgba(47,79,58,.12);margin-top:10px;padding-top:8px}
+.smart-foot .dd-item{justify-content:center!important;background:#f7fbfa;border:1px solid rgba(47,79,58,.10);border-radius:10px;font-size:.82rem;min-height:40px}
+.icon-badge{animation:smartPulse 1.8s infinite}
+@keyframes smartPulse{0%,100%{transform:scale(1)}50%{transform:scale(1.1)}}
+@media(max-width:860px){.smart-menu{right:8px!important;left:8px!important;width:auto!important;top:60px!important;max-height:calc(100svh - 72px)!important}}
 
 /* --- spinners -------------------------------------------------------------- */
 .spinner{width:40px;height:40px;border:3px solid rgba(255,255,255,.18);border-top-color:#17b7b5;border-radius:50%;animation:spin .8s linear infinite}
