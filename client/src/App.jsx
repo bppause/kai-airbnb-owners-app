@@ -2159,6 +2159,7 @@ function Dashboard({ listings, incidents, user, contactProps={}, setView, onRepo
 
 function MyListings({ listings, incidents, user, contactProps={}, isGlobalAdmin=false, canResolveGlobal=false, onAdd, onEdit, onDelete, onReport, onVerify, onResolve, lang="es-CO" }) {
   const [selectedId, setSelectedId] = useState(null);
+  const [statFilter, setStatFilter] = useState(null); // null | 'open' | 'verified' | 'resolved'
   const isEn = lang==='en';
   const myListingIds = new Set(listings.map(l=>l.id));
   const incAgainstMe = incidents.filter(i=>myListingIds.has(i.aptId));
@@ -2167,7 +2168,12 @@ function MyListings({ listings, incidents, user, contactProps={}, isGlobalAdmin=
   const openC    = incAgainstMe.filter(i=>i.status==='open').length;
   const verifiedC= incAgainstMe.filter(i=>i.status==='verified').length;
   const resolvedC= incAgainstMe.filter(i=>i.status==='resolved').length;
-  const sorted   = [...listings].sort((a,b)=>a.apt.localeCompare(b.apt));
+  const allSorted = [...listings].sort((a,b)=>a.apt.localeCompare(b.apt));
+  // Apply stat filter: only show listings that have incidents of that status
+  const sorted = statFilter
+    ? allSorted.filter(l=>incidents.some(i=>i.aptId===l.id&&i.status===statFilter))
+    : allSorted;
+  const toggleStat = (s) => { setStatFilter(f=>f===s?null:s); setSelectedId(null); };
   return (
     <div className="fade">
       <div className="ph">
@@ -2178,14 +2184,33 @@ function MyListings({ listings, incidents, user, contactProps={}, isGlobalAdmin=
         <button className="btn-p" onClick={onAdd}>{appText(lang,"listings.add")}</button>
       </div>
 
-      {/* ── Summary stats ── */}
+      {/* ── Summary stats — click to filter listings below ── */}
       <div className="ml-stats">
-        <div className="ml-stat"><span className="ml-stat-val">{listings.length}</span><span className="ml-stat-lbl">🏠 {isEn?'Listings':'Listings'}</span></div>
-        <div className="ml-stat"><span className="ml-stat-val">{totalGuests}</span><span className="ml-stat-lbl">👥 {isEn?'Guest cap.':'Huéspedes'}</span></div>
-        <div className={`ml-stat${openC>0?' ml-stat-warn':''}`}><span className="ml-stat-val">{openC}</span><span className="ml-stat-lbl">⚠️ {isEn?'Open':'Abiertos'}</span></div>
-        <div className={`ml-stat${verifiedC>0?' ml-stat-ver':''}`}><span className="ml-stat-val">{verifiedC}</span><span className="ml-stat-lbl">👤 {isEn?'Verified':'Verificados'}</span></div>
-        <div className={`ml-stat${resolvedC>0?' ml-stat-res':''}`}><span className="ml-stat-val">{resolvedC}</span><span className="ml-stat-lbl">✓ {isEn?'Resolved':'Resueltos'}</span></div>
+        <div className={`ml-stat${statFilter?'':' ml-stat-active'}`} onClick={()=>toggleStat(null)} style={{cursor:'pointer'}} title={isEn?'Show all listings':'Ver todos los listings'}>
+          <span className="ml-stat-val">{listings.length}</span>
+          <span className="ml-stat-lbl">🏠 {isEn?'All listings':'Todos'}</span>
+        </div>
+        <div className="ml-stat" style={{cursor:'default'}}>
+          <span className="ml-stat-val">{totalGuests}</span>
+          <span className="ml-stat-lbl">👥 {isEn?'Guest cap.':'Huéspedes'}</span>
+        </div>
+        <div className={`ml-stat${openC>0?' ml-stat-warn':''}${statFilter==='open'?' ml-stat-active':''}`} onClick={()=>openC>0&&toggleStat('open')} style={{cursor:openC>0?'pointer':'default'}} title={isEn?'Filter to listings with open incidents':'Ver listings con incidentes abiertos'}>
+          <span className="ml-stat-val">{openC}</span>
+          <span className="ml-stat-lbl">⚠️ {isEn?'Open':'Abiertos'}</span>
+        </div>
+        <div className={`ml-stat${verifiedC>0?' ml-stat-ver':''}${statFilter==='verified'?' ml-stat-active':''}`} onClick={()=>verifiedC>0&&toggleStat('verified')} style={{cursor:verifiedC>0?'pointer':'default'}} title={isEn?'Filter to listings with verified incidents':'Ver listings con incidentes verificados'}>
+          <span className="ml-stat-val">{verifiedC}</span>
+          <span className="ml-stat-lbl">👤 {isEn?'Verified':'Verificados'}</span>
+        </div>
+        <div className={`ml-stat${resolvedC>0?' ml-stat-res':''}${statFilter==='resolved'?' ml-stat-active':''}`} onClick={()=>resolvedC>0&&toggleStat('resolved')} style={{cursor:resolvedC>0?'pointer':'default'}} title={isEn?'Filter to listings with resolved incidents':'Ver listings con incidentes resueltos'}>
+          <span className="ml-stat-val">{resolvedC}</span>
+          <span className="ml-stat-lbl">✓ {isEn?'Resolved':'Resueltos'}</span>
+        </div>
       </div>
+      {statFilter&&<div style={{display:'flex',alignItems:'center',gap:8,marginBottom:10,fontSize:'.8rem',color:'#496674'}}>
+        <span>{isEn?'Filtered:':'Filtrado:'} <strong>{statFilter==='open'?(isEn?'Open incidents':'Incidentes abiertos'):statFilter==='verified'?(isEn?'Verified incidents':'Incidentes verificados'):(isEn?'Resolved incidents':'Incidentes resueltos')}</strong> · {sorted.length} {isEn?'listing':'listing'}{sorted.length!==1?'s':''}</span>
+        <button className="fchip fchip-sm fchip-reset" onClick={()=>toggleStat(null)}>✕ {isEn?'Clear':'Limpiar'}</button>
+      </div>}
 
       {/* ── My listings — click to see incidents ── */}
       <div className="ml-section">
@@ -2662,9 +2687,15 @@ function IncidentsView({ incidents, listings, user, quickFilter=null, onQuickFil
   const listingMap = Object.fromEntries(listings.map(l=>[l.id, l]));
   const myListingIds = new Set((user ? listings.filter(l=>l.ownerUid===user.uid) : []).map(l=>l.id));
   let list=[...incidents];
-  if(scope==="mine" && user) list=list.filter(i=>myListingIds.has(i.aptId) || i.reporterUid===user.uid);
-  if(scope==="ownerVerification" && user) list=list.filter(i=>i.status==="open" && myListingIds.has(i.aptId));
-  if(scope==="requiresResolution") list=list.filter(i=>i.status==="verified" && (isGlobalAdmin || canResolveGlobal));
+  // "I reported" — incidents the current user filed (any apartment)
+  if(scope==="iReported"   && user) list=list.filter(i=>i.reporterUid===user.uid);
+  // "My listings" — incidents against apartments the user owns
+  if(scope==="myListings"  && user) list=list.filter(i=>myListingIds.has(i.aptId));
+  // "Needs resolution" — user's incidents (reported by or against their listings) that are still open/verified
+  if(scope==="needsResolution" && user) list=list.filter(i=>i.status!=='resolved'&&(myListingIds.has(i.aptId)||i.reporterUid===user.uid));
+  // Legacy quickFilter scopes (used by dashboard action pills)
+  if(scope==="ownerVerification" && user) list=list.filter(i=>i.status==="open"&&myListingIds.has(i.aptId));
+  if(scope==="requiresResolution") list=list.filter(i=>i.status==="verified"&&(isGlobalAdmin||canResolveGlobal));
   if(sf!=="all") list=list.filter(i=>i.status===sf);
   if(cf!=="all") list=list.filter(i=>i.category===cf);
   if(search.trim()){
@@ -2693,7 +2724,7 @@ function IncidentsView({ incidents, listings, user, quickFilter=null, onQuickFil
   }
   list.sort((a,b)=>new Date(b.createdAt)-new Date(a.createdAt));
   const isEn = lang==='en';
-  const anyFilter = sf!=='all'||cf!=='all'||(user&&scope!=='all')||search.trim()!=='';
+  const anyFilter = sf!=='all'||cf!=='all'||(user&&scope!=='all'&&scope!=='iReported'&&scope!=='myListings'&&scope!=='needsResolution')||search.trim()!==''||['iReported','myListings','needsResolution','ownerVerification','requiresResolution'].includes(scope);
   const resetAll = () => { setSf('all'); setCf('all'); setScope('all'); setSearch(''); };
   const [groupOpen, setGroupOpen] = useState({open:true,verified:false,resolved:false});
   const toggleGroup = (k) => setGroupOpen(s=>({...s,[k]:!s[k]}));
@@ -2720,12 +2751,23 @@ function IncidentsView({ incidents, listings, user, quickFilter=null, onQuickFil
       </div>
 
       <div className="wfg-filters">
-        {user&&<div style={{display:'flex',gap:5,alignItems:'center',flexWrap:'wrap'}}>
-          <button className={`fchip fchip-sm ${scope==='all'?'fchip-on':''}`} onClick={()=>setScope('all')}>{isEn?'All':'Todos'}</button>
-          <button className={`fchip fchip-sm ${(scope==='mine'||scope==='ownerVerification')?'fchip-on':''}`} onClick={()=>{setScope('mine');setSf('all');}}>{isEn?'Mine':'Los míos'}</button>
-          {(isGlobalAdmin||canResolveGlobal)&&<button className={`fchip fchip-sm ${scope==='requiresResolution'?'fchip-on':''}`} onClick={()=>{setScope('requiresResolution');setSf('verified');}}>{isEn?'Needs resolution':'Sin resolver'}</button>}
-        </div>}
-        <div style={{display:'flex',gap:5,flexWrap:'wrap'}}>
+        <div style={{display:'flex',gap:5,alignItems:'center',flexWrap:'wrap'}}>
+          <button className={`fchip fchip-sm ${scope==='all'?'fchip-on':''}`} onClick={()=>{setScope('all');setSf('all');}}>
+            {isEn?'All':'Todos'}
+          </button>
+          {user&&<>
+            <button className={`fchip fchip-sm ${scope==='iReported'?'fchip-on':''}`} onClick={()=>{setScope(scope==='iReported'?'all':'iReported');setSf('all');}}>
+              📋 {isEn?'I reported':'Yo reporté'}
+            </button>
+            <button className={`fchip fchip-sm ${scope==='myListings'?'fchip-on':''}`} onClick={()=>{setScope(scope==='myListings'?'all':'myListings');setSf('all');}}>
+              🏠 {isEn?'My listings':'Mis listings'}
+            </button>
+            <button className={`fchip fchip-sm ${scope==='needsResolution'?'fchip-on':''}`} onClick={()=>{setScope(scope==='needsResolution'?'all':'needsResolution');setSf('all');}}>
+              🔧 {isEn?'Needs resolution':'Sin resolver'}
+            </button>
+          </>}
+        </div>
+        <div style={{display:'flex',gap:5,flexWrap:'wrap',alignItems:'center'}}>
           {GUEST_CATEGORIES.map(c=><button key={c.value} className={`fchip fchip-sm ${cf===c.value?'fchip-on':''}`} onClick={()=>setCf(cf===c.value?'all':c.value)}>{c.icon} {categoryLabel(c.value,lang)}</button>)}
           {anyFilter&&<button className="fchip fchip-sm fchip-reset" onClick={resetAll}>✕ {isEn?'Reset':'Limpiar'}</button>}
         </div>
@@ -3898,6 +3940,7 @@ html{font-size:clamp(14px,1.1vw,16px);-webkit-text-size-adjust:100%}body{overflo
 .ml-stat-warn .ml-stat-val{color:#a05000}
 .ml-stat-ver .ml-stat-val{color:#0b5f3a}
 .ml-stat-res .ml-stat-val{color:#4a7060}
+.ml-stat-active{border-color:rgba(11,127,140,.4)!important;box-shadow:0 0 0 2px rgba(11,127,140,.14),0 4px 10px rgba(32,46,38,.06)!important;background:rgba(11,127,140,.05)!important}
 .ml-section{background:rgba(255,255,255,.9);border:1px solid rgba(47,79,58,.14);border-radius:16px;overflow:hidden;box-shadow:0 6px 16px rgba(32,46,38,.07)}
 .ml-section-hdr{padding:12px 16px;font-size:.72rem;font-weight:900;text-transform:uppercase;letter-spacing:.09em;color:#2a5a6a;background:linear-gradient(90deg,rgba(11,127,79,.06),rgba(11,127,140,.03));border-bottom:1px solid rgba(47,79,58,.1)}
 .ml-listing{border-bottom:1px solid rgba(47,79,58,.07)}
