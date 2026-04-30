@@ -763,6 +763,11 @@ export default function App() {
     return () => clearInterval(pollRef.current);
   }, [loadAll, isApproved]);
 
+  // Reset to dashboard when preview role is activated so the simulated role's view is coherent
+  useEffect(() => {
+    if (previewRole) setView('dashboard');
+  }, [previewRole]);
+
   const showToast = (msg, err=false) => { setToast({msg,err}); setTimeout(()=>setToast(null),3200); };
 
   // ── FIREBASE AUTH ──
@@ -1064,26 +1069,32 @@ export default function App() {
                 {n.badge>0 && <span className="nb-badge">{n.badge}</span>}
               </button>
             ))}
-            {moreNav.length > 0 && <div className="nav-dd" onClick={e=>e.stopPropagation()}>
-              <button type="button" className={`nb ${moreNav.some(n=>n.id===view)?"nb-active":""}`} onClick={() => setOpenDropdown(openDropdown === "more" ? null : "more")}>{lang === "en" ? "More ▾" : "Más ▾"}</button>
+            {(moreNav.length > 0 || adminInfo.isGlobalAdmin) && <div className="nav-dd" onClick={e=>e.stopPropagation()}>
+              <button type="button" className={`nb ${moreNav.some(n=>n.id===view)||previewRole?"nb-active":""}`} onClick={() => setOpenDropdown(openDropdown === "more" ? null : "more")}>{lang === "en" ? "More ▾" : "Más ▾"}{previewRole && <span className="nb-preview-dot" aria-label="preview active">👁</span>}</button>
               <div className={`nav-dd-menu ${openDropdown === "more" ? "menu-open" : ""}`}>
                 {moreNav.map(n=><button key={n.id} className={`dd-item ${view===n.id?"dd-active":""}`} onClick={()=>{setView(n.id);setOpenDropdown(null);}}>{n.icon} {n.label}{n.badge>0 && <span className="nb-badge">{n.badge}</span>}</button>)}
+                {adminInfo.isGlobalAdmin && <>
+                  {moreNav.length > 0 && <div className="dd-sep"/>}
+                  <div className="dd-section-label">👁 {lang==='en'?'View as role':'Ver como rol'}</div>
+                  {[
+                    {value:'',               label:lang==='en'?'Global Admin':'Admin global'},
+                    {value:'delegate_admin',  label:lang==='en'?'Delegate Admin':'Admin delegado'},
+                    {value:'standard_admin',  label:lang==='en'?'Standard Admin':'Admin estándar'},
+                    {value:'user',            label:lang==='en'?'Owner/User':'Propietario/Usuario'},
+                  ].map(opt=>(
+                    <button key={opt.value||'ga'} type="button"
+                      className={`dd-item dd-radio ${(previewRole||'')=== opt.value?'dd-radio-on':''}`}
+                      onClick={()=>{setPreviewRole(opt.value||null);setOpenDropdown(null);}}>
+                      <span className="dd-radio-dot">{(previewRole||'')=== opt.value?'●':'○'}</span>
+                      {opt.label}
+                    </button>
+                  ))}
+                </>}
               </div>
             </div>}
           </nav>
 
           <div className="hdr-right">
-            {adminInfo.isGlobalAdmin && (
-              <div className="view-as-wrap">
-                <span className="view-as-label">{lang==='en'?'👁 View as:':'👁 Ver como:'}</span>
-                <select className="view-as-select" value={previewRole||''} onChange={e=>setPreviewRole(e.target.value||null)}>
-                  <option value="">{lang==='en'?'Global Admin':'Admin global'}</option>
-                  <option value="delegate_admin">{lang==='en'?'Delegate Admin':'Admin delegado'}</option>
-                  <option value="standard_admin">{lang==='en'?'Standard Admin':'Admin estándar'}</option>
-                  <option value="user">{lang==='en'?'Owner/User':'Propietario/Usuario'}</option>
-                </select>
-              </div>
-            )}
             <LanguageSwitch lang={lang} setLang={setLang} compact />
             <div className="smart-dd" onClick={e=>e.stopPropagation()}>
               <button className={`icon-btn ${openDropdown==="smart"||view==="notifications"?"icon-active":""}`} onClick={()=>setOpenDropdown(openDropdown === "smart" ? null : "smart")} title={appText(lang,"smart.title")}>🔔{smartAlertCount>0 && <span className="icon-badge">{smartAlertCount}</span>}</button>
@@ -1131,26 +1142,15 @@ export default function App() {
           <button type="button" onClick={()=>setPreviewRole(null)}>{lang==='en'?'Exit preview':'Salir de vista previa'}</button>
         </div>
       )}
-      <ActionStrip
-        lang={lang}
-        pendingOwner={needsOwnerVerification.length}
-        pendingResolve={needsAdminResolution.length}
-        pendingRegistrations={effectiveCanManageRegistrations ? pendingRegistrations.length : 0}
-        canResolve={canResolveIncidentsNow}
-        canManageRegistrations={effectiveCanManageRegistrations}
-        onOwnerClick={()=>{setIncidentQuickFilter('ownerVerification');setView('incidents');}}
-        onResolveClick={()=>{setIncidentQuickFilter('requiresResolution');setView('incidents');}}
-        onRegistrationsClick={()=>setView('approvals')}
-      />
       <main className="main">
-        {view==="dashboard" && <Dashboard lang={lang} listings={listings} incidents={incidents} user={user} quickFilter={incidentQuickFilter} onQuickFilterApplied={()=>setIncidentQuickFilter(null)} contactProps={contactProps} setView={setView} showBlacklist={false} onReport={()=>{ if(!user){login();return;} setModal({type:"incident"}); }} />}
+        {view==="dashboard" && <Dashboard lang={lang} listings={listings} incidents={incidents} user={user} contactProps={contactProps} setView={setView} showBlacklist={false} onReport={()=>{ if(!user){login();return;} setModal({type:"incident"}); }} effectiveIsGlobalAdmin={effectiveIsGlobalAdmin} effectiveRole={effectiveRole} delegatePerms={delegatePerms} pendingOwner={needsOwnerVerification.length} pendingResolve={needsAdminResolution.length} pendingRegistrations={effectiveCanManageRegistrations ? pendingRegistrations.length : 0} canResolve={canResolveIncidentsNow} canManageRegistrations={effectiveCanManageRegistrations} onOwnerClick={()=>{setIncidentQuickFilter('ownerVerification');setView('incidents');}} onResolveClick={()=>{setIncidentQuickFilter('requiresResolution');setView('incidents');}} onRegistrationsClick={()=>setView('approvals')} />}
         {view==="about" && <CommunityMissionView lang={lang} config={adminInfo.config} />}
         {view==="listings"  && <ListingsView lang={lang} listings={listings} incidents={incidents} user={user} contactProps={contactProps} isGlobalAdmin={effectiveIsGlobalAdmin} canEditGlobal={delegatePerms.canUpdateGlobalListings} canDeleteGlobal={delegatePerms.canDeleteGlobalListings} onAdd={()=>{ if(!user){login();return;} setModal({type:"addListing"}); }} onEdit={l=>setModal({type:"editListing",data:l})} onDelete={deleteListing} onReport={l=>{ if(!user){login();return;} setModal({type:"incident",data:{aptId:l.id}}); }} />}
         {view==="incidents" && <IncidentsView lang={lang} incidents={incidents} listings={listings} user={user} quickFilter={incidentQuickFilter} onQuickFilterApplied={()=>setIncidentQuickFilter(null)} contactProps={contactProps} isGlobalAdmin={effectiveIsGlobalAdmin} canUpdateGlobal={delegatePerms.canUpdateGlobalIncidents} canDeleteGlobal={delegatePerms.canDeleteGlobalIncidents} canResolveGlobal={canResolveIncidentsNow} onAdd={()=>{ if(!user){login();return;} setModal({type:"incident"}); }} onResolve={resolveIncident} onDelete={deleteIncident} onVerify={inc=>setModal({type:"verifyIncident",data:inc})} />}
         {view==="notifications" && user && <NotificationsView lang={lang} notifications={notifications} incidents={incidents} listings={listings} contactProps={contactProps} onRead={markNotificationRead} onReadAll={markAllNotificationsRead} />}
         {view==="approvals" && user && effectiveCanManageRegistrations && <PendingApprovalsView lang={lang} pending={pendingRegistrations} onApprove={id=>reviewRegistrationAction(id,'approve')} onDecline={id=>reviewRegistrationAction(id,'decline')} active={activeRegistrations} />}
         {view==="analytics" && user && (effectiveIsGlobalAdmin || analyticsEnabledForAll) && <AnalyticsDashboard lang={lang} user={user} contactProps={contactProps} showToast={showToast} isGlobalAdmin={effectiveIsGlobalAdmin} />}
-        {view==="admin" && user && (adminInfo.isGlobalAdmin ? <ErrorBoundary section="admin" fallback={(err)=><AdminFallback lang={lang} error={err}/>}><AdminSettings config={adminInfo.config || {}} user={user} listings={listings} contactProps={contactProps} onSave={saveAdminConfig} showToast={showToast} lang={lang} /></ErrorBoundary> : <AdminAccessHelp user={user} adminInfo={adminInfo} lang={lang} />)}
+        {view==="admin" && user && (effectiveIsGlobalAdmin ? <ErrorBoundary section="admin" fallback={(err)=><AdminFallback lang={lang} error={err}/>}><AdminSettings config={adminInfo.config || {}} user={user} listings={listings} contactProps={contactProps} onSave={saveAdminConfig} showToast={showToast} lang={lang} /></ErrorBoundary> : <AdminAccessHelp user={user} adminInfo={adminInfo} lang={lang} />)}
         {view==="my" && user && <MyListings lang={lang} listings={myListings} incidents={incidents} user={user} contactProps={contactProps} onAdd={()=>setModal({type:"addListing"})} onEdit={l=>setModal({type:"editListing",data:l})} onDelete={deleteListing} onReport={l=>setModal({type:"incident",data:{aptId:l.id}})} />}
       </main>
 
@@ -1494,13 +1494,64 @@ function BetaCommandCenter({ lang="es-CO", alerts=[], pendingOwner=0, pendingRes
 }
 
 
-function Dashboard({ listings, incidents, user, contactProps={}, setView, onReport, showBlacklist=false, lang="es-CO" }) {
+function DashboardFocus({ lang="es-CO", effectiveIsGlobalAdmin=false, effectiveRole='user', delegatePerms={},
+  pendingOwner=0, pendingResolve=0, pendingRegistrations=0, openCount=0,
+  canResolve=false, canManageRegistrations=false,
+  onOwnerClick=()=>{}, onResolveClick=()=>{}, onRegistrationsClick=()=>{}, onOpenClick=()=>{}, setView=()=>{} }) {
+  const role = effectiveIsGlobalAdmin ? 'global' : effectiveRole === 'delegate_admin' ? 'delegate' : 'standard';
+  const titleKey = role === 'global' ? 'roles.globalTitle' : role === 'delegate' ? 'roles.delegateTitle' : 'roles.standardTitle';
+  const textKey  = role === 'global' ? 'roles.globalText'  : role === 'delegate' ? 'roles.delegateText'  : 'roles.standardText';
+  const roleIcon = role === 'global' ? '🌐' : role === 'delegate' ? '🛡️' : '🏠';
+  const actions = role === 'global'
+    ? [{label:appText(lang,'roles.globalAction1'),   view:'analytics'}, {label:appText(lang,'roles.globalAction2'),   view:'admin'}]
+    : role === 'delegate'
+    ? [{label:appText(lang,'roles.delegateAction1'), view:'approvals'}, ...(delegatePerms.canResolveIncidents ? [{label:appText(lang,'roles.delegateAction2'), view:'incidents'}] : [])]
+    : [{label:appText(lang,'roles.ownerAction1'),    view:'incidents'}, {label:appText(lang,'roles.ownerAction2'),    view:'my'}];
+  const cards = [
+    { id:'ownerVerification', icon:'✅', count:pendingOwner,       title:lang==='en'?'My verification':'Mi verificación',         sub:lang==='en'?'Open incidents requiring owner confirmation':'Incidentes abiertos que requieren confirmación del propietario', show:true,                   onClick:onOwnerClick,         accent:pendingOwner>0?'amber':null },
+    { id:'requiresResolution',icon:'🛠️',count:pendingResolve,     title:lang==='en'?'Ready to resolve':'Listos para resolver',    sub:lang==='en'?'Owner-verified incidents pending resolution':'Incidentes verificados pendientes de resolución admin',            show:canResolve,             onClick:onResolveClick,       accent:pendingResolve>0?'green':null },
+    { id:'registrations',     icon:'📝', count:pendingRegistrations,title:lang==='en'?'Registrations':'Registros',                sub:lang==='en'?'Pending registration requests':'Solicitudes pendientes de aprobación',                                             show:canManageRegistrations, onClick:onRegistrationsClick, accent:pendingRegistrations>0?'blue':null },
+    { id:'incidents',         icon:'⚠️', count:openCount,           title:lang==='en'?'All open incidents':'Incidentes abiertos', sub:lang==='en'?'Community incidents still in progress':'Incidentes de la comunidad en progreso',                                   show:true,                   onClick:onOpenClick,          accent:null },
+  ].filter(x=>x.show);
+  return (
+    <div className="dash-focus card">
+      <div className="dash-focus-head">
+        <div className="dash-focus-title">
+          <strong>{roleIcon} {appText(lang, titleKey)}</strong>
+          <p>{appText(lang, textKey)}</p>
+        </div>
+        <div className="dash-focus-actions">
+          <span>{appText(lang,'roles.primaryActions')}:</span>
+          {actions.map((a,i) => <button key={i} type="button" className="role-chip" onClick={()=>setView(a.view)}>{a.label}</button>)}
+        </div>
+      </div>
+      <div className="dash-focus-grid">
+        {cards.map(card => (
+          <button key={card.id} type="button"
+            className={`dash-focus-card${card.count>0?' dfc-active':''}${card.accent?' dfc-'+card.accent:''}`}
+            onClick={card.onClick} title={card.sub}>
+            <span className="dfc-icon">{card.icon}</span>
+            <span className="dfc-copy"><strong>{card.title}</strong><small>{card.sub}</small></span>
+            <span className="dfc-count">{card.count}</span>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function Dashboard({ listings, incidents, user, contactProps={}, setView, onReport, showBlacklist=false, lang="es-CO",
+  effectiveIsGlobalAdmin=false, effectiveRole='user', delegatePerms={},
+  pendingOwner=0, pendingResolve=0, pendingRegistrations=0,
+  canResolve=false, canManageRegistrations=false,
+  onOwnerClick=()=>{}, onResolveClick=()=>{}, onRegistrationsClick=()=>{} }) {
   const open=incidents.filter(i=>i.status==="open"), naughty=incidents.filter(i=>i.category==="naughty"), resolved=incidents.filter(i=>i.status==="resolved");
   const totalCap=listings.reduce((a,l)=>a+(l.guests||0),0);
   const recent=[...incidents].sort((a,b)=>new Date(b.createdAt)-new Date(a.createdAt)).slice(0,4);
   return (
     <div className="fade">
       <div className="ph"><div><h1 className="ptitle">{appText(lang,"dashboard.title")}</h1><p className="psub">{appText(lang,"dashboard.subtitle")}</p></div>{user&&<button className="btn-p btn-report" title={localizedTooltips({}, lang).reportIncident} onClick={onReport}>{appText(lang,"dashboard.reportIncident")}</button>}</div>
+      <DashboardFocus lang={lang} effectiveIsGlobalAdmin={effectiveIsGlobalAdmin} effectiveRole={effectiveRole} delegatePerms={delegatePerms} pendingOwner={pendingOwner} pendingResolve={pendingResolve} pendingRegistrations={pendingRegistrations} openCount={open.length} canResolve={canResolve} canManageRegistrations={canManageRegistrations} onOwnerClick={onOwnerClick} onResolveClick={onResolveClick} onRegistrationsClick={onRegistrationsClick} onOpenClick={()=>setView('incidents')} setView={setView} />
       <div className="stats6">
         {[{icon:"🏠",val:listings.length,label:appText(lang,"dashboard.apartments"),color:"#2a9aaa",click:()=>setView("listings")},{icon:"👥",val:totalCap,label:appText(lang,"dashboard.capacity"),color:"#c9a84c"},{icon:"⚠️",val:open.length,label:appText(lang,"dashboard.openReports"),color:"#d4634a",click:()=>setView("incidents")},...(showBlacklist?[{icon:"😈",val:naughty.length,label:appText(lang,"dashboard.blacklist"),color:"#b71c1c",click:()=>setView("naughty")}]:[]),{icon:"✅",val:resolved.length,label:appText(lang,"dashboard.resolved"),color:"#2e7d32"},{icon:"🔗",val:listings.filter(l=>l.airbnb).length,label:appText(lang,"dashboard.onAirbnb"),color:"#FF5A5F"}].map((s,i)=>(
           <div key={i} className="scard" style={{borderTop:`3px solid ${s.color}`,cursor:s.click?"pointer":"default"}} onClick={s.click}>
@@ -2161,6 +2212,29 @@ html{font-size:clamp(14px,1.1vw,16px);-webkit-text-size-adjust:100%}body{overflo
 .beta-action-card.has-count .beta-action-count{background:#fff0dc;color:#a06000;border-color:rgba(160,96,0,.22)}
 @media(max-width:760px){.beta-command-grid{grid-template-columns:1fr}.two-col{grid-template-columns:1fr}}
 
+/* --- DashboardFocus (unified action section) -------------------------------- */
+.dash-focus{margin-bottom:16px}
+.dash-focus-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:14px;flex-wrap:wrap}
+.dash-focus-title strong{display:block;font-size:1rem;font-weight:900;color:#203f2b}
+.dash-focus-title p{margin:4px 0 0;font-size:.84rem;color:#235f72;line-height:1.45}
+.dash-focus-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.dash-focus-actions>span{font-size:.78rem;font-weight:900;color:#235f72;white-space:nowrap}
+.dash-focus-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.dash-focus-card{display:grid!important;grid-template-columns:36px 1fr auto;align-items:center!important;gap:10px;background:rgba(255,255,255,.9);border:1px solid rgba(47,79,58,.12);border-left:4px solid transparent;border-radius:14px;padding:12px 14px;text-align:left;cursor:pointer;transition:transform .15s ease,box-shadow .15s ease;width:100%;justify-content:initial!important}
+.dash-focus-card:hover{transform:translateY(-1px);box-shadow:0 10px 24px rgba(32,46,38,.12)}
+.dfc-icon{font-size:1.25rem;width:36px;text-align:center;flex-shrink:0}
+.dfc-copy{min-width:0}
+.dfc-copy strong{display:block;font-size:.88rem;font-weight:900;color:#203f2b}
+.dfc-copy small{display:block;font-size:.76rem;color:#235f72;line-height:1.35;margin-top:2px;white-space:normal}
+.dfc-count{min-width:28px;height:28px;border-radius:999px;background:#edf5fe;color:#203f2b;display:flex!important;align-items:center!important;justify-content:center!important;font-size:.82rem;font-weight:900;border:1px solid rgba(47,79,58,.12);flex-shrink:0}
+.dfc-active .dfc-count{background:#fff0dc;color:#a06000;border-color:rgba(160,96,0,.22)}
+.dfc-active.dfc-amber{border-left-color:#d9a030}
+.dfc-active.dfc-green{border-left-color:#2a9a4a}
+.dfc-active.dfc-blue{border-left-color:#3b82f6}
+.role-chip{background:rgba(11,127,140,.1);color:#0b7f8c;border:1px solid rgba(11,127,140,.22);border-radius:999px;padding:6px 13px;font-size:.8rem;font-weight:900;cursor:pointer;white-space:nowrap;transition:.12s ease}
+.role-chip:hover{background:rgba(11,127,140,.18);transform:translateY(-1px)}
+@media(max-width:760px){.dash-focus-grid{grid-template-columns:1fr}.dash-focus-head{flex-direction:column}.dash-focus-actions{margin-top:4px}}
+
 /* --- AptCard internals ----------------------------------------------------- */
 .acard-top{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:10px}
 .acard-body{margin-bottom:10px}
@@ -2225,5 +2299,19 @@ html{font-size:clamp(14px,1.1vw,16px);-webkit-text-size-adjust:100%}body{overflo
   .nav .nb{font-size:.76rem!important;padding:7px 8px!important}
   .nav-dd-menu{right:215px!important}
 }
+
+/* --- v76 nav layout: left|center|right — no overflow ----------------------- */
+.hdr-inner{display:flex!important;flex-wrap:nowrap!important;gap:6px!important}
+.logo{flex:0 0 auto!important}
+.nav.nav-compact{flex:1 1 0!important;min-width:0!important;overflow:hidden!important;flex-wrap:nowrap!important;gap:3px!important}
+.nav.nav-compact .nb{min-width:0!important;flex-shrink:1!important;white-space:nowrap!important;font-size:clamp(.7rem,1.4vw,.85rem)!important;padding:7px 8px!important}
+.hdr-right{flex:0 0 auto!important;margin-left:auto!important}
+/* More ▾ dropdown — View as role section */
+.dd-sep{height:1px;background:rgba(47,79,58,.12);margin:5px 8px}
+.dd-section-label{font-size:.69rem;font-weight:900;color:#235f72;padding:6px 12px 3px;text-transform:uppercase;letter-spacing:.07em;display:block}
+.dd-radio{justify-content:flex-start!important;gap:8px!important}
+.dd-radio-on{background:rgba(11,127,140,.1)!important;color:#0b7f8c!important;font-weight:900!important}
+.dd-radio-dot{font-size:.88rem;width:14px;text-align:center;flex-shrink:0;font-family:monospace}
+.nb-preview-dot{font-size:.72rem;margin-left:4px;vertical-align:middle;line-height:1}
 
 `;
