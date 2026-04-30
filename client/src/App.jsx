@@ -1156,10 +1156,7 @@ export default function App() {
 
           <div className="hdr-right">
             <LanguageSwitch lang={lang} setLang={setLang} compact />
-            <div className="smart-dd" onClick={e=>e.stopPropagation()}>
-              <button className={`icon-btn ${openDropdown==="smart"||view==="notifications"?"icon-active":""}`} onClick={()=>setOpenDropdown(openDropdown === "smart" ? null : "smart")} title={appText(lang,"smart.title")}>🔔{smartAlertCount>0 && <span className="icon-badge">{smartAlertCount}</span>}</button>
-              <SmartNotificationsDropdown lang={lang} open={openDropdown === "smart"} alerts={smartAlerts} unread={unreadNotifications} onReadAll={markAllNotificationsRead} onOpenNotifications={()=>{setView('notifications');setOpenDropdown(null);}} />
-            </div>
+            <button className={`icon-btn ${view==="notifications"?"icon-active":""}`} onClick={()=>{setView('notifications');setOpenDropdown(null);}} title={appText(lang,"smart.title")}>🔔{smartAlertCount>0 && <span className="icon-badge">{smartAlertCount}</span>}</button>
             <div className="sync-pill compact-sync">
               {syncing
                 ? <><span className="sync-dot syncing"/>{lang === "en" ? "Saving..." : "Guardando..."}</>
@@ -1211,7 +1208,7 @@ export default function App() {
         {view==="about" && <CommunityMissionView lang={lang} config={adminInfo.config} />}
         {view==="listings"  && <ListingsView lang={lang} listings={listings} incidents={incidents} user={user} contactProps={contactProps} isGlobalAdmin={effectiveIsGlobalAdmin} canEditGlobal={delegatePerms.canUpdateGlobalListings} canDeleteGlobal={delegatePerms.canDeleteGlobalListings} onAdd={()=>{ if(!user){login();return;} setModal({type:"addListing"}); }} onEdit={l=>setModal({type:"editListing",data:l})} onDelete={deleteListing} onReport={l=>{ if(!user){login();return;} setModal({type:"incident",data:{aptId:l.id}}); }} />}
         {view==="incidents" && <IncidentsView lang={lang} incidents={incidents} listings={listings} user={user} quickFilter={incidentQuickFilter} onQuickFilterApplied={()=>setIncidentQuickFilter(null)} contactProps={contactProps} isGlobalAdmin={effectiveIsGlobalAdmin} canUpdateGlobal={delegatePerms.canUpdateGlobalIncidents} canDeleteGlobal={delegatePerms.canDeleteGlobalIncidents} canResolveGlobal={canResolveIncidentsNow} onAdd={()=>{ if(!user){login();return;} setModal({type:"incident"}); }} onResolve={resolveIncident} onDelete={deleteIncident} onVerify={inc=>setModal({type:"verifyIncident",data:inc})} />}
-        {view==="notifications" && user && <NotificationsView lang={lang} notifications={notifications} incidents={incidents} listings={listings} contactProps={contactProps} onRead={markNotificationRead} onReadAll={markAllNotificationsRead} />}
+        {view==="notifications" && user && <NotificationsView lang={lang} notifications={notifications} incidents={incidents} listings={listings} contactProps={contactProps} onRead={markNotificationRead} onReadAll={markAllNotificationsRead} smartAlerts={smartAlerts} />}
         {view==="approvals" && user && effectiveCanManageRegistrations && <PendingApprovalsView lang={lang} pending={pendingRegistrations} onApprove={id=>reviewRegistrationAction(id,'approve')} onDecline={id=>reviewRegistrationAction(id,'decline')} active={activeRegistrations} />}
         {view==="analytics" && user && (effectiveIsGlobalAdmin || analyticsEnabledForAll) && <AnalyticsDashboard lang={lang} user={user} contactProps={contactProps} showToast={showToast} isGlobalAdmin={effectiveIsGlobalAdmin} />}
         {view==="admin" && user && (effectiveIsGlobalAdmin ? <ErrorBoundary section="admin" fallback={(err)=><AdminFallback lang={lang} error={err}/>}><AdminSettings config={adminInfo.config || {}} user={user} listings={listings} contactProps={contactProps} onSave={saveAdminConfig} showToast={showToast} lang={lang} /></ErrorBoundary> : <AdminAccessHelp user={user} adminInfo={adminInfo} lang={lang} />)}
@@ -1235,34 +1232,6 @@ export default function App() {
 
 
 const SMART_TONE_COLOR = { owner:'#c49a14', resolve:'#d96c1a', registration:'#2f6fbf', notice:'#6b44b8', serious:'#c0281e' };
-function SmartNotificationsDropdown({ lang="es-CO", open=false, alerts=[], unread=0, onReadAll=()=>{}, onOpenNotifications=()=>{} }) {
-  if (!open) return null;
-  return (
-    <div className="smart-menu">
-      <div className="smart-head">
-        <div><strong>{appText(lang,"smart.title")}</strong><span>{appText(lang,"smart.subtitle")}</span></div>
-        <em className="smart-live">{appText(lang,"smart.live")}</em>
-      </div>
-      {alerts.length === 0
-        ? <div className="smart-empty"><span className="smart-empty-icon">✅</span><strong>{appText(lang,"smart.none")}</strong><span>{appText(lang,"smart.noneSub")}</span></div>
-        : <div className="smart-list">
-            {alerts.map(a => (
-              <button key={a.id} className={`smart-item smart-${a.tone}`} onClick={a.action}>
-                <span className="smart-count" style={{background: SMART_TONE_COLOR[a.tone]||'#0b7f4f'}}>{a.count}</span>
-                <span className="smart-title"><span className="smart-icon-inline" aria-hidden="true">{a.icon}</span>{a.title}</span>
-                <span className="smart-arr" aria-hidden="true">›</span>
-                <span className="smart-desc">{a.msg}</span>
-              </button>
-            ))}
-          </div>
-      }
-      <div className="smart-foot">
-        <button className="dd-item" onClick={onOpenNotifications}>🔔 {lang === "en" ? "Open alert history" : "Abrir historial de avisos"}</button>
-        {unread > 0 && <button className="dd-item" onClick={onReadAll}>✅ {appText(lang,"smart.markAll")}</button>}
-      </div>
-    </div>
-  );
-}
 
 // ─── HELP CONTENT ─────────────────────────────────────────────────────────────
 const HL = (es, en) => ({ es, en });
@@ -1338,7 +1307,7 @@ const HELP_TOPICS = [
       { h:HL('¿Cuándo recibes avisos?','When do you receive alerts?'),
         b:HL('Recibes avisos cuando: se reporta un incidente en tu apartamento, el incidente es verificado o resuelto, tu solicitud de registro es aprobada o rechazada, o la administración te envía un mensaje.','You receive alerts when: an incident is reported in your apartment, the incident is verified or resolved, your registration request is approved or declined, or management sends you a message.')},
       { h:HL('Leer y marcar como leído','Reading and marking as read'),
-        b:HL('Ve a "Avisos" en el menú. Los avisos no leídos aparecen marcados. Haz clic en uno para ver el detalle. Puedes marcar todos como leídos desde el panel de la campana (🔔) con el botón "Marcar avisos leídos".','Go to "Alerts" in the menu. Unread alerts appear marked. Click one to view the detail. You can mark all as read from the bell panel (🔔) using "Mark alerts read".')},
+        b:HL('Ve a Notificaciones (campana 🔔) en el menú. La página muestra las acciones prioritarias arriba y el historial completo de avisos abajo. Los no leídos aparecen marcados. Usa "Marcar todos como leídos" para limpiar la bandeja de una vez.','Go to Notifications (bell 🔔) in the menu. The page shows priority actions at the top and the full alert history below. Unread alerts appear highlighted. Use "Mark all as read" to clear the inbox at once.')},
     ]
   },
   {
@@ -1346,8 +1315,8 @@ const HELP_TOPICS = [
     title:HL('Notificaciones inteligentes','Smart notifications'),
     summary:HL('El panel de la campana que muestra las acciones prioritarias según tu rol actual.','The bell panel showing priority actions based on your current role.'),
     sections:[
-      { h:HL('¿Qué muestra el panel?','What does the panel show?'),
-        b:HL('Al hacer clic en la campana (🔔) aparece un panel con las acciones más importantes para ti ahora, ordenadas por prioridad. El número rojo en el ícono muestra el total de ítems pendientes.','Clicking the bell (🔔) shows a panel with the most important actions for you right now, ordered by priority. The red number on the icon shows the total pending items.')},
+      { h:HL('¿Cómo acceder?','How to access?'),
+        b:HL('Haz clic en la campana (🔔) en la barra de navegación para ir directamente a la página de Notificaciones. El número rojo en el ícono muestra el total de ítems pendientes de acción.','Click the bell (🔔) in the navigation bar to go directly to the Notifications page. The red number on the icon shows the total items that need action.')},
       { h:HL('Tipos de alertas y sus colores','Alert types and their colours'),
         b:HL('Ámbar — Verificación de propietario: incidentes de tus apartamentos que necesitan tu confirmación. Naranja — Listos para resolver: incidentes verificados esperando acción admin. Azul — Registros pendientes: solicitudes de nuevos propietarios. Morado — Avisos sin leer. Rojo — Incidentes serios abiertos en la comunidad.','Amber — Owner verification: your apartment incidents needing confirmation. Orange — Ready to resolve: verified incidents awaiting admin action. Blue — Pending registrations: new owner requests. Purple — Unread alerts. Red — Serious incidents still open in the community.')},
       { h:HL('Acciones directas','Direct actions'),
@@ -2097,23 +2066,61 @@ const localizeNotification = (n={}, lang="es-CO") => {
   return { title: outTitle, message: outMessage };
 };
 
-function NotificationsView({ notifications, incidents, listings=[], contactProps={}, onRead, onReadAll, lang="es-CO" }) {
+function NotificationsView({ notifications, incidents, listings=[], contactProps={}, onRead, onReadAll, lang="es-CO", smartAlerts=[] }) {
   const unread = notifications.filter(n => !n.isRead).length;
+  const hasAlerts = smartAlerts.length > 0;
   return (
     <div className="fade">
-      <div className="ph"><div><h1 className="ptitle">{appText(lang,"notifications.title")}</h1><p className="psub">{appText(lang,"notifications.subtitle",{count:unread})}</p></div>{unread>0&&<button className="btn-p" onClick={onReadAll}>{appText(lang,"notifications.markAll")}</button>}</div>
-      {notifications.length===0?<EmptyState icon="🔔" title={appText(lang,"notifications.none")} sub={appText(lang,"notifications.noneSub")}/>:
-        <div className="notice-list">{notifications.map(n=>{ const inc=incidents.find(i=>i.id===n.incidentId); const nt=localizeNotification(n,lang); return (
-          <div key={n.id} className={`notice-card ${n.isRead?'notice-read':'notice-new'}`}>
-            <div className="notice-main">
-              <div className="notice-title">{n.isRead?'🔔':'🆕'} {nt.title}</div>
-              <div className="notice-msg">{nt.message}</div>
-              <div className="notice-meta">{new Date(n.createdAt).toLocaleString(lang === 'en' ? 'en-US' : 'es-CO')} · {appText(lang,'common.email')}: {n.emailSent?(appText(lang,'common.sent')+' ✅'):(appText(lang,'common.notSent')+' ⚠️')}{n.emailError?` · ${n.emailError}`:''}</div>
-              {inc&&<div className="notice-inc"><strong>{appText(lang,'notifications.detail')}:</strong> {inc.desc}</div>}
-            </div>
-            {!n.isRead&&<button className="bsm bs-resolve" onClick={()=>onRead(n.id)}>{appText(lang,"notifications.markRead")}</button>}
+      <div className="ph">
+        <div>
+          <h1 className="ptitle">🔔 {lang==='en'?'Notifications':'Notificaciones'}</h1>
+          <p className="psub">{lang==='en'
+            ? `${hasAlerts?smartAlerts.length+' priority action'+(smartAlerts.length!==1?'s':'')+' · ':''}${unread} unread alert${unread!==1?'s':''}`
+            : `${hasAlerts?smartAlerts.length+' acción'+(smartAlerts.length!==1?'es':'')+' prioritaria'+(smartAlerts.length!==1?'s':'')+' · ':''}${unread} aviso${unread!==1?'s':''} sin leer`}
+          </p>
+        </div>
+        {unread>0 && <button className="btn-p" onClick={onReadAll}>{appText(lang,"notifications.markAll")}</button>}
+      </div>
+
+      {hasAlerts && (
+        <div className="notif-alerts-section">
+          <div className="section-label" style={{marginBottom:10}}>
+            🎯 {lang==='en'?'Priority actions — tap to act':'Acciones prioritarias — toca para actuar'}
           </div>
-        );})}</div>}
+          <div className="notif-alerts-grid">
+            {smartAlerts.map(a => (
+              <button key={a.id} className={`smart-item smart-${a.tone}`} onClick={a.action}>
+                <span className="smart-count" style={{background: SMART_TONE_COLOR[a.tone]||'#0b7f4f'}}>{a.count}</span>
+                <span className="smart-title"><span className="smart-icon-inline" aria-hidden="true">{a.icon}</span>{a.title}</span>
+                <span className="smart-arr" aria-hidden="true">›</span>
+                <span className="smart-desc">{a.msg}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div className="section-label" style={{margin:`${hasAlerts?20:0}px 0 10px`}}>
+        {lang==='en'?'Alert history':'Historial de avisos'}
+      </div>
+      {notifications.length===0
+        ? <EmptyState icon="🔔" title={appText(lang,"notifications.none")} sub={appText(lang,"notifications.noneSub")}/>
+        : <div className="notice-list">{notifications.map(n=>{
+            const inc=incidents.find(i=>i.id===n.incidentId);
+            const nt=localizeNotification(n,lang);
+            return (
+              <div key={n.id} className={`notice-card ${n.isRead?'notice-read':'notice-new'}`}>
+                <div className="notice-main">
+                  <div className="notice-title">{n.isRead?'🔔':'🆕'} {nt.title}</div>
+                  <div className="notice-msg">{nt.message}</div>
+                  <div className="notice-meta">{new Date(n.createdAt).toLocaleString(lang==='en'?'en-US':'es-CO')} · {appText(lang,'common.email')}: {n.emailSent?(appText(lang,'common.sent')+' ✅'):(appText(lang,'common.notSent')+' ⚠️')}{n.emailError?` · ${n.emailError}`:''}</div>
+                  {inc&&<div className="notice-inc"><strong>{appText(lang,'notifications.detail')}:</strong> {inc.desc}</div>}
+                </div>
+                {!n.isRead&&<button className="bsm bs-resolve" onClick={()=>onRead(n.id)}>{appText(lang,"notifications.markRead")}</button>}
+              </div>
+            );
+          })}</div>
+      }
     </div>
   );
 }
@@ -2798,6 +2805,11 @@ html{font-size:clamp(14px,1.1vw,16px);-webkit-text-size-adjust:100%}body{overflo
 .help-actions-row{display:flex;gap:10px;flex-wrap:wrap}
 .help-action-btn{flex-shrink:0}
 .help-article-foot{margin-top:20px;padding-top:16px;border-top:1px solid rgba(47,79,58,.10)}
+/* ── Notifications view: full-page smart alerts grid ─────────────────────────*/
+.notif-alerts-section{margin-bottom:8px}
+.notif-alerts-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:10px}
+@media(max-width:600px){.notif-alerts-grid{grid-template-columns:1fr}}
+
 /* ── Admin collapsible sections ─────────────────────────────────────────────── */
 .admin-sec-hdr{display:flex;align-items:center;gap:12px;cursor:pointer;user-select:none;border-radius:12px;padding:4px 2px;margin:-4px -2px;transition:background .12s}
 .admin-sec-hdr:hover{background:rgba(11,127,140,.05)}
