@@ -191,12 +191,11 @@ function placeBanner(count) {
 }
 
 function findBrokenActionCenterNode() {
-  const nodes = Array.from(document.body.querySelectorAll('div, section'))
-  return nodes.find((node) => {
-    if (node.classList.contains('kai-v75-action-center')) return false
-    const txt = visibleText(node)
-    return /action centerWhat needs attention now|What needs attention now.*My verification.*Ready to resolve.*Registrants/i.test(txt)
-  }) || null
+  // Target BetaCommandCenter's root element directly via its CSS class.
+  // The previous text-content search matched parent wrappers (innerText
+  // of ancestor divs includes the same concatenated text), causing the
+  // entire app shell to be replaced with just the action center.
+  return document.querySelector('.beta-command') || null
 }
 
 function buildActionCenter() {
@@ -245,8 +244,11 @@ function wireDashboardActionCenter() {
     broken.replaceWith(replacement)
     return
   }
-  const dashboardTitle = Array.from(document.querySelectorAll('h1,h2')).find((el) => /Community Dashboard|Dashboard Comunal|Global settings/i.test(visibleText(el)))
-  if (dashboardTitle?.parentElement) dashboardTitle.parentElement.insertBefore(replacement, dashboardTitle)
+  // Fallback: insert immediately before <main> so the action center sits in
+  // the persistent shell area (same position as BetaCommandCenter) rather
+  // than inside the dashboard's internal heading structure.
+  const mainEl = document.querySelector('main.main, main[class], main')
+  if (mainEl) mainEl.insertAdjacentElement('beforebegin', replacement)
 }
 
 function enhanceHeader() {
