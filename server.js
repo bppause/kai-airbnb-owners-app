@@ -57,11 +57,11 @@ const DEFAULT_DELEGATE_PERMISSIONS = {
 // owner   = listing owner / registrant   operator    = listing operator
 // globalAdmin = env GLOBAL_ADMIN_EMAILS + escalation CC   delegateAdmin = role-gated per type
 const DEFAULT_EMAIL_NOTIFICATION_CONFIG = {
-  incident_new:              { enabled:true,  owner:true,  operator:true,  globalAdmin:false, delegateAdmin:false },
+  incident_new:              { enabled:true,  owner:true,  operator:true,  globalAdmin:true,  delegateAdmin:true  },
   incident_sla_notification: { enabled:true,  owner:true,  operator:true,  globalAdmin:false, delegateAdmin:false },
   incident_sla_reminder:     { enabled:true,  owner:true,  operator:true,  globalAdmin:false, delegateAdmin:false },
   incident_sla:              { enabled:true,  owner:true,  operator:true,  globalAdmin:true,  delegateAdmin:false },
-  incident_verified:         { enabled:true,  owner:true,  operator:true,  globalAdmin:false, delegateAdmin:false },
+  incident_verified:         { enabled:true,  owner:true,  operator:true,  globalAdmin:true,  delegateAdmin:true  },
   incident_resolved:         { enabled:true,  owner:true,  operator:true,  globalAdmin:true,  delegateAdmin:true  },
   registration_submitted:    { enabled:true,  owner:true,  operator:false, globalAdmin:false, delegateAdmin:false },
   registration_approved:     { enabled:true,  owner:true,  operator:false, globalAdmin:false, delegateAdmin:false },
