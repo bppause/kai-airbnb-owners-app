@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback, Component } from "react";
 import { initializeApp } from "firebase/app";
 import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged }
   from "firebase/auth";
+import { APP_VERSION } from "./version.js";
 
 // ─── FIREBASE CONFIG — replace with your own from Firebase Console ────────────
 const FIREBASE_CONFIG = {
@@ -263,7 +264,7 @@ const APP_I18N = {
   "listings.noOpenReports": { es:"✅ Sin reportes abiertos", en:"✅ No open reports" },
   "listings.openReportSingular": { es:"⚠️ {count} reporte abierto", en:"⚠️ {count} open report" },
   "listings.openReportPlural": { es:"⚠️ {count} reportes abiertos", en:"⚠️ {count} open reports" },
-  "listing.apt": { es:"Unidad", en:"Unit" },
+  "listing.apt": { es:"Apto.", en:"Apt." },
   "listing.tower": { es:"Torre", en:"Tower" },
   "listing.owner": { es:"Propietario", en:"Owner" },
   "listing.googleEmail": { es:"Email Google", en:"Google email" },
@@ -394,7 +395,7 @@ const APP_I18N = {
   "analytics.byStatus": { es:"📌 Por estado", en:"📌 By status" },
   "analytics.byMonth": { es:"📅 Tendencia mensual", en:"📅 Monthly trend" },
   "analytics.noData": { es:"Sin datos", en:"No data" },
-  "analytics.table.apt": { es:"Unidad", en:"Unit" },
+  "analytics.table.apt": { es:"Apto.", en:"Apt." },
   "analytics.table.owner": { es:"Propietario", en:"Owner" },
   "analytics.table.operator": { es:"Operador", en:"Operator" },
   "analytics.table.type": { es:"Tipo", en:"Type" },
@@ -535,7 +536,7 @@ Object.assign(APP_I18N, {
   "tooltips.english": { es:"Tooltip inglés", en:"English tooltip" },
   "tooltips.save": { es:"Guardar tooltips", en:"Save tooltips" },
   "tooltip.reportIncident": { es:"Reporta un incidente visible para propietarios aprobados. Incluye datos claros y verificables.", en:"Report an incident visible to approved owners. Include clear, verifiable details." },
-  "tooltip.addListing": { es:"Registra una unidad que te pertenece en Morros KAI. El número debe ser único y quedará asociado a tu cuenta Google.", en:"Register a unit you own at Morros KAI. The number must be unique and will be tied to your Google account." },
+  "tooltip.addListing": { es:"Registra una unidad que te pertenece en Morros KAI. El número debe ser único y quedará asociado a tu cuenta Google.", en:"Register a unit you own at Morros KAI. The number must be unique and will be linked to your Google account." },
   "tooltip.aptNumber": { es:"Ingresa 3 dígitos (ej: 705). Solo un propietario puede registrar cada unidad.", en:"Enter 3 digits (e.g. 705). Each unit can only be registered to one owner." },
   "tooltip.listingEmail": { es:"Email que recibirá notificaciones del listing. Si queda igual, usa tu email de Google.", en:"Email that receives listing notifications. If unchanged, it uses your Google email." },
   "tooltip.ownerWhatsapp": { es:"WhatsApp del propietario para contacto operativo.", en:"Owner WhatsApp for operational contact." },
@@ -1324,15 +1325,16 @@ export default function App() {
                   <div className="profile-head">
                     <strong>{user.name}</strong>
                     <span>{user.email}</span>
-                    <small>{myListings.length ? `${myListings.length} ${lang === 'en' ? (myListings.length>1?'listings':'listing') : ('apto' + (myListings.length>1?'s':''))}` : (lang === "en" ? "Visitor" : "Visitante")}</small>
+                    <small>{myListings.length ? `${myListings.length} ${lang === 'en' ? (myListings.length>1?'units':'unit') : ('unidad' + (myListings.length>1?'es':''))}` : (lang === "en" ? "Visitor" : "Visitante")}</small>
                   </div>
                   <button className="dd-item" onClick={()=>{setView('profile');setOpenDropdown(null);}}>{lang === "en" ? "👤 My profile" : "👤 Mi perfil"}</button>
-                  <button className="dd-item" onClick={()=>{setView('my');setOpenDropdown(null);}}>🔑 {t.nav.my}</button>
+                  <button className="dd-item" onClick={()=>{setView('my');setOpenDropdown(null);}}>🏠 {t.nav.my}</button>
                   <button className="dd-item" onClick={()=>{setView('about');setOpenDropdown(null);}}>🌊 {t.nav.about}</button>
                   {effectiveIsGlobalAdmin && <button className="dd-item" onClick={()=>{setView('admin');setOpenDropdown(null);}}>⚙️ {t.nav.admin}</button>}
                   {(effectiveIsGlobalAdmin || analyticsEnabledForAll) && <button className="dd-item" onClick={()=>{setView('analytics');setOpenDropdown(null);}}>📈 {t.nav.analytics}</button>}
                   {adminInfo.isGlobalAdmin && <div className="profile-view-as"><span>👁 {lang==='en'?'View as:':'Ver como:'}</span><select className="view-as-select" value={previewRole||''} onChange={e=>{setPreviewRole(e.target.value||null);setOpenDropdown(null);}}><option value="">{lang==='en'?'Global Admin':'Admin global'}</option><option value="delegate_admin">{lang==='en'?'Delegate Admin':'Admin delegado'}</option><option value="user">{lang==='en'?'Owner/User':'Propietario/Usuario'}</option></select></div>}
                   <button className="dd-item danger" onClick={()=>{setOpenDropdown(null);logout();}}>{lang === "en" ? "🚪 Log out" : "🚪 Cerrar sesión"}</button>
+                  <div className="profile-version">KAI Owners · v{APP_VERSION}</div>
                 </div>
               </div>
             ) : (
@@ -1785,6 +1787,7 @@ function AuthGate({ onLogin, lang="es-CO", setLang=()=>{} }) {
         <p className="secure-copy">{t.secure}</p>
         <div className="google-switch-help"><strong>{appText(lang,"login.switchGoogleTitle")}</strong><br/>{appText(lang,"login.switchGoogleHelp")}<br/><span>{appText(lang,"login.switchGoogleSteps")}</span></div>
         <button className="btn-google gate-btn" onClick={onLogin} title={appText(lang,"login.switchGoogleHelp")}><GoogleIcon/> {t.google}</button>
+        <div style={{marginTop:16,fontSize:'.68rem',color:'rgba(47,79,58,.4)',textAlign:'center',letterSpacing:'.04em'}}>KAI Owners · v{APP_VERSION}</div>
       </div>
     </div>
   );
@@ -2348,7 +2351,7 @@ function MyListings({ listings, incidents, user, contactProps={}, isGlobalAdmin=
               return (
                 <div key={l.id} className={`ml-listing${isSel?' ml-listing-sel':''}`}>
                   <div className="ml-listing-row apt-cpop-wrap" onClick={()=>setSelectedId(isSel?null:l.id)}>
-                    <div className="ml-listing-apt">{isEn?'Unit':'Unidad'} {l.apt}</div>
+                    <div className="ml-listing-apt">{isEn?'Apt.':'Apto.'} {l.apt}</div>
                     <div className="ml-listing-chips">
                       <span className="chip c-teal">🛏️ {l.rooms}</span>
                       <span className="chip c-blue">👥 {l.guests}</span>
@@ -2521,7 +2524,7 @@ function AptDetailPanel({ l, incidents, contactProps={}, canEdit, canDelete, onE
     <div className="adp-wrap">
       <div className="adp-header">
         <div className="adp-apt-id">
-          <span className="adp-apt-num">{isEn?'Unit':'Unidad'} {l.apt}</span>
+          <span className="adp-apt-num">{isEn?'Apt.':'Apto.'} {l.apt}</span>
           <span className="chip c-teal">🛏️ {l.rooms}</span>
           <span className="chip c-blue">👥 {l.guests}</span>
           {l.airbnb && <a className="adp-airbnb-lnk" href={l.airbnb} target="_blank" rel="noreferrer" title="Airbnb">🔗</a>}
@@ -2673,7 +2676,7 @@ function AptRow({ l, incCount, user, contactProps={}, isGlobalAdmin=false, canEd
   return (
     <div className={`fls-row${expanded?' fls-row-open':''}`}>
       <div className="fls-row-main apt-cpop-wrap" onClick={()=>setExpanded(x=>!x)} role="button" aria-expanded={expanded}>
-        <span className="fls-apt-num">{isEn?'Unit':'Unidad'} {l.apt}</span>
+        <span className="fls-apt-num">{isEn?'Apt.':'Apto.'} {l.apt}</span>
         <span className="fls-owner-wrap"><UserContact name={l.owner} uid={l.ownerUid} email={l.userEmail||l.email} whatsapp={l.contact} apartments={l.apt?[aptDisplay(l.apt,lang)]:[]} {...contactProps}/></span>
         {hasOp&&<span className="fls-op-pill">🔧 {l.operator||'—'}</span>}
         <span className="fls-row-chips"><span className="chip c-teal">🛏️ {l.rooms}</span><span className="chip c-blue">👥 {l.guests}</span></span>
@@ -4205,6 +4208,8 @@ html{font-size:clamp(14px,1.1vw,16px);-webkit-text-size-adjust:100%}body{overflo
 /* "View as" in profile dropdown (always accessible) */
 .profile-view-as{padding:8px 12px;display:flex;align-items:center;gap:8px;border-top:1px solid rgba(47,79,58,.08);margin-top:2px}
 .profile-view-as>span{font-size:.78rem;font-weight:900;color:#235f72;white-space:nowrap;flex-shrink:0}
+/* Version badge at the bottom of profile dropdown */
+.profile-version{font-size:.65rem;color:rgba(47,79,58,.4);text-align:center;padding:6px 12px 2px;letter-spacing:.04em;font-weight:600;border-top:1px solid rgba(47,79,58,.06);margin-top:2px}
 .profile-view-as .view-as-select{flex:1;height:32px;font-size:.82rem}
 
 /* --- FIX 1: nav overflow at 900-1200 px ----------------------------------- */

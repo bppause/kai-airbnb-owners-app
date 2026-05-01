@@ -48,7 +48,7 @@ function currentLang() {
   // Secondary: look for English indicator text using current nav labels
   // Updated patterns to match renamed labels (My Units, Incidents, Inventory)
   const bodyText = document.body?.innerText || ''
-  if (/\bEnglish\b|\bMy Units\b|\bIncidents\b|\bInventory\b|\bAdd unit\b|\bFile a report\b/i.test(bodyText)) return 'en'
+  if (/\bEnglish\b|\bMy Units\b|\bMy Apartments\b|\bIncidents\b|\bInventory\b|\bAdd unit\b|\bFile a report\b/i.test(bodyText)) return 'en'
   return 'es'
 }
 
