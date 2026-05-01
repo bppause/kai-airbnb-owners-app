@@ -2374,14 +2374,40 @@ function aptDoorStatus(l, incidents) {
   return 'clean';
 }
 
+// Inline branded SVG icons — small enough to embed directly
+const IconWhatsApp = () => (
+  <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true" style={{flexShrink:0}}>
+    <circle cx="12" cy="12" r="12" fill="#25D366"/>
+    <path d="M17.5 14.4c-.3-.1-1.7-.85-1.97-.95-.27-.1-.46-.1-.66.1-.19.21-.74.95-.9 1.14-.17.2-.33.22-.62.07-.29-.14-1.22-.45-2.33-1.43-.86-.77-1.44-1.72-1.61-2.01-.17-.29 0-.45.13-.59l.42-.49c.12-.14.17-.25.25-.42.08-.17.04-.32-.02-.46-.06-.14-.65-1.57-.9-2.15-.23-.55-.47-.48-.65-.48h-.57c-.19 0-.5.07-.76.37-.26.3-.99.97-.99 2.36 0 1.39.99 2.74 1.13 2.93.14.19 1.95 3 4.73 4.09 2.78 1.08 2.78.72 3.28.68.5-.04 1.61-.66 1.84-1.3.22-.64.22-1.19.16-1.3z" fill="#fff"/>
+  </svg>
+);
+const IconEmail = () => (
+  <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true" style={{flexShrink:0}}>
+    <rect width="24" height="24" rx="3" fill="#EA4335"/>
+    <path d="M4 8l8 5 8-5" stroke="#fff" strokeWidth="1.5" fill="none" strokeLinecap="round"/>
+    <rect x="3" y="7" width="18" height="12" rx="1.5" fill="none" stroke="#fff" strokeWidth="1.3"/>
+  </svg>
+);
+
 function AptDoor({ l, incidents, isSelected, onSelect, lang, isEn }) {
   const status = aptDoorStatus(l, incidents);
   const openCount = incidents.filter(i=>i.aptId===l.id&&i.status==='open').length;
+  const ownerEmail = l.userEmail || l.email || '';
+  const ownerWaRaw = l.contact || '';
+  const ownerWaDigits = normalizePhoneForWhatsApp(ownerWaRaw);
+  // Flag numbers missing the + prefix so owners know to update them
+  const waFormatOk = !ownerWaRaw || ownerWaRaw.trim().startsWith('+');
   return (
-    <div className={`apt-door apt-door-${status}${isSelected?' apt-door-sel':''}`} onClick={()=>onSelect(isSelected?null:l.id)} role="button" aria-expanded={isSelected}>
+    <div
+      className={`apt-door apt-door-${status}${isSelected?' apt-door-sel':''}`}
+      onClick={()=>onSelect(isSelected?null:l.id)}
+      role="button"
+      aria-expanded={isSelected}
+      aria-label={`${isEn?'Apartment':'Apartamento'} ${l.apt}${isEn?'. Click to see incidents':'. Clic para ver incidentes'}`}
+    >
       {/* Status colour bar across full top edge */}
       <div className={`door-status-bar door-sb-${status}`}/>
-      {/* Full-width number plate — never clips a 3-digit number */}
+      {/* Full-width number plate */}
       <div className="door-num-plate">
         <span className="door-num">{l.apt}</span>
         {openCount>0 && <span className="door-inc-badge">⚠️ {openCount}</span>}
@@ -2395,7 +2421,30 @@ function AptDoor({ l, incidents, isSelected, onSelect, lang, isEn }) {
           <span className="door-chip">👥 {l.guests}</span>
         </div>
       </div>
-      <div className="door-footer">{isSelected ? '▲' : '▼'} {isSelected ? (isEn?'Close':'Cerrar') : (isEn?'Details':'Detalles')}</div>
+      {/* Hover overlay — pointer-events:none so card click still works;
+          only the <a> links inside have pointer-events:auto               */}
+      <div className="door-hover-overlay">
+        {ownerEmail ? (
+          <a className="door-hover-link" href={`mailto:${ownerEmail}`} onClick={e=>e.stopPropagation()} title={ownerEmail}>
+            <IconEmail/><span>{ownerEmail}</span>
+          </a>
+        ) : (
+          <span className="door-hover-missing">{isEn?'No email':'Sin email'}</span>
+        )}
+        {ownerWaDigits ? (
+          <a className="door-hover-link" href={`https://wa.me/${ownerWaDigits}`} target="_blank" rel="noreferrer" onClick={e=>e.stopPropagation()} title={ownerWaRaw}>
+            <IconWhatsApp/><span>{ownerWaRaw}{!waFormatOk&&<span className="door-wa-warn"> ⚠️</span>}</span>
+          </a>
+        ) : (
+          <span className="door-hover-missing">{isEn?'No WhatsApp':'Sin WhatsApp'}</span>
+        )}
+        <div className="door-hover-cta">{isEn?'👆 Click · view incidents':'👆 Clic · ver incidentes'}</div>
+      </div>
+      <div className="door-footer">
+        {isSelected
+          ? `▲ ${isEn?'Close':'Cerrar'}`
+          : `👆 ${isEn?'Click · incidents':'Clic · incidentes'}`}
+      </div>
     </div>
   );
 }
@@ -4112,7 +4161,27 @@ html{font-size:clamp(14px,1.1vw,16px);-webkit-text-size-adjust:100%}body{overflo
 .door-chips{display:flex;gap:4px;flex-wrap:wrap}
 .door-chip{font-size:.62rem;font-weight:700;padding:2px 6px;border-radius:999px;background:rgba(47,79,58,.08);color:#496674;border:1px solid rgba(47,79,58,.1)}
 /* Footer */
-.door-footer{text-align:center;font-size:.62rem;font-weight:800;color:#8a9fa5;padding:5px 8px 7px;border-top:1px solid rgba(47,79,58,.06);margin-top:4px;white-space:nowrap;flex-shrink:0}
+.door-footer{text-align:center;font-size:.62rem;font-weight:800;color:#0b7f8c;padding:5px 8px 7px;border-top:1px solid rgba(47,79,58,.06);margin-top:4px;white-space:nowrap;flex-shrink:0}
+/* ── Door hover overlay — shows contact links on hover without blocking card click */
+.door-hover-overlay{
+  position:absolute;inset:0;border-radius:12px;
+  background:rgba(5,22,30,.86);backdrop-filter:blur(3px);
+  display:flex;flex-direction:column;justify-content:center;align-items:flex-start;
+  padding:10px 12px;gap:7px;
+  opacity:0;pointer-events:none;
+  transition:opacity .18s ease;
+}
+.apt-door:hover:not(.apt-door-sel) .door-hover-overlay{opacity:1}
+.door-hover-link{
+  display:flex;align-items:center;gap:6px;
+  color:#fff;text-decoration:none;font-size:.68rem;font-weight:600;line-height:1.3;
+  max-width:100%;pointer-events:auto;
+}
+.door-hover-link span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.door-hover-link:hover{text-decoration:underline;color:#a8e6cf}
+.door-hover-missing{font-size:.65rem;color:rgba(255,255,255,.4);font-style:italic}
+.door-hover-cta{font-size:.6rem;font-weight:800;color:rgba(255,255,255,.5);margin-top:2px;letter-spacing:.03em}
+.door-wa-warn{color:#f0c040;font-size:.65em}
 /* ── Apt detail panel */
 .adp-wrap{margin:0 16px 16px;background:rgba(255,255,255,.96);border-radius:14px;border:1px solid rgba(47,79,58,.18);box-shadow:0 8px 24px rgba(0,0,0,.12);overflow:hidden;animation:fadeIn .18s ease}
 .adp-header{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 16px;background:linear-gradient(90deg,rgba(11,127,79,.07),rgba(11,127,140,.05));border-bottom:1px solid rgba(47,79,58,.1);flex-wrap:wrap}
