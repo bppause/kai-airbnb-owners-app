@@ -3750,7 +3750,7 @@ function AdminSettings({ config={}, user, listings=[], contactProps={}, onSave, 
   const [emailNotifSaving,setEmailNotifSaving]=useState(false);
   const [adminErrors,setAdminErrors]=useState([]);
   const [lastUiError,setLastUiError]=useState('');
-  const ADMIN_SEC_DEFAULT = {sla:false,mission:false,menu:false,delegate:false,users:true,tooltips:false,email:false,emailNotif:false};
+  const ADMIN_SEC_DEFAULT = {roles:true,sla:false,mission:false,menu:false,delegate:false,users:true,tooltips:false,email:false,emailNotif:false};
   const [openSections,setOpenSections] = useState(()=>{
     try{ const s=JSON.parse(localStorage.getItem('kai_admin_open')||'null'); return s&&typeof s==='object'?{...ADMIN_SEC_DEFAULT,...s}:ADMIN_SEC_DEFAULT; }catch{ return ADMIN_SEC_DEFAULT; }
   });
@@ -3876,6 +3876,75 @@ function AdminSettings({ config={}, user, listings=[], contactProps={}, onSave, 
   </div>
 
   {(adminErrors.length > 0 || lastUiError) && <div className="card" style={{marginBottom:18,borderLeft:'4px solid #d4634a'}}><div className="card-title">🧪 {lt(lang,'Diagnóstico')}</div><p className="psub">{lt(lang,'Ver consola del navegador para más detalles.')}</p>{adminErrors.map((e,i)=><pre key={i} className="codebox" style={{whiteSpace:'pre-wrap',marginTop:8}}>{JSON.stringify(e,null,2)}</pre>)}{lastUiError&&<><div className="section-label" style={{marginTop:12}}>{lt(lang,'Último error de interfaz')}</div><pre className="codebox" style={{whiteSpace:'pre-wrap'}}>{lastUiError}</pre></>}<button className="btn-ghost" onClick={clearSavedErrors}>{lt(lang,'Limpiar error guardado')}</button></div>}
+
+  {/* ── Role Reference ─────────────────────────────────────────── */}
+  <AdminSection
+    title={lang==='en'?'👥 Role Reference — Capabilities by role':'👥 Referencia de roles — Capacidades por rol'}
+    subtitle={lang==='en'?'Quick reference for all three roles. Delegate permissions reflect current default settings above.':'Referencia rápida de los tres roles. Permisos del delegado reflejan la configuración predeterminada actual.'}
+    open={openSections.roles} onToggle={()=>toggleSection('roles')}>
+    {(()=>{
+      const isEn = lang==='en';
+      const dp = defaultDelegatePermissions;
+      const cap = (ok, label, note='') => (
+        <div key={label} className="role-cap-row">
+          <span className={`role-cap-icon ${ok?'rci-yes':'rci-no'}`}>{ok?'✓':'—'}</span>
+          <span className="role-cap-label">{label}{note&&<span className="role-cap-note"> {note}</span>}</span>
+        </div>
+      );
+      const conf = (on, label) => (
+        <div key={label} className="role-cap-row">
+          <span className={`role-cap-icon ${on?'rci-yes':'rci-conf'}`}>{on?'✓':'○'}</span>
+          <span className="role-cap-label">{label}<span className="role-cap-note"> {isEn?'(configurable)':'(configurable)'}</span></span>
+        </div>
+      );
+      const std = [
+        cap(true,  isEn?'Dashboard, community & alerts':'Dashboard, comunidad y avisos'),
+        cap(true,  isEn?'My units — add, edit, view':'Mis unidades — agregar, editar, ver'),
+        cap(true,  isEn?'File incident reports':'Reportar incidentes'),
+        cap(true,  isEn?'⚠️ Step 1: Verify incidents on own units':'⚠️ Paso 1: Verificar incidentes en mis unidades'),
+        cap(true,  isEn?'📝 Step 2: Add resolution (unlocks admin close)':'📝 Paso 2: Agregar resolución (desbloquea cierre)'),
+        cap(true,  isEn?'View all community incidents':'Ver todos los incidentes de la comunidad'),
+        cap(true,  isEn?'Hover contact cards (email + WhatsApp)':'Tarjetas de contacto (email + WhatsApp)'),
+        cap(standardMenuPermissions.analytics||false, isEn?'Analytics (admin-controlled)':'Analíticas (controlado por admin)'),
+      ];
+      const del = [
+        cap(true,  isEn?'All Standard Owner capabilities':'Todas las capacidades del propietario estándar'),
+        conf(dp.canApproveRegistrations, isEn?'Approve / decline registrations':'Aprobar / rechazar registros'),
+        conf(dp.canResolveIncidents,     isEn?'Close incidents (after owner Steps 1+2)':'Cerrar incidentes (tras Pasos 1+2 del propietario)'),
+        conf(dp.canUpdateGlobalListings, isEn?'Edit any unit':'Editar cualquier unidad'),
+        conf(dp.canDeleteGlobalListings, isEn?'Delete any unit':'Eliminar cualquier unidad'),
+        conf(dp.canUpdateGlobalIncidents,isEn?'Edit any incident':'Editar cualquier incidente'),
+        conf(dp.canDeleteGlobalIncidents,isEn?'Delete any incident':'Eliminar cualquier incidente'),
+        cap(true,  isEn?'Analytics (always enabled)':'Analíticas (siempre activo)'),
+      ];
+      const glb = [
+        cap(true, isEn?'All Delegate Admin capabilities':'Todas las capacidades del admin delegado'),
+        cap(true, isEn?'Admin settings panel':'Panel de configuración admin'),
+        cap(true, isEn?'Manage user roles & permissions':'Gestionar roles y permisos de usuarios'),
+        cap(true, isEn?'SLA hours + escalation email list':'Horas SLA + lista de emails de escalación'),
+        cap(true, isEn?'Community mission & content':'Misión y contenido de la comunidad'),
+        cap(true, isEn?'Email templates + routing config':'Plantillas de email + configuración de envío'),
+        cap(true, isEn?'Analytics — always on for global admin':'Analíticas — siempre activas para admin global'),
+        cap(true, isEn?'View As role preview':'Vista previa de rol (Ver como)'),
+      ];
+      const RoleCol = ({icon, title, color, rows, badge}) => (
+        <div className="role-ref-col" style={{borderTop:`3px solid ${color}`}}>
+          <div className="role-ref-hdr">
+            <span className="role-ref-icon">{icon}</span>
+            <div><strong className="role-ref-title">{title}</strong>{badge&&<span className="role-ref-badge" style={{background:color+'22',color}}>{badge}</span>}</div>
+          </div>
+          <div className="role-ref-rows">{rows}</div>
+        </div>
+      );
+      return (
+        <div className="role-ref-grid">
+          <RoleCol icon="🏠" title={isEn?'Standard Owner':'Propietario estándar'} color="#2a9aaa" rows={std} badge={isEn?'Default':'Por defecto'}/>
+          <RoleCol icon="🛡️" title={isEn?'Delegate Admin':'Admin delegado'} color="#d9a030" rows={del} badge={isEn?'Configurable':'Configurable'}/>
+          <RoleCol icon="🌐" title={isEn?'Global Admin':'Admin global'} color="#0b7f4f" rows={glb} badge={isEn?'Full access':'Acceso total'}/>
+        </div>
+      );
+    })()}
+  </AdminSection>
 
   <AdminSection title={`⏱️ ${lt(lang,'SLA y escalaciones')}`} subtitle={lt(lang,'El recordatorio se repite cada ciclo hasta que el propietario verifique.')} action={<button className="btn-p" style={{minHeight:36,padding:'6px 14px'}} onClick={saveConfig}>💾 {lt(lang,'Guardar')}</button>} open={openSections.sla} onToggle={()=>toggleSection('sla')}>
     <div className="fg2"><div className="fg"><label>⏱️ {lt(lang,'SLA en horas')}</label><input type="number" min="1" value={slaHours} onChange={e=>setSlaHours(e.target.value)}/><span className="help-msg">{lt(lang,'Default: 24 horas.')}</span></div><div className="fg full"><label>✉️ {lt(lang,'Emails en copia para escalaciones')}</label><input value={escalationCcEmails} onChange={e=>setEscalationCcEmails(e.target.value)} placeholder="admin1@email.com, admin2@email.com"/><span className="help-msg">{lt(lang,'Se copian en cada recordatorio SLA, además del propietario y operador.')}</span></div><div className="fg full"><label>📈 {lt(lang,'Visibilidad de analíticas')}</label><select value={analyticsEnabled?"true":"false"} onChange={e=>setAnalyticsEnabled(e.target.value==="true")}><option value="false">{lt(lang,'Solo administrador global')}</option><option value="true">{lt(lang,'Todos los usuarios aprobados')}</option></select><span className="help-msg">{lt(lang,'El administrador global puede activar o desactivar las analíticas para toda la comunidad.')}</span></div></div>
