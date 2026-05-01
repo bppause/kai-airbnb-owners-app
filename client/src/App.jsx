@@ -437,7 +437,7 @@ const APP_I18N = {
   "form.immediateAction": { es:"💡 Acción inmediata del propietario (requerida)", en:"💡 Owner immediate action (required)" },
   "form.immediateActionPlaceholder": { es:"¿Qué hiciste de inmediato ante este incidente? (ej: llamé al huésped, contacté al operador, presenté queja a Airbnb...)", en:"What did you do immediately about this incident? (e.g. called the guest, contacted the operator, filed an Airbnb complaint...)" },
   "form.ownerResolution": { es:"🔍 Resolución propuesta", en:"🔍 Proposed resolution" },
-  "form.ownerResolutionPlaceholder": { es:"Describe el acuerdo alcanzado, compensación pactada o resultado final... (Puedes completarlo después de verificar)", en:"Describe the agreement reached, agreed compensation, or final outcome... (You can complete this after verifying)" },
+  "form.ownerResolutionPlaceholder": { es:"Describe cómo se resolvió el incidente. Ej.: se trabajó directamente con el huésped, se coordinó con el operador o la administración del edificio, se involucró a Airbnb o las autoridades necesarias...", en:"Describe how the incident was resolved. E.g. worked directly with the guest, coordinated with the operator or building management, involved Airbnb or the necessary authorities..." },
   "form.addResolution": { es:"📝 Agregar resolución", en:"📝 Add resolution" },
   "form.resolutionRequired": { es:"⚠️ Resolución pendiente — el administrador no puede cerrar este incidente hasta que agregues una resolución.", en:"⚠️ Resolution pending — the admin cannot close this incident until you add a resolution." },
   "form.ownerResponse": { es:"💬 Respuesta del propietario *", en:"💬 Owner response *" },
@@ -3251,10 +3251,13 @@ function UnitMiniCard({ listing, isEn=false }) {
         <span className="umc-num">{listing.apt}</span>
         {listing.tower&&<span className="umc-tag">{listing.tower}</span>}
       </div>
-      {/* Light body — owner + operator */}
+      {/* Light body — owner + operator with explicit role labels */}
       <div className="umc-body">
-        <div className="umc-owner" title={listing.owner||'—'}>👤 {listing.owner||'—'}</div>
-        {listing.operator&&<div className="umc-op" title={listing.operator}>🔧 {listing.operator}</div>}
+        <div className="umc-owner" title={listing.owner||'—'}><span className="umc-role-lbl">{isEn?'Owner':'Propietario'}</span> {listing.owner||'—'}</div>
+        {listing.operator
+          ? <div className="umc-op" title={listing.operator}><span className="umc-role-lbl">{isEn?'Operator':'Operador'}</span> {listing.operator}</div>
+          : <div className="umc-op umc-no-op">{isEn?'No operator':'Sin operador'}</div>
+        }
       </div>
       <AptContactPopup
         ownerName={listing.owner}
@@ -3284,18 +3287,23 @@ function IRow({ inc, user, listings=[], contactProps={}, isGlobalAdmin=false, ca
           : <div className="ir-apt-context"><div className="ir-apt">{inc.aptLabel}</div></div>
         )}
         {hideUnit && <div className="ir-apt-context"><div className="ir-apt">{inc.aptLabel}</div></div>}
-        {/* Who the current user is in relation to this incident */}
+        {/* Viewer's role in this incident */}
         {user&&(isReporter||isOwner)&&(
           <div className="ir-ctx-tags">
-            {isReporter&&<span className="inc-ctx-tag inc-ctx-reporter">{isEn?'📋 I reported':'📋 Yo reporté'}</span>}
-            {isOwner&&<span className="inc-ctx-tag inc-ctx-mine">{isEn?'🏠 My listing':'🏠 Mi listing'}</span>}
+            {isReporter&&isOwner&&<span className="inc-ctx-tag inc-ctx-reporter">{isEn?'📋 I reported · my listing':'📋 Yo reporté · mi listing'}</span>}
+            {isReporter&&!isOwner&&<span className="inc-ctx-tag inc-ctx-reporter">{isEn?'📋 I reported':'📋 Yo reporté'}</span>}
+            {!isReporter&&isOwner&&<span className="inc-ctx-tag inc-ctx-mine">{isEn?'🏠 Listing owner':'🏠 Propietario del listing'}</span>}
           </div>
         )}
-        {guests.length>0?<div className="ir-guest">👥 {guests.map(guestFullName).join(' · ')}</div>:<div className="ir-guest">👤 {inc.guestName||(isEn?'Pending owner verification':'Pendiente por verificar')}</div>}
+        {/* Guest — labeled clearly */}
+        {guests.length>0
+          ? <div className="ir-guest"><span className="ir-role-lbl">{isEn?'Guest':'Huésped'}:</span> {guests.map(guestFullName).join(' · ')}</div>
+          : <div className="ir-guest"><span className="ir-role-lbl">{isEn?'Guest':'Huésped'}:</span> {inc.guestName||(isEn?'Pending verification':'Pendiente verificación')}</div>
+        }
         {guests.length>0&&<div className="ir-loc">📍 {[...new Set(guests.map(guestLocation).filter(Boolean))].join(' · ')}</div>}
         {!guests.length&&inc.guestCity&&<div className="ir-loc">📍 {inc.guestCity}, {inc.guestCountry}</div>}
         <div className="ir-date">📅 {fmtDate(inc.date)}</div>
-        {!compact&&!isReporter&&<div className="ir-rep">{isEn?'By':'Por'}: <UserContact name={inc.reporterName} uid={inc.reporterUid} {...contactProps}/></div>}
+        {!compact&&!isReporter&&<div className="ir-rep"><span className="ir-role-lbl">{isEn?'Reported by':'Reportado por'}:</span> <UserContact name={inc.reporterName} uid={inc.reporterUid} {...contactProps}/></div>}
       </div>
       <div className="ir-c">
         <div className="ir-tags">

@@ -655,6 +655,28 @@ table { width: 100%; border-collapse: collapse; }
   text-overflow: ellipsis;
   max-width: 136px;
 }
+/* Role labels inside UnitMiniCard and IRow */
+.umc-role-lbl {
+  display: inline-block;
+  font-size: .56rem;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: .09em;
+  color: #8a9fa5;
+  margin-right: 3px;
+  vertical-align: middle;
+}
+.umc-no-op { color: #b0c0c8 !important; font-style: italic; font-size: .62rem !important; }
+.ir-role-lbl {
+  display: inline-block;
+  font-size: .62rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: .07em;
+  color: #7a9aaa;
+  margin-right: 3px;
+}
+
 /* Contact popup appears above the mini card */
 .unit-mini-card .apt-cpop {
   bottom: calc(100% + 7px);
