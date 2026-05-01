@@ -317,7 +317,9 @@ const sendIncidentEmail = async ({ listing, incident, appUrl, to, isEscalation=f
   if (!recipients.length) return { sent:false, skipped:true, reason:'No recipients for this incident email.' };
   const apt = listing.apt || String(incident.aptLabel || '').replace(/[^0-9]/g,'');
   const incidentLink = appUrl + '/?view=incidents&incident=' + incident.id;
-  return sendTemplatedEmail({ key, to: recipients, vars: { apt, owner: listing.owner || '', operator: listing.operator || 'No indicado', operatorEmail: listing.operatorEmail || listing.operator_email || '', guestName: incident.guestName || '', date: incident.date || '', type: incident.type || '', category: incident.category || '', status: incident.status || 'open', desc: incident.desc || '', incidentLink, slaCycleCount: String(incident.slaCycleCount || incident.sla_cycle_count || '') } });
+  const pendingStepLabel = incident.pendingStepLabel || (incident.status === 'open' ? 'Step 1: Verify the incident — confirm guest details and document your immediate action' : 'Step 2: Add your resolution — describe how you resolved this so admin can close it');
+  const pendingStepLabelEs = incident.pendingStepLabelEs || (incident.status === 'open' ? 'Paso 1: Verifica el incidente — confirma los datos del huésped y documenta tu acción inmediata' : 'Paso 2: Agrega tu respuesta — describe cómo resolviste el incidente para que el admin pueda cerrarlo');
+  return sendTemplatedEmail({ key, to: recipients, vars: { apt, owner: listing.owner || '', operator: listing.operator || 'No indicado', operatorEmail: listing.operatorEmail || listing.operator_email || '', guestName: incident.guestName || '', date: incident.date || '', type: incident.type || '', category: incident.category || '', status: incident.status || 'open', desc: incident.desc || '', incidentLink, slaCycleCount: String(incident.slaCycleCount || incident.sla_cycle_count || ''), pendingStep: incident.pendingStep || (incident.status === 'open' ? 'step1' : 'step2'), pendingStepLabel, pendingStepLabelEs } });
 };
 
 const sendIncidentVerifiedEmail = async ({ listing, incident, appUrl }) => {
@@ -1092,7 +1094,9 @@ app.get('/api/admin/email-templates', async (req, res) => {
   if (!(await isGlobalAdmin(uid, email))) return res.status(403).json({ error:'Solo un administrador global puede ver plantillas de email.' });
   res.json({ templates: await getEmailTemplates(language), variables: {
     incident_new:['apt','owner','operator','operatorEmail','guestName','date','type','category','status','desc','incidentLink'],
-    incident_sla:['apt','owner','operator','operatorEmail','guestName','date','type','category','status','desc','incidentLink','slaCycleCount'],
+    incident_sla:['apt','owner','operator','operatorEmail','guestName','date','type','category','status','desc','incidentLink','slaCycleCount','pendingStep','pendingStepLabel','pendingStepLabelEs'],
+    incident_sla_notification:['apt','owner','operator','operatorEmail','guestName','date','type','category','status','desc','incidentLink','slaCycleCount','pendingStep','pendingStepLabel','pendingStepLabelEs'],
+    incident_sla_reminder:['apt','owner','operator','operatorEmail','guestName','date','type','category','status','desc','incidentLink','slaCycleCount','pendingStep','pendingStepLabel','pendingStepLabelEs'],
     incident_verified:['apt','owner','operator','operatorEmail','ownerGuestNames','ownerGuestCity','ownerGuestCountry','ownerComments','ownerAnswer','incidentLink'],
     incident_resolved:['apt','owner','operator','operatorEmail','resolvedBy','resolutionComments','ownerAnswer','date','type','category','incidentLink'],
     registration_submitted:['userName','userEmail','registrationLink'],
@@ -1351,7 +1355,10 @@ app.patch('/api/incidents/:id/verify', async (req, res) => {
   if (!ownerCommentText) return res.status(400).json({ error:'La acción inmediata del propietario es requerida.' });
   const ownerResolutionText = String(ownerResolution || '').trim();
   const nowIso = new Date().toISOString();
-  const upd = { status:'verified', owner_guests: ownerGuests, owner_guest_names:names, owner_guest_city:cities, owner_guest_country:countries, owner_comments:ownerCommentText, owner_resolution:ownerResolutionText, owner_resolution_at: ownerResolutionText ? nowIso : null, owner_verified_at:nowIso, next_sla_reminder_at:null };
+  const slaHoursForVerify = await getSlaHours();
+  // Keep SLA running if owner hasn't added resolution yet — reminders continue until Step 2 complete
+  const nextSlaAfterVerify = ownerResolutionText ? null : addHoursIso(nowIso, slaHoursForVerify);
+  const upd = { status:'verified', owner_guests: ownerGuests, owner_guest_names:names, owner_guest_city:cities, owner_guest_country:countries, owner_comments:ownerCommentText, owner_resolution:ownerResolutionText, owner_resolution_at: ownerResolutionText ? nowIso : null, owner_verified_at:nowIso, next_sla_reminder_at: nextSlaAfterVerify };
   const { data, error } = await supabase.from('incidents').update(upd).eq('id', req.params.id).select('*').single();
   if (error) return sendSupabaseError(res, error);
   await auditLog({ entity:'incident', entityId:data.id, action:'verify', actorUid:ownerUid, before:inc, after:data });
@@ -1372,7 +1379,8 @@ app.patch('/api/incidents/:id/add-resolution', async (req, res) => {
   if (findErr || !inc) return res.status(404).json({ error:'Incidente no encontrado.' });
   if (inc.listings?.owner_uid !== ownerUid) return res.status(403).json({ error:'Solo el propietario puede agregar la resolución.' });
   if (inc.status !== 'verified') return res.status(400).json({ error:'Solo se puede agregar resolución a incidentes verificados.' });
-  const { data, error } = await supabase.from('incidents').update({ owner_resolution: resText, owner_resolution_at: new Date().toISOString() }).eq('id', req.params.id).select('*').single();
+  // Stop SLA reminders — owner has completed both steps; admin can now close
+  const { data, error } = await supabase.from('incidents').update({ owner_resolution: resText, owner_resolution_at: new Date().toISOString(), next_sla_reminder_at: null }).eq('id', req.params.id).select('*').single();
   if (error) return sendSupabaseError(res, error);
   await auditLog({ entity:'incident', entityId:data.id, action:'add-resolution', actorUid:ownerUid, before:inc, after:data });
   const updatedIncident = incidentFromDb(data);
@@ -1461,10 +1469,11 @@ const runSlaEscalations = async () => {
   if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY || !emailConfigured) return;
   try {
     const now = new Date().toISOString();
+    // Fire for: open (Step 1 pending) OR verified-without-resolution (Step 2 pending)
+    // next_sla_reminder_at is kept active until both steps are complete.
     const { data: rows, error } = await supabase
       .from('incidents')
       .select('*, listings(*)')
-      .neq('status', 'verified')
       .neq('status', 'resolved')
       .not('next_sla_reminder_at', 'is', null)
       .lte('next_sla_reminder_at', now)
@@ -1474,10 +1483,25 @@ const runSlaEscalations = async () => {
     for (const row of rows || []) {
       const listing = row.listings;
       if (!listing) continue;
+      // Skip verified+resolved-resolution (both steps done — next_sla should already be null, but guard here)
+      if (row.status === 'verified' && String(row.owner_resolution || '').trim()) {
+        await supabase.from('incidents').update({ next_sla_reminder_at: null }).eq('id', row.id);
+        continue;
+      }
       const inc = incidentFromDb(row);
       const slaHours = Number(row.sla_hours || await getSlaHours() || 24);
+      // Add context so email templates can explain exactly what step is pending
+      const pendingStep = row.status === 'open'
+        ? 'step1' // Needs: verify + guest info + action
+        : 'step2'; // Needs: resolution text
+      const pendingStepLabel = pendingStep === 'step1'
+        ? 'Step 1: Verify the incident — confirm guest details and document your immediate action'
+        : 'Step 2: Add your resolution — describe how you resolved this so admin can close it';
+      const pendingStepLabelEs = pendingStep === 'step1'
+        ? 'Paso 1: Verifica el incidente — confirma los datos del huésped y documenta tu acción inmediata'
+        : 'Paso 2: Agrega tu respuesta — describe cómo resolviste el incidente para que el admin pueda cerrarlo';
       try {
-        await sendIncidentEmail({ listing: listingFromDb(listing), incident: inc, appUrl: publicAppUrl(), includeEscalationCc:true, isEscalation:true });
+        await sendIncidentEmail({ listing: listingFromDb(listing), incident: { ...inc, pendingStep, pendingStepLabel, pendingStepLabelEs }, appUrl: publicAppUrl(), includeEscalationCc:true, isEscalation:true });
         await supabase.from('incidents').update({ sla_cycle_count: Number(row.sla_cycle_count || 0) + 1, next_sla_reminder_at: addHoursIso(now, slaHours) }).eq('id', row.id);
       } catch(e) {
         warn('SLA escalation email failed for ' + row.id + ': ' + (e?.message || e));

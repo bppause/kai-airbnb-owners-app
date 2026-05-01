@@ -2763,23 +2763,47 @@ function UnitDetailCard({ l, incidents, canEdit=false, canDelete=false, onEdit, 
           )}
         </div>
 
-        {/* Action buttons — only for active incidents */}
+        {/* Action needed callout — shows exactly what step is required */}
+        {user&&latestInc.status!=='resolved'&&isOwner&&(
+          <div className={`udc-action-needed${latestInc.status==='open'?' udc-an-step1':' udc-an-step2'}`}>
+            <div className="udc-an-step-num">{latestInc.status==='open'?'①':'②'}</div>
+            <div className="udc-an-body">
+              <strong>{latestInc.status==='open'
+                ?(isEn?'Your action needed — Step 1':'Tu acción es requerida — Paso 1')
+                :(isEn?'Your action needed — Step 2':'Tu acción es requerida — Paso 2')
+              }</strong>
+              <span>{latestInc.status==='open'
+                ?(isEn?'Confirm guest details, state your immediate action, and optionally add your resolution.':'Confirma los datos del huésped, documenta tu acción inmediata y opcionalmente agrega tu respuesta.')
+                :(isEn?'Add your resolution so the admin can officially close this incident.':'Agrega tu respuesta para que el admin pueda cerrar formalmente este incidente.')
+              }</span>
+            </div>
+          </div>
+        )}
+        {/* Action buttons */}
         {user&&latestInc.status!=='resolved'&&(
           <div className="udc-inc-detail-acts">
             {latestInc.status==='open'&&isOwner&&(
-              <button className="bsm bs-resolve" onClick={()=>onVerify&&onVerify(latestInc)}>
-                ① {isEn?'Verify now':'Verificar ahora'}
+              <button className="btn-p" style={{flex:1}} onClick={()=>onVerify&&onVerify(latestInc)}>
+                ① {isEn?'Verify incident now':'Verificar incidente ahora'}
               </button>
             )}
             {latestInc.status==='verified'&&isOwner&&hasPendingRes&&(
-              <button className="bsm bs-edit" onClick={()=>onAddResolution&&onAddResolution(latestInc)}>
+              <button className="btn-p" style={{flex:1}} onClick={()=>onAddResolution&&onAddResolution(latestInc)}>
                 ② {isEn?'Add resolution':'Agregar respuesta'}
               </button>
+            )}
+            {latestInc.status==='verified'&&isOwner&&!!latestInc.ownerResolution&&(
+              <div className="udc-step-done">✓ {isEn?'Both steps complete — awaiting admin close':'Pasos completados — esperando cierre del admin'}</div>
             )}
             {latestInc.status==='verified'&&(isGlobalAdmin||canResolveGlobal)&&!hasPendingRes&&(
               <button className="bsm bs-resolve" onClick={()=>onResolve&&onResolve(latestInc.id)}>
                 {isEn?'Close incident':'Cerrar incidente'}
               </button>
+            )}
+            {latestInc.status==='verified'&&(isGlobalAdmin||canResolveGlobal)&&hasPendingRes&&(
+              <div className="udc-admin-waiting" title={isEn?'Waiting for owner resolution':'Esperando respuesta del propietario'}>
+                🔒 {isEn?'Waiting for owner resolution (Step 2)':'Esperando respuesta del propietario (Paso 2)'}
+              </div>
             )}
           </div>
         )}
@@ -4056,6 +4080,7 @@ function AdminSection({ title, subtitle, action, open, onToggle, children }) {
 }
 
 function AdminSettings({ config={}, user, listings=[], contactProps={}, onSave, showToast=()=>{}, lang="es-CO" }) {
+  const isEn = lang === 'en';
   const tips = localizedTooltips(config || {}, lang);
   const [slaHours,setSlaHours]=useState(config?.sla_hours || '24');
   const [escalationCcEmails,setEscalationCcEmails]=useState(config?.escalation_cc_emails || '');
