@@ -1401,6 +1401,7 @@ export default function App() {
         return (
           <Overlay onClose={()=>setUnitDetailOverlay(null)} wide>
             <UnitDetailCard
+              key={udl.id}
               l={udl}
               incidents={incidents}
               canEdit={user?.uid===udl.ownerUid||effectiveIsGlobalAdmin||delegatePerms.canUpdateGlobalListings}
@@ -2557,9 +2558,6 @@ function UnitDetailCard({ l, incidents, canEdit=false, canDelete=false, onEdit, 
   // step: 'info' | 'incidents'  (step 3 is now inline expand within step 2)
   const [step, setStep] = useState(defaultStep||'info');
   const [expandedIds, setExpandedIds] = useState(new Set());
-  // sync defaultStep changes (when overlay re-uses component with different step)
-  const prevDefault = React.useRef(defaultStep);
-  if (prevDefault.current !== defaultStep) { prevDefault.current = defaultStep; setStep(defaultStep||'info'); }
   const toggleExpand = id => setExpandedIds(prev => { const n=new Set(prev); n.has(id)?n.delete(id):n.add(id); return n; });
 
   const aptInc = [...incidents.filter(i => i.aptId === l.id)]
@@ -2998,6 +2996,7 @@ function BuildingFloor({ floor, apts, incidents, user, contactProps, isGlobalAdm
         return (
           <Overlay onClose={()=>{setUnitDetailAptId(null);setUnitDetailStep('info');}} wide>
             <UnitDetailCard
+              key={`${udApt.id}-${unitDetailStep}`}
               l={udApt}
               incidents={incidents}
               canEdit={user?.uid===udApt.ownerUid||isGlobalAdmin||canEditGlobal}
