@@ -569,6 +569,14 @@ table { width: 100%; border-collapse: collapse; }
 .dis-ver         { background: rgba(11,100,140,.1); color: #0b5f72; border-color: rgba(11,100,140,.2); }
 .dis-res         { background: rgba(80,130,100,.1); color: #4a7060; border-color: rgba(80,130,100,.22); }
 
+/* MyListings listing detail panel (UnitDetailCard inside selected listing row) */
+.ml-listing-detail {
+  padding: 14px 14px 16px;
+  border-top: 1px solid rgba(47,79,58,.08);
+  background: rgba(248,252,250,.7);
+}
+@media(max-width: 640px) { .ml-listing-detail { padding: 10px 8px 14px; } }
+
 /* MyListings stat bar — allow 5 columns for the 4 workflow states + all */
 .ml-stats { grid-template-columns: repeat(5, 1fr) !important; }
 @media(max-width:640px) { .ml-stats { grid-template-columns: repeat(3, 1fr) !important; } }
@@ -977,6 +985,79 @@ table { width: 100%; border-collapse: collapse; }
   flex-shrink: 0;
 }
 .inc-template-apply:hover { background: #0d47a1; }
+
+/* ── UnitDetailCard: structured listing detail + incident summary ────────── */
+.udc-wrap { display: flex; flex-direction: column; }
+.udc-fields {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 5px 14px;
+  background: rgba(255,255,255,.95);
+  border: 1px solid rgba(47,79,58,.1);
+  border-radius: 10px;
+  padding: 10px 14px;
+  margin-bottom: 14px;
+  align-items: center;
+}
+.udc-field-lbl {
+  font-size: .66rem;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  color: #496674;
+  white-space: nowrap;
+}
+.udc-field-val { font-size: .85rem; font-weight: 700; color: #203f2b; }
+.udc-field-empty { color: #8a9fa5; font-weight: 400; font-style: italic; font-size: .8rem; }
+.udc-apt-num {
+  font-family: 'Playfair Display', serif;
+  font-size: 1.05rem;
+  font-weight: 900;
+  color: #17313a;
+  letter-spacing: .06em;
+}
+.udc-inc-summary {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  align-items: center;
+  padding: 6px 0 12px;
+}
+.udc-footer {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding-top: 12px;
+  border-top: 1px solid rgba(47,79,58,.1);
+}
+.udc-view-inc-btn { flex: 1; font-size: .88rem !important; }
+/* Airbnb pill inside light context */
+.udc-airbnb-pill {
+  background: rgba(11,127,140,.08) !important;
+  border-color: rgba(11,127,140,.25) !important;
+  color: #0b5f72 !important;
+  font-size: .72rem !important;
+  padding: 3px 10px !important;
+}
+.udc-airbnb-pill:hover { background: rgba(11,127,140,.16) !important; }
+
+/* door-num-plate clickable cue */
+.door-num-plate {
+  cursor: pointer;
+  transition: filter .12s;
+}
+.door-num-plate:hover { filter: brightness(1.15); }
+.door-num-plate:focus-visible { outline: 2px solid rgba(11,127,140,.5); outline-offset: -2px; }
+
+/* dis-pill as <button> — reset and reuse pill look */
+button.dis-pill {
+  cursor: pointer !important;
+  min-height: 0 !important;
+  line-height: 1.4 !important;
+  gap: 3px !important;
+  transition: transform .1s, box-shadow .1s;
+}
+button.dis-pill:hover { transform: translateY(-1px); box-shadow: 0 2px 6px rgba(32,46,38,.14); }
 
 /* ── Admin role reference grid ─────────────────────────────────────────────── */
 .role-ref-grid {

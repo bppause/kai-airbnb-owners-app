@@ -103,6 +103,7 @@ create table if not exists public.incidents (
   apt_label text,
   guest_name text not null,
   guest_city text default '',
+  guest_state text default '',
   guest_country text default '',
   incident_date date not null default current_date,
   type text not null default 'other',
@@ -124,6 +125,7 @@ create table if not exists public.incidents (
 );
 
 
+alter table public.incidents add column if not exists guest_state text default '';
 alter table public.incidents add column if not exists owner_guest_names text not null default '';
 alter table public.incidents add column if not exists owner_comments text not null default '';
 alter table public.incidents add column if not exists owner_email_opened_at timestamptz;

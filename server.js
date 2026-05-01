@@ -279,8 +279,17 @@ const getIncidentRecipients = async (listing, { includeEscalationCc=false } = {}
   if (includeEscalationCc) base.push(...await getEscalationCcEmails());
   return normalizeRecipients(base);
 };
+// Lookup reporter email by UID from app_users (reporter != always listing owner)
+const getReporterEmail = async (reporterUid='') => {
+  if (!reporterUid) return '';
+  try {
+    const { data } = await supabase.from('app_users').select('email').eq('uid', reporterUid).maybeSingle();
+    return String(data?.email || '').trim().toLowerCase();
+  } catch(e) { return ''; }
+};
 // Build recipients list for an incident email type based on admin notification config.
-const buildIncidentRecipients = async (key, listing, typeCfg) => {
+// Pass reporterEmail to also notify the person who filed the incident.
+const buildIncidentRecipients = async (key, listing, typeCfg, reporterEmail='') => {
   const recips = [];
   if (typeCfg.owner)        recips.push(...getListingOwnerEmails(listing));
   if (typeCfg.operator)     recips.push(...getListingOperatorEmails(listing));
@@ -291,6 +300,8 @@ const buildIncidentRecipients = async (key, listing, typeCfg) => {
     // If a delegate loses this permission they stop receiving all incident emails.
     recips.push(...await getDelegateAdminsWithPermission('canResolveIncidents'));
   }
+  // Always include the reporter (person who filed the incident) if their email is known
+  if (reporterEmail) recips.push(reporterEmail);
   return normalizeRecipients(recips);
 };
 
@@ -300,7 +311,9 @@ const sendIncidentEmail = async ({ listing, incident, appUrl, to, isEscalation=f
   const notifCfg = await getEmailNotificationConfig();
   const typeCfg = notifCfg[key];
   if (!typeCfg.enabled) return { sent:false, skipped:true, reason:`Email type '${key}' is disabled.` };
-  const recipients = to ? normalizeRecipients(to) : await buildIncidentRecipients(key, listing, typeCfg);
+  // Include reporter so they receive confirmation when their report is filed
+  const reporterEmail = await getReporterEmail(incident.reporterUid);
+  const recipients = to ? normalizeRecipients([...to, reporterEmail]) : await buildIncidentRecipients(key, listing, typeCfg, reporterEmail);
   if (!recipients.length) return { sent:false, skipped:true, reason:'No recipients for this incident email.' };
   const apt = listing.apt || String(incident.aptLabel || '').replace(/[^0-9]/g,'');
   const incidentLink = appUrl + '/?view=incidents&incident=' + incident.id;
@@ -312,11 +325,13 @@ const sendIncidentVerifiedEmail = async ({ listing, incident, appUrl }) => {
   const notifCfg = await getEmailNotificationConfig();
   const typeCfg = notifCfg['incident_verified'];
   if (!typeCfg.enabled) return { sent:false, skipped:true, reason:'Email type \'incident_verified\' is disabled.' };
-  const recipients = await buildIncidentRecipients('incident_verified', listing, typeCfg);
+  // Include reporter so they know when the owner has verified their incident
+  const reporterEmail = await getReporterEmail(incident.reporterUid);
+  const recipients = await buildIncidentRecipients('incident_verified', listing, typeCfg, reporterEmail);
   if (!recipients.length) return { sent:false, skipped:true, reason:'No recipients for verified email.' };
   const apt = listing.apt || String(incident.aptLabel || '').replace(/[^0-9]/g,'');
   const incidentLink = appUrl + '/?view=incidents&incident=' + incident.id;
-  return sendTemplatedEmail({ key:'incident_verified', to:recipients, vars:{ apt, owner:listing.owner || '', operator:listing.operator || 'No indicado', operatorEmail:listing.operatorEmail || listing.operator_email || '', ownerGuestNames:incident.ownerGuestNames || '', ownerGuestCity:incident.ownerGuestCity || '', ownerGuestCountry:incident.ownerGuestCountry || '', ownerComments:incident.ownerComments || '', incidentLink } });
+  return sendTemplatedEmail({ key:'incident_verified', to:recipients, vars:{ apt, owner:listing.owner || '', operator:listing.operator || 'No indicado', operatorEmail:listing.operatorEmail || listing.operator_email || '', ownerGuestNames:incident.ownerGuestNames || '', ownerGuestCity:incident.ownerGuestCity || '', ownerGuestCountry:incident.ownerGuestCountry || '', ownerComments:incident.ownerComments || '', ownerAnswer:incident.ownerResolution || '', incidentLink } });
 };
 
 const sendIncidentResolvedEmail = async ({ listing, incident, appUrl }) => {
@@ -324,11 +339,13 @@ const sendIncidentResolvedEmail = async ({ listing, incident, appUrl }) => {
   const notifCfg = await getEmailNotificationConfig();
   const typeCfg = notifCfg['incident_resolved'];
   if (!typeCfg.enabled) return { sent:false, skipped:true, reason:'Email type \'incident_resolved\' is disabled.' };
-  const recipients = await buildIncidentRecipients('incident_resolved', listing, typeCfg);
+  // Include reporter so they are notified when their incident is closed
+  const reporterEmail = await getReporterEmail(incident.reporterUid);
+  const recipients = await buildIncidentRecipients('incident_resolved', listing, typeCfg, reporterEmail);
   if (!recipients.length) return { sent:false, skipped:true, reason:'No recipients for resolved email.' };
   const apt = listing.apt || String(incident.aptLabel || '').replace(/[^0-9]/g,'');
   const incidentLink = appUrl + '/?view=incidents&incident=' + incident.id;
-  return sendTemplatedEmail({ key:'incident_resolved', to:recipients, vars:{ apt, owner:listing.owner || '', operator:listing.operator || 'No indicado', operatorEmail:listing.operatorEmail || listing.operator_email || '', resolvedBy:incident.resolvedBy || incident.resolved_by || '', resolutionComments:incident.resolutionComments || incident.resolution_comments || '', date:incident.date || '', type:incident.type || '', category:incident.category || '', incidentLink }, relatedEntity:'incident', relatedId:incident.id });
+  return sendTemplatedEmail({ key:'incident_resolved', to:recipients, vars:{ apt, owner:listing.owner || '', operator:listing.operator || 'No indicado', operatorEmail:listing.operatorEmail || listing.operator_email || '', resolvedBy:incident.resolvedBy || incident.resolved_by || '', resolutionComments:incident.resolutionComments || incident.resolution_comments || '', ownerAnswer:incident.ownerResolution || '', date:incident.date || '', type:incident.type || '', category:incident.category || '', incidentLink }, relatedEntity:'incident', relatedId:incident.id });
 };
 
 const getListingRecipients = (listing) => normalizeRecipients([listing?.email, listing?.user_email, listing?.userEmail]);
@@ -408,6 +425,7 @@ const incidentFromDb = (r) => ({
   aptLabel: r.apt_label,
   guestName: r.guest_name,
   guestCity: r.guest_city || '',
+  guestState: r.guest_state || '',
   guestCountry: r.guest_country || '',
   date: r.incident_date,
   type: r.type,
@@ -440,6 +458,7 @@ const incidentToDb = (i) => ({
   apt_label: i.aptLabel,
   guest_name: i.guestName,
   guest_city: i.guestCity || '',
+  guest_state: i.guestState || '',
   guest_country: i.guestCountry || '',
   incident_date: i.date || new Date().toISOString().slice(0, 10),
   type: i.type || 'other',
@@ -1071,7 +1090,8 @@ app.get('/api/admin/email-templates', async (req, res) => {
   res.json({ templates: await getEmailTemplates(language), variables: {
     incident_new:['apt','owner','operator','operatorEmail','guestName','date','type','category','status','desc','incidentLink'],
     incident_sla:['apt','owner','operator','operatorEmail','guestName','date','type','category','status','desc','incidentLink','slaCycleCount'],
-    incident_resolved:['apt','owner','operator','operatorEmail','resolvedBy','resolutionComments','date','type','category','incidentLink'],
+    incident_verified:['apt','owner','operator','operatorEmail','ownerGuestNames','ownerGuestCity','ownerGuestCountry','ownerComments','ownerAnswer','incidentLink'],
+    incident_resolved:['apt','owner','operator','operatorEmail','resolvedBy','resolutionComments','ownerAnswer','date','type','category','incidentLink'],
     registration_submitted:['userName','userEmail','registrationLink'],
     registration_approved:['userName','userEmail','dashboardLink'],
     registration_declined:['userName','userEmail','reason','reasonLine','reasonHtml','registrationLink'],
@@ -1292,6 +1312,7 @@ function normalizeOwnerGuestsPayload(guests) {
     middleName: String(g?.middleName || g?.middle_name || '').trim(),
     lastName: String(g?.lastName || g?.last_name || '').trim(),
     city: String(g?.city || '').trim(),
+    state: String(g?.state || '').trim(),
     country: String(g?.country || '').trim(),
   })).filter(g => g.firstName || g.middleName || g.lastName || g.city || g.country);
 }
@@ -1340,7 +1361,7 @@ app.patch('/api/incidents/:id/add-resolution', async (req, res) => {
   const { ownerUid, ownerResolution } = req.body || {};
   if (!ownerUid) return res.status(400).json({ error:'ownerUid is required.' });
   const resText = String(ownerResolution || '').trim();
-  if (!resText) return res.status(400).json({ error:'La resolución del propietario es requerida.' });
+  if (!resText) return res.status(400).json({ error:'La respuesta del propietario es requerida.' });
   const { data: inc, error: findErr } = await supabase.from('incidents').select('*, listings(*)').eq('id', req.params.id).single();
   if (findErr || !inc) return res.status(404).json({ error:'Incidente no encontrado.' });
   if (inc.listings?.owner_uid !== ownerUid) return res.status(403).json({ error:'Solo el propietario puede agregar la resolución.' });
@@ -1368,7 +1389,7 @@ app.patch('/api/incidents/:id/resolve', async (req, res) => {
     return res.status(400).json({ error:'Owner must verify the incident with guest(s), city, country, and immediate action before resolution.' });
   }
   if (!String(existing.owner_resolution || '').trim()) {
-    return res.status(400).json({ error:'Owner must provide a resolution before this incident can be closed.' });
+    return res.status(400).json({ error:'Owner must provide their answer before this incident can be closed.' });
   }
   const upd = { status: 'resolved', resolution_comments: comments, resolved_at: new Date().toISOString(), resolved_by: actorEmail || actorName || actorUid };
   const { data, error } = await supabase.from('incidents').update(upd).eq('id', req.params.id).select('*').single();

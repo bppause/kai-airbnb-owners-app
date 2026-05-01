@@ -323,8 +323,8 @@ const APP_I18N = {
   "smart.noneSub": { es:"Todo está al día. Las alertas aparecerán aquí cuando requieran atención.", en:"Everything is up to date. Alerts will appear here when attention is needed." },
   "smart.ownerTitle": { es:"Acción del propietario requerida", en:"Owner action required" },
   "smart.ownerMsg": { es:"{count} incidente(s) en tus unidades esperan tu confirmación y documentación de acción tomada.", en:"{count} incident(s) on your units need your confirmation and action documentation." },
-  "smart.ownerResolutionTitle": { es:"Resolución pendiente de documentar", en:"Resolution pending documentation" },
-  "smart.ownerResolutionMsg": { es:"{count} incidente(s) verificado(s) requieren que documentes el resultado antes de que administración pueda cerrarlos.", en:"{count} verified incident(s) require you to document the outcome before management can close them." },
+  "smart.ownerResolutionTitle": { es:"Respuesta pendiente", en:"Answer pending" },
+  "smart.ownerResolutionMsg": { es:"{count} incidente(s) verificado(s) requieren tu respuesta antes de que administración pueda cerrarlos.", en:"{count} verified incident(s) require your answer before management can close them." },
   "smart.resolveTitle": { es:"Listos para cierre administrativo", en:"Ready for management closure" },
   "smart.resolveMsg": { es:"{count} incidente(s) documentados por el propietario — listos para revisión y cierre por administración.", en:"{count} incident(s) documented by owner — ready for management review and closure." },
   "smart.registrationTitle": { es:"Registros pendientes", en:"Pending registrations" },
@@ -419,7 +419,7 @@ const APP_I18N = {
   "form.saveVerification": { es:"Guardar verificación", en:"Save verification" },
   "modal.verify.title": { es:"✅ Confirmar y documentar acción", en:"✅ Confirm & document action" },
   "modal.verify.sub": { es:"{apt} · Confirma los datos del huésped y documenta la acción que tomaste.", en:"{apt} · Confirm guest details and document the action you took." },
-  "modal.verify.help": { es:"Confirma los datos del huésped y describe la acción inmediata tomada (requerida). La resolución propuesta es opcional al verificar, pero un administrador solo podrá cerrar el incidente una vez que la agregues.", en:"Confirm the guest details and describe the immediate action taken (required). The proposed resolution is optional at verification, but an admin can only close the incident once you add it." },
+  "modal.verify.help": { es:"Confirma los datos del huésped y describe la acción inmediata tomada (requerida). Tu respuesta es opcional al verificar, pero un administrador solo podrá cerrar el incidente una vez que la agregues.", en:"Confirm the guest details and describe the immediate action taken (required). Your answer is optional at verification, but an admin can only close the incident once you add it." },
   "form.guestNames": { es:"👥 Huésped(es) confirmado(s) *", en:"👥 Confirmed guest(s) *" },
   "form.guestNamesPlaceholder": { es:"Nombre de huésped 1, huésped 2...", en:"Guest 1 name, guest 2 name..." },
 
@@ -436,10 +436,10 @@ const APP_I18N = {
   "form.country": { es:"🌍 País *", en:"🌍 Country *" },
   "form.immediateAction": { es:"💡 Acción inmediata del propietario (requerida)", en:"💡 Owner immediate action (required)" },
   "form.immediateActionPlaceholder": { es:"¿Qué hiciste de inmediato ante este incidente? (ej: llamé al huésped, contacté al operador, presenté queja a Airbnb...)", en:"What did you do immediately about this incident? (e.g. called the guest, contacted the operator, filed an Airbnb complaint...)" },
-  "form.ownerResolution": { es:"🔍 Resolución propuesta", en:"🔍 Proposed resolution" },
-  "form.ownerResolutionPlaceholder": { es:"Describe cómo se resolvió el incidente. Ej.: se trabajó directamente con el huésped, se coordinó con el operador o la administración del edificio, se involucró a Airbnb o las autoridades necesarias...", en:"Describe how the incident was resolved. E.g. worked directly with the guest, coordinated with the operator or building management, involved Airbnb or the necessary authorities..." },
-  "form.addResolution": { es:"📝 Agregar resolución", en:"📝 Add resolution" },
-  "form.resolutionRequired": { es:"⚠️ Resolución pendiente — el administrador no puede cerrar este incidente hasta que agregues una resolución.", en:"⚠️ Resolution pending — the admin cannot close this incident until you add a resolution." },
+  "form.ownerResolution": { es:"🔍 Tu respuesta", en:"🔍 Your answer" },
+  "form.ownerResolutionPlaceholder": { es:"Describe tu respuesta al incidente. Ej.: se trabajó directamente con el huésped, se coordinó con el operador o la administración del edificio, se involucró a Airbnb o las autoridades necesarias...", en:"Describe your answer to this incident. E.g. worked directly with the guest, coordinated with the operator or building management, involved Airbnb or the necessary authorities..." },
+  "form.addResolution": { es:"📝 Agregar respuesta", en:"📝 Add answer" },
+  "form.resolutionRequired": { es:"⚠️ Respuesta pendiente — el administrador no puede cerrar este incidente hasta que agregues tu respuesta.", en:"⚠️ Answer pending — the admin cannot close this incident until you add your answer." },
   "form.ownerResponse": { es:"💬 Respuesta del propietario *", en:"💬 Owner response *" },
   "form.ownerResponsePlaceholder": { es:"Describe la acción inmediata tomada, el estado actual del caso y cualquier detalle relevante para la resolución...", en:"Describe the immediate action taken, the current status of the case, and any details relevant for resolution..." },
   "form.optionalMessage": { es:"Mensaje opcional...", en:"Optional message..." },
@@ -464,10 +464,10 @@ const APP_I18N = {
   "workflow.open": { es:"1. Verificar — Paso 1", en:"1. Verify — Step 1" },
   "workflow.openDesc": { es:"El propietario verifica y documenta la acción inmediata tomada", en:"Owner verifies and documents the immediate action taken" },
   "workflow.verified": { es:"2. En Progreso", en:"2. In Progress" },
-  "workflow.verifiedDesc": { es:"Paso 1 completo. Propietario agrega resolución (Paso 2) para que el admin pueda cerrar", en:"Step 1 complete. Owner adds resolution (Step 2) so admin can close" },
+  "workflow.verifiedDesc": { es:"Paso 1 completo. Propietario agrega respuesta (Paso 2) para que el admin pueda cerrar", en:"Step 1 complete. Owner adds answer (Step 2) so admin can close" },
   "workflow.resolved": { es:"3. Cerrado", en:"3. Closed" },
-  "workflow.resolvedDesc": { es:"Admin cierra una vez que el propietario documentó la resolución en el Paso 2", en:"Admin closes once owner has documented resolution in Step 2" },
-  "workflow.resolvedDescGlobalOnly": { es:"Admin global cierra una vez documentada la resolución del propietario", en:"Global admin closes once owner resolution is documented" },
+  "workflow.resolvedDesc": { es:"Admin cierra una vez que el propietario agregó su respuesta en el Paso 2", en:"Admin closes once owner has added their answer in Step 2" },
+  "workflow.resolvedDescGlobalOnly": { es:"Admin global cierra una vez que el propietario agregó su respuesta", en:"Global admin closes once owner has added their answer" },
   "filters.workflow": { es:"Estado del flujo", en:"Workflow status" },
   "filters.category": { es:"Tipo de seguimiento", en:"Tracking category" },
   "filters.categoryAll": { es:"Todas las categorías", en:"All categories" },
@@ -517,13 +517,13 @@ Object.assign(APP_I18N, {
   "login.switchGoogleHelp": { es:"Al presionar Continuar con Google se abrirá el selector de cuentas. Si no aparece, cierra sesión en Google en este navegador o usa una ventana incógnita.", en:"When you press Continue with Google, the account chooser will open. If it does not appear, sign out of Google in this browser or use an incognito window." },
   "login.switchGoogleSteps": { es:"Consejo: selecciona la cuenta del propietario que debe quedar asociada a tus apartamentos.", en:"Tip: select the owner account that should be associated with your apartments." },
   "roles.standardTitle": { es:"Tu enfoque como propietario", en:"Your focus as an owner" },
-  "roles.standardText": { es:"Mantén tus unidades actualizadas, revisa avisos y gestiona incidentes en 2 pasos: Paso 1 verificar + documentar acción, Paso 2 agregar resolución para que el admin pueda cerrar.", en:"Keep your units current, review alerts, and manage incidents in 2 steps: Step 1 verify + document action, Step 2 add resolution so admin can close." },
+  "roles.standardText": { es:"Mantén tus unidades actualizadas, revisa avisos y gestiona incidentes en 2 pasos: Paso 1 verificar + documentar acción, Paso 2 agregar respuesta para que el admin pueda cerrar.", en:"Keep your units current, review alerts, and manage incidents in 2 steps: Step 1 verify + document action, Step 2 add answer so admin can close." },
   "roles.delegateTitle": { es:"Tu enfoque como admin delegado", en:"Your focus as delegate admin" },
   "roles.delegateText": { es:"Además de tus permisos estándar, puedes revisar registros pendientes y resolver incidentes cuando el permiso esté activo.", en:"In addition to standard permissions, you can review pending registrations and resolve incidents when that permission is enabled." },
   "roles.globalTitle": { es:"Tu enfoque como admin global", en:"Your focus as global admin" },
   "roles.globalText": { es:"Gobierna la comunidad: usuarios, permisos, SLA, plantillas, misión, reportes y calidad de datos.", en:"Govern the community: users, permissions, SLA, templates, mission, reports, and data quality." },
   "roles.primaryActions": { es:"Acciones recomendadas", en:"Recommended actions" },
-  "roles.ownerAction1": { es:"Verificar + agregar resolución", en:"Verify + add resolution" },
+  "roles.ownerAction1": { es:"Verificar + agregar respuesta", en:"Verify + add answer" },
   "roles.ownerAction2": { es:"Mis unidades", en:"My units" },
   "roles.delegateAction1": { es:"Revisa registros pendientes", en:"Review pending registrations" },
   "roles.delegateAction2": { es:"Resuelve incidentes verificados", en:"Resolve verified incidents" },
@@ -547,7 +547,7 @@ Object.assign(APP_I18N, {
   "tooltip.incidentType": { es:"Clasifica la naturaleza del incidente: ruido, daños, normas, limpieza, etc.", en:"Classify the incident nature: noise, damage, rules, cleanliness, etc." },
   "tooltip.incidentCategory": { es:"Categoría de seguimiento: grave, en observación o menor. Sirve para filtrar y priorizar.", en:"Tracking category: serious, under watch, or minor. Used for filtering and prioritization." },
   "tooltip.incidentDescription": { es:"Describe los hechos de forma objetiva, clara y útil para el propietario.", en:"Describe the facts objectively, clearly, and usefully for the owner." },
-  "tooltip.verifyIncident": { es:"Paso 1: El propietario verifica y documenta la acción inmediata tomada. Paso 2 (por separado): El propietario agrega la resolución propuesta — requerida antes de que el admin pueda cerrar.", en:"Step 1: Owner verifies and documents immediate action taken. Step 2 (separate): Owner adds proposed resolution — required before admin can close." },
+  "tooltip.verifyIncident": { es:"Paso 1: El propietario verifica y documenta la acción inmediata tomada. Paso 2 (por separado): El propietario agrega su respuesta — requerida antes de que el admin pueda cerrar.", en:"Step 1: Owner verifies and documents immediate action taken. Step 2 (separate): Owner adds their answer — required before admin can close." },
   "tooltip.resolveIncident": { es:"Solo admin global o delegado autorizado. Requiere comentarios y solo después de verificación del propietario.", en:"Global admin or authorized delegate only. Requires comments and only after owner verification." }
 });
 
@@ -1197,7 +1197,7 @@ export default function App() {
     try {
       const updated = await api.patch(`/api/incidents/${id}/add-resolution`, { ownerUid:user.uid, ownerResolution:resolutionText });
       setIncidents(i => i.map(x => x.id === id ? updated : x));
-      setModal(null); showToast(lang==='en' ? '📝 Resolution saved — admin notified' : '📝 Resolución guardada — admin notificado');
+      setModal(null); showToast(lang==='en' ? '📝 Answer saved — admin notified' : '📝 Respuesta guardada — admin notificado');
     } catch(e) { showToast('Error: ' + (e.message || ''), true); }
     finally { setSyncing(false); }
   };
@@ -1369,7 +1369,7 @@ export default function App() {
         {view==="approvals" && user && effectiveCanManageRegistrations && <PendingApprovalsView lang={lang} pending={pendingRegistrations} onApprove={id=>reviewRegistrationAction(id,'approve')} onDecline={id=>reviewRegistrationAction(id,'decline')} active={activeRegistrations} />}
         {view==="analytics" && user && (effectiveIsGlobalAdmin || analyticsEnabledForAll) && <AnalyticsDashboard lang={lang} user={user} contactProps={contactProps} showToast={showToast} isGlobalAdmin={effectiveIsGlobalAdmin} />}
         {view==="admin" && user && (effectiveIsGlobalAdmin ? <ErrorBoundary section="admin" fallback={(err)=><AdminFallback lang={lang} error={err}/>}><AdminSettings config={adminInfo.config || {}} user={user} listings={listings} contactProps={contactProps} onSave={saveAdminConfig} showToast={showToast} lang={lang} /></ErrorBoundary> : <AdminAccessHelp user={user} adminInfo={adminInfo} lang={lang} />)}
-        {view==="my" && user && <MyListings lang={lang} listings={myListings} incidents={incidents} user={user} contactProps={contactProps} isGlobalAdmin={effectiveIsGlobalAdmin} canResolveGlobal={canResolveIncidentsNow} onAdd={()=>setModal({type:"addListing"})} onEdit={l=>setModal({type:"editListing",data:l})} onDelete={deleteListing} onReport={l=>setModal({type:"incident",data:{aptId:l.id}})} onVerify={inc=>setModal({type:"verifyIncident",data:inc})} onResolve={resolveIncident} onAddResolution={inc=>setModal({type:"addResolution",data:inc})} />}
+        {view==="my" && user && <MyListings lang={lang} listings={myListings} incidents={incidents} user={user} contactProps={contactProps} isGlobalAdmin={effectiveIsGlobalAdmin} canResolveGlobal={canResolveIncidentsNow} onAdd={()=>setModal({type:"addListing"})} onEdit={l=>setModal({type:"editListing",data:l})} onDelete={deleteListing} onReport={l=>setModal({type:"incident",data:{aptId:l.id}})} onVerify={inc=>setModal({type:"verifyIncident",data:inc})} onResolve={resolveIncident} onAddResolution={inc=>setModal({type:"addResolution",data:inc})} onNavigateToIncidents={f=>{setIncidentQuickFilter({type:'floorFilter',aptIds:f.aptIds,status:f.status||'all'});setView('incidents');}} />}
         {view==="profile" && user && <ProfileView lang={lang} user={user} userProfile={userProfile} onSave={saveProfile} />}
         {view==="help" && <HelpView lang={lang} effectiveRole={effectiveRole} effectiveIsGlobalAdmin={effectiveIsGlobalAdmin} delegatePerms={delegatePerms} listings={listings} incidents={incidents} user={user} setView={setView} onReport={()=>{ if(!user){login();return;} setModal({type:'incident'}); }} onAddListing={()=>{ if(!user){login();return;} setModal({type:'addListing'}); }} setIncidentQuickFilter={setIncidentQuickFilter} openMore={()=>setOpenDropdown('more')} />}
       </main>
@@ -1437,11 +1437,11 @@ const HELP_TOPICS = [
   {
     id:'workflow', icon:'🔄', category:'incidents', roles:['user','delegate_admin','global_admin'],
     title:HL('Ciclo de vida del incidente','Incident lifecycle'),
-    summary:HL('4 estados: ⚠️ Verificar → 📝 Agregar resolución → ⏳ Esperando admin → ✓ Cerrado.','4 states: ⚠️ Verify → 📝 Add resolution → ⏳ Awaiting admin → ✓ Closed.'),
+    summary:HL('4 estados: ⚠️ Verificar → 📝 Agregar respuesta → ⏳ Esperando admin → ✓ Cerrado.','4 states: ⚠️ Verify → 📝 Add answer → ⏳ Awaiting admin → ✓ Closed.'),
     sections:[
       { h:HL('⚠️ Verificar — Paso 1 del propietario','⚠️ Verify — Owner Step 1'),
-        b:HL('El incidente se reporta. El propietario de la unidad debe: confirmar datos del huésped (nombre, ciudad, país) y documentar la acción inmediata tomada. Obligatorio. El estado muestra "⚠️ Verificar".','The incident is reported. The unit owner must: confirm guest details (name, city, country) and document the immediate action taken. Required. Status shows "⚠️ Verify now".')},
-      { h:HL('📝 Agregar resolución — Paso 2 del propietario','📝 Add resolution — Owner Step 2'),
+        b:HL('El incidente se reporta. El propietario de la unidad debe: confirmar datos del huésped (nombre, ciudad, departamento, país) y documentar la acción inmediata tomada. Obligatorio. El estado muestra "⚠️ Verificar".','The incident is reported. The unit owner must: confirm guest details (name, city, state/province, country) and document the immediate action taken. Required. Status shows "⚠️ Verify now".')},
+      { h:HL('📝 Agregar respuesta — Paso 2 del propietario','📝 Add answer — Owner Step 2'),
         b:HL('Verificado el Paso 1, el propietario agrega la resolución propuesta: cómo se resolvió (trabajó con el huésped, coordinó con operador o administración, contactó a Airbnb, etc.). Sin este paso el admin no puede cerrar. Estado: "📝 Agregar resolución".','After Step 1, the owner adds the proposed resolution: how it was resolved (worked with guest, coordinated with operator or management, contacted Airbnb, etc.). Without this step admin cannot close. Status: "📝 Add resolution".')},
       { h:HL('⏳ Esperando admin — propietario completó ambos pasos','⏳ Awaiting admin — owner completed both steps'),
         b:HL('El propietario completó Paso 1 y Paso 2. El administrador recibe notificación y puede revisar toda la documentación antes de cerrar formalmente. Estado: "⏳ Esperando admin".','Owner completed both steps. The admin receives a notification and can review all documentation before formally closing. Status: "⏳ Awaiting admin".')},
@@ -1452,11 +1452,11 @@ const HELP_TOPICS = [
   {
     id:'verify', icon:'✅', category:'incidents', roles:['user','delegate_admin','global_admin'],
     title:HL('Verificar un incidente (Paso 1 + 2)','Verifying an incident (Step 1 + 2)'),
-    summary:HL('Dos pasos requeridos como propietario: verificar + documentar acción, luego agregar resolución.','Two owner steps required: verify + document action, then add resolution.'),
+    summary:HL('Dos pasos requeridos como propietario: verificar + documentar acción, luego agregar tu respuesta.','Two owner steps required: verify + document action, then add your answer.'),
     sections:[
       { h:HL('Paso 1 — Verificar y documentar acción inmediata','Step 1 — Verify and document immediate action'),
         b:HL('Cuando un incidente muestra "⚠️ Verificar", la campana mostrará alerta ámbar. En Incidentes haz clic en "✅ Verificar". Confirma los datos del huésped (nombre, ciudad, país) y documenta la acción inmediata que tomaste (llamaste al huésped, contactaste al operador, reportaste a Airbnb, etc.). Este paso es obligatorio.','When an incident shows "⚠️ Verify now", the bell shows an amber alert. In Incidents click "✅ Verify". Confirm guest details (name, city, country) and document the immediate action you took (called guest, contacted operator, reported to Airbnb, etc.). This step is required.')},
-      { h:HL('Paso 2 — Agregar resolución propuesta','Step 2 — Add proposed resolution'),
+      { h:HL('Paso 2 — Agregar tu respuesta','Step 2 — Add your answer'),
         b:HL('Después de verificar, el incidente muestra "📝 Agregar resolución". Debes documentar cómo se resolvió: trabajaste directamente con el huésped, coordinaste con el operador o administración, involucraste a Airbnb o las autoridades. Sin este paso el botón "Cerrar" del admin permanece deshabilitado.','After verifying, the incident shows "📝 Add resolution". Document how it was resolved: worked directly with the guest, coordinated with operator or building management, involved Airbnb or authorities. Without this step the admin "Close" button stays disabled.')},
       { h:HL('Una vez completados los dos pasos','Once both steps are complete'),
         b:HL('El incidente pasa a "⏳ Esperando admin". El administrador recibe una notificación automática y puede proceder a cerrar formalmente. Recibirás un aviso cuando el incidente sea cerrado. Ambos pasos quedan registrados en el historial del incidente.','The incident moves to "⏳ Awaiting admin". The admin receives an automatic notification and can proceed to close formally. You will receive a notification when the incident is closed. Both steps are recorded in the incident history.')},
@@ -2118,7 +2118,7 @@ function DashboardFocus({ lang="es-CO", effectiveIsGlobalAdmin=false, effectiveR
   // Role-specific card sets — each role sees only what matters to them
   const cards = role==='standard' ? [
     { id:'verify',        icon:'⚠️', count:pendingOwner,           label:isEn?'⚠️ Verify now':'⚠️ Verificar',        sub:isEn?'Step 1 · Open incidents on your units requiring verification':'Paso 1 · Incidentes abiertos en tus unidades que requieren verificación', accent:'red',   onClick:onOwnerClick,   show:true },
-    { id:'addResolution', icon:'📝', count:pendingOwnerResolution, label:isEn?'📝 Add resolution':'📝 Agregar resolución', sub:isEn?'Step 2 · Verified — add resolution to allow admin to close':'Paso 2 · Verificados — agrega resolución para que admin pueda cerrar', accent:'amber', onClick:onAddResClick,  show:true },
+    { id:'addResolution', icon:'📝', count:pendingOwnerResolution, label:isEn?'📝 Add answer':'📝 Agregar respuesta', sub:isEn?'Step 2 · Verified — add your answer to allow admin to close':'Paso 2 · Verificados — agrega tu respuesta para que admin pueda cerrar', accent:'amber', onClick:onAddResClick,  show:true },
     { id:'myListings',    icon:'🏠', count:myListingCount,         label:isEn?'My listings':'Mis listings',             sub:isEn?'Your registered units':'Tus unidades registradas',                                                                                       accent:'teal',  onClick:()=>setView('my'), show:true },
   ].filter(c=>c.show!==false) : role==='delegate' ? [
     { id:'ownerVerification', icon:'✅', count:pendingOwner,         label:isEn?'Need verification':'Requieren verificación',   sub:isEn?'Awaiting owner confirmation':'Esperando confirmación propietario',  accent:'amber', onClick:onOwnerClick,         show:true },
@@ -2179,8 +2179,8 @@ function DashboardGreeting({ user, lang, role, pendingOwner=0, pendingOwnerResol
       pills.push(<button key="verify" className="dg-pill dg-pill-amber" onClick={onOwnerClick}>✅ {isEn?`Verify now (${pendingOwner})`:`Verificar ahora (${pendingOwner})`}</button>);
     }
     if (pendingOwnerResolution>0) {
-      parts.push(isEn?`${pendingOwnerResolution} verified — add your resolution so admin can close`:`${pendingOwnerResolution} verificado${pendingOwnerResolution>1?'s':''} — agrega resolución para que admin pueda cerrar`);
-      pills.push(<button key="res" className="dg-pill dg-pill-amber" onClick={()=>setView('incidents')}>📝 {isEn?`Add resolution (${pendingOwnerResolution})`:`Agregar resolución (${pendingOwnerResolution})`}</button>);
+      parts.push(isEn?`${pendingOwnerResolution} verified — add your answer so admin can close`:`${pendingOwnerResolution} verificado${pendingOwnerResolution>1?'s':''} — agrega tu respuesta para que admin pueda cerrar`);
+      pills.push(<button key="res" className="dg-pill dg-pill-amber" onClick={()=>setView('incidents')}>📝 {isEn?`Add answer (${pendingOwnerResolution})`:`Agregar respuesta (${pendingOwnerResolution})`}</button>);
     }
     if (myOpenCount>0 && pendingOwner===0) {
       parts.push(isEn?`${myOpenCount} open report${myOpenCount>1?'s':''} on your units`:`${myOpenCount} reporte${myOpenCount>1?'s':''} abierto${myOpenCount>1?'s':''} en tus unidades`);
@@ -2245,7 +2245,7 @@ function Dashboard({ listings, incidents, user, contactProps={}, setView, onRepo
   const stats = [
     { icon:"🏠", val:listings.length,    label:isEn?"Registered units":"Unidades registradas", color:"#2a9aaa", click:()=>setView("listings") },
     { icon:"⚠️", val:open.length,        label:isEn?"Open reports":"Reportes abiertos",         color:"#d4634a", click:()=>setView("incidents") },
-    { icon:"⏳", val:pendingRes.length,   label:isEn?"Pending resolution":"Pendiente resolución", color:"#e07b2a", click:()=>setView("incidents") },
+    { icon:"⏳", val:pendingRes.length,   label:isEn?"Pending answer":"Respuesta pendiente", color:"#e07b2a", click:()=>setView("incidents") },
     { icon:"✅", val:resolved.length,     label:isEn?"Closed this cycle":"Cerrados",              color:"#2e7d32" },
   ];
 
@@ -2289,7 +2289,7 @@ function Dashboard({ listings, incidents, user, contactProps={}, setView, onRepo
   );
 }
 
-function MyListings({ listings, incidents, user, contactProps={}, isGlobalAdmin=false, canResolveGlobal=false, onAdd, onEdit, onDelete, onReport, onVerify, onResolve, onAddResolution, lang="es-CO" }) {
+function MyListings({ listings, incidents, user, contactProps={}, isGlobalAdmin=false, canResolveGlobal=false, onAdd, onEdit, onDelete, onReport, onVerify, onResolve, onAddResolution, onNavigateToIncidents, lang="es-CO" }) {
   const [selectedId, setSelectedId] = useState(null);
   const [statFilter, setStatFilter] = useState(null); // null | 'open' | 'pendingResolution' | 'awaitingAdmin' | 'resolved'
   const isEn = lang==='en';
@@ -2310,6 +2310,7 @@ function MyListings({ listings, incidents, user, contactProps={}, isGlobalAdmin=
   ));
   const sorted = statFilter ? allSorted.filter(l=>matchesStat(l,statFilter)) : allSorted;
   const toggleStat = (s) => { setStatFilter(f=>f===s?null:s); setSelectedId(null); };
+  const goToIncidents = (l) => { if(onNavigateToIncidents) onNavigateToIncidents({aptIds:[l.id],status:'all'}); };
   return (
     <div className="fade">
       <div className="ph">
@@ -2365,7 +2366,7 @@ function MyListings({ listings, incidents, user, contactProps={}, isGlobalAdmin=
               const isSel = selectedId===l.id;
               return (
                 <div key={l.id} className={`ml-listing${isSel?' ml-listing-sel':''}`}>
-                  <div className="ml-listing-row apt-cpop-wrap" onClick={()=>setSelectedId(isSel?null:l.id)}>
+                  <div className="ml-listing-row apt-cpop-wrap" onClick={()=>{ setSelectedId(isSel?null:l.id); }}>
                     <div className="ml-listing-apt">{isEn?'Apt.':'Apto.'} {l.apt}</div>
                     <div className="ml-listing-chips">
                       <span className="chip c-teal">🛏️ {l.rooms}</span>
@@ -2392,7 +2393,20 @@ function MyListings({ listings, incidents, user, contactProps={}, isGlobalAdmin=
                     <AptContactPopup ownerName={l.owner} ownerEmail={l.userEmail||l.email} ownerWaRaw={l.contact} isEn={isEn}/>
                   </div>
                   {isSel&&(
-                    <AptDetailPanel l={l} incidents={incidents} contactProps={contactProps} canEdit canDelete onEdit={()=>onEdit(l)} onDelete={()=>onDelete(l)} onReport={()=>onReport(l)} onClose={()=>setSelectedId(null)} user={user} isGlobalAdmin={isGlobalAdmin} canResolveGlobal={canResolveGlobal} onVerify={onVerify} onResolve={onResolve} onAddResolution={onAddResolution} lang={lang} isEn={isEn}/>
+                    <div className="ml-listing-detail" onClick={e=>e.stopPropagation()}>
+                      <UnitDetailCard
+                        l={l}
+                        incidents={incidents}
+                        canEdit
+                        canDelete
+                        onEdit={()=>onEdit(l)}
+                        onDelete={()=>onDelete(l)}
+                        onReport={()=>onReport(l)}
+                        onViewIncidents={onNavigateToIncidents?()=>goToIncidents(l):null}
+                        lang={lang}
+                        isEn={isEn}
+                      />
+                    </div>
                   )}
                 </div>
               );
@@ -2478,7 +2492,120 @@ function AptContactPopup({ ownerName='', ownerEmail='', ownerWaRaw='', operatorN
   );
 }
 
-function AptDoor({ l, incidents, isSelected, onSelect, lang, isEn }) {
+// ── UnitDetailCard ────────────────────────────────────────────────────────
+// Read-only structured view of a listing's unit form data + incident summary.
+// Mirrors the ListingModal field set (apt, tower, rooms, guests, airbnb, operator).
+// "View incidents →" button calls onViewIncidents() to navigate to filtered incidents.
+function UnitDetailCard({ l, incidents, canEdit=false, canDelete=false, onEdit, onDelete, onReport, onViewIncidents, lang="es-CO", isEn=false }) {
+  const aptInc        = incidents.filter(i => i.aptId === l.id);
+  const openCount     = aptInc.filter(i => i.status === 'open').length;
+  const pendingResC   = aptInc.filter(i => i.status === 'verified' && !String(i.ownerResolution||'').trim()).length;
+  const awaitingC     = aptInc.filter(i => i.status === 'verified' &&  String(i.ownerResolution||'').trim()).length;
+  const resolvedC     = aptInc.filter(i => i.status === 'resolved').length;
+  const ownerWa       = normalizePhoneForWhatsApp(l.contact);
+  const opWa          = normalizePhoneForWhatsApp(l.operatorWhatsapp);
+  const ownerEmail    = l.userEmail || l.email || '';
+  const hasOp         = !!(l.operator || l.operatorEmail || l.operatorWhatsapp);
+  return (
+    <div className="udc-wrap">
+      {/* ── Unit hero — dark plate matching AptDoor/AptDetailPanel style ── */}
+      <div className="adp-unit-hero">
+        <div className="adp-unit-plate">
+          <span className="adp-unit-num">{l.apt}</span>
+          {l.tower&&<span className="adp-unit-tower">{l.tower}</span>}
+        </div>
+        <div className="adp-unit-meta">
+          <span className="chip c-teal" title={isEn?`${l.rooms} bedrooms`:`${l.rooms} habitaciones`}>🛏️ {l.rooms}</span>
+          <span className="chip c-blue" title={isEn?`Up to ${l.guests} guests`:`Capacidad ${l.guests} huéspedes`}>👥 {l.guests}</span>
+          {l.airbnb&&<a className="adp-airbnb-lnk" href={l.airbnb} target="_blank" rel="noreferrer">🔗 Airbnb</a>}
+        </div>
+        <div className="adp-unit-acts">
+          {onReport&&<button className="bsm bs-rep" onClick={onReport}>+ {isEn?'Report':'Reporte'}</button>}
+          {canEdit&&<button className="bsm bs-edit" onClick={onEdit} title={isEn?'Edit unit':'Editar unidad'}>✏️</button>}
+          {canDelete&&<button className="bsm bs-del" onClick={onDelete} title={isEn?'Delete unit':'Eliminar unidad'}>🗑️</button>}
+        </div>
+      </div>
+
+      {/* ── Listing details — same fields as ListingModal ── */}
+      <div className="adp-section-lbl">🏠 {isEn?'Listing details':'Datos del listing'}</div>
+      <div className="udc-fields">
+        <span className="udc-field-lbl">{isEn?'Apt. #':'Apto. #'}</span>
+        <span className="udc-field-val udc-apt-num">{l.apt}</span>
+        <span className="udc-field-lbl">{isEn?'Tower':'Torre'}</span>
+        <span className="udc-field-val">{l.tower||'KAI'}</span>
+        <span className="udc-field-lbl">{isEn?'Bedrooms':'Habitaciones'}</span>
+        <span className="udc-field-val">🛏️ {l.rooms}</span>
+        <span className="udc-field-lbl">{isEn?'Guest capacity':'Capacidad'}</span>
+        <span className="udc-field-val">👥 {l.guests}</span>
+        <span className="udc-field-lbl">Airbnb</span>
+        <span className="udc-field-val">
+          {l.airbnb
+            ? <a href={l.airbnb} target="_blank" rel="noreferrer" className="adp-airbnb-lnk udc-airbnb-pill">🔗 {isEn?'View listing':'Ver listing'}</a>
+            : <span className="udc-field-empty">{isEn?'No link added':'Sin enlace'}</span>}
+        </span>
+      </div>
+
+      {/* ── People: owner + operator ── */}
+      <div className="adp-section-lbl">👥 {isEn?'People':'Personas'}</div>
+      <div className="adp-contacts">
+        <div className="adp-party">
+          <div className="adp-party-lbl">👤 {isEn?'Owner':'Propietario'}</div>
+          <div className="adp-party-row">
+            <span style={{fontSize:'.85rem',fontWeight:700,color:'#203f2b'}}>{l.owner||'—'}</span>
+            <div className="adp-party-cbtns">
+              {ownerEmail&&<a href={`mailto:${ownerEmail}`} className="ac-cbtn" title={ownerEmail}><IconEmail/></a>}
+              {ownerWa&&<a href={`https://wa.me/${ownerWa}`} className="ac-cbtn ac-cbtn-wa" target="_blank" rel="noreferrer" title="WhatsApp"><IconWhatsApp/></a>}
+            </div>
+          </div>
+          {ownerEmail&&<div style={{fontSize:'.72rem',color:'#496674',marginTop:2}}>{ownerEmail}</div>}
+        </div>
+        {hasOp ? (
+          <div className="adp-party">
+            <div className="adp-party-lbl">🔧 {isEn?'Operator':'Operador'}</div>
+            <div className="adp-party-row">
+              <span style={{fontSize:'.85rem',fontWeight:700,color:'#203f2b'}}>{l.operator||l.operatorEmail||'—'}</span>
+              <div className="adp-party-cbtns">
+                {l.operatorEmail&&<a href={`mailto:${l.operatorEmail}`} className="ac-cbtn" title={l.operatorEmail}><IconEmail/></a>}
+                {opWa&&<a href={`https://wa.me/${opWa}`} className="ac-cbtn ac-cbtn-wa" target="_blank" rel="noreferrer" title="WhatsApp"><IconWhatsApp/></a>}
+              </div>
+            </div>
+            {l.operatorEmail&&<div style={{fontSize:'.72rem',color:'#496674',marginTop:2}}>{l.operatorEmail}</div>}
+          </div>
+        ) : (
+          <div className="adp-party adp-party-none">
+            <div className="adp-party-lbl">🔧 {isEn?'Operator':'Operador'}</div>
+            <span className="adp-no-op">{isEn?'No operator assigned':'Sin operador asignado'}</span>
+          </div>
+        )}
+      </div>
+
+      {/* ── Incident summary pills ── */}
+      <div className="adp-section-lbl" style={{marginTop:14}}>📊 {isEn?'Incident summary':'Resumen de incidentes'}</div>
+      <div className="udc-inc-summary">
+        {aptInc.length===0
+          ? <span className="dis-clean">✅ {isEn?'No incidents on record':'Sin incidentes registrados'}</span>
+          : <>
+              {openCount>0   &&<span className="dis-pill dis-open"        title={isEn?`${openCount} open — needs verification`:`${openCount} abierto${openCount>1?'s':''} — requiere verificación`}>⚠️ {openCount} {isEn?'verify':'verificar'}</span>}
+              {pendingResC>0 &&<span className="dis-pill dis-pending-res" title={isEn?`${pendingResC} verified — add your resolution`:`${pendingResC} verificado${pendingResC>1?'s':''} — agrega resolución`}>📝 {pendingResC} {isEn?'add res.':'resolución'}</span>}
+              {awaitingC>0   &&<span className="dis-pill dis-ver"         title={isEn?`${awaitingC} awaiting admin review`:`${awaitingC} esperando al admin`}>⏳ {awaitingC} {isEn?'admin':'admin'}</span>}
+              {resolvedC>0   &&<span className="dis-pill dis-res"         title={isEn?`${resolvedC} closed`:`${resolvedC} cerrado${resolvedC>1?'s':''}`}>✓ {resolvedC} {isEn?'closed':'cerrados'}</span>}
+            </>
+        }
+      </div>
+
+      {/* ── View incidents navigation button ── */}
+      {onViewIncidents&&(
+        <div className="udc-footer">
+          <button className="btn-p udc-view-inc-btn" onClick={onViewIncidents}>
+            📋 {isEn?'View incidents →':'Ver incidentes →'}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function AptDoor({ l, incidents, isSelected, onSelect, onUnitDetail, onPillFilter, lang, isEn }) {
   const status = aptDoorStatus(l, incidents);
   const aptInc         = incidents.filter(i => i.aptId === l.id);
   const openCount      = aptInc.filter(i => i.status === 'open').length;
@@ -2498,8 +2625,16 @@ function AptDoor({ l, incidents, isSelected, onSelect, lang, isEn }) {
     >
       {/* Status colour bar across full top edge */}
       <div className={`door-status-bar door-sb-${status}`}/>
-      {/* Full-width number plate */}
-      <div className="door-num-plate">
+      {/* Number plate — click opens unit detail popup (separate from card click) */}
+      <div
+        className="door-num-plate"
+        role="button"
+        tabIndex={0}
+        title={isEn?'View unit details':'Ver detalles de la unidad'}
+        aria-label={`${isEn?'Unit details':'Detalles unidad'} ${l.apt}`}
+        onClick={e=>{e.stopPropagation();onUnitDetail&&onUnitDetail(l.id);}}
+        onKeyDown={e=>{if(e.key==='Enter'||e.key===' '){e.stopPropagation();onUnitDetail&&onUnitDetail(l.id);}}}
+      >
         <span className="door-num">{l.apt}</span>
         {openCount>0 && <span className="door-inc-badge" title={isEn?`${openCount} open incident${openCount>1?'s':''}`:`${openCount} incidente${openCount>1?'s':''} abierto${openCount>1?'s':''}`}>⚠️ {openCount}</span>}
       </div>
@@ -2512,19 +2647,19 @@ function AptDoor({ l, incidents, isSelected, onSelect, lang, isEn }) {
           <span className="door-chip">👥 {l.guests}</span>
         </div>
       </div>
-      {/* Incident count summary — broken down by status */}
+      {/* Incident count summary — clickable pills navigate to filtered incidents */}
       <div className="door-inc-summary">
         {totalCount === 0
           ? <span className="dis-clean">✅ {isEn?'No incidents':'Sin incidentes'}</span>
           : <>
-              {openCount>0&&<span className="dis-pill dis-open" title={isEn?`${openCount} open — Step 1: verify required`:`${openCount} abierto${openCount>1?'s':''} — Paso 1: verificación requerida`}>⚠️ {openCount}</span>}
-              {pendingResCount>0&&<span className="dis-pill dis-pending-res" title={isEn?`${pendingResCount} verified — Step 2: add resolution`:`${pendingResCount} verificado${pendingResCount>1?'s':''} — Paso 2: agregar resolución`}>📝 {pendingResCount}</span>}
-              {awaitingCount>0&&<span className="dis-pill dis-ver" title={isEn?`${awaitingCount} awaiting admin review`:`${awaitingCount} esperando revisión del admin`}>⏳ {awaitingCount}</span>}
-              {resolvedCount>0&&<span className="dis-pill dis-res" title={isEn?`${resolvedCount} closed`:`${resolvedCount} cerrado${resolvedCount>1?'s':''}`}>✓ {resolvedCount}</span>}
+              {openCount>0      &&<button type="button" className="dis-pill dis-open"        onClick={e=>{e.stopPropagation();onPillFilter&&onPillFilter({aptIds:[l.id],status:'open'});}}          title={isEn?`${openCount} open — Step 1: verify required · click to filter`:`${openCount} abierto${openCount>1?'s':''} — Paso 1: verificación requerida · clic para filtrar`}>⚠️ {openCount}</button>}
+              {pendingResCount>0&&<button type="button" className="dis-pill dis-pending-res" onClick={e=>{e.stopPropagation();onPillFilter&&onPillFilter({aptIds:[l.id],status:'pendingResolution'});}} title={isEn?`${pendingResCount} verified — Step 2: add resolution · click to filter`:`${pendingResCount} verificado${pendingResCount>1?'s':''} — Paso 2: agregar resolución · clic para filtrar`}>📝 {pendingResCount}</button>}
+              {awaitingCount>0  &&<button type="button" className="dis-pill dis-ver"         onClick={e=>{e.stopPropagation();onPillFilter&&onPillFilter({aptIds:[l.id],status:'awaitingAdmin'});}}  title={isEn?`${awaitingCount} awaiting admin review · click to filter`:`${awaitingCount} esperando revisión del admin · clic para filtrar`}>⏳ {awaitingCount}</button>}
+              {resolvedCount>0  &&<button type="button" className="dis-pill dis-res"         onClick={e=>{e.stopPropagation();onPillFilter&&onPillFilter({aptIds:[l.id],status:'resolved'});}}      title={isEn?`${resolvedCount} closed · click to filter`:`${resolvedCount} cerrado${resolvedCount>1?'s':''} · clic para filtrar`}>✓ {resolvedCount}</button>}
             </>
         }
       </div>
-      {/* Contact popup — appears above card on hover, does NOT cover card */}
+      {/* Contact popup — appears to the right of card on hover */}
       <AptContactPopup
         ownerName={l.owner}
         ownerEmail={ownerEmail}
@@ -2653,6 +2788,7 @@ function AptDetailPanel({ l, incidents, contactProps={}, canEdit, canDelete, onE
 
 function BuildingFloor({ floor, apts, incidents, user, contactProps, isGlobalAdmin, canEditGlobal, canDeleteGlobal, canResolveGlobal, onEdit, onDelete, onReport, onVerify, onResolve, onAddResolution, onFloorFilter, isOpen, onToggle, lang, isEn }) {
   const [selectedAptId, setSelectedAptId] = useState(null);
+  const [unitDetailAptId, setUnitDetailAptId] = useState(null);
   const color = floorColor(floor);
   const floorInc       = incidents.filter(i=>apts.some(l=>l.id===i.aptId));
   const openCount      = floorInc.filter(i=>i.status==='open').length;
@@ -2683,12 +2819,43 @@ function BuildingFloor({ floor, apts, incidents, user, contactProps, isGlobalAdm
         <div className="bld-floor-body">
           <div className="bld-door-grid">
             {apts.map(l=>(
-              <AptDoor key={l.id} l={l} incidents={incidents} isSelected={selectedAptId===l.id} onSelect={handleSelect} lang={lang} isEn={isEn}/>
+              <AptDoor
+                key={l.id}
+                l={l}
+                incidents={incidents}
+                isSelected={selectedAptId===l.id}
+                onSelect={handleSelect}
+                onUnitDetail={id=>setUnitDetailAptId(id)}
+                onPillFilter={f=>{onFloorFilter&&onFloorFilter(f);}}
+                lang={lang}
+                isEn={isEn}
+              />
             ))}
           </div>
         </div>
       )}
-      {/* Unit detail modal — opens when a door card is clicked */}
+      {/* Unit detail popup — opens when the number plate is clicked */}
+      {unitDetailAptId && (() => {
+        const udApt = apts.find(l=>l.id===unitDetailAptId);
+        if (!udApt) return null;
+        return (
+          <Overlay onClose={()=>setUnitDetailAptId(null)} wide>
+            <UnitDetailCard
+              l={udApt}
+              incidents={incidents}
+              canEdit={user?.uid===udApt.ownerUid||isGlobalAdmin||canEditGlobal}
+              canDelete={user?.uid===udApt.ownerUid||isGlobalAdmin||canDeleteGlobal}
+              onEdit={()=>{setUnitDetailAptId(null);onEdit(udApt);}}
+              onDelete={()=>{setUnitDetailAptId(null);onDelete(udApt);}}
+              onReport={()=>{setUnitDetailAptId(null);onReport(udApt);}}
+              onViewIncidents={onFloorFilter?()=>{setUnitDetailAptId(null);onFloorFilter({aptIds:[udApt.id],status:'all'});}:null}
+              lang={lang}
+              isEn={isEn}
+            />
+          </Overlay>
+        );
+      })()}
+      {/* Incident detail modal — opens when a door card body is clicked */}
       {selectedApt && (
         <Overlay onClose={()=>setSelectedAptId(null)} wide>
           <AptDetailPanel
@@ -2890,19 +3057,21 @@ const normalizeOwnerGuests = (incident={}) => {
       middleName: String(g.middleName || g.middle_name || '').trim(),
       lastName: String(g.lastName || g.last_name || '').trim(),
       city: String(g.city || '').trim(),
+      state: String(g.state || '').trim(),
       country: String(g.country || '').trim(),
     })).filter(g => g.firstName || g.lastName || g.city || g.country);
   }
   if (incident.ownerGuestNames || incident.ownerGuestCity || incident.ownerGuestCountry) {
     return String(incident.ownerGuestNames || '').split(',').map(x => x.trim()).filter(Boolean).map(name => {
       const parts = name.split(/\s+/);
-      return { firstName: parts[0] || name, middleName: parts.length > 2 ? parts.slice(1,-1).join(' ') : '', lastName: parts.length > 1 ? parts[parts.length-1] : '', city: incident.ownerGuestCity || '', country: incident.ownerGuestCountry || '' };
+      return { firstName: parts[0] || name, middleName: parts.length > 2 ? parts.slice(1,-1).join(' ') : '', lastName: parts.length > 1 ? parts[parts.length-1] : '', city: incident.ownerGuestCity || '', state: '', country: incident.ownerGuestCountry || '' };
     });
   }
   return [];
 };
 const guestFullName = (g={}) => [g.firstName, g.middleName, g.lastName].map(x=>String(x||'').trim()).filter(Boolean).join(' ');
-const guestLocation = (g={}) => [g.city, g.country].map(x=>String(x||'').trim()).filter(Boolean).join(', ');
+// Location includes city, state (if present), and country
+const guestLocation = (g={}) => [g.city, g.state, g.country].map(x=>String(x||'').trim()).filter(Boolean).join(', ');
 
 function WorkflowGroup({ statusKey, icon, label, sublabel, color, incidents, listings, isOpen, onToggle, user, contactProps, isGlobalAdmin, canUpdateGlobal, canDeleteGlobal, canResolveGlobal, onResolve, onDelete, onVerify, onAddResolution, hideUnit=false, lang, isEn }) {
   const count = incidents.length;
@@ -3079,15 +3248,16 @@ function IncidentsView({ incidents, listings, user, quickFilter=null, onQuickFil
         {user&&<button className="btn-p btn-report" onClick={onAdd}>{appText(lang,"reports.reportIncident")}</button>}
       </div>
 
-      {/* Floor filter banner — shown when navigated from Units page stat pill */}
+      {/* Floor filter banner — shown when navigated from Units page stat pill or unit detail */}
       {floorFilter&&(
         <div className="floor-filter-banner">
-          <span>🏢 {isEn?'Filtered to floor units':'Filtrado a unidades del piso'} · <strong>{{
-            open:           isEn?'⚠️ Needs verification':'⚠️ Requieren verificación',
-            pendingResolution: isEn?'📝 Needs resolution (Step 2)':'📝 Necesitan resolución (Paso 2)',
-            awaitingAdmin:  isEn?'⏳ Awaiting admin review':'⏳ Esperando revisión del admin',
-            resolved:       isEn?'✓ Closed':'✓ Cerrados',
-            verified:       isEn?'In progress':'En progreso',
+          <span>🏢 {isEn?'Filtered to unit':'Filtrado a unidad'}{floorFilter.aptIds?.length===1?' '+floorFilter.aptIds[0]:''}{floorFilter.status&&floorFilter.status!=='all'?' · ':''}<strong>{{
+            open:             isEn?'⚠️ Needs verification':'⚠️ Requieren verificación',
+            pendingResolution:isEn?'📝 Needs resolution (Step 2)':'📝 Necesitan resolución (Paso 2)',
+            awaitingAdmin:    isEn?'⏳ Awaiting admin review':'⏳ Esperando revisión del admin',
+            resolved:         isEn?'✓ Closed':'✓ Cerrados',
+            verified:         isEn?'In progress':'En progreso',
+            all:              '',
           }[floorFilter.status]||floorFilter.status}</strong></span>
           <button className="ffb-clear" onClick={()=>setFloorFilter(null)}>✕ {isEn?'Show all':'Ver todos'}</button>
         </div>
@@ -3314,8 +3484,8 @@ function IRow({ inc, user, listings=[], contactProps={}, isGlobalAdmin=false, ca
           <span className="ir-type" style={{background:ti.bg,color:ti.color}}>{tiLabel}</span>
           {ci&&<span className="ir-cat" style={{background:ci.bg,color:ci.color}}>{ci.icon} {ciLabel}</span>}
           {inc.status==="open"&&<span className="ir-status is-open" title={isEn?'Step 1: Owner must verify and document action taken':'Paso 1: El propietario debe verificar y documentar la acción tomada'}>{isEn?"⚠️ Verify now":"⚠️ Verificar"}</span>}
-          {inc.status==="verified"&&!String(inc.ownerResolution||'').trim()&&<span className="ir-status is-pending-res" title={isEn?'Step 2: Add your resolution — required before admin can close':'Paso 2: Agrega tu resolución — requerida para que el admin pueda cerrar'}>{isEn?"📝 Add resolution":"📝 Agregar resolución"}</span>}
-          {inc.status==="verified"&& String(inc.ownerResolution||'').trim()&&<span className="ir-status is-verified" title={isEn?'Resolution submitted — admin will review and close':'Resolución enviada — el admin revisará y cerrará'}>{isEn?"⏳ Awaiting admin":"⏳ Esperando admin"}</span>}
+          {inc.status==="verified"&&!String(inc.ownerResolution||'').trim()&&<span className="ir-status is-pending-res" title={isEn?'Step 2: Add your answer — required before admin can close':'Paso 2: Agrega tu respuesta — requerida para que el admin pueda cerrar'}>{isEn?"📝 Add answer":"📝 Agregar respuesta"}</span>}
+          {inc.status==="verified"&& String(inc.ownerResolution||'').trim()&&<span className="ir-status is-verified" title={isEn?'Answer submitted — admin will review and close':'Respuesta enviada — el admin revisará y cerrará'}>{isEn?"⏳ Awaiting admin":"⏳ Esperando admin"}</span>}
           {inc.status==="resolved"&&<span className="ir-status is-resolved">{isEn?"✓ Closed":"✓ Cerrado"}</span>}
           {inc.slaCycleCount>0&&<span className="ir-cat" style={{background:"#fff3e0",color:"#e65100"}}>⏱️ SLA {inc.slaCycleCount}</span>}
         </div>
@@ -3324,7 +3494,7 @@ function IRow({ inc, user, listings=[], contactProps={}, isGlobalAdmin=false, ca
           <strong>{appText(lang,'form.guestDetails')}:</strong>
           <div className="guest-display-list">{guests.map((g,idx)=><div key={idx}>👤 {guestFullName(g)}{guestLocation(g)?` · ${guestLocation(g)}`:''}</div>)}</div>
           {inc.ownerComments&&<div className="adp-inc-comments adp-comment-action" style={{marginTop:6}}><span className="adp-comment-lbl">💡 {isEn?'Action taken':'Acción tomada'}</span> {inc.ownerComments}</div>}
-          {inc.ownerResolution&&<div className="adp-inc-comments adp-comment-resolution" style={{marginTop:6}}><span className="adp-comment-lbl">🔍 {isEn?'Owner resolution':'Resolución'}</span> {inc.ownerResolution}</div>}
+          {inc.ownerResolution&&<div className="adp-inc-comments adp-comment-resolution" style={{marginTop:6}}><span className="adp-comment-lbl">🔍 {isEn?'Owner answer':'Respuesta'}</span> {inc.ownerResolution}</div>}
           {inc.resolutionComments&&<div className="adp-inc-comments adp-comment-closed" style={{marginTop:6}}><span className="adp-comment-lbl">✓ {isEn?'Closed by admin':'Cerrado por admin'}</span> {inc.resolutionComments}</div>}
         </div>}
         {inc.status==='verified'&&!inc.ownerResolution&&isOwner&&<div className="inc-res-warn">{appText(lang,'form.resolutionRequired')}</div>}
@@ -3335,12 +3505,12 @@ function IRow({ inc, user, listings=[], contactProps={}, isGlobalAdmin=false, ca
           <button className="bsm bs-resolve" onClick={()=>onVerify(inc)}>{appText(lang,"reports.verify")}</button>
         </>}
         {inc.status==="verified"&&isOwner&&!inc.ownerResolution&&<>
-          <div className="ir-step-cue ir-step-cue-2"><span className="ir-step-num ir-step-num-2">2</span><span>{isEn?'Add resolution to unlock admin close':'Agrega resolución para desbloquear cierre'}</span></div>
+          <div className="ir-step-cue ir-step-cue-2"><span className="ir-step-num ir-step-num-2">2</span><span>{isEn?'Add your answer to unlock admin close':'Agrega tu respuesta para desbloquear cierre'}</span></div>
           <button className="bsm bs-edit" onClick={()=>onAddResolution&&onAddResolution(inc)}>{appText(lang,'form.addResolution')}</button>
         </>}
-        {inc.status==="verified"&&isOwner&&!!inc.ownerResolution&&<div className="ir-step-done">{isEn?'✓ Resolution submitted — awaiting admin':'✓ Resolución enviada — esperando admin'}</div>}
+        {inc.status==="verified"&&isOwner&&!!inc.ownerResolution&&<div className="ir-step-done">{isEn?'✓ Answer submitted — awaiting admin':'✓ Respuesta enviada — esperando admin'}</div>}
         {inc.status==="verified"&&(isGlobalAdmin||canResolveGlobal)&&inc.ownerResolution&&<button className="bsm bs-resolve" onClick={()=>onResolve(inc.id)}>{appText(lang,"reports.close")}</button>}
-        {inc.status==="verified"&&(isGlobalAdmin||canResolveGlobal)&&!inc.ownerResolution&&<button className="bsm" style={{opacity:.45,cursor:'not-allowed'}} title={isEn?'Waiting for owner resolution':'Esperando resolución del propietario'}>{appText(lang,"reports.close")}</button>}
+        {inc.status==="verified"&&(isGlobalAdmin||canResolveGlobal)&&!inc.ownerResolution&&<button className="bsm" style={{opacity:.45,cursor:'not-allowed'}} title={isEn?'Waiting for owner answer':'Esperando respuesta del propietario'}>{appText(lang,"reports.close")}</button>}
         {(isReporter||isGlobalAdmin||canDeleteGlobal)&&<button className="bsm bs-del" onClick={()=>onDelete(inc.id)}>🗑️</button>}
       </div>}
     </div>
@@ -3517,7 +3687,7 @@ function IncidentModal({ listings, user, presetApt, onSave, onClose, lang="es-CO
 function VerifyIncidentModal({ incident, onSave, onClose, lang="es-CO", config={} }) {
   const tips = localizedTooltips(config, lang);
   const isEn = lang==='en';
-  const blankGuest = () => ({ firstName:'', middleName:'', lastName:'', city:'', country:'Colombia' });
+  const blankGuest = () => ({ firstName:'', middleName:'', lastName:'', city:'', state:'', country:'Colombia' });
   const initialGuests = normalizeOwnerGuests(incident);
   const [guests,setGuests]=useState(initialGuests.length ? initialGuests : [blankGuest()]);
   const [ownerComments,setOwnerComments]=useState(incident?.ownerComments || '');
@@ -3553,6 +3723,7 @@ function VerifyIncidentModal({ incident, onSave, onClose, lang="es-CO", config={
           <div className="fg"><label>{appText(lang,'form.guestLastName')} *</label><input className={errors[`lastName_${idx}`]?'field-error':''} value={g.lastName} onChange={e=>setGuest(idx,'lastName',e.target.value)} autoComplete="family-name"/>{errors[`lastName_${idx}`]&&<span className="err-msg">{errors[`lastName_${idx}`]}</span>}</div>
           <div className="fg"><label>{appText(lang,'form.guestMiddleName')} <span style={{fontSize:'.65rem',color:'#8a9fa5',fontWeight:400}}>{isEn?'(optional)':'(opcional)'}</span></label><input value={g.middleName} onChange={e=>setGuest(idx,'middleName',e.target.value)} /></div>
           <div className="fg"><label>{appText(lang,"form.city")} *</label><input className={errors[`city_${idx}`]?'field-error':''} value={g.city} onChange={e=>setGuest(idx,'city',e.target.value)} placeholder="Bogotá" autoComplete="address-level2"/>{errors[`city_${idx}`]&&<span className="err-msg">{errors[`city_${idx}`]}</span>}</div>
+          <div className="fg"><label>{isEn?'State / Province':'Departamento / Estado'} <span style={{fontSize:'.65rem',color:'#8a9fa5',fontWeight:400}}>{isEn?'(optional)':'(opcional)'}</span></label><input value={g.state||''} onChange={e=>setGuest(idx,'state',e.target.value)} placeholder={isEn?'e.g. Cundinamarca':'ej. Cundinamarca'} autoComplete="address-level1"/></div>
           <div className="fg full"><label>{appText(lang,"form.country")} *</label><select className={errors[`country_${idx}`]?'field-error':''} value={g.country} onChange={e=>setGuest(idx,'country',e.target.value)}>{COUNTRIES.map(c=><option key={c}>{c}</option>)}</select>{errors[`country_${idx}`]&&<span className="err-msg">{errors[`country_${idx}`]}</span>}</div>
         </div>
       </div>)}
@@ -3564,10 +3735,10 @@ function VerifyIncidentModal({ incident, onSave, onClose, lang="es-CO", config={
       <textarea className={errors.ownerComments?'field-error':''} value={ownerComments} onChange={e=>{setOwnerComments(e.target.value);setErrors(er=>({...er,ownerComments:undefined}));}} rows={3} placeholder={appText(lang,"form.immediateActionPlaceholder")}/>
       {errors.ownerComments&&<span className="err-msg">{errors.ownerComments}</span>}
     </div>
-    {/* Proposed resolution — OPTIONAL now, required later before admin can close */}
+    {/* Your answer — OPTIONAL now, required later before admin can close */}
     <div className="fg full">
       <label>{appText(lang,"form.ownerResolution")}</label>
-      <div className="verify-resolution-hint">{lang==='en'?'Optional now — admin cannot close the incident until this is provided.':'Opcional ahora — el admin no puede cerrar el incidente hasta que lo completes.'}</div>
+      <div className="verify-resolution-hint">{isEn?'Optional now — admin cannot close the incident until your answer is provided.':'Opcional ahora — el admin no puede cerrar el incidente hasta que agregues tu respuesta.'}</div>
       <textarea value={ownerResolution} onChange={e=>setOwnerResolution(e.target.value)} rows={3} placeholder={appText(lang,"form.ownerResolutionPlaceholder")}/>
     </div>
     <div className="mact"><button className="btn-ghost" onClick={onClose}>{appText(lang,"form.cancel")}</button><button className="btn-p" title={tips.verifyIncident} onClick={()=>{ if(validate()) onSave({guests, ownerComments, ownerResolution});}}>{appText(lang,"form.saveVerification")}</button></div>
@@ -3579,19 +3750,19 @@ function AddResolutionModal({ incident, onSave, onClose, lang="es-CO" }) {
   const [text,setText]=useState(incident?.ownerResolution||'');
   const [err,setErr]=useState('');
   const submit=()=>{
-    if(!String(text||'').trim()){setErr(isEn?'Resolution is required.':'La resolución es requerida.');return;}
+    if(!String(text||'').trim()){setErr(isEn?'Your answer is required.':'Tu respuesta es requerida.');return;}
     onSave(text);
   };
   return <Overlay onClose={onClose}>
-    <div className="modal-title">{isEn?'📝 Add resolution':'📝 Agregar resolución'}</div>
+    <div className="modal-title">{isEn?'📝 Add answer':'📝 Agregar respuesta'}</div>
     <div className="modal-sub">{incident?.aptLabel||''}</div>
-    <div className="form-alert">{isEn?'Once you add the resolution, the admin will be notified and can close the incident.':'Al agregar la resolución el administrador será notificado y podrá cerrar el incidente.'}</div>
+    <div className="form-alert">{isEn?'Once you add your answer, the admin will be notified and can close the incident.':'Al agregar tu respuesta el administrador será notificado y podrá cerrar el incidente.'}</div>
     <div className="fg full">
       <label>{appText(lang,"form.ownerResolution")} *</label>
       <textarea className={err?'field-error':''} value={text} onChange={e=>{setText(e.target.value);setErr('');}} rows={4} placeholder={appText(lang,"form.ownerResolutionPlaceholder")}/>
       {err&&<span className="err-msg">{err}</span>}
     </div>
-    <div className="mact"><button className="btn-ghost" onClick={onClose}>{appText(lang,"form.cancel")}</button><button className="btn-p" onClick={submit}>{isEn?'Save resolution':'Guardar resolución'}</button></div>
+    <div className="mact"><button className="btn-ghost" onClick={onClose}>{appText(lang,"form.cancel")}</button><button className="btn-p" onClick={submit}>{isEn?'Save answer':'Guardar respuesta'}</button></div>
   </Overlay>;
 }
 

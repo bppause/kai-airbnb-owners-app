@@ -1,0 +1,26 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(node -e \"const fs = require\\('fs'\\); const content = fs.readFileSync\\('src/App.jsx', 'utf-8'\\); const cssStart = content.indexOf\\('const CSS = \\\\`'\\); const cssEnd = content.lastIndexOf\\('\\\\`;'\\); if \\(cssStart === -1 || cssEnd === -1\\) { console.error\\('CSS constant bounds not found'\\); process.exit\\(1\\); } const css = content.slice\\(cssStart + 13, cssEnd\\); console.log\\('CSS constant length:', css.length, 'chars'\\); const backticks = \\(css.match\\(/\\\\`/g\\) || []\\).length; console.log\\('Unescaped backticks inside CSS:', backticks, '\\(should be 0\\)'\\); console.log\\('OK'\\);\")",
+      "Bash(git commit *)",
+      "Bash(git push *)",
+      "Bash(git pull *)",
+      "Bash(git stash *)",
+      "Bash(git add *)",
+      "Bash(git rebase *)",
+      "Bash(GIT_EDITOR=true git rebase --continue)",
+      "Bash(echo \"exit: $?\")",
+      "Bash(cat .git/rebase-merge/msgnum .git/rebase-merge/end)",
+      "Bash(ls .git/rebase-merge/)",
+      "Bash(ls CLAUDE.md)",
+      "Bash(git show *)",
+      "Bash(grep -c \"spinner\\\\|two-col\\\\{\\\\\\\\|beta-badge\\\\|scard\\\\{\")",
+      "Bash(sed -n '245,260p' client/src/production-ui.css)",
+      "Bash(sed -n '268,285p' client/src/production-ui.css)",
+      "Bash(gh api *)",
+      "PowerShell(gh api *)",
+      "Bash(where gh *)",
+      "Bash(git clone *)"
+    ]
+  }
+}
