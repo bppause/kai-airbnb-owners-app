@@ -770,13 +770,13 @@ table { width: 100%; border-collapse: collapse; }
   box-shadow: 0 1px 4px rgba(18,50,53,.05);
 }
 .adp-party-lbl {
-  font-size: .63rem;
-  font-weight: 900;
-  text-transform: uppercase;
-  letter-spacing: .08em;
-  color: rgba(200,240,236,.88);
-  background: linear-gradient(135deg, #1a3a3e 0%, #152e31 100%);
-  padding: 6px 12px;
+  font-size: .7rem !important;
+  font-weight: 900 !important;
+  text-transform: uppercase !important;
+  letter-spacing: .08em !important;
+  color: #c8f0ec !important;
+  background: linear-gradient(135deg, #1a3a3e 0%, #152e31 100%) !important;
+  padding: 7px 14px !important;
 }
 .adp-party-row {
   display: flex;
@@ -1070,23 +1070,23 @@ button.unit-plate:focus-visible { outline: 2px solid rgba(200,216,160,.6) !impor
 
 /* ── Section labels inside UnitDetailCard — dark gradient header bars ── */
 .udc-wrap .adp-section-lbl {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 14px;
-  background: linear-gradient(135deg, #1a3a3e 0%, #0f2a2d 100%);
-  border-radius: 10px;
-  color: rgba(200,240,236,.92);
-  font-size: .68rem;
-  font-weight: 900;
-  text-transform: uppercase;
-  letter-spacing: .1em;
-  margin: 10px 0 8px;
-  border-bottom: none;
-  box-shadow: 0 2px 6px rgba(11,50,53,.15);
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  padding: 9px 14px !important;
+  background: linear-gradient(135deg, #1a3a3e 0%, #0f2a2d 100%) !important;
+  border-radius: 10px !important;
+  color: #c8f0ec !important;
+  font-size: .74rem !important;
+  font-weight: 900 !important;
+  text-transform: uppercase !important;
+  letter-spacing: .09em !important;
+  margin: 10px 0 8px !important;
+  border-bottom: none !important;
+  box-shadow: 0 2px 6px rgba(11,50,53,.15) !important;
 }
 /* First section label gets tighter top margin */
-.udc-wrap .adp-section-lbl:first-of-type { margin-top: 4px; }
+.udc-wrap .adp-section-lbl:first-of-type { margin-top: 4px !important; }
 
 /* ── Listing details grid card ── */
 .udc-fields {
@@ -1104,25 +1104,26 @@ button.unit-plate:focus-visible { outline: 2px solid rgba(200,216,160,.6) !impor
 .udc-fields > span:nth-child(4n+1),
 .udc-fields > span:nth-child(4n+2) { background: rgba(11,127,140,.03); }
 .udc-field-lbl {
-  font-size: .63rem;
+  font-size: .7rem;
   font-weight: 900;
   text-transform: uppercase;
-  letter-spacing: .08em;
-  color: #496674;
+  letter-spacing: .07em;
+  color: #2e4a58;
   white-space: nowrap;
-  padding: 8px 12px;
-  border-bottom: 1px solid rgba(18,50,53,.06);
+  padding: 9px 14px;
+  border-bottom: 1px solid rgba(18,50,53,.07);
   display: flex;
   align-items: center;
+  background: rgba(11,50,60,.04);
 }
 .udc-fields > span:last-child,
 .udc-fields > span:nth-last-child(2) { border-bottom: none; }
 .udc-field-val {
-  font-size: .85rem;
+  font-size: .88rem;
   font-weight: 700;
   color: #17313a;
-  padding: 8px 12px;
-  border-bottom: 1px solid rgba(18,50,53,.06);
+  padding: 9px 14px;
+  border-bottom: 1px solid rgba(18,50,53,.07);
   display: flex;
   align-items: center;
   flex-wrap: wrap;
@@ -1203,8 +1204,8 @@ button.unit-plate:focus-visible { outline: 2px solid rgba(200,216,160,.6) !impor
   border: none !important;
   padding: 3px 8px !important;
   border-radius: 6px !important;
-  color: rgba(127,230,220,.85) !important;
-  font-size: .73rem !important;
+  color: #c8f0ec !important;
+  font-size: .76rem !important;
   font-weight: 700 !important;
   cursor: pointer !important;
   min-height: 0 !important;
@@ -1213,9 +1214,9 @@ button.unit-plate:focus-visible { outline: 2px solid rgba(200,216,160,.6) !impor
   gap: 3px !important;
   transition: color .12s, background .12s !important;
 }
-.udc-bc-link:hover { color: #7fe6dc !important; background: rgba(255,255,255,.08) !important; }
-.udc-bc-current { font-size: .73rem; font-weight: 800; color: rgba(255,255,255,.88); }
-.udc-bc-sep { color: rgba(255,255,255,.3); font-size: .72rem; }
+.udc-bc-link:hover { color: #fff !important; background: rgba(255,255,255,.1) !important; }
+.udc-bc-current { font-size: .76rem; font-weight: 800; color: #fff; }
+.udc-bc-sep { color: rgba(255,255,255,.4); font-size: .72rem; }
 
 /* Incident summary list (step 2) — expand/collapse */
 .udc-inc-list { display: flex; flex-direction: column; gap: 8px; }
@@ -1304,18 +1305,19 @@ button.unit-plate:focus-visible { outline: 2px solid rgba(200,216,160,.6) !impor
 .idd-bc-btn {
   background: none !important;
   border: none !important;
-  padding: 2px 4px !important;
-  font-size: .75rem !important;
-  font-weight: 600 !important;
-  color: rgba(127,230,220,.75) !important;
+  padding: 2px 6px !important;
+  font-size: .76rem !important;
+  font-weight: 700 !important;
+  color: #c8f0ec !important;
   cursor: pointer !important;
   min-height: 0 !important;
   border-radius: 4px !important;
-  transition: color .12s !important;
+  transition: color .12s, background .12s !important;
 }
-.idd-bc-btn:hover { color: #7fe6dc !important; }
-.idd-bc-sep { font-size: .7rem; color: rgba(255,255,255,.3); }
-.idd-bc-cur { font-size: .75rem; font-weight: 700; color: rgba(255,255,255,.85); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.idd-bc-btn:hover { color: #fff !important; background: rgba(255,255,255,.1) !important; }
+.idd-bc-sep { font-size: .72rem; color: rgba(255,255,255,.4); }
+.idd-bc-cur { font-size: .76rem; font-weight: 800; color: #fff; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.idd-top-tower { font-size: .72rem; font-weight: 700; color: #c8f0ec; letter-spacing: .1em; text-transform: uppercase; }
 
 /* Status banner — full-width, horizontally flex with chips on the right */
 .idd-status-banner {
