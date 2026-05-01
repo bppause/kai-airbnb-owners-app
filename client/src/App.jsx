@@ -2415,7 +2415,13 @@ function MyListings({ listings, incidents, user, contactProps={}, isGlobalAdmin=
                         onEdit={()=>onEdit(l)}
                         onDelete={()=>onDelete(l)}
                         onReport={()=>onReport(l)}
-                        onViewIncidents={onNavigateToIncidents?()=>goToIncidents(l):null}
+                        user={user}
+                        contactProps={contactProps}
+                        isGlobalAdmin={isGlobalAdmin}
+                        canResolveGlobal={canResolveGlobal}
+                        onVerify={onVerify}
+                        onResolve={onResolve}
+                        onAddResolution={onAddResolution}
                         lang={lang}
                         isEn={isEn}
                       />
@@ -2506,22 +2512,22 @@ function AptContactPopup({ ownerName='', ownerEmail='', ownerWaRaw='', operatorN
 }
 
 // ── UnitDetailCard ────────────────────────────────────────────────────────
-// Read-only structured view of a listing's unit form data + incident summary.
-// Mirrors the ListingModal field set (apt, tower, rooms, guests, airbnb, operator).
-// "View incidents →" button calls onViewIncidents() to navigate to filtered incidents.
-function UnitDetailCard({ l, incidents, canEdit=false, canDelete=false, onEdit, onDelete, onReport, onViewIncidents, lang="es-CO", isEn=false }) {
-  const aptInc        = incidents.filter(i => i.aptId === l.id);
-  const openCount     = aptInc.filter(i => i.status === 'open').length;
-  const pendingResC   = aptInc.filter(i => i.status === 'verified' && !String(i.ownerResolution||'').trim()).length;
-  const awaitingC     = aptInc.filter(i => i.status === 'verified' &&  String(i.ownerResolution||'').trim()).length;
-  const resolvedC     = aptInc.filter(i => i.status === 'resolved').length;
-  const ownerWa       = normalizePhoneForWhatsApp(l.contact);
-  const opWa          = normalizePhoneForWhatsApp(l.operatorWhatsapp);
-  const ownerEmail    = l.userEmail || l.email || '';
-  const hasOp         = !!(l.operator || l.operatorEmail || l.operatorWhatsapp);
+// Shows listing details + people. "View incidents" toggle expands inline
+// incident history with full WorkflowGroups (requires incident action props).
+function UnitDetailCard({ l, incidents, canEdit=false, canDelete=false, onEdit, onDelete, onReport,
+  user, contactProps={}, isGlobalAdmin=false, canResolveGlobal=false,
+  onVerify, onResolve, onAddResolution,
+  lang="es-CO", isEn=false }) {
+  const [incExpanded, setIncExpanded] = useState(false);
+  const [panelGO, setPanelGO] = useState({open:true, verified:true, resolved:false});
+  const aptInc     = [...incidents.filter(i => i.aptId === l.id)].sort((a,b)=>new Date(b.createdAt)-new Date(a.createdAt));
+  const ownerWa    = normalizePhoneForWhatsApp(l.contact);
+  const opWa       = normalizePhoneForWhatsApp(l.operatorWhatsapp);
+  const ownerEmail = l.userEmail || l.email || '';
+  const hasOp      = !!(l.operator || l.operatorEmail || l.operatorWhatsapp);
   return (
     <div className="udc-wrap">
-      {/* ── Unit hero — dark plate matching AptDoor/AptDetailPanel style ── */}
+      {/* ── Unit hero — dark plate ── */}
       <div className="adp-unit-hero">
         <div className="adp-unit-plate">
           <span className="adp-unit-num">{l.apt}</span>
@@ -2539,7 +2545,7 @@ function UnitDetailCard({ l, incidents, canEdit=false, canDelete=false, onEdit, 
         </div>
       </div>
 
-      {/* ── Listing details — same fields as ListingModal ── */}
+      {/* ── Listing details (same fields as ListingModal) ── */}
       <div className="adp-section-lbl">🏠 {isEn?'Listing details':'Datos del listing'}</div>
       <div className="udc-fields">
         <span className="udc-field-lbl">{isEn?'Apt. #':'Apto. #'}</span>
@@ -2564,25 +2570,23 @@ function UnitDetailCard({ l, incidents, canEdit=false, canDelete=false, onEdit, 
         <div className="adp-party">
           <div className="adp-party-lbl">👤 {isEn?'Owner':'Propietario'}</div>
           <div className="adp-party-row">
-            <span style={{fontSize:'.85rem',fontWeight:700,color:'#203f2b'}}>{l.owner||'—'}</span>
+            <UserContact name={l.owner} uid={l.ownerUid} email={ownerEmail} whatsapp={l.contact} apartments={l.apt?[aptDisplay(l.apt,lang)]:[]} {...contactProps}/>
             <div className="adp-party-cbtns">
               {ownerEmail&&<a href={`mailto:${ownerEmail}`} className="ac-cbtn" title={ownerEmail}><IconEmail/></a>}
               {ownerWa&&<a href={`https://wa.me/${ownerWa}`} className="ac-cbtn ac-cbtn-wa" target="_blank" rel="noreferrer" title="WhatsApp"><IconWhatsApp/></a>}
             </div>
           </div>
-          {ownerEmail&&<div style={{fontSize:'.72rem',color:'#496674',marginTop:2}}>{ownerEmail}</div>}
         </div>
         {hasOp ? (
           <div className="adp-party">
             <div className="adp-party-lbl">🔧 {isEn?'Operator':'Operador'}</div>
             <div className="adp-party-row">
-              <span style={{fontSize:'.85rem',fontWeight:700,color:'#203f2b'}}>{l.operator||l.operatorEmail||'—'}</span>
+              {l.operator ? <UserContact name={l.operator} email={l.operatorEmail} whatsapp={l.operatorWhatsapp} apartments={[]} {...contactProps}/> : <span style={{fontSize:'.8rem',color:'#8a9fa5'}}>{l.operatorEmail||'—'}</span>}
               <div className="adp-party-cbtns">
                 {l.operatorEmail&&<a href={`mailto:${l.operatorEmail}`} className="ac-cbtn" title={l.operatorEmail}><IconEmail/></a>}
                 {opWa&&<a href={`https://wa.me/${opWa}`} className="ac-cbtn ac-cbtn-wa" target="_blank" rel="noreferrer" title="WhatsApp"><IconWhatsApp/></a>}
               </div>
             </div>
-            {l.operatorEmail&&<div style={{fontSize:'.72rem',color:'#496674',marginTop:2}}>{l.operatorEmail}</div>}
           </div>
         ) : (
           <div className="adp-party adp-party-none">
@@ -2592,33 +2596,73 @@ function UnitDetailCard({ l, incidents, canEdit=false, canDelete=false, onEdit, 
         )}
       </div>
 
-      {/* ── Incident summary pills ── */}
-      <div className="adp-section-lbl" style={{marginTop:14}}>📊 {isEn?'Incident summary':'Resumen de incidentes'}</div>
-      <div className="udc-inc-summary">
-        {aptInc.length===0
-          ? <span className="dis-clean">✅ {isEn?'No incidents on record':'Sin incidentes registrados'}</span>
-          : <>
-              {openCount>0   &&<span className="dis-pill dis-open"        title={isEn?`${openCount} open — needs verification`:`${openCount} abierto${openCount>1?'s':''} — requiere verificación`}>⚠️ {openCount} {isEn?'verify':'verificar'}</span>}
-              {pendingResC>0 &&<span className="dis-pill dis-pending-res" title={isEn?`${pendingResC} verified — add your resolution`:`${pendingResC} verificado${pendingResC>1?'s':''} — agrega resolución`}>📝 {pendingResC} {isEn?'add res.':'resolución'}</span>}
-              {awaitingC>0   &&<span className="dis-pill dis-ver"         title={isEn?`${awaitingC} awaiting admin review`:`${awaitingC} esperando al admin`}>⏳ {awaitingC} {isEn?'admin':'admin'}</span>}
-              {resolvedC>0   &&<span className="dis-pill dis-res"         title={isEn?`${resolvedC} closed`:`${resolvedC} cerrado${resolvedC>1?'s':''}`}>✓ {resolvedC} {isEn?'closed':'cerrados'}</span>}
-            </>
-        }
-      </div>
+      {/* ── Incidents toggle — expands inline incident history ── */}
+      <button
+        type="button"
+        className={`udc-inc-toggle${incExpanded?' udc-inc-toggle-open':''}`}
+        onClick={()=>setIncExpanded(x=>!x)}
+        aria-expanded={incExpanded}
+      >
+        <span>📋 {incExpanded?(isEn?'Hide incidents':'Ocultar incidentes'):(isEn?'View incidents':'Ver incidentes')}</span>
+        {!incExpanded&&aptInc.length>0&&<span className="udc-inc-count-badge">{aptInc.length}</span>}
+        <span className={`udc-inc-chev${incExpanded?' udc-inc-chev-up':''}`}>›</span>
+      </button>
 
-      {/* ── View incidents navigation button ── */}
-      {onViewIncidents&&(
-        <div className="udc-footer">
-          <button className="btn-p udc-view-inc-btn" onClick={onViewIncidents}>
-            📋 {isEn?'View incidents →':'Ver incidentes →'}
-          </button>
+      {/* ── Expandable incident history ── */}
+      {incExpanded&&(
+        <div className="udc-incidents">
+          <div className="adp-section-lbl" style={{margin:'12px 0 8px'}}>
+            📋 {isEn?'Incident history':'Historial de incidentes'} <span className="adp-inc-count">{aptInc.length}</span>
+          </div>
+          {aptInc.length===0
+            ? <div className="adp-inc-empty">✅ {isEn?'No incidents on record':'Sin incidentes registrados'}</div>
+            : <div className="adp-wfg-list">
+                {[
+                  {key:'open',     icon:'⚠️', label:isEn?'Verify required':'Verificación requerida', sublabel:isEn?'Step 1: Owner must verify and document action taken':'Paso 1: El propietario debe verificar y documentar la acción tomada', color:'#d9a030'},
+                  {key:'verified', icon:'📝', label:isEn?'In Progress':'En progreso',                sublabel:isEn?'Step 2: Add resolution · or awaiting admin review':'Paso 2: Agrega resolución · o esperando revisión del admin',           color:'#0b7f4f'},
+                  {key:'resolved', icon:'✓',  label:isEn?'Closed':'Cerrados',                        sublabel:isEn?'Resolved by management':'Resuelto por administración',                                                                      color:'#6a9a7a'},
+                ].map(g=>{
+                  const gInc = aptInc.filter(i=>i.status===g.key);
+                  if(!gInc.length) return null;
+                  return (
+                    <WorkflowGroup
+                      key={g.key}
+                      statusKey={g.key}
+                      icon={g.icon}
+                      label={g.label}
+                      sublabel={g.sublabel}
+                      color={g.color}
+                      incidents={gInc}
+                      listings={[l]}
+                      isOpen={panelGO[g.key]}
+                      onToggle={()=>setPanelGO(s=>({...s,[g.key]:!s[g.key]}))}
+                      user={user}
+                      contactProps={contactProps}
+                      isGlobalAdmin={isGlobalAdmin}
+                      canUpdateGlobal={false}
+                      canDeleteGlobal={false}
+                      canResolveGlobal={canResolveGlobal}
+                      onResolve={onResolve}
+                      onDelete={()=>{}}
+                      onVerify={onVerify}
+                      onAddResolution={onAddResolution}
+                      hideUnit
+                      lang={lang}
+                      isEn={isEn}
+                    />
+                  );
+                })}
+              </div>
+          }
         </div>
       )}
     </div>
   );
 }
 
-function AptDoor({ l, incidents, isSelected, onSelect, onUnitDetail, onPillFilter, lang, isEn }) {
+// AptDoor: only the number plate and "View incidents" footer are interactive.
+// The card body is display-only (hover reveals contact popup).
+function AptDoor({ l, incidents, onUnitDetail, onPillFilter, lang, isEn }) {
   const status = aptDoorStatus(l, incidents);
   const aptInc         = incidents.filter(i => i.aptId === l.id);
   const openCount      = aptInc.filter(i => i.status === 'open').length;
@@ -2629,64 +2673,57 @@ function AptDoor({ l, incidents, isSelected, onSelect, onUnitDetail, onPillFilte
   const ownerEmail = l.userEmail || l.email || '';
   const ownerWaRaw = l.contact || '';
   return (
-    <div
-      className={`apt-door apt-door-${status}${isSelected?' apt-door-sel':''} apt-cpop-wrap`}
-      onClick={()=>onSelect(isSelected?null:l.id)}
-      role="button"
-      aria-expanded={isSelected}
-      aria-label={`${isEn?'Unit':'Unidad'} ${l.apt}${isEn?'. Hover for contacts, click for incidents':'. Hover para contactos, clic para incidentes'}`}
-    >
-      {/* Status colour bar across full top edge */}
+    <div className={`apt-door apt-door-${status} apt-cpop-wrap`}>
+      {/* Status colour bar */}
       <div className={`door-status-bar door-sb-${status}`}/>
-      {/* Number plate — click opens unit detail popup (separate from card click) */}
-      <div
-        className="door-num-plate"
-        role="button"
-        tabIndex={0}
+
+      {/* ★ CLICKABLE: Number plate → unit details overlay */}
+      <button
+        type="button"
+        className="door-num-plate door-num-plate-btn"
         title={isEn?'View unit details':'Ver detalles de la unidad'}
-        aria-label={`${isEn?'Unit details':'Detalles unidad'} ${l.apt}`}
-        onClick={e=>{e.stopPropagation();onUnitDetail&&onUnitDetail(l.id);}}
-        onKeyDown={e=>{if(e.key==='Enter'||e.key===' '){e.stopPropagation();onUnitDetail&&onUnitDetail(l.id);}}}
+        aria-label={`${isEn?'Unit details':'Detalles'} ${l.apt}`}
+        onClick={()=>onUnitDetail&&onUnitDetail(l.id)}
       >
         <span className="door-num">{l.apt}</span>
-        {openCount>0 && <span className="door-inc-badge" title={isEn?`${openCount} open incident${openCount>1?'s':''}`:`${openCount} incidente${openCount>1?'s':''} abierto${openCount>1?'s':''}`}>⚠️ {openCount}</span>}
-      </div>
-      {/* Card body — owner, operator, capacity */}
+        {openCount>0&&<span className="door-inc-badge" title={isEn?`${openCount} open`:`${openCount} abierto${openCount>1?'s':''}`}>⚠️ {openCount}</span>}
+      </button>
+
+      {/* Display-only card body — hover reveals contact popup */}
       <div className="door-body">
         <div className="door-owner" title={l.owner}>{l.owner||'—'}</div>
-        {l.operator && <div className="door-op" title={l.operator}>🔧 {l.operator}</div>}
+        {l.operator&&<div className="door-op" title={l.operator}>🔧 {l.operator}</div>}
         <div className="door-chips">
           <span className="door-chip">🛏️ {l.rooms}</span>
           <span className="door-chip">👥 {l.guests}</span>
         </div>
       </div>
-      {/* Incident count summary — clickable pills navigate to filtered incidents */}
+
+      {/* ★ CLICKABLE: Incident count pills → navigate to filtered incidents */}
       <div className="door-inc-summary">
-        {totalCount === 0
+        {totalCount===0
           ? <span className="dis-clean">✅ {isEn?'No incidents':'Sin incidentes'}</span>
           : <>
-              {openCount>0      &&<button type="button" className="dis-pill dis-open"        onClick={e=>{e.stopPropagation();onPillFilter&&onPillFilter({aptIds:[l.id],status:'open'});}}          title={isEn?`${openCount} open — Step 1: verify required · click to filter`:`${openCount} abierto${openCount>1?'s':''} — Paso 1: verificación requerida · clic para filtrar`}>⚠️ {openCount}</button>}
-              {pendingResCount>0&&<button type="button" className="dis-pill dis-pending-res" onClick={e=>{e.stopPropagation();onPillFilter&&onPillFilter({aptIds:[l.id],status:'pendingResolution'});}} title={isEn?`${pendingResCount} verified — Step 2: add resolution · click to filter`:`${pendingResCount} verificado${pendingResCount>1?'s':''} — Paso 2: agregar resolución · clic para filtrar`}>📝 {pendingResCount}</button>}
-              {awaitingCount>0  &&<button type="button" className="dis-pill dis-ver"         onClick={e=>{e.stopPropagation();onPillFilter&&onPillFilter({aptIds:[l.id],status:'awaitingAdmin'});}}  title={isEn?`${awaitingCount} awaiting admin review · click to filter`:`${awaitingCount} esperando revisión del admin · clic para filtrar`}>⏳ {awaitingCount}</button>}
-              {resolvedCount>0  &&<button type="button" className="dis-pill dis-res"         onClick={e=>{e.stopPropagation();onPillFilter&&onPillFilter({aptIds:[l.id],status:'resolved'});}}      title={isEn?`${resolvedCount} closed · click to filter`:`${resolvedCount} cerrado${resolvedCount>1?'s':''} · clic para filtrar`}>✓ {resolvedCount}</button>}
+              {openCount>0      &&<button type="button" className="dis-pill dis-open"        onClick={()=>onPillFilter&&onPillFilter({aptIds:[l.id],status:'open'})}          title={isEn?`${openCount} open — click to filter`:`${openCount} abierto${openCount>1?'s':''} — clic para filtrar`}>⚠️ {openCount}</button>}
+              {pendingResCount>0&&<button type="button" className="dis-pill dis-pending-res" onClick={()=>onPillFilter&&onPillFilter({aptIds:[l.id],status:'pendingResolution'})} title={isEn?`${pendingResCount} add resolution — click to filter`:`${pendingResCount} agregar resolución — clic para filtrar`}>📝 {pendingResCount}</button>}
+              {awaitingCount>0  &&<button type="button" className="dis-pill dis-ver"         onClick={()=>onPillFilter&&onPillFilter({aptIds:[l.id],status:'awaitingAdmin'})}  title={isEn?`${awaitingCount} awaiting admin — click to filter`:`${awaitingCount} esperando admin — clic para filtrar`}>⏳ {awaitingCount}</button>}
+              {resolvedCount>0  &&<button type="button" className="dis-pill dis-res"         onClick={()=>onPillFilter&&onPillFilter({aptIds:[l.id],status:'resolved'})}      title={isEn?`${resolvedCount} closed — click to filter`:`${resolvedCount} cerrado${resolvedCount>1?'s':''} — clic para filtrar`}>✓ {resolvedCount}</button>}
             </>
         }
       </div>
-      {/* Contact popup — appears to the right of card on hover */}
-      <AptContactPopup
-        ownerName={l.owner}
-        ownerEmail={ownerEmail}
-        ownerWaRaw={ownerWaRaw}
-        operatorName={l.operator}
-        operatorEmail={l.operatorEmail}
-        opWaRaw={l.operatorWhatsapp}
-        isEn={isEn}
-      />
-      <div className="door-footer">
-        {isSelected
-          ? `▲ ${isEn?'Close':'Cerrar'}`
-          : `👆 ${isEn?'View incidents':'Ver incidentes'}`}
-      </div>
+
+      {/* Contact popup — hover only, not a click target */}
+      <AptContactPopup ownerName={l.owner} ownerEmail={ownerEmail} ownerWaRaw={ownerWaRaw} operatorName={l.operator} operatorEmail={l.operatorEmail} opWaRaw={l.operatorWhatsapp} isEn={isEn}/>
+
+      {/* ★ CLICKABLE: Footer → navigate to all incidents for this unit */}
+      <button
+        type="button"
+        className="door-footer door-footer-btn"
+        onClick={()=>onPillFilter&&onPillFilter({aptIds:[l.id],status:'all'})}
+        title={isEn?'Go to incidents for this unit':'Ver incidentes de esta unidad'}
+      >
+        👆 {isEn?'View incidents':'Ver incidentes'}
+      </button>
     </div>
   );
 }
@@ -2800,7 +2837,6 @@ function AptDetailPanel({ l, incidents, contactProps={}, canEdit, canDelete, onE
 }
 
 function BuildingFloor({ floor, apts, incidents, user, contactProps, isGlobalAdmin, canEditGlobal, canDeleteGlobal, canResolveGlobal, onEdit, onDelete, onReport, onVerify, onResolve, onAddResolution, onFloorFilter, isOpen, onToggle, lang, isEn }) {
-  const [selectedAptId, setSelectedAptId] = useState(null);
   const [unitDetailAptId, setUnitDetailAptId] = useState(null);
   const color = floorColor(floor);
   const floorInc       = incidents.filter(i=>apts.some(l=>l.id===i.aptId));
@@ -2808,9 +2844,6 @@ function BuildingFloor({ floor, apts, incidents, user, contactProps, isGlobalAdm
   const verPendingRes  = floorInc.filter(i=>i.status==='verified'&&!String(i.ownerResolution||'').trim()).length;
   const verAwaiting    = floorInc.filter(i=>i.status==='verified'&& String(i.ownerResolution||'').trim()).length;
   const resCount       = floorInc.filter(i=>i.status==='resolved').length;
-  const selectedApt = apts.find(l=>l.id===selectedAptId);
-  const handleSelect = (id) => setSelectedAptId(id);
-
   return (
     <div className="bld-floor">
       <button className="bld-floor-hdr" style={{borderLeftColor:color}} onClick={onToggle}>
@@ -2836,8 +2869,6 @@ function BuildingFloor({ floor, apts, incidents, user, contactProps, isGlobalAdm
                 key={l.id}
                 l={l}
                 incidents={incidents}
-                isSelected={selectedAptId===l.id}
-                onSelect={handleSelect}
                 onUnitDetail={id=>setUnitDetailAptId(id)}
                 onPillFilter={f=>{onFloorFilter&&onFloorFilter(f);}}
                 lang={lang}
@@ -2847,7 +2878,7 @@ function BuildingFloor({ floor, apts, incidents, user, contactProps, isGlobalAdm
           </div>
         </div>
       )}
-      {/* Unit detail popup — opens when the number plate is clicked */}
+      {/* Unit detail overlay — opens on number plate click; incidents expand inside */}
       {unitDetailAptId && (() => {
         const udApt = apts.find(l=>l.id===unitDetailAptId);
         if (!udApt) return null;
@@ -2861,37 +2892,19 @@ function BuildingFloor({ floor, apts, incidents, user, contactProps, isGlobalAdm
               onEdit={()=>{setUnitDetailAptId(null);onEdit(udApt);}}
               onDelete={()=>{setUnitDetailAptId(null);onDelete(udApt);}}
               onReport={()=>{setUnitDetailAptId(null);onReport(udApt);}}
-              onViewIncidents={onFloorFilter?()=>{setUnitDetailAptId(null);onFloorFilter({aptIds:[udApt.id],status:'all'});}:null}
+              user={user}
+              contactProps={contactProps}
+              isGlobalAdmin={isGlobalAdmin}
+              canResolveGlobal={canResolveGlobal}
+              onVerify={onVerify}
+              onResolve={onResolve}
+              onAddResolution={onAddResolution}
               lang={lang}
               isEn={isEn}
             />
           </Overlay>
         );
       })()}
-      {/* Incident detail modal — opens when a door card body is clicked */}
-      {selectedApt && (
-        <Overlay onClose={()=>setSelectedAptId(null)} wide>
-          <AptDetailPanel
-            l={selectedApt}
-            incidents={incidents}
-            contactProps={contactProps}
-            canEdit={user?.uid===selectedApt.ownerUid||isGlobalAdmin||canEditGlobal}
-            canDelete={user?.uid===selectedApt.ownerUid||isGlobalAdmin||canDeleteGlobal}
-            onEdit={()=>onEdit(selectedApt)}
-            onDelete={()=>onDelete(selectedApt)}
-            onReport={()=>onReport(selectedApt)}
-            onClose={()=>setSelectedAptId(null)}
-            user={user}
-            isGlobalAdmin={isGlobalAdmin}
-            canResolveGlobal={canResolveGlobal}
-            onVerify={onVerify}
-            onResolve={onResolve}
-            onAddResolution={onAddResolution}
-            lang={lang}
-            isEn={isEn}
-          />
-        </Overlay>
-      )}
     </div>
   );
 }

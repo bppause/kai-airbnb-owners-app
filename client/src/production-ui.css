@@ -1031,6 +1031,49 @@ table { width: 100%; border-collapse: collapse; }
   border-top: 1px solid rgba(47,79,58,.1);
 }
 .udc-view-inc-btn { flex: 1; font-size: .88rem !important; }
+/* UnitDetailCard incidents toggle button */
+.udc-inc-toggle {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 8px !important;
+  width: 100% !important;
+  margin-top: 14px !important;
+  padding: 10px 14px !important;
+  background: rgba(11,127,140,.07) !important;
+  border: 1.5px solid rgba(11,127,140,.2) !important;
+  border-radius: 10px !important;
+  color: #0b5f72 !important;
+  font-size: .83rem !important;
+  font-weight: 800 !important;
+  cursor: pointer !important;
+  min-height: 0 !important;
+  transition: background .13s, border-color .13s !important;
+}
+.udc-inc-toggle:hover { background: rgba(11,127,140,.13) !important; border-color: rgba(11,127,140,.35) !important; }
+.udc-inc-toggle-open { background: rgba(11,127,140,.12) !important; border-color: rgba(11,127,140,.4) !important; }
+.udc-inc-count-badge {
+  background: rgba(11,127,140,.18);
+  color: #0b5f72;
+  border-radius: 999px;
+  padding: 1px 8px;
+  font-size: .72rem;
+  font-weight: 900;
+  margin-left: auto;
+  margin-right: 2px;
+}
+.udc-inc-chev { font-size: 1.1rem; transform: rotate(90deg); display: inline-block; transition: transform .15s; flex-shrink: 0; }
+.udc-inc-chev-up { transform: rotate(-90deg); }
+
+/* Expanded incident section inside UnitDetailCard */
+.udc-incidents {
+  margin-top: 4px;
+  padding-top: 4px;
+  border-top: 1px solid rgba(47,79,58,.08);
+}
+.udc-incidents .wfg-section { overflow: visible !important; }
+.udc-incidents .irow { overflow: visible !important; }
+
 /* Airbnb pill inside light context */
 .udc-airbnb-pill {
   background: rgba(11,127,140,.08) !important;
@@ -1041,13 +1084,44 @@ table { width: 100%; border-collapse: collapse; }
 }
 .udc-airbnb-pill:hover { background: rgba(11,127,140,.16) !important; }
 
-/* door-num-plate clickable cue */
-.door-num-plate {
-  cursor: pointer;
-  transition: filter .12s;
+/* door-num-plate as interactive button — reset button defaults, keep dark plate look */
+.door-num-plate-btn {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  width: 100% !important;
+  background: none !important;
+  border: none !important;
+  padding: 0 !important;
+  border-radius: 0 !important;
+  min-height: 0 !important;
+  cursor: pointer !important;
+  transition: filter .12s !important;
 }
-.door-num-plate:hover { filter: brightness(1.15); }
-.door-num-plate:focus-visible { outline: 2px solid rgba(11,127,140,.5); outline-offset: -2px; }
+.door-num-plate-btn:hover { filter: brightness(1.18) !important; }
+.door-num-plate-btn:focus-visible { outline: 2px solid rgba(200,216,160,.6) !important; outline-offset: -2px !important; }
+
+/* door-footer as clickable button — inherits footer look */
+.door-footer-btn {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 5px !important;
+  width: 100% !important;
+  background: none !important;
+  border: none !important;
+  border-radius: 0 !important;
+  min-height: 0 !important;
+  cursor: pointer !important;
+  font-size: inherit !important;
+  color: inherit !important;
+  padding: 0 !important;
+  transition: background .12s !important;
+}
+.door-footer-btn:hover { background: rgba(255,255,255,.06) !important; }
+
+/* Ensure non-button card body has default cursor */
+.apt-door { cursor: default !important; }
 
 /* dis-pill as <button> — reset and reuse pill look */
 button.dis-pill {
