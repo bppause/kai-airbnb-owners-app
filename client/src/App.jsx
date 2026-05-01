@@ -2590,8 +2590,6 @@ function AptDetailPanel({ l, incidents, contactProps={}, canEdit, canDelete, onE
       <div className="adp-incidents">
         {aptInc.length===0
           ? <div className="adp-inc-empty">✅ {isEn?'No incidents on record':'Sin incidentes registrados'}</div>
-        {aptInc.length===0
-          ? <div className="adp-inc-empty">✅ {isEn?'No incidents on record':'Sin incidentes registrados'}</div>
           : <div className="adp-wfg-list">
               {[
                 {key:'open',     icon:'⚠️', label:isEn?'New':'Nuevos',        sublabel:isEn?'Open — needs attention':'Abiertos — requiere atención',     color:'#d9a030'},
