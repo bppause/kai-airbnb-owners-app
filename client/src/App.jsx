@@ -1115,7 +1115,6 @@ export default function App() {
     ...(canSeeMenu('dashboard') ? [{ id:"dashboard", icon:"📊", label:t.nav.dashboard }] : []),
     ...(canSeeMenu('listings') ? [{ id:"listings",  icon:"🏠", label:t.nav.listings }] : []),
     ...(canSeeMenu('incidents') ? [{ id:"incidents", icon:"⚠️", label:t.nav.incidents, badge: openCount }] : []),
-    ...(canSeeMenu('about') ? [{ id:"about", icon:"🌊", label:t.nav.about }] : []),
     ...(isApproved ? [
       ...(effectiveCanManageRegistrations ? [{ id:"approvals", icon:"📝", label:t.nav.approvals, badge: pendingRegistrations.length }] : []),
       ...(effectiveIsGlobalAdmin ? [{ id:"admin", icon:"⚙️", label:t.nav.admin }] : []),
@@ -1329,6 +1328,7 @@ export default function App() {
                   </div>
                   <button className="dd-item" onClick={()=>{setView('profile');setOpenDropdown(null);}}>{lang === "en" ? "👤 My profile" : "👤 Mi perfil"}</button>
                   <button className="dd-item" onClick={()=>{setView('my');setOpenDropdown(null);}}>🔑 {t.nav.my}</button>
+                  <button className="dd-item" onClick={()=>{setView('about');setOpenDropdown(null);}}>🌊 {t.nav.about}</button>
                   {effectiveIsGlobalAdmin && <button className="dd-item" onClick={()=>{setView('admin');setOpenDropdown(null);}}>⚙️ {t.nav.admin}</button>}
                   {(effectiveIsGlobalAdmin || analyticsEnabledForAll) && <button className="dd-item" onClick={()=>{setView('analytics');setOpenDropdown(null);}}>📈 {t.nav.analytics}</button>}
                   {adminInfo.isGlobalAdmin && <div className="profile-view-as"><span>👁 {lang==='en'?'View as:':'Ver como:'}</span><select className="view-as-select" value={previewRole||''} onChange={e=>{setPreviewRole(e.target.value||null);setOpenDropdown(null);}}><option value="">{lang==='en'?'Global Admin':'Admin global'}</option><option value="delegate_admin">{lang==='en'?'Delegate Admin':'Admin delegado'}</option><option value="user">{lang==='en'?'Owner/User':'Propietario/Usuario'}</option></select></div>}
@@ -2521,7 +2521,7 @@ function AptDetailPanel({ l, incidents, contactProps={}, canEdit, canDelete, onE
           <span className="adp-apt-num">Apt {l.apt}</span>
           <span className="chip c-teal">🛏️ {l.rooms}</span>
           <span className="chip c-blue">👥 {l.guests}</span>
-          {l.airbnb && <a className="airbnb-lnk" href={l.airbnb} target="_blank" rel="noreferrer">Airbnb ↗</a>}
+          {l.airbnb && <a className="adp-airbnb-lnk" href={l.airbnb} target="_blank" rel="noreferrer" title="Airbnb">🔗</a>}
         </div>
         <div style={{display:'flex',gap:6,alignItems:'center'}}>
           <button className="bsm bs-rep" onClick={onReport}>+ {isEn?'Report':'Reporte'}</button>
@@ -2581,9 +2581,9 @@ function AptDetailPanel({ l, incidents, contactProps={}, canEdit, canDelete, onE
                     </div>
                     <div className="adp-inc-desc">{inc.desc}</div>
                     {guests.length>0 ? <div className="adp-inc-guest">👥 {guests.map(guestFullName).join(' · ')}</div> : inc.guestName&&<div className="adp-inc-guest">👤 {inc.guestName}{inc.guestCity?` · 📍 ${inc.guestCity}`:''}</div>}
-                    {inc.ownerComments&&<div className="adp-inc-comments"><strong>{isEn?'Immediate action:':'Acción inmediata:'}</strong> {inc.ownerComments}</div>}
-                    {inc.ownerResolution&&<div className="adp-inc-comments"><strong>{isEn?'Owner resolution:':'Resolución propietario:'}</strong> {inc.ownerResolution}</div>}
-                    {inc.resolutionComments&&<div className="adp-inc-comments"><strong>{isEn?'Admin resolution:':'Resolución admin:'}</strong> {inc.resolutionComments}</div>}
+                    {inc.ownerComments&&<div className="adp-inc-comments adp-comment-action"><span className="adp-comment-lbl">💡 {isEn?'Action taken':'Acción tomada'}</span> {inc.ownerComments}</div>}
+                    {inc.ownerResolution&&<div className="adp-inc-comments adp-comment-resolution"><span className="adp-comment-lbl">🔍 {isEn?'Owner resolution':'Resolución'}</span> {inc.ownerResolution}</div>}
+                    {inc.resolutionComments&&<div className="adp-inc-comments adp-comment-closed"><span className="adp-comment-lbl">✓ {isEn?'Closed by admin':'Cerrado por admin'}</span> {inc.resolutionComments}</div>}
                     {inc.status==='verified'&&!inc.ownerResolution&&isOwner&&<div className="inc-res-warn">{appText(lang,'form.resolutionRequired')}</div>}
                     <div style={{display:'flex',gap:6,marginTop:6,flexWrap:'wrap'}}>
                       {inc.status==='open'&&isOwner&&<button className="bsm bs-resolve" onClick={()=>onVerify(inc)}>{appText(lang,'reports.verify')}</button>}
@@ -2717,7 +2717,6 @@ function FloorSection({ floor, apts, openCount, incidents, user, contactProps, i
 function ListingsView({ listings, incidents, user, contactProps={}, isGlobalAdmin=false, canEditGlobal=false, canDeleteGlobal=false, canResolveGlobal=false, floorOpenState={}, onFloorToggle, onAdd, onEdit, onDelete, onReport, onVerify, onResolve, lang="es-CO" }) {
   const [search, setSearch]   = useState('');
   const [scope, setScope]     = useState('all');
-  const [viewMode, setViewMode] = useState('building');
   const isEn = lang === 'en';
 
   const scoped   = scope==='mine'&&user ? listings.filter(l=>l.ownerUid===user.uid) : listings;
@@ -2741,12 +2740,10 @@ function ListingsView({ listings, incidents, user, contactProps={}, isGlobalAdmi
       </div>
 
       <div className="fls-toolbar">
-        {user&&<div className="filter-row" style={{margin:0,gap:6}}><button className={`fchip ${scope==='all'?'fchip-on':''}`} onClick={()=>setScope('all')}>{appText(lang,'filters.scopeAll')}</button><button className={`fchip ${scope==='mine'?'fchip-on':''}`} onClick={()=>setScope('mine')}>{appText(lang,'filters.scopeMine')}</button></div>}
-        <div className="fls-vtoggle">
-          <button className={`fls-vbtn${viewMode==='building'?' fls-vbtn-on':''}`} onClick={()=>setViewMode('building')} title={isEn?'Building view':'Vista edificio'}>🏢</button>
-          <button className={`fls-vbtn${viewMode==='list'?' fls-vbtn-on':''}`}     onClick={()=>setViewMode('list')}     title={isEn?'List view':'Lista'}>≡</button>
-          <button className={`fls-vbtn${viewMode==='grid'?' fls-vbtn-on':''}`}     onClick={()=>setViewMode('grid')}     title={isEn?'Card grid':'Tarjetas'}>⊞</button>
-        </div>
+        {user&&<div className="filter-row" style={{margin:0,gap:6}}>
+          <button className={`fchip ${scope==='all'?'fchip-on':''}`} onClick={()=>setScope('all')}>{appText(lang,'filters.scopeAll')}</button>
+          <button className={`fchip ${scope==='mine'?'fchip-on':''}`} onClick={()=>setScope('mine')}>🔑 {isEn?'Mine':'Mis apts'}</button>
+        </div>}
       </div>
 
       <div style={{position:'relative',marginBottom:14}}>
@@ -2756,11 +2753,7 @@ function ListingsView({ listings, incidents, user, contactProps={}, isGlobalAdmi
 
       {filtered.length===0
         ? <EmptyState icon="🏠" title={appText(lang,'listings.none')} sub={appText(lang,'listings.noResults')}/>
-        : viewMode==='grid'
-          ? <div className="lg">{sorted.map(l=><AptCard key={l.id} l={l} contactProps={contactProps} incCount={incidents.filter(i=>i.aptId===l.id&&i.status==='open').length} canEdit={user?.uid===l.ownerUid||isGlobalAdmin||canEditGlobal} canDelete={user?.uid===l.ownerUid||isGlobalAdmin||canDeleteGlobal} onEdit={()=>onEdit(l)} onDelete={()=>onDelete(l)} onReport={()=>onReport(l)} showLogin={!user} lang={lang}/>)}</div>
-          : viewMode==='list'
-            ? <div className="fls-list">{floorNums.map(f=><FloorSection key={f} floor={f} apts={byFloor(f)} openCount={incidents.filter(i=>byFloor(f).some(l=>l.id===i.aptId)&&i.status==='open').length} incidents={incidents} user={user} contactProps={contactProps} isGlobalAdmin={isGlobalAdmin} canEditGlobal={canEditGlobal} canDeleteGlobal={canDeleteGlobal} onEdit={onEdit} onDelete={onDelete} onReport={onReport} lang={lang} isEn={isEn}/>)}</div>
-            : <div className="bld-building">{floorNums.map(f=><BuildingFloor key={f} floor={f} apts={byFloor(f)} incidents={incidents} user={user} contactProps={contactProps} isGlobalAdmin={isGlobalAdmin} canEditGlobal={canEditGlobal} canDeleteGlobal={canDeleteGlobal} canResolveGlobal={canResolveGlobal} onEdit={onEdit} onDelete={onDelete} onReport={onReport} onVerify={onVerify} onResolve={onResolve} isOpen={!!floorOpenState[f]} onToggle={()=>onFloorToggle(f)} lang={lang} isEn={isEn}/>)}</div>
+        : <div className="bld-building">{floorNums.map(f=><BuildingFloor key={f} floor={f} apts={byFloor(f)} incidents={incidents} user={user} contactProps={contactProps} isGlobalAdmin={isGlobalAdmin} canEditGlobal={canEditGlobal} canDeleteGlobal={canDeleteGlobal} canResolveGlobal={canResolveGlobal} onEdit={onEdit} onDelete={onDelete} onReport={onReport} onVerify={onVerify} onResolve={onResolve} isOpen={!!floorOpenState[f]} onToggle={()=>onFloorToggle(f)} lang={lang} isEn={isEn}/>)}</div>
       }
     </div>
   );
@@ -2809,12 +2802,8 @@ function AptCard({ l, incCount, contactProps={}, canEdit=false, canDelete=false,
         </div>
       )}
 
-      {/* ── Airbnb + reports ── */}
+      {/* ── Open incident count ── */}
       <div className="acard-body">
-        {l.airbnb
-          ? <a className="airbnb-lnk" href={l.airbnb} target="_blank" rel="noreferrer">{appText(lang,"listings.viewAirbnb")}</a>
-          : <div className="no-link">{appText(lang,"listings.noAirbnb")}</div>
-        }
         <div className={`inc-b ${incCount>0?"ib-open":"ib-none"}`} onClick={onReport}>
           {incCount>0
             ?(incCount>1?appText(lang,"listings.openReportPlural",{count:incCount}):appText(lang,"listings.openReportSingular",{count:incCount}))
@@ -3158,9 +3147,9 @@ function IRow({ inc, user, listings=[], contactProps={}, isGlobalAdmin=false, ca
         {guests.length>0&&<div className="ir-desc">
           <strong>{appText(lang,'form.guestDetails')}:</strong>
           <div className="guest-display-list">{guests.map((g,idx)=><div key={idx}>👤 {guestFullName(g)}{guestLocation(g)?` · ${guestLocation(g)}`:''}</div>)}</div>
-          {inc.ownerComments&&<div style={{marginTop:6}}><strong>{isEn?'Immediate action:':'Acción inmediata:'}</strong> {inc.ownerComments}</div>}
-          {inc.ownerResolution&&<div style={{marginTop:6}}><strong>{isEn?'Owner resolution:':'Resolución propietario:'}</strong> {inc.ownerResolution}</div>}
-          {inc.resolutionComments&&<div style={{marginTop:6}}><strong>{appText(lang,'form.resolutionComments')}:</strong> {inc.resolutionComments}</div>}
+          {inc.ownerComments&&<div className="adp-inc-comments adp-comment-action" style={{marginTop:6}}><span className="adp-comment-lbl">💡 {isEn?'Action taken':'Acción tomada'}</span> {inc.ownerComments}</div>}
+          {inc.ownerResolution&&<div className="adp-inc-comments adp-comment-resolution" style={{marginTop:6}}><span className="adp-comment-lbl">🔍 {isEn?'Owner resolution':'Resolución'}</span> {inc.ownerResolution}</div>}
+          {inc.resolutionComments&&<div className="adp-inc-comments adp-comment-closed" style={{marginTop:6}}><span className="adp-comment-lbl">✓ {isEn?'Closed by admin':'Cerrado por admin'}</span> {inc.resolutionComments}</div>}
         </div>}
         {inc.status==='verified'&&!inc.ownerResolution&&isOwner&&<div className="inc-res-warn">{appText(lang,'form.resolutionRequired')}</div>}
       </div>
@@ -3847,7 +3836,7 @@ const CSS = `
 .irow{background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.06);border-radius:11px;padding:14px 18px;margin-bottom:10px;display:flex;gap:14px;align-items:flex-start;position:relative;overflow:hidden;transition:background .18s}.irow::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:#d4634a}.irow-res::before{background:#2e7d32}.irow-naughty::before{background:#b71c1c}.irow:hover{background:rgba(255,255,255,.05)}.ir-l{min-width:150px;flex-shrink:0}.ir-apt{font-size:.72rem;font-weight:800;color:var(--kai-olive);text-transform:uppercase;letter-spacing:.07em;margin-bottom:3px;text-shadow:0 1px 2px rgba(0,0,0,.10)}.ir-guest{font-size:.88rem;font-weight:500;color:#dff0f5}.ir-loc{font-size:.72rem;color:#5a8090;margin-top:3px}.ir-date{font-size:.7rem;color:#2a4a5a;margin-top:3px}.ir-rep{font-size:.68rem;color:#1a3a4a;margin-top:3px;font-style:italic}.ir-c{flex:1}.ir-tags{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:7px}.ir-type,.ir-cat,.ir-status{display:inline-flex;align-items:center;gap:3px;padding:3px 8px;border-radius:20px;font-size:.7rem;font-weight:600}.is-open{background:rgba(210,90,70,.2);color:#f08070}.is-verified{background:rgba(46,125,50,.2);color:#69c47a}.is-resolved,.is-res{background:rgba(42,154,170,.18);color:#1d7f8d}.ir-desc{font-size:.8rem;color:#3a6070;line-height:1.5}.ir-acts{display:flex;flex-direction:column;gap:5px;flex-shrink:0}.section-label{font-size:.72rem;text-transform:uppercase;letter-spacing:.1em;color:#2a4a5a;font-weight:600;margin-bottom:14px}
 .cat-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:13px;margin-bottom:26px}.catcard{border-radius:13px;padding:16px 18px;display:flex;flex-direction:column;gap:5px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.05)}.ngcard{background:rgba(180,28,28,.07);border:1px solid rgba(180,28,28,.18);border-radius:11px;padding:14px 18px;display:flex;align-items:center;justify-content:space-between;gap:12px}.ngcard-l{display:flex;align-items:center;gap:14px}.ng-name{font-size:.95rem;font-weight:600;color:#ff6b6b}.ng-loc{font-size:.74rem;color:#5a8090;margin-top:3px}.ngcard-r{text-align:right}.ng-cnt{font-size:.82rem;font-weight:600;color:#f08070}.ng-apts{font-size:.7rem;color:#2a4a5a;margin-top:3px}
 .overlay{position:fixed;inset:0;background:rgba(3,10,18,.82);backdrop-filter:blur(6px);z-index:200;display:flex;align-items:center;justify-content:center;padding:20px}.modal{background:linear-gradient(180deg,rgba(255,255,255,.96),rgba(248,244,235,.96));border:1px solid rgba(90,105,80,.18);box-shadow:0 22px 70px rgba(20,32,26,.22);border-radius:18px;padding:28px;width:100%;max-width:440px;position:relative;animation:mIn .25s ease;max-height:90vh;overflow-y:auto}.modal-w{max-width:560px}@keyframes mIn{from{opacity:0;transform:scale(.95) translateY(8px)}to{opacity:1;transform:scale(1) translateY(0)}}.modal-title{font-family:'Playfair Display',serif;font-size:1.2rem;color:#314433;margin-bottom:4px}.modal-sub{font-size:.76rem;color:#2a5a6a;margin-bottom:20px}.btn-x{position:absolute;top:14px;right:14px;background:rgba(255,255,255,.06);border:none;color:#5a8090;width:28px;height:28px;border-radius:7px;cursor:pointer;font-size:.85rem}.btn-x:hover{background:rgba(255,255,255,.14);color:white}.mact{display:flex;gap:9px;justify-content:flex-end;margin-top:20px;padding-top:16px;border-top:1px solid rgba(255,255,255,.06)}
-.fg2{display:grid;grid-template-columns:1fr 1fr;gap:12px}.fg{display:flex;flex-direction:column;gap:5px}.fg.full{grid-column:1/-1}.fg label{font-size:.69rem;font-weight:500;color:#2a5a6a;text-transform:uppercase;letter-spacing:.06em}.fg input,.fg select,.fg textarea{background:rgba(255,255,255,.78);border:1px solid rgba(90,105,80,.22);color:#17313a;padding:8px 12px;border-radius:8px;font-size:.85rem;outline:none;transition:border .2s}.fg input:focus,.fg select:focus,.fg textarea:focus{border-color:var(--kai-aqua);background:rgba(94,215,198,.07)}.fg input.field-error,.fg select.field-error,.fg textarea.field-error{border-color:#ff6b6b;background:rgba(255,107,107,.10);box-shadow:0 0 0 2px rgba(255,107,107,.12)}.err-msg{font-size:.68rem;color:#ff8a80;font-weight:600}.help-msg{font-size:.66rem;color:#5a8a8f;margin-top:1px}.form-alert{font-size:.75rem;color:#e8d19a;background:rgba(217,180,90,.1);border:1px solid rgba(217,180,90,.22);padding:9px 11px;border-radius:9px;margin-bottom:15px}.locked-field{opacity:.74;cursor:not-allowed;color:#d9b45a!important;background:rgba(217,180,90,.08)!important;border-color:rgba(217,180,90,.22)!important}.fg select option{background:#fff;color:#17313a}.fg textarea{resize:vertical}.csel{display:flex;flex-wrap:wrap;gap:7px}.copt{padding:6px 13px;border-radius:20px;border:1px solid rgba(255,255,255,.09);background:rgba(255,255,255,.04);color:#3a6070;font-size:.75rem;cursor:pointer;transition:all .18s}.copt:hover{border-color:rgba(255,255,255,.2);color:#b0ccd8}.copt-on{font-weight:600}
+.fg2{display:grid;grid-template-columns:1fr 1fr;gap:12px}.fg{display:flex;flex-direction:column;gap:5px}.fg.full{grid-column:1/-1}.fg label{font-size:.69rem;font-weight:500;color:#2a5a6a;text-transform:uppercase;letter-spacing:.06em}.fg input,.fg select,.fg textarea{background:rgba(255,255,255,.78);border:1px solid rgba(90,105,80,.22);color:#17313a;padding:8px 12px;border-radius:8px;font-size:.85rem;outline:none;transition:border .2s}.fg input:focus,.fg select:focus,.fg textarea:focus{border-color:var(--kai-aqua);background:rgba(94,215,198,.07)}.fg input.field-error,.fg select.field-error,.fg textarea.field-error{border-color:#ff6b6b;background:rgba(255,107,107,.10);box-shadow:0 0 0 2px rgba(255,107,107,.12)}.err-msg{font-size:.68rem;color:#ff8a80;font-weight:600}.help-msg{font-size:.66rem;color:#5a8a8f;margin-top:1px}.form-alert{font-size:.78rem;color:#1a4470;background:rgba(21,101,192,.06);border:1px solid rgba(21,101,192,.18);border-left:3px solid #1565c0;padding:9px 13px;border-radius:8px;margin-bottom:15px;line-height:1.45}.locked-field{opacity:.72;cursor:not-allowed;color:#496674!important;background:rgba(47,79,58,.05)!important;border-color:rgba(47,79,58,.15)!important}.fg select option{background:#fff;color:#17313a}.fg textarea{resize:vertical}.csel{display:flex;flex-wrap:wrap;gap:7px}.copt{padding:6px 13px;border-radius:20px;border:1px solid rgba(255,255,255,.09);background:rgba(255,255,255,.04);color:#3a6070;font-size:.75rem;cursor:pointer;transition:all .18s}.copt:hover{border-color:rgba(255,255,255,.2);color:#b0ccd8}.copt-on{font-weight:600}
 .uavatar-img{width:32px;height:32px;border-radius:50%;object-fit:cover;flex-shrink:0}
 .gu-btn{display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:11px;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.03);cursor:pointer;transition:all .18s;text-align:left;width:100%}.gu-btn:hover{background:rgba(255,255,255,.08);border-color:#1a8fa0}.gu-av{width:38px;height:38px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;color:white;font-size:.95rem;flex-shrink:0}.gu-name{font-size:.88rem;font-weight:500;color:#dff0f5}.gu-email{font-size:.7rem;color:#2a5a6a;margin-top:2px}
 .empty{text-align:center;padding:60px 28px;background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.05);border-radius:14px}
@@ -4163,6 +4152,8 @@ html{font-size:clamp(14px,1.1vw,16px);-webkit-text-size-adjust:100%}body{overflo
 .ac-cbtn-wa:hover{background:rgba(26,163,97,.16)!important;border-color:#1aa361!important}
 .airbnb-lnk{display:inline-flex;align-items:center;font-size:.78rem;color:#FF5A5F!important;text-decoration:none;font-weight:800;padding:4px 10px;border:1px solid rgba(255,90,95,.22);border-radius:999px;background:rgba(255,90,95,.08)}
 .airbnb-lnk:hover{background:rgba(255,90,95,.16)}
+.adp-airbnb-lnk{display:inline-flex;align-items:center;font-size:.9rem;opacity:.6;text-decoration:none;padding:2px 5px;border-radius:6px;transition:opacity .15s}
+.adp-airbnb-lnk:hover{opacity:1}
 .no-link{font-size:.74rem;color:#8a9fa5;margin-bottom:6px}
 .inc-b{font-size:.76rem;font-weight:800;padding:5px 10px;border-radius:999px;cursor:pointer;margin-top:6px;display:inline-block;border:1px solid transparent}
 .ib-open{background:rgba(210,90,70,.14);color:#b83215;border-color:rgba(210,90,70,.2)}
@@ -4356,11 +4347,15 @@ html{font-size:clamp(14px,1.1vw,16px);-webkit-text-size-adjust:100%}body{overflo
 .adp-inc-date{font-size:.7rem;color:#8a9fa5;margin-left:auto}
 .adp-inc-desc{font-size:.82rem;color:#17313a;line-height:1.45;margin-bottom:4px}
 .adp-inc-guest{font-size:.76rem;color:#496674;margin-top:4px}
-.adp-inc-comments{font-size:.76rem;color:#496674;margin-top:4px;background:rgba(217,180,90,.08);border-radius:6px;padding:4px 8px}
+.adp-inc-comments{font-size:.76rem;color:#203f2b;margin-top:5px;background:rgba(47,79,58,.06);border-radius:7px;padding:6px 10px;border:1px solid rgba(47,79,58,.1);line-height:1.45}
+.adp-comment-action{background:rgba(21,101,192,.06)!important;border-color:rgba(21,101,192,.15)!important;color:#1a3a6a!important}
+.adp-comment-resolution{background:rgba(11,127,79,.06)!important;border-color:rgba(11,127,79,.15)!important;color:#0b4f32!important}
+.adp-comment-closed{background:rgba(47,79,58,.08)!important;border-color:rgba(47,79,58,.2)!important;color:#203f2b!important}
+.adp-comment-lbl{font-size:.65rem;font-weight:900;text-transform:uppercase;letter-spacing:.06em;opacity:.7;margin-right:5px;display:inline-block}
 .adp-inc-reporter-name{font-size:.68rem;color:#6a8a9a;white-space:nowrap}
 /* ── Verify resolution hint + warning */
-.verify-resolution-hint{font-size:.75rem;color:#6a5a2a;background:#fffde7;border:1px solid #f9d75e;border-radius:6px;padding:5px 9px;margin-bottom:5px;line-height:1.4}
-.inc-res-warn{font-size:.73rem;color:#9a4700;background:#fff3e0;border:1px solid #ffb74d;border-radius:6px;padding:5px 9px;margin:5px 0;line-height:1.4}
+.verify-resolution-hint{font-size:.75rem;color:#1a4470;background:rgba(21,101,192,.06);border:1px solid rgba(21,101,192,.18);border-radius:6px;padding:6px 10px;margin-bottom:6px;line-height:1.4}
+.inc-res-warn{font-size:.74rem;color:#7f1500;background:#fff5f0;border:1.5px solid #e65100;border-left:4px solid #e65100;border-radius:7px;padding:7px 11px;margin:6px 0;line-height:1.45;font-weight:600}
 /* ── Incident context tags — shown in IRow and AptDetailPanel */
 .ir-ctx-tags{display:flex;gap:4px;flex-wrap:wrap;margin:4px 0 2px}
 .inc-ctx-tag{display:inline-flex;align-items:center;border-radius:999px;font-size:.62rem;font-weight:900;padding:2px 8px;white-space:nowrap;letter-spacing:.02em}
