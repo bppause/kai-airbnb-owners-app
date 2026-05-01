@@ -2338,7 +2338,7 @@ function MyListings({ listings, incidents, user, contactProps={}, isGlobalAdmin=
               const isSel = selectedId===l.id;
               return (
                 <div key={l.id} className={`ml-listing${isSel?' ml-listing-sel':''}`}>
-                  <div className="ml-listing-row" onClick={()=>setSelectedId(isSel?null:l.id)}>
+                  <div className="ml-listing-row apt-cpop-wrap" onClick={()=>setSelectedId(isSel?null:l.id)}>
                     <div className="ml-listing-apt">Apt {l.apt}</div>
                     <div className="ml-listing-chips">
                       <span className="chip c-teal">🛏️ {l.rooms}</span>
@@ -2356,6 +2356,7 @@ function MyListings({ listings, incidents, user, contactProps={}, isGlobalAdmin=
                       <button className="bsm bs-del" onClick={()=>onDelete(l)}>🗑️</button>
                     </div>
                     <span className={`fls-chev${isSel?' fls-chev-up':''}`} style={{marginLeft:'auto',flexShrink:0}}>›</span>
+                    <AptContactPopup ownerEmail={l.userEmail||l.email} ownerWaRaw={l.contact} isEn={isEn}/>
                   </div>
                   {isSel&&(
                     <AptDetailPanel l={l} incidents={incidents} contactProps={contactProps} canEdit canDelete onEdit={()=>onEdit(l)} onDelete={()=>onDelete(l)} onReport={()=>onReport(l)} onClose={()=>setSelectedId(null)} user={user} isGlobalAdmin={isGlobalAdmin} canResolveGlobal={canResolveGlobal} onVerify={onVerify} onResolve={onResolve} lang={lang} isEn={isEn}/>
@@ -2406,6 +2407,44 @@ const IconEmail = () => (
   </svg>
 );
 
+// ─── Reusable apartment contact hover popup ───────────────────────────────────
+// Wrap any apt header/row in <div className="apt-cpop-wrap"> to get a hover
+// card showing owner email + WhatsApp (+ operator if present) with branded icons
+// and direct mailto / wa.me external links.  Popup has pointer-events:none on
+// the shell so the underlying click target still fires; links have auto.
+function AptContactPopup({ ownerEmail='', ownerWaRaw='', operatorEmail='', opWaRaw='', isEn=false }) {
+  const ownerWaDigits = normalizePhoneForWhatsApp(ownerWaRaw);
+  const opWaDigits    = normalizePhoneForWhatsApp(opWaRaw);
+  const ownerWaOk     = !ownerWaRaw || ownerWaRaw.trim().startsWith('+');
+  const hasOperator   = !!(operatorEmail || opWaDigits);
+  return (
+    <div className="apt-cpop" onClick={e=>e.stopPropagation()}>
+      {/* Owner */}
+      <div className="apt-cpop-section">
+        <span className="apt-cpop-lbl">👤 {isEn?'Owner':'Propietario'}</span>
+        {ownerEmail
+          ? <a className="apt-cpop-link" href={`mailto:${ownerEmail}`}><IconEmail/><span>{ownerEmail}</span></a>
+          : <span className="apt-cpop-miss">{isEn?'No email':'Sin email'}</span>}
+        {ownerWaDigits
+          ? <a className="apt-cpop-link" href={`https://wa.me/${ownerWaDigits}`} target="_blank" rel="noreferrer"><IconWhatsApp/><span>{ownerWaRaw}{!ownerWaOk&&<span style={{color:'#f0c040'}}> ⚠️</span>}</span></a>
+          : <span className="apt-cpop-miss">{isEn?'No WhatsApp':'Sin WhatsApp'}</span>}
+      </div>
+      {/* Operator — only if any contact info exists */}
+      {hasOperator && (
+        <div className="apt-cpop-section">
+          <span className="apt-cpop-lbl">🔧 {isEn?'Operator':'Operador'}</span>
+          {operatorEmail
+            ? <a className="apt-cpop-link" href={`mailto:${operatorEmail}`}><IconEmail/><span>{operatorEmail}</span></a>
+            : null}
+          {opWaDigits
+            ? <a className="apt-cpop-link" href={`https://wa.me/${opWaDigits}`} target="_blank" rel="noreferrer"><IconWhatsApp/><span>{opWaRaw}</span></a>
+            : null}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function AptDoor({ l, incidents, isSelected, onSelect, lang, isEn }) {
   const status = aptDoorStatus(l, incidents);
   const openCount = incidents.filter(i=>i.aptId===l.id&&i.status==='open').length;
@@ -2438,23 +2477,9 @@ function AptDoor({ l, incidents, isSelected, onSelect, lang, isEn }) {
           <span className="door-chip">👥 {l.guests}</span>
         </div>
       </div>
-      {/* Hover overlay — pointer-events:none so card click still works;
-          only the <a> links inside have pointer-events:auto               */}
+      {/* Hover overlay — uses AptContactPopup for consistency across the app */}
       <div className="door-hover-overlay">
-        {ownerEmail ? (
-          <a className="door-hover-link" href={`mailto:${ownerEmail}`} onClick={e=>e.stopPropagation()} title={ownerEmail}>
-            <IconEmail/><span>{ownerEmail}</span>
-          </a>
-        ) : (
-          <span className="door-hover-missing">{isEn?'No email':'Sin email'}</span>
-        )}
-        {ownerWaDigits ? (
-          <a className="door-hover-link" href={`https://wa.me/${ownerWaDigits}`} target="_blank" rel="noreferrer" onClick={e=>e.stopPropagation()} title={ownerWaRaw}>
-            <IconWhatsApp/><span>{ownerWaRaw}{!waFormatOk&&<span className="door-wa-warn"> ⚠️</span>}</span>
-          </a>
-        ) : (
-          <span className="door-hover-missing">{isEn?'No WhatsApp':'Sin WhatsApp'}</span>
-        )}
+        <AptContactPopup ownerEmail={ownerEmail} ownerWaRaw={ownerWaRaw} isEn={isEn}/>
         <div className="door-hover-cta">{isEn?'👆 Click · view incidents':'👆 Clic · ver incidentes'}</div>
       </div>
       <div className="door-footer">
@@ -2627,24 +2652,25 @@ function BuildingFloor({ floor, apts, incidents, user, contactProps, isGlobalAdm
 // Keep old FloorSection + AptRow for list-mode compatibility
 function AptRow({ l, incCount, user, contactProps={}, isGlobalAdmin=false, canEditGlobal=false, canDeleteGlobal=false, onEdit, onDelete, onReport, lang, isEn }) {
   const [expanded, setExpanded] = useState(false);
-  const ownerWa = normalizePhoneForWhatsApp(l.contact);
-  const opWa    = normalizePhoneForWhatsApp(l.operatorWhatsapp);
   const hasOp   = !!(l.operator||l.operatorEmail||l.operatorWhatsapp);
   const canEdit   = user?.uid===l.ownerUid||isGlobalAdmin||canEditGlobal;
   const canDelete = user?.uid===l.ownerUid||isGlobalAdmin||canDeleteGlobal;
   return (
     <div className={`fls-row${expanded?' fls-row-open':''}`}>
-      <div className="fls-row-main" onClick={()=>setExpanded(x=>!x)} role="button" aria-expanded={expanded}>
+      <div className="fls-row-main apt-cpop-wrap" onClick={()=>setExpanded(x=>!x)} role="button" aria-expanded={expanded}>
         <span className="fls-apt-num">Apt {l.apt}</span>
         <span className="fls-owner-wrap"><UserContact name={l.owner} uid={l.ownerUid} email={l.userEmail||l.email} whatsapp={l.contact} apartments={l.apt?[aptDisplay(l.apt,lang)]:[]} {...contactProps}/></span>
         {hasOp&&<span className="fls-op-pill">🔧 {l.operator||'—'}</span>}
         <span className="fls-row-chips"><span className="chip c-teal">🛏️ {l.rooms}</span><span className="chip c-blue">👥 {l.guests}</span></span>
-        <span className="fls-row-acts" onClick={e=>e.stopPropagation()}>
-          {(l.userEmail||l.email)&&<a href={`mailto:${l.userEmail||l.email}`} className="ac-cbtn" title={l.userEmail||l.email}>✉️</a>}
-          {ownerWa&&<a href={`https://wa.me/${ownerWa}`} className="ac-cbtn ac-cbtn-wa" title={l.contact} target="_blank" rel="noreferrer">💬</a>}
-        </span>
         {incCount>0&&<span className="fls-inc-pill">⚠️ {incCount}</span>}
         <span className={`fls-chev${expanded?' fls-chev-up':''}`}>›</span>
+        <AptContactPopup
+          ownerEmail={l.userEmail||l.email}
+          ownerWaRaw={l.contact}
+          operatorEmail={l.operatorEmail}
+          opWaRaw={l.operatorWhatsapp}
+          isEn={isEn}
+        />
       </div>
       {expanded&&(
         <div className="fls-row-detail" onClick={e=>e.stopPropagation()}>
@@ -2730,18 +2756,23 @@ function ListingsView({ listings, incidents, user, contactProps={}, isGlobalAdmi
 
 function AptCard({ l, incCount, contactProps={}, canEdit=false, canDelete=false, onEdit, onDelete, onReport, showLogin, lang="es-CO" }) {
   const isEn = lang==='en';
-  const ownerWa = normalizePhoneForWhatsApp(l.contact);
-  const opWa    = normalizePhoneForWhatsApp(l.operatorWhatsapp);
-  const hasOp   = !!(l.operator || l.operatorEmail || l.operatorWhatsapp);
+  const hasOp = !!(l.operator || l.operatorEmail || l.operatorWhatsapp);
   return (
     <div className="acard">
-      {/* ── Header: apt number + tower + wave ── */}
-      <div className="acard-top">
+      {/* ── Header: apt number + tower + wave — hover reveals contact popup ── */}
+      <div className="acard-top apt-cpop-wrap">
         <div>
           <div className="ac-num">{appText(lang,"listing.apt")} {l.apt}</div>
           {l.tower && <div className="ac-tower">{appText(lang,"listing.tower")} {l.tower}</div>}
         </div>
         <div className="ac-wave">🌊</div>
+        <AptContactPopup
+          ownerEmail={l.userEmail||l.email}
+          ownerWaRaw={l.contact}
+          operatorEmail={l.operatorEmail}
+          opWaRaw={l.operatorWhatsapp}
+          isEn={isEn}
+        />
       </div>
 
       {/* ── Stats row ── */}
@@ -2753,29 +2784,16 @@ function AptCard({ l, incCount, contactProps={}, canEdit=false, canDelete=false,
       {/* ── Owner ── */}
       <div className="ac-party">
         <div className="ac-party-lbl">👤 {isEn?'Owner':'Propietario'}</div>
-        <div className="ac-party-row">
-          <UserContact name={l.owner} uid={l.ownerUid} email={l.userEmail||l.email} whatsapp={l.contact} apartments={l.apt?[aptDisplay(l.apt,lang)]:[]} {...contactProps}/>
-          <div className="ac-cbtns">
-            {(l.userEmail||l.email) && <a href={`mailto:${l.userEmail||l.email}`} className="ac-cbtn" title={l.userEmail||l.email}><IconEmail/></a>}
-            {ownerWa && <a href={`https://wa.me/${ownerWa}`} className="ac-cbtn ac-cbtn-wa" title={l.contact} target="_blank" rel="noreferrer"><IconWhatsApp/></a>}
-          </div>
-        </div>
+        <UserContact name={l.owner} uid={l.ownerUid} email={l.userEmail||l.email} whatsapp={l.contact} apartments={l.apt?[aptDisplay(l.apt,lang)]:[]} {...contactProps}/>
       </div>
 
       {/* ── Operator (only if any operator info exists) ── */}
       {hasOp && (
         <div className="ac-party ac-party-op">
           <div className="ac-party-lbl">🔧 {isEn?'Operator':'Operador'}</div>
-          <div className="ac-party-row">
-            {l.operator
-              ? <UserContact name={l.operator} email={l.operatorEmail} whatsapp={l.operatorWhatsapp} apartments={l.apt?[aptDisplay(l.apt,lang)]:[]} {...contactProps}/>
-              : <span className="ac-no-name">{isEn?'No name':'Sin nombre'}</span>
-            }
-            <div className="ac-cbtns">
-              {l.operatorEmail    && <a href={`mailto:${l.operatorEmail}`}        className="ac-cbtn"           title={l.operatorEmail}    ><IconEmail/></a>}
-              {opWa               && <a href={`https://wa.me/${opWa}`}           className="ac-cbtn ac-cbtn-wa" title={l.operatorWhatsapp} target="_blank" rel="noreferrer"><IconWhatsApp/></a>}
-            </div>
-          </div>
+          {l.operator
+            ? <UserContact name={l.operator} email={l.operatorEmail} whatsapp={l.operatorWhatsapp} apartments={l.apt?[aptDisplay(l.apt,lang)]:[]} {...contactProps}/>
+            : <span className="ac-no-name">{isEn?'No name':'Sin nombre'}</span>}
         </div>
       )}
 
@@ -4231,16 +4249,7 @@ html{font-size:clamp(14px,1.1vw,16px);-webkit-text-size-adjust:100%}body{overflo
   transition:opacity .18s ease;
 }
 .apt-door:hover:not(.apt-door-sel) .door-hover-overlay{opacity:1}
-.door-hover-link{
-  display:flex;align-items:center;gap:6px;
-  color:#fff;text-decoration:none;font-size:.68rem;font-weight:600;line-height:1.3;
-  max-width:100%;pointer-events:auto;
-}
-.door-hover-link span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.door-hover-link:hover{text-decoration:underline;color:#a8e6cf}
-.door-hover-missing{font-size:.65rem;color:rgba(255,255,255,.4);font-style:italic}
-.door-hover-cta{font-size:.6rem;font-weight:800;color:rgba(255,255,255,.5);margin-top:2px;letter-spacing:.03em}
-.door-wa-warn{color:#f0c040;font-size:.65em}
+.door-hover-cta{font-size:.6rem;font-weight:800;color:rgba(255,255,255,.5);margin-top:4px;letter-spacing:.03em}
 /* ── Apt detail panel */
 .adp-wrap{margin:0 16px 16px;background:rgba(255,255,255,.96);border-radius:14px;border:1px solid rgba(47,79,58,.18);box-shadow:0 8px 24px rgba(0,0,0,.12);overflow:hidden;animation:fadeIn .18s ease}
 .adp-header{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 16px;background:linear-gradient(90deg,rgba(11,127,79,.07),rgba(11,127,140,.05));border-bottom:1px solid rgba(47,79,58,.1);flex-wrap:wrap}

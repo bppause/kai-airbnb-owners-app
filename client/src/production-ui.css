@@ -469,6 +469,80 @@ table { width: 100%; border-collapse: collapse; }
   pointer-events: none;
 }
 
+/* ── Apartment contact hover popup — consistent across all apt displays ─── */
+.apt-cpop-wrap { position: relative; }
+/* The popup card itself */
+.apt-cpop {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 99999;
+  background: rgba(5,22,30,.93);
+  backdrop-filter: blur(4px);
+  border-radius: 10px;
+  padding: 10px 13px;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  min-width: 210px;
+  max-width: 300px;
+  box-shadow: 0 14px 36px rgba(0,0,0,.32);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .15s ease;
+  white-space: nowrap;
+}
+/* Show on hover of the wrapper; links inside become clickable */
+.apt-cpop-wrap:hover .apt-cpop { opacity: 1; pointer-events: auto; }
+/* Keep visible while cursor moves from wrapper into popup (no gap) */
+.apt-cpop::before {
+  content: '';
+  position: absolute;
+  top: -8px;
+  left: 0;
+  right: 0;
+  height: 8px;
+}
+.apt-cpop-section { display: flex; flex-direction: column; gap: 5px; }
+.apt-cpop-lbl {
+  font-size: .58rem;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: .1em;
+  color: rgba(255,255,255,.45);
+  margin-bottom: 1px;
+}
+.apt-cpop-link {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #fff;
+  text-decoration: none;
+  font-size: .7rem;
+  font-weight: 600;
+  line-height: 1.3;
+  pointer-events: auto;
+}
+.apt-cpop-link span { overflow: hidden; text-overflow: ellipsis; }
+.apt-cpop-link:hover { text-decoration: underline; color: #a8e6cf; }
+.apt-cpop-miss { font-size: .68rem; color: rgba(255,255,255,.35); font-style: italic; }
+/* Door hover overlay works with AptContactPopup nested inside — reset popup position */
+.door-hover-overlay .apt-cpop {
+  position: static;
+  opacity: 1;
+  pointer-events: none;
+  background: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
+  padding: 0;
+  min-width: unset;
+  max-width: unset;
+}
+.door-hover-overlay .apt-cpop-link { pointer-events: auto; }
+.door-hover-overlay .apt-cpop-lbl { color: rgba(255,255,255,.5); }
+.door-hover-overlay .apt-cpop-miss { color: rgba(255,255,255,.35); }
+.door-hover-overlay .apt-cpop-link { color: #fff; }
+
 /* ── Incident template hint ─────────────────────────────────────────────── */
 .inc-template-hint {
   display: flex;
