@@ -1719,6 +1719,7 @@ function RegistrationGate({ user, registration, onSubmit, onLogout, syncing, toa
 
 function RegistrationListingForm({ user, onSubmit, submitText, lang="es-CO" }) {
   const isEn = lang === 'en';
+  const tips = localizedTooltips({}, lang); // default tooltips — no admin config available at registration time
   const makeBlank = () => ({ apt:'', tower:'KAI', rooms:'2', guests:4, operator:'', operatorEmail:'', operatorWhatsapp:'', airbnb:'' });
   const [items,setItems]=useState([makeBlank()]);
   const [whatsapp,setWhatsapp]=useState('');
