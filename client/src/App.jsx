@@ -1301,7 +1301,7 @@ export default function App() {
                 </button>
                 <div className={`profile-menu ${openDropdown === "profile" ? "menu-open" : ""}`}>
                   <div className="profile-head">
-                    <UserContact name={user.name} uid={user.uid} email={user.email} whatsapp={myListings[0]?.contact||''} apartments={myListings.map(l=>aptDisplay(l.apt,lang))} directory={contactProps.directory||new Map()} showToast={showToast} onEmail={contactProps.onEmail||(()=>{})} lang={lang}><strong>{user.name}</strong></UserContact>
+                    <strong>{user.name}</strong>
                     <span>{user.email}</span>
                     <small>{myListings.length ? `${myListings.length} ${lang === 'en' ? (myListings.length>1?'listings':'listing') : ('apto' + (myListings.length>1?'s':''))}` : (lang === "en" ? "Visitor" : "Visitante")}</small>
                   </div>
