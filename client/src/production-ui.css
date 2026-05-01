@@ -543,7 +543,52 @@ table { width: 100%; border-collapse: collapse; }
 .door-hover-overlay .apt-cpop-miss { color: rgba(255,255,255,.35); }
 .door-hover-overlay .apt-cpop-link { color: #fff; }
 
-/* ── Incident template hint ─────────────────────────────────────────────── */
+/* ── Incident template chips (category-based, IncidentModal) ─────────────── */
+.inc-chips-hdr {
+  font-size: .72rem;
+  font-weight: 700;
+  color: #1565c0;
+  margin-bottom: 6px;
+  line-height: 1.3;
+}
+.inc-chips-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 220px;
+  overflow-y: auto;
+  padding-right: 2px;
+}
+.inc-chip {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  background: #f0f7ff;
+  border: 1.5px solid #bdd7f5;
+  border-radius: 8px;
+  padding: 8px 11px;
+  cursor: pointer;
+  text-align: left;
+  transition: background .12s, border-color .12s;
+}
+.inc-chip:hover { background: #daeeff; border-color: #1565c0; }
+.inc-chip-active { background: #daeeff !important; border-color: #1565c0 !important; }
+.inc-chip-type {
+  font-size: .68rem;
+  font-weight: 800;
+  color: #1565c0;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+}
+.inc-chip-text {
+  font-size: .75rem;
+  color: #37474f;
+  line-height: 1.4;
+  white-space: normal;
+}
+
+/* ── Incident template hint (kept for backward compat, may be unused) ─────── */
 .inc-template-hint {
   display: flex;
   align-items: flex-start;

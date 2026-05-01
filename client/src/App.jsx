@@ -431,7 +431,7 @@ const APP_I18N = {
   "validation.guestLastName": { es:"El apellido del huésped es requerido.", en:"Guest last name is required." },
   "form.city": { es:"🏙️ Ciudad *", en:"🏙️ City *" },
   "form.country": { es:"🌍 País *", en:"🌍 Country *" },
-  "form.immediateAction": { es:"💡 Acción inmediata tomada *", en:"💡 Immediate action taken *" },
+  "form.immediateAction": { es:"💡 Acción inmediata del propietario (requerida)", en:"💡 Owner immediate action (required)" },
   "form.immediateActionPlaceholder": { es:"¿Qué hiciste de inmediato ante este incidente? (ej: llamé al huésped, contacté al operador, presenté queja a Airbnb...)", en:"What did you do immediately about this incident? (e.g. called the guest, contacted the operator, filed an Airbnb complaint...)" },
   "form.ownerResolution": { es:"🔍 Resolución propuesta", en:"🔍 Proposed resolution" },
   "form.ownerResolutionPlaceholder": { es:"Describe el acuerdo alcanzado, compensación pactada o resultado final... (Puedes completarlo después de verificar)", en:"Describe the agreement reached, agreed compensation, or final outcome... (You can complete this after verifying)" },
@@ -3210,29 +3210,69 @@ function IncidentModal({ listings, user, presetApt, onSave, onClose, lang="es-CO
     return Object.keys(e).length===0;
   };
   const inputCls=(k)=>errors[k]?"field-error":"";
-  // Template for current type+category combo
-  const templateKey = `${f.type}_${f.category}`;
-  const templateText = INCIDENT_TEMPLATES[templateKey] ? (isEn ? INCIDENT_TEMPLATES[templateKey].en : INCIDENT_TEMPLATES[templateKey].es) : null;
-  const applyTemplate = () => { if(templateText) s('desc', templateText); };
+
+  // Build template chips for the selected category — one per incident type
+  const categoryChips = INCIDENT_TYPES.map(t => {
+    const key = `${t.value}_${f.category}`;
+    const tmpl = INCIDENT_TEMPLATES[key];
+    if (!tmpl) return null;
+    return { typeValue:t.value, typeLabel:incidentTypeLabel(t.value,lang), typeMeta:t, text:isEn?tmpl.en:tmpl.es };
+  }).filter(Boolean);
+
+  const applyChip = (chip) => {
+    setF(p=>({...p, type:chip.typeValue, desc:chip.text}));
+    setErrors(e=>({...e, type:undefined, desc:undefined}));
+  };
+
+  // Placeholder: use the chip text for the current type if desc is empty
+  const currentChip = categoryChips.find(c=>c.typeValue===f.type);
+  const descPlaceholder = (!String(f.desc||'').trim() && currentChip) ? currentChip.text : appText(lang,"form.descriptionPlaceholder");
+
   return (
     <Overlay onClose={onClose} wide>
-      <div className="modal-title">{appText(lang,"modal.report.title")}</div><div className="modal-sub">{appText(lang,"modal.report.sub",{name:user?.name||""})}</div>
+      <div className="modal-title">{appText(lang,"modal.report.title")}</div>
+      <div className="modal-sub">{appText(lang,"modal.report.sub",{name:user?.name||""})}</div>
       <div className="form-alert">{appText(lang,"modal.report.help")}</div>
       <div className="fg2">
         <div className="fg"><label>{appText(lang,"form.apartment")} <Tip text={tips.incidentApartment}/></label><select className={inputCls("aptId")} value={f.aptId} onChange={e=>s("aptId",e.target.value)}><option value="">{appText(lang,"form.select")}</option>{[...listings].sort((a,b)=>a.apt.localeCompare(b.apt)).map(l=><option key={l.id} value={l.id}>{aptDisplay(l.apt, lang)} – {l.owner}</option>)}</select>{errors.aptId&&<span className="err-msg">{errors.aptId}</span>}</div>
         <div className="fg"><label>{appText(lang,"form.date")}</label><input className={inputCls("date")} type="date" value={f.date} onChange={e=>s("date",e.target.value)}/>{errors.date&&<span className="err-msg">{errors.date}</span>}</div>
-        <div className="fg"><label>{appText(lang,"form.type")} <Tip text={tips.incidentType}/></label><select className={inputCls("type")} value={f.type} onChange={e=>s("type",e.target.value)}>{INCIDENT_TYPES.map(t=><option key={t.value} value={t.value}>{incidentTypeLabel(t.value,lang)}</option>)}</select>{errors.type&&<span className="err-msg">{errors.type}</span>}</div>
+
+        {/* Category first — drives the template chips below */}
         <div className="fg full"><label>{appText(lang,"form.category")} <Tip text={tips.incidentCategory}/></label><div className="csel">{GUEST_CATEGORIES.map(c=><button key={c.value} type="button" className={`copt ${f.category===c.value?"copt-on":""}`} style={f.category===c.value?{background:c.bg,color:c.color,borderColor:c.color}:{}} onClick={()=>s("category",c.value)}>{c.icon} {categoryLabel(c.value,lang)}</button>)}</div>{errors.category&&<span className="err-msg">{errors.category}</span>}</div>
+
+        {/* Type — kept as selector; also updated automatically when a chip is clicked */}
+        <div className="fg"><label>{appText(lang,"form.type")} <Tip text={tips.incidentType}/></label><select className={inputCls("type")} value={f.type} onChange={e=>s("type",e.target.value)}>{INCIDENT_TYPES.map(t=><option key={t.value} value={t.value}>{incidentTypeLabel(t.value,lang)}</option>)}</select>{errors.type&&<span className="err-msg">{errors.type}</span>}</div>
+
+        {/* Template chips — one per type for the selected category */}
+        <div className="fg full">
+          <div className="inc-chips-hdr">
+            💡 {isEn?'Tap an example to pre-fill type + description:':'Selecciona un ejemplo para pre-completar tipo y descripción:'}
+          </div>
+          <div className="inc-chips-list">
+            {categoryChips.map(chip=>(
+              <button
+                key={chip.typeValue}
+                type="button"
+                className={`inc-chip${f.type===chip.typeValue&&String(f.desc||'').trim()===chip.text?' inc-chip-active':''}`}
+                onClick={()=>applyChip(chip)}
+              >
+                <span className="inc-chip-type">{chip.typeLabel}</span>
+                <span className="inc-chip-text">{chip.text}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Description — placeholder shows current type template */}
         <div className="fg full">
           <label>{appText(lang,"form.description")} <Tip text={tips.incidentDescription}/></label>
-          {templateText && !String(f.desc||'').trim() && (
-            <div className="inc-template-hint">
-              <span className="inc-template-label">💡 {isEn?'Template:':'Plantilla:'}</span>
-              <span className="inc-template-preview">{templateText}</span>
-              <button type="button" className="inc-template-apply" onClick={applyTemplate}>{isEn?'Use template':'Usar plantilla'}</button>
-            </div>
-          )}
-          <textarea className={inputCls("desc")} value={f.desc} onChange={e=>s("desc",e.target.value)} placeholder={templateText||appText(lang,"form.descriptionPlaceholder")} rows={4}/>
+          <textarea
+            className={inputCls("desc")}
+            value={f.desc}
+            onChange={e=>s("desc",e.target.value)}
+            placeholder={descPlaceholder}
+            rows={4}
+          />
           {errors.desc&&<span className="err-msg">{errors.desc}</span>}
         </div>
       </div>
