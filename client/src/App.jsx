@@ -693,14 +693,14 @@ function UserContact({ name='', email='', whatsapp='', apartments=[], directory,
             <span className="contact-line">
               <span className="contact-line-val">✉️ {finalEmail}</span>
               <button type="button" title={lang==='en'?'Copy email':'Copiar email'} onClick={() => copyText(finalEmail, showToast, lang)}>📋</button>
-              <a href={`mailto:${finalEmail}`} className="contact-action-link" target="_blank" rel="noreferrer" title={lang==='en'?'Open in email app':'Abrir en app de email'}>✉️ {lang==='en'?'Email':'Email'}</a>
+              <a href={`mailto:${finalEmail}`} className="contact-action-link" target="_blank" rel="noreferrer" title={lang==='en'?'Open in email app':'Abrir en app de email'}><IconEmail/> {lang==='en'?'Email':'Email'}</a>
             </span>
           )}
           {finalWhatsapp && (
             <span className="contact-line">
               <span className="contact-line-val">📲 {finalWhatsapp}</span>
               <button type="button" title={lang==='en'?'Copy number':'Copiar número'} onClick={() => copyText(finalWhatsapp, showToast, lang)}>📋</button>
-              {waDigits && <a href={`https://wa.me/${waDigits}`} className="contact-action-link" target="_blank" rel="noreferrer" title={lang==='en'?'Open in WhatsApp':'Abrir en WhatsApp'}>💬 WhatsApp</a>}
+              {waDigits && <a href={`https://wa.me/${waDigits}`} className="contact-action-link" target="_blank" rel="noreferrer" title={lang==='en'?'Open in WhatsApp':'Abrir en WhatsApp'}><IconWhatsApp/> WhatsApp</a>}
             </span>
           )}
           {!finalEmail && !finalWhatsapp && <span style={{color:'#607063',fontSize:'.75rem'}}>{lang === 'en' ? 'No contact info' : 'Sin info de contacto'}</span>}
@@ -2275,7 +2275,7 @@ function Dashboard({ listings, incidents, user, contactProps={}, setView, onRepo
         </div>
         {recent.length===0
           ? <Empty icon="✅" msg={appText(lang,"dashboard.noReports")}/>
-          : recent.map(i=><IRow key={i.id} inc={i} compact lang={lang}/>)
+          : recent.map(i=><IRow key={i.id} inc={i} compact listings={listings} contactProps={contactProps} lang={lang}/>)
         }
       </div>
     </div>
@@ -2357,7 +2357,7 @@ function MyListings({ listings, incidents, user, contactProps={}, isGlobalAdmin=
                       <span className="chip c-blue">👥 {l.guests}</span>
                     </div>
                     <div className="ml-listing-inc-pills">
-                      {lOpen>0&&<span className="ml-pill ml-pill-open">⚠️ {lOpen}</span>}
+                      {lOpen>0&&<span className="ml-pill ml-pill-open" title={isEn?`${lOpen} open incident${lOpen>1?'s':''} — needs attention`:`${lOpen} incidente${lOpen>1?'s':''} abierto${lOpen>1?'s':''} — requiere atención`}>⚠️ {lOpen}</span>}
                       {(() => {
                         const verPendingRes = lInc.filter(i=>i.status==='verified'&&!String(i.ownerResolution||'').trim()).length;
                         const verReady      = lInc.filter(i=>i.status==='verified'&& String(i.ownerResolution||'').trim()).length;
@@ -2366,7 +2366,7 @@ function MyListings({ listings, incidents, user, contactProps={}, isGlobalAdmin=
                           {verReady>0&&<span className="ml-pill ml-pill-ver" style={{background:'rgba(11,127,79,.15)',color:'#0b5f3a'}} title={isEn?'Verified — ready to close':'Verificado — listo para cerrar'}>👤 {verReady}</span>}
                         </>;
                       })()}
-                      {lRes>0&&<span className="ml-pill ml-pill-res">✓ {lRes}</span>}
+                      {lRes>0&&<span className="ml-pill ml-pill-res" title={isEn?`${lRes} closed incident${lRes>1?'s':''}`:`${lRes} incidente${lRes>1?'s':''} cerrado${lRes>1?'s':''}`}>✓ {lRes}</span>}
                     </div>
                     <div className="ml-listing-acts" onClick={e=>e.stopPropagation()}>
                       <button className="bsm bs-rep" onClick={()=>onReport(l)}>+ {isEn?'Report':'Reporte'}</button>
@@ -2485,7 +2485,7 @@ function AptDoor({ l, incidents, isSelected, onSelect, lang, isEn }) {
       {/* Full-width number plate */}
       <div className="door-num-plate">
         <span className="door-num">{l.apt}</span>
-        {openCount>0 && <span className="door-inc-badge">⚠️ {openCount}</span>}
+        {openCount>0 && <span className="door-inc-badge" title={isEn?`${openCount} open incident${openCount>1?'s':''}`:`${openCount} incidente${openCount>1?'s':''} abierto${openCount>1?'s':''}`}>⚠️ {openCount}</span>}
       </div>
       {/* Card body — owner, operator, capacity */}
       <div className="door-body">
@@ -2501,9 +2501,9 @@ function AptDoor({ l, incidents, isSelected, onSelect, lang, isEn }) {
         {totalCount === 0
           ? <span className="dis-clean">✅ {isEn?'No incidents':'Sin incidentes'}</span>
           : <>
-              {openCount>0&&<span className="dis-pill dis-open">⚠️ {openCount} {isEn?'new':'nuevo'}{openCount>1&&isEn?'s':''}</span>}
-              {verifiedCount>0&&<span className="dis-pill dis-ver">⏳ {verifiedCount}</span>}
-              {resolvedCount>0&&<span className="dis-pill dis-res">✓ {resolvedCount}</span>}
+              {openCount>0&&<span className="dis-pill dis-open" title={isEn?`${openCount} new — needs attention`:`${openCount} nuevo${openCount>1?'s':''} — requiere atención`}>⚠️ {openCount} {isEn?'new':'nuevo'}{openCount>1&&isEn?'s':''}</span>}
+              {verifiedCount>0&&<span className="dis-pill dis-ver" title={isEn?`${verifiedCount} in progress — pending close`:`${verifiedCount} en progreso — pendiente de cierre`}>⏳ {verifiedCount}</span>}
+              {resolvedCount>0&&<span className="dis-pill dis-res" title={isEn?`${resolvedCount} closed`:`${resolvedCount} cerrado${resolvedCount>1?'s':''}`}>✓ {resolvedCount}</span>}
             </>
         }
       </div>
@@ -2560,8 +2560,8 @@ function AptDetailPanel({ l, incidents, contactProps={}, canEdit, canDelete, onE
           <div className="adp-party-row">
             <UserContact name={l.owner} uid={l.ownerUid} email={l.userEmail||l.email} whatsapp={l.contact} apartments={l.apt?[aptDisplay(l.apt,lang)]:[]} {...contactProps}/>
             <div style={{display:'flex',gap:5}}>
-              {(l.userEmail||l.email)&&<a href={`mailto:${l.userEmail||l.email}`} className="ac-cbtn" title={l.userEmail||l.email}>✉️</a>}
-              {ownerWa&&<a href={`https://wa.me/${ownerWa}`} className="ac-cbtn ac-cbtn-wa" target="_blank" rel="noreferrer">💬</a>}
+              {(l.userEmail||l.email)&&<a href={`mailto:${l.userEmail||l.email}`} className="ac-cbtn" title={l.userEmail||l.email}><IconEmail/></a>}
+              {ownerWa&&<a href={`https://wa.me/${ownerWa}`} className="ac-cbtn ac-cbtn-wa" target="_blank" rel="noreferrer" title="WhatsApp"><IconWhatsApp/></a>}
             </div>
           </div>
         </div>
@@ -2571,8 +2571,8 @@ function AptDetailPanel({ l, incidents, contactProps={}, canEdit, canDelete, onE
             <div className="adp-party-row">
               {l.operator ? <UserContact name={l.operator} email={l.operatorEmail} whatsapp={l.operatorWhatsapp} apartments={[]} {...contactProps}/> : <span style={{fontSize:'.8rem',color:'#8a9fa5'}}>—</span>}
               <div style={{display:'flex',gap:5}}>
-                {l.operatorEmail&&<a href={`mailto:${l.operatorEmail}`} className="ac-cbtn">✉️</a>}
-                {opWa&&<a href={`https://wa.me/${opWa}`} className="ac-cbtn ac-cbtn-wa" target="_blank" rel="noreferrer">💬</a>}
+                {l.operatorEmail&&<a href={`mailto:${l.operatorEmail}`} className="ac-cbtn" title={l.operatorEmail}><IconEmail/></a>}
+                {opWa&&<a href={`https://wa.me/${opWa}`} className="ac-cbtn ac-cbtn-wa" target="_blank" rel="noreferrer" title="WhatsApp"><IconWhatsApp/></a>}
               </div>
             </div>
           </div>
@@ -2644,10 +2644,10 @@ function BuildingFloor({ floor, apts, incidents, user, contactProps, isGlobalAdm
           <span className="bld-floor-num" style={{color}}>{floor}</span>
         </div>
         <div className="bld-floor-stats">
-          <span className="bld-stat-pill bld-stat-apts">🏠 {apts.length} {isEn?(apts.length===1?'apt':'apts'):'apto'+(apts.length>1?'s':'')}</span>
-          {openCount>0  && <span className="bld-stat-pill bld-stat-inc">⚠️ {openCount} {isEn?'open':'abierto'}{openCount>1&&isEn?'s':''}</span>}
-          {verCount>0   && <span className="bld-stat-pill bld-stat-ver">👤 {verCount} {isEn?'verified':'verificado'}{verCount>1&&isEn?'s':''}</span>}
-          {resCount>0   && <span className="bld-stat-pill bld-stat-res">✓ {resCount} {isEn?'resolved':'resuelto'}{resCount>1&&isEn?'s':''}</span>}
+          <span className="bld-stat-pill bld-stat-apts" title={isEn?`${apts.length} unit${apts.length===1?'':'s'} on this floor`:`${apts.length} unidad${apts.length===1?'':'es'} en este piso`}>🏠 {apts.length} {isEn?(apts.length===1?'apt':'apts'):'apto'+(apts.length>1?'s':'')}</span>
+          {openCount>0  && <span className="bld-stat-pill bld-stat-inc" title={isEn?`${openCount} open incident${openCount>1?'s':''} — action required`:`${openCount} incidente${openCount>1?'s':''} abierto${openCount>1?'s':''} — requiere acción`}>⚠️ {openCount} {isEn?'open':'abierto'}{openCount>1&&isEn?'s':''}</span>}
+          {verCount>0   && <span className="bld-stat-pill bld-stat-ver" title={isEn?`${verCount} verified incident${verCount>1?'s':''} — pending close`:`${verCount} incidente${verCount>1?'s':''} verificado${verCount>1?'s':''} — pendiente de cierre`}>👤 {verCount} {isEn?'verified':'verificado'}{verCount>1&&isEn?'s':''}</span>}
+          {resCount>0   && <span className="bld-stat-pill bld-stat-res" title={isEn?`${resCount} resolved incident${resCount>1?'s':''}`:`${resCount} incidente${resCount>1?'s':''} resuelto${resCount>1?'s':''}`}>✓ {resCount} {isEn?'resolved':'resuelto'}{resCount>1&&isEn?'s':''}</span>}
         </div>
         <span className={`bld-chev${isOpen?' bld-chev-up':''}`}>›</span>
       </button>
@@ -2713,7 +2713,7 @@ function AptRow({ l, incCount, user, contactProps={}, isGlobalAdmin=false, canEd
       </div>
       {expanded&&(
         <div className="fls-row-detail" onClick={e=>e.stopPropagation()}>
-          {hasOp&&<div className="fls-det-row"><span className="fls-det-lbl">🔧 {isEn?'Operator':'Operador'}</span><span className="fls-det-val">{l.operator?<UserContact name={l.operator} email={l.operatorEmail} whatsapp={l.operatorWhatsapp} apartments={[]} {...contactProps}/>:<span style={{fontSize:'.8rem',color:'#8a9fa5'}}>{isEn?'No name':'Sin nombre'}</span>}<span className="fls-det-acts">{l.operatorEmail&&<a href={`mailto:${l.operatorEmail}`} className="ac-cbtn">✉️</a>}{opWa&&<a href={`https://wa.me/${opWa}`} className="ac-cbtn ac-cbtn-wa" target="_blank" rel="noreferrer">💬</a>}</span></span></div>}
+          {hasOp&&<div className="fls-det-row"><span className="fls-det-lbl">🔧 {isEn?'Operator':'Operador'}</span><span className="fls-det-val">{l.operator?<UserContact name={l.operator} email={l.operatorEmail} whatsapp={l.operatorWhatsapp} apartments={[]} {...contactProps}/>:<span style={{fontSize:'.8rem',color:'#8a9fa5'}}>{isEn?'No name':'Sin nombre'}</span>}<span className="fls-det-acts">{l.operatorEmail&&<a href={`mailto:${l.operatorEmail}`} className="ac-cbtn" title={l.operatorEmail}><IconEmail/></a>}{opWa&&<a href={`https://wa.me/${opWa}`} className="ac-cbtn ac-cbtn-wa" target="_blank" rel="noreferrer" title="WhatsApp"><IconWhatsApp/></a>}</span></span></div>}
           <div className="fls-det-row"><span className="fls-det-lbl">Airbnb</span><span className="fls-det-val">{l.airbnb?<a className="airbnb-lnk" href={l.airbnb} target="_blank" rel="noreferrer">{isEn?'View listing':'Ver listing'}</a>:<span style={{fontSize:'.8rem',color:'#8a9fa5'}}>{isEn?'No link':'Sin enlace'}</span>}</span></div>
           <div className="fls-det-acts-row"><button className="bsm bs-rep" onClick={e=>{e.stopPropagation();onReport();}}>+ {isEn?'Report':'Reporte'}</button>{canEdit&&<button className="bsm bs-edit" onClick={e=>{e.stopPropagation();onEdit();}}>✏️</button>}{canDelete&&<button className="bsm bs-del" onClick={e=>{e.stopPropagation();onDelete();}}>🗑️</button>}<span className={`inc-b ${incCount>0?'ib-open':'ib-none'}`} style={{cursor:'default',display:'inline-flex',alignItems:'center'}}>{incCount>0?(incCount>1?appText(lang,'listings.openReportPlural',{count:incCount}):appText(lang,'listings.openReportSingular',{count:incCount})):appText(lang,'listings.noOpenReports')}</span></div>
         </div>

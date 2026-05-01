@@ -669,6 +669,14 @@ table { width: 100%; border-collapse: collapse; }
 .adp-wfg-list .wfg-section { box-shadow: 0 3px 10px rgba(32,46,38,.06); }
 .adp-wfg-list .irow { margin-bottom: 6px; }
 
+/* ── Branded icon sizing by context ──────────────────────────────────────── */
+/* ac-cbtn: square action buttons on AptDetailPanel / AptRow — 20px icons */
+.ac-cbtn svg { width: 20px !important; height: 20px !important; }
+/* contact-action-link pill buttons (UserContact card) — 13px */
+.contact-action-link svg { width: 13px !important; height: 13px !important; vertical-align: -2px; }
+/* apt-cpop-link in hover popup — keep at 14px (already default) */
+.apt-cpop-link svg { width: 14px !important; height: 14px !important; }
+
 /* ── Incident template chips (category-based, IncidentModal) ─────────────── */
 .inc-chips-hdr {
   font-size: .72rem;
