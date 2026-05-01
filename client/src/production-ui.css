@@ -1373,6 +1373,58 @@ button.dis-pill {
 }
 button.dis-pill:hover { transform: translateY(-1px); box-shadow: 0 2px 6px rgba(32,46,38,.14); }
 
+/* ── Admin panel: enforce readable contrast on all text ─────────────────── */
+/* Card-level baseline — everything inside an admin card must be legible */
+.admin-section,
+.admin-section .admin-sec-body,
+.admin-section label,
+.admin-section .fg label,
+.admin-section p,
+.admin-section span:not([class*="badge"]):not([class*="pill"]):not(.chip):not(.fchip):not(.admin-sec-chevron),
+.admin-section small,
+.admin-section td,
+.admin-section th,
+.admin-section .help-msg,
+.admin-section .form-alert,
+.admin-section .ula-row,
+.admin-section .ula-group-hdr,
+.admin-section .role-cap-label,
+.admin-section .role-ref-title,
+.admin-section .role-ref-badge,
+.admin-section .card-title,
+.admin-section .psub {
+  color: #17313a !important;
+}
+/* Section title strong */
+.admin-section .card-title { font-size: .95rem; font-weight: 900; color: #17313a !important; }
+/* Subtitle stays visible but slightly muted (not too light) */
+.admin-section .psub { color: #2a5060 !important; font-weight: 500; }
+/* Section labels */
+.admin-section .adp-section-lbl,
+.admin-section .ula-group-hdr { color: #17313a !important; font-weight: 900; }
+/* Help messages — readable, not ghost-light */
+.admin-section .help-msg { color: #2e5a68 !important; font-size: .73rem; }
+/* Table headers */
+.admin-table th { color: #17313a !important; font-weight: 900; background: rgba(11,127,140,.09) !important; }
+.admin-table td { color: #17313a !important; }
+.admin-table small { color: #2e5a68 !important; }
+/* Form elements */
+.admin-section input,
+.admin-section select,
+.admin-section textarea { color: #17313a !important; }
+/* Locked / disabled fields still visible */
+.admin-section .locked-field { color: #2e5a68 !important; }
+/* Role ref grid text */
+.role-cap-label { color: #17313a !important; font-size: .75rem; }
+.role-cap-note { color: #2e5a68 !important; }
+/* Permissions labels */
+.admin-section .profile-version,
+.admin-section .profile-head { color: #17313a !important; }
+/* UI Label editor overrides — ensure key names and values are readable */
+.ula-key { color: #17313a !important; font-family: monospace; opacity: .85; }
+.ula-default { color: #2e5a68 !important; font-style: italic; }
+.ula-modified-badge { background: rgba(11,127,140,.15) !important; color: #0b3d4a !important; font-weight: 900; }
+
 /* ── Admin UI Label editor ────────────────────────────────────────────────── */
 .ula-wrap { display: flex; flex-direction: column; gap: 12px; }
 .ula-toolbar {
@@ -1499,8 +1551,8 @@ button.dis-pill:hover { transform: translateY(-1px); box-shadow: 0 2px 6px rgba(
 .rci-yes  { color: #0b7f4f; }
 .rci-no   { color: #b0c0c8; }
 .rci-conf { color: #d9a030; }
-.role-cap-label { font-size: .73rem; color: #203f2b; line-height: 1.4; }
-.role-cap-note { color: #7a9aaa; font-size: .65rem; font-style: italic; }
+.role-cap-label { font-size: .73rem; color: #17313a; line-height: 1.4; }
+.role-cap-note { color: #2e5a68; font-size: .65rem; font-style: italic; }
 
 /* ── Global mobile form improvements ──────────────────────────────────────── */
 /* Prevent iOS auto-zoom on input focus (requires font-size >= 16px) */
