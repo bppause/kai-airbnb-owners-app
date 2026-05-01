@@ -1360,7 +1360,7 @@ export default function App() {
       <main className="main">
         {view==="dashboard" && <Dashboard lang={lang} listings={listings} incidents={incidents} user={user} contactProps={contactProps} setView={setView} showBlacklist={false} onReport={()=>{ if(!user){login();return;} setModal({type:"incident"}); }} effectiveIsGlobalAdmin={effectiveIsGlobalAdmin} effectiveRole={effectiveRole} delegatePerms={delegatePerms} pendingOwner={needsOwnerVerification.length} pendingResolve={needsAdminResolution.length} pendingRegistrations={effectiveCanManageRegistrations ? pendingRegistrations.length : 0} canResolve={canResolveIncidentsNow} canManageRegistrations={effectiveCanManageRegistrations} onOwnerClick={()=>{setIncidentQuickFilter('ownerVerification');setView('incidents');}} onResolveClick={()=>{setIncidentQuickFilter('requiresResolution');setView('incidents');}} onRegistrationsClick={()=>setView('approvals')} />}
         {view==="about" && <CommunityMissionView lang={lang} config={adminInfo.config} />}
-        {view==="listings"  && <ListingsView lang={lang} listings={listings} incidents={incidents} user={user} contactProps={contactProps} isGlobalAdmin={effectiveIsGlobalAdmin} canEditGlobal={delegatePerms.canUpdateGlobalListings} canDeleteGlobal={delegatePerms.canDeleteGlobalListings} canResolveGlobal={canResolveIncidentsNow} floorOpenState={listingFloorOpen} onFloorToggle={toggleListingFloor} onAdd={()=>{ if(!user){login();return;} setModal({type:"addListing"}); }} onEdit={l=>setModal({type:"editListing",data:l})} onDelete={deleteListing} onReport={l=>{ if(!user){login();return;} setModal({type:"incident",data:{aptId:l.id}}); }} onVerify={inc=>setModal({type:"verifyIncident",data:inc})} onResolve={resolveIncident} />}
+        {view==="listings"  && <ListingsView lang={lang} listings={listings} incidents={incidents} user={user} contactProps={contactProps} isGlobalAdmin={effectiveIsGlobalAdmin} canEditGlobal={delegatePerms.canUpdateGlobalListings} canDeleteGlobal={delegatePerms.canDeleteGlobalListings} canResolveGlobal={canResolveIncidentsNow} floorOpenState={listingFloorOpen} onFloorToggle={toggleListingFloor} onAdd={()=>{ if(!user){login();return;} setModal({type:"addListing"}); }} onEdit={l=>setModal({type:"editListing",data:l})} onDelete={deleteListing} onReport={l=>{ if(!user){login();return;} setModal({type:"incident",data:{aptId:l.id}}); }} onVerify={inc=>setModal({type:"verifyIncident",data:inc})} onResolve={resolveIncident} onAddResolution={inc=>setModal({type:"addResolution",data:inc})} />}
         {view==="incidents" && <IncidentsView lang={lang} incidents={incidents} listings={listings} user={user} quickFilter={incidentQuickFilter} onQuickFilterApplied={()=>setIncidentQuickFilter(null)} contactProps={contactProps} isGlobalAdmin={effectiveIsGlobalAdmin} canUpdateGlobal={delegatePerms.canUpdateGlobalIncidents} canDeleteGlobal={delegatePerms.canDeleteGlobalIncidents} canResolveGlobal={canResolveIncidentsNow} onAdd={()=>{ if(!user){login();return;} setModal({type:"incident"}); }} onResolve={resolveIncident} onDelete={deleteIncident} onVerify={inc=>setModal({type:"verifyIncident",data:inc})} onAddResolution={inc=>setModal({type:"addResolution",data:inc})} />}
         {view==="notifications" && user && <NotificationsView lang={lang} notifications={notifications} incidents={incidents} listings={listings} contactProps={contactProps} onRead={markNotificationRead} onReadAll={markAllNotificationsRead} smartAlerts={smartAlerts} />}
         {view==="approvals" && user && effectiveCanManageRegistrations && <PendingApprovalsView lang={lang} pending={pendingRegistrations} onApprove={id=>reviewRegistrationAction(id,'approve')} onDecline={id=>reviewRegistrationAction(id,'decline')} active={activeRegistrations} />}
@@ -2377,7 +2377,7 @@ function MyListings({ listings, incidents, user, contactProps={}, isGlobalAdmin=
                     <AptContactPopup ownerName={l.owner} ownerEmail={l.userEmail||l.email} ownerWaRaw={l.contact} isEn={isEn}/>
                   </div>
                   {isSel&&(
-                    <AptDetailPanel l={l} incidents={incidents} contactProps={contactProps} canEdit canDelete onEdit={()=>onEdit(l)} onDelete={()=>onDelete(l)} onReport={()=>onReport(l)} onClose={()=>setSelectedId(null)} user={user} isGlobalAdmin={isGlobalAdmin} canResolveGlobal={canResolveGlobal} onVerify={onVerify} onResolve={onResolve} lang={lang} isEn={isEn}/>
+                    <AptDetailPanel l={l} incidents={incidents} contactProps={contactProps} canEdit canDelete onEdit={()=>onEdit(l)} onDelete={()=>onDelete(l)} onReport={()=>onReport(l)} onClose={()=>setSelectedId(null)} user={user} isGlobalAdmin={isGlobalAdmin} canResolveGlobal={canResolveGlobal} onVerify={onVerify} onResolve={onResolve} onAddResolution={onAddResolution} lang={lang} isEn={isEn}/>
                   )}
                 </div>
               );
@@ -2465,19 +2465,20 @@ function AptContactPopup({ ownerName='', ownerEmail='', ownerWaRaw='', operatorN
 
 function AptDoor({ l, incidents, isSelected, onSelect, lang, isEn }) {
   const status = aptDoorStatus(l, incidents);
-  const openCount = incidents.filter(i=>i.aptId===l.id&&i.status==='open').length;
+  const aptInc       = incidents.filter(i => i.aptId === l.id);
+  const openCount    = aptInc.filter(i => i.status === 'open').length;
+  const verifiedCount= aptInc.filter(i => i.status === 'verified').length;
+  const resolvedCount= aptInc.filter(i => i.status === 'resolved').length;
+  const totalCount   = aptInc.length;
   const ownerEmail = l.userEmail || l.email || '';
   const ownerWaRaw = l.contact || '';
-  const ownerWaDigits = normalizePhoneForWhatsApp(ownerWaRaw);
-  // Flag numbers missing the + prefix so owners know to update them
-  const waFormatOk = !ownerWaRaw || ownerWaRaw.trim().startsWith('+');
   return (
     <div
       className={`apt-door apt-door-${status}${isSelected?' apt-door-sel':''}`}
       onClick={()=>onSelect(isSelected?null:l.id)}
       role="button"
       aria-expanded={isSelected}
-      aria-label={`${isEn?'Apartment':'Apartamento'} ${l.apt}${isEn?'. Click to see incidents':'. Clic para ver incidentes'}`}
+      aria-label={`${isEn?'Unit':'Unidad'} ${l.apt}${isEn?'. Click to see incidents':'. Clic para ver incidentes'}`}
     >
       {/* Status colour bar across full top edge */}
       <div className={`door-status-bar door-sb-${status}`}/>
@@ -2486,7 +2487,7 @@ function AptDoor({ l, incidents, isSelected, onSelect, lang, isEn }) {
         <span className="door-num">{l.apt}</span>
         {openCount>0 && <span className="door-inc-badge">⚠️ {openCount}</span>}
       </div>
-      {/* Card body */}
+      {/* Card body — owner, operator, capacity */}
       <div className="door-body">
         <div className="door-owner" title={l.owner}>{l.owner||'—'}</div>
         {l.operator && <div className="door-op" title={l.operator}>🔧 {l.operator}</div>}
@@ -2494,6 +2495,17 @@ function AptDoor({ l, incidents, isSelected, onSelect, lang, isEn }) {
           <span className="door-chip">🛏️ {l.rooms}</span>
           <span className="door-chip">👥 {l.guests}</span>
         </div>
+      </div>
+      {/* Incident count summary — broken down by status */}
+      <div className="door-inc-summary">
+        {totalCount === 0
+          ? <span className="dis-clean">✅ {isEn?'No incidents':'Sin incidentes'}</span>
+          : <>
+              {openCount>0&&<span className="dis-pill dis-open">⚠️ {openCount} {isEn?'new':'nuevo'}{openCount>1&&isEn?'s':''}</span>}
+              {verifiedCount>0&&<span className="dis-pill dis-ver">⏳ {verifiedCount}</span>}
+              {resolvedCount>0&&<span className="dis-pill dis-res">✓ {resolvedCount}</span>}
+            </>
+        }
       </div>
       {/* Hover overlay — owner + operator contacts with branded icons */}
       <div className="door-hover-overlay">
@@ -2511,22 +2523,19 @@ function AptDoor({ l, incidents, isSelected, onSelect, lang, isEn }) {
       <div className="door-footer">
         {isSelected
           ? `▲ ${isEn?'Close':'Cerrar'}`
-          : `👆 ${isEn?'Click · incidents':'Clic · incidentes'}`}
+          : `👆 ${isEn?'View incidents':'Ver incidentes'}`}
       </div>
     </div>
   );
 }
 
-function AptDetailPanel({ l, incidents, contactProps={}, canEdit, canDelete, onEdit, onDelete, onReport, onClose, user, isGlobalAdmin, canResolveGlobal, onVerify, onResolve, lang, isEn }) {
+function AptDetailPanel({ l, incidents, contactProps={}, canEdit, canDelete, onEdit, onDelete, onReport, onClose, user, isGlobalAdmin, canResolveGlobal, onVerify, onResolve, onAddResolution, lang, isEn }) {
   const aptInc = [...incidents.filter(i=>i.aptId===l.id)].sort((a,b)=>new Date(b.createdAt)-new Date(a.createdAt));
   const ownerWa = normalizePhoneForWhatsApp(l.contact);
   const opWa = normalizePhoneForWhatsApp(l.operatorWhatsapp);
   const hasOp = !!(l.operator||l.operatorEmail||l.operatorWhatsapp);
-  const incGroups = [
-    { key:'open',     icon:'⚠️', label:isEn?'Open':'Abiertos',       color:'#d9a030', items:aptInc.filter(i=>i.status==='open') },
-    { key:'verified', icon:'👤', label:isEn?'Verified':'Verificados', color:'#0b7f4f', items:aptInc.filter(i=>i.status==='verified') },
-    { key:'resolved', icon:'✓',  label:isEn?'Resolved':'Resueltos',   color:'#6a9a7a', items:aptInc.filter(i=>i.status==='resolved') },
-  ].filter(g=>g.items.length>0);
+  // Group expand/collapse state for the detail panel
+  const [panelGO, setPanelGO] = useState({open:true, verified:true, resolved:false});
 
   return (
     <div className="adp-wrap">
@@ -2574,49 +2583,50 @@ function AptDetailPanel({ l, incidents, contactProps={}, canEdit, canDelete, onE
         <div className="adp-inc-hdr">{isEn?'Incident history':'Historial de incidentes'} <span className="adp-inc-count">{aptInc.length}</span></div>
         {aptInc.length===0
           ? <div className="adp-inc-empty">✅ {isEn?'No incidents on record':'Sin incidentes registrados'}</div>
-          : incGroups.map(g=>(
-            <div key={g.key} className="adp-inc-group">
-              <div className="adp-inc-group-lbl" style={{color:g.color}}>{g.icon} {g.label} ({g.items.length})</div>
-              {g.items.map(inc=>{
-                const ti=INCIDENT_TYPES.find(t=>t.value===inc.type)||INCIDENT_TYPES[6];
-                const ci=GUEST_CATEGORIES.find(c=>c.value===inc.category);
-                const isOwner=user?.uid===l.ownerUid;
-                const guests=normalizeOwnerGuests(inc);
+          : <div className="adp-wfg-list">
+              {[
+                {key:'open',     icon:'⚠️', label:isEn?'New':'Nuevos',        sublabel:isEn?'Open — needs attention':'Abiertos — requiere atención',     color:'#d9a030'},
+                {key:'verified', icon:'⏳', label:isEn?'In Progress':'En progreso', sublabel:isEn?'Verified — pending close':'Verificado — pendiente de cierre', color:'#0b7f4f'},
+                {key:'resolved', icon:'✓',  label:isEn?'Closed':'Cerrados',    sublabel:isEn?'Resolved incidents':'Incidentes resueltos',                  color:'#6a9a7a'},
+              ].map(g => {
+                const gInc = aptInc.filter(i => i.status === g.key);
+                if (gInc.length === 0) return null;
                 return (
-                  <div key={inc.id} className="adp-inc-card">
-                    <div className="adp-inc-top">
-                      <span className="ir-type" style={{background:ti.bg,color:ti.color}}>{incidentTypeLabel(ti.value,lang)}</span>
-                      {ci&&<span className="ir-cat" style={{background:ci.bg,color:ci.color}}>{ci.icon}</span>}
-                      {/* Reporter context — who filed this incident */}
-                      {inc.reporterUid===user?.uid
-                        ? <span className="inc-ctx-tag inc-ctx-reporter">{isEn?'📋 I reported':'📋 Yo reporté'}</span>
-                        : <span className="adp-inc-reporter-name">📋 {isEn?'By':'Por'}: {inc.reporterName||'—'}</span>}
-                      <span className="adp-inc-date">{fmtDate(inc.date)}</span>
-                    </div>
-                    <div className="adp-inc-desc">{inc.desc}</div>
-                    {guests.length>0 ? <div className="adp-inc-guest">👥 {guests.map(guestFullName).join(' · ')}</div> : inc.guestName&&<div className="adp-inc-guest">👤 {inc.guestName}{inc.guestCity?` · 📍 ${inc.guestCity}`:''}</div>}
-                    {inc.ownerComments&&<div className="adp-inc-comments adp-comment-action"><span className="adp-comment-lbl">💡 {isEn?'Action taken':'Acción tomada'}</span> {inc.ownerComments}</div>}
-                    {inc.ownerResolution&&<div className="adp-inc-comments adp-comment-resolution"><span className="adp-comment-lbl">🔍 {isEn?'Owner resolution':'Resolución'}</span> {inc.ownerResolution}</div>}
-                    {inc.resolutionComments&&<div className="adp-inc-comments adp-comment-closed"><span className="adp-comment-lbl">✓ {isEn?'Closed by admin':'Cerrado por admin'}</span> {inc.resolutionComments}</div>}
-                    {inc.status==='verified'&&!inc.ownerResolution&&isOwner&&<div className="inc-res-warn">{appText(lang,'form.resolutionRequired')}</div>}
-                    <div style={{display:'flex',gap:6,marginTop:6,flexWrap:'wrap'}}>
-                      {inc.status==='open'&&isOwner&&<button className="bsm bs-resolve" onClick={()=>onVerify(inc)}>{appText(lang,'reports.verify')}</button>}
-                      {inc.status==='verified'&&isOwner&&!inc.ownerResolution&&<button className="bsm bs-edit" onClick={()=>onAddResolution&&onAddResolution(inc)}>{appText(lang,'form.addResolution')}</button>}
-                      {inc.status==='verified'&&(isGlobalAdmin||canResolveGlobal)&&inc.ownerResolution&&<button className="bsm bs-resolve" onClick={()=>onResolve(inc.id)}>{appText(lang,'reports.close')}</button>}
-                      {inc.status==='verified'&&(isGlobalAdmin||canResolveGlobal)&&!inc.ownerResolution&&<button className="bsm" style={{opacity:.5,cursor:'not-allowed'}} title={isEn?'Waiting for owner resolution':'Esperando resolución del propietario'}>{appText(lang,'reports.close')}</button>}
-                    </div>
-                  </div>
+                  <WorkflowGroup
+                    key={g.key}
+                    statusKey={g.key}
+                    icon={g.icon}
+                    label={g.label}
+                    sublabel={g.sublabel}
+                    color={g.color}
+                    incidents={gInc}
+                    listings={[l]}
+                    isOpen={panelGO[g.key]}
+                    onToggle={()=>setPanelGO(s=>({...s,[g.key]:!s[g.key]}))}
+                    user={user}
+                    contactProps={contactProps}
+                    isGlobalAdmin={isGlobalAdmin}
+                    canUpdateGlobal={false}
+                    canDeleteGlobal={false}
+                    canResolveGlobal={canResolveGlobal}
+                    onResolve={onResolve}
+                    onDelete={()=>{}}
+                    onVerify={onVerify}
+                    onAddResolution={onAddResolution}
+                    hideUnit
+                    lang={lang}
+                    isEn={isEn}
+                  />
                 );
               })}
             </div>
-          ))
         }
       </div>
     </div>
   );
 }
 
-function BuildingFloor({ floor, apts, incidents, user, contactProps, isGlobalAdmin, canEditGlobal, canDeleteGlobal, canResolveGlobal, onEdit, onDelete, onReport, onVerify, onResolve, isOpen, onToggle, lang, isEn }) {
+function BuildingFloor({ floor, apts, incidents, user, contactProps, isGlobalAdmin, canEditGlobal, canDeleteGlobal, canResolveGlobal, onEdit, onDelete, onReport, onVerify, onResolve, onAddResolution, isOpen, onToggle, lang, isEn }) {
   const [selectedAptId, setSelectedAptId] = useState(null);
   const color = floorColor(floor);
   const floorInc   = incidents.filter(i=>apts.some(l=>l.id===i.aptId));
@@ -2665,6 +2675,7 @@ function BuildingFloor({ floor, apts, incidents, user, contactProps, isGlobalAdm
               canResolveGlobal={canResolveGlobal}
               onVerify={onVerify}
               onResolve={onResolve}
+              onAddResolution={onAddResolution}
               lang={lang}
               isEn={isEn}
             />
@@ -2730,7 +2741,7 @@ function FloorSection({ floor, apts, openCount, incidents, user, contactProps, i
   );
 }
 
-function ListingsView({ listings, incidents, user, contactProps={}, isGlobalAdmin=false, canEditGlobal=false, canDeleteGlobal=false, canResolveGlobal=false, floorOpenState={}, onFloorToggle, onAdd, onEdit, onDelete, onReport, onVerify, onResolve, lang="es-CO" }) {
+function ListingsView({ listings, incidents, user, contactProps={}, isGlobalAdmin=false, canEditGlobal=false, canDeleteGlobal=false, canResolveGlobal=false, floorOpenState={}, onFloorToggle, onAdd, onEdit, onDelete, onReport, onVerify, onResolve, onAddResolution, lang="es-CO" }) {
   const [search, setSearch]   = useState('');
   const [scope, setScope]     = useState('all');
   const isEn = lang === 'en';
@@ -2769,7 +2780,7 @@ function ListingsView({ listings, incidents, user, contactProps={}, isGlobalAdmi
 
       {filtered.length===0
         ? <EmptyState icon="🏠" title={appText(lang,'listings.none')} sub={appText(lang,'listings.noResults')}/>
-        : <div className="bld-building">{floorNums.map(f=><BuildingFloor key={f} floor={f} apts={byFloor(f)} incidents={incidents} user={user} contactProps={contactProps} isGlobalAdmin={isGlobalAdmin} canEditGlobal={canEditGlobal} canDeleteGlobal={canDeleteGlobal} canResolveGlobal={canResolveGlobal} onEdit={onEdit} onDelete={onDelete} onReport={onReport} onVerify={onVerify} onResolve={onResolve} isOpen={!!floorOpenState[f]} onToggle={()=>onFloorToggle(f)} lang={lang} isEn={isEn}/>)}</div>
+        : <div className="bld-building">{floorNums.map(f=><BuildingFloor key={f} floor={f} apts={byFloor(f)} incidents={incidents} user={user} contactProps={contactProps} isGlobalAdmin={isGlobalAdmin} canEditGlobal={canEditGlobal} canDeleteGlobal={canDeleteGlobal} canResolveGlobal={canResolveGlobal} onEdit={onEdit} onDelete={onDelete} onReport={onReport} onVerify={onVerify} onResolve={onResolve} onAddResolution={onAddResolution} isOpen={!!floorOpenState[f]} onToggle={()=>onFloorToggle(f)} lang={lang} isEn={isEn}/>)}</div>
       }
     </div>
   );
@@ -2863,7 +2874,7 @@ const normalizeOwnerGuests = (incident={}) => {
 const guestFullName = (g={}) => [g.firstName, g.middleName, g.lastName].map(x=>String(x||'').trim()).filter(Boolean).join(' ');
 const guestLocation = (g={}) => [g.city, g.country].map(x=>String(x||'').trim()).filter(Boolean).join(', ');
 
-function WorkflowGroup({ statusKey, icon, label, sublabel, color, incidents, listings, isOpen, onToggle, user, contactProps, isGlobalAdmin, canUpdateGlobal, canDeleteGlobal, canResolveGlobal, onResolve, onDelete, onVerify, onAddResolution, lang, isEn }) {
+function WorkflowGroup({ statusKey, icon, label, sublabel, color, incidents, listings, isOpen, onToggle, user, contactProps, isGlobalAdmin, canUpdateGlobal, canDeleteGlobal, canResolveGlobal, onResolve, onDelete, onVerify, onAddResolution, hideUnit=false, lang, isEn }) {
   const count = incidents.length;
   return (
     <div className="wfg-section">
@@ -2880,7 +2891,7 @@ function WorkflowGroup({ statusKey, icon, label, sublabel, color, incidents, lis
         <div className="wfg-body">
           {count===0
             ? <div className="wfg-empty">✓ {isEn?'None here':'Nada aquí'}</div>
-            : incidents.map(inc=><IRow key={inc.id} inc={inc} user={user} listings={listings} contactProps={contactProps} isGlobalAdmin={isGlobalAdmin} canUpdateGlobal={canUpdateGlobal} canDeleteGlobal={canDeleteGlobal} canResolveGlobal={canResolveGlobal} onResolve={onResolve} onDelete={onDelete} onVerify={onVerify} onAddResolution={onAddResolution} lang={lang}/>)
+            : incidents.map(inc=><IRow key={inc.id} inc={inc} user={user} listings={listings} contactProps={contactProps} isGlobalAdmin={isGlobalAdmin} canUpdateGlobal={canUpdateGlobal} canDeleteGlobal={canDeleteGlobal} canResolveGlobal={canResolveGlobal} onResolve={onResolve} onDelete={onDelete} onVerify={onVerify} onAddResolution={onAddResolution} hideUnit={hideUnit} lang={lang}/>)
           }
         </div>
       )}
@@ -3169,7 +3180,35 @@ function NotificationsView({ notifications, incidents, listings=[], contactProps
   );
 }
 
-function IRow({ inc, user, listings=[], contactProps={}, isGlobalAdmin=false, canUpdateGlobal=false, canDeleteGlobal=false, canResolveGlobal=false, onResolve, onDelete, onVerify, onAddResolution, compact, naughtyMode, lang="es-CO" }) {
+// Compact unit card shown next to incident rows — hover reveals owner/operator contact links
+function UnitMiniCard({ listing, isEn=false }) {
+  if (!listing) return null;
+  const ownerEmail = listing.userEmail || listing.email || '';
+  const ownerWaRaw = listing.contact || '';
+  return (
+    <div className="unit-mini-card apt-cpop-wrap">
+      <div className="umc-header">
+        <span className="umc-apt">🏠 {listing.apt}</span>
+        {listing.tower&&<span className="umc-tower">{listing.tower}</span>}
+      </div>
+      <div className="umc-people">
+        <span className="umc-owner" title={listing.owner||'—'}>👤 {listing.owner||'—'}</span>
+        {listing.operator&&<span className="umc-op" title={listing.operator}>🔧 {listing.operator}</span>}
+      </div>
+      <AptContactPopup
+        ownerName={listing.owner}
+        ownerEmail={ownerEmail}
+        ownerWaRaw={ownerWaRaw}
+        operatorName={listing.operator}
+        operatorEmail={listing.operatorEmail}
+        opWaRaw={listing.operatorWhatsapp}
+        isEn={isEn}
+      />
+    </div>
+  );
+}
+
+function IRow({ inc, user, listings=[], contactProps={}, isGlobalAdmin=false, canUpdateGlobal=false, canDeleteGlobal=false, canResolveGlobal=false, onResolve, onDelete, onVerify, onAddResolution, compact, naughtyMode, hideUnit=false, lang="es-CO" }) {
   const listing   = listings.find(l=>l.id===inc.aptId);
   const isOwner   = Boolean(user?.uid && listing?.ownerUid === user.uid);
   const isReporter= Boolean(user?.uid && inc.reporterUid === user.uid);
@@ -3179,10 +3218,11 @@ function IRow({ inc, user, listings=[], contactProps={}, isGlobalAdmin=false, ca
   return (
     <div className={`irow ${(inc.status==="resolved"||inc.status==="verified")?"irow-res":""} ${naughtyMode?"irow-naughty":""}`}>
       <div className="ir-l">
-        <div className="ir-apt-context">
-          <div className="ir-apt">{inc.aptLabel}</div>
-          {listing&&<div className="ir-apt-sub">👤 {listing.owner||'—'}{listing.operator?` · 🔧 ${listing.operator}`:''}</div>}
-        </div>
+        {!hideUnit && (listing
+          ? <UnitMiniCard listing={listing} isEn={isEn}/>
+          : <div className="ir-apt-context"><div className="ir-apt">{inc.aptLabel}</div></div>
+        )}
+        {hideUnit && <div className="ir-apt-context"><div className="ir-apt">{inc.aptLabel}</div></div>}
         {/* Who the current user is in relation to this incident */}
         {user&&(isReporter||isOwner)&&(
           <div className="ir-ctx-tags">

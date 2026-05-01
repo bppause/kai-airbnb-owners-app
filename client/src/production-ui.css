@@ -543,6 +543,101 @@ table { width: 100%; border-collapse: collapse; }
 .door-hover-overlay .apt-cpop-miss { color: rgba(255,255,255,.35); }
 .door-hover-overlay .apt-cpop-link { color: #fff; }
 
+/* ── door-inc-summary: incident count pills on each unit door card ────────── */
+.door-inc-summary {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  align-items: center;
+  padding: 5px 10px 6px;
+  border-top: 1px solid rgba(47,79,58,.08);
+  min-height: 28px;
+  flex-shrink: 0;
+}
+.dis-clean { font-size: .6rem; color: #4a8a6a; font-weight: 700; }
+.dis-pill {
+  border-radius: 999px;
+  padding: 2px 7px;
+  font-size: .6rem;
+  font-weight: 800;
+  white-space: nowrap;
+  border: 1px solid transparent;
+  line-height: 1.4;
+}
+.dis-open { background: rgba(160,80,0,.1);  color: #a05000; border-color: rgba(160,80,0,.22); }
+.dis-ver  { background: rgba(11,127,79,.1); color: #0b5f3a; border-color: rgba(11,127,79,.22); }
+.dis-res  { background: rgba(80,130,100,.1);color: #4a7060; border-color: rgba(80,130,100,.22); }
+
+/* ── UnitMiniCard: compact unit card with hover contact popup in IRow ─────── */
+.unit-mini-card {
+  position: relative;
+  background: rgba(255,255,255,.95);
+  border: 1.5px solid rgba(47,79,58,.18);
+  border-radius: 10px;
+  padding: 7px 10px 6px;
+  min-width: 130px;
+  max-width: 180px;
+  cursor: default;
+  transition: border-color .15s, box-shadow .15s;
+  flex-shrink: 0;
+}
+.unit-mini-card:hover {
+  border-color: rgba(11,127,140,.38);
+  box-shadow: 0 4px 14px rgba(11,127,140,.14);
+}
+.umc-header { display: flex; align-items: center; gap: 5px; margin-bottom: 3px; }
+.umc-apt {
+  font-family: 'Playfair Display', serif;
+  font-size: .82rem;
+  font-weight: 900;
+  color: #203f2b;
+  line-height: 1;
+}
+.umc-tower {
+  font-size: .58rem;
+  color: #8a9fa5;
+  background: rgba(47,79,58,.08);
+  padding: 1px 5px;
+  border-radius: 999px;
+  line-height: 1.4;
+}
+.umc-people { display: flex; flex-direction: column; gap: 1px; }
+.umc-owner {
+  font-size: .7rem;
+  font-weight: 700;
+  color: #203f2b;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 160px;
+}
+.umc-op {
+  font-size: .64rem;
+  color: #496674;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 160px;
+}
+/* Contact popup appears above the mini card */
+.unit-mini-card .apt-cpop {
+  bottom: calc(100% + 7px);
+  top: auto;
+  left: 0;
+  right: auto;
+}
+/* Override hover-bridge: extend downward from bottom of popup to card */
+.unit-mini-card .apt-cpop::before {
+  top: auto;
+  bottom: -7px;
+  height: 7px;
+}
+
+/* ── adp-wfg-list: workflow groups inside AptDetailPanel ─────────────────── */
+.adp-wfg-list { display: flex; flex-direction: column; gap: 8px; margin-top: 4px; }
+.adp-wfg-list .wfg-section { box-shadow: 0 3px 10px rgba(32,46,38,.06); }
+.adp-wfg-list .irow { margin-bottom: 6px; }
+
 /* ── Incident template chips (category-based, IncidentModal) ─────────────── */
 .inc-chips-hdr {
   font-size: .72rem;
