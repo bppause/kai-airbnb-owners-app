@@ -2555,10 +2555,13 @@ function UnitDetailCard({ l, incidents, canEdit=false, canDelete=false, onEdit, 
   defaultStep='info',
   lang="es-CO", isEn=false }) {
 
-  // step: 'info' | 'incidents'  (step 3 is now inline expand within step 2)
+  // step: 'info' | 'incidents' | 'incident'
   const [step, setStep] = useState(defaultStep||'info');
-  const [expandedIds, setExpandedIds] = useState(new Set());
-  const toggleExpand = id => setExpandedIds(prev => { const n=new Set(prev); n.has(id)?n.delete(id):n.add(id); return n; });
+  const [selectedIncId, setSelectedIncId] = useState(null);
+
+  const goToIncident = (id) => { setSelectedIncId(id); setStep('incident'); };
+  const goToList     = ()  => { setStep('incidents'); setSelectedIncId(null); };
+  const goToInfo     = ()  => { setStep('info'); setSelectedIncId(null); };
 
   const aptInc = [...incidents.filter(i => i.aptId === l.id)]
     .sort((a,b) => new Date(b.createdAtFull||b.createdAt) - new Date(a.createdAtFull||a.createdAt));
@@ -2665,72 +2668,13 @@ function UnitDetailCard({ l, incidents, canEdit=false, canDelete=false, onEdit, 
     </div>
   );
 
-  // ── Shared incident timeline renderer (used in step 2 expanded cards) ────
-  const IncidentTimeline = ({inc}) => {
-    const latestInc = incidents.find(i=>i.id===inc.id) || inc;
-    const guests = normalizeOwnerGuests(latestInc);
-    const isOwner = Boolean(user?.uid && l.ownerUid === user.uid);
-    const hasPendingRes = latestInc.status==='verified'&&!String(latestInc.ownerResolution||'').trim();
-    const TlStep = ({icon, title, ts, children, accent}) => (
-      <div className={`udc-tl-step${accent?' udc-tl-'+accent:''}`}>
-        <div className="udc-tl-icon">{icon}</div>
-        <div className="udc-tl-body">
-          <div className="udc-tl-header">
-            <span className="udc-tl-title">{title}</span>
-            {ts&&<span className="udc-tl-ts">{fmtDateTime(ts, lang)}</span>}
-          </div>
-          {children&&<div className="udc-tl-content">{children}</div>}
-        </div>
-      </div>
-    );
-    return (
-      <div className="udc-inc-expand">
-        <div className="udc-timeline">
-          <TlStep icon="📅" title={isEn?'Filed':'Reportado'} ts={latestInc.createdAtFull||latestInc.createdAt} accent="filed">
-            <div className="udc-tl-lbl">{isEn?'Reported by':'Reportado por'}: <strong>{latestInc.reporterName||'—'}</strong></div>
-          </TlStep>
-          <TlStep icon="📝" title={isEn?'Description':'Descripción'} accent="desc">
-            <div className="udc-tl-desc">{latestInc.desc}</div>
-          </TlStep>
-          {guests.length>0&&(
-            <TlStep icon="👥" title={isEn?'Guests':'Huéspedes'} ts={latestInc.ownerVerifiedAt} accent="guests">
-              {guests.map((g,i)=><div key={i} className="udc-tl-guest"><strong>{guestFullName(g)}</strong>{guestLocation(g)&&<span className="udc-tl-loc"> · 📍 {guestLocation(g)}</span>}</div>)}
-            </TlStep>
-          )}
-          {latestInc.ownerComments&&<TlStep icon="✅" title={isEn?'Action taken':'Acción tomada'} ts={latestInc.ownerVerifiedAt} accent="action"><div className="udc-tl-text">{latestInc.ownerComments}</div></TlStep>}
-          {latestInc.ownerResolution&&<TlStep icon="🔍" title={isEn?'Resolution':'Respuesta'} ts={latestInc.ownerResolutionAt||latestInc.ownerVerifiedAt} accent="resolution"><div className="udc-tl-text">{latestInc.ownerResolution}</div></TlStep>}
-          {latestInc.status==='resolved'&&<TlStep icon="✓" title={isEn?'Closed':'Cerrado'} ts={latestInc.resolvedAt} accent="closed">{latestInc.resolvedBy&&<div className="udc-tl-lbl">{isEn?'By':'Por'}: <strong>{latestInc.resolvedBy}</strong></div>}{latestInc.resolutionComments&&<div className="udc-tl-text" style={{marginTop:4}}>{latestInc.resolutionComments}</div>}</TlStep>}
-        </div>
-        {/* Action needed callout */}
-        {user&&latestInc.status!=='resolved'&&isOwner&&(
-          <div className={`udc-action-needed${latestInc.status==='open'?' udc-an-step1':' udc-an-step2'}`}>
-            <div className="udc-an-step-num">{latestInc.status==='open'?'①':'②'}</div>
-            <div className="udc-an-body">
-              <strong>{latestInc.status==='open'?(isEn?'Your action needed — Step 1':'Tu acción — Paso 1'):(isEn?'Your action needed — Step 2':'Tu acción — Paso 2')}</strong>
-              <span>{latestInc.status==='open'?(isEn?'Confirm guest details and document your immediate action.':'Confirma datos del huésped y documenta tu acción inmediata.'):(isEn?'Add your resolution so admin can close this incident.':'Agrega tu respuesta para que el admin pueda cerrar.')}</span>
-            </div>
-          </div>
-        )}
-        {user&&latestInc.status!=='resolved'&&(
-          <div className="udc-inc-detail-acts">
-            {latestInc.status==='open'&&isOwner&&<button className="btn-p" style={{flex:1}} onClick={()=>onVerify&&onVerify(latestInc)}>① {isEn?'Verify now':'Verificar ahora'}</button>}
-            {latestInc.status==='verified'&&isOwner&&hasPendingRes&&<button className="btn-p" style={{flex:1}} onClick={()=>onAddResolution&&onAddResolution(latestInc)}>② {isEn?'Add resolution':'Agregar respuesta'}</button>}
-            {latestInc.status==='verified'&&isOwner&&!hasPendingRes&&<div className="udc-step-done">✓ {isEn?'Both steps complete — awaiting admin close':'Pasos completados — esperando cierre del admin'}</div>}
-            {(isGlobalAdmin||canResolveGlobal)&&latestInc.status==='verified'&&!hasPendingRes&&<button className="bsm bs-resolve" onClick={()=>onResolve&&onResolve(latestInc.id)}>{isEn?'Close incident':'Cerrar incidente'}</button>}
-            {(isGlobalAdmin||canResolveGlobal)&&latestInc.status==='verified'&&hasPendingRes&&<div className="udc-admin-waiting">🔒 {isEn?'Waiting for owner resolution (Step 2)':'Esperando respuesta del propietario (Paso 2)'}</div>}
-          </div>
-        )}
-      </div>
-    );
-  };
-
-  // ── STEP 2: Incident summary list with expand/collapse ────────────────
+  // ── STEP 2: Incident list (click → Step 3 detail) ─────────────────────
   if (step === 'incidents') return (
     <div className="udc-wrap">
       <UnitHero/>
       <Breadcrumb crumbs={[
-        {label:`${isEn?'Unit':'Unidad'} ${l.apt}`, onClick:()=>{setStep('info');setExpandedIds(new Set());}},
-        {label:isEn?'Incidents':'Incidentes'}
+        {label:`${isEn?'Unit':'Unidad'} ${l.apt}`, onClick: goToInfo},
+        {label: isEn?'Incidents':'Incidentes'}
       ]}/>
       {aptInc.length===0
         ? <div className="adp-inc-empty" style={{marginTop:16}}>✅ {isEn?'No incidents on record':'Sin incidentes registrados'}</div>
@@ -2741,32 +2685,188 @@ function UnitDetailCard({ l, incidents, canEdit=false, canDelete=false, onEdit, 
               const guests = normalizeOwnerGuests(inc);
               const hasPendingRes = inc.status==='verified'&&!String(inc.ownerResolution||'').trim();
               const hasAwaitingAdmin = inc.status==='verified'&&String(inc.ownerResolution||'').trim();
-              const isExp = expandedIds.has(inc.id);
+              const statusLabel = inc.status==='resolved'
+                ? {label: isEn?'Closed':'Cerrado',   cls:'udc-s-res',  icon:'✓'}
+                : inc.status==='open'
+                ? {label: isEn?'Open':'Abierto',      cls:'udc-s-open', icon:'⚠️'}
+                : hasPendingRes
+                ? {label: isEn?'Resolution':'Respuesta', cls:'udc-s-pres', icon:'📝'}
+                : {label: isEn?'Awaiting admin':'Admin', cls:'udc-s-wait', icon:'⏳'};
               return (
-                <div key={inc.id} className={`udc-inc-card-wrap${isExp?' udc-inc-card-expanded':''}`}>
-                  {/* Summary row — click to toggle */}
-                  <button type="button" className="udc-inc-card" onClick={()=>toggleExpand(inc.id)}>
-                    <div className="udc-inc-card-top">
-                      <span className="ir-type" style={{background:ti.bg,color:ti.color,fontSize:'.65rem',padding:'2px 7px',borderRadius:'999px'}}>{incidentTypeLabel(ti.value,lang)}</span>
-                      {ci&&<span className="ir-cat" style={{background:ci.bg,color:ci.color,fontSize:'.65rem',padding:'2px 7px',borderRadius:'999px'}}>{ci.icon} {categoryLabel(ci.value,lang)}</span>}
-                      <span className={`udc-inc-status${inc.status==='resolved'?' udc-s-res':inc.status==='open'?' udc-s-open':hasPendingRes?' udc-s-pres':' udc-s-wait'}`}>
-                        {inc.status==='resolved'?`✓ ${isEn?'Closed':'Cerrado'}`:inc.status==='open'?`⚠️ ${isEn?'Verify':'Verificar'}`:hasPendingRes?`📝 ${isEn?'Resolution':'Respuesta'}`:hasAwaitingAdmin?`⏳ ${isEn?'Admin':'Admin'}`:''}
-                      </span>
-                      <span className="udc-inc-date">{fmtDate(inc.date)}</span>
-                      <span className={`udc-inc-card-chev${isExp?' udc-inc-card-chev-up':''}`}>›</span>
+                <button key={inc.id} type="button" className="udc-inc-row" onClick={()=>goToIncident(inc.id)}>
+                  <div className="udc-inc-row-left">
+                    <div className="udc-inc-row-badges">
+                      <span className="ir-type" style={{background:ti.bg,color:ti.color,fontSize:'.63rem',padding:'2px 8px',borderRadius:'999px',fontWeight:700}}>{incidentTypeLabel(ti.value,lang)}</span>
+                      {ci&&<span className="ir-cat" style={{background:ci.bg,color:ci.color,fontSize:'.63rem',padding:'2px 8px',borderRadius:'999px'}}>{ci.icon} {categoryLabel(ci.value,lang)}</span>}
                     </div>
-                    <div className="udc-inc-card-desc">{String(inc.desc||'').slice(0,120)}{String(inc.desc||'').length>120?'…':''}</div>
-                    {!isExp&&guests.length>0&&<div className="udc-inc-card-guest">👥 {guests.map(guestFullName).join(' · ')}</div>}
-                  </button>
-                  {/* Expandable detail */}
-                  {isExp&&<IncidentTimeline inc={inc}/>}
-                </div>
+                    <div className="udc-inc-row-desc">{String(inc.desc||'').slice(0,100)}{String(inc.desc||'').length>100?'…':''}</div>
+                    <div className="udc-inc-row-meta">
+                      {guests.length>0&&<span className="udc-inc-row-guests">👥 {guests.slice(0,2).map(guestFullName).join(' · ')}{guests.length>2?` +${guests.length-2}`:''}</span>}
+                      <span className="udc-inc-row-date">📅 {fmtDate(inc.date)}</span>
+                    </div>
+                  </div>
+                  <div className="udc-inc-row-right">
+                    <span className={`udc-inc-status ${statusLabel.cls}`}>{statusLabel.icon} {statusLabel.label}</span>
+                    <span className="udc-inc-row-chev">›</span>
+                  </div>
+                </button>
               );
             })}
           </div>
       }
     </div>
   );
+
+  // ── STEP 3: Full incident detail ───────────────────────────────────────
+  if (step === 'incident') {
+    const inc = incidents.find(i=>i.id===selectedIncId) || aptInc.find(i=>i.id===selectedIncId);
+    if (!inc) return (
+      <div className="udc-wrap">
+        <UnitHero/>
+        <Breadcrumb crumbs={[
+          {label:`${isEn?'Unit':'Unidad'} ${l.apt}`, onClick: goToInfo},
+          {label: isEn?'Incidents':'Incidentes', onClick: goToList},
+          {label: isEn?'Detail':'Detalle'}
+        ]}/>
+        <div className="adp-inc-empty" style={{marginTop:16}}>⚠️ {isEn?'Incident not found':'Incidente no encontrado'}</div>
+      </div>
+    );
+    const ti = INCIDENT_TYPES.find(t=>t.value===inc.type)||INCIDENT_TYPES[6];
+    const ci = GUEST_CATEGORIES.find(c=>c.value===inc.category);
+    const guests = normalizeOwnerGuests(inc);
+    const isOwner = Boolean(user?.uid && l.ownerUid === user.uid);
+    const hasPendingRes = inc.status==='verified'&&!String(inc.ownerResolution||'').trim();
+    const statusMeta = inc.status==='resolved'
+      ? {label: isEn?'Closed':'Cerrado',         cls:'idd-status-resolved', icon:'✓'}
+      : inc.status==='open'
+      ? {label: isEn?'Open — action needed':'Abierto — acción requerida', cls:'idd-status-open', icon:'⚠️'}
+      : hasPendingRes
+      ? {label: isEn?'Verified — resolution needed':'Verificado — falta respuesta', cls:'idd-status-pres', icon:'📝'}
+      : {label: isEn?'Awaiting admin close':'En espera del admin', cls:'idd-status-wait', icon:'⏳'};
+
+    const TlStep = ({icon, title, ts, accent, children}) => (
+      <div className={`idd-tl-step${accent?' idd-tl-'+accent:''}`}>
+        <div className="idd-tl-dot"></div>
+        <div className="idd-tl-body">
+          <div className="idd-tl-header">
+            <span className="idd-tl-icon">{icon}</span>
+            <span className="idd-tl-title">{title}</span>
+            {ts&&<span className="idd-tl-ts">{fmtDateTime(ts, lang)}</span>}
+          </div>
+          {children&&<div className="idd-tl-content">{children}</div>}
+        </div>
+      </div>
+    );
+
+    return (
+      <div className="udc-wrap">
+        <UnitHero/>
+        <Breadcrumb crumbs={[
+          {label:`${isEn?'Unit':'Unidad'} ${l.apt}`, onClick: goToInfo},
+          {label: isEn?'Incidents':'Incidentes', onClick: goToList},
+          {label: `${ti.icon||''} ${incidentTypeLabel(ti.value,lang)}`}
+        ]}/>
+
+        {/* ── Status banner ── */}
+        <div className={`idd-status-banner ${statusMeta.cls}`}>
+          <span className="idd-status-icon">{statusMeta.icon}</span>
+          <span className="idd-status-label">{statusMeta.label}</span>
+        </div>
+
+        {/* ── Meta chips ── */}
+        <div className="idd-chips">
+          <span className="ir-type" style={{background:ti.bg,color:ti.color,padding:'4px 11px',borderRadius:'999px',fontSize:'.72rem',fontWeight:700}}>{ti.icon||''} {incidentTypeLabel(ti.value,lang)}</span>
+          {ci&&<span className="ir-cat" style={{background:ci.bg,color:ci.color,padding:'4px 11px',borderRadius:'999px',fontSize:'.72rem'}}>{ci.icon} {categoryLabel(ci.value,lang)}</span>}
+          <span className="idd-chip-date">📅 {fmtDate(inc.date)}</span>
+        </div>
+
+        {/* ── Action callout (owner action required) ── */}
+        {user&&inc.status!=='resolved'&&isOwner&&(
+          <div className={`udc-action-needed${inc.status==='open'?' udc-an-step1':' udc-an-step2'}`} style={{marginTop:10}}>
+            <div className="udc-an-step-num">{inc.status==='open'?'①':'②'}</div>
+            <div className="udc-an-body">
+              <strong>{inc.status==='open'?(isEn?'Your action needed — Step 1':'Tu acción — Paso 1'):(isEn?'Your action needed — Step 2':'Tu acción — Paso 2')}</strong>
+              <span>{inc.status==='open'?(isEn?'Confirm guest details and document your immediate action.':'Confirma datos del huésped y documenta tu acción inmediata.'):(isEn?'Add your resolution so admin can close this incident.':'Agrega tu respuesta para que el admin pueda cerrar.')}</span>
+            </div>
+          </div>
+        )}
+
+        {/* ── Timeline ── */}
+        <div className="idd-timeline">
+          <TlStep icon="📋" title={isEn?'Filed':'Reportado'} ts={inc.createdAtFull||inc.createdAt} accent="filed">
+            <div className="idd-tl-reporter">{isEn?'Reported by':'Reportado por'}: <strong>{inc.reporterName||'—'}</strong></div>
+          </TlStep>
+
+          <TlStep icon="📝" title={isEn?'Description':'Descripción'} accent="desc">
+            <div className="idd-tl-desc">{inc.desc}</div>
+          </TlStep>
+
+          {guests.length>0&&(
+            <TlStep icon="👥" title={isEn?'Guests':'Huéspedes'} ts={inc.ownerVerifiedAt} accent="guests">
+              <div className="idd-tl-guests">
+                {guests.map((g,i)=>(
+                  <div key={i} className="idd-tl-guest-row">
+                    <span className="idd-tl-guest-name">{guestFullName(g)}</span>
+                    {guestLocation(g)&&<span className="idd-tl-guest-loc">📍 {guestLocation(g)}</span>}
+                  </div>
+                ))}
+              </div>
+            </TlStep>
+          )}
+
+          {inc.ownerComments&&(
+            <TlStep icon="✅" title={isEn?'Action taken':'Acción tomada'} ts={inc.ownerVerifiedAt} accent="action">
+              <div className="idd-tl-blockquote">{inc.ownerComments}</div>
+            </TlStep>
+          )}
+
+          {inc.ownerResolution&&(
+            <TlStep icon="🔍" title={isEn?'Resolution':'Respuesta'} ts={inc.ownerResolutionAt||inc.ownerVerifiedAt} accent="resolution">
+              <div className="idd-tl-blockquote idd-tl-blockquote-res">{inc.ownerResolution}</div>
+            </TlStep>
+          )}
+
+          {inc.status==='resolved'&&(
+            <TlStep icon="✅" title={isEn?'Closed':'Cerrado'} ts={inc.resolvedAt} accent="closed">
+              {inc.resolvedBy&&<div className="idd-tl-reporter">{isEn?'Closed by':'Cerrado por'}: <strong>{inc.resolvedBy}</strong></div>}
+              {inc.resolutionComments&&<div className="idd-tl-blockquote" style={{marginTop:6}}>{inc.resolutionComments}</div>}
+            </TlStep>
+          )}
+        </div>
+
+        {/* ── Action buttons ── */}
+        {user&&inc.status!=='resolved'&&(
+          <div className="idd-actions">
+            {inc.status==='open'&&isOwner&&(
+              <button className="btn-p idd-act-btn" onClick={()=>onVerify&&onVerify(inc)}>
+                ① {isEn?'Verify — add guest info & action':'Verificar — agregar info y acción'}
+              </button>
+            )}
+            {inc.status==='verified'&&isOwner&&hasPendingRes&&(
+              <button className="btn-p idd-act-btn" onClick={()=>onAddResolution&&onAddResolution(inc)}>
+                ② {isEn?'Add resolution':'Agregar respuesta'}
+              </button>
+            )}
+            {inc.status==='verified'&&isOwner&&!hasPendingRes&&(
+              <div className="udc-step-done" style={{textAlign:'center',width:'100%'}}>
+                ✓ {isEn?'Both steps complete — awaiting admin close':'Pasos completados — esperando cierre del admin'}
+              </div>
+            )}
+            {(isGlobalAdmin||canResolveGlobal)&&inc.status==='verified'&&!hasPendingRes&&(
+              <button className="bsm bs-resolve idd-act-btn" onClick={()=>onResolve&&onResolve(inc.id)}>
+                {isEn?'Close incident':'Cerrar incidente'}
+              </button>
+            )}
+            {(isGlobalAdmin||canResolveGlobal)&&inc.status==='verified'&&hasPendingRes&&(
+              <div className="udc-admin-waiting" style={{textAlign:'center',width:'100%'}}>
+                🔒 {isEn?'Waiting for owner resolution (Step 2)':'Esperando respuesta del propietario (Paso 2)'}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  }
 
   return null;
 }
