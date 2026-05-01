@@ -126,6 +126,7 @@ create table if not exists public.incidents (
 
 
 alter table public.incidents add column if not exists guest_state text default '';
+alter table public.incidents add column if not exists owner_resolution_at timestamptz;
 alter table public.incidents add column if not exists owner_guest_names text not null default '';
 alter table public.incidents add column if not exists owner_comments text not null default '';
 alter table public.incidents add column if not exists owner_email_opened_at timestamptz;

@@ -438,6 +438,7 @@ const incidentFromDb = (r) => ({
   ownerGuests: Array.isArray(r.owner_guests) ? r.owner_guests : [],
   ownerComments: r.owner_comments || '',
   ownerResolution: r.owner_resolution || '',
+  ownerResolutionAt: r.owner_resolution_at || '',
   ownerVerifiedAt: r.owner_verified_at || '',
   resolvedAt: r.resolved_at || '',
   resolvedBy: r.resolved_by || '',
@@ -448,6 +449,7 @@ const incidentFromDb = (r) => ({
   nextSlaReminderAt: r.next_sla_reminder_at || '',
   slaCycleCount: r.sla_cycle_count || 0,
   createdAt: (r.created_at || '').slice(0, 10),
+  createdAtFull: r.created_at || '',
 });
 
 const incidentToDb = (i) => ({
@@ -470,6 +472,7 @@ const incidentToDb = (i) => ({
   owner_guest_country: i.ownerGuestCountry || '',
   owner_guests: Array.isArray(i.ownerGuests) ? i.ownerGuests : [],
   owner_comments: i.ownerComments || '',
+  owner_resolution_at: i.ownerResolutionAt || null,
   owner_verified_at: i.ownerVerifiedAt || null,
   resolved_at: i.resolvedAt || null,
   resolved_by: i.resolvedBy || '',
@@ -1347,7 +1350,8 @@ app.patch('/api/incidents/:id/verify', async (req, res) => {
   const ownerCommentText = String(ownerComments || '').trim();
   if (!ownerCommentText) return res.status(400).json({ error:'La acción inmediata del propietario es requerida.' });
   const ownerResolutionText = String(ownerResolution || '').trim();
-  const upd = { status:'verified', owner_guests: ownerGuests, owner_guest_names:names, owner_guest_city:cities, owner_guest_country:countries, owner_comments:ownerCommentText, owner_resolution:ownerResolutionText, owner_verified_at:new Date().toISOString(), next_sla_reminder_at:null };
+  const nowIso = new Date().toISOString();
+  const upd = { status:'verified', owner_guests: ownerGuests, owner_guest_names:names, owner_guest_city:cities, owner_guest_country:countries, owner_comments:ownerCommentText, owner_resolution:ownerResolutionText, owner_resolution_at: ownerResolutionText ? nowIso : null, owner_verified_at:nowIso, next_sla_reminder_at:null };
   const { data, error } = await supabase.from('incidents').update(upd).eq('id', req.params.id).select('*').single();
   if (error) return sendSupabaseError(res, error);
   await auditLog({ entity:'incident', entityId:data.id, action:'verify', actorUid:ownerUid, before:inc, after:data });
@@ -1368,7 +1372,7 @@ app.patch('/api/incidents/:id/add-resolution', async (req, res) => {
   if (findErr || !inc) return res.status(404).json({ error:'Incidente no encontrado.' });
   if (inc.listings?.owner_uid !== ownerUid) return res.status(403).json({ error:'Solo el propietario puede agregar la resolución.' });
   if (inc.status !== 'verified') return res.status(400).json({ error:'Solo se puede agregar resolución a incidentes verificados.' });
-  const { data, error } = await supabase.from('incidents').update({ owner_resolution: resText }).eq('id', req.params.id).select('*').single();
+  const { data, error } = await supabase.from('incidents').update({ owner_resolution: resText, owner_resolution_at: new Date().toISOString() }).eq('id', req.params.id).select('*').single();
   if (error) return sendSupabaseError(res, error);
   await auditLog({ entity:'incident', entityId:data.id, action:'add-resolution', actorUid:ownerUid, before:inc, after:data });
   const updatedIncident = incidentFromDb(data);

@@ -806,7 +806,13 @@ const localizeMissionSections = (config={}, lang='es-CO') => {
   return { ...es, title:translateToEnglish(es.title), subtitle:translateToEnglish(es.subtitle), sectionLabel:translateToEnglish(es.sectionLabel), heading:translateToEnglish(es.heading), body:translateToEnglish(es.body), cards:(es.cards||[]).map(c=>({icon:c.icon,title:translateToEnglish(c.title),text:translateToEnglish(c.text)})), participationTitle:translateToEnglish(es.participationTitle), participationRules:(es.participationRules||[]).map(translateToEnglish), accessTitle:translateToEnglish(es.accessTitle), accessRules:(es.accessRules||[]).map(translateToEnglish) };
 };
 
-const fmtDate = d => { if(!d) return ""; const [y,m,day]=d.split("-"); return `${parseInt(day)} ${["ene","feb","mar","abr","may","jun","jul","ago","sep","oct","nov","dic"][parseInt(m)-1]} ${y}`; };
+const fmtDate = d => { if(!d) return ""; const [y,m,day]=String(d).split("T")[0].split("-"); return `${parseInt(day)} ${["ene","feb","mar","abr","may","jun","jul","ago","sep","oct","nov","dic"][parseInt(m)-1]} ${y}`; };
+const fmtDateTime = (iso, lang='es-CO') => {
+  if (!iso) return '';
+  try {
+    return new Date(iso).toLocaleString(lang==='en'?'en-US':'es-CO',{day:'numeric',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'});
+  } catch(e) { return String(iso).slice(0,16).replace('T',' '); }
+};
 const today = () => new Date().toISOString().split("T")[0];
 
 // ─── API HELPERS (30s timeout handles Render cold starts) ────────────────────
@@ -2512,40 +2518,62 @@ function AptContactPopup({ ownerName='', ownerEmail='', ownerWaRaw='', operatorN
 }
 
 // ── UnitDetailCard ────────────────────────────────────────────────────────
-// Shows listing details + people. "View incidents" toggle expands inline
-// incident history with full WorkflowGroups (requires incident action props).
+// 3-step in-overlay navigator: Unit info → Incident list → Incident detail
 function UnitDetailCard({ l, incidents, canEdit=false, canDelete=false, onEdit, onDelete, onReport,
   user, contactProps={}, isGlobalAdmin=false, canResolveGlobal=false,
   onVerify, onResolve, onAddResolution,
   lang="es-CO", isEn=false }) {
-  const [incExpanded, setIncExpanded] = useState(false);
-  const [panelGO, setPanelGO] = useState({open:true, verified:true, resolved:false});
-  const aptInc     = [...incidents.filter(i => i.aptId === l.id)].sort((a,b)=>new Date(b.createdAt)-new Date(a.createdAt));
+
+  // step: 'info' | 'incidents' | 'incident'
+  const [step, setStep] = useState('info');
+  const [activeInc, setActiveInc] = useState(null);
+
+  const aptInc = [...incidents.filter(i => i.aptId === l.id)]
+    .sort((a,b) => new Date(b.createdAtFull||b.createdAt) - new Date(a.createdAtFull||a.createdAt));
   const ownerWa    = normalizePhoneForWhatsApp(l.contact);
   const opWa       = normalizePhoneForWhatsApp(l.operatorWhatsapp);
   const ownerEmail = l.userEmail || l.email || '';
   const hasOp      = !!(l.operator || l.operatorEmail || l.operatorWhatsapp);
-  return (
-    <div className="udc-wrap">
-      {/* ── Unit hero — dark plate ── */}
-      <div className="adp-unit-hero">
-        <div className="adp-unit-plate">
-          <span className="adp-unit-num">{l.apt}</span>
-          {l.tower&&<span className="adp-unit-tower">{l.tower}</span>}
-        </div>
-        <div className="adp-unit-meta">
-          <span className="chip c-teal" title={isEn?`${l.rooms} bedrooms`:`${l.rooms} habitaciones`}>🛏️ {l.rooms}</span>
-          <span className="chip c-blue" title={isEn?`Up to ${l.guests} guests`:`Capacidad ${l.guests} huéspedes`}>👥 {l.guests}</span>
-          {l.airbnb&&<a className="adp-airbnb-lnk" href={l.airbnb} target="_blank" rel="noreferrer">🔗 Airbnb</a>}
-        </div>
-        <div className="adp-unit-acts">
-          {onReport&&<button className="bsm bs-rep" onClick={onReport}>+ {isEn?'Report':'Reporte'}</button>}
-          {canEdit&&<button className="bsm bs-edit" onClick={onEdit} title={isEn?'Edit unit':'Editar unidad'}>✏️</button>}
-          {canDelete&&<button className="bsm bs-del" onClick={onDelete} title={isEn?'Delete unit':'Eliminar unidad'}>🗑️</button>}
-        </div>
-      </div>
 
-      {/* ── Listing details (same fields as ListingModal) ── */}
+  // ── Shared unit hero (always visible at top) ──────────────────────────
+  const UnitHero = () => (
+    <div className="adp-unit-hero">
+      <div className="adp-unit-plate">
+        <span className="adp-unit-num">{l.apt}</span>
+        {l.tower&&<span className="adp-unit-tower">{l.tower}</span>}
+      </div>
+      <div className="adp-unit-meta">
+        <span className="chip c-teal">🛏️ {l.rooms}</span>
+        <span className="chip c-blue">👥 {l.guests}</span>
+        {l.airbnb&&<a className="adp-airbnb-lnk" href={l.airbnb} target="_blank" rel="noreferrer">🔗 Airbnb</a>}
+      </div>
+      <div className="adp-unit-acts">
+        {onReport&&<button className="bsm bs-rep" onClick={onReport}>+ {isEn?'Report':'Reporte'}</button>}
+        {canEdit&&<button className="bsm bs-edit" onClick={onEdit}>✏️</button>}
+        {canDelete&&<button className="bsm bs-del" onClick={onDelete}>🗑️</button>}
+      </div>
+    </div>
+  );
+
+  // ── Breadcrumb back navigation ────────────────────────────────────────
+  const Breadcrumb = ({ crumbs }) => (
+    <nav className="udc-breadcrumb" aria-label="breadcrumb">
+      {crumbs.map((c,i)=>(
+        <span key={i} className="udc-bc-item">
+          {c.onClick
+            ? <button type="button" className="udc-bc-link" onClick={c.onClick}>‹ {c.label}</button>
+            : <span className="udc-bc-current">{c.label}</span>
+          }
+        </span>
+      ))}
+    </nav>
+  );
+
+  // ── STEP 1: Unit info + people ────────────────────────────────────────
+  if (step === 'info') return (
+    <div className="udc-wrap">
+      <UnitHero/>
+      {/* Listing details */}
       <div className="adp-section-lbl">🏠 {isEn?'Listing details':'Datos del listing'}</div>
       <div className="udc-fields">
         <span className="udc-field-lbl">{isEn?'Apt. #':'Apto. #'}</span>
@@ -2554,17 +2582,18 @@ function UnitDetailCard({ l, incidents, canEdit=false, canDelete=false, onEdit, 
         <span className="udc-field-val">{l.tower||'KAI'}</span>
         <span className="udc-field-lbl">{isEn?'Bedrooms':'Habitaciones'}</span>
         <span className="udc-field-val">🛏️ {l.rooms}</span>
-        <span className="udc-field-lbl">{isEn?'Guest capacity':'Capacidad'}</span>
+        <span className="udc-field-lbl">{isEn?'Guests':'Huéspedes'}</span>
         <span className="udc-field-val">👥 {l.guests}</span>
         <span className="udc-field-lbl">Airbnb</span>
         <span className="udc-field-val">
-          {l.airbnb
-            ? <a href={l.airbnb} target="_blank" rel="noreferrer" className="adp-airbnb-lnk udc-airbnb-pill">🔗 {isEn?'View listing':'Ver listing'}</a>
-            : <span className="udc-field-empty">{isEn?'No link added':'Sin enlace'}</span>}
+          {l.airbnb ? <a href={l.airbnb} target="_blank" rel="noreferrer" className="adp-airbnb-lnk udc-airbnb-pill">🔗 {isEn?'View listing':'Ver listing'}</a> : <span className="udc-field-empty">{isEn?'No link':'Sin enlace'}</span>}
         </span>
+        {l.createdAt&&<>
+          <span className="udc-field-lbl">{isEn?'Date added':'Fecha de registro'}</span>
+          <span className="udc-field-val" style={{color:'#496674',fontSize:'.8rem'}}>📅 {fmtDate(l.createdAt)}</span>
+        </>}
       </div>
-
-      {/* ── People: owner + operator ── */}
+      {/* People */}
       <div className="adp-section-lbl">👥 {isEn?'People':'Personas'}</div>
       <div className="adp-contacts">
         <div className="adp-party">
@@ -2573,7 +2602,7 @@ function UnitDetailCard({ l, incidents, canEdit=false, canDelete=false, onEdit, 
             <UserContact name={l.owner} uid={l.ownerUid} email={ownerEmail} whatsapp={l.contact} apartments={l.apt?[aptDisplay(l.apt,lang)]:[]} {...contactProps}/>
             <div className="adp-party-cbtns">
               {ownerEmail&&<a href={`mailto:${ownerEmail}`} className="ac-cbtn" title={ownerEmail}><IconEmail/></a>}
-              {ownerWa&&<a href={`https://wa.me/${ownerWa}`} className="ac-cbtn ac-cbtn-wa" target="_blank" rel="noreferrer" title="WhatsApp"><IconWhatsApp/></a>}
+              {ownerWa&&<a href={`https://wa.me/${ownerWa}`} className="ac-cbtn ac-cbtn-wa" target="_blank" rel="noreferrer"><IconWhatsApp/></a>}
             </div>
           </div>
         </div>
@@ -2584,7 +2613,7 @@ function UnitDetailCard({ l, incidents, canEdit=false, canDelete=false, onEdit, 
               {l.operator ? <UserContact name={l.operator} email={l.operatorEmail} whatsapp={l.operatorWhatsapp} apartments={[]} {...contactProps}/> : <span style={{fontSize:'.8rem',color:'#8a9fa5'}}>{l.operatorEmail||'—'}</span>}
               <div className="adp-party-cbtns">
                 {l.operatorEmail&&<a href={`mailto:${l.operatorEmail}`} className="ac-cbtn" title={l.operatorEmail}><IconEmail/></a>}
-                {opWa&&<a href={`https://wa.me/${opWa}`} className="ac-cbtn ac-cbtn-wa" target="_blank" rel="noreferrer" title="WhatsApp"><IconWhatsApp/></a>}
+                {opWa&&<a href={`https://wa.me/${opWa}`} className="ac-cbtn ac-cbtn-wa" target="_blank" rel="noreferrer"><IconWhatsApp/></a>}
               </div>
             </div>
           </div>
@@ -2595,69 +2624,170 @@ function UnitDetailCard({ l, incidents, canEdit=false, canDelete=false, onEdit, 
           </div>
         )}
       </div>
-
-      {/* ── Incidents toggle — expands inline incident history ── */}
-      <button
-        type="button"
-        className={`udc-inc-toggle${incExpanded?' udc-inc-toggle-open':''}`}
-        onClick={()=>setIncExpanded(x=>!x)}
-        aria-expanded={incExpanded}
-      >
-        <span>📋 {incExpanded?(isEn?'Hide incidents':'Ocultar incidentes'):(isEn?'View incidents':'Ver incidentes')}</span>
-        {!incExpanded&&aptInc.length>0&&<span className="udc-inc-count-badge">{aptInc.length}</span>}
-        <span className={`udc-inc-chev${incExpanded?' udc-inc-chev-up':''}`}>›</span>
+      {/* Navigate to incidents */}
+      <button type="button" className="udc-nav-btn" onClick={()=>setStep('incidents')}>
+        📋 {isEn?'View incidents':'Ver incidentes'}
+        {aptInc.length>0&&<span className="udc-nav-badge">{aptInc.length}</span>}
+        <span className="udc-nav-chev">›</span>
       </button>
-
-      {/* ── Expandable incident history ── */}
-      {incExpanded&&(
-        <div className="udc-incidents">
-          <div className="adp-section-lbl" style={{margin:'12px 0 8px'}}>
-            📋 {isEn?'Incident history':'Historial de incidentes'} <span className="adp-inc-count">{aptInc.length}</span>
-          </div>
-          {aptInc.length===0
-            ? <div className="adp-inc-empty">✅ {isEn?'No incidents on record':'Sin incidentes registrados'}</div>
-            : <div className="adp-wfg-list">
-                {[
-                  {key:'open',     icon:'⚠️', label:isEn?'Verify required':'Verificación requerida', sublabel:isEn?'Step 1: Owner must verify and document action taken':'Paso 1: El propietario debe verificar y documentar la acción tomada', color:'#d9a030'},
-                  {key:'verified', icon:'📝', label:isEn?'In Progress':'En progreso',                sublabel:isEn?'Step 2: Add resolution · or awaiting admin review':'Paso 2: Agrega resolución · o esperando revisión del admin',           color:'#0b7f4f'},
-                  {key:'resolved', icon:'✓',  label:isEn?'Closed':'Cerrados',                        sublabel:isEn?'Resolved by management':'Resuelto por administración',                                                                      color:'#6a9a7a'},
-                ].map(g=>{
-                  const gInc = aptInc.filter(i=>i.status===g.key);
-                  if(!gInc.length) return null;
-                  return (
-                    <WorkflowGroup
-                      key={g.key}
-                      statusKey={g.key}
-                      icon={g.icon}
-                      label={g.label}
-                      sublabel={g.sublabel}
-                      color={g.color}
-                      incidents={gInc}
-                      listings={[l]}
-                      isOpen={panelGO[g.key]}
-                      onToggle={()=>setPanelGO(s=>({...s,[g.key]:!s[g.key]}))}
-                      user={user}
-                      contactProps={contactProps}
-                      isGlobalAdmin={isGlobalAdmin}
-                      canUpdateGlobal={false}
-                      canDeleteGlobal={false}
-                      canResolveGlobal={canResolveGlobal}
-                      onResolve={onResolve}
-                      onDelete={()=>{}}
-                      onVerify={onVerify}
-                      onAddResolution={onAddResolution}
-                      hideUnit
-                      lang={lang}
-                      isEn={isEn}
-                    />
-                  );
-                })}
-              </div>
-          }
-        </div>
-      )}
     </div>
   );
+
+  // ── STEP 2: Incident summary list ────────────────────────────────────
+  if (step === 'incidents') return (
+    <div className="udc-wrap">
+      <UnitHero/>
+      <Breadcrumb crumbs={[
+        {label:`${isEn?'Unit':'Unidad'} ${l.apt}`, onClick:()=>setStep('info')},
+        {label:isEn?'Incidents':'Incidentes'}
+      ]}/>
+      {aptInc.length===0
+        ? <div className="adp-inc-empty" style={{marginTop:16}}>✅ {isEn?'No incidents on record':'Sin incidentes registrados'}</div>
+        : <div className="udc-inc-list">
+            {aptInc.map(inc=>{
+              const ti = INCIDENT_TYPES.find(t=>t.value===inc.type)||INCIDENT_TYPES[6];
+              const ci = GUEST_CATEGORIES.find(c=>c.value===inc.category);
+              const guests = normalizeOwnerGuests(inc);
+              const hasPendingRes = inc.status==='verified'&&!String(inc.ownerResolution||'').trim();
+              const hasAwaitingAdmin = inc.status==='verified'&&String(inc.ownerResolution||'').trim();
+              return (
+                <button key={inc.id} type="button" className="udc-inc-card" onClick={()=>{setActiveInc(inc);setStep('incident');}}>
+                  <div className="udc-inc-card-top">
+                    <span className="ir-type" style={{background:ti.bg,color:ti.color,fontSize:'.65rem',padding:'2px 7px',borderRadius:'999px'}}>{incidentTypeLabel(ti.value,lang)}</span>
+                    {ci&&<span className="ir-cat" style={{background:ci.bg,color:ci.color,fontSize:'.65rem',padding:'2px 7px',borderRadius:'999px'}}>{ci.icon} {categoryLabel(ci.value,lang)}</span>}
+                    <span className={`udc-inc-status${inc.status==='resolved'?' udc-s-res':inc.status==='open'?' udc-s-open':hasPendingRes?' udc-s-pres':' udc-s-wait'}`}>
+                      {inc.status==='resolved'?'✓ '+(isEn?'Closed':'Cerrado'):inc.status==='open'?'⚠️ '+(isEn?'Verify':'Verificar'):hasPendingRes?'📝 '+(isEn?'Add resolution':'Respuesta'):hasAwaitingAdmin?'⏳ '+(isEn?'Admin review':'Admin'):''}
+                    </span>
+                    <span className="udc-inc-date">{fmtDate(inc.date)}</span>
+                  </div>
+                  <div className="udc-inc-card-desc">{String(inc.desc||'').slice(0,120)}{String(inc.desc||'').length>120?'…':''}</div>
+                  {guests.length>0&&<div className="udc-inc-card-guest">👥 {guests.map(guestFullName).join(' · ')}</div>}
+                  <div className="udc-inc-card-arrow">›</div>
+                </button>
+              );
+            })}
+          </div>
+      }
+    </div>
+  );
+
+  // ── STEP 3: Full incident detail with timeline ────────────────────────
+  if (step === 'incident' && activeInc) {
+    const inc = activeInc;
+    // Sync with latest incident data in case it changed (e.g. after verify/resolve)
+    const latestInc = incidents.find(i=>i.id===inc.id) || inc;
+    const ti = INCIDENT_TYPES.find(t=>t.value===latestInc.type)||INCIDENT_TYPES[6];
+    const ci = GUEST_CATEGORIES.find(c=>c.value===latestInc.category);
+    const guests = normalizeOwnerGuests(latestInc);
+    const isOwner = Boolean(user?.uid && l.ownerUid === user.uid);
+    const hasPendingRes = latestInc.status==='verified'&&!String(latestInc.ownerResolution||'').trim();
+    const hasAwaitingAdmin = latestInc.status==='verified'&&String(latestInc.ownerResolution||'').trim();
+
+    const TlStep = ({icon, title, ts, children, accent}) => (
+      <div className={`udc-tl-step${accent?' udc-tl-'+accent:''}`}>
+        <div className="udc-tl-icon">{icon}</div>
+        <div className="udc-tl-body">
+          <div className="udc-tl-header">
+            <span className="udc-tl-title">{title}</span>
+            {ts&&<span className="udc-tl-ts">{fmtDateTime(ts, lang)}</span>}
+          </div>
+          {children&&<div className="udc-tl-content">{children}</div>}
+        </div>
+      </div>
+    );
+
+    return (
+      <div className="udc-wrap">
+        <UnitHero/>
+        <Breadcrumb crumbs={[
+          {label:`${isEn?'Unit':'Unidad'} ${l.apt}`, onClick:()=>{setStep('info');}},
+          {label:isEn?'Incidents':'Incidentes', onClick:()=>setStep('incidents')},
+          {label:fmtDate(latestInc.date)}
+        ]}/>
+
+        {/* Incident type / status header */}
+        <div className="udc-inc-detail-header">
+          <span className="ir-type" style={{background:ti.bg,color:ti.color}}>
+            {incidentTypeLabel(ti.value,lang)}
+          </span>
+          {ci&&<span className="ir-cat" style={{background:ci.bg,color:ci.color}}>{ci.icon} {categoryLabel(ci.value,lang)}</span>}
+          <span className={`udc-inc-status${latestInc.status==='resolved'?' udc-s-res':latestInc.status==='open'?' udc-s-open':hasPendingRes?' udc-s-pres':' udc-s-wait'}`}>
+            {latestInc.status==='resolved'?`✓ ${isEn?'Closed':'Cerrado'}`:latestInc.status==='open'?`⚠️ ${isEn?'Verify required':'Verificar'}`:hasPendingRes?`📝 ${isEn?'Add resolution':'Respuesta'}`:hasAwaitingAdmin?`⏳ ${isEn?'Awaiting admin':'Esperando admin'}`:''}
+          </span>
+        </div>
+
+        {/* Timeline */}
+        <div className="udc-timeline">
+          {/* Filed */}
+          <TlStep icon="📅" title={isEn?'Filed':'Reportado'} ts={latestInc.createdAtFull||latestInc.createdAt} accent="filed">
+            <div className="udc-tl-lbl">{isEn?'Reported by':'Reportado por'}: <strong>{latestInc.reporterName||'—'}</strong></div>
+          </TlStep>
+
+          {/* Description */}
+          <TlStep icon="📝" title={isEn?'Description':'Descripción'} accent="desc">
+            <div className="udc-tl-desc">{latestInc.desc}</div>
+          </TlStep>
+
+          {/* Guests — only after verification */}
+          {guests.length>0&&(
+            <TlStep icon="👥" title={isEn?'Guests':'Huéspedes'} ts={latestInc.ownerVerifiedAt} accent="guests">
+              {guests.map((g,i)=>(
+                <div key={i} className="udc-tl-guest">
+                  <strong>{guestFullName(g)}</strong>
+                  {guestLocation(g)&&<span className="udc-tl-loc"> · 📍 {guestLocation(g)}</span>}
+                </div>
+              ))}
+            </TlStep>
+          )}
+
+          {/* Action taken */}
+          {latestInc.ownerComments&&(
+            <TlStep icon="✅" title={isEn?'Action taken':'Acción tomada'} ts={latestInc.ownerVerifiedAt} accent="action">
+              <div className="udc-tl-text">{latestInc.ownerComments}</div>
+            </TlStep>
+          )}
+
+          {/* Resolution */}
+          {latestInc.ownerResolution&&(
+            <TlStep icon="🔍" title={isEn?'Resolution':'Respuesta'} ts={latestInc.ownerResolutionAt||latestInc.ownerVerifiedAt} accent="resolution">
+              <div className="udc-tl-text">{latestInc.ownerResolution}</div>
+            </TlStep>
+          )}
+
+          {/* Closed */}
+          {latestInc.status==='resolved'&&(
+            <TlStep icon="✓" title={isEn?'Closed':'Cerrado'} ts={latestInc.resolvedAt} accent="closed">
+              {latestInc.resolvedBy&&<div className="udc-tl-lbl">{isEn?'By':'Por'}: <strong>{latestInc.resolvedBy}</strong></div>}
+              {latestInc.resolutionComments&&<div className="udc-tl-text" style={{marginTop:4}}>{latestInc.resolutionComments}</div>}
+            </TlStep>
+          )}
+        </div>
+
+        {/* Action buttons — only for active incidents */}
+        {user&&latestInc.status!=='resolved'&&(
+          <div className="udc-inc-detail-acts">
+            {latestInc.status==='open'&&isOwner&&(
+              <button className="bsm bs-resolve" onClick={()=>onVerify&&onVerify(latestInc)}>
+                ① {isEn?'Verify now':'Verificar ahora'}
+              </button>
+            )}
+            {latestInc.status==='verified'&&isOwner&&hasPendingRes&&(
+              <button className="bsm bs-edit" onClick={()=>onAddResolution&&onAddResolution(latestInc)}>
+                ② {isEn?'Add resolution':'Agregar respuesta'}
+              </button>
+            )}
+            {latestInc.status==='verified'&&(isGlobalAdmin||canResolveGlobal)&&!hasPendingRes&&(
+              <button className="bsm bs-resolve" onClick={()=>onResolve&&onResolve(latestInc.id)}>
+                {isEn?'Close incident':'Cerrar incidente'}
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  return null;
 }
 
 // AptDoor: only the number plate and "View incidents" footer are interactive.
