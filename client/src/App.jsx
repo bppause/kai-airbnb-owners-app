@@ -3181,19 +3181,23 @@ function NotificationsView({ notifications, incidents, listings=[], contactProps
 }
 
 // Compact unit card shown next to incident rows — hover reveals owner/operator contact links
+// Compact unit card — styled like a mini AptDoor with dark plate header.
+// Hover reveals AptContactPopup (branded email + WhatsApp links).
 function UnitMiniCard({ listing, isEn=false }) {
   if (!listing) return null;
   const ownerEmail = listing.userEmail || listing.email || '';
   const ownerWaRaw = listing.contact || '';
   return (
     <div className="unit-mini-card apt-cpop-wrap">
-      <div className="umc-header">
-        <span className="umc-apt">🏠 {listing.apt}</span>
-        {listing.tower&&<span className="umc-tower">{listing.tower}</span>}
+      {/* Dark number plate — mirrors AptDoor style */}
+      <div className="umc-plate">
+        <span className="umc-num">{listing.apt}</span>
+        {listing.tower&&<span className="umc-tag">{listing.tower}</span>}
       </div>
-      <div className="umc-people">
-        <span className="umc-owner" title={listing.owner||'—'}>👤 {listing.owner||'—'}</span>
-        {listing.operator&&<span className="umc-op" title={listing.operator}>🔧 {listing.operator}</span>}
+      {/* Light body — owner + operator */}
+      <div className="umc-body">
+        <div className="umc-owner" title={listing.owner||'—'}>👤 {listing.owner||'—'}</div>
+        {listing.operator&&<div className="umc-op" title={listing.operator}>🔧 {listing.operator}</div>}
       </div>
       <AptContactPopup
         ownerName={listing.owner}

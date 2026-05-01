@@ -568,40 +568,71 @@ table { width: 100%; border-collapse: collapse; }
 .dis-ver  { background: rgba(11,127,79,.1); color: #0b5f3a; border-color: rgba(11,127,79,.22); }
 .dis-res  { background: rgba(80,130,100,.1);color: #4a7060; border-color: rgba(80,130,100,.22); }
 
-/* ── UnitMiniCard: compact unit card with hover contact popup in IRow ─────── */
+/* ── Overflow fix: allow apt-cpop popups to escape irow / wfg-section bounds ─ */
+/* irow::before is the left accent bar — give it matching corner radius so it
+   looks clean now that overflow:hidden no longer clips it.               */
+.irow { overflow: visible !important; }
+.irow::before { border-radius: 14px 0 0 14px !important; }
+/* wfg-section wraps IRows in the incidents page; must also be visible so the
+   UnitMiniCard popup can float above the section card.                   */
+.wfg-section { overflow: visible !important; }
+
+/* ── UnitMiniCard: mini door-card with dark plate, consistent with AptDoor ── */
 .unit-mini-card {
   position: relative;
-  background: rgba(255,255,255,.95);
-  border: 1.5px solid rgba(47,79,58,.18);
+  display: flex;
+  flex-direction: column;
   border-radius: 10px;
-  padding: 7px 10px 6px;
-  min-width: 130px;
-  max-width: 180px;
-  cursor: default;
-  transition: border-color .15s, box-shadow .15s;
+  overflow: visible;           /* popup must escape — no clipping here */
+  border: 1.5px solid rgba(47,79,58,.2);
+  min-width: 134px;
+  max-width: 158px;
   flex-shrink: 0;
+  cursor: default;
+  transition: border-color .15s, box-shadow .15s, transform .12s;
+  box-shadow: 0 3px 10px rgba(32,46,38,.08);
 }
 .unit-mini-card:hover {
-  border-color: rgba(11,127,140,.38);
-  box-shadow: 0 4px 14px rgba(11,127,140,.14);
+  border-color: rgba(11,127,140,.4);
+  box-shadow: 0 5px 18px rgba(11,127,140,.16);
+  transform: translateY(-1px);
 }
-.umc-header { display: flex; align-items: center; gap: 5px; margin-bottom: 3px; }
-.umc-apt {
+/* Dark number plate — mirrors door-num-plate */
+.umc-plate {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 5px;
+  background: linear-gradient(135deg, #17313a, #243c30);
+  border-radius: 8px 8px 0 0;
+  padding: 6px 9px 5px;
+  flex-shrink: 0;
+}
+.umc-num {
   font-family: 'Playfair Display', serif;
-  font-size: .82rem;
+  font-size: 1rem;
   font-weight: 900;
-  color: #203f2b;
+  color: #c8d8a0;
+  letter-spacing: .05em;
   line-height: 1;
 }
-.umc-tower {
-  font-size: .58rem;
-  color: #8a9fa5;
-  background: rgba(47,79,58,.08);
-  padding: 1px 5px;
-  border-radius: 999px;
-  line-height: 1.4;
+.umc-tag {
+  font-size: .55rem;
+  color: rgba(200,216,160,.5);
+  letter-spacing: .09em;
+  font-weight: 700;
+  text-transform: uppercase;
 }
-.umc-people { display: flex; flex-direction: column; gap: 1px; }
+/* Light body — owner + operator */
+.umc-body {
+  padding: 6px 9px 7px;
+  background: rgba(255,255,255,.97);
+  border-radius: 0 0 8px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+}
 .umc-owner {
   font-size: .7rem;
   font-weight: 700;
@@ -609,15 +640,15 @@ table { width: 100%; border-collapse: collapse; }
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 160px;
+  max-width: 136px;
 }
 .umc-op {
-  font-size: .64rem;
+  font-size: .63rem;
   color: #496674;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 160px;
+  max-width: 136px;
 }
 /* Contact popup appears above the mini card */
 .unit-mini-card .apt-cpop {
@@ -626,7 +657,7 @@ table { width: 100%; border-collapse: collapse; }
   left: 0;
   right: auto;
 }
-/* Override hover-bridge: extend downward from bottom of popup to card */
+/* Hover-bridge extends downward from popup bottom to card */
 .unit-mini-card .apt-cpop::before {
   top: auto;
   bottom: -7px;
