@@ -876,50 +876,67 @@ table { width: 100%; border-collapse: collapse; }
 /* apt-cpop-link in hover popup — keep at 14px (already default) */
 .apt-cpop-link svg { width: 14px !important; height: 14px !important; }
 
-/* ── Incident template chips (category-based, IncidentModal) ─────────────── */
-.inc-chips-hdr {
-  font-size: .72rem;
-  font-weight: 700;
-  color: #1565c0;
-  margin-bottom: 6px;
-  line-height: 1.3;
+/* ── IncidentModal compact layout ──────────────────────────────────────────── */
+.inc-modal-meta {
+  font-size: .75rem;
+  color: #496674;
+  margin-bottom: 12px;
+  line-height: 1.4;
 }
-.inc-chips-list {
-  display: flex;
-  flex-direction: column;
+.inc-modal-hint { color: #7a9aaa; }
+.inc-form-grid { gap: 8px !important; }
+
+/* Category inline row */
+.inc-cat-row { display: flex; gap: 6px; flex-wrap: wrap; }
+.inc-cat-btn {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 9px 10px;
+  border: 1.5px solid rgba(47,79,58,.18);
+  border-radius: 12px;
+  background: rgba(255,255,255,.9);
+  font-size: .78rem;
+  font-weight: 800;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all .14s;
+  min-height: 44px;
+}
+.inc-cat-btn:hover { border-color: rgba(11,127,140,.35); background: rgba(11,127,140,.05); }
+.inc-cat-btn-on { font-weight: 900; }
+
+/* Compact 2-column example chips */
+.inc-chips-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
   gap: 6px;
-  max-height: 220px;
-  overflow-y: auto;
-  padding-right: 2px;
 }
-.inc-chip {
+.inc-chip-sm {
   display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 2px;
-  background: #f0f7ff;
-  border: 1.5px solid #bdd7f5;
-  border-radius: 8px;
-  padding: 8px 11px;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 4px;
+  background: rgba(255,255,255,.92);
+  border: 1.5px solid rgba(47,79,58,.16);
+  border-radius: 10px;
+  padding: 9px 10px;
   cursor: pointer;
   text-align: left;
-  transition: background .12s, border-color .12s;
+  transition: all .13s;
+  min-height: 44px;
 }
-.inc-chip:hover { background: #daeeff; border-color: #1565c0; }
+.inc-chip-sm:hover { border-color: rgba(11,127,140,.38); background: rgba(11,127,140,.06); }
+.inc-chip-sm-on { border-color: #0b7f8c !important; background: rgba(11,127,140,.1) !important; }
+.inc-chip-sm-lbl { font-size: .74rem; font-weight: 800; line-height: 1.25; }
+
+/* ── Incident template chips (kept for legacy, now replaced by compact grid) ── */
+.inc-chips-hdr { font-size: .72rem; font-weight: 700; color: #1565c0; margin-bottom: 6px; }
+.inc-chips-list { display: flex; flex-direction: column; gap: 6px; max-height: 180px; overflow-y: auto; }
+.inc-chip { display: flex; flex-direction: column; gap: 2px; background: #f0f7ff; border: 1.5px solid #bdd7f5; border-radius: 8px; padding: 8px 11px; cursor: pointer; transition: background .12s; }
+.inc-chip:hover { background: #daeeff; }
 .inc-chip-active { background: #daeeff !important; border-color: #1565c0 !important; }
-.inc-chip-type {
-  font-size: .68rem;
-  font-weight: 800;
-  color: #1565c0;
-  text-transform: uppercase;
-  letter-spacing: .04em;
-}
-.inc-chip-text {
-  font-size: .75rem;
-  color: #37474f;
-  line-height: 1.4;
-  white-space: normal;
-}
+.inc-chip-type { font-size: .68rem; font-weight: 800; color: #1565c0; text-transform: uppercase; }
+.inc-chip-text { font-size: .75rem; color: #37474f; line-height: 1.4; }
 
 /* ── Incident template hint (kept for backward compat, may be unused) ─────── */
 .inc-template-hint {
@@ -960,6 +977,34 @@ table { width: 100%; border-collapse: collapse; }
   flex-shrink: 0;
 }
 .inc-template-apply:hover { background: #0d47a1; }
+
+/* ── Global mobile form improvements ──────────────────────────────────────── */
+/* Prevent iOS auto-zoom on input focus (requires font-size >= 16px) */
+input, select, textarea {
+  font-size: max(16px, 1em) !important;  /* ≥16px prevents iOS zoom */
+}
+/* Override back to normal visual size via transform scaling on desktop */
+@media(min-width: 641px) {
+  input, select, textarea { font-size: .88rem !important; }
+}
+/* Touch targets: all interactive form elements ≥ 44px tall */
+input[type], select, textarea, .copt, .inc-cat-btn, .inc-chip-sm, .fchip, .bsm, .btn-ghost, .btn-p {
+  min-height: 44px;
+}
+/* Compact modal on mobile — reduce wasted padding */
+@media(max-width: 640px) {
+  .modal, .modal-w { padding: 18px 16px !important; border-radius: 16px !important; }
+  .fg2 { grid-template-columns: 1fr !important; gap: 8px !important; }
+  .inc-chips-grid { grid-template-columns: 1fr !important; }
+  .inc-cat-row { flex-wrap: wrap; }
+  .inc-cat-btn { flex: 1 1 45%; }
+  .modal-title { font-size: 1rem !important; margin-bottom: 2px; }
+  .fg label { font-size: .74rem !important; }
+  .guest-grid { grid-template-columns: 1fr !important; }
+  /* Stack verify modal action buttons vertically on very small screens */
+  .mact { flex-direction: column; gap: 8px; }
+  .mact .btn-ghost, .mact .btn-p, .mact .btn-danger { width: 100%; justify-content: center; text-align: center; }
+}
 
 h1, h2, h3, h4, p { overflow-wrap: anywhere; }
 h1 { font-size: clamp(1.75rem, 3vw, 2.7rem) !important; line-height: 1.1 !important; }

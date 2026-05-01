@@ -3440,52 +3440,71 @@ function IncidentModal({ listings, user, presetApt, onSave, onClose, lang="es-CO
   return (
     <Overlay onClose={onClose} wide>
       <div className="modal-title">{appText(lang,"modal.report.title")}</div>
-      <div className="modal-sub">{appText(lang,"modal.report.sub",{name:user?.name||""})}</div>
-      <div className="form-alert">{appText(lang,"modal.report.help")}</div>
-      <div className="fg2">
-        <div className="fg"><label>{appText(lang,"form.apartment")} <Tip text={tips.incidentApartment}/></label><select className={inputCls("aptId")} value={f.aptId} onChange={e=>s("aptId",e.target.value)}><option value="">{appText(lang,"form.select")}</option>{[...listings].sort((a,b)=>a.apt.localeCompare(b.apt)).map(l=><option key={l.id} value={l.id}>{aptDisplay(l.apt, lang)} – {l.owner}</option>)}</select>{errors.aptId&&<span className="err-msg">{errors.aptId}</span>}</div>
-        <div className="fg"><label>{appText(lang,"form.date")}</label><input className={inputCls("date")} type="date" value={f.date} onChange={e=>s("date",e.target.value)}/>{errors.date&&<span className="err-msg">{errors.date}</span>}</div>
+      <div className="inc-modal-meta">{appText(lang,"modal.report.sub",{name:user?.name||""})} · <span className="inc-modal-hint">{appText(lang,"modal.report.help")}</span></div>
 
-        {/* Category first — drives the template chips below */}
-        <div className="fg full"><label>{appText(lang,"form.category")} <Tip text={tips.incidentCategory}/></label><div className="csel">{GUEST_CATEGORIES.map(c=><button key={c.value} type="button" className={`copt ${f.category===c.value?"copt-on":""}`} style={f.category===c.value?{background:c.bg,color:c.color,borderColor:c.color}:{}} onClick={()=>s("category",c.value)}>{c.icon} {categoryLabel(c.value,lang)}</button>)}</div>{errors.category&&<span className="err-msg">{errors.category}</span>}</div>
+      <div className="fg2 inc-form-grid">
+        {/* Row 1: Unit + Date */}
+        <div className="fg"><label>{appText(lang,"form.apartment")} <Tip text={tips.incidentApartment}/></label>
+          <select className={inputCls("aptId")} value={f.aptId} onChange={e=>s("aptId",e.target.value)}>
+            <option value="">{appText(lang,"form.select")}</option>
+            {[...listings].sort((a,b)=>a.apt.localeCompare(b.apt)).map(l=><option key={l.id} value={l.id}>{aptDisplay(l.apt, lang)} – {l.owner}</option>)}
+          </select>
+          {errors.aptId&&<span className="err-msg">{errors.aptId}</span>}
+        </div>
+        <div className="fg"><label>{appText(lang,"form.date")}</label>
+          <input className={inputCls("date")} type="date" value={f.date} onChange={e=>s("date",e.target.value)}/>
+          {errors.date&&<span className="err-msg">{errors.date}</span>}
+        </div>
 
-        {/* Type — kept as selector; also updated automatically when a chip is clicked */}
-        <div className="fg"><label>{appText(lang,"form.type")} <Tip text={tips.incidentType}/></label><select className={inputCls("type")} value={f.type} onChange={e=>s("type",e.target.value)}>{INCIDENT_TYPES.map(t=><option key={t.value} value={t.value}>{incidentTypeLabel(t.value,lang)}</option>)}</select>{errors.type&&<span className="err-msg">{errors.type}</span>}</div>
-
-        {/* Template chips — one per type for the selected category */}
+        {/* Row 2: Category chips (full width, inline) */}
         <div className="fg full">
-          <div className="inc-chips-hdr">
-            💡 {isEn?'Tap an example to pre-fill type + description:':'Selecciona un ejemplo para pre-completar tipo y descripción:'}
+          <label>{appText(lang,"form.category")} <Tip text={tips.incidentCategory}/></label>
+          <div className="inc-cat-row">
+            {GUEST_CATEGORIES.map(c=>(
+              <button key={c.value} type="button"
+                className={`inc-cat-btn${f.category===c.value?' inc-cat-btn-on':''}`}
+                style={f.category===c.value?{background:c.bg,color:c.color,borderColor:c.color}:{}}
+                onClick={()=>s("category",c.value)}>
+                {c.icon} {categoryLabel(c.value,lang)}
+              </button>
+            ))}
           </div>
-          <div className="inc-chips-list">
+          {errors.category&&<span className="err-msg">{errors.category}</span>}
+        </div>
+
+        {/* Row 3: Examples grid (compact 2-col, type name + tap to pre-fill) */}
+        <div className="fg full">
+          <label>💡 {isEn?'Tap an example — pre-fills type & description':'Toca un ejemplo — pre-completa tipo y descripción'}</label>
+          <div className="inc-chips-grid">
             {categoryChips.map(chip=>(
-              <button
-                key={chip.typeValue}
-                type="button"
-                className={`inc-chip${f.type===chip.typeValue&&String(f.desc||'').trim()===chip.text?' inc-chip-active':''}`}
-                onClick={()=>applyChip(chip)}
-              >
-                <span className="inc-chip-type">{chip.typeLabel}</span>
-                <span className="inc-chip-text">{chip.text}</span>
+              <button key={chip.typeValue} type="button"
+                className={`inc-chip-sm${f.type===chip.typeValue&&String(f.desc||'').trim()===chip.text?' inc-chip-sm-on':''}`}
+                title={chip.text}
+                onClick={()=>applyChip(chip)}>
+                <span className="inc-chip-sm-lbl" style={{color:chip.typeMeta.color}}>{chip.typeLabel}</span>
               </button>
             ))}
           </div>
         </div>
 
-        {/* Description — placeholder shows current type template */}
+        {/* Row 4: Type selector (auto-set by chip, or manual) + Description */}
+        <div className="fg"><label>{appText(lang,"form.type")} <Tip text={tips.incidentType}/></label>
+          <select className={inputCls("type")} value={f.type} onChange={e=>s("type",e.target.value)}>
+            {INCIDENT_TYPES.map(t=><option key={t.value} value={t.value}>{incidentTypeLabel(t.value,lang)}</option>)}
+          </select>
+          {errors.type&&<span className="err-msg">{errors.type}</span>}
+        </div>
         <div className="fg full">
           <label>{appText(lang,"form.description")} <Tip text={tips.incidentDescription}/></label>
-          <textarea
-            className={inputCls("desc")}
-            value={f.desc}
-            onChange={e=>s("desc",e.target.value)}
-            placeholder={descPlaceholder}
-            rows={4}
-          />
+          <textarea className={inputCls("desc")} value={f.desc} onChange={e=>s("desc",e.target.value)}
+            placeholder={descPlaceholder} rows={3}/>
           {errors.desc&&<span className="err-msg">{errors.desc}</span>}
         </div>
       </div>
-      <div className="mact"><button className="btn-ghost" onClick={onClose}>{appText(lang,"form.cancel")}</button><button className="btn-danger" title={tips.reportIncident} onClick={()=>{if(validate()) onSave(f);}}>{appText(lang,"form.registerReport")}</button></div>
+      <div className="mact">
+        <button className="btn-ghost" onClick={onClose}>{appText(lang,"form.cancel")}</button>
+        <button className="btn-danger" title={tips.reportIncident} onClick={()=>{if(validate()) onSave(f);}}>{appText(lang,"form.registerReport")}</button>
+      </div>
     </Overlay>
   );
 }
@@ -3493,6 +3512,7 @@ function IncidentModal({ listings, user, presetApt, onSave, onClose, lang="es-CO
 
 function VerifyIncidentModal({ incident, onSave, onClose, lang="es-CO", config={} }) {
   const tips = localizedTooltips(config, lang);
+  const isEn = lang==='en';
   const blankGuest = () => ({ firstName:'', middleName:'', lastName:'', city:'', country:'Colombia' });
   const initialGuests = normalizeOwnerGuests(incident);
   const [guests,setGuests]=useState(initialGuests.length ? initialGuests : [blankGuest()]);
@@ -3524,12 +3544,12 @@ function VerifyIncidentModal({ incident, onSave, onClose, lang="es-CO", config={
     <div className="guest-editor-list">
       {guests.map((g,idx)=><div key={idx} className="guest-editor-card">
         <div className="guest-editor-title"><strong>{appText(lang,'form.guestNumber',{count:idx+1})}</strong>{guests.length>1&&<button type="button" className="btn-mini-danger" onClick={()=>removeGuest(idx)}>🗑️ {appText(lang,'form.removeGuest')}</button>}</div>
-        <div className="fg2">
-          <div className="fg"><label>{appText(lang,'form.guestFirstName')} *</label><input className={errors[`firstName_${idx}`]?'field-error':''} value={g.firstName} onChange={e=>setGuest(idx,'firstName',e.target.value)} />{errors[`firstName_${idx}`]&&<span className="err-msg">{errors[`firstName_${idx}`]}</span>}</div>
-          <div className="fg"><label>{appText(lang,'form.guestMiddleName')}</label><input value={g.middleName} onChange={e=>setGuest(idx,'middleName',e.target.value)} /></div>
-          <div className="fg"><label>{appText(lang,'form.guestLastName')} *</label><input className={errors[`lastName_${idx}`]?'field-error':''} value={g.lastName} onChange={e=>setGuest(idx,'lastName',e.target.value)} />{errors[`lastName_${idx}`]&&<span className="err-msg">{errors[`lastName_${idx}`]}</span>}</div>
-          <div className="fg"><label>{appText(lang,"form.city")}</label><input className={errors[`city_${idx}`]?'field-error':''} value={g.city} onChange={e=>setGuest(idx,'city',e.target.value)} placeholder="Bogotá" />{errors[`city_${idx}`]&&<span className="err-msg">{errors[`city_${idx}`]}</span>}</div>
-          <div className="fg"><label>{appText(lang,"form.country")}</label><select className={errors[`country_${idx}`]?'field-error':''} value={g.country} onChange={e=>setGuest(idx,'country',e.target.value)}>{COUNTRIES.map(c=><option key={c}>{c}</option>)}</select>{errors[`country_${idx}`]&&<span className="err-msg">{errors[`country_${idx}`]}</span>}</div>
+        <div className="fg2 guest-grid">
+          <div className="fg"><label>{appText(lang,'form.guestFirstName')} *</label><input className={errors[`firstName_${idx}`]?'field-error':''} value={g.firstName} onChange={e=>setGuest(idx,'firstName',e.target.value)} autoComplete="given-name"/>{errors[`firstName_${idx}`]&&<span className="err-msg">{errors[`firstName_${idx}`]}</span>}</div>
+          <div className="fg"><label>{appText(lang,'form.guestLastName')} *</label><input className={errors[`lastName_${idx}`]?'field-error':''} value={g.lastName} onChange={e=>setGuest(idx,'lastName',e.target.value)} autoComplete="family-name"/>{errors[`lastName_${idx}`]&&<span className="err-msg">{errors[`lastName_${idx}`]}</span>}</div>
+          <div className="fg"><label>{appText(lang,'form.guestMiddleName')} <span style={{fontSize:'.65rem',color:'#8a9fa5',fontWeight:400}}>{isEn?'(optional)':'(opcional)'}</span></label><input value={g.middleName} onChange={e=>setGuest(idx,'middleName',e.target.value)} /></div>
+          <div className="fg"><label>{appText(lang,"form.city")} *</label><input className={errors[`city_${idx}`]?'field-error':''} value={g.city} onChange={e=>setGuest(idx,'city',e.target.value)} placeholder="Bogotá" autoComplete="address-level2"/>{errors[`city_${idx}`]&&<span className="err-msg">{errors[`city_${idx}`]}</span>}</div>
+          <div className="fg full"><label>{appText(lang,"form.country")} *</label><select className={errors[`country_${idx}`]?'field-error':''} value={g.country} onChange={e=>setGuest(idx,'country',e.target.value)}>{COUNTRIES.map(c=><option key={c}>{c}</option>)}</select>{errors[`country_${idx}`]&&<span className="err-msg">{errors[`country_${idx}`]}</span>}</div>
         </div>
       </div>)}
       <button type="button" className="btn-ghost" onClick={addGuest}>{appText(lang,'form.addGuest')}</button>
