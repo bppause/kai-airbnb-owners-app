@@ -669,6 +669,14 @@ table { width: 100%; border-collapse: collapse; }
 .adp-wfg-list .wfg-section { box-shadow: 0 3px 10px rgba(32,46,38,.06); }
 .adp-wfg-list .irow { margin-bottom: 6px; }
 
+/* ── Unit number legibility — crisp white on dark plate in both card types ── */
+/* AptDoor building grid */
+.door-num { color: #ffffff !important; text-shadow: 0 1px 4px rgba(0,0,0,.45) !important; letter-spacing: .08em !important; }
+/* UnitMiniCard in incident rows — same treatment, slight size bump */
+.umc-num  { color: #ffffff !important; text-shadow: 0 1px 4px rgba(0,0,0,.45) !important; font-size: 1.05rem !important; letter-spacing: .07em !important; }
+/* Tower/KAI tag stays readable too */
+.umc-tag  { color: rgba(255,255,255,.55) !important; }
+
 /* ── Branded icon sizing by context ──────────────────────────────────────── */
 /* ac-cbtn: square action buttons on AptDetailPanel / AptRow — 20px icons */
 .ac-cbtn svg { width: 20px !important; height: 20px !important; }
