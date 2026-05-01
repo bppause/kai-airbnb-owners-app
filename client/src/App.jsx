@@ -322,8 +322,10 @@ const APP_I18N = {
   "smart.noneSub": { es:"Todo está al día. Las alertas aparecerán aquí cuando requieran atención.", en:"Everything is up to date. Alerts will appear here when attention is needed." },
   "smart.ownerTitle": { es:"Verificación de propietario requerida", en:"Owner verification required" },
   "smart.ownerMsg": { es:"{count} incidente(s) abierto(s) necesitan confirmación del propietario.", en:"{count} open incident(s) need owner confirmation." },
-  "smart.resolveTitle": { es:"Listo para resolver", en:"Ready to resolve" },
-  "smart.resolveMsg": { es:"{count} incidente(s) verificado(s) están pendientes de resolución administrativa.", en:"{count} verified incident(s) are pending admin resolution." },
+  "smart.ownerResolutionTitle": { es:"Resolución del propietario pendiente", en:"Owner resolution pending" },
+  "smart.ownerResolutionMsg": { es:"{count} incidente(s) verificado(s) esperan que agregues la resolución para poder cerrarse.", en:"{count} verified incident(s) are waiting for your resolution note before they can be closed." },
+  "smart.resolveTitle": { es:"Listos para cerrar", en:"Ready to close" },
+  "smart.resolveMsg": { es:"{count} incidente(s) verificado(s) con resolución del propietario — listos para resolución administrativa.", en:"{count} verified incident(s) with owner resolution — ready for admin closure." },
   "smart.registrationTitle": { es:"Registros pendientes", en:"Pending registrations" },
   "smart.registrationMsg": { es:"{count} solicitud(es) de registro esperan aprobación o rechazo.", en:"{count} registration request(s) need approval or decline." },
   "smart.unreadTitle": { es:"Avisos sin leer", en:"Unread alerts" },
@@ -1095,14 +1097,18 @@ export default function App() {
   const canSeeMenu = (id) => effectiveIsGlobalAdmin || id === 'dashboard' || !!menuPerms[id];
   const needsOwnerVerification = incidents.filter(i => i.status === "open" && myListingIds.has(i.aptId));
   const canResolveIncidentsNow = Boolean(effectiveIsGlobalAdmin || (effectiveRole === 'delegate_admin' && delegatePerms.canResolveIncidents));
-  const needsAdminResolution = incidents.filter(i => i.status === "verified" && canResolveIncidentsNow);
+  // Verified incidents where owner resolution is still missing (owner must act before admin can close)
+  const ownerResolutionPending = incidents.filter(i => i.status === "verified" && !String(i.ownerResolution||'').trim() && myListingIds.has(i.aptId));
+  // Verified incidents where owner has provided resolution — truly ready for admin to close
+  const needsAdminResolution = incidents.filter(i => i.status === "verified" && String(i.ownerResolution||'').trim() && canResolveIncidentsNow);
   const openSeriousIncidents = incidents.filter(i => i.status !== "resolved" && ["serious","watch","under_watch"].includes(String(i.category || "")));
   const smartAlerts = [
     needsOwnerVerification.length ? { id:"ownerVerification", priority:1, icon:"✅", tone:"owner", title:appText(lang,"smart.ownerTitle"), msg:appText(lang,"smart.ownerMsg",{count:needsOwnerVerification.length}), count:needsOwnerVerification.length, action:()=>{setIncidentQuickFilter("ownerVerification");setView("incidents");setOpenDropdown(null);} } : null,
-    needsAdminResolution.length ? { id:"readyResolve", priority:2, icon:"🛠️", tone:"resolve", title:appText(lang,"smart.resolveTitle"), msg:appText(lang,"smart.resolveMsg",{count:needsAdminResolution.length}), count:needsAdminResolution.length, action:()=>{setIncidentQuickFilter("requiresResolution");setView("incidents");setOpenDropdown(null);} } : null,
-    effectiveCanManageRegistrations && pendingRegistrations.length ? { id:"registrations", priority:3, icon:"📝", tone:"registration", title:appText(lang,"smart.registrationTitle"), msg:appText(lang,"smart.registrationMsg",{count:pendingRegistrations.length}), count:pendingRegistrations.length, action:()=>{setView("approvals");setOpenDropdown(null);} } : null,
-    unreadNotifications ? { id:"unread", priority:4, icon:"🔔", tone:"notice", title:appText(lang,"smart.unreadTitle"), msg:appText(lang,"smart.unreadMsg",{count:unreadNotifications}), count:unreadNotifications, action:()=>{setView("notifications");setOpenDropdown(null);} } : null,
-    openSeriousIncidents.length ? { id:"serious", priority:5, icon:"🚨", tone:"serious", title:appText(lang,"smart.seriousTitle"), msg:appText(lang,"smart.seriousMsg",{count:openSeriousIncidents.length}), count:openSeriousIncidents.length, action:()=>{setIncidentQuickFilter("seriousOpen");setView("incidents");setOpenDropdown(null);} } : null,
+    ownerResolutionPending.length ? { id:"ownerResolution", priority:2, icon:"📝", tone:"owner", title:appText(lang,"smart.ownerResolutionTitle"), msg:appText(lang,"smart.ownerResolutionMsg",{count:ownerResolutionPending.length}), count:ownerResolutionPending.length, action:()=>{setIncidentQuickFilter("needsResolution");setView("incidents");setOpenDropdown(null);} } : null,
+    needsAdminResolution.length ? { id:"readyResolve", priority:3, icon:"🛠️", tone:"resolve", title:appText(lang,"smart.resolveTitle"), msg:appText(lang,"smart.resolveMsg",{count:needsAdminResolution.length}), count:needsAdminResolution.length, action:()=>{setIncidentQuickFilter("requiresResolution");setView("incidents");setOpenDropdown(null);} } : null,
+    effectiveCanManageRegistrations && pendingRegistrations.length ? { id:"registrations", priority:4, icon:"📝", tone:"registration", title:appText(lang,"smart.registrationTitle"), msg:appText(lang,"smart.registrationMsg",{count:pendingRegistrations.length}), count:pendingRegistrations.length, action:()=>{setView("approvals");setOpenDropdown(null);} } : null,
+    unreadNotifications ? { id:"unread", priority:5, icon:"🔔", tone:"notice", title:appText(lang,"smart.unreadTitle"), msg:appText(lang,"smart.unreadMsg",{count:unreadNotifications}), count:unreadNotifications, action:()=>{setView("notifications");setOpenDropdown(null);} } : null,
+    openSeriousIncidents.length ? { id:"serious", priority:6, icon:"🚨", tone:"serious", title:appText(lang,"smart.seriousTitle"), msg:appText(lang,"smart.seriousMsg",{count:openSeriousIncidents.length}), count:openSeriousIncidents.length, action:()=>{setIncidentQuickFilter("seriousOpen");setView("incidents");setOpenDropdown(null);} } : null,
   ].filter(Boolean).sort((a,b)=>a.priority-b.priority);
   const smartAlertCount = smartAlerts.reduce((sum,a)=>sum + Number(a.count || 0), 0);
   const NAV = [
@@ -2346,9 +2352,15 @@ function MyListings({ listings, incidents, user, contactProps={}, isGlobalAdmin=
                     </div>
                     <div className="ml-listing-inc-pills">
                       {lOpen>0&&<span className="ml-pill ml-pill-open">⚠️ {lOpen}</span>}
-                      {lVer>0&&<span className="ml-pill ml-pill-ver">👤 {lVer}</span>}
+                      {(() => {
+                        const verPendingRes = lInc.filter(i=>i.status==='verified'&&!String(i.ownerResolution||'').trim()).length;
+                        const verReady      = lInc.filter(i=>i.status==='verified'&& String(i.ownerResolution||'').trim()).length;
+                        return <>
+                          {verPendingRes>0&&<span className="ml-pill ml-pill-ver" title={isEn?'Verified — awaiting your resolution':'Verificado — esperando tu resolución'}>⏳ {verPendingRes}</span>}
+                          {verReady>0&&<span className="ml-pill ml-pill-ver" style={{background:'rgba(11,127,79,.15)',color:'#0b5f3a'}} title={isEn?'Verified — ready to close':'Verificado — listo para cerrar'}>👤 {verReady}</span>}
+                        </>;
+                      })()}
                       {lRes>0&&<span className="ml-pill ml-pill-res">✓ {lRes}</span>}
-                      {lInc.length===0&&<span className="ml-pill ml-pill-clear">✓ {isEn?'Clear':'Al día'}</span>}
                     </div>
                     <div className="ml-listing-acts" onClick={e=>e.stopPropagation()}>
                       <button className="bsm bs-rep" onClick={()=>onReport(l)}>+ {isEn?'Report':'Reporte'}</button>
@@ -2872,8 +2884,9 @@ function WorkflowGroup({ statusKey, icon, label, sublabel, color, incidents, lis
 function IncidentsView({ incidents, listings, user, quickFilter=null, onQuickFilterApplied=()=>{}, contactProps={}, isGlobalAdmin=false, canUpdateGlobal=false, canDeleteGlobal=false, canResolveGlobal=false, onAdd, onResolve, onDelete, onVerify, onAddResolution, lang="es-CO" }) {
   const [sf,setSf]=useState("all"), [cf,setCf]=useState("all"), [scope,setScope]=useState("all"), [search,setSearch]=useState("");
   useEffect(()=>{
-    if (quickFilter === "ownerVerification") { setScope("ownerVerification"); setSf("open"); setCf("all"); onQuickFilterApplied(); }
-    if (quickFilter === "requiresResolution") { setScope("requiresResolution"); setSf("verified"); setCf("all"); onQuickFilterApplied(); }
+    if (quickFilter === "ownerVerification") { setScope("ownerVerification"); setSf("all"); setCf("all"); onQuickFilterApplied(); }
+    if (quickFilter === "needsResolution")   { setScope("needsResolution");   setSf("all"); setCf("all"); onQuickFilterApplied(); }
+    if (quickFilter === "requiresResolution") { setScope("requiresResolution"); setSf("all"); setCf("all"); onQuickFilterApplied(); }
     if (quickFilter === "seriousOpen") { setScope("all"); setSf("all"); setCf("serious"); onQuickFilterApplied(); }
   }, [quickFilter, onQuickFilterApplied]);
   const listingMap = Object.fromEntries(listings.map(l=>[l.id, l]));
@@ -2883,11 +2896,18 @@ function IncidentsView({ incidents, listings, user, quickFilter=null, onQuickFil
   if(scope==="iReported"   && user) list=list.filter(i=>i.reporterUid===user.uid);
   // "My listings" — incidents against apartments the user owns
   if(scope==="myListings"  && user) list=list.filter(i=>myListingIds.has(i.aptId));
-  // "Needs resolution" — user's incidents (reported by or against their listings) that are still open/verified
-  if(scope==="needsResolution" && user) list=list.filter(i=>i.status!=='resolved'&&(myListingIds.has(i.aptId)||i.reporterUid===user.uid));
+  // "Pending resolution" — verified incidents where owner_resolution is still missing
+  // Owners see only their listings; admins/delegates see all
+  if(scope==="needsResolution") list=list.filter(i=>
+    i.status==="verified" && !String(i.ownerResolution||'').trim() &&
+    (isGlobalAdmin || canResolveGlobal || (user && myListingIds.has(i.aptId)))
+  );
   // Legacy quickFilter scopes (used by dashboard action pills)
   if(scope==="ownerVerification" && user) list=list.filter(i=>i.status==="open"&&myListingIds.has(i.aptId));
-  if(scope==="requiresResolution") list=list.filter(i=>i.status==="verified"&&(isGlobalAdmin||canResolveGlobal));
+  // "Requires resolution" (admin) — verified WITH owner resolution, truly ready to close
+  if(scope==="requiresResolution") list=list.filter(i=>
+    i.status==="verified" && String(i.ownerResolution||'').trim() && (isGlobalAdmin||canResolveGlobal)
+  );
   if(sf!=="all") list=list.filter(i=>i.status===sf);
   if(cf!=="all") list=list.filter(i=>i.category===cf);
   if(search.trim()){
@@ -2916,14 +2936,26 @@ function IncidentsView({ incidents, listings, user, quickFilter=null, onQuickFil
   }
   list.sort((a,b)=>new Date(b.createdAt)-new Date(a.createdAt));
   const isEn = lang==='en';
-  const anyFilter = sf!=='all'||cf!=='all'||(user&&scope!=='all'&&scope!=='iReported'&&scope!=='myListings'&&scope!=='needsResolution')||search.trim()!==''||['iReported','myListings','needsResolution','ownerVerification','requiresResolution'].includes(scope);
+  const anyFilter = sf!=='all'||cf!=='all'||scope!=='all'||search.trim()!=='';
   const resetAll = () => { setSf('all'); setCf('all'); setScope('all'); setSearch(''); };
   const [groupOpen, setGroupOpen] = useState({open:true,verified:false,resolved:false});
   const toggleGroup = (k) => setGroupOpen(s=>({...s,[k]:!s[k]}));
 
+  // Break verified group down so users understand which are blocked vs ready
+  const verifiedAll = list.filter(i=>i.status==='verified');
+  const verifiedPendingRes = verifiedAll.filter(i=>!String(i.ownerResolution||'').trim()).length;
+  const verifiedReady      = verifiedAll.filter(i=> String(i.ownerResolution||'').trim()).length;
+  const verifiedSublabel = verifiedAll.length===0
+    ? (isEn?'Awaiting admin resolution':'Esperando resolución del admin')
+    : verifiedPendingRes>0 && verifiedReady>0
+      ? (isEn?`${verifiedPendingRes} awaiting owner resolution · ${verifiedReady} ready to close`:`${verifiedPendingRes} esperan resolución del propietario · ${verifiedReady} listos para cerrar`)
+      : verifiedPendingRes>0
+        ? (isEn?`${verifiedPendingRes} awaiting owner resolution`:`${verifiedPendingRes} esperan resolución del propietario`)
+        : (isEn?`${verifiedReady} ready to close`:`${verifiedReady} listos para cerrar`);
+
   const wfGroups = [
     { key:'open',     icon:'⚠️', color:'#d9a030', label:appText(lang,'workflow.open'),     sublabel:isEn?'Pending owner verification':'Pendiente verificación del propietario' },
-    { key:'verified', icon:'👤', color:'#0b7f4f', label:appText(lang,'workflow.verified'),  sublabel:isEn?'Awaiting admin resolution':'Esperando resolución del admin' },
+    { key:'verified', icon:'👤', color:'#0b7f4f', label:appText(lang,'workflow.verified'),  sublabel:verifiedSublabel },
     { key:'resolved', icon:'✓',  color:'#6a9a7a', label:appText(lang,'workflow.resolved'),  sublabel:isEn?'Closed incidents':'Incidentes cerrados' },
   ];
 
@@ -2954,10 +2986,19 @@ function IncidentsView({ incidents, listings, user, quickFilter=null, onQuickFil
             <button className={`fchip fchip-sm ${scope==='myListings'?'fchip-on':''}`} onClick={()=>{setScope(scope==='myListings'?'all':'myListings');setSf('all');}}>
               🏠 {isEn?'My listings':'Mis listings'}
             </button>
-            <button className={`fchip fchip-sm ${scope==='needsResolution'?'fchip-on':''}`} onClick={()=>{setScope(scope==='needsResolution'?'all':'needsResolution');setSf('all');}}>
-              🔧 {isEn?'Needs resolution':'Sin resolver'}
-            </button>
           </>}
+          {/* Pending resolution — available to all authenticated users:
+              owners see their listings waiting for their resolution note;
+              admins/delegates see all verified incidents missing a resolution */}
+          <button className={`fchip fchip-sm ${scope==='needsResolution'?'fchip-on fchip-warn':''}`} onClick={()=>{setScope(scope==='needsResolution'?'all':'needsResolution');setSf('all');}}>
+            ⏳ {isEn?'Pending resolution':'Pendiente resolución'}
+          </button>
+          {/* Ready to close — admins/delegates only: verified + owner resolution provided */}
+          {(isGlobalAdmin||canResolveGlobal)&&(
+            <button className={`fchip fchip-sm ${scope==='requiresResolution'?'fchip-on fchip-resolve':''}`} onClick={()=>{setScope(scope==='requiresResolution'?'all':'requiresResolution');setSf('all');}}>
+              🛠️ {isEn?'Ready to close':'Listos para cerrar'}
+            </button>
+          )}
         </div>
         <div style={{display:'flex',gap:5,flexWrap:'wrap',alignItems:'center'}}>
           {GUEST_CATEGORIES.map(c=><button key={c.value} className={`fchip fchip-sm ${cf===c.value?'fchip-on':''}`} onClick={()=>setCf(cf===c.value?'all':c.value)}>{c.icon} {categoryLabel(c.value,lang)}</button>)}
@@ -3845,6 +3886,8 @@ const CSS = `
 .ir-loc,.ng-loc,.np-loc,.help-msg,.modal-sub{color:#235f72!important;}
 .fchip{background:rgba(255,255,255,.78)!important;border-color:rgba(47,79,58,.18)!important;color:#174b5a!important;font-weight:700;}
 .fchip-on{background:#1193a5!important;color:white!important;border-color:#1193a5!important;}
+.fchip-warn.fchip-on{background:#d9700e!important;border-color:#d9700e!important;}
+.fchip-resolve.fchip-on{background:#0b7f4f!important;border-color:#0b7f4f!important;}
 .ir-type,.ir-cat,.ir-status,.chip{font-weight:800!important;border:1px solid rgba(0,0,0,.06);}
 .is-open{background:#ffe2d7!important;color:#b83215!important;}
 .is-verified{background:#dff5e4!important;color:#1f7a35!important;}
