@@ -1471,8 +1471,175 @@ button.unit-plate:focus-visible { outline: 2px solid rgba(200,216,160,.6) !impor
 }
 .idd-act-btn { width: 100% !important; text-align: center !important; justify-content: center !important; }
 
-/* ── IRow: clickable summary affordance ─────────────────────────────────────── */
-/* When onIncidentDetail is wired, the left+center columns wrap in a button */
+/* ── IRow: redesigned card layout matching incident detail view ──────────────── */
+
+/* Card wrapper — left sidebar + main content */
+.irow.irow-card {
+  display: flex !important;
+  align-items: flex-start !important;
+  gap: 0 !important;
+  padding: 0 !important;
+  background: rgba(255,255,255,.97) !important;
+  border-radius: 14px !important;
+  overflow: hidden !important;
+  box-shadow: 0 2px 8px rgba(18,50,53,.08) !important;
+  border: 1px solid rgba(18,50,53,.09) !important;
+}
+.irow.irow-card .ir-l {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 8px;
+  min-width: 130px;
+  max-width: 150px;
+  border-right: 1px solid rgba(18,50,53,.07);
+  background: rgba(11,50,60,.02);
+  flex-shrink: 0;
+  align-self: stretch;
+}
+.irow.irow-card .ir-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── Status strip — coloured bar matching idd-status-banner ── */
+.ir-status-strip {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 12px;
+  flex-wrap: wrap;
+  border-bottom: 1px solid rgba(18,50,53,.06);
+}
+.ir-ss-icon  { font-size: .85rem; flex-shrink: 0; }
+.ir-ss-label { font-size: .72rem; font-weight: 800; flex-shrink: 0; }
+.ir-ss-chips { display: flex; gap: 4px; flex-wrap: wrap; align-items: center; margin-left: 4px; }
+.ir-ss-date  { font-size: .65rem; color: #496674; background: rgba(47,79,58,.06); padding: 2px 7px; border-radius: 999px; }
+/* Status strip colour variants — mirrors idd-status-* */
+.ir-ss-open     { background: rgba(160,80,0,.07);   border-left: 3px solid rgba(160,80,0,.4); }
+.ir-ss-open .ir-ss-label     { color: #7a3c00; }
+.ir-ss-pres     { background: rgba(11,127,79,.06);  border-left: 3px solid rgba(11,127,79,.4); }
+.ir-ss-pres .ir-ss-label     { color: #0b5f3a; }
+.ir-ss-wait     { background: rgba(11,100,140,.06); border-left: 3px solid rgba(11,100,140,.35); }
+.ir-ss-wait .ir-ss-label     { color: #0b4f6a; }
+.ir-ss-resolved { background: rgba(80,130,100,.06); border-left: 3px solid rgba(80,130,100,.35); }
+.ir-ss-resolved .ir-ss-label { color: #2d6048; }
+
+/* Details pill button in status strip */
+.ir-detail-pill {
+  margin-left: auto !important;
+  background: rgba(11,127,140,.08) !important;
+  border: 1px solid rgba(11,127,140,.2) !important;
+  border-radius: 999px !important;
+  padding: 3px 10px !important;
+  font-size: .67rem !important;
+  font-weight: 700 !important;
+  color: #0b5f72 !important;
+  cursor: pointer !important;
+  min-height: 0 !important;
+  white-space: nowrap !important;
+  flex-shrink: 0 !important;
+  transition: background .12s, color .12s !important;
+}
+.ir-detail-pill:hover { background: rgba(11,127,140,.18) !important; color: #074f60 !important; }
+
+/* ── Body: description + structured sections ── */
+.ir-body {
+  padding: 10px 14px 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.ir-body-desc {
+  margin: 0;
+  font-size: .85rem;
+  color: #17313a;
+  line-height: 1.5;
+}
+.ir-body-section {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.ir-body-lbl {
+  font-size: .67rem;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: .07em;
+  color: #496674;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+.ir-body-ts   { font-size: .65rem; font-weight: 500; color: #8a9fa5; background: rgba(47,79,58,.05); padding: 1px 6px; border-radius: 999px; }
+.ir-body-by   { font-size: .65rem; color: #496674; font-weight: 500; }
+.ir-body-guests { display: flex; flex-direction: column; gap: 4px; }
+.ir-body-guest-row { display: flex; flex-wrap: wrap; gap: 6px; align-items: baseline; }
+.ir-body-guest-name { font-size: .83rem; color: #17313a; font-weight: 700; }
+.ir-body-guest-loc  { font-size: .76rem; color: #496674; }
+.ir-body-pending    { font-size: .8rem; color: #8a9fa5; font-style: italic; }
+.ir-body-reporter   { font-size: .75rem; color: #496674; padding-top: 4px; border-top: 1px solid rgba(18,50,53,.06); margin-top: 2px; }
+/* Blockquotes matching idd-tl-blockquote */
+.ir-body-quote {
+  margin: 0;
+  font-size: .83rem;
+  color: #17313a;
+  line-height: 1.5;
+  background: rgba(47,79,58,.05);
+  border-left: 3px solid rgba(11,127,140,.38);
+  border-radius: 0 7px 7px 0;
+  padding: 7px 11px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.ir-body-quote-res {
+  border-left-color: rgba(8,127,111,.48);
+  background: rgba(8,127,111,.05);
+}
+
+/* ── Action footer — mirrors idd-actions ── */
+.ir-footer-acts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  align-items: center;
+  padding: 9px 14px 10px;
+  border-top: 1px solid rgba(18,50,53,.07);
+  margin-top: 2px;
+  background: rgba(11,50,60,.02);
+}
+.ir-act-btn {
+  flex: 1 !important;
+  min-width: 160px !important;
+  text-align: center !important;
+  justify-content: center !important;
+  font-size: .8rem !important;
+}
+.ir-act-btn-sm { flex-shrink: 0; }
+.ir-act-del    { margin-left: auto; flex-shrink: 0; }
+.ir-act-done {
+  font-size: .75rem;
+  font-weight: 700;
+  color: #0b5f3a;
+  padding: 6px 10px;
+  background: rgba(11,127,79,.07);
+  border-radius: 8px;
+  flex: 1;
+}
+.ir-act-waiting {
+  font-size: .73rem;
+  color: #496674;
+  font-style: italic;
+  padding: 6px 10px;
+  background: rgba(47,79,58,.05);
+  border-radius: 8px;
+  flex: 1;
+}
+
+/* Old clickable wrapper — kept for compat */
 .irow-clickable { position: relative; }
 .ir-summary-btn {
   display: flex !important;
