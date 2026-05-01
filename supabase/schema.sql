@@ -194,7 +194,9 @@ insert into public.app_config(key, value) values
   ('default_delegate_permissions','{"canApproveRegistrations":true,"canResolveIncidents":true,"canUpdateGlobalListings":false,"canDeleteGlobalListings":false,"canUpdateGlobalIncidents":false,"canDeleteGlobalIncidents":false}'),
   -- v73 admin-editable UI label overrides (JSON objects mapping i18n key → custom text)
   ('ui_labels_es', '{}'),
-  ('ui_labels_en', '{}')
+  ('ui_labels_en', '{}'),
+  -- v74 admin-configurable nav order and default landing per role
+  ('nav_config', '{"user":{"landing":"my","primary":["my","incidents","listings","dashboard"]},"delegate":{"landing":"my","primary":["my","incidents","listings","dashboard"]},"global":{"landing":"my","primary":["my","incidents","listings","dashboard"]}}')
 on conflict (key) do nothing;
 
 -- v27 bilingual mission/rules detailed content
