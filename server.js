@@ -419,6 +419,7 @@ const incidentFromDb = (r) => ({
   ownerGuestCountry: r.owner_guest_country || '',
   ownerGuests: Array.isArray(r.owner_guests) ? r.owner_guests : [],
   ownerComments: r.owner_comments || '',
+  ownerResolution: r.owner_resolution || '',
   ownerVerifiedAt: r.owner_verified_at || '',
   resolvedAt: r.resolved_at || '',
   resolvedBy: r.resolved_by || '',
@@ -1162,7 +1163,10 @@ app.put('/api/users/profile', async (req, res) => {
   if (!requireSupabaseEnv(res)) return;
   const { uid, email, whatsapp } = req.body || {};
   if (!uid || !email) return res.status(400).json({ error:'uid and email are required.' });
-  const wa = String(whatsapp || '').trim();
+  const waRaw = String(whatsapp || '').trim();
+  // Auto-normalize: prepend + if the number has 10+ digits but no country code prefix
+  const waDigits = waRaw.replace(/[^0-9]/g, '');
+  const wa = waRaw ? (waRaw.startsWith('+') ? waRaw : (waDigits.length >= 10 ? '+' + waDigits : waRaw)) : '';
   const em = String(email).toLowerCase();
   const { error } = await supabase.from('app_users').upsert({
     uid, email: em, whatsapp: wa, updated_at: new Date().toISOString()
@@ -1295,7 +1299,7 @@ function ownerGuestFullName(g) { return [g.firstName, g.middleName, g.lastName].
 
 app.patch('/api/incidents/:id/verify', async (req, res) => {
   if (!requireSupabaseEnv(res)) return;
-  const { ownerUid, guests, guestNames, guestCity, guestCountry, ownerComments } = req.body || {};
+  const { ownerUid, guests, guestNames, guestCity, guestCountry, ownerComments, ownerResolution } = req.body || {};
   if (!ownerUid) return res.status(400).json({ error:'ownerUid is required.' });
   let ownerGuests = normalizeOwnerGuestsPayload(guests);
   if (!ownerGuests.length && String(guestNames || '').trim()) {
@@ -1318,14 +1322,36 @@ app.patch('/api/incidents/:id/verify', async (req, res) => {
   const cities = [...new Set(ownerGuests.map(g=>g.city).filter(Boolean))].join(', ');
   const countries = [...new Set(ownerGuests.map(g=>g.country).filter(Boolean))].join(', ');
   const ownerCommentText = String(ownerComments || '').trim();
-  if (!ownerCommentText) return res.status(400).json({ error:'La respuesta del propietario es requerida.' });
-  const upd = { status:'verified', owner_guests: ownerGuests, owner_guest_names:names, owner_guest_city:cities, owner_guest_country:countries, owner_comments:ownerCommentText, owner_verified_at:new Date().toISOString(), next_sla_reminder_at:null };
+  if (!ownerCommentText) return res.status(400).json({ error:'La acción inmediata del propietario es requerida.' });
+  const ownerResolutionText = String(ownerResolution || '').trim();
+  const upd = { status:'verified', owner_guests: ownerGuests, owner_guest_names:names, owner_guest_city:cities, owner_guest_country:countries, owner_comments:ownerCommentText, owner_resolution:ownerResolutionText, owner_verified_at:new Date().toISOString(), next_sla_reminder_at:null };
   const { data, error } = await supabase.from('incidents').update(upd).eq('id', req.params.id).select('*').single();
   if (error) return sendSupabaseError(res, error);
   await auditLog({ entity:'incident', entityId:data.id, action:'verify', actorUid:ownerUid, before:inc, after:data });
   const verifiedIncident = incidentFromDb(data);
+  // Notify admins when owner verifies — they need to be aware it is pending resolution
   setImmediate(() => sendIncidentVerifiedEmail({ listing: listingFromDb(inc.listings), incident: verifiedIncident, appUrl: publicAppUrl(req) }).catch(e => warn('Incident verified email failed: ' + (e?.message || e))));
   res.json(verifiedIncident);
+});
+
+// Owner adds/updates resolution on a verified incident → notifies admins it is ready to close
+app.patch('/api/incidents/:id/add-resolution', async (req, res) => {
+  if (!requireSupabaseEnv(res)) return;
+  const { ownerUid, ownerResolution } = req.body || {};
+  if (!ownerUid) return res.status(400).json({ error:'ownerUid is required.' });
+  const resText = String(ownerResolution || '').trim();
+  if (!resText) return res.status(400).json({ error:'La resolución del propietario es requerida.' });
+  const { data: inc, error: findErr } = await supabase.from('incidents').select('*, listings(*)').eq('id', req.params.id).single();
+  if (findErr || !inc) return res.status(404).json({ error:'Incidente no encontrado.' });
+  if (inc.listings?.owner_uid !== ownerUid) return res.status(403).json({ error:'Solo el propietario puede agregar la resolución.' });
+  if (inc.status !== 'verified') return res.status(400).json({ error:'Solo se puede agregar resolución a incidentes verificados.' });
+  const { data, error } = await supabase.from('incidents').update({ owner_resolution: resText }).eq('id', req.params.id).select('*').single();
+  if (error) return sendSupabaseError(res, error);
+  await auditLog({ entity:'incident', entityId:data.id, action:'add-resolution', actorUid:ownerUid, before:inc, after:data });
+  const updatedIncident = incidentFromDb(data);
+  // Notify admins — incident is now ready for final resolution
+  setImmediate(() => sendIncidentVerifiedEmail({ listing: listingFromDb(inc.listings), incident: updatedIncident, appUrl: publicAppUrl(req) }).catch(e => warn('Add-resolution email failed: ' + (e?.message || e))));
+  res.json(updatedIncident);
 });
 
 app.patch('/api/incidents/:id/resolve', async (req, res) => {
@@ -1339,7 +1365,10 @@ app.patch('/api/incidents/:id/resolve', async (req, res) => {
   if (!(await hasDelegatePermission(actorUid, actorEmail, 'canResolveIncidents'))) return res.status(403).json({ error:'Only global admins or delegates with resolve permission can resolve incidents.' });
   const ownerGuests = Array.isArray(existing.owner_guests) ? existing.owner_guests : [];
   if (existing.status !== 'verified' || !existing.owner_verified_at || !ownerGuests.length || !String(existing.owner_comments || '').trim()) {
-    return res.status(400).json({ error:'Owner must verify the incident with guest(s), city, country, and comments before resolution.' });
+    return res.status(400).json({ error:'Owner must verify the incident with guest(s), city, country, and immediate action before resolution.' });
+  }
+  if (!String(existing.owner_resolution || '').trim()) {
+    return res.status(400).json({ error:'Owner must provide a resolution before this incident can be closed.' });
   }
   const upd = { status: 'resolved', resolution_comments: comments, resolved_at: new Date().toISOString(), resolved_by: actorEmail || actorName || actorUid };
   const { data, error } = await supabase.from('incidents').update(upd).eq('id', req.params.id).select('*').single();

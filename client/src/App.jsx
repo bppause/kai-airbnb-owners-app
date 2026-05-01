@@ -416,7 +416,7 @@ const APP_I18N = {
   "form.saveVerification": { es:"Guardar verificación", en:"Save verification" },
   "modal.verify.title": { es:"✅ Verificar incidente", en:"✅ Verify incident" },
   "modal.verify.sub": { es:"{apt} · El SLA se detendrá cuando verifiques el incidente.", en:"{apt} · The SLA will stop when you verify the incident." },
-  "modal.verify.help": { es:"Confirma el nombre del huésped o huéspedes, ciudad y país. La respuesta del propietario es requerida — describe la acción tomada. Un administrador resolverá el incidente una vez verificado.", en:"Confirm the guest name(s), city, and country. The owner response is required — describe the action taken. An admin will resolve the incident once verified." },
+  "modal.verify.help": { es:"Confirma los datos del huésped y describe la acción inmediata tomada (requerida). La resolución propuesta es opcional al verificar, pero un administrador solo podrá cerrar el incidente una vez que la agregues.", en:"Confirm the guest details and describe the immediate action taken (required). The proposed resolution is optional at verification, but an admin can only close the incident once you add it." },
   "form.guestNames": { es:"👥 Huésped(es) confirmado(s) *", en:"👥 Confirmed guest(s) *" },
   "form.guestNamesPlaceholder": { es:"Nombre de huésped 1, huésped 2...", en:"Guest 1 name, guest 2 name..." },
 
@@ -431,6 +431,12 @@ const APP_I18N = {
   "validation.guestLastName": { es:"El apellido del huésped es requerido.", en:"Guest last name is required." },
   "form.city": { es:"🏙️ Ciudad *", en:"🏙️ City *" },
   "form.country": { es:"🌍 País *", en:"🌍 Country *" },
+  "form.immediateAction": { es:"💡 Acción inmediata tomada *", en:"💡 Immediate action taken *" },
+  "form.immediateActionPlaceholder": { es:"¿Qué hiciste de inmediato ante este incidente? (ej: llamé al huésped, contacté al operador, presenté queja a Airbnb...)", en:"What did you do immediately about this incident? (e.g. called the guest, contacted the operator, filed an Airbnb complaint...)" },
+  "form.ownerResolution": { es:"🔍 Resolución propuesta", en:"🔍 Proposed resolution" },
+  "form.ownerResolutionPlaceholder": { es:"Describe el acuerdo alcanzado, compensación pactada o resultado final... (Puedes completarlo después de verificar)", en:"Describe the agreement reached, agreed compensation, or final outcome... (You can complete this after verifying)" },
+  "form.addResolution": { es:"📝 Agregar resolución", en:"📝 Add resolution" },
+  "form.resolutionRequired": { es:"⚠️ Resolución pendiente — el administrador no puede cerrar este incidente hasta que agregues una resolución.", en:"⚠️ Resolution pending — the admin cannot close this incident until you add a resolution." },
   "form.ownerResponse": { es:"💬 Respuesta del propietario *", en:"💬 Owner response *" },
   "form.ownerResponsePlaceholder": { es:"Describe la acción inmediata tomada, el estado actual del caso y cualquier detalle relevante para la resolución...", en:"Describe the immediate action taken, the current status of the case, and any details relevant for resolution..." },
   "form.optionalMessage": { es:"Mensaje opcional...", en:"Optional message..." },
@@ -1171,10 +1177,20 @@ export default function App() {
   const verifyIncident = async (id, payload) => {
     setSyncing(true);
     try {
-      const updated = await api.patch(`/api/incidents/${id}/verify`, { ownerUid:user.uid, guests:payload.guests || [], ownerComments:payload.ownerComments || '' });
+      const updated = await api.patch(`/api/incidents/${id}/verify`, { ownerUid:user.uid, guests:payload.guests || [], ownerComments:payload.ownerComments || '', ownerResolution:payload.ownerResolution || '' });
       setIncidents(i => i.map(x => x.id === id ? updated : x));
       setModal(null); showToast('✅ Incidente verificado');
     } catch(e) { showToast('Error al verificar: ' + (e.message || 'Revise datos'), true); }
+    finally { setSyncing(false); }
+  };
+
+  const addResolution = async (id, resolutionText) => {
+    setSyncing(true);
+    try {
+      const updated = await api.patch(`/api/incidents/${id}/add-resolution`, { ownerUid:user.uid, ownerResolution:resolutionText });
+      setIncidents(i => i.map(x => x.id === id ? updated : x));
+      setModal(null); showToast(lang==='en' ? '📝 Resolution saved — admin notified' : '📝 Resolución guardada — admin notificado');
+    } catch(e) { showToast('Error: ' + (e.message || ''), true); }
     finally { setSyncing(false); }
   };
 
@@ -1337,12 +1353,12 @@ export default function App() {
         {view==="dashboard" && <Dashboard lang={lang} listings={listings} incidents={incidents} user={user} contactProps={contactProps} setView={setView} showBlacklist={false} onReport={()=>{ if(!user){login();return;} setModal({type:"incident"}); }} effectiveIsGlobalAdmin={effectiveIsGlobalAdmin} effectiveRole={effectiveRole} delegatePerms={delegatePerms} pendingOwner={needsOwnerVerification.length} pendingResolve={needsAdminResolution.length} pendingRegistrations={effectiveCanManageRegistrations ? pendingRegistrations.length : 0} canResolve={canResolveIncidentsNow} canManageRegistrations={effectiveCanManageRegistrations} onOwnerClick={()=>{setIncidentQuickFilter('ownerVerification');setView('incidents');}} onResolveClick={()=>{setIncidentQuickFilter('requiresResolution');setView('incidents');}} onRegistrationsClick={()=>setView('approvals')} />}
         {view==="about" && <CommunityMissionView lang={lang} config={adminInfo.config} />}
         {view==="listings"  && <ListingsView lang={lang} listings={listings} incidents={incidents} user={user} contactProps={contactProps} isGlobalAdmin={effectiveIsGlobalAdmin} canEditGlobal={delegatePerms.canUpdateGlobalListings} canDeleteGlobal={delegatePerms.canDeleteGlobalListings} canResolveGlobal={canResolveIncidentsNow} floorOpenState={listingFloorOpen} onFloorToggle={toggleListingFloor} onAdd={()=>{ if(!user){login();return;} setModal({type:"addListing"}); }} onEdit={l=>setModal({type:"editListing",data:l})} onDelete={deleteListing} onReport={l=>{ if(!user){login();return;} setModal({type:"incident",data:{aptId:l.id}}); }} onVerify={inc=>setModal({type:"verifyIncident",data:inc})} onResolve={resolveIncident} />}
-        {view==="incidents" && <IncidentsView lang={lang} incidents={incidents} listings={listings} user={user} quickFilter={incidentQuickFilter} onQuickFilterApplied={()=>setIncidentQuickFilter(null)} contactProps={contactProps} isGlobalAdmin={effectiveIsGlobalAdmin} canUpdateGlobal={delegatePerms.canUpdateGlobalIncidents} canDeleteGlobal={delegatePerms.canDeleteGlobalIncidents} canResolveGlobal={canResolveIncidentsNow} onAdd={()=>{ if(!user){login();return;} setModal({type:"incident"}); }} onResolve={resolveIncident} onDelete={deleteIncident} onVerify={inc=>setModal({type:"verifyIncident",data:inc})} />}
+        {view==="incidents" && <IncidentsView lang={lang} incidents={incidents} listings={listings} user={user} quickFilter={incidentQuickFilter} onQuickFilterApplied={()=>setIncidentQuickFilter(null)} contactProps={contactProps} isGlobalAdmin={effectiveIsGlobalAdmin} canUpdateGlobal={delegatePerms.canUpdateGlobalIncidents} canDeleteGlobal={delegatePerms.canDeleteGlobalIncidents} canResolveGlobal={canResolveIncidentsNow} onAdd={()=>{ if(!user){login();return;} setModal({type:"incident"}); }} onResolve={resolveIncident} onDelete={deleteIncident} onVerify={inc=>setModal({type:"verifyIncident",data:inc})} onAddResolution={inc=>setModal({type:"addResolution",data:inc})} />}
         {view==="notifications" && user && <NotificationsView lang={lang} notifications={notifications} incidents={incidents} listings={listings} contactProps={contactProps} onRead={markNotificationRead} onReadAll={markAllNotificationsRead} smartAlerts={smartAlerts} />}
         {view==="approvals" && user && effectiveCanManageRegistrations && <PendingApprovalsView lang={lang} pending={pendingRegistrations} onApprove={id=>reviewRegistrationAction(id,'approve')} onDecline={id=>reviewRegistrationAction(id,'decline')} active={activeRegistrations} />}
         {view==="analytics" && user && (effectiveIsGlobalAdmin || analyticsEnabledForAll) && <AnalyticsDashboard lang={lang} user={user} contactProps={contactProps} showToast={showToast} isGlobalAdmin={effectiveIsGlobalAdmin} />}
         {view==="admin" && user && (effectiveIsGlobalAdmin ? <ErrorBoundary section="admin" fallback={(err)=><AdminFallback lang={lang} error={err}/>}><AdminSettings config={adminInfo.config || {}} user={user} listings={listings} contactProps={contactProps} onSave={saveAdminConfig} showToast={showToast} lang={lang} /></ErrorBoundary> : <AdminAccessHelp user={user} adminInfo={adminInfo} lang={lang} />)}
-        {view==="my" && user && <MyListings lang={lang} listings={myListings} incidents={incidents} user={user} contactProps={contactProps} isGlobalAdmin={effectiveIsGlobalAdmin} canResolveGlobal={canResolveIncidentsNow} onAdd={()=>setModal({type:"addListing"})} onEdit={l=>setModal({type:"editListing",data:l})} onDelete={deleteListing} onReport={l=>setModal({type:"incident",data:{aptId:l.id}})} onVerify={inc=>setModal({type:"verifyIncident",data:inc})} onResolve={resolveIncident} />}
+        {view==="my" && user && <MyListings lang={lang} listings={myListings} incidents={incidents} user={user} contactProps={contactProps} isGlobalAdmin={effectiveIsGlobalAdmin} canResolveGlobal={canResolveIncidentsNow} onAdd={()=>setModal({type:"addListing"})} onEdit={l=>setModal({type:"editListing",data:l})} onDelete={deleteListing} onReport={l=>setModal({type:"incident",data:{aptId:l.id}})} onVerify={inc=>setModal({type:"verifyIncident",data:inc})} onResolve={resolveIncident} onAddResolution={inc=>setModal({type:"addResolution",data:inc})} />}
         {view==="profile" && user && <ProfileView lang={lang} user={user} userProfile={userProfile} onSave={saveProfile} />}
         {view==="help" && <HelpView lang={lang} effectiveRole={effectiveRole} effectiveIsGlobalAdmin={effectiveIsGlobalAdmin} delegatePerms={delegatePerms} listings={listings} incidents={incidents} user={user} setView={setView} onReport={()=>{ if(!user){login();return;} setModal({type:'incident'}); }} onAddListing={()=>{ if(!user){login();return;} setModal({type:'addListing'}); }} setIncidentQuickFilter={setIncidentQuickFilter} openMore={()=>setOpenDropdown('more')} />}
       </main>
@@ -1352,6 +1368,7 @@ export default function App() {
       {modal?.type==="editListing" && <ListingModal title={lang === "en" ? "Edit apartment" : "Editar apartamento"} lang={lang} config={adminInfo.config} user={user} initial={modal.data} onSave={d=>editListing(modal.data.id, modal.data.ownerUid, d)} onClose={()=>setModal(null)} />}
       {modal?.type==="incident" && <IncidentModal lang={lang} config={adminInfo.config} listings={listings} user={user} presetApt={modal.data?.aptId} onSave={addIncident} onClose={()=>setModal(null)} />}
       {modal?.type==="verifyIncident" && <VerifyIncidentModal lang={lang} config={adminInfo.config} incident={modal.data} onSave={payload=>verifyIncident(modal.data.id,payload)} onClose={()=>setModal(null)} />}
+      {modal?.type==="addResolution" && <AddResolutionModal lang={lang} incident={modal.data} onSave={text=>addResolution(modal.data.id,text)} onClose={()=>setModal(null)} />}
       {modal?.type==="sendUserEmail" && <SendUserEmailModal lang={lang} contact={modal.data} fromUser={user} onSend={sendUserEmail} onClose={()=>setModal(null)} />}
 
       {syncing && <div className="sync-overlay"><div className="spinner-sm"/><span>{lang === "en" ? "Saving to server..." : "Guardando en servidor..."}</span></div>}
@@ -1869,7 +1886,7 @@ function RegistrationListingForm({ user, onSubmit, submitText, lang="es-CO" }) {
         </div>
         <div className="fg full">
           <label>WhatsApp <span style={{color:'#e53935',fontSize:'0.75rem'}}>*</span></label>
-          <input className={cls('whatsapp')} type="tel" value={whatsapp} onChange={e=>{setWhatsapp(e.target.value);setErrors(er=>({...er,whatsapp:undefined}));}} onBlur={e=>{const v=String(e.target.value||'').trim();if(!v)setErrors(er=>({...er,whatsapp:isEn?'WhatsApp is required':'WhatsApp es requerido'}));else{const err=validateWhatsApp(v,lang);setErrors(er=>({...er,whatsapp:err||undefined}));}}} placeholder="+57 300 000 0000"/>
+          <input className={cls('whatsapp')} type="tel" value={whatsapp} onChange={e=>{setWhatsapp(e.target.value);setErrors(er=>({...er,whatsapp:undefined}));}} onBlur={e=>{let v=String(e.target.value||'').trim();if(!v){setErrors(er=>({...er,whatsapp:isEn?'WhatsApp is required':'WhatsApp es requerido'}));return;}const digits=v.replace(/[^0-9]/g,'');if(!v.startsWith('+')&&digits.length>=10){v='+'+digits;setWhatsapp(v);}const err=validateWhatsApp(v,lang);setErrors(er=>({...er,whatsapp:err||undefined}));}} placeholder="+57 300 000 0000"/>
           {errors.whatsapp?<span className="err-msg">{errors.whatsapp}</span>:<span className="help-msg">{isEn?'Your WhatsApp with country code — used for all your listings':'Tu WhatsApp con código de país — se usará en todos tus listings'}</span>}
         </div>
       </div>
@@ -2058,7 +2075,7 @@ function ProfileView({ user, lang, userProfile, onSave }) {
           <div className="fg2" style={{maxWidth:320}}>
             <div className="fg full">
               <label>WhatsApp <span style={{color:'#e53935',fontSize:'0.75rem'}}>*</span></label>
-              <input className={error?'field-error':''} type="tel" value={whatsapp} onChange={e=>{setWhatsapp(e.target.value);setError('');}} onBlur={e=>{const v=String(e.target.value||'').trim();if(!v)setError(isEn?'WhatsApp is required':'WhatsApp es requerido');else{const err=validateWhatsApp(v,lang);if(err)setError(err);else setError('');}}} placeholder="+57 300 000 0000"/>
+              <input className={error?'field-error':''} type="tel" value={whatsapp} onChange={e=>{setWhatsapp(e.target.value);setError('');}} onBlur={e=>{let v=String(e.target.value||'').trim();if(!v){setError(isEn?'WhatsApp is required':'WhatsApp es requerido');return;}const digits=v.replace(/[^0-9]/g,'');if(!v.startsWith('+')&&digits.length>=10){v='+'+digits;setWhatsapp(v);}const err=validateWhatsApp(v,lang);if(err)setError(err);else setError('');}} placeholder="+57 300 000 0000"/>
               {error ? <span className="err-msg">{error}</span> : <span className="help-msg">{isEn?'With country code, e.g. +57 300 000 0000':'Con código de país, ej. +57 300 000 0000'}</span>}
             </div>
           </div>
@@ -2253,7 +2270,7 @@ function Dashboard({ listings, incidents, user, contactProps={}, setView, onRepo
   );
 }
 
-function MyListings({ listings, incidents, user, contactProps={}, isGlobalAdmin=false, canResolveGlobal=false, onAdd, onEdit, onDelete, onReport, onVerify, onResolve, lang="es-CO" }) {
+function MyListings({ listings, incidents, user, contactProps={}, isGlobalAdmin=false, canResolveGlobal=false, onAdd, onEdit, onDelete, onReport, onVerify, onResolve, onAddResolution, lang="es-CO" }) {
   const [selectedId, setSelectedId] = useState(null);
   const [statFilter, setStatFilter] = useState(null); // null | 'open' | 'verified' | 'resolved'
   const isEn = lang==='en';
@@ -2354,7 +2371,7 @@ function MyListings({ listings, incidents, user, contactProps={}, isGlobalAdmin=
         <div className="ml-section" style={{marginTop:24}}>
           <div className="ml-section-hdr">📋 {isEn?'Incidents I reported':'Incidentes que reporté'}</div>
           {[...incIReported].sort((a,b)=>new Date(b.createdAt)-new Date(a.createdAt)).map(i=>(
-            <IRow key={i.id} inc={i} listings={listings} contactProps={contactProps} isGlobalAdmin={isGlobalAdmin} canResolveGlobal={canResolveGlobal} onResolve={onResolve} onDelete={()=>{}} onVerify={onVerify} lang={lang}/>
+            <IRow key={i.id} inc={i} listings={listings} contactProps={contactProps} isGlobalAdmin={isGlobalAdmin} canResolveGlobal={canResolveGlobal} onResolve={onResolve} onDelete={()=>{}} onVerify={onVerify} onAddResolution={onAddResolution} lang={lang}/>
           ))}
         </div>
       )}
@@ -2527,11 +2544,15 @@ function AptDetailPanel({ l, incidents, contactProps={}, canEdit, canDelete, onE
                     </div>
                     <div className="adp-inc-desc">{inc.desc}</div>
                     {guests.length>0 ? <div className="adp-inc-guest">👥 {guests.map(guestFullName).join(' · ')}</div> : inc.guestName&&<div className="adp-inc-guest">👤 {inc.guestName}{inc.guestCity?` · 📍 ${inc.guestCity}`:''}</div>}
-                    {inc.ownerComments&&<div className="adp-inc-comments"><strong>{isEn?'Owner note:':'Nota propietario:'}</strong> {inc.ownerComments}</div>}
-                    {inc.resolutionComments&&<div className="adp-inc-comments"><strong>{isEn?'Resolution:':'Resolución:'}</strong> {inc.resolutionComments}</div>}
+                    {inc.ownerComments&&<div className="adp-inc-comments"><strong>{isEn?'Immediate action:':'Acción inmediata:'}</strong> {inc.ownerComments}</div>}
+                    {inc.ownerResolution&&<div className="adp-inc-comments"><strong>{isEn?'Owner resolution:':'Resolución propietario:'}</strong> {inc.ownerResolution}</div>}
+                    {inc.resolutionComments&&<div className="adp-inc-comments"><strong>{isEn?'Admin resolution:':'Resolución admin:'}</strong> {inc.resolutionComments}</div>}
+                    {inc.status==='verified'&&!inc.ownerResolution&&isOwner&&<div className="inc-res-warn">{appText(lang,'form.resolutionRequired')}</div>}
                     <div style={{display:'flex',gap:6,marginTop:6,flexWrap:'wrap'}}>
                       {inc.status==='open'&&isOwner&&<button className="bsm bs-resolve" onClick={()=>onVerify(inc)}>{appText(lang,'reports.verify')}</button>}
-                      {inc.status==='verified'&&(isGlobalAdmin||canResolveGlobal)&&<button className="bsm bs-resolve" onClick={()=>onResolve(inc.id)}>{appText(lang,'reports.close')}</button>}
+                      {inc.status==='verified'&&isOwner&&!inc.ownerResolution&&<button className="bsm bs-edit" onClick={()=>onAddResolution&&onAddResolution(inc)}>{appText(lang,'form.addResolution')}</button>}
+                      {inc.status==='verified'&&(isGlobalAdmin||canResolveGlobal)&&inc.ownerResolution&&<button className="bsm bs-resolve" onClick={()=>onResolve(inc.id)}>{appText(lang,'reports.close')}</button>}
+                      {inc.status==='verified'&&(isGlobalAdmin||canResolveGlobal)&&!inc.ownerResolution&&<button className="bsm" style={{opacity:.5,cursor:'not-allowed'}} title={isEn?'Waiting for owner resolution':'Esperando resolución del propietario'}>{appText(lang,'reports.close')}</button>}
                     </div>
                   </div>
                 );
@@ -2566,7 +2587,6 @@ function BuildingFloor({ floor, apts, incidents, user, contactProps, isGlobalAdm
           {openCount>0  && <span className="bld-stat-pill bld-stat-inc">⚠️ {openCount} {isEn?'open':'abierto'}{openCount>1&&isEn?'s':''}</span>}
           {verCount>0   && <span className="bld-stat-pill bld-stat-ver">👤 {verCount} {isEn?'verified':'verificado'}{verCount>1&&isEn?'s':''}</span>}
           {resCount>0   && <span className="bld-stat-pill bld-stat-res">✓ {resCount} {isEn?'resolved':'resuelto'}{resCount>1&&isEn?'s':''}</span>}
-          {floorInc.length===0 && <span className="bld-stat-pill bld-stat-clear">✓ {isEn?'Clear':'Al día'}</span>}
         </div>
         <span className={`bld-chev${isOpen?' bld-chev-up':''}`}>›</span>
       </button>
@@ -2736,8 +2756,8 @@ function AptCard({ l, incCount, contactProps={}, canEdit=false, canDelete=false,
         <div className="ac-party-row">
           <UserContact name={l.owner} uid={l.ownerUid} email={l.userEmail||l.email} whatsapp={l.contact} apartments={l.apt?[aptDisplay(l.apt,lang)]:[]} {...contactProps}/>
           <div className="ac-cbtns">
-            {(l.userEmail||l.email) && <a href={`mailto:${l.userEmail||l.email}`} className="ac-cbtn" title={l.userEmail||l.email}>✉️</a>}
-            {ownerWa && <a href={`https://wa.me/${ownerWa}`} className="ac-cbtn ac-cbtn-wa" title={l.contact} target="_blank" rel="noreferrer">💬</a>}
+            {(l.userEmail||l.email) && <a href={`mailto:${l.userEmail||l.email}`} className="ac-cbtn" title={l.userEmail||l.email}><IconEmail/></a>}
+            {ownerWa && <a href={`https://wa.me/${ownerWa}`} className="ac-cbtn ac-cbtn-wa" title={l.contact} target="_blank" rel="noreferrer"><IconWhatsApp/></a>}
           </div>
         </div>
       </div>
@@ -2752,8 +2772,8 @@ function AptCard({ l, incCount, contactProps={}, canEdit=false, canDelete=false,
               : <span className="ac-no-name">{isEn?'No name':'Sin nombre'}</span>
             }
             <div className="ac-cbtns">
-              {l.operatorEmail    && <a href={`mailto:${l.operatorEmail}`}        className="ac-cbtn"           title={l.operatorEmail}    >✉️</a>}
-              {opWa               && <a href={`https://wa.me/${opWa}`}           className="ac-cbtn ac-cbtn-wa" title={l.operatorWhatsapp} target="_blank" rel="noreferrer">💬</a>}
+              {l.operatorEmail    && <a href={`mailto:${l.operatorEmail}`}        className="ac-cbtn"           title={l.operatorEmail}    ><IconEmail/></a>}
+              {opWa               && <a href={`https://wa.me/${opWa}`}           className="ac-cbtn ac-cbtn-wa" title={l.operatorWhatsapp} target="_blank" rel="noreferrer"><IconWhatsApp/></a>}
             </div>
           </div>
         </div>
@@ -2806,7 +2826,7 @@ const normalizeOwnerGuests = (incident={}) => {
 const guestFullName = (g={}) => [g.firstName, g.middleName, g.lastName].map(x=>String(x||'').trim()).filter(Boolean).join(' ');
 const guestLocation = (g={}) => [g.city, g.country].map(x=>String(x||'').trim()).filter(Boolean).join(', ');
 
-function WorkflowGroup({ statusKey, icon, label, sublabel, color, incidents, listings, isOpen, onToggle, user, contactProps, isGlobalAdmin, canUpdateGlobal, canDeleteGlobal, canResolveGlobal, onResolve, onDelete, onVerify, lang, isEn }) {
+function WorkflowGroup({ statusKey, icon, label, sublabel, color, incidents, listings, isOpen, onToggle, user, contactProps, isGlobalAdmin, canUpdateGlobal, canDeleteGlobal, canResolveGlobal, onResolve, onDelete, onVerify, onAddResolution, lang, isEn }) {
   const count = incidents.length;
   return (
     <div className="wfg-section">
@@ -2823,7 +2843,7 @@ function WorkflowGroup({ statusKey, icon, label, sublabel, color, incidents, lis
         <div className="wfg-body">
           {count===0
             ? <div className="wfg-empty">✓ {isEn?'None here':'Nada aquí'}</div>
-            : incidents.map(inc=><IRow key={inc.id} inc={inc} user={user} listings={listings} contactProps={contactProps} isGlobalAdmin={isGlobalAdmin} canUpdateGlobal={canUpdateGlobal} canDeleteGlobal={canDeleteGlobal} canResolveGlobal={canResolveGlobal} onResolve={onResolve} onDelete={onDelete} onVerify={onVerify} lang={lang}/>)
+            : incidents.map(inc=><IRow key={inc.id} inc={inc} user={user} listings={listings} contactProps={contactProps} isGlobalAdmin={isGlobalAdmin} canUpdateGlobal={canUpdateGlobal} canDeleteGlobal={canDeleteGlobal} canResolveGlobal={canResolveGlobal} onResolve={onResolve} onDelete={onDelete} onVerify={onVerify} onAddResolution={onAddResolution} lang={lang}/>)
           }
         </div>
       )}
@@ -2831,7 +2851,7 @@ function WorkflowGroup({ statusKey, icon, label, sublabel, color, incidents, lis
   );
 }
 
-function IncidentsView({ incidents, listings, user, quickFilter=null, onQuickFilterApplied=()=>{}, contactProps={}, isGlobalAdmin=false, canUpdateGlobal=false, canDeleteGlobal=false, canResolveGlobal=false, onAdd, onResolve, onDelete, onVerify, lang="es-CO" }) {
+function IncidentsView({ incidents, listings, user, quickFilter=null, onQuickFilterApplied=()=>{}, contactProps={}, isGlobalAdmin=false, canUpdateGlobal=false, canDeleteGlobal=false, canResolveGlobal=false, onAdd, onResolve, onDelete, onVerify, onAddResolution, lang="es-CO" }) {
   const [sf,setSf]=useState("all"), [cf,setCf]=useState("all"), [scope,setScope]=useState("all"), [search,setSearch]=useState("");
   useEffect(()=>{
     if (quickFilter === "ownerVerification") { setScope("ownerVerification"); setSf("open"); setCf("all"); onQuickFilterApplied(); }
@@ -2949,6 +2969,7 @@ function IncidentsView({ incidents, listings, user, quickFilter=null, onQuickFil
             onResolve={onResolve}
             onDelete={onDelete}
             onVerify={onVerify}
+            onAddResolution={onAddResolution}
             lang={lang}
             isEn={isEn}
           />
@@ -3038,7 +3059,7 @@ function NotificationsView({ notifications, incidents, listings=[], contactProps
   );
 }
 
-function IRow({ inc, user, listings=[], contactProps={}, isGlobalAdmin=false, canUpdateGlobal=false, canDeleteGlobal=false, canResolveGlobal=false, onResolve, onDelete, onVerify, compact, naughtyMode, lang="es-CO" }) {
+function IRow({ inc, user, listings=[], contactProps={}, isGlobalAdmin=false, canUpdateGlobal=false, canDeleteGlobal=false, canResolveGlobal=false, onResolve, onDelete, onVerify, onAddResolution, compact, naughtyMode, lang="es-CO" }) {
   const listing   = listings.find(l=>l.id===inc.aptId);
   const isOwner   = Boolean(user?.uid && listing?.ownerUid === user.uid);
   const isReporter= Boolean(user?.uid && inc.reporterUid === user.uid);
@@ -3078,13 +3099,17 @@ function IRow({ inc, user, listings=[], contactProps={}, isGlobalAdmin=false, ca
         {guests.length>0&&<div className="ir-desc">
           <strong>{appText(lang,'form.guestDetails')}:</strong>
           <div className="guest-display-list">{guests.map((g,idx)=><div key={idx}>👤 {guestFullName(g)}{guestLocation(g)?` · ${guestLocation(g)}`:''}</div>)}</div>
-          {inc.ownerComments&&<div style={{marginTop:6}}><strong>{appText(lang,'form.ownerResponse')}:</strong> {inc.ownerComments}</div>}
+          {inc.ownerComments&&<div style={{marginTop:6}}><strong>{isEn?'Immediate action:':'Acción inmediata:'}</strong> {inc.ownerComments}</div>}
+          {inc.ownerResolution&&<div style={{marginTop:6}}><strong>{isEn?'Owner resolution:':'Resolución propietario:'}</strong> {inc.ownerResolution}</div>}
           {inc.resolutionComments&&<div style={{marginTop:6}}><strong>{appText(lang,'form.resolutionComments')}:</strong> {inc.resolutionComments}</div>}
         </div>}
+        {inc.status==='verified'&&!inc.ownerResolution&&isOwner&&<div className="inc-res-warn">{appText(lang,'form.resolutionRequired')}</div>}
       </div>
       {!compact&&user&&<div className="ir-acts">
         {inc.status==="open"&&isOwner&&<button className="bsm bs-resolve" onClick={()=>onVerify(inc)}>{appText(lang,"reports.verify")}</button>}
-        {inc.status==="verified"&&(isGlobalAdmin||canResolveGlobal)&&<button className="bsm bs-resolve" onClick={()=>onResolve(inc.id)}>{appText(lang,"reports.close")}</button>}
+        {inc.status==="verified"&&isOwner&&!inc.ownerResolution&&<button className="bsm bs-edit" onClick={()=>onAddResolution&&onAddResolution(inc)}>{appText(lang,'form.addResolution')}</button>}
+        {inc.status==="verified"&&(isGlobalAdmin||canResolveGlobal)&&inc.ownerResolution&&<button className="bsm bs-resolve" onClick={()=>onResolve(inc.id)}>{appText(lang,"reports.close")}</button>}
+        {inc.status==="verified"&&(isGlobalAdmin||canResolveGlobal)&&!inc.ownerResolution&&<button className="bsm" style={{opacity:.45,cursor:'not-allowed'}} title={isEn?'Waiting for owner resolution':'Esperando resolución del propietario'}>{appText(lang,"reports.close")}</button>}
         {(isReporter||isGlobalAdmin||canDeleteGlobal)&&<button className="bsm bs-del" onClick={()=>onDelete(inc.id)}>🗑️</button>}
       </div>}
     </div>
@@ -3205,6 +3230,7 @@ function VerifyIncidentModal({ incident, onSave, onClose, lang="es-CO", config={
   const initialGuests = normalizeOwnerGuests(incident);
   const [guests,setGuests]=useState(initialGuests.length ? initialGuests : [blankGuest()]);
   const [ownerComments,setOwnerComments]=useState(incident?.ownerComments || '');
+  const [ownerResolution,setOwnerResolution]=useState(incident?.ownerResolution || '');
   const [errors,setErrors]=useState({});
   const setGuest = (idx, field, value) => {
     setGuests(gs => gs.map((g,i)=>i===idx?{...g,[field]:value}:g));
@@ -3225,7 +3251,8 @@ function VerifyIncidentModal({ incident, onSave, onClose, lang="es-CO", config={
     return Object.keys(e).length===0;
   };
   return <Overlay onClose={onClose} wide>
-    <div className="modal-title">{appText(lang,"modal.verify.title")}</div><div className="modal-sub">{appText(lang,"modal.verify.sub",{apt:incident?.aptLabel||""})}</div>
+    <div className="modal-title">{appText(lang,"modal.verify.title")}</div>
+    <div className="modal-sub">{appText(lang,"modal.verify.sub",{apt:incident?.aptLabel||""})}</div>
     <div className="form-alert">{appText(lang,"modal.verify.help")}</div>
     <div className="guest-editor-list">
       {guests.map((g,idx)=><div key={idx} className="guest-editor-card">
@@ -3240,8 +3267,40 @@ function VerifyIncidentModal({ incident, onSave, onClose, lang="es-CO", config={
       </div>)}
       <button type="button" className="btn-ghost" onClick={addGuest}>{appText(lang,'form.addGuest')}</button>
     </div>
-    <div className="fg full"><label>{appText(lang,"form.ownerResponse")} <Tip text={tips.verifyIncident}/></label><textarea className={errors.ownerComments?'field-error':''} value={ownerComments} onChange={e=>{setOwnerComments(e.target.value);setErrors(er=>({...er,ownerComments:undefined}));}} rows={4} placeholder={appText(lang,"form.ownerResponsePlaceholder")}/>{errors.ownerComments&&<span className="err-msg">{errors.ownerComments}</span>}</div>
-    <div className="mact"><button className="btn-ghost" onClick={onClose}>{appText(lang,"form.cancel")}</button><button className="btn-p" title={tips.verifyIncident} onClick={()=>{ if(validate()) onSave({guests, ownerComments});}}>{appText(lang,"form.saveVerification")}</button></div>
+    {/* Immediate action — REQUIRED */}
+    <div className="fg full">
+      <label>{appText(lang,"form.immediateAction")} <Tip text={tips.verifyIncident}/></label>
+      <textarea className={errors.ownerComments?'field-error':''} value={ownerComments} onChange={e=>{setOwnerComments(e.target.value);setErrors(er=>({...er,ownerComments:undefined}));}} rows={3} placeholder={appText(lang,"form.immediateActionPlaceholder")}/>
+      {errors.ownerComments&&<span className="err-msg">{errors.ownerComments}</span>}
+    </div>
+    {/* Proposed resolution — OPTIONAL now, required later before admin can close */}
+    <div className="fg full">
+      <label>{appText(lang,"form.ownerResolution")}</label>
+      <div className="verify-resolution-hint">{lang==='en'?'Optional now — admin cannot close the incident until this is provided.':'Opcional ahora — el admin no puede cerrar el incidente hasta que lo completes.'}</div>
+      <textarea value={ownerResolution} onChange={e=>setOwnerResolution(e.target.value)} rows={3} placeholder={appText(lang,"form.ownerResolutionPlaceholder")}/>
+    </div>
+    <div className="mact"><button className="btn-ghost" onClick={onClose}>{appText(lang,"form.cancel")}</button><button className="btn-p" title={tips.verifyIncident} onClick={()=>{ if(validate()) onSave({guests, ownerComments, ownerResolution});}}>{appText(lang,"form.saveVerification")}</button></div>
+  </Overlay>;
+}
+
+function AddResolutionModal({ incident, onSave, onClose, lang="es-CO" }) {
+  const isEn = lang==='en';
+  const [text,setText]=useState(incident?.ownerResolution||'');
+  const [err,setErr]=useState('');
+  const submit=()=>{
+    if(!String(text||'').trim()){setErr(isEn?'Resolution is required.':'La resolución es requerida.');return;}
+    onSave(text);
+  };
+  return <Overlay onClose={onClose}>
+    <div className="modal-title">{isEn?'📝 Add resolution':'📝 Agregar resolución'}</div>
+    <div className="modal-sub">{incident?.aptLabel||''}</div>
+    <div className="form-alert">{isEn?'Once you add the resolution, the admin will be notified and can close the incident.':'Al agregar la resolución el administrador será notificado y podrá cerrar el incidente.'}</div>
+    <div className="fg full">
+      <label>{appText(lang,"form.ownerResolution")} *</label>
+      <textarea className={err?'field-error':''} value={text} onChange={e=>{setText(e.target.value);setErr('');}} rows={4} placeholder={appText(lang,"form.ownerResolutionPlaceholder")}/>
+      {err&&<span className="err-msg">{err}</span>}
+    </div>
+    <div className="mact"><button className="btn-ghost" onClick={onClose}>{appText(lang,"form.cancel")}</button><button className="btn-p" onClick={submit}>{isEn?'Save resolution':'Guardar resolución'}</button></div>
   </Overlay>;
 }
 
@@ -4207,6 +4266,9 @@ html{font-size:clamp(14px,1.1vw,16px);-webkit-text-size-adjust:100%}body{overflo
 .adp-inc-guest{font-size:.76rem;color:#496674;margin-top:4px}
 .adp-inc-comments{font-size:.76rem;color:#496674;margin-top:4px;background:rgba(217,180,90,.08);border-radius:6px;padding:4px 8px}
 .adp-inc-reporter-name{font-size:.68rem;color:#6a8a9a;white-space:nowrap}
+/* ── Verify resolution hint + warning */
+.verify-resolution-hint{font-size:.75rem;color:#6a5a2a;background:#fffde7;border:1px solid #f9d75e;border-radius:6px;padding:5px 9px;margin-bottom:5px;line-height:1.4}
+.inc-res-warn{font-size:.73rem;color:#9a4700;background:#fff3e0;border:1px solid #ffb74d;border-radius:6px;padding:5px 9px;margin:5px 0;line-height:1.4}
 /* ── Incident context tags — shown in IRow and AptDetailPanel */
 .ir-ctx-tags{display:flex;gap:4px;flex-wrap:wrap;margin:4px 0 2px}
 .inc-ctx-tag{display:inline-flex;align-items:center;border-radius:999px;font-size:.62rem;font-weight:900;padding:2px 8px;white-space:nowrap;letter-spacing:.02em}

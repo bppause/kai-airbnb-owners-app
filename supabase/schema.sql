@@ -135,6 +135,8 @@ alter table public.incidents add column if not exists resolution_comments text n
 alter table public.incidents add column if not exists sla_hours integer not null default 24;
 alter table public.incidents add column if not exists next_sla_reminder_at timestamptz;
 alter table public.incidents add column if not exists sla_cycle_count integer not null default 0;
+-- v46: owner's proposed resolution (optional at verify time; required before admin can resolve)
+alter table public.incidents add column if not exists owner_resolution text not null default '';
 alter table public.incidents drop constraint if exists incidents_status_check;
 alter table public.incidents add constraint incidents_status_check check (status in ('open','verified','resolved')) not valid;
 
