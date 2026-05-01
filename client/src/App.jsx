@@ -2374,7 +2374,7 @@ function MyListings({ listings, incidents, user, contactProps={}, isGlobalAdmin=
                       <button className="bsm bs-del" onClick={()=>onDelete(l)}>🗑️</button>
                     </div>
                     <span className={`fls-chev${isSel?' fls-chev-up':''}`} style={{marginLeft:'auto',flexShrink:0}}>›</span>
-                    <AptContactPopup ownerEmail={l.userEmail||l.email} ownerWaRaw={l.contact} isEn={isEn}/>
+                    <AptContactPopup ownerName={l.owner} ownerEmail={l.userEmail||l.email} ownerWaRaw={l.contact} isEn={isEn}/>
                   </div>
                   {isSel&&(
                     <AptDetailPanel l={l} incidents={incidents} contactProps={contactProps} canEdit canDelete onEdit={()=>onEdit(l)} onDelete={()=>onDelete(l)} onReport={()=>onReport(l)} onClose={()=>setSelectedId(null)} user={user} isGlobalAdmin={isGlobalAdmin} canResolveGlobal={canResolveGlobal} onVerify={onVerify} onResolve={onResolve} lang={lang} isEn={isEn}/>
@@ -2430,7 +2430,7 @@ const IconEmail = () => (
 // card showing owner email + WhatsApp (+ operator if present) with branded icons
 // and direct mailto / wa.me external links.  Popup has pointer-events:none on
 // the shell so the underlying click target still fires; links have auto.
-function AptContactPopup({ ownerEmail='', ownerWaRaw='', operatorEmail='', opWaRaw='', isEn=false }) {
+function AptContactPopup({ ownerName='', ownerEmail='', ownerWaRaw='', operatorName='', operatorEmail='', opWaRaw='', isEn=false }) {
   const ownerWaDigits = normalizePhoneForWhatsApp(ownerWaRaw);
   const opWaDigits    = normalizePhoneForWhatsApp(opWaRaw);
   const ownerWaOk     = !ownerWaRaw || ownerWaRaw.trim().startsWith('+');
@@ -2439,7 +2439,7 @@ function AptContactPopup({ ownerEmail='', ownerWaRaw='', operatorEmail='', opWaR
     <div className="apt-cpop" onClick={e=>e.stopPropagation()}>
       {/* Owner */}
       <div className="apt-cpop-section">
-        <span className="apt-cpop-lbl">👤 {isEn?'Owner':'Propietario'}</span>
+        <span className="apt-cpop-lbl">👤 {isEn?'Owner':'Propietario'}{ownerName ? ` · ${ownerName}` : ''}</span>
         {ownerEmail
           ? <a className="apt-cpop-link" href={`mailto:${ownerEmail}`}><IconEmail/><span>{ownerEmail}</span></a>
           : <span className="apt-cpop-miss">{isEn?'No email':'Sin email'}</span>}
@@ -2450,7 +2450,7 @@ function AptContactPopup({ ownerEmail='', ownerWaRaw='', operatorEmail='', opWaR
       {/* Operator — only if any contact info exists */}
       {hasOperator && (
         <div className="apt-cpop-section">
-          <span className="apt-cpop-lbl">🔧 {isEn?'Operator':'Operador'}</span>
+          <span className="apt-cpop-lbl">🔧 {isEn?'Operator':'Operador'}{operatorName ? ` · ${operatorName}` : ''}</span>
           {operatorEmail
             ? <a className="apt-cpop-link" href={`mailto:${operatorEmail}`}><IconEmail/><span>{operatorEmail}</span></a>
             : null}
@@ -2495,10 +2495,18 @@ function AptDoor({ l, incidents, isSelected, onSelect, lang, isEn }) {
           <span className="door-chip">👥 {l.guests}</span>
         </div>
       </div>
-      {/* Hover overlay — uses AptContactPopup for consistency across the app */}
+      {/* Hover overlay — owner + operator contacts with branded icons */}
       <div className="door-hover-overlay">
-        <AptContactPopup ownerEmail={ownerEmail} ownerWaRaw={ownerWaRaw} isEn={isEn}/>
-        <div className="door-hover-cta">{isEn?'👆 Click · view incidents':'👆 Clic · ver incidentes'}</div>
+        <AptContactPopup
+          ownerName={l.owner}
+          ownerEmail={ownerEmail}
+          ownerWaRaw={ownerWaRaw}
+          operatorName={l.operator}
+          operatorEmail={l.operatorEmail}
+          opWaRaw={l.operatorWhatsapp}
+          isEn={isEn}
+        />
+        <div className="door-hover-cta">{isEn?'👆 Click to view incidents':'👆 Clic para ver incidentes'}</div>
       </div>
       <div className="door-footer">
         {isSelected
@@ -2683,8 +2691,10 @@ function AptRow({ l, incCount, user, contactProps={}, isGlobalAdmin=false, canEd
         {incCount>0&&<span className="fls-inc-pill">⚠️ {incCount}</span>}
         <span className={`fls-chev${expanded?' fls-chev-up':''}`}>›</span>
         <AptContactPopup
+          ownerName={l.owner}
           ownerEmail={l.userEmail||l.email}
           ownerWaRaw={l.contact}
+          operatorName={l.operator}
           operatorEmail={l.operatorEmail}
           opWaRaw={l.operatorWhatsapp}
           isEn={isEn}
@@ -2778,8 +2788,10 @@ function AptCard({ l, incCount, contactProps={}, canEdit=false, canDelete=false,
         </div>
         <div className="ac-wave">🌊</div>
         <AptContactPopup
+          ownerName={l.owner}
           ownerEmail={l.userEmail||l.email}
           ownerWaRaw={l.contact}
+          operatorName={l.operator}
           operatorEmail={l.operatorEmail}
           opWaRaw={l.operatorWhatsapp}
           isEn={isEn}
@@ -2933,8 +2945,52 @@ function IncidentsView({ incidents, listings, user, quickFilter=null, onQuickFil
   const isEn = lang==='en';
   const anyFilter = sf!=='all'||cf!=='all'||scope!=='all'||search.trim()!=='';
   const resetAll = () => { setSf('all'); setCf('all'); setScope('all'); setSearch(''); };
-  const [groupOpen, setGroupOpen] = useState({open:true,verified:false,resolved:false});
-  const toggleGroup = (k) => setGroupOpen(s=>({...s,[k]:!s[k]}));
+  // ── Persist group open/close to localStorage; restore on mount ──────────────
+  const WFG_KEY = 'kai_wfg_state';
+  const [groupOpen, setGroupOpen] = useState(() => {
+    try {
+      const s = JSON.parse(localStorage.getItem(WFG_KEY) || '{}');
+      return { open: s.open !== false, verified: !!s.verified, resolved: !!s.resolved };
+    } catch { return {open:true, verified:false, resolved:false}; }
+  });
+  const toggleGroup = (k) => {
+    setGroupOpen(s => {
+      const n = {...s, [k]: !s[k]};
+      try { localStorage.setItem(WFG_KEY, JSON.stringify(n)); } catch {}
+      return n;
+    });
+  };
+
+  // ── Auto-expand/collapse based on active filter results ────────────────────
+  // When a filter is active, expand groups that have matching incidents and
+  // collapse empty groups.  Specific scope filters force-open the target group.
+  useEffect(() => {
+    const openC     = list.filter(i=>i.status==='open').length;
+    const verifiedC = list.filter(i=>i.status==='verified').length;
+    const resolvedC = list.filter(i=>i.status==='resolved').length;
+    const noFilter  = scope==='all' && sf==='all' && cf==='all' && !search.trim();
+
+    if (noFilter) return; // No filter → leave user's saved state untouched
+
+    setGroupOpen(prev => {
+      const next = {
+        // Groups with content stay open; empty groups collapse
+        open:     openC > 0     ? (scope==='ownerVerification' ? true : prev.open)     : false,
+        verified: verifiedC > 0 ? (scope==='needsResolution' || scope==='requiresResolution' ? true : prev.verified) : false,
+        resolved: resolvedC > 0 ? prev.resolved : false,
+      };
+      // Force-open the primary group for each focused scope
+      if (scope === 'ownerVerification'  && openC > 0)     next.open = true;
+      if (scope === 'needsResolution'    && verifiedC > 0) next.verified = true;
+      if (scope === 'requiresResolution' && verifiedC > 0) next.verified = true;
+      if (scope === 'iReported' || scope === 'myListings') {
+        if (openC > 0)     next.open = true;
+        if (verifiedC > 0) next.verified = true;
+      }
+      return next;
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scope, sf, cf, search]);
 
   // Break verified group down so users understand which are blocked vs ready
   const verifiedAll = list.filter(i=>i.status==='verified');
@@ -4299,8 +4355,8 @@ html{font-size:clamp(14px,1.1vw,16px);-webkit-text-size-adjust:100%}body{overflo
 /* ── Door grid — min 160px so 3-digit numbers and "Details" always fit */
 .bld-door-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px;padding:14px}
 /* ── Door card */
-.apt-door{position:relative;border-radius:12px;overflow:hidden;cursor:pointer;background:rgba(255,255,255,.96);border:1.5px solid rgba(47,79,58,.16);box-shadow:0 4px 12px rgba(32,46,38,.08);transition:transform .15s,box-shadow .15s,border-color .18s;user-select:none;display:flex;flex-direction:column}
-.apt-door:hover{transform:translateY(-2px);box-shadow:0 8px 22px rgba(32,46,38,.14)}
+.apt-door{position:relative;border-radius:12px;overflow:hidden;cursor:pointer;background:rgba(255,255,255,.96);border:1.5px solid rgba(47,79,58,.16);box-shadow:0 4px 12px rgba(32,46,38,.08);transition:transform .15s,box-shadow .15s,border-color .18s,background .15s;user-select:none;display:flex;flex-direction:column}
+.apt-door:hover{transform:translateY(-3px);box-shadow:0 10px 28px rgba(11,127,140,.18);background:rgba(11,127,140,.05);border-color:rgba(11,127,140,.35)!important}
 .apt-door-clean{border-color:rgba(31,160,100,.3)!important}
 .apt-door-warn{border-color:rgba(217,160,0,.45)!important;box-shadow:0 4px 12px rgba(32,46,38,.08),0 0 0 1px rgba(217,160,0,.18)!important}
 .apt-door-alert{border-color:rgba(210,80,60,.45)!important;box-shadow:0 4px 12px rgba(32,46,38,.08),0 0 10px rgba(210,80,60,.18)!important}
