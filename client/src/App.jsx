@@ -893,6 +893,8 @@ export default function App() {
   const [toast,     setToast]     = useState(null);
   const [modal,            setModal]            = useState(null);
   const [unitDetailOverlay, setUnitDetailOverlay] = useState(null); // { listingId, defaultStep? }
+  const [incidentDetailOverlay, setIncidentDetailOverlay] = useState(null); // { incidentId }
+  const openIncidentDetail = (incidentId) => setIncidentDetailOverlay({ incidentId });
   const [incidentQuickFilter, setIncidentQuickFilter] = useState(null);
   const [userProfile, setUserProfile] = useState({ whatsapp:'' });
   // Listing floor collapse state — lives here so it persists across navigation
@@ -1380,16 +1382,16 @@ export default function App() {
         </div>
       )}
       <main className="main">
-        {view==="dashboard" && <Dashboard lang={lang} listings={listings} incidents={incidents} user={user} contactProps={contactProps} setView={setView} showBlacklist={false} onReport={()=>{ if(!user){login();return;} setModal({type:"incident"}); }} effectiveIsGlobalAdmin={effectiveIsGlobalAdmin} effectiveRole={effectiveRole} delegatePerms={delegatePerms} pendingOwner={needsOwnerVerification.length} pendingOwnerResolution={needsOwnerResolution.length} pendingResolve={needsAdminResolution.length} pendingRegistrations={effectiveCanManageRegistrations ? pendingRegistrations.length : 0} canResolve={canResolveIncidentsNow} canManageRegistrations={effectiveCanManageRegistrations} onOwnerClick={()=>{setIncidentQuickFilter('ownerVerification');setView('incidents');}} onResolveClick={()=>{setIncidentQuickFilter('requiresResolution');setView('incidents');}} onRegistrationsClick={()=>setView('approvals')} onAddResClick={()=>{setIncidentQuickFilter('needsResolution');setView('incidents');}} />}
+        {view==="dashboard" && <Dashboard lang={lang} listings={listings} incidents={incidents} user={user} contactProps={contactProps} setView={setView} showBlacklist={false} onReport={()=>{ if(!user){login();return;} setModal({type:"incident"}); }} effectiveIsGlobalAdmin={effectiveIsGlobalAdmin} effectiveRole={effectiveRole} delegatePerms={delegatePerms} pendingOwner={needsOwnerVerification.length} pendingOwnerResolution={needsOwnerResolution.length} pendingResolve={needsAdminResolution.length} pendingRegistrations={effectiveCanManageRegistrations ? pendingRegistrations.length : 0} canResolve={canResolveIncidentsNow} canManageRegistrations={effectiveCanManageRegistrations} onOwnerClick={()=>{setIncidentQuickFilter('ownerVerification');setView('incidents');}} onResolveClick={()=>{setIncidentQuickFilter('requiresResolution');setView('incidents');}} onRegistrationsClick={()=>setView('approvals')} onAddResClick={()=>{setIncidentQuickFilter('needsResolution');setView('incidents');}} onIncidentDetail={openIncidentDetail} />}
         {view==="about" && <CommunityMissionView lang={lang} config={adminInfo.config} />}
         {view==="listings"  && <ListingsView lang={lang} listings={listings} incidents={incidents} user={user} contactProps={contactProps} isGlobalAdmin={effectiveIsGlobalAdmin} canEditGlobal={delegatePerms.canUpdateGlobalListings} canDeleteGlobal={delegatePerms.canDeleteGlobalListings} canResolveGlobal={canResolveIncidentsNow} floorOpenState={listingFloorOpen} onFloorToggle={toggleListingFloor} onAdd={()=>{ if(!user){login();return;} setModal({type:"addListing"}); }} onEdit={l=>setModal({type:"editListing",data:l})} onDelete={deleteListing} onReport={l=>{ if(!user){login();return;} setModal({type:"incident",data:{aptId:l.id}}); }} onVerify={inc=>setModal({type:"verifyIncident",data:inc})} onResolve={resolveIncident} onAddResolution={inc=>setModal({type:"addResolution",data:inc})} onFloorFilter={f=>{setIncidentQuickFilter({type:'floorFilter',aptIds:f.aptIds,status:f.status});setView('incidents');}} />}
 
-        {view==="incidents" && <IncidentsView lang={lang} incidents={incidents} listings={listings} user={user} quickFilter={incidentQuickFilter} onQuickFilterApplied={()=>setIncidentQuickFilter(null)} contactProps={contactProps} isGlobalAdmin={effectiveIsGlobalAdmin} canUpdateGlobal={delegatePerms.canUpdateGlobalIncidents} canDeleteGlobal={delegatePerms.canDeleteGlobalIncidents} canResolveGlobal={canResolveIncidentsNow} onAdd={()=>{ if(!user){login();return;} setModal({type:"incident"}); }} onResolve={resolveIncident} onDelete={deleteIncident} onVerify={inc=>setModal({type:"verifyIncident",data:inc})} onAddResolution={inc=>setModal({type:"addResolution",data:inc})} onUnitDetail={id=>setUnitDetailOverlay({listingId:id})} />}
-        {view==="notifications" && user && <NotificationsView lang={lang} notifications={notifications} incidents={incidents} listings={listings} contactProps={contactProps} onRead={markNotificationRead} onReadAll={markAllNotificationsRead} smartAlerts={smartAlerts} />}
+        {view==="incidents" && <IncidentsView lang={lang} incidents={incidents} listings={listings} user={user} quickFilter={incidentQuickFilter} onQuickFilterApplied={()=>setIncidentQuickFilter(null)} contactProps={contactProps} isGlobalAdmin={effectiveIsGlobalAdmin} canUpdateGlobal={delegatePerms.canUpdateGlobalIncidents} canDeleteGlobal={delegatePerms.canDeleteGlobalIncidents} canResolveGlobal={canResolveIncidentsNow} onAdd={()=>{ if(!user){login();return;} setModal({type:"incident"}); }} onResolve={resolveIncident} onDelete={deleteIncident} onVerify={inc=>setModal({type:"verifyIncident",data:inc})} onAddResolution={inc=>setModal({type:"addResolution",data:inc})} onUnitDetail={id=>setUnitDetailOverlay({listingId:id})} onIncidentDetail={openIncidentDetail} />}
+        {view==="notifications" && user && <NotificationsView lang={lang} notifications={notifications} incidents={incidents} listings={listings} contactProps={contactProps} onRead={markNotificationRead} onReadAll={markAllNotificationsRead} smartAlerts={smartAlerts} onIncidentDetail={openIncidentDetail} />}
         {view==="approvals" && user && effectiveCanManageRegistrations && <PendingApprovalsView lang={lang} pending={pendingRegistrations} onApprove={id=>reviewRegistrationAction(id,'approve')} onDecline={id=>reviewRegistrationAction(id,'decline')} active={activeRegistrations} />}
         {view==="analytics" && user && (effectiveIsGlobalAdmin || analyticsEnabledForAll) && <AnalyticsDashboard lang={lang} user={user} contactProps={contactProps} showToast={showToast} isGlobalAdmin={effectiveIsGlobalAdmin} />}
         {view==="admin" && user && (effectiveIsGlobalAdmin ? <ErrorBoundary section="admin" fallback={(err)=><AdminFallback lang={lang} error={err}/>}><AdminSettings config={adminInfo.config || {}} user={user} listings={listings} contactProps={contactProps} onSave={saveAdminConfig} showToast={showToast} lang={lang} /></ErrorBoundary> : <AdminAccessHelp user={user} adminInfo={adminInfo} lang={lang} />)}
-        {view==="my" && user && <MyListings lang={lang} listings={myListings} incidents={incidents} user={user} contactProps={contactProps} isGlobalAdmin={effectiveIsGlobalAdmin} canResolveGlobal={canResolveIncidentsNow} onAdd={()=>setModal({type:"addListing"})} onEdit={l=>setModal({type:"editListing",data:l})} onDelete={deleteListing} onReport={l=>setModal({type:"incident",data:{aptId:l.id}})} onVerify={inc=>setModal({type:"verifyIncident",data:inc})} onResolve={resolveIncident} onAddResolution={inc=>setModal({type:"addResolution",data:inc})} onNavigateToIncidents={f=>{setIncidentQuickFilter({type:'floorFilter',aptIds:f.aptIds,status:f.status||'all'});setView('incidents');}} />}
+        {view==="my" && user && <MyListings lang={lang} listings={myListings} incidents={incidents} user={user} contactProps={contactProps} isGlobalAdmin={effectiveIsGlobalAdmin} canResolveGlobal={canResolveIncidentsNow} onAdd={()=>setModal({type:"addListing"})} onEdit={l=>setModal({type:"editListing",data:l})} onDelete={deleteListing} onReport={l=>setModal({type:"incident",data:{aptId:l.id}})} onVerify={inc=>setModal({type:"verifyIncident",data:inc})} onResolve={resolveIncident} onAddResolution={inc=>setModal({type:"addResolution",data:inc})} onNavigateToIncidents={f=>{setIncidentQuickFilter({type:'floorFilter',aptIds:f.aptIds,status:f.status||'all'});setView('incidents');}} onIncidentDetail={openIncidentDetail} />}
         {view==="profile" && user && <ProfileView lang={lang} user={user} userProfile={userProfile} onSave={saveProfile} />}
         {view==="help" && <HelpView lang={lang} effectiveRole={effectiveRole} effectiveIsGlobalAdmin={effectiveIsGlobalAdmin} delegatePerms={delegatePerms} listings={listings} incidents={incidents} user={user} setView={setView} onReport={()=>{ if(!user){login();return;} setModal({type:'incident'}); }} onAddListing={()=>{ if(!user){login();return;} setModal({type:'addListing'}); }} setIncidentQuickFilter={setIncidentQuickFilter} openMore={()=>setOpenDropdown('more')} />}
       </main>
@@ -1417,6 +1419,37 @@ export default function App() {
               onResolve={resolveIncident}
               onAddResolution={inc=>setModal({type:'addResolution',data:inc})}
               defaultStep={unitDetailOverlay.defaultStep||'info'}
+              lang={lang}
+              isEn={lang==='en'}
+            />
+          </Overlay>
+        );
+      })()}
+      {/* Global incident detail overlay — triggered from any incident summary click across the app */}
+      {incidentDetailOverlay && (() => {
+        const inc = incidents.find(i => i.id === incidentDetailOverlay.incidentId);
+        const udl = inc ? listings.find(x => x.id === inc.aptId) : null;
+        if (!udl || !inc) return null;
+        return (
+          <Overlay onClose={()=>setIncidentDetailOverlay(null)} wide>
+            <UnitDetailCard
+              key={`${udl.id}-${inc.id}`}
+              l={udl}
+              incidents={incidents}
+              canEdit={user?.uid===udl.ownerUid||effectiveIsGlobalAdmin||delegatePerms.canUpdateGlobalListings}
+              canDelete={user?.uid===udl.ownerUid||effectiveIsGlobalAdmin||delegatePerms.canDeleteGlobalListings}
+              onEdit={()=>{setIncidentDetailOverlay(null);setModal({type:'editListing',data:udl});}}
+              onDelete={()=>{setIncidentDetailOverlay(null);deleteListing(udl);}}
+              onReport={()=>{setIncidentDetailOverlay(null);if(!user){login();return;}setModal({type:'incident',data:{aptId:udl.id}});}}
+              user={user}
+              contactProps={contactProps}
+              isGlobalAdmin={effectiveIsGlobalAdmin}
+              canResolveGlobal={canResolveIncidentsNow}
+              onVerify={inc=>setModal({type:'verifyIncident',data:inc})}
+              onResolve={resolveIncident}
+              onAddResolution={inc=>setModal({type:'addResolution',data:inc})}
+              defaultStep="incident"
+              defaultIncidentId={inc.id}
               lang={lang}
               isEn={lang==='en'}
             />
@@ -2281,7 +2314,8 @@ function Dashboard({ listings, incidents, user, contactProps={}, setView, onRepo
   effectiveIsGlobalAdmin=false, effectiveRole='user', delegatePerms={},
   pendingOwner=0, pendingOwnerResolution=0, pendingResolve=0, pendingRegistrations=0,
   canResolve=false, canManageRegistrations=false,
-  onOwnerClick=()=>{}, onResolveClick=()=>{}, onRegistrationsClick=()=>{}, onAddResClick=()=>{} }) {
+  onOwnerClick=()=>{}, onResolveClick=()=>{}, onRegistrationsClick=()=>{}, onAddResClick=()=>{},
+  onIncidentDetail=null }) {
   const isEn = lang==='en';
   const open     = incidents.filter(i=>i.status==="open");
   const resolved = incidents.filter(i=>i.status==="resolved");
@@ -2331,14 +2365,14 @@ function Dashboard({ listings, incidents, user, contactProps={}, setView, onRepo
         </div>
         {recent.length===0
           ? <Empty icon="✅" msg={appText(lang,"dashboard.noReports")}/>
-          : recent.map(i=><IRow key={i.id} inc={i} compact listings={listings} contactProps={contactProps} lang={lang}/>)
+          : recent.map(i=><IRow key={i.id} inc={i} compact listings={listings} contactProps={contactProps} lang={lang} onIncidentDetail={onIncidentDetail}/>)
         }
       </div>
     </div>
   );
 }
 
-function MyListings({ listings, incidents, user, contactProps={}, isGlobalAdmin=false, canResolveGlobal=false, onAdd, onEdit, onDelete, onReport, onVerify, onResolve, onAddResolution, onNavigateToIncidents, lang="es-CO" }) {
+function MyListings({ listings, incidents, user, contactProps={}, isGlobalAdmin=false, canResolveGlobal=false, onAdd, onEdit, onDelete, onReport, onVerify, onResolve, onAddResolution, onNavigateToIncidents, onIncidentDetail=null, lang="es-CO" }) {
   const [selectedId, setSelectedId] = useState(null);
   const [statFilter, setStatFilter] = useState(null); // null | 'open' | 'pendingResolution' | 'awaitingAdmin' | 'resolved'
   const isEn = lang==='en';
@@ -2474,7 +2508,7 @@ function MyListings({ listings, incidents, user, contactProps={}, isGlobalAdmin=
         <div className="ml-section" style={{marginTop:24}}>
           <div className="ml-section-hdr">📋 {isEn?'Incidents I reported':'Incidentes que reporté'}</div>
           {[...incIReported].sort((a,b)=>new Date(b.createdAt)-new Date(a.createdAt)).map(i=>(
-            <IRow key={i.id} inc={i} listings={listings} contactProps={contactProps} isGlobalAdmin={isGlobalAdmin} canResolveGlobal={canResolveGlobal} onResolve={onResolve} onDelete={()=>{}} onVerify={onVerify} onAddResolution={onAddResolution} lang={lang}/>
+            <IRow key={i.id} inc={i} listings={listings} contactProps={contactProps} isGlobalAdmin={isGlobalAdmin} canResolveGlobal={canResolveGlobal} onResolve={onResolve} onDelete={()=>{}} onVerify={onVerify} onAddResolution={onAddResolution} onIncidentDetail={onIncidentDetail} lang={lang}/>
           ))}
         </div>
       )}
@@ -2552,12 +2586,12 @@ function AptContactPopup({ ownerName='', ownerEmail='', ownerWaRaw='', operatorN
 function UnitDetailCard({ l, incidents, canEdit=false, canDelete=false, onEdit, onDelete, onReport,
   user, contactProps={}, isGlobalAdmin=false, canResolveGlobal=false,
   onVerify, onResolve, onAddResolution,
-  defaultStep='info',
+  defaultStep='info', defaultIncidentId=null,
   lang="es-CO", isEn=false }) {
 
   // step: 'info' | 'incidents' | 'incident'
   const [step, setStep] = useState(defaultStep||'info');
-  const [selectedIncId, setSelectedIncId] = useState(null);
+  const [selectedIncId, setSelectedIncId] = useState(defaultIncidentId||null);
 
   const goToIncident = (id) => { setSelectedIncId(id); setStep('incident'); };
   const goToList     = ()  => { setStep('incidents'); setSelectedIncId(null); };
@@ -3038,6 +3072,7 @@ function AptDetailPanel({ l, incidents, contactProps={}, canEdit, canDelete, onE
                     onDelete={()=>{}}
                     onVerify={onVerify}
                     onAddResolution={onAddResolution}
+                    onIncidentDetail={onIncidentDetail}
                     hideUnit
                     lang={lang}
                     isEn={isEn}
@@ -3318,7 +3353,7 @@ const guestFullName = (g={}) => [g.firstName, g.middleName, g.lastName].map(x=>S
 // Location includes city, state (if present), and country
 const guestLocation = (g={}) => [g.city, g.state, g.country].map(x=>String(x||'').trim()).filter(Boolean).join(', ');
 
-function WorkflowGroup({ statusKey, icon, label, sublabel, color, incidents, listings, isOpen, onToggle, user, contactProps, isGlobalAdmin, canUpdateGlobal, canDeleteGlobal, canResolveGlobal, onResolve, onDelete, onVerify, onAddResolution, onUnitDetail, hideUnit=false, lang, isEn }) {
+function WorkflowGroup({ statusKey, icon, label, sublabel, color, incidents, listings, isOpen, onToggle, user, contactProps, isGlobalAdmin, canUpdateGlobal, canDeleteGlobal, canResolveGlobal, onResolve, onDelete, onVerify, onAddResolution, onUnitDetail, onIncidentDetail, hideUnit=false, lang, isEn }) {
   const count = incidents.length;
   return (
     <div className="wfg-section">
@@ -3335,7 +3370,7 @@ function WorkflowGroup({ statusKey, icon, label, sublabel, color, incidents, lis
         <div className="wfg-body">
           {count===0
             ? <div className="wfg-empty">✓ {isEn?'None here':'Nada aquí'}</div>
-            : incidents.map(inc=><IRow key={inc.id} inc={inc} user={user} listings={listings} contactProps={contactProps} isGlobalAdmin={isGlobalAdmin} canUpdateGlobal={canUpdateGlobal} canDeleteGlobal={canDeleteGlobal} canResolveGlobal={canResolveGlobal} onResolve={onResolve} onDelete={onDelete} onVerify={onVerify} onAddResolution={onAddResolution} onUnitDetail={onUnitDetail} hideUnit={hideUnit} lang={lang}/>)
+            : incidents.map(inc=><IRow key={inc.id} inc={inc} user={user} listings={listings} contactProps={contactProps} isGlobalAdmin={isGlobalAdmin} canUpdateGlobal={canUpdateGlobal} canDeleteGlobal={canDeleteGlobal} canResolveGlobal={canResolveGlobal} onResolve={onResolve} onDelete={onDelete} onVerify={onVerify} onAddResolution={onAddResolution} onUnitDetail={onUnitDetail} onIncidentDetail={onIncidentDetail} hideUnit={hideUnit} lang={lang}/>)
           }
         </div>
       )}
@@ -3343,7 +3378,7 @@ function WorkflowGroup({ statusKey, icon, label, sublabel, color, incidents, lis
   );
 }
 
-function IncidentsView({ incidents, listings, user, quickFilter=null, onQuickFilterApplied=()=>{}, contactProps={}, isGlobalAdmin=false, canUpdateGlobal=false, canDeleteGlobal=false, canResolveGlobal=false, onAdd, onResolve, onDelete, onVerify, onAddResolution, onUnitDetail, lang="es-CO" }) {
+function IncidentsView({ incidents, listings, user, quickFilter=null, onQuickFilterApplied=()=>{}, contactProps={}, isGlobalAdmin=false, canUpdateGlobal=false, canDeleteGlobal=false, canResolveGlobal=false, onAdd, onResolve, onDelete, onVerify, onAddResolution, onUnitDetail, onIncidentDetail, lang="es-CO" }) {
   const [sf,setSf]=useState("all"), [cf,setCf]=useState("all"), [scope,setScope]=useState("all"), [search,setSearch]=useState("");
   // Floor filter: set when user clicks a stat pill on the Units page floor header
   const [floorFilter, setFloorFilter] = useState(null); // {aptIds:string[], status:string, label:string} | null
@@ -3568,6 +3603,7 @@ function IncidentsView({ incidents, listings, user, quickFilter=null, onQuickFil
             onVerify={onVerify}
             onAddResolution={onAddResolution}
             onUnitDetail={onUnitDetail}
+            onIncidentDetail={onIncidentDetail}
             lang={lang}
             isEn={isEn}
           />
@@ -3598,7 +3634,7 @@ const localizeNotification = (n={}, lang="es-CO") => {
   return { title: outTitle, message: outMessage };
 };
 
-function NotificationsView({ notifications, incidents, listings=[], contactProps={}, onRead, onReadAll, lang="es-CO", smartAlerts=[] }) {
+function NotificationsView({ notifications, incidents, listings=[], contactProps={}, onRead, onReadAll, lang="es-CO", smartAlerts=[], onIncidentDetail=null }) {
   const unread = notifications.filter(n => !n.isRead).length;
   const hasAlerts = smartAlerts.length > 0;
   return (
@@ -3640,15 +3676,26 @@ function NotificationsView({ notifications, incidents, listings=[], contactProps
         : <div className="notice-list">{notifications.map(n=>{
             const inc=incidents.find(i=>i.id===n.incidentId);
             const nt=localizeNotification(n,lang);
+            const canOpenDetail = !!(inc && onIncidentDetail);
+            const isEn = lang==='en';
             return (
-              <div key={n.id} className={`notice-card ${n.isRead?'notice-read':'notice-new'}`}>
+              <div key={n.id} className={`notice-card ${n.isRead?'notice-read':'notice-new'}${canOpenDetail?' notice-card-clickable':''}`}
+                onClick={canOpenDetail?()=>onIncidentDetail(inc.id):undefined}
+                role={canOpenDetail?'button':undefined}
+                tabIndex={canOpenDetail?0:undefined}
+                onKeyDown={canOpenDetail?e=>{if(e.key==='Enter'||e.key===' ')onIncidentDetail(inc.id);}:undefined}
+                title={canOpenDetail?(isEn?'Click to view full incident details':'Clic para ver detalles del incidente'):undefined}
+              >
                 <div className="notice-main">
                   <div className="notice-title">{n.isRead?'🔔':'🆕'} {nt.title}</div>
                   <div className="notice-msg">{nt.message}</div>
-                  <div className="notice-meta">{new Date(n.createdAt).toLocaleString(lang==='en'?'en-US':'es-CO')} · {appText(lang,'common.email')}: {n.emailSent?(appText(lang,'common.sent')+' ✅'):(appText(lang,'common.notSent')+' ⚠️')}{n.emailError?` · ${n.emailError}`:''}</div>
-                  {inc&&<div className="notice-inc"><strong>{appText(lang,'notifications.detail')}:</strong> {inc.desc}</div>}
+                  <div className="notice-meta">{new Date(n.createdAt).toLocaleString(isEn?'en-US':'es-CO')} · {appText(lang,'common.email')}: {n.emailSent?(appText(lang,'common.sent')+' ✅'):(appText(lang,'common.notSent')+' ⚠️')}{n.emailError?` · ${n.emailError}`:''}</div>
+                  {inc&&<div className="notice-inc-row">
+                    <span className="notice-inc-desc"><strong>{appText(lang,'notifications.detail')}:</strong> {String(inc.desc||'').slice(0,100)}{String(inc.desc||'').length>100?'…':''}</span>
+                    {canOpenDetail&&<span className="notice-inc-hint">{isEn?'View details':'Ver detalles'} ›</span>}
+                  </div>}
                 </div>
-                {!n.isRead&&<button className="bsm bs-resolve" onClick={()=>onRead(n.id)}>{appText(lang,"notifications.markRead")}</button>}
+                {!n.isRead&&<button className="bsm bs-resolve" onClick={e=>{e.stopPropagation();onRead(n.id);}}>{appText(lang,"notifications.markRead")}</button>}
               </div>
             );
           })}</div>
@@ -3707,66 +3754,88 @@ function UnitMiniCard({ listing, onUnitDetail, isEn=false }) {
   );
 }
 
-function IRow({ inc, user, listings=[], contactProps={}, isGlobalAdmin=false, canUpdateGlobal=false, canDeleteGlobal=false, canResolveGlobal=false, onResolve, onDelete, onVerify, onAddResolution, onUnitDetail, compact, naughtyMode, hideUnit=false, lang="es-CO" }) {
+function IRow({ inc, user, listings=[], contactProps={}, isGlobalAdmin=false, canUpdateGlobal=false, canDeleteGlobal=false, canResolveGlobal=false, onResolve, onDelete, onVerify, onAddResolution, onUnitDetail, onIncidentDetail, compact, naughtyMode, hideUnit=false, lang="es-CO" }) {
   const listing   = listings.find(l=>l.id===inc.aptId);
   const isOwner   = Boolean(user?.uid && listing?.ownerUid === user.uid);
   const isReporter= Boolean(user?.uid && inc.reporterUid === user.uid);
   const guests = normalizeOwnerGuests(inc);
-  const ti=INCIDENT_TYPES.find(t=>t.value===inc.type)||INCIDENT_TYPES[6], ci=GUEST_CATEGORIES.find(c=>c.value===inc.category); const tiLabel=incidentTypeLabel(ti.value,lang), ciLabel=ci?categoryLabel(ci.value,lang):"";
+  const ti=INCIDENT_TYPES.find(t=>t.value===inc.type)||INCIDENT_TYPES[6], ci=GUEST_CATEGORIES.find(c=>c.value===inc.category);
+  const tiLabel=incidentTypeLabel(ti.value,lang), ciLabel=ci?categoryLabel(ci.value,lang):"";
   const isEn = lang==='en';
-  return (
-    <div className={`irow ${(inc.status==="resolved"||inc.status==="verified")?"irow-res":""} ${naughtyMode?"irow-naughty":""}`}>
-      <div className="ir-l">
-        {!hideUnit && (listing
-          ? <UnitMiniCard listing={listing} onUnitDetail={onUnitDetail} isEn={isEn}/>
-          : <div className="ir-apt-context"><div className="ir-apt">{inc.aptLabel}</div></div>
-        )}
-        {hideUnit && <div className="ir-apt-context"><div className="ir-apt">{inc.aptLabel}</div></div>}
-        {/* Viewer's role in this incident */}
-        {user&&(isReporter||isOwner)&&(
-          <div className="ir-ctx-tags">
-            {isReporter&&isOwner&&<span className="inc-ctx-tag inc-ctx-reporter">{isEn?'📋 I reported · my listing':'📋 Yo reporté · mi listing'}</span>}
-            {isReporter&&!isOwner&&<span className="inc-ctx-tag inc-ctx-reporter">{isEn?'📋 I reported':'📋 Yo reporté'}</span>}
-            {!isReporter&&isOwner&&<span className="inc-ctx-tag inc-ctx-mine">{isEn?'🏠 Listing owner':'🏠 Propietario del listing'}</span>}
-          </div>
-        )}
-        {/* Guest — labeled clearly */}
-        {guests.length>0
-          ? <div className="ir-guest"><span className="ir-role-lbl">{isEn?'Guest':'Huésped'}:</span> {guests.map(guestFullName).join(' · ')}</div>
-          : <div className="ir-guest"><span className="ir-role-lbl">{isEn?'Guest':'Huésped'}:</span> {inc.guestName||(isEn?'Pending verification':'Pendiente verificación')}</div>
-        }
-        {guests.length>0&&<div className="ir-loc">📍 {[...new Set(guests.map(guestLocation).filter(Boolean))].join(' · ')}</div>}
-        {!guests.length&&inc.guestCity&&<div className="ir-loc">📍 {inc.guestCity}, {inc.guestCountry}</div>}
-        <div className="ir-date">📅 {fmtDate(inc.date)}</div>
-        {!compact&&!isReporter&&<div className="ir-rep"><span className="ir-role-lbl">{isEn?'Reported by':'Reportado por'}:</span> <UserContact name={inc.reporterName} uid={inc.reporterUid} {...contactProps}/></div>}
-      </div>
-      <div className="ir-c">
-        <div className="ir-tags">
-          <span className="ir-type" style={{background:ti.bg,color:ti.color}}>{tiLabel}</span>
-          {ci&&<span className="ir-cat" style={{background:ci.bg,color:ci.color}}>{ci.icon} {ciLabel}</span>}
-          {inc.status==="open"&&<span className="ir-status is-open" title={isEn?'Step 1: Owner must verify and document action taken':'Paso 1: El propietario debe verificar y documentar la acción tomada'}>{isEn?"⚠️ Verify now":"⚠️ Verificar"}</span>}
-          {inc.status==="verified"&&!String(inc.ownerResolution||'').trim()&&<span className="ir-status is-pending-res" title={isEn?'Step 2: Add your resolution — required before admin can close':'Paso 2: Agrega tu respuesta — requerida para que el admin pueda cerrar'}>{isEn?"📝 Add resolution":"📝 Agregar respuesta"}</span>}
-          {inc.status==="verified"&& String(inc.ownerResolution||'').trim()&&<span className="ir-status is-verified" title={isEn?'Resolution submitted — admin will review and close':'Respuesta enviada — el admin revisará y cerrará'}>{isEn?"⏳ Awaiting admin":"⏳ Esperando admin"}</span>}
-          {inc.status==="resolved"&&<span className="ir-status is-resolved">{isEn?"✓ Closed":"✓ Cerrado"}</span>}
-          {inc.slaCycleCount>0&&<span className="ir-cat" style={{background:"#fff3e0",color:"#e65100"}}>⏱️ SLA {inc.slaCycleCount}</span>}
+  const hasDetail = !!onIncidentDetail;
+
+  // Summary content — shared between clickable and non-clickable layouts
+  const SummaryLeft = () => (
+    <div className="ir-l">
+      {!hideUnit && (listing
+        ? <UnitMiniCard listing={listing} onUnitDetail={onUnitDetail} isEn={isEn}/>
+        : <div className="ir-apt-context"><div className="ir-apt">{inc.aptLabel}</div></div>
+      )}
+      {hideUnit && <div className="ir-apt-context"><div className="ir-apt">{inc.aptLabel}</div></div>}
+      {user&&(isReporter||isOwner)&&(
+        <div className="ir-ctx-tags">
+          {isReporter&&isOwner&&<span className="inc-ctx-tag inc-ctx-reporter">{isEn?'📋 I reported · my listing':'📋 Yo reporté · mi listing'}</span>}
+          {isReporter&&!isOwner&&<span className="inc-ctx-tag inc-ctx-reporter">{isEn?'📋 I reported':'📋 Yo reporté'}</span>}
+          {!isReporter&&isOwner&&<span className="inc-ctx-tag inc-ctx-mine">{isEn?'🏠 Listing owner':'🏠 Propietario del listing'}</span>}
         </div>
-        {!compact&&<div className="ir-desc">{inc.desc}</div>}
-        {guests.length>0&&<div className="ir-desc">
-          <strong>{appText(lang,'form.guestDetails')}:</strong>
-          <div className="guest-display-list">{guests.map((g,idx)=><div key={idx}>👤 {guestFullName(g)}{guestLocation(g)?` · ${guestLocation(g)}`:''}</div>)}</div>
-          {inc.ownerComments&&<div className="adp-inc-comments adp-comment-action" style={{marginTop:6}}><span className="adp-comment-lbl">💡 {isEn?'Action taken':'Acción tomada'}</span> {inc.ownerComments}</div>}
-          {inc.ownerResolution&&<div className="adp-inc-comments adp-comment-resolution" style={{marginTop:6}}><span className="adp-comment-lbl">🔍 {isEn?'Owner resolution':'Respuesta'}</span> {inc.ownerResolution}</div>}
-          {inc.resolutionComments&&<div className="adp-inc-comments adp-comment-closed" style={{marginTop:6}}><span className="adp-comment-lbl">✓ {isEn?'Closed by admin':'Cerrado por admin'}</span> {inc.resolutionComments}</div>}
-        </div>}
-        {inc.status==='verified'&&!inc.ownerResolution&&isOwner&&<div className="inc-res-warn">{appText(lang,'form.resolutionRequired')}</div>}
+      )}
+      {guests.length>0
+        ? <div className="ir-guest"><span className="ir-role-lbl">{isEn?'Guest':'Huésped'}:</span> {guests.map(guestFullName).join(' · ')}</div>
+        : <div className="ir-guest"><span className="ir-role-lbl">{isEn?'Guest':'Huésped'}:</span> {inc.guestName||(isEn?'Pending verification':'Pendiente verificación')}</div>
+      }
+      {guests.length>0&&<div className="ir-loc">📍 {[...new Set(guests.map(guestLocation).filter(Boolean))].join(' · ')}</div>}
+      {!guests.length&&inc.guestCity&&<div className="ir-loc">📍 {inc.guestCity}, {inc.guestCountry}</div>}
+      <div className="ir-date">📅 {fmtDate(inc.date)}</div>
+      {!compact&&!isReporter&&<div className="ir-rep"><span className="ir-role-lbl">{isEn?'Reported by':'Reportado por'}:</span> <UserContact name={inc.reporterName} uid={inc.reporterUid} {...contactProps}/></div>}
+    </div>
+  );
+
+  const SummaryCenter = () => (
+    <div className="ir-c">
+      <div className="ir-tags">
+        <span className="ir-type" style={{background:ti.bg,color:ti.color}}>{tiLabel}</span>
+        {ci&&<span className="ir-cat" style={{background:ci.bg,color:ci.color}}>{ci.icon} {ciLabel}</span>}
+        {inc.status==="open"&&<span className="ir-status is-open" title={isEn?'Step 1: Owner must verify':'Paso 1: El propietario debe verificar'}>{isEn?"⚠️ Verify now":"⚠️ Verificar"}</span>}
+        {inc.status==="verified"&&!String(inc.ownerResolution||'').trim()&&<span className="ir-status is-pending-res" title={isEn?'Step 2: Add resolution':'Paso 2: Agrega tu respuesta'}>{isEn?"📝 Add resolution":"📝 Agregar respuesta"}</span>}
+        {inc.status==="verified"&& String(inc.ownerResolution||'').trim()&&<span className="ir-status is-verified" title={isEn?'Awaiting admin close':'Esperando cierre del admin'}>{isEn?"⏳ Awaiting admin":"⏳ Esperando admin"}</span>}
+        {inc.status==="resolved"&&<span className="ir-status is-resolved">{isEn?"✓ Closed":"✓ Cerrado"}</span>}
+        {inc.slaCycleCount>0&&<span className="ir-cat" style={{background:"#fff3e0",color:"#e65100"}}>⏱️ SLA {inc.slaCycleCount}</span>}
+        {hasDetail&&<span className="ir-detail-hint">{isEn?'View details':'Ver detalles'} ›</span>}
       </div>
+      {!compact&&<div className="ir-desc">{inc.desc}</div>}
+      {!compact&&guests.length>0&&<div className="ir-desc">
+        <strong>{appText(lang,'form.guestDetails')}:</strong>
+        <div className="guest-display-list">{guests.map((g,idx)=><div key={idx}>👤 {guestFullName(g)}{guestLocation(g)?` · ${guestLocation(g)}`:''}</div>)}</div>
+        {inc.ownerComments&&<div className="adp-inc-comments adp-comment-action" style={{marginTop:6}}><span className="adp-comment-lbl">💡 {isEn?'Action taken':'Acción tomada'}</span> {inc.ownerComments}</div>}
+        {inc.ownerResolution&&<div className="adp-inc-comments adp-comment-resolution" style={{marginTop:6}}><span className="adp-comment-lbl">🔍 {isEn?'Resolution':'Respuesta'}</span> {inc.ownerResolution}</div>}
+        {inc.resolutionComments&&<div className="adp-inc-comments adp-comment-closed" style={{marginTop:6}}><span className="adp-comment-lbl">✓ {isEn?'Closed by admin':'Cerrado por admin'}</span> {inc.resolutionComments}</div>}
+      </div>}
+      {inc.status==='verified'&&!inc.ownerResolution&&isOwner&&<div className="inc-res-warn">{appText(lang,'form.resolutionRequired')}</div>}
+    </div>
+  );
+
+  return (
+    <div className={`irow${(inc.status==="resolved"||inc.status==="verified")?' irow-res':''}${naughtyMode?' irow-naughty':''}${hasDetail?' irow-clickable':''}`}>
+      {/* Clickable summary area — left + center columns */}
+      {hasDetail ? (
+        <button type="button" className="ir-summary-btn" onClick={()=>onIncidentDetail(inc.id)} title={isEn?'Tap to view full details':'Toca para ver detalles completos'}>
+          <SummaryLeft/>
+          <SummaryCenter/>
+        </button>
+      ) : (
+        <>
+          <SummaryLeft/>
+          <SummaryCenter/>
+        </>
+      )}
+      {/* Action buttons — always outside the clickable area */}
       {!compact&&user&&<div className="ir-acts">
         {inc.status==="open"&&isOwner&&<>
           <div className="ir-step-cue"><span className="ir-step-num">1</span><span>{isEn?'Verify — document action taken':'Verificar — documentar acción tomada'}</span></div>
           <button className="bsm bs-resolve" onClick={()=>onVerify(inc)}>{appText(lang,"reports.verify")}</button>
         </>}
         {inc.status==="verified"&&isOwner&&!inc.ownerResolution&&<>
-          <div className="ir-step-cue ir-step-cue-2"><span className="ir-step-num ir-step-num-2">2</span><span>{isEn?'Add your resolution to unlock admin close':'Agrega tu respuesta para desbloquear cierre'}</span></div>
+          <div className="ir-step-cue ir-step-cue-2"><span className="ir-step-num ir-step-num-2">2</span><span>{isEn?'Add resolution to unlock admin close':'Agrega respuesta para desbloquear cierre'}</span></div>
           <button className="bsm bs-edit" onClick={()=>onAddResolution&&onAddResolution(inc)}>{appText(lang,'form.addResolution')}</button>
         </>}
         {inc.status==="verified"&&isOwner&&!!inc.ownerResolution&&<div className="ir-step-done">{isEn?'✓ Resolution submitted — awaiting admin':'✓ Respuesta enviada — esperando admin'}</div>}

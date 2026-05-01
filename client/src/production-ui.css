@@ -1393,6 +1393,80 @@ button.unit-plate:focus-visible { outline: 2px solid rgba(200,216,160,.6) !impor
 }
 .idd-act-btn { width: 100% !important; text-align: center !important; justify-content: center !important; }
 
+/* ── IRow: clickable summary affordance ─────────────────────────────────────── */
+/* When onIncidentDetail is wired, the left+center columns wrap in a button */
+.irow-clickable { position: relative; }
+.ir-summary-btn {
+  display: flex !important;
+  align-items: stretch !important;
+  width: 100% !important;
+  background: none !important;
+  border: none !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  min-height: 0 !important;
+  text-align: left !important;
+  cursor: pointer !important;
+  border-radius: inherit !important;
+  transition: background .12s !important;
+  gap: 0 !important;
+}
+.ir-summary-btn:hover { background: rgba(11,127,140,.04) !important; }
+.ir-summary-btn:focus-visible { outline: 2px solid rgba(11,127,140,.4) !important; outline-offset: 2px !important; border-radius: 10px !important; }
+/* "View details ›" hint shown in the tags row */
+.ir-detail-hint {
+  margin-left: auto;
+  font-size: .67rem;
+  font-weight: 700;
+  color: rgba(11,127,140,.7);
+  white-space: nowrap;
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: rgba(11,127,140,.07);
+  transition: background .12s, color .12s;
+}
+.ir-summary-btn:hover .ir-detail-hint {
+  background: rgba(11,127,140,.14);
+  color: #0b7f8c;
+}
+
+/* ── Notification cards: clickable when incident is present ──────────────────── */
+.notice-card-clickable {
+  cursor: pointer !important;
+  transition: box-shadow .14s, background .12s, transform .1s !important;
+}
+.notice-card-clickable:hover {
+  background: rgba(11,127,140,.04) !important;
+  box-shadow: 0 3px 12px rgba(11,127,140,.12) !important;
+  transform: translateY(-1px) !important;
+}
+.notice-card-clickable:focus-visible {
+  outline: 2px solid rgba(11,127,140,.4) !important;
+  outline-offset: 2px !important;
+}
+.notice-inc-row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 3px;
+}
+.notice-inc-desc { font-size: .8rem; color: #496674; flex: 1; min-width: 0; }
+.notice-inc-hint {
+  font-size: .67rem;
+  font-weight: 700;
+  color: rgba(11,127,140,.75);
+  white-space: nowrap;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: rgba(11,127,140,.08);
+  flex-shrink: 0;
+}
+.notice-card-clickable:hover .notice-inc-hint {
+  background: rgba(11,127,140,.16);
+  color: #0b7f8c;
+}
+
 /* Expanded detail section (kept for backward compat) */
 .udc-inc-expand {
   padding: 14px 12px 12px;
