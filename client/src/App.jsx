@@ -2535,48 +2535,61 @@ function AptDetailPanel({ l, incidents, contactProps={}, canEdit, canDelete, onE
 
   return (
     <div className="adp-wrap">
-      <div className="adp-header">
-        <div className="adp-apt-id">
-          <span className="adp-apt-num">{isEn?'Apt.':'Apto.'} {l.apt}</span>
-          <span className="chip c-teal">🛏️ {l.rooms}</span>
-          <span className="chip c-blue">👥 {l.guests}</span>
-          {l.airbnb && <a className="adp-airbnb-lnk" href={l.airbnb} target="_blank" rel="noreferrer" title="Airbnb">🔗</a>}
+      {/* ── Unit header ── */}
+      <div className="adp-unit-hero">
+        <div className="adp-unit-plate">
+          <span className="adp-unit-num">{l.apt}</span>
+          {l.tower&&<span className="adp-unit-tower">{l.tower}</span>}
         </div>
-        <div style={{display:'flex',gap:6,alignItems:'center'}}>
+        <div className="adp-unit-meta">
+          <span className="chip c-teal" title={isEn?`${l.rooms} bedrooms`:`${l.rooms} habitaciones`}>🛏️ {l.rooms}</span>
+          <span className="chip c-blue" title={isEn?`Up to ${l.guests} guests`:`Capacidad ${l.guests} huéspedes`}>👥 {l.guests}</span>
+          {l.airbnb&&<a className="adp-airbnb-lnk" href={l.airbnb} target="_blank" rel="noreferrer" title="Airbnb listing">🔗 Airbnb</a>}
+        </div>
+        <div className="adp-unit-acts">
           <button className="bsm bs-rep" onClick={onReport}>+ {isEn?'Report':'Reporte'}</button>
-          {canEdit && <button className="bsm bs-edit" onClick={onEdit}>✏️</button>}
-          {canDelete && <button className="bsm bs-del" onClick={onDelete}>🗑️</button>}
-          <button className="adp-close-btn" onClick={onClose} title="Close">✕</button>
+          {canEdit&&<button className="bsm bs-edit" onClick={onEdit} title={isEn?'Edit unit':'Editar unidad'}>✏️</button>}
+          {canDelete&&<button className="bsm bs-del" onClick={onDelete} title={isEn?'Delete unit':'Eliminar unidad'}>🗑️</button>}
         </div>
       </div>
 
+      {/* ── People: owner + operator ── */}
+      <div className="adp-section-lbl">👥 {isEn?'People':'Personas'}</div>
       <div className="adp-contacts">
         <div className="adp-party">
-          <span className="adp-party-lbl">👤 {isEn?'Owner':'Propietario'}</span>
+          <div className="adp-party-lbl">👤 {isEn?'Owner':'Propietario'}</div>
           <div className="adp-party-row">
             <UserContact name={l.owner} uid={l.ownerUid} email={l.userEmail||l.email} whatsapp={l.contact} apartments={l.apt?[aptDisplay(l.apt,lang)]:[]} {...contactProps}/>
-            <div style={{display:'flex',gap:5}}>
+            <div className="adp-party-cbtns">
               {(l.userEmail||l.email)&&<a href={`mailto:${l.userEmail||l.email}`} className="ac-cbtn" title={l.userEmail||l.email}><IconEmail/></a>}
               {ownerWa&&<a href={`https://wa.me/${ownerWa}`} className="ac-cbtn ac-cbtn-wa" target="_blank" rel="noreferrer" title="WhatsApp"><IconWhatsApp/></a>}
             </div>
           </div>
         </div>
-        {hasOp && (
+        {hasOp ? (
           <div className="adp-party">
-            <span className="adp-party-lbl">🔧 {isEn?'Operator':'Operador'}</span>
+            <div className="adp-party-lbl">🔧 {isEn?'Operator':'Operador'}</div>
             <div className="adp-party-row">
-              {l.operator ? <UserContact name={l.operator} email={l.operatorEmail} whatsapp={l.operatorWhatsapp} apartments={[]} {...contactProps}/> : <span style={{fontSize:'.8rem',color:'#8a9fa5'}}>—</span>}
-              <div style={{display:'flex',gap:5}}>
+              {l.operator ? <UserContact name={l.operator} email={l.operatorEmail} whatsapp={l.operatorWhatsapp} apartments={[]} {...contactProps}/> : <span style={{fontSize:'.8rem',color:'#8a9fa5'}}>{l.operatorEmail||'—'}</span>}
+              <div className="adp-party-cbtns">
                 {l.operatorEmail&&<a href={`mailto:${l.operatorEmail}`} className="ac-cbtn" title={l.operatorEmail}><IconEmail/></a>}
                 {opWa&&<a href={`https://wa.me/${opWa}`} className="ac-cbtn ac-cbtn-wa" target="_blank" rel="noreferrer" title="WhatsApp"><IconWhatsApp/></a>}
               </div>
             </div>
           </div>
+        ) : (
+          <div className="adp-party adp-party-none">
+            <div className="adp-party-lbl">🔧 {isEn?'Operator':'Operador'}</div>
+            <span className="adp-no-op">{isEn?'No operator assigned':'Sin operador asignado'}</span>
+          </div>
         )}
       </div>
 
+      {/* ── Incident history ── */}
+      <div className="adp-section-lbl">📋 {isEn?'Incident history':'Historial de incidentes'} <span className="adp-inc-count">{aptInc.length}</span></div>
       <div className="adp-incidents">
-        <div className="adp-inc-hdr">{isEn?'Incident history':'Historial de incidentes'} <span className="adp-inc-count">{aptInc.length}</span></div>
+        {aptInc.length===0
+          ? <div className="adp-inc-empty">✅ {isEn?'No incidents on record':'Sin incidentes registrados'}</div>
         {aptInc.length===0
           ? <div className="adp-inc-empty">✅ {isEn?'No incidents on record':'Sin incidentes registrados'}</div>
           : <div className="adp-wfg-list">
@@ -2655,28 +2668,31 @@ function BuildingFloor({ floor, apts, incidents, user, contactProps, isGlobalAdm
               <AptDoor key={l.id} l={l} incidents={incidents} isSelected={selectedAptId===l.id} onSelect={handleSelect} lang={lang} isEn={isEn}/>
             ))}
           </div>
-          {selectedApt && (
-            <AptDetailPanel
-              l={selectedApt}
-              incidents={incidents}
-              contactProps={contactProps}
-              canEdit={user?.uid===selectedApt.ownerUid||isGlobalAdmin||canEditGlobal}
-              canDelete={user?.uid===selectedApt.ownerUid||isGlobalAdmin||canDeleteGlobal}
-              onEdit={()=>onEdit(selectedApt)}
-              onDelete={()=>onDelete(selectedApt)}
-              onReport={()=>onReport(selectedApt)}
-              onClose={()=>setSelectedAptId(null)}
-              user={user}
-              isGlobalAdmin={isGlobalAdmin}
-              canResolveGlobal={canResolveGlobal}
-              onVerify={onVerify}
-              onResolve={onResolve}
-              onAddResolution={onAddResolution}
-              lang={lang}
-              isEn={isEn}
-            />
-          )}
         </div>
+      )}
+      {/* Unit detail modal — opens when a door card is clicked */}
+      {selectedApt && (
+        <Overlay onClose={()=>setSelectedAptId(null)} wide>
+          <AptDetailPanel
+            l={selectedApt}
+            incidents={incidents}
+            contactProps={contactProps}
+            canEdit={user?.uid===selectedApt.ownerUid||isGlobalAdmin||canEditGlobal}
+            canDelete={user?.uid===selectedApt.ownerUid||isGlobalAdmin||canDeleteGlobal}
+            onEdit={()=>onEdit(selectedApt)}
+            onDelete={()=>onDelete(selectedApt)}
+            onReport={()=>onReport(selectedApt)}
+            onClose={()=>setSelectedAptId(null)}
+            user={user}
+            isGlobalAdmin={isGlobalAdmin}
+            canResolveGlobal={canResolveGlobal}
+            onVerify={onVerify}
+            onResolve={onResolve}
+            onAddResolution={onAddResolution}
+            lang={lang}
+            isEn={isEn}
+          />
+        </Overlay>
       )}
     </div>
   );
