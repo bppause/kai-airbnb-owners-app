@@ -669,6 +669,67 @@ table { width: 100%; border-collapse: collapse; }
 .adp-wfg-list .wfg-section { box-shadow: 0 3px 10px rgba(32,46,38,.06); }
 .adp-wfg-list .irow { margin-bottom: 6px; }
 
+/* ── bld-floor: overflow visible so AptDoor contact popup can float above ─── */
+/* Rounded corners on children replaces the parent overflow:hidden clipping   */
+.bld-floor { overflow: visible !important; }
+.bld-floor-hdr { border-radius: 16px 16px 0 0 !important; }
+.bld-floor-body { border-radius: 0 0 16px 16px; overflow: hidden; }
+
+/* AptDoor as apt-cpop-wrap: popup appears above card, bridge extends down    */
+.apt-door.apt-cpop-wrap { overflow: visible !important; }
+.apt-door.apt-cpop-wrap .apt-cpop {
+  bottom: calc(100% + 8px);
+  top: auto;
+  left: 0;
+  right: auto;
+  min-width: 240px;
+}
+.apt-door.apt-cpop-wrap .apt-cpop::before {
+  top: auto;
+  bottom: -8px;
+  height: 8px;
+}
+
+/* ── bld-stat-btn: clickable floor stat pills (open / verified / resolved) ── */
+.bld-stat-btn {
+  cursor: pointer !important;
+  background: none;
+  border: none;
+  font: inherit;
+  text-decoration: underline dotted rgba(47,79,58,.4);
+  transition: transform .12s, box-shadow .12s;
+}
+.bld-stat-btn:hover { transform: translateY(-1px); box-shadow: 0 3px 10px rgba(32,46,38,.16); text-decoration: none; }
+
+/* ── Floor filter banner in IncidentsView ──────────────────────────────────── */
+.floor-filter-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  background: rgba(11,127,140,.08);
+  border: 1px solid rgba(11,127,140,.22);
+  border-radius: 12px;
+  padding: 8px 14px;
+  font-size: .8rem;
+  color: #0b5f72;
+  margin-bottom: 10px;
+  flex-wrap: wrap;
+}
+.floor-filter-banner strong { color: #0b3d4a; }
+.ffb-clear {
+  background: rgba(11,127,140,.12);
+  border: 1px solid rgba(11,127,140,.25);
+  border-radius: 999px;
+  padding: 3px 10px;
+  font-size: .72rem;
+  font-weight: 800;
+  color: #0b5f72;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.ffb-clear:hover { background: rgba(11,127,140,.22); }
+
 /* ── Unit number legibility — crisp white on dark plate in both card types ── */
 /* AptDoor building grid */
 .door-num { color: #ffffff !important; text-shadow: 0 1px 4px rgba(0,0,0,.45) !important; letter-spacing: .08em !important; }

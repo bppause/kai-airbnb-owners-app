@@ -1360,7 +1360,7 @@ export default function App() {
       <main className="main">
         {view==="dashboard" && <Dashboard lang={lang} listings={listings} incidents={incidents} user={user} contactProps={contactProps} setView={setView} showBlacklist={false} onReport={()=>{ if(!user){login();return;} setModal({type:"incident"}); }} effectiveIsGlobalAdmin={effectiveIsGlobalAdmin} effectiveRole={effectiveRole} delegatePerms={delegatePerms} pendingOwner={needsOwnerVerification.length} pendingResolve={needsAdminResolution.length} pendingRegistrations={effectiveCanManageRegistrations ? pendingRegistrations.length : 0} canResolve={canResolveIncidentsNow} canManageRegistrations={effectiveCanManageRegistrations} onOwnerClick={()=>{setIncidentQuickFilter('ownerVerification');setView('incidents');}} onResolveClick={()=>{setIncidentQuickFilter('requiresResolution');setView('incidents');}} onRegistrationsClick={()=>setView('approvals')} />}
         {view==="about" && <CommunityMissionView lang={lang} config={adminInfo.config} />}
-        {view==="listings"  && <ListingsView lang={lang} listings={listings} incidents={incidents} user={user} contactProps={contactProps} isGlobalAdmin={effectiveIsGlobalAdmin} canEditGlobal={delegatePerms.canUpdateGlobalListings} canDeleteGlobal={delegatePerms.canDeleteGlobalListings} canResolveGlobal={canResolveIncidentsNow} floorOpenState={listingFloorOpen} onFloorToggle={toggleListingFloor} onAdd={()=>{ if(!user){login();return;} setModal({type:"addListing"}); }} onEdit={l=>setModal({type:"editListing",data:l})} onDelete={deleteListing} onReport={l=>{ if(!user){login();return;} setModal({type:"incident",data:{aptId:l.id}}); }} onVerify={inc=>setModal({type:"verifyIncident",data:inc})} onResolve={resolveIncident} onAddResolution={inc=>setModal({type:"addResolution",data:inc})} />}
+        {view==="listings"  && <ListingsView lang={lang} listings={listings} incidents={incidents} user={user} contactProps={contactProps} isGlobalAdmin={effectiveIsGlobalAdmin} canEditGlobal={delegatePerms.canUpdateGlobalListings} canDeleteGlobal={delegatePerms.canDeleteGlobalListings} canResolveGlobal={canResolveIncidentsNow} floorOpenState={listingFloorOpen} onFloorToggle={toggleListingFloor} onAdd={()=>{ if(!user){login();return;} setModal({type:"addListing"}); }} onEdit={l=>setModal({type:"editListing",data:l})} onDelete={deleteListing} onReport={l=>{ if(!user){login();return;} setModal({type:"incident",data:{aptId:l.id}}); }} onVerify={inc=>setModal({type:"verifyIncident",data:inc})} onResolve={resolveIncident} onAddResolution={inc=>setModal({type:"addResolution",data:inc})} onFloorFilter={f=>{setIncidentQuickFilter({type:'floorFilter',aptIds:f.aptIds,status:f.status});setView('incidents');}} />}
         {view==="incidents" && <IncidentsView lang={lang} incidents={incidents} listings={listings} user={user} quickFilter={incidentQuickFilter} onQuickFilterApplied={()=>setIncidentQuickFilter(null)} contactProps={contactProps} isGlobalAdmin={effectiveIsGlobalAdmin} canUpdateGlobal={delegatePerms.canUpdateGlobalIncidents} canDeleteGlobal={delegatePerms.canDeleteGlobalIncidents} canResolveGlobal={canResolveIncidentsNow} onAdd={()=>{ if(!user){login();return;} setModal({type:"incident"}); }} onResolve={resolveIncident} onDelete={deleteIncident} onVerify={inc=>setModal({type:"verifyIncident",data:inc})} onAddResolution={inc=>setModal({type:"addResolution",data:inc})} />}
         {view==="notifications" && user && <NotificationsView lang={lang} notifications={notifications} incidents={incidents} listings={listings} contactProps={contactProps} onRead={markNotificationRead} onReadAll={markAllNotificationsRead} smartAlerts={smartAlerts} />}
         {view==="approvals" && user && effectiveCanManageRegistrations && <PendingApprovalsView lang={lang} pending={pendingRegistrations} onApprove={id=>reviewRegistrationAction(id,'approve')} onDecline={id=>reviewRegistrationAction(id,'decline')} active={activeRegistrations} />}
@@ -2332,9 +2332,8 @@ function MyListings({ listings, incidents, user, contactProps={}, isGlobalAdmin=
           <span className="ml-stat-lbl">✓ {isEn?'Resolved':'Resueltos'}</span>
         </div>
       </div>
-      {statFilter&&<div style={{display:'flex',alignItems:'center',gap:8,marginBottom:10,fontSize:'.8rem',color:'#496674'}}>
-        <span>{isEn?'Filtered:':'Filtrado:'} <strong>{statFilter==='open'?(isEn?'Open incidents':'Incidentes abiertos'):statFilter==='verified'?(isEn?'Verified incidents':'Incidentes verificados'):(isEn?'Resolved incidents':'Incidentes resueltos')}</strong> · {sorted.length} {isEn?'listing':'listing'}{sorted.length!==1?'s':''}</span>
-        <button className="fchip fchip-sm fchip-reset" onClick={()=>toggleStat(null)}>✕ {isEn?'Clear':'Limpiar'}</button>
+      {statFilter&&<div style={{fontSize:'.78rem',color:'#496674',marginBottom:6}}>
+        {isEn?'Showing:':'Mostrando:'} <strong>{statFilter==='open'?(isEn?'Open incidents':'Incidentes abiertos'):statFilter==='verified'?(isEn?'In-progress incidents':'Incidentes en progreso'):(isEn?'Closed incidents':'Incidentes cerrados')}</strong> · {sorted.length} {isEn?(sorted.length===1?'listing':'listings'):(sorted.length===1?'listing':'listings')} <span style={{color:'#8a9fa5',fontStyle:'italic'}}>{isEn?'(click again to show all)':'(clic de nuevo para ver todos)'}</span>
       </div>}
 
       {/* ── My listings — click to see incidents ── */}
@@ -2474,11 +2473,11 @@ function AptDoor({ l, incidents, isSelected, onSelect, lang, isEn }) {
   const ownerWaRaw = l.contact || '';
   return (
     <div
-      className={`apt-door apt-door-${status}${isSelected?' apt-door-sel':''}`}
+      className={`apt-door apt-door-${status}${isSelected?' apt-door-sel':''} apt-cpop-wrap`}
       onClick={()=>onSelect(isSelected?null:l.id)}
       role="button"
       aria-expanded={isSelected}
-      aria-label={`${isEn?'Unit':'Unidad'} ${l.apt}${isEn?'. Click to see incidents':'. Clic para ver incidentes'}`}
+      aria-label={`${isEn?'Unit':'Unidad'} ${l.apt}${isEn?'. Hover for contacts, click for incidents':'. Hover para contactos, clic para incidentes'}`}
     >
       {/* Status colour bar across full top edge */}
       <div className={`door-status-bar door-sb-${status}`}/>
@@ -2507,19 +2506,16 @@ function AptDoor({ l, incidents, isSelected, onSelect, lang, isEn }) {
             </>
         }
       </div>
-      {/* Hover overlay — owner + operator contacts with branded icons */}
-      <div className="door-hover-overlay">
-        <AptContactPopup
-          ownerName={l.owner}
-          ownerEmail={ownerEmail}
-          ownerWaRaw={ownerWaRaw}
-          operatorName={l.operator}
-          operatorEmail={l.operatorEmail}
-          opWaRaw={l.operatorWhatsapp}
-          isEn={isEn}
-        />
-        <div className="door-hover-cta">{isEn?'👆 Click to view incidents':'👆 Clic para ver incidentes'}</div>
-      </div>
+      {/* Contact popup — appears above card on hover, does NOT cover card */}
+      <AptContactPopup
+        ownerName={l.owner}
+        ownerEmail={ownerEmail}
+        ownerWaRaw={ownerWaRaw}
+        operatorName={l.operator}
+        operatorEmail={l.operatorEmail}
+        opWaRaw={l.operatorWhatsapp}
+        isEn={isEn}
+      />
       <div className="door-footer">
         {isSelected
           ? `▲ ${isEn?'Close':'Cerrar'}`
@@ -2626,7 +2622,7 @@ function AptDetailPanel({ l, incidents, contactProps={}, canEdit, canDelete, onE
   );
 }
 
-function BuildingFloor({ floor, apts, incidents, user, contactProps, isGlobalAdmin, canEditGlobal, canDeleteGlobal, canResolveGlobal, onEdit, onDelete, onReport, onVerify, onResolve, onAddResolution, isOpen, onToggle, lang, isEn }) {
+function BuildingFloor({ floor, apts, incidents, user, contactProps, isGlobalAdmin, canEditGlobal, canDeleteGlobal, canResolveGlobal, onEdit, onDelete, onReport, onVerify, onResolve, onAddResolution, onFloorFilter, isOpen, onToggle, lang, isEn }) {
   const [selectedAptId, setSelectedAptId] = useState(null);
   const color = floorColor(floor);
   const floorInc   = incidents.filter(i=>apts.some(l=>l.id===i.aptId));
@@ -2645,9 +2641,9 @@ function BuildingFloor({ floor, apts, incidents, user, contactProps, isGlobalAdm
         </div>
         <div className="bld-floor-stats">
           <span className="bld-stat-pill bld-stat-apts" title={isEn?`${apts.length} unit${apts.length===1?'':'s'} on this floor`:`${apts.length} unidad${apts.length===1?'':'es'} en este piso`}>🏠 {apts.length} {isEn?(apts.length===1?'apt':'apts'):'apto'+(apts.length>1?'s':'')}</span>
-          {openCount>0  && <span className="bld-stat-pill bld-stat-inc" title={isEn?`${openCount} open incident${openCount>1?'s':''} — action required`:`${openCount} incidente${openCount>1?'s':''} abierto${openCount>1?'s':''} — requiere acción`}>⚠️ {openCount} {isEn?'open':'abierto'}{openCount>1&&isEn?'s':''}</span>}
-          {verCount>0   && <span className="bld-stat-pill bld-stat-ver" title={isEn?`${verCount} verified incident${verCount>1?'s':''} — pending close`:`${verCount} incidente${verCount>1?'s':''} verificado${verCount>1?'s':''} — pendiente de cierre`}>👤 {verCount} {isEn?'verified':'verificado'}{verCount>1&&isEn?'s':''}</span>}
-          {resCount>0   && <span className="bld-stat-pill bld-stat-res" title={isEn?`${resCount} resolved incident${resCount>1?'s':''}`:`${resCount} incidente${resCount>1?'s':''} resuelto${resCount>1?'s':''}`}>✓ {resCount} {isEn?'resolved':'resuelto'}{resCount>1&&isEn?'s':''}</span>}
+          {openCount>0  && <button type="button" className="bld-stat-pill bld-stat-inc bld-stat-btn" title={isEn?`${openCount} open — click to view in Incidents`:`${openCount} abierto${openCount>1?'s':''} — clic para ver en Incidentes`} onClick={e=>{e.stopPropagation();onFloorFilter&&onFloorFilter({aptIds:apts.map(a=>a.id),status:'open'});}}>⚠️ {openCount} {isEn?'open':'abierto'}{openCount>1&&isEn?'s':''}</button>}
+          {verCount>0   && <button type="button" className="bld-stat-pill bld-stat-ver bld-stat-btn" title={isEn?`${verCount} in progress — click to view in Incidents`:`${verCount} en progreso — clic para ver en Incidentes`} onClick={e=>{e.stopPropagation();onFloorFilter&&onFloorFilter({aptIds:apts.map(a=>a.id),status:'verified'});}}>👤 {verCount} {isEn?'verified':'verificado'}{verCount>1&&isEn?'s':''}</button>}
+          {resCount>0   && <button type="button" className="bld-stat-pill bld-stat-res bld-stat-btn" title={isEn?`${resCount} closed — click to view in Incidents`:`${resCount} cerrado${resCount>1?'s':''} — clic para ver en Incidentes`} onClick={e=>{e.stopPropagation();onFloorFilter&&onFloorFilter({aptIds:apts.map(a=>a.id),status:'resolved'});}}>✓ {resCount} {isEn?'resolved':'resuelto'}{resCount>1&&isEn?'s':''}</button>}
         </div>
         <span className={`bld-chev${isOpen?' bld-chev-up':''}`}>›</span>
       </button>
@@ -2741,7 +2737,7 @@ function FloorSection({ floor, apts, openCount, incidents, user, contactProps, i
   );
 }
 
-function ListingsView({ listings, incidents, user, contactProps={}, isGlobalAdmin=false, canEditGlobal=false, canDeleteGlobal=false, canResolveGlobal=false, floorOpenState={}, onFloorToggle, onAdd, onEdit, onDelete, onReport, onVerify, onResolve, onAddResolution, lang="es-CO" }) {
+function ListingsView({ listings, incidents, user, contactProps={}, isGlobalAdmin=false, canEditGlobal=false, canDeleteGlobal=false, canResolveGlobal=false, floorOpenState={}, onFloorToggle, onAdd, onEdit, onDelete, onReport, onVerify, onResolve, onAddResolution, onFloorFilter, lang="es-CO" }) {
   const [search, setSearch]   = useState('');
   const [scope, setScope]     = useState('all');
   const isEn = lang === 'en';
@@ -2780,7 +2776,7 @@ function ListingsView({ listings, incidents, user, contactProps={}, isGlobalAdmi
 
       {filtered.length===0
         ? <EmptyState icon="🏠" title={appText(lang,'listings.none')} sub={appText(lang,'listings.noResults')}/>
-        : <div className="bld-building">{floorNums.map(f=><BuildingFloor key={f} floor={f} apts={byFloor(f)} incidents={incidents} user={user} contactProps={contactProps} isGlobalAdmin={isGlobalAdmin} canEditGlobal={canEditGlobal} canDeleteGlobal={canDeleteGlobal} canResolveGlobal={canResolveGlobal} onEdit={onEdit} onDelete={onDelete} onReport={onReport} onVerify={onVerify} onResolve={onResolve} onAddResolution={onAddResolution} isOpen={!!floorOpenState[f]} onToggle={()=>onFloorToggle(f)} lang={lang} isEn={isEn}/>)}</div>
+        : <div className="bld-building">{floorNums.map(f=><BuildingFloor key={f} floor={f} apts={byFloor(f)} incidents={incidents} user={user} contactProps={contactProps} isGlobalAdmin={isGlobalAdmin} canEditGlobal={canEditGlobal} canDeleteGlobal={canDeleteGlobal} canResolveGlobal={canResolveGlobal} onEdit={onEdit} onDelete={onDelete} onReport={onReport} onVerify={onVerify} onResolve={onResolve} onAddResolution={onAddResolution} onFloorFilter={onFloorFilter} isOpen={!!floorOpenState[f]} onToggle={()=>onFloorToggle(f)} lang={lang} isEn={isEn}/>)}</div>
       }
     </div>
   );
@@ -2901,11 +2897,19 @@ function WorkflowGroup({ statusKey, icon, label, sublabel, color, incidents, lis
 
 function IncidentsView({ incidents, listings, user, quickFilter=null, onQuickFilterApplied=()=>{}, contactProps={}, isGlobalAdmin=false, canUpdateGlobal=false, canDeleteGlobal=false, canResolveGlobal=false, onAdd, onResolve, onDelete, onVerify, onAddResolution, lang="es-CO" }) {
   const [sf,setSf]=useState("all"), [cf,setCf]=useState("all"), [scope,setScope]=useState("all"), [search,setSearch]=useState("");
+  // Floor filter: set when user clicks a stat pill on the Units page floor header
+  const [floorFilter, setFloorFilter] = useState(null); // {aptIds:string[], status:string, label:string} | null
   useEffect(()=>{
-    if (quickFilter === "ownerVerification") { setScope("ownerVerification"); setSf("all"); setCf("all"); onQuickFilterApplied(); }
-    if (quickFilter === "needsResolution")   { setScope("needsResolution");   setSf("all"); setCf("all"); onQuickFilterApplied(); }
-    if (quickFilter === "requiresResolution") { setScope("requiresResolution"); setSf("all"); setCf("all"); onQuickFilterApplied(); }
-    if (quickFilter === "seriousOpen") { setScope("all"); setSf("all"); setCf("serious"); onQuickFilterApplied(); }
+    if (!quickFilter) return;
+    if (typeof quickFilter === 'object' && quickFilter.type === 'floorFilter') {
+      setFloorFilter({aptIds: quickFilter.aptIds, status: quickFilter.status});
+      setScope("all"); setSf(quickFilter.status||"all"); setCf("all"); setSearch("");
+      onQuickFilterApplied(); return;
+    }
+    if (quickFilter === "ownerVerification") { setScope("ownerVerification"); setSf("all"); setCf("all"); setFloorFilter(null); onQuickFilterApplied(); }
+    if (quickFilter === "needsResolution")   { setScope("needsResolution");   setSf("all"); setCf("all"); setFloorFilter(null); onQuickFilterApplied(); }
+    if (quickFilter === "requiresResolution") { setScope("requiresResolution"); setSf("all"); setCf("all"); setFloorFilter(null); onQuickFilterApplied(); }
+    if (quickFilter === "seriousOpen") { setScope("all"); setSf("all"); setCf("serious"); setFloorFilter(null); onQuickFilterApplied(); }
   }, [quickFilter, onQuickFilterApplied]);
   const listingMap = Object.fromEntries(listings.map(l=>[l.id, l]));
   const myListingIds = new Set((user ? listings.filter(l=>l.ownerUid===user.uid) : []).map(l=>l.id));
@@ -2926,6 +2930,8 @@ function IncidentsView({ incidents, listings, user, quickFilter=null, onQuickFil
   if(scope==="requiresResolution") list=list.filter(i=>
     i.status==="verified" && String(i.ownerResolution||'').trim() && (isGlobalAdmin||canResolveGlobal)
   );
+  // Floor filter — restricts to specific apt IDs from the Units page
+  if(floorFilter?.aptIds) list=list.filter(i=>floorFilter.aptIds.includes(i.aptId));
   if(sf!=="all") list=list.filter(i=>i.status===sf);
   if(cf!=="all") list=list.filter(i=>i.category===cf);
   if(search.trim()){
@@ -2954,8 +2960,8 @@ function IncidentsView({ incidents, listings, user, quickFilter=null, onQuickFil
   }
   list.sort((a,b)=>new Date(b.createdAt)-new Date(a.createdAt));
   const isEn = lang==='en';
-  const anyFilter = sf!=='all'||cf!=='all'||scope!=='all'||search.trim()!=='';
-  const resetAll = () => { setSf('all'); setCf('all'); setScope('all'); setSearch(''); };
+  const anyFilter = sf!=='all'||cf!=='all'||scope!=='all'||search.trim()!==''||!!floorFilter;
+  const resetAll = () => { setSf('all'); setCf('all'); setScope('all'); setSearch(''); setFloorFilter(null); };
   // ── Persist group open/close to localStorage; restore on mount ──────────────
   const WFG_KEY = 'kai_wfg_state';
   const [groupOpen, setGroupOpen] = useState(() => {
@@ -3031,6 +3037,13 @@ function IncidentsView({ incidents, listings, user, quickFilter=null, onQuickFil
         {user&&<button className="btn-p btn-report" onClick={onAdd}>{appText(lang,"reports.reportIncident")}</button>}
       </div>
 
+      {/* Floor filter banner — shown when navigated from Units page stat pill */}
+      {floorFilter&&(
+        <div className="floor-filter-banner">
+          <span>🏢 {isEn?'Filtered to selected floor units':'Filtrado a unidades del piso seleccionado'} · <strong>{isEn?`${floorFilter.status==='open'?'New / Open':floorFilter.status==='verified'?'In Progress':'Closed'} incidents`:`Incidentes ${floorFilter.status==='open'?'nuevos':floorFilter.status==='verified'?'en progreso':'cerrados'}`}</strong></span>
+          <button className="ffb-clear" onClick={()=>setFloorFilter(null)}>✕ {isEn?'Show all':'Ver todos'}</button>
+        </div>
+      )}
       <div className="inc-search-wrap" style={{marginBottom:10}}>
         <input className="search inc-search" placeholder={appText(lang,"incidents.search")} value={search} onChange={e=>setSearch(e.target.value)}/>
         {search&&<button className="inc-search-clear" onClick={()=>setSearch('')}>✕</button>}
