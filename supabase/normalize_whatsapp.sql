@@ -61,11 +61,11 @@ WHERE operator_whatsapp IS NOT NULL AND operator_whatsapp != '' AND operator_wha
 UNION ALL
 SELECT
   'app_users.whatsapp',
-  id::text,
+  app_users.id::text,
   '',
-  name,
-  whatsapp
+  app_users.name,
+  app_users.whatsapp
 FROM public.app_users
-WHERE whatsapp IS NOT NULL AND whatsapp != '' AND whatsapp NOT LIKE '+%';
+WHERE app_users.whatsapp IS NOT NULL AND app_users.whatsapp != '' AND app_users.whatsapp NOT LIKE '+%';
 
 COMMIT;
