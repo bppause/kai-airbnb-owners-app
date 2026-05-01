@@ -768,6 +768,42 @@ table { width: 100%; border-collapse: collapse; }
 }
 .bld-stat-btn:hover { transform: translateY(-1px); box-shadow: 0 3px 10px rgba(32,46,38,.16); text-decoration: none; }
 
+/* ── Owner step cues in IRow action column ─────────────────────────────────── */
+.ir-step-cue {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: .7rem;
+  font-weight: 700;
+  color: #a05000;
+  margin-bottom: 4px;
+  line-height: 1.3;
+}
+.ir-step-cue-2 { color: #0b5f3a; }
+.ir-step-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #d9a030;
+  color: #fff;
+  font-size: .62rem;
+  font-weight: 900;
+  flex-shrink: 0;
+}
+.ir-step-num-2 { background: #0b7f4f; }
+.ir-step-done {
+  font-size: .7rem;
+  color: #0b5f3a;
+  font-weight: 700;
+  padding: 4px 0;
+}
+
+/* is-pending-res: keep orange but use 📝 vocabulary */
+.is-pending-res { background: rgba(11,127,79,.14) !important; color: #0b5f3a !important; }
+
 /* ── Floor filter banner in IncidentsView ──────────────────────────────────── */
 .floor-filter-banner {
   display: flex;

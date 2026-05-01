@@ -1097,6 +1097,8 @@ export default function App() {
       : { ...DEFAULT_DELEGATE_PERMISSIONS, canApproveRegistrations:false, canResolveIncidents:false };
   const canSeeMenu = (id) => effectiveIsGlobalAdmin || id === 'dashboard' || !!menuPerms[id];
   const needsOwnerVerification = incidents.filter(i => i.status === "open" && myListingIds.has(i.aptId));
+  // Step 2 for owners: verified but owner hasn't added their resolution yet
+  const needsOwnerResolution   = incidents.filter(i => i.status === "verified" && !String(i.ownerResolution||'').trim() && myListingIds.has(i.aptId));
   const canResolveIncidentsNow = Boolean(effectiveIsGlobalAdmin || (effectiveRole === 'delegate_admin' && delegatePerms.canResolveIncidents));
   // Verified incidents where owner resolution is still missing (owner must act before admin can close)
   const ownerResolutionPending = incidents.filter(i => i.status === "verified" && !String(i.ownerResolution||'').trim() && myListingIds.has(i.aptId));
@@ -1358,7 +1360,7 @@ export default function App() {
         </div>
       )}
       <main className="main">
-        {view==="dashboard" && <Dashboard lang={lang} listings={listings} incidents={incidents} user={user} contactProps={contactProps} setView={setView} showBlacklist={false} onReport={()=>{ if(!user){login();return;} setModal({type:"incident"}); }} effectiveIsGlobalAdmin={effectiveIsGlobalAdmin} effectiveRole={effectiveRole} delegatePerms={delegatePerms} pendingOwner={needsOwnerVerification.length} pendingResolve={needsAdminResolution.length} pendingRegistrations={effectiveCanManageRegistrations ? pendingRegistrations.length : 0} canResolve={canResolveIncidentsNow} canManageRegistrations={effectiveCanManageRegistrations} onOwnerClick={()=>{setIncidentQuickFilter('ownerVerification');setView('incidents');}} onResolveClick={()=>{setIncidentQuickFilter('requiresResolution');setView('incidents');}} onRegistrationsClick={()=>setView('approvals')} />}
+        {view==="dashboard" && <Dashboard lang={lang} listings={listings} incidents={incidents} user={user} contactProps={contactProps} setView={setView} showBlacklist={false} onReport={()=>{ if(!user){login();return;} setModal({type:"incident"}); }} effectiveIsGlobalAdmin={effectiveIsGlobalAdmin} effectiveRole={effectiveRole} delegatePerms={delegatePerms} pendingOwner={needsOwnerVerification.length} pendingOwnerResolution={needsOwnerResolution.length} pendingResolve={needsAdminResolution.length} pendingRegistrations={effectiveCanManageRegistrations ? pendingRegistrations.length : 0} canResolve={canResolveIncidentsNow} canManageRegistrations={effectiveCanManageRegistrations} onOwnerClick={()=>{setIncidentQuickFilter('ownerVerification');setView('incidents');}} onResolveClick={()=>{setIncidentQuickFilter('requiresResolution');setView('incidents');}} onRegistrationsClick={()=>setView('approvals')} />}
         {view==="about" && <CommunityMissionView lang={lang} config={adminInfo.config} />}
         {view==="listings"  && <ListingsView lang={lang} listings={listings} incidents={incidents} user={user} contactProps={contactProps} isGlobalAdmin={effectiveIsGlobalAdmin} canEditGlobal={delegatePerms.canUpdateGlobalListings} canDeleteGlobal={delegatePerms.canDeleteGlobalListings} canResolveGlobal={canResolveIncidentsNow} floorOpenState={listingFloorOpen} onFloorToggle={toggleListingFloor} onAdd={()=>{ if(!user){login();return;} setModal({type:"addListing"}); }} onEdit={l=>setModal({type:"editListing",data:l})} onDelete={deleteListing} onReport={l=>{ if(!user){login();return;} setModal({type:"incident",data:{aptId:l.id}}); }} onVerify={inc=>setModal({type:"verifyIncident",data:inc})} onResolve={resolveIncident} onAddResolution={inc=>setModal({type:"addResolution",data:inc})} onFloorFilter={f=>{setIncidentQuickFilter({type:'floorFilter',aptIds:f.aptIds,status:f.status});setView('incidents');}} />}
         {view==="incidents" && <IncidentsView lang={lang} incidents={incidents} listings={listings} user={user} quickFilter={incidentQuickFilter} onQuickFilterApplied={()=>setIncidentQuickFilter(null)} contactProps={contactProps} isGlobalAdmin={effectiveIsGlobalAdmin} canUpdateGlobal={delegatePerms.canUpdateGlobalIncidents} canDeleteGlobal={delegatePerms.canDeleteGlobalIncidents} canResolveGlobal={canResolveIncidentsNow} onAdd={()=>{ if(!user){login();return;} setModal({type:"incident"}); }} onResolve={resolveIncident} onDelete={deleteIncident} onVerify={inc=>setModal({type:"verifyIncident",data:inc})} onAddResolution={inc=>setModal({type:"addResolution",data:inc})} />}
@@ -2157,7 +2159,7 @@ function DashboardFocus({ lang="es-CO", effectiveIsGlobalAdmin=false, effectiveR
   );
 }
 
-function DashboardGreeting({ user, lang, role, pendingOwner=0, pendingResolve=0, pendingRegistrations=0, myOpenCount=0, onOwnerClick, onResolveClick, onRegistrationsClick, setView }) {
+function DashboardGreeting({ user, lang, role, pendingOwner=0, pendingOwnerResolution=0, pendingResolve=0, pendingRegistrations=0, myOpenCount=0, onOwnerClick, onResolveClick, onRegistrationsClick, setView }) {
   const isEn = lang==='en';
   const hour = new Date().getHours();
   const timeGreet = hour<12 ? (isEn?'Good morning':'Buenos días') : hour<17 ? (isEn?'Good afternoon':'Buenas tardes') : (isEn?'Good evening':'Buenas noches');
@@ -2171,9 +2173,9 @@ function DashboardGreeting({ user, lang, role, pendingOwner=0, pendingResolve=0,
       parts.push(isEn?`${pendingOwner} incident${pendingOwner>1?'s':''} need your verification`:`${pendingOwner} incidente${pendingOwner>1?'s':''} esperan tu verificación`);
       pills.push(<button key="verify" className="dg-pill dg-pill-amber" onClick={onOwnerClick}>✅ {isEn?`Verify now (${pendingOwner})`:`Verificar ahora (${pendingOwner})`}</button>);
     }
-    if (pendingResolve>0) {
-      parts.push(isEn?`${pendingResolve} verified — add your resolution`:`${pendingResolve} verificado${pendingResolve>1?'s':''} — agrega tu resolución`);
-      pills.push(<button key="res" className="dg-pill dg-pill-amber" onClick={()=>setView('incidents')}>📝 {isEn?`Add resolution (${pendingResolve})`:`Agregar resolución (${pendingResolve})`}</button>);
+    if (pendingOwnerResolution>0) {
+      parts.push(isEn?`${pendingOwnerResolution} verified — add your resolution so admin can close`:`${pendingOwnerResolution} verificado${pendingOwnerResolution>1?'s':''} — agrega resolución para que admin pueda cerrar`);
+      pills.push(<button key="res" className="dg-pill dg-pill-amber" onClick={()=>setView('incidents')}>📝 {isEn?`Add resolution (${pendingOwnerResolution})`:`Agregar resolución (${pendingOwnerResolution})`}</button>);
     }
     if (myOpenCount>0 && pendingOwner===0) {
       parts.push(isEn?`${myOpenCount} open report${myOpenCount>1?'s':''} on your units`:`${myOpenCount} reporte${myOpenCount>1?'s':''} abierto${myOpenCount>1?'s':''} en tus unidades`);
@@ -2223,7 +2225,7 @@ function DashboardGreeting({ user, lang, role, pendingOwner=0, pendingResolve=0,
 
 function Dashboard({ listings, incidents, user, contactProps={}, setView, onReport, showBlacklist=false, lang="es-CO",
   effectiveIsGlobalAdmin=false, effectiveRole='user', delegatePerms={},
-  pendingOwner=0, pendingResolve=0, pendingRegistrations=0,
+  pendingOwner=0, pendingOwnerResolution=0, pendingResolve=0, pendingRegistrations=0,
   canResolve=false, canManageRegistrations=false,
   onOwnerClick=()=>{}, onResolveClick=()=>{}, onRegistrationsClick=()=>{} }) {
   const isEn = lang==='en';
@@ -2252,7 +2254,7 @@ function Dashboard({ listings, incidents, user, contactProps={}, setView, onRepo
         {user&&<button className="btn-p btn-report" title={localizedTooltips({},lang).reportIncident} onClick={onReport}>{appText(lang,"dashboard.reportIncident")}</button>}
       </div>
 
-      {user && <DashboardGreeting user={user} lang={lang} role={dashRole} pendingOwner={pendingOwner} pendingResolve={pendingResolve} pendingRegistrations={pendingRegistrations} myOpenCount={myOpen.length} onOwnerClick={onOwnerClick} onResolveClick={onResolveClick} onRegistrationsClick={onRegistrationsClick} setView={setView}/>}
+      {user && <DashboardGreeting user={user} lang={lang} role={dashRole} pendingOwner={pendingOwner} pendingOwnerResolution={pendingOwnerResolution} pendingResolve={pendingResolve} pendingRegistrations={pendingRegistrations} myOpenCount={myOpen.length} onOwnerClick={onOwnerClick} onResolveClick={onResolveClick} onRegistrationsClick={onRegistrationsClick} setView={setView}/>}
 
       <DashboardFocus lang={lang} effectiveIsGlobalAdmin={effectiveIsGlobalAdmin} effectiveRole={effectiveRole} delegatePerms={delegatePerms} pendingOwner={pendingOwner} pendingResolve={pendingResolve} pendingRegistrations={pendingRegistrations} openCount={open.length} myListingCount={myListings.length} myOpenCount={myOpen.length} canResolve={canResolve} canManageRegistrations={canManageRegistrations} onOwnerClick={onOwnerClick} onResolveClick={onResolveClick} onRegistrationsClick={onRegistrationsClick} onOpenClick={()=>setView('incidents')} setView={setView} />
 
@@ -2361,7 +2363,7 @@ function MyListings({ listings, incidents, user, contactProps={}, isGlobalAdmin=
                         const verPendingRes = lInc.filter(i=>i.status==='verified'&&!String(i.ownerResolution||'').trim()).length;
                         const verReady      = lInc.filter(i=>i.status==='verified'&& String(i.ownerResolution||'').trim()).length;
                         return <>
-                          {verPendingRes>0&&<span className="ml-pill ml-pill-ver" title={isEn?'Verified — awaiting your resolution':'Verificado — esperando tu resolución'}>⏳ {verPendingRes}</span>}
+                          {verPendingRes>0&&<span className="ml-pill ml-pill-ver" title={isEn?`${verPendingRes} verified — Step 2: add your resolution so admin can close`:`${verPendingRes} verificado${verPendingRes>1?'s':''} — Paso 2: agrega resolución para que el admin pueda cerrar`}>📝 {verPendingRes}</span>}
                           {verReady>0&&<span className="ml-pill ml-pill-ver" style={{background:'rgba(11,127,79,.15)',color:'#0b5f3a'}} title={isEn?'Verified — ready to close':'Verificado — listo para cerrar'}>👤 {verReady}</span>}
                         </>;
                       })()}
@@ -2592,9 +2594,9 @@ function AptDetailPanel({ l, incidents, contactProps={}, canEdit, canDelete, onE
           ? <div className="adp-inc-empty">✅ {isEn?'No incidents on record':'Sin incidentes registrados'}</div>
           : <div className="adp-wfg-list">
               {[
-                {key:'open',     icon:'⚠️', label:isEn?'New':'Nuevos',        sublabel:isEn?'Open — needs attention':'Abiertos — requiere atención',     color:'#d9a030'},
-                {key:'verified', icon:'⏳', label:isEn?'In Progress':'En progreso', sublabel:isEn?'Verified — pending close':'Verificado — pendiente de cierre', color:'#0b7f4f'},
-                {key:'resolved', icon:'✓',  label:isEn?'Closed':'Cerrados',    sublabel:isEn?'Resolved incidents':'Incidentes resueltos',                  color:'#6a9a7a'},
+                {key:'open',     icon:'⚠️', label:isEn?'Verify required':'Verificación requerida', sublabel:isEn?'Step 1: Owner must verify and document action taken':'Paso 1: El propietario debe verificar y documentar la acción tomada', color:'#d9a030'},
+                {key:'verified', icon:'📝', label:isEn?'In Progress':'En progreso',                sublabel:isEn?'Step 2: Add resolution · or awaiting admin review':'Paso 2: Agrega resolución · o esperando revisión del admin',           color:'#0b7f4f'},
+                {key:'resolved', icon:'✓',  label:isEn?'Closed':'Cerrados',                        sublabel:isEn?'Resolved by management':'Resuelto por administración',                                                                      color:'#6a9a7a'},
               ].map(g => {
                 const gInc = aptInc.filter(i => i.status === g.key);
                 if (gInc.length === 0) return null;
@@ -3036,9 +3038,9 @@ function IncidentsView({ incidents, listings, user, quickFilter=null, onQuickFil
         : (isEn?`${verifiedReady} ready to close`:`${verifiedReady} listos para cerrar`);
 
   const wfGroups = [
-    { key:'open',     icon:'⚠️', color:'#d4634a', label:isEn?'1 · New — Action required':'1 · Nuevo — Acción requerida',  sublabel:isEn?'Owner must verify and document immediate action':'El propietario debe verificar y documentar acción tomada' },
-    { key:'verified', icon:'👤', color:'#0b7f4f', label:isEn?'2 · In Progress':'2 · En Progreso',                          sublabel:verifiedSublabel },
-    { key:'resolved', icon:'✓',  color:'#2e7d32', label:isEn?'3 · Closed':'3 · Cerrado',                                   sublabel:isEn?'Resolved and filed by management':'Resuelto y archivado por administración' },
+    { key:'open',     icon:'⚠️', color:'#d4634a', label:isEn?'1 · Verify — Owner action required':'1 · Verificar — Acción del propietario',  sublabel:isEn?'Step 1: Owner verifies incident and documents immediate action taken':'Paso 1: El propietario verifica el incidente y documenta la acción inmediata tomada' },
+    { key:'verified', icon:'📝', color:'#0b7f4f', label:isEn?'2 · In Progress':'2 · En Progreso',                                              sublabel:verifiedSublabel },
+    { key:'resolved', icon:'✓',  color:'#2e7d32', label:isEn?'3 · Closed':'3 · Cerrado',                                                       sublabel:isEn?'Resolved and filed by management':'Resuelto y archivado por administración' },
   ];
 
   return (
@@ -3271,9 +3273,9 @@ function IRow({ inc, user, listings=[], contactProps={}, isGlobalAdmin=false, ca
         <div className="ir-tags">
           <span className="ir-type" style={{background:ti.bg,color:ti.color}}>{tiLabel}</span>
           {ci&&<span className="ir-cat" style={{background:ci.bg,color:ci.color}}>{ci.icon} {ciLabel}</span>}
-          {inc.status==="open"&&<span className="ir-status is-open">{isEn?"⚠️ New":"⚠️ Nuevo"}</span>}
-          {inc.status==="verified"&&!String(inc.ownerResolution||'').trim()&&<span className="ir-status is-pending-res">{isEn?"⏳ Add resolution":"⏳ Agregar resolución"}</span>}
-          {inc.status==="verified"&& String(inc.ownerResolution||'').trim()&&<span className="ir-status is-verified">{isEn?"👤 In review":"👤 En revisión"}</span>}
+          {inc.status==="open"&&<span className="ir-status is-open" title={isEn?'Step 1: Owner must verify and document action taken':'Paso 1: El propietario debe verificar y documentar la acción tomada'}>{isEn?"⚠️ Verify now":"⚠️ Verificar"}</span>}
+          {inc.status==="verified"&&!String(inc.ownerResolution||'').trim()&&<span className="ir-status is-pending-res" title={isEn?'Step 2: Add your resolution — required before admin can close':'Paso 2: Agrega tu resolución — requerida para que el admin pueda cerrar'}>{isEn?"📝 Add resolution":"📝 Agregar resolución"}</span>}
+          {inc.status==="verified"&& String(inc.ownerResolution||'').trim()&&<span className="ir-status is-verified" title={isEn?'Resolution submitted — admin will review and close':'Resolución enviada — el admin revisará y cerrará'}>{isEn?"⏳ Awaiting admin":"⏳ Esperando admin"}</span>}
           {inc.status==="resolved"&&<span className="ir-status is-resolved">{isEn?"✓ Closed":"✓ Cerrado"}</span>}
           {inc.slaCycleCount>0&&<span className="ir-cat" style={{background:"#fff3e0",color:"#e65100"}}>⏱️ SLA {inc.slaCycleCount}</span>}
         </div>
@@ -3288,8 +3290,15 @@ function IRow({ inc, user, listings=[], contactProps={}, isGlobalAdmin=false, ca
         {inc.status==='verified'&&!inc.ownerResolution&&isOwner&&<div className="inc-res-warn">{appText(lang,'form.resolutionRequired')}</div>}
       </div>
       {!compact&&user&&<div className="ir-acts">
-        {inc.status==="open"&&isOwner&&<button className="bsm bs-resolve" onClick={()=>onVerify(inc)}>{appText(lang,"reports.verify")}</button>}
-        {inc.status==="verified"&&isOwner&&!inc.ownerResolution&&<button className="bsm bs-edit" onClick={()=>onAddResolution&&onAddResolution(inc)}>{appText(lang,'form.addResolution')}</button>}
+        {inc.status==="open"&&isOwner&&<>
+          <div className="ir-step-cue"><span className="ir-step-num">1</span><span>{isEn?'Verify — document action taken':'Verificar — documentar acción tomada'}</span></div>
+          <button className="bsm bs-resolve" onClick={()=>onVerify(inc)}>{appText(lang,"reports.verify")}</button>
+        </>}
+        {inc.status==="verified"&&isOwner&&!inc.ownerResolution&&<>
+          <div className="ir-step-cue ir-step-cue-2"><span className="ir-step-num ir-step-num-2">2</span><span>{isEn?'Add resolution to unlock admin close':'Agrega resolución para desbloquear cierre'}</span></div>
+          <button className="bsm bs-edit" onClick={()=>onAddResolution&&onAddResolution(inc)}>{appText(lang,'form.addResolution')}</button>
+        </>}
+        {inc.status==="verified"&&isOwner&&!!inc.ownerResolution&&<div className="ir-step-done">{isEn?'✓ Resolution submitted — awaiting admin':'✓ Resolución enviada — esperando admin'}</div>}
         {inc.status==="verified"&&(isGlobalAdmin||canResolveGlobal)&&inc.ownerResolution&&<button className="bsm bs-resolve" onClick={()=>onResolve(inc.id)}>{appText(lang,"reports.close")}</button>}
         {inc.status==="verified"&&(isGlobalAdmin||canResolveGlobal)&&!inc.ownerResolution&&<button className="bsm" style={{opacity:.45,cursor:'not-allowed'}} title={isEn?'Waiting for owner resolution':'Esperando resolución del propietario'}>{appText(lang,"reports.close")}</button>}
         {(isReporter||isGlobalAdmin||canDeleteGlobal)&&<button className="bsm bs-del" onClick={()=>onDelete(inc.id)}>🗑️</button>}
