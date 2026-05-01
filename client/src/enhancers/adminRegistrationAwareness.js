@@ -127,7 +127,7 @@ function getPendingRegistrationCount() {
 function addOrUpdateBadge(target, count) {
   if (!target) return
   target.classList.add('kai-registration-needs-action')
-  target.setAttribute('data-tooltip', TEXT[currentLang()].tooltip)
+  target.setAttribute('title', TEXT[currentLang()].tooltip)
   target.setAttribute('aria-label', `${TEXT[currentLang()].navLabel}: ${count} pending`)
   let badge = target.querySelector(':scope > .kai-nav-pending-badge')
   if (count <= 0) { badge?.remove(); return }
@@ -148,7 +148,7 @@ function normalizeLabels() {
       })
     }
     if (/\badd apt\b|\+\s*agregar apto/i.test(txt)) {
-      el.setAttribute('data-tooltip', currentLang() === 'en' ? 'Add a full apartment/listing record.' : 'Agregar un registro completo de apartamento/listing.')
+      el.setAttribute('title', currentLang() === 'en' ? 'Add a full apartment/listing record.' : 'Agregar un registro completo de apartamento/listing.')
       el.setAttribute('aria-label', TEXT[currentLang()].addApartment)
     }
   }
@@ -167,7 +167,7 @@ function createBanner(count) {
       <strong>${t.bannerTitle}</strong>
       <span>${t.bannerBody(count)}</span>
     </div>
-    <button type="button" class="kai-admin-pending-banner__button" data-tooltip="${t.tooltip}">${t.action}</button>
+    <button type="button" class="kai-admin-pending-banner__button" title="${t.tooltip}">${t.action}</button>
   `
   banner.querySelector('button')?.addEventListener('click', () => {
     const target = getRegistrationClickTarget()

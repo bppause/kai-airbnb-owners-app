@@ -60,6 +60,96 @@ const GUEST_CATEGORIES = [
   { value:"watch",   label:"En Observación",   icon:"👁️", color:"#4527a0", bg:"#ede7f6" },
   { value:"minor",   label:"Incidente Menor",  icon:"📝", color:"#1565c0", bg:"#bbdefb" },
 ];
+// ─── INCIDENT TEMPLATES ─────────────────────────────────────────────────────
+// Short description templates shown when opening a new incident.
+// Key format: `${type}_${category}`. Each entry has es + en versions.
+const INCIDENT_TEMPLATES = {
+  noise_serious: {
+    es: "Huéspedes generando ruido extremo. Múltiples vecinos afectados. Se solicitó parar y continúa el problema.",
+    en: "Guests generating extreme noise. Multiple neighbors affected. Requested to stop but the problem continues.",
+  },
+  noise_watch: {
+    es: "Nivel de ruido por encima de lo permitido reportado por vecinos.",
+    en: "Noise level above allowed limit reported by neighbors.",
+  },
+  noise_minor: {
+    es: "Nivel de ruido ligeramente elevado en horario normal.",
+    en: "Slightly elevated noise level during normal hours.",
+  },
+  damage_serious: {
+    es: "Daños mayores al apartamento: muebles rotos, paredes rayadas, electrodomésticos dañados. Se requiere peritaje.",
+    en: "Major damage to the apartment: broken furniture, scratched walls, damaged appliances. Expert assessment required.",
+  },
+  damage_watch: {
+    es: "Daño moderado observado al salir el huésped. En proceso de evaluación con fotos.",
+    en: "Moderate damage found upon guest checkout. Under assessment with photos.",
+  },
+  damage_minor: {
+    es: "Pequeño daño (roto/rasgado/manchado). Sin impacto operacional inmediato.",
+    en: "Minor damage (broken/torn/stained). No immediate operational impact.",
+  },
+  rules_serious: {
+    es: "Incumplimiento grave de normas de convivencia: evento no autorizado, número de huéspedes excedido, o actividad prohibida.",
+    en: "Serious breach of community rules: unauthorized event, guest count exceeded, or prohibited activity.",
+  },
+  rules_watch: {
+    es: "Infracción de normas de convivencia observada. Propietario y operador notificados.",
+    en: "Community rule infraction observed. Owner and operator notified.",
+  },
+  rules_minor: {
+    es: "Norma menor incumplida (ej. basura no clasificada, uso indebido de amenidades).",
+    en: "Minor rule not followed (e.g. unsorted trash, improper amenity use).",
+  },
+  payment_serious: {
+    es: "Disputa de cobro iniciada por Airbnb o huésped. Posible reversión de pago. Requiere atención urgente.",
+    en: "Payment dispute initiated by Airbnb or guest. Possible charge reversal. Urgent attention required.",
+  },
+  payment_watch: {
+    es: "Pago pendiente o cuestionado por el huésped. En seguimiento con Airbnb.",
+    en: "Payment pending or disputed by guest. Following up with Airbnb.",
+  },
+  payment_minor: {
+    es: "Cargo menor en disputa. Caso abierto con soporte Airbnb.",
+    en: "Minor charge in dispute. Support case opened with Airbnb.",
+  },
+  unauthorized_serious: {
+    es: "Personas no autorizadas en el apartamento. Se requirió desalojo. Posible fiesta o subarrendamiento.",
+    en: "Unauthorized persons in the apartment. Eviction requested. Possible party or sub-rental.",
+  },
+  unauthorized_watch: {
+    es: "Personas adicionales no registradas en la reserva identificadas en las áreas comunes.",
+    en: "Additional unregistered persons identified in common areas.",
+  },
+  unauthorized_minor: {
+    es: "Posible visita no autorizada de corta duración. En verificación con el operador.",
+    en: "Possible short unauthorized visit. Verifying with operator.",
+  },
+  cleanliness_serious: {
+    es: "Apartamento en estado de suciedad extrema al final de la estadía. Requiere limpieza profunda y revisión de daños.",
+    en: "Apartment in extremely dirty condition at end of stay. Deep cleaning and damage assessment required.",
+  },
+  cleanliness_watch: {
+    es: "Problemas de limpieza moderados al salir el huésped. Servicio de limpieza extra requerido.",
+    en: "Moderate cleanliness issues upon checkout. Extra cleaning service required.",
+  },
+  cleanliness_minor: {
+    es: "Pequeñas observaciones de limpieza al final de la estadía (ropa de cama, cocina).",
+    en: "Minor cleanliness notes at end of stay (bedding, kitchen).",
+  },
+  other_serious: {
+    es: "Incidente grave que requiere atención inmediata: ",
+    en: "Serious incident requiring immediate attention: ",
+  },
+  other_watch: {
+    es: "Situación en observación que puede escalar: ",
+    en: "Situation under observation that may escalate: ",
+  },
+  other_minor: {
+    es: "Asunto menor registrado para seguimiento: ",
+    en: "Minor matter recorded for follow-up: ",
+  },
+};
+
 const COUNTRIES = ["Colombia","USA","Venezuela","Ecuador","Perú","México","Brasil","España","Argentina","Chile","Panamá","Costa Rica","Canadá","UK","Francia","Alemania","Italia","Otro"];
 const LANGS = { "es-CO": { label:"Español 🇨🇴", short:"ES" }, en:{ label:"English 🇺🇸", short:"EN" } };
 
@@ -326,7 +416,7 @@ const APP_I18N = {
   "form.saveVerification": { es:"Guardar verificación", en:"Save verification" },
   "modal.verify.title": { es:"✅ Verificar incidente", en:"✅ Verify incident" },
   "modal.verify.sub": { es:"{apt} · El SLA se detendrá cuando verifiques el incidente.", en:"{apt} · The SLA will stop when you verify the incident." },
-  "modal.verify.help": { es:"Confirma el nombre del huésped o huéspedes, ciudad y país. La respuesta del propietario es opcional.", en:"Confirm the guest name(s), city, and country. The owner response is optional." },
+  "modal.verify.help": { es:"Confirma el nombre del huésped o huéspedes, ciudad y país. La respuesta del propietario es requerida — describe la acción tomada. Un administrador resolverá el incidente una vez verificado.", en:"Confirm the guest name(s), city, and country. The owner response is required — describe the action taken. An admin will resolve the incident once verified." },
   "form.guestNames": { es:"👥 Huésped(es) confirmado(s) *", en:"👥 Confirmed guest(s) *" },
   "form.guestNamesPlaceholder": { es:"Nombre de huésped 1, huésped 2...", en:"Guest 1 name, guest 2 name..." },
 
@@ -341,7 +431,8 @@ const APP_I18N = {
   "validation.guestLastName": { es:"El apellido del huésped es requerido.", en:"Guest last name is required." },
   "form.city": { es:"🏙️ Ciudad *", en:"🏙️ City *" },
   "form.country": { es:"🌍 País *", en:"🌍 Country *" },
-  "form.ownerResponse": { es:"💬 Respuesta del propietario", en:"💬 Owner response" },
+  "form.ownerResponse": { es:"💬 Respuesta del propietario *", en:"💬 Owner response *" },
+  "form.ownerResponsePlaceholder": { es:"Describe la acción inmediata tomada, el estado actual del caso y cualquier detalle relevante para la resolución...", en:"Describe the immediate action taken, the current status of the case, and any details relevant for resolution..." },
   "form.optionalMessage": { es:"Mensaje opcional...", en:"Optional message..." },
   "validation.apartment": { es:"Seleccione un apartamento.", en:"Select an apartment." },
   "validation.date": { es:"Fecha requerida.", en:"Date is required." },
@@ -513,10 +604,14 @@ const normalizePhoneForWhatsApp = (v='') => {
 const validateWhatsApp = (v='', lang='es-CO') => {
   const raw = String(v || '').trim();
   if (!raw) return ''; // field is optional — blank is fine
+  // Must start with + (country code required)
+  if (!raw.startsWith('+')) return lang === 'en'
+    ? 'Must start with + and country code — e.g. +57 300 000 0000 (Colombia)'
+    : 'Debe comenzar con + y código de país — ej. +57 300 000 0000 (Colombia)';
   const digits = raw.replace(/[^0-9]/g, '');
   if (digits.length < 10) return lang === 'en'
-    ? 'Include country code — e.g. +57 300 000 0000 (Colombia)'
-    : 'Incluya el código de país — ej. +57 300 000 0000 (Colombia)';
+    ? 'Number too short — include country code, e.g. +57 300 000 0000'
+    : 'Número muy corto — incluya código de país, ej. +57 300 000 0000';
   return '';
 };
 const validateEmail = (v='') => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(v || '').trim());
@@ -3008,6 +3103,7 @@ function ListingModal({ title, user, initial={}, onSave, onClose, lang="es-CO", 
 
 function IncidentModal({ listings, user, presetApt, onSave, onClose, lang="es-CO", config={} }) {
   const tips = localizedTooltips(config, lang);
+  const isEn = lang === 'en';
   const [f,setF]=useState({aptId:presetApt||"",date:today(),type:"noise",category:"minor",desc:""});
   const [errors,setErrors]=useState({});
   const s=(k,v)=>{ setF(p=>({...p,[k]:v})); setErrors(e=>({...e,[k]:undefined})); };
@@ -3022,6 +3118,10 @@ function IncidentModal({ listings, user, presetApt, onSave, onClose, lang="es-CO
     return Object.keys(e).length===0;
   };
   const inputCls=(k)=>errors[k]?"field-error":"";
+  // Template for current type+category combo
+  const templateKey = `${f.type}_${f.category}`;
+  const templateText = INCIDENT_TEMPLATES[templateKey] ? (isEn ? INCIDENT_TEMPLATES[templateKey].en : INCIDENT_TEMPLATES[templateKey].es) : null;
+  const applyTemplate = () => { if(templateText) s('desc', templateText); };
   return (
     <Overlay onClose={onClose} wide>
       <div className="modal-title">{appText(lang,"modal.report.title")}</div><div className="modal-sub">{appText(lang,"modal.report.sub",{name:user?.name||""})}</div>
@@ -3031,7 +3131,18 @@ function IncidentModal({ listings, user, presetApt, onSave, onClose, lang="es-CO
         <div className="fg"><label>{appText(lang,"form.date")}</label><input className={inputCls("date")} type="date" value={f.date} onChange={e=>s("date",e.target.value)}/>{errors.date&&<span className="err-msg">{errors.date}</span>}</div>
         <div className="fg"><label>{appText(lang,"form.type")} <Tip text={tips.incidentType}/></label><select className={inputCls("type")} value={f.type} onChange={e=>s("type",e.target.value)}>{INCIDENT_TYPES.map(t=><option key={t.value} value={t.value}>{incidentTypeLabel(t.value,lang)}</option>)}</select>{errors.type&&<span className="err-msg">{errors.type}</span>}</div>
         <div className="fg full"><label>{appText(lang,"form.category")} <Tip text={tips.incidentCategory}/></label><div className="csel">{GUEST_CATEGORIES.map(c=><button key={c.value} type="button" className={`copt ${f.category===c.value?"copt-on":""}`} style={f.category===c.value?{background:c.bg,color:c.color,borderColor:c.color}:{}} onClick={()=>s("category",c.value)}>{c.icon} {categoryLabel(c.value,lang)}</button>)}</div>{errors.category&&<span className="err-msg">{errors.category}</span>}</div>
-        <div className="fg full"><label>{appText(lang,"form.description")} <Tip text={tips.incidentDescription}/></label><textarea className={inputCls("desc")} value={f.desc} onChange={e=>s("desc",e.target.value)} placeholder={appText(lang,"form.descriptionPlaceholder")} rows={4}/>{errors.desc&&<span className="err-msg">{errors.desc}</span>}</div>
+        <div className="fg full">
+          <label>{appText(lang,"form.description")} <Tip text={tips.incidentDescription}/></label>
+          {templateText && !String(f.desc||'').trim() && (
+            <div className="inc-template-hint">
+              <span className="inc-template-label">💡 {isEn?'Template:':'Plantilla:'}</span>
+              <span className="inc-template-preview">{templateText}</span>
+              <button type="button" className="inc-template-apply" onClick={applyTemplate}>{isEn?'Use template':'Usar plantilla'}</button>
+            </div>
+          )}
+          <textarea className={inputCls("desc")} value={f.desc} onChange={e=>s("desc",e.target.value)} placeholder={templateText||appText(lang,"form.descriptionPlaceholder")} rows={4}/>
+          {errors.desc&&<span className="err-msg">{errors.desc}</span>}
+        </div>
       </div>
       <div className="mact"><button className="btn-ghost" onClick={onClose}>{appText(lang,"form.cancel")}</button><button className="btn-danger" title={tips.reportIncident} onClick={()=>{if(validate()) onSave(f);}}>{appText(lang,"form.registerReport")}</button></div>
     </Overlay>
@@ -3080,7 +3191,7 @@ function VerifyIncidentModal({ incident, onSave, onClose, lang="es-CO", config={
       </div>)}
       <button type="button" className="btn-ghost" onClick={addGuest}>{appText(lang,'form.addGuest')}</button>
     </div>
-    <div className="fg full"><label>{appText(lang,"form.ownerResponse")} * <Tip text={tips.verifyIncident}/></label><textarea className={errors.ownerComments?'field-error':''} value={ownerComments} onChange={e=>{setOwnerComments(e.target.value);setErrors(er=>({...er,ownerComments:undefined}));}} rows={3} placeholder={appText(lang,"form.optionalMessage")}/>{errors.ownerComments&&<span className="err-msg">{errors.ownerComments}</span>}</div>
+    <div className="fg full"><label>{appText(lang,"form.ownerResponse")} <Tip text={tips.verifyIncident}/></label><textarea className={errors.ownerComments?'field-error':''} value={ownerComments} onChange={e=>{setOwnerComments(e.target.value);setErrors(er=>({...er,ownerComments:undefined}));}} rows={4} placeholder={appText(lang,"form.ownerResponsePlaceholder")}/>{errors.ownerComments&&<span className="err-msg">{errors.ownerComments}</span>}</div>
     <div className="mact"><button className="btn-ghost" onClick={onClose}>{appText(lang,"form.cancel")}</button><button className="btn-p" title={tips.verifyIncident} onClick={()=>{ if(validate()) onSave({guests, ownerComments});}}>{appText(lang,"form.saveVerification")}</button></div>
   </Overlay>;
 }

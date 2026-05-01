@@ -449,10 +449,9 @@ table { width: 100%; border-collapse: collapse; }
 .table-wrap,
 .table-container { max-width: 100% !important; overflow-x: auto !important; -webkit-overflow-scrolling: touch; }
 
-/* Tooltips */
+/* Tooltips — hover only; :focus-visible removed to prevent tooltip blocking clicks */
 [data-tooltip] { position: relative; }
-[data-tooltip]:hover::after,
-[data-tooltip]:focus-visible::after {
+[data-tooltip]:hover::after {
   content: attr(data-tooltip);
   position: fixed;
   left: max(12px, min(var(--tooltip-x, 50vw), calc(100vw - 320px)));
@@ -469,6 +468,46 @@ table { width: 100%; border-collapse: collapse; }
   z-index: 100000;
   pointer-events: none;
 }
+
+/* ── Incident template hint ─────────────────────────────────────────────── */
+.inc-template-hint {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  background: #f0f7ff;
+  border: 1px solid #bdd7f5;
+  border-radius: 8px;
+  padding: 8px 10px;
+  margin-bottom: 6px;
+  flex-wrap: wrap;
+}
+.inc-template-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #1565c0;
+  white-space: nowrap;
+  padding-top: 1px;
+}
+.inc-template-preview {
+  font-size: 12px;
+  color: #37474f;
+  line-height: 1.4;
+  flex: 1;
+  min-width: 140px;
+}
+.inc-template-apply {
+  background: #1565c0;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  padding: 4px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.inc-template-apply:hover { background: #0d47a1; }
 
 h1, h2, h3, h4, p { overflow-wrap: anywhere; }
 h1 { font-size: clamp(1.75rem, 3vw, 2.7rem) !important; line-height: 1.1 !important; }
