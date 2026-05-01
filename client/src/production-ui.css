@@ -1059,6 +1059,97 @@ button.dis-pill {
 }
 button.dis-pill:hover { transform: translateY(-1px); box-shadow: 0 2px 6px rgba(32,46,38,.14); }
 
+/* ── Admin UI Label editor ────────────────────────────────────────────────── */
+.ula-wrap { display: flex; flex-direction: column; gap: 12px; }
+.ula-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding-bottom: 10px;
+  border-bottom: 1px solid rgba(47,79,58,.1);
+}
+.ula-lang-toggle { display: flex; gap: 6px; flex-shrink: 0; }
+.ula-modified-badge {
+  background: rgba(11,127,140,.12);
+  color: #0b5f72;
+  border: 1px solid rgba(11,127,140,.25);
+  border-radius: 999px;
+  padding: 3px 10px;
+  font-size: .72rem;
+  font-weight: 800;
+  white-space: nowrap;
+}
+.ula-group { display: flex; flex-direction: column; gap: 2px; }
+.ula-group-hdr {
+  font-size: .68rem;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: .09em;
+  color: #496674;
+  padding: 8px 0 4px;
+  border-bottom: 1px solid rgba(47,79,58,.08);
+  margin-bottom: 4px;
+}
+.ula-row {
+  display: grid;
+  grid-template-columns: 200px 1fr 1fr auto;
+  gap: 8px;
+  align-items: center;
+  padding: 4px 6px;
+  border-radius: 6px;
+  transition: background .1s;
+}
+.ula-row:hover { background: rgba(47,79,58,.04); }
+.ula-row-changed { background: rgba(11,127,140,.06) !important; }
+.ula-key {
+  font-size: .65rem;
+  font-family: monospace;
+  color: #496674;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ula-default {
+  font-size: .75rem;
+  color: #8a9fa5;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-style: italic;
+}
+.ula-input {
+  font-size: .8rem !important;
+  padding: 4px 8px !important;
+  min-height: 32px !important;
+  border-radius: 6px !important;
+  border: 1.5px solid rgba(47,79,58,.2) !important;
+  background: #fff !important;
+  color: #17313a !important;
+  width: 100%;
+}
+.ula-row-changed .ula-input {
+  border-color: rgba(11,127,140,.4) !important;
+  background: rgba(11,127,140,.04) !important;
+}
+.ula-reset {
+  background: none;
+  border: 1px solid rgba(47,79,58,.2);
+  border-radius: 6px;
+  color: #496674;
+  font-size: .75rem;
+  padding: 3px 8px;
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+  min-height: 28px !important;
+}
+.ula-reset:hover { background: rgba(47,79,58,.08); color: #203f2b; }
+@media(max-width: 760px) {
+  .ula-row { grid-template-columns: 120px 1fr auto; }
+  .ula-default { display: none; }
+}
+
 /* ── Admin role reference grid ─────────────────────────────────────────────── */
 .role-ref-grid {
   display: grid;

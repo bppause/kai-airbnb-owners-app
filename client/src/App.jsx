@@ -323,8 +323,8 @@ const APP_I18N = {
   "smart.noneSub": { es:"Todo está al día. Las alertas aparecerán aquí cuando requieran atención.", en:"Everything is up to date. Alerts will appear here when attention is needed." },
   "smart.ownerTitle": { es:"Acción del propietario requerida", en:"Owner action required" },
   "smart.ownerMsg": { es:"{count} incidente(s) en tus unidades esperan tu confirmación y documentación de acción tomada.", en:"{count} incident(s) on your units need your confirmation and action documentation." },
-  "smart.ownerResolutionTitle": { es:"Respuesta pendiente", en:"Answer pending" },
-  "smart.ownerResolutionMsg": { es:"{count} incidente(s) verificado(s) requieren tu respuesta antes de que administración pueda cerrarlos.", en:"{count} verified incident(s) require your answer before management can close them." },
+  "smart.ownerResolutionTitle": { es:"Respuesta pendiente", en:"Resolution pending" },
+  "smart.ownerResolutionMsg": { es:"{count} incidente(s) verificado(s) requieren tu respuesta antes de que administración pueda cerrarlos.", en:"{count} verified incident(s) require your resolution before management can close them." },
   "smart.resolveTitle": { es:"Listos para cierre administrativo", en:"Ready for management closure" },
   "smart.resolveMsg": { es:"{count} incidente(s) documentados por el propietario — listos para revisión y cierre por administración.", en:"{count} incident(s) documented by owner — ready for management review and closure." },
   "smart.registrationTitle": { es:"Registros pendientes", en:"Pending registrations" },
@@ -419,7 +419,7 @@ const APP_I18N = {
   "form.saveVerification": { es:"Guardar verificación", en:"Save verification" },
   "modal.verify.title": { es:"✅ Confirmar y documentar acción", en:"✅ Confirm & document action" },
   "modal.verify.sub": { es:"{apt} · Confirma los datos del huésped y documenta la acción que tomaste.", en:"{apt} · Confirm guest details and document the action you took." },
-  "modal.verify.help": { es:"Confirma los datos del huésped y describe la acción inmediata tomada (requerida). Tu respuesta es opcional al verificar, pero un administrador solo podrá cerrar el incidente una vez que la agregues.", en:"Confirm the guest details and describe the immediate action taken (required). Your answer is optional at verification, but an admin can only close the incident once you add it." },
+  "modal.verify.help": { es:"Confirma los datos del huésped y describe la acción inmediata tomada (requerida). Tu respuesta es opcional al verificar, pero un administrador solo podrá cerrar el incidente una vez que la agregues.", en:"Confirm the guest details and describe the immediate action taken (required). Your proposed resolution is optional at verification, but an admin can only close the incident once you add it." },
   "form.guestNames": { es:"👥 Huésped(es) confirmado(s) *", en:"👥 Confirmed guest(s) *" },
   "form.guestNamesPlaceholder": { es:"Nombre de huésped 1, huésped 2...", en:"Guest 1 name, guest 2 name..." },
 
@@ -436,10 +436,10 @@ const APP_I18N = {
   "form.country": { es:"🌍 País *", en:"🌍 Country *" },
   "form.immediateAction": { es:"💡 Acción inmediata del propietario (requerida)", en:"💡 Owner immediate action (required)" },
   "form.immediateActionPlaceholder": { es:"¿Qué hiciste de inmediato ante este incidente? (ej: llamé al huésped, contacté al operador, presenté queja a Airbnb...)", en:"What did you do immediately about this incident? (e.g. called the guest, contacted the operator, filed an Airbnb complaint...)" },
-  "form.ownerResolution": { es:"🔍 Tu respuesta", en:"🔍 Your answer" },
-  "form.ownerResolutionPlaceholder": { es:"Describe tu respuesta al incidente. Ej.: se trabajó directamente con el huésped, se coordinó con el operador o la administración del edificio, se involucró a Airbnb o las autoridades necesarias...", en:"Describe your answer to this incident. E.g. worked directly with the guest, coordinated with the operator or building management, involved Airbnb or the necessary authorities..." },
-  "form.addResolution": { es:"📝 Agregar respuesta", en:"📝 Add answer" },
-  "form.resolutionRequired": { es:"⚠️ Respuesta pendiente — el administrador no puede cerrar este incidente hasta que agregues tu respuesta.", en:"⚠️ Answer pending — the admin cannot close this incident until you add your answer." },
+  "form.ownerResolution": { es:"🔍 Tu respuesta", en:"🔍 Proposed resolution" },
+  "form.ownerResolutionPlaceholder": { es:"Describe tu respuesta al incidente. Ej.: se trabajó directamente con el huésped, se coordinó con el operador o la administración del edificio, se involucró a Airbnb o las autoridades necesarias...", en:"Describe your resolution to this incident. E.g. worked directly with the guest, coordinated with the operator or building management, involved Airbnb or the necessary authorities..." },
+  "form.addResolution": { es:"📝 Agregar respuesta", en:"📝 Add resolution" },
+  "form.resolutionRequired": { es:"⚠️ Respuesta pendiente — el administrador no puede cerrar este incidente hasta que agregues tu respuesta.", en:"⚠️ Resolution pending — the admin cannot close this incident until you add your resolution." },
   "form.ownerResponse": { es:"💬 Respuesta del propietario *", en:"💬 Owner response *" },
   "form.ownerResponsePlaceholder": { es:"Describe la acción inmediata tomada, el estado actual del caso y cualquier detalle relevante para la resolución...", en:"Describe the immediate action taken, the current status of the case, and any details relevant for resolution..." },
   "form.optionalMessage": { es:"Mensaje opcional...", en:"Optional message..." },
@@ -464,10 +464,10 @@ const APP_I18N = {
   "workflow.open": { es:"1. Verificar — Paso 1", en:"1. Verify — Step 1" },
   "workflow.openDesc": { es:"El propietario verifica y documenta la acción inmediata tomada", en:"Owner verifies and documents the immediate action taken" },
   "workflow.verified": { es:"2. En Progreso", en:"2. In Progress" },
-  "workflow.verifiedDesc": { es:"Paso 1 completo. Propietario agrega respuesta (Paso 2) para que el admin pueda cerrar", en:"Step 1 complete. Owner adds answer (Step 2) so admin can close" },
+  "workflow.verifiedDesc": { es:"Paso 1 completo. Propietario agrega respuesta (Paso 2) para que el admin pueda cerrar", en:"Step 1 complete. Owner adds resolution (Step 2) so admin can close" },
   "workflow.resolved": { es:"3. Cerrado", en:"3. Closed" },
-  "workflow.resolvedDesc": { es:"Admin cierra una vez que el propietario agregó su respuesta en el Paso 2", en:"Admin closes once owner has added their answer in Step 2" },
-  "workflow.resolvedDescGlobalOnly": { es:"Admin global cierra una vez que el propietario agregó su respuesta", en:"Global admin closes once owner has added their answer" },
+  "workflow.resolvedDesc": { es:"Admin cierra una vez que el propietario agregó su respuesta en el Paso 2", en:"Admin closes once owner has added their resolution in Step 2" },
+  "workflow.resolvedDescGlobalOnly": { es:"Admin global cierra una vez que el propietario agregó su respuesta", en:"Global admin closes once owner has added their resolution" },
   "filters.workflow": { es:"Estado del flujo", en:"Workflow status" },
   "filters.category": { es:"Tipo de seguimiento", en:"Tracking category" },
   "filters.categoryAll": { es:"Todas las categorías", en:"All categories" },
@@ -517,13 +517,13 @@ Object.assign(APP_I18N, {
   "login.switchGoogleHelp": { es:"Al presionar Continuar con Google se abrirá el selector de cuentas. Si no aparece, cierra sesión en Google en este navegador o usa una ventana incógnita.", en:"When you press Continue with Google, the account chooser will open. If it does not appear, sign out of Google in this browser or use an incognito window." },
   "login.switchGoogleSteps": { es:"Consejo: selecciona la cuenta del propietario que debe quedar asociada a tus apartamentos.", en:"Tip: select the owner account that should be associated with your apartments." },
   "roles.standardTitle": { es:"Tu enfoque como propietario", en:"Your focus as an owner" },
-  "roles.standardText": { es:"Mantén tus unidades actualizadas, revisa avisos y gestiona incidentes en 2 pasos: Paso 1 verificar + documentar acción, Paso 2 agregar respuesta para que el admin pueda cerrar.", en:"Keep your units current, review alerts, and manage incidents in 2 steps: Step 1 verify + document action, Step 2 add answer so admin can close." },
+  "roles.standardText": { es:"Mantén tus unidades actualizadas, revisa avisos y gestiona incidentes en 2 pasos: Paso 1 verificar + documentar acción, Paso 2 agregar respuesta para que el admin pueda cerrar.", en:"Keep your units current, review alerts, and manage incidents in 2 steps: Step 1 verify + document action, Step 2 add resolution so admin can close." },
   "roles.delegateTitle": { es:"Tu enfoque como admin delegado", en:"Your focus as delegate admin" },
   "roles.delegateText": { es:"Además de tus permisos estándar, puedes revisar registros pendientes y resolver incidentes cuando el permiso esté activo.", en:"In addition to standard permissions, you can review pending registrations and resolve incidents when that permission is enabled." },
   "roles.globalTitle": { es:"Tu enfoque como admin global", en:"Your focus as global admin" },
   "roles.globalText": { es:"Gobierna la comunidad: usuarios, permisos, SLA, plantillas, misión, reportes y calidad de datos.", en:"Govern the community: users, permissions, SLA, templates, mission, reports, and data quality." },
   "roles.primaryActions": { es:"Acciones recomendadas", en:"Recommended actions" },
-  "roles.ownerAction1": { es:"Verificar + agregar respuesta", en:"Verify + add answer" },
+  "roles.ownerAction1": { es:"Verificar + agregar respuesta", en:"Verify + add resolution" },
   "roles.ownerAction2": { es:"Mis unidades", en:"My units" },
   "roles.delegateAction1": { es:"Revisa registros pendientes", en:"Review pending registrations" },
   "roles.delegateAction2": { es:"Resuelve incidentes verificados", en:"Resolve verified incidents" },
@@ -547,7 +547,7 @@ Object.assign(APP_I18N, {
   "tooltip.incidentType": { es:"Clasifica la naturaleza del incidente: ruido, daños, normas, limpieza, etc.", en:"Classify the incident nature: noise, damage, rules, cleanliness, etc." },
   "tooltip.incidentCategory": { es:"Categoría de seguimiento: grave, en observación o menor. Sirve para filtrar y priorizar.", en:"Tracking category: serious, under watch, or minor. Used for filtering and prioritization." },
   "tooltip.incidentDescription": { es:"Describe los hechos de forma objetiva, clara y útil para el propietario.", en:"Describe the facts objectively, clearly, and usefully for the owner." },
-  "tooltip.verifyIncident": { es:"Paso 1: El propietario verifica y documenta la acción inmediata tomada. Paso 2 (por separado): El propietario agrega su respuesta — requerida antes de que el admin pueda cerrar.", en:"Step 1: Owner verifies and documents immediate action taken. Step 2 (separate): Owner adds their answer — required before admin can close." },
+  "tooltip.verifyIncident": { es:"Paso 1: El propietario verifica y documenta la acción inmediata tomada. Paso 2 (por separado): El propietario agrega su respuesta — requerida antes de que el admin pueda cerrar.", en:"Step 1: Owner verifies and documents immediate action taken. Step 2 (separate): Owner adds their resolution — required before admin can close." },
   "tooltip.resolveIncident": { es:"Solo admin global o delegado autorizado. Requiere comentarios y solo después de verificación del propietario.", en:"Global admin or authorized delegate only. Requires comments and only after owner verification." }
 });
 
@@ -595,8 +595,17 @@ const Tip = ({ text }) => {
   );
 };
 
+// Module-level custom label overrides — populated from adminInfo.config on load
+let _customLabels = { es: {}, en: {} };
+const setCustomLabels = (cfg={}) => {
+  try { _customLabels.es = JSON.parse(cfg.ui_labels_es || '{}') || {}; } catch(e) { _customLabels.es = {}; }
+  try { _customLabels.en = JSON.parse(cfg.ui_labels_en || '{}') || {}; } catch(e) { _customLabels.en = {}; }
+};
 const appText = (lang, key, vars={}) => {
-  const v = (APP_I18N[key]?.[lang === 'en' ? 'en' : 'es']) || APP_I18N[key]?.es || key;
+  const langKey = lang === 'en' ? 'en' : 'es';
+  // Custom admin override takes priority over built-in defaults
+  const custom = _customLabels[langKey]?.[key] ?? _customLabels['es']?.[key];
+  const v = custom ?? (APP_I18N[key]?.[langKey]) ?? APP_I18N[key]?.es ?? key;
   return String(v).replace(/\{(\w+)\}/g, (_,k)=> vars[k] ?? '');
 };
 const aptDisplay = (apt, lang='es-CO') => `${appText(lang,'listing.apt')} ${apt || ''}`.trim();
@@ -988,6 +997,8 @@ export default function App() {
       .then(adminResponse => {
         const info = adminResponse || {role:'user', isGlobalAdmin:false, canManageRegistrations:false, config:{}};
         setAdminInfo(info);
+        // Apply any admin-configured UI label overrides globally
+        if (info.config) setCustomLabels(info.config);
         if (info.languagePreference && info.languagePreference !== lang) {
           const pref = info.languagePreference === 'en' ? 'en' : 'es-CO';
           setLangState(pref);
@@ -1197,7 +1208,7 @@ export default function App() {
     try {
       const updated = await api.patch(`/api/incidents/${id}/add-resolution`, { ownerUid:user.uid, ownerResolution:resolutionText });
       setIncidents(i => i.map(x => x.id === id ? updated : x));
-      setModal(null); showToast(lang==='en' ? '📝 Answer saved — admin notified' : '📝 Respuesta guardada — admin notificado');
+      setModal(null); showToast(lang==='en' ? '📝 Resolution saved — admin notified' : '📝 Respuesta guardada — admin notificado');
     } catch(e) { showToast('Error: ' + (e.message || ''), true); }
     finally { setSyncing(false); }
   };
@@ -1232,7 +1243,9 @@ export default function App() {
     setSyncing(true);
     try {
       const r = await api.put('/api/admin/config', { actorUid:user.uid, actorEmail:user.email, ...cfg });
-      setAdminInfo(a => ({...a, config:r.config || a.config}));
+      const newConfig = r.config || {};
+      setAdminInfo(a => ({...a, config: newConfig }));
+      if (newConfig) setCustomLabels(newConfig);
       showToast('✅ Configuración guardada');
     } catch(e) { showToast('Error al guardar configuración: ' + (e.message || ''), true); }
     finally { setSyncing(false); }
@@ -1437,11 +1450,11 @@ const HELP_TOPICS = [
   {
     id:'workflow', icon:'🔄', category:'incidents', roles:['user','delegate_admin','global_admin'],
     title:HL('Ciclo de vida del incidente','Incident lifecycle'),
-    summary:HL('4 estados: ⚠️ Verificar → 📝 Agregar respuesta → ⏳ Esperando admin → ✓ Cerrado.','4 states: ⚠️ Verify → 📝 Add answer → ⏳ Awaiting admin → ✓ Closed.'),
+    summary:HL('4 estados: ⚠️ Verificar → 📝 Agregar respuesta → ⏳ Esperando admin → ✓ Cerrado.','4 states: ⚠️ Verify → 📝 Add resolution → ⏳ Awaiting admin → ✓ Closed.'),
     sections:[
       { h:HL('⚠️ Verificar — Paso 1 del propietario','⚠️ Verify — Owner Step 1'),
         b:HL('El incidente se reporta. El propietario de la unidad debe: confirmar datos del huésped (nombre, ciudad, departamento, país) y documentar la acción inmediata tomada. Obligatorio. El estado muestra "⚠️ Verificar".','The incident is reported. The unit owner must: confirm guest details (name, city, state/province, country) and document the immediate action taken. Required. Status shows "⚠️ Verify now".')},
-      { h:HL('📝 Agregar respuesta — Paso 2 del propietario','📝 Add answer — Owner Step 2'),
+      { h:HL('📝 Agregar respuesta — Paso 2 del propietario','📝 Add resolution — Owner Step 2'),
         b:HL('Verificado el Paso 1, el propietario agrega la resolución propuesta: cómo se resolvió (trabajó con el huésped, coordinó con operador o administración, contactó a Airbnb, etc.). Sin este paso el admin no puede cerrar. Estado: "📝 Agregar resolución".','After Step 1, the owner adds the proposed resolution: how it was resolved (worked with guest, coordinated with operator or management, contacted Airbnb, etc.). Without this step admin cannot close. Status: "📝 Add resolution".')},
       { h:HL('⏳ Esperando admin — propietario completó ambos pasos','⏳ Awaiting admin — owner completed both steps'),
         b:HL('El propietario completó Paso 1 y Paso 2. El administrador recibe notificación y puede revisar toda la documentación antes de cerrar formalmente. Estado: "⏳ Esperando admin".','Owner completed both steps. The admin receives a notification and can review all documentation before formally closing. Status: "⏳ Awaiting admin".')},
@@ -1452,11 +1465,11 @@ const HELP_TOPICS = [
   {
     id:'verify', icon:'✅', category:'incidents', roles:['user','delegate_admin','global_admin'],
     title:HL('Verificar un incidente (Paso 1 + 2)','Verifying an incident (Step 1 + 2)'),
-    summary:HL('Dos pasos requeridos como propietario: verificar + documentar acción, luego agregar tu respuesta.','Two owner steps required: verify + document action, then add your answer.'),
+    summary:HL('Dos pasos requeridos como propietario: verificar + documentar acción, luego agregar tu respuesta.','Two owner steps required: verify + document action, then add your resolution.'),
     sections:[
       { h:HL('Paso 1 — Verificar y documentar acción inmediata','Step 1 — Verify and document immediate action'),
         b:HL('Cuando un incidente muestra "⚠️ Verificar", la campana mostrará alerta ámbar. En Incidentes haz clic en "✅ Verificar". Confirma los datos del huésped (nombre, ciudad, país) y documenta la acción inmediata que tomaste (llamaste al huésped, contactaste al operador, reportaste a Airbnb, etc.). Este paso es obligatorio.','When an incident shows "⚠️ Verify now", the bell shows an amber alert. In Incidents click "✅ Verify". Confirm guest details (name, city, country) and document the immediate action you took (called guest, contacted operator, reported to Airbnb, etc.). This step is required.')},
-      { h:HL('Paso 2 — Agregar tu respuesta','Step 2 — Add your answer'),
+      { h:HL('Paso 2 — Agregar tu respuesta','Step 2 — Add your resolution'),
         b:HL('Después de verificar, el incidente muestra "📝 Agregar resolución". Debes documentar cómo se resolvió: trabajaste directamente con el huésped, coordinaste con el operador o administración, involucraste a Airbnb o las autoridades. Sin este paso el botón "Cerrar" del admin permanece deshabilitado.','After verifying, the incident shows "📝 Add resolution". Document how it was resolved: worked directly with the guest, coordinated with operator or building management, involved Airbnb or authorities. Without this step the admin "Close" button stays disabled.')},
       { h:HL('Una vez completados los dos pasos','Once both steps are complete'),
         b:HL('El incidente pasa a "⏳ Esperando admin". El administrador recibe una notificación automática y puede proceder a cerrar formalmente. Recibirás un aviso cuando el incidente sea cerrado. Ambos pasos quedan registrados en el historial del incidente.','The incident moves to "⏳ Awaiting admin". The admin receives an automatic notification and can proceed to close formally. You will receive a notification when the incident is closed. Both steps are recorded in the incident history.')},
@@ -2118,7 +2131,7 @@ function DashboardFocus({ lang="es-CO", effectiveIsGlobalAdmin=false, effectiveR
   // Role-specific card sets — each role sees only what matters to them
   const cards = role==='standard' ? [
     { id:'verify',        icon:'⚠️', count:pendingOwner,           label:isEn?'⚠️ Verify now':'⚠️ Verificar',        sub:isEn?'Step 1 · Open incidents on your units requiring verification':'Paso 1 · Incidentes abiertos en tus unidades que requieren verificación', accent:'red',   onClick:onOwnerClick,   show:true },
-    { id:'addResolution', icon:'📝', count:pendingOwnerResolution, label:isEn?'📝 Add answer':'📝 Agregar respuesta', sub:isEn?'Step 2 · Verified — add your answer to allow admin to close':'Paso 2 · Verificados — agrega tu respuesta para que admin pueda cerrar', accent:'amber', onClick:onAddResClick,  show:true },
+    { id:'addResolution', icon:'📝', count:pendingOwnerResolution, label:isEn?'📝 Add resolution':'📝 Agregar respuesta', sub:isEn?'Step 2 · Verified — add your resolution to allow admin to close':'Paso 2 · Verificados — agrega tu respuesta para que admin pueda cerrar', accent:'amber', onClick:onAddResClick,  show:true },
     { id:'myListings',    icon:'🏠', count:myListingCount,         label:isEn?'My listings':'Mis listings',             sub:isEn?'Your registered units':'Tus unidades registradas',                                                                                       accent:'teal',  onClick:()=>setView('my'), show:true },
   ].filter(c=>c.show!==false) : role==='delegate' ? [
     { id:'ownerVerification', icon:'✅', count:pendingOwner,         label:isEn?'Need verification':'Requieren verificación',   sub:isEn?'Awaiting owner confirmation':'Esperando confirmación propietario',  accent:'amber', onClick:onOwnerClick,         show:true },
@@ -2179,8 +2192,8 @@ function DashboardGreeting({ user, lang, role, pendingOwner=0, pendingOwnerResol
       pills.push(<button key="verify" className="dg-pill dg-pill-amber" onClick={onOwnerClick}>✅ {isEn?`Verify now (${pendingOwner})`:`Verificar ahora (${pendingOwner})`}</button>);
     }
     if (pendingOwnerResolution>0) {
-      parts.push(isEn?`${pendingOwnerResolution} verified — add your answer so admin can close`:`${pendingOwnerResolution} verificado${pendingOwnerResolution>1?'s':''} — agrega tu respuesta para que admin pueda cerrar`);
-      pills.push(<button key="res" className="dg-pill dg-pill-amber" onClick={()=>setView('incidents')}>📝 {isEn?`Add answer (${pendingOwnerResolution})`:`Agregar respuesta (${pendingOwnerResolution})`}</button>);
+      parts.push(isEn?`${pendingOwnerResolution} verified — add your resolution so admin can close`:`${pendingOwnerResolution} verificado${pendingOwnerResolution>1?'s':''} — agrega tu respuesta para que admin pueda cerrar`);
+      pills.push(<button key="res" className="dg-pill dg-pill-amber" onClick={()=>setView('incidents')}>📝 {isEn?`Add resolution (${pendingOwnerResolution})`:`Agregar respuesta (${pendingOwnerResolution})`}</button>);
     }
     if (myOpenCount>0 && pendingOwner===0) {
       parts.push(isEn?`${myOpenCount} open report${myOpenCount>1?'s':''} on your units`:`${myOpenCount} reporte${myOpenCount>1?'s':''} abierto${myOpenCount>1?'s':''} en tus unidades`);
@@ -2245,7 +2258,7 @@ function Dashboard({ listings, incidents, user, contactProps={}, setView, onRepo
   const stats = [
     { icon:"🏠", val:listings.length,    label:isEn?"Registered units":"Unidades registradas", color:"#2a9aaa", click:()=>setView("listings") },
     { icon:"⚠️", val:open.length,        label:isEn?"Open reports":"Reportes abiertos",         color:"#d4634a", click:()=>setView("incidents") },
-    { icon:"⏳", val:pendingRes.length,   label:isEn?"Pending answer":"Respuesta pendiente", color:"#e07b2a", click:()=>setView("incidents") },
+    { icon:"⏳", val:pendingRes.length,   label:isEn?"Pending resolution":"Respuesta pendiente", color:"#e07b2a", click:()=>setView("incidents") },
     { icon:"✅", val:resolved.length,     label:isEn?"Closed this cycle":"Cerrados",              color:"#2e7d32" },
   ];
 
@@ -3484,8 +3497,8 @@ function IRow({ inc, user, listings=[], contactProps={}, isGlobalAdmin=false, ca
           <span className="ir-type" style={{background:ti.bg,color:ti.color}}>{tiLabel}</span>
           {ci&&<span className="ir-cat" style={{background:ci.bg,color:ci.color}}>{ci.icon} {ciLabel}</span>}
           {inc.status==="open"&&<span className="ir-status is-open" title={isEn?'Step 1: Owner must verify and document action taken':'Paso 1: El propietario debe verificar y documentar la acción tomada'}>{isEn?"⚠️ Verify now":"⚠️ Verificar"}</span>}
-          {inc.status==="verified"&&!String(inc.ownerResolution||'').trim()&&<span className="ir-status is-pending-res" title={isEn?'Step 2: Add your answer — required before admin can close':'Paso 2: Agrega tu respuesta — requerida para que el admin pueda cerrar'}>{isEn?"📝 Add answer":"📝 Agregar respuesta"}</span>}
-          {inc.status==="verified"&& String(inc.ownerResolution||'').trim()&&<span className="ir-status is-verified" title={isEn?'Answer submitted — admin will review and close':'Respuesta enviada — el admin revisará y cerrará'}>{isEn?"⏳ Awaiting admin":"⏳ Esperando admin"}</span>}
+          {inc.status==="verified"&&!String(inc.ownerResolution||'').trim()&&<span className="ir-status is-pending-res" title={isEn?'Step 2: Add your resolution — required before admin can close':'Paso 2: Agrega tu respuesta — requerida para que el admin pueda cerrar'}>{isEn?"📝 Add resolution":"📝 Agregar respuesta"}</span>}
+          {inc.status==="verified"&& String(inc.ownerResolution||'').trim()&&<span className="ir-status is-verified" title={isEn?'Resolution submitted — admin will review and close':'Respuesta enviada — el admin revisará y cerrará'}>{isEn?"⏳ Awaiting admin":"⏳ Esperando admin"}</span>}
           {inc.status==="resolved"&&<span className="ir-status is-resolved">{isEn?"✓ Closed":"✓ Cerrado"}</span>}
           {inc.slaCycleCount>0&&<span className="ir-cat" style={{background:"#fff3e0",color:"#e65100"}}>⏱️ SLA {inc.slaCycleCount}</span>}
         </div>
@@ -3494,7 +3507,7 @@ function IRow({ inc, user, listings=[], contactProps={}, isGlobalAdmin=false, ca
           <strong>{appText(lang,'form.guestDetails')}:</strong>
           <div className="guest-display-list">{guests.map((g,idx)=><div key={idx}>👤 {guestFullName(g)}{guestLocation(g)?` · ${guestLocation(g)}`:''}</div>)}</div>
           {inc.ownerComments&&<div className="adp-inc-comments adp-comment-action" style={{marginTop:6}}><span className="adp-comment-lbl">💡 {isEn?'Action taken':'Acción tomada'}</span> {inc.ownerComments}</div>}
-          {inc.ownerResolution&&<div className="adp-inc-comments adp-comment-resolution" style={{marginTop:6}}><span className="adp-comment-lbl">🔍 {isEn?'Owner answer':'Respuesta'}</span> {inc.ownerResolution}</div>}
+          {inc.ownerResolution&&<div className="adp-inc-comments adp-comment-resolution" style={{marginTop:6}}><span className="adp-comment-lbl">🔍 {isEn?'Owner resolution':'Respuesta'}</span> {inc.ownerResolution}</div>}
           {inc.resolutionComments&&<div className="adp-inc-comments adp-comment-closed" style={{marginTop:6}}><span className="adp-comment-lbl">✓ {isEn?'Closed by admin':'Cerrado por admin'}</span> {inc.resolutionComments}</div>}
         </div>}
         {inc.status==='verified'&&!inc.ownerResolution&&isOwner&&<div className="inc-res-warn">{appText(lang,'form.resolutionRequired')}</div>}
@@ -3505,12 +3518,12 @@ function IRow({ inc, user, listings=[], contactProps={}, isGlobalAdmin=false, ca
           <button className="bsm bs-resolve" onClick={()=>onVerify(inc)}>{appText(lang,"reports.verify")}</button>
         </>}
         {inc.status==="verified"&&isOwner&&!inc.ownerResolution&&<>
-          <div className="ir-step-cue ir-step-cue-2"><span className="ir-step-num ir-step-num-2">2</span><span>{isEn?'Add your answer to unlock admin close':'Agrega tu respuesta para desbloquear cierre'}</span></div>
+          <div className="ir-step-cue ir-step-cue-2"><span className="ir-step-num ir-step-num-2">2</span><span>{isEn?'Add your resolution to unlock admin close':'Agrega tu respuesta para desbloquear cierre'}</span></div>
           <button className="bsm bs-edit" onClick={()=>onAddResolution&&onAddResolution(inc)}>{appText(lang,'form.addResolution')}</button>
         </>}
-        {inc.status==="verified"&&isOwner&&!!inc.ownerResolution&&<div className="ir-step-done">{isEn?'✓ Answer submitted — awaiting admin':'✓ Respuesta enviada — esperando admin'}</div>}
+        {inc.status==="verified"&&isOwner&&!!inc.ownerResolution&&<div className="ir-step-done">{isEn?'✓ Resolution submitted — awaiting admin':'✓ Respuesta enviada — esperando admin'}</div>}
         {inc.status==="verified"&&(isGlobalAdmin||canResolveGlobal)&&inc.ownerResolution&&<button className="bsm bs-resolve" onClick={()=>onResolve(inc.id)}>{appText(lang,"reports.close")}</button>}
-        {inc.status==="verified"&&(isGlobalAdmin||canResolveGlobal)&&!inc.ownerResolution&&<button className="bsm" style={{opacity:.45,cursor:'not-allowed'}} title={isEn?'Waiting for owner answer':'Esperando respuesta del propietario'}>{appText(lang,"reports.close")}</button>}
+        {inc.status==="verified"&&(isGlobalAdmin||canResolveGlobal)&&!inc.ownerResolution&&<button className="bsm" style={{opacity:.45,cursor:'not-allowed'}} title={isEn?'Waiting for owner resolution':'Esperando respuesta del propietario'}>{appText(lang,"reports.close")}</button>}
         {(isReporter||isGlobalAdmin||canDeleteGlobal)&&<button className="bsm bs-del" onClick={()=>onDelete(inc.id)}>🗑️</button>}
       </div>}
     </div>
@@ -3738,7 +3751,7 @@ function VerifyIncidentModal({ incident, onSave, onClose, lang="es-CO", config={
     {/* Your answer — OPTIONAL now, required later before admin can close */}
     <div className="fg full">
       <label>{appText(lang,"form.ownerResolution")}</label>
-      <div className="verify-resolution-hint">{isEn?'Optional now — admin cannot close the incident until your answer is provided.':'Opcional ahora — el admin no puede cerrar el incidente hasta que agregues tu respuesta.'}</div>
+      <div className="verify-resolution-hint">{isEn?'Optional now — admin cannot close the incident until your resolution is provided.':'Opcional ahora — el admin no puede cerrar el incidente hasta que agregues tu respuesta.'}</div>
       <textarea value={ownerResolution} onChange={e=>setOwnerResolution(e.target.value)} rows={3} placeholder={appText(lang,"form.ownerResolutionPlaceholder")}/>
     </div>
     <div className="mact"><button className="btn-ghost" onClick={onClose}>{appText(lang,"form.cancel")}</button><button className="btn-p" title={tips.verifyIncident} onClick={()=>{ if(validate()) onSave({guests, ownerComments, ownerResolution});}}>{appText(lang,"form.saveVerification")}</button></div>
@@ -3750,19 +3763,19 @@ function AddResolutionModal({ incident, onSave, onClose, lang="es-CO" }) {
   const [text,setText]=useState(incident?.ownerResolution||'');
   const [err,setErr]=useState('');
   const submit=()=>{
-    if(!String(text||'').trim()){setErr(isEn?'Your answer is required.':'Tu respuesta es requerida.');return;}
+    if(!String(text||'').trim()){setErr(isEn?'Resolution is required.':'Tu respuesta es requerida.');return;}
     onSave(text);
   };
   return <Overlay onClose={onClose}>
-    <div className="modal-title">{isEn?'📝 Add answer':'📝 Agregar respuesta'}</div>
+    <div className="modal-title">{isEn?'📝 Add resolution':'📝 Agregar respuesta'}</div>
     <div className="modal-sub">{incident?.aptLabel||''}</div>
-    <div className="form-alert">{isEn?'Once you add your answer, the admin will be notified and can close the incident.':'Al agregar tu respuesta el administrador será notificado y podrá cerrar el incidente.'}</div>
+    <div className="form-alert">{isEn?'Once you add your resolution, the admin will be notified and can close the incident.':'Al agregar tu respuesta el administrador será notificado y podrá cerrar el incidente.'}</div>
     <div className="fg full">
       <label>{appText(lang,"form.ownerResolution")} *</label>
       <textarea className={err?'field-error':''} value={text} onChange={e=>{setText(e.target.value);setErr('');}} rows={4} placeholder={appText(lang,"form.ownerResolutionPlaceholder")}/>
       {err&&<span className="err-msg">{err}</span>}
     </div>
-    <div className="mact"><button className="btn-ghost" onClick={onClose}>{appText(lang,"form.cancel")}</button><button className="btn-p" onClick={submit}>{isEn?'Save answer':'Guardar respuesta'}</button></div>
+    <div className="mact"><button className="btn-ghost" onClick={onClose}>{appText(lang,"form.cancel")}</button><button className="btn-p" onClick={submit}>{isEn?'Save resolution':'Guardar respuesta'}</button></div>
   </Overlay>;
 }
 
@@ -3911,6 +3924,10 @@ function AdminSettings({ config={}, user, listings=[], contactProps={}, onSave, 
   const [mission,setMission]=useState(() => parseMissionSections(config || {}));
   const [tooltipsEs,setTooltipsEs]=useState(() => ({...Object.fromEntries(Object.entries(DEFAULT_TOOLTIPS).map(([k,v])=>[k,v.es])), ...parseJsonObject(config?.tooltips_es,{})}));
   const [tooltipsEn,setTooltipsEn]=useState(() => ({...Object.fromEntries(Object.entries(DEFAULT_TOOLTIPS).map(([k,v])=>[k,v.en])), ...parseJsonObject(config?.tooltips_en,{})}));
+  const [uiLabelsEs,setUiLabelsEs]=useState(()=>parseJsonObject(config?.ui_labels_es,{}));
+  const [uiLabelsEn,setUiLabelsEn]=useState(()=>parseJsonObject(config?.ui_labels_en,{}));
+  const [uiLabelSearch,setUiLabelSearch]=useState('');
+  const [uiLabelLang,setUiLabelLang]=useState('es');
   const [templates,setTemplates]=useState({});
   const [templateVars,setTemplateVars]=useState({});
   const [selectedTemplate,setSelectedTemplate]=useState('incident_new');
@@ -3921,7 +3938,7 @@ function AdminSettings({ config={}, user, listings=[], contactProps={}, onSave, 
   const [emailNotifSaving,setEmailNotifSaving]=useState(false);
   const [adminErrors,setAdminErrors]=useState([]);
   const [lastUiError,setLastUiError]=useState('');
-  const ADMIN_SEC_DEFAULT = {roles:true,sla:false,mission:false,menu:false,delegate:false,users:true,tooltips:false,email:false,emailNotif:false};
+  const ADMIN_SEC_DEFAULT = {roles:true,sla:false,mission:false,menu:false,delegate:false,users:true,tooltips:false,uiLabels:false,email:false,emailNotif:false};
   const [openSections,setOpenSections] = useState(()=>{
     try{ const s=JSON.parse(localStorage.getItem('kai_admin_open')||'null'); return s&&typeof s==='object'?{...ADMIN_SEC_DEFAULT,...s}:ADMIN_SEC_DEFAULT; }catch{ return ADMIN_SEC_DEFAULT; }
   });
@@ -3944,6 +3961,8 @@ function AdminSettings({ config={}, user, listings=[], contactProps={}, onSave, 
     setAnalyticsEnabled(String(config?.analytics_enabled || 'false') === 'true');
     setTooltipsEs({...Object.fromEntries(Object.entries(DEFAULT_TOOLTIPS).map(([k,v])=>[k,v.es])), ...parseJsonObject(config?.tooltips_es,{})});
     setTooltipsEn({...Object.fromEntries(Object.entries(DEFAULT_TOOLTIPS).map(([k,v])=>[k,v.en])), ...parseJsonObject(config?.tooltips_en,{})});
+    setUiLabelsEs(parseJsonObject(config?.ui_labels_es,{}));
+    setUiLabelsEn(parseJsonObject(config?.ui_labels_en,{}));
     try { setLastUiError(localStorage.getItem('kai_last_ui_error') || localStorage.getItem('kai_last_admin_error') || ''); } catch(e) {}
   }, [config?.mission_sections_es, config?.sla_hours, config?.escalation_cc_emails, config?.analytics_enabled, lang, user?.email]);
   const templateEntries = Object.entries((templates && typeof templates==='object') ? templates : {}).filter(([k,v])=>k && v && typeof v==='object');
@@ -4020,6 +4039,7 @@ function AdminSettings({ config={}, user, listings=[], contactProps={}, onSave, 
   const removeRule = (group, idx) => setMission(m => ({...(m||{}), [group]:(((m||{})[group])||[]).filter((_,i)=>i!==idx)}));
   const saveConfig = () => onSave({slaHours, escalationCcEmails, analyticsEnabled, missionSectionsEs:mission, defaultDelegatePermissions, tooltipsEs, tooltipsEn});
   const saveTooltips = () => onSave({ tooltipsEs, tooltipsEn });
+  const saveUiLabels = () => onSave({ uiLabelsEs, uiLabelsEn });
   const toggleMenuPermission = (key) => setStandardMenuPermissions(p => ({ ...p, [key]: key === 'dashboard' ? true : !p[key] }));
   const toggleDefaultDelegatePermission = (key) => setDefaultDelegatePermissions(p => ({ ...p, [key]: !p[key] }));
   const saveStandardMenuPermissions = async () => {
@@ -4137,6 +4157,106 @@ function AdminSettings({ config={}, user, listings=[], contactProps={}, onSave, 
 
   <AdminSection title={`👥 ${lt(lang,'Roles y permisos de usuarios')}`} subtitle={lt(lang,'Define global admins, delegates and standard users. Delegate admins inherit the global delegate permissions configured above.')} action={<button className="btn-ghost" onClick={loadUsers}>{usersLoading?lt(lang,'Cargando...'):lt(lang,'Actualizar')}</button>} open={openSections.users} onToggle={()=>toggleSection('users')}>
     {users.length===0?<Empty icon="👥" msg={lt(lang,'No hay usuarios aprobados todavía.')}/>:<div className="table-wrap"><table className="admin-table"><thead><tr><th>{lt(lang,'Usuario')}</th><th>{lt(lang,'Email')}</th><th>{lt(lang,'Rol')}</th><th>{lt(lang,'Permisos del delegado')}</th><th>{lt(lang,'Acción')}</th></tr></thead><tbody>{users.map((u,idx)=><tr key={u.uid||u.email}><td><UserContact name={u.name||lt(lang,'Sin nombre')} email={u.email} uid={u.uid} {...contactProps}/></td><td><span className="copy-inline">{u.email}<button type="button" onClick={()=>copyText(u.email,showToast,lang)}>📋</button><button type="button" onClick={()=>contactProps.onEmail({name:u.name,email:u.email,apartments:(lookupContact(contactProps.directory,{uid:u.uid,email:u.email,name:u.name}).apartments||[])})}>✉️</button></span></td><td><select value={u.role||'user'} disabled={u.envGlobal} onChange={e=>setUsers(prev=>prev.map((x,i)=>i===idx?{...x,role:e.target.value}:x))}><option value="user">{lt(lang,'Usuario estándar')}</option><option value="delegate_admin">{lt(lang,'Administrador delegado')}</option><option value="global_admin">{lt(lang,'Administrador global')}</option></select>{u.envGlobal&&<div className="help-msg">GLOBAL_ADMIN_EMAILS</div>}</td><td>{u.role==='delegate_admin'?<div style={{display:'flex',flexDirection:'column',gap:5}}><small style={{color:'#496674',fontSize:'.69rem',fontStyle:'italic',marginBottom:2}}>{lang==='en'?'Global delegate permissions:':'Permisos globales del delegado:'}</small>{Object.keys(DEFAULT_DELEGATE_PERMISSIONS).map(k=>(<span key={k} style={{display:'flex',alignItems:'center',gap:6,fontSize:'.77rem',color:defaultDelegatePermissions[k]?'#087346':'#aabcb8'}}>{defaultDelegatePermissions[k]?'✅':'—'} {PERMISSION_LABELS[k]?.[lang==='en'?'en':'es']||k}</span>))}</div>:<span className="help-msg">{u.role==='global_admin'?lt(lang,'Administrador global'):lt(lang,'Usuario estándar')}</span>}</td><td><button className="bsm bs-edit" onClick={()=>saveUserPermissions(u)}>{lt(lang,'Actualizar rol/permisos')}</button></td></tr>)}</tbody></table></div>}
+  </AdminSection>
+
+  <AdminSection title={`🏷️ ${isEn?'UI Labels':'Etiquetas de la interfaz'}`} subtitle={isEn?'Customize any title, button, status label or action text shown in the app. Overrides apply to all users immediately after saving.':'Personaliza cualquier título, botón, etiqueta de estado o texto de acción de la app. Los cambios se aplican a todos los usuarios al guardar.'} action={<button className="btn-ghost" onClick={saveUiLabels}>💾 {isEn?'Save labels':'Guardar etiquetas'}</button>} open={openSections.uiLabels} onToggle={()=>toggleSection('uiLabels')}>
+    {(()=>{
+      const currentLabels = uiLabelLang==='en' ? uiLabelsEn : uiLabelsEs;
+      const setLabel = (key, val) => uiLabelLang==='en'
+        ? setUiLabelsEn(p=>({...p,[key]:val}))
+        : setUiLabelsEs(p=>({...p,[key]:val}));
+      const resetLabel = (key) => uiLabelLang==='en'
+        ? setUiLabelsEn(p=>{const n={...p};delete n[key];return n;})
+        : setUiLabelsEs(p=>{const n={...p};delete n[key];return n;});
+      // Group keys by prefix for organised display
+      const labelGroups = [
+        { id:'nav',   icon:'🧭', label:isEn?'Navigation':'Navegación',        prefix:'nav.' },
+        { id:'dash',  icon:'📊', label:isEn?'Dashboard':'Dashboard',           prefix:'dashboard.' },
+        { id:'action',icon:'⚡', label:isEn?'Actions & buttons':'Acciones y botones', prefix:'actions.' },
+        { id:'rep',   icon:'⚠️', label:isEn?'Incidents / Reports':'Incidentes / Reportes', prefix:'reports.' },
+        { id:'wf',    icon:'🔄', label:isEn?'Workflow states':'Estados del flujo', prefix:'workflow.' },
+        { id:'smart', icon:'🔔', label:isEn?'Smart alerts':'Alertas inteligentes', prefix:'smart.' },
+        { id:'form',  icon:'📝', label:isEn?'Form labels':'Etiquetas de formulario', prefix:'form.' },
+        { id:'my',    icon:'🏠', label:isEn?'My Listings':'Mis listings',      prefix:'my.' },
+        { id:'listing',icon:'🏠',label:isEn?'Listings page':'Página listings', prefix:'listings.' },
+        { id:'modal', icon:'💬', label:isEn?'Modal / Verify':'Modales',        prefix:'modal.' },
+        { id:'notif', icon:'🔔', label:isEn?'Notifications':'Notificaciones',  prefix:'notifications.' },
+        { id:'roles', icon:'👥', label:isEn?'Role descriptions':'Descripciones de rol', prefix:'roles.' },
+        { id:'other', icon:'🔤', label:isEn?'Other labels':'Otras etiquetas',  prefix:null },
+      ];
+      const q = uiLabelSearch.trim().toLowerCase();
+      // Build list of all APP_I18N keys filtered by search
+      const allKeys = Object.keys(APP_I18N).sort();
+      const filteredKeys = q
+        ? allKeys.filter(k => {
+            const dEn = String(APP_I18N[k]?.en||'').toLowerCase();
+            const dEs = String(APP_I18N[k]?.es||'').toLowerCase();
+            const custom = String(currentLabels[k]||'').toLowerCase();
+            return k.toLowerCase().includes(q) || dEn.includes(q) || dEs.includes(q) || custom.includes(q);
+          })
+        : allKeys;
+      const modified = Object.keys(currentLabels).length;
+      return (
+        <div className="ula-wrap">
+          <div className="ula-toolbar">
+            <div className="ula-lang-toggle">
+              <button className={`fchip${uiLabelLang==='es'?' fchip-on':''}`} onClick={()=>setUiLabelLang('es')}>🇨🇴 Español</button>
+              <button className={`fchip${uiLabelLang==='en'?' fchip-on':''}`} onClick={()=>setUiLabelLang('en')}>🇺🇸 English</button>
+            </div>
+            <div style={{position:'relative',flex:1,maxWidth:340}}>
+              <input className="search" style={{paddingRight:32}} placeholder={isEn?'Search labels…':'Buscar etiquetas…'} value={uiLabelSearch} onChange={e=>setUiLabelSearch(e.target.value)}/>
+              {uiLabelSearch&&<button className="inc-search-clear" onClick={()=>setUiLabelSearch('')}>✕</button>}
+            </div>
+            {modified>0&&<span className="ula-modified-badge">{modified} {isEn?'overridden':'modificadas'}</span>}
+          </div>
+          {/* Show by group when no search, flat list when searching */}
+          {q
+            ? <div className="ula-group">
+                <div className="ula-group-hdr">{filteredKeys.length} {isEn?'results':'resultados'}</div>
+                {filteredKeys.map(key=>{
+                  const defVal = APP_I18N[key]?.[uiLabelLang==='en'?'en':'es'] || APP_I18N[key]?.es || '';
+                  const custom = currentLabels[key];
+                  const isChanged = custom !== undefined;
+                  return <div key={key} className={`ula-row${isChanged?' ula-row-changed':''}`}>
+                    <div className="ula-key" title={key}>{key}</div>
+                    <div className="ula-default" title={isEn?'Default value':'Valor por defecto'}>{defVal}</div>
+                    <input className="ula-input" value={isChanged ? custom : defVal} onChange={e=>setLabel(key, e.target.value)} onFocus={e=>{if(!isChanged)e.target.select();}} placeholder={defVal}/>
+                    {isChanged&&<button type="button" className="ula-reset" title={isEn?'Reset to default':'Restablecer por defecto'} onClick={()=>resetLabel(key)}>↩</button>}
+                  </div>;
+                })}
+              </div>
+            : labelGroups.map(g=>{
+                const gKeys = g.prefix
+                  ? filteredKeys.filter(k=>k.startsWith(g.prefix))
+                  : filteredKeys.filter(k=>!labelGroups.slice(0,-1).some(lg=>lg.prefix&&k.startsWith(lg.prefix)));
+                if(!gKeys.length) return null;
+                return (
+                  <div key={g.id} className="ula-group">
+                    <div className="ula-group-hdr">{g.icon} {g.label}</div>
+                    {gKeys.map(key=>{
+                      const defVal = APP_I18N[key]?.[uiLabelLang==='en'?'en':'es'] || APP_I18N[key]?.es || '';
+                      const custom = currentLabels[key];
+                      const isChanged = custom !== undefined;
+                      return <div key={key} className={`ula-row${isChanged?' ula-row-changed':''}`}>
+                        <div className="ula-key" title={key}>{key.replace(g.prefix||'','')}</div>
+                        <div className="ula-default" title={isEn?'Default value':'Valor por defecto'}>{defVal}</div>
+                        <input className="ula-input" value={isChanged ? custom : defVal} onChange={e=>setLabel(key, e.target.value)} onFocus={e=>{if(!isChanged) { setLabel(key, defVal); setTimeout(()=>e.target.select(),0); }}} placeholder={defVal}/>
+                        {isChanged&&<button type="button" className="ula-reset" title={isEn?'Reset to default':'Restablecer por defecto'} onClick={()=>resetLabel(key)}>↩</button>}
+                      </div>;
+                    })}
+                  </div>
+                );
+              })
+          }
+          <div className="mact" style={{marginTop:16}}>
+            <button className="btn-ghost" onClick={()=>{if(uiLabelLang==='en'){setUiLabelsEn({});}else{setUiLabelsEs({});} }} title={isEn?'Reset all overrides to defaults':'Restablecer todas las etiquetas'}>
+              ↩ {isEn?'Reset all to defaults':'Restablecer todo'}
+            </button>
+            <button className="btn-p" onClick={saveUiLabels}>💾 {isEn?'Save labels':'Guardar etiquetas'}</button>
+          </div>
+        </div>
+      );
+    })()}
   </AdminSection>
 
   <AdminSection title={`💡 ${appText(lang,'tooltips.adminTitle')}`} subtitle={appText(lang,'tooltips.adminSub')} action={<button className="btn-ghost" onClick={saveTooltips}>💾 {appText(lang,'tooltips.save')}</button>} open={openSections.tooltips} onToggle={()=>toggleSection('tooltips')}>
