@@ -1360,9 +1360,10 @@ export default function App() {
         </div>
       )}
       <main className="main">
-        {view==="dashboard" && <Dashboard lang={lang} listings={listings} incidents={incidents} user={user} contactProps={contactProps} setView={setView} showBlacklist={false} onReport={()=>{ if(!user){login();return;} setModal({type:"incident"}); }} effectiveIsGlobalAdmin={effectiveIsGlobalAdmin} effectiveRole={effectiveRole} delegatePerms={delegatePerms} pendingOwner={needsOwnerVerification.length} pendingOwnerResolution={needsOwnerResolution.length} pendingResolve={needsAdminResolution.length} pendingRegistrations={effectiveCanManageRegistrations ? pendingRegistrations.length : 0} canResolve={canResolveIncidentsNow} canManageRegistrations={effectiveCanManageRegistrations} onOwnerClick={()=>{setIncidentQuickFilter('ownerVerification');setView('incidents');}} onResolveClick={()=>{setIncidentQuickFilter('requiresResolution');setView('incidents');}} onRegistrationsClick={()=>setView('approvals')} />}
+        {view==="dashboard" && <Dashboard lang={lang} listings={listings} incidents={incidents} user={user} contactProps={contactProps} setView={setView} showBlacklist={false} onReport={()=>{ if(!user){login();return;} setModal({type:"incident"}); }} effectiveIsGlobalAdmin={effectiveIsGlobalAdmin} effectiveRole={effectiveRole} delegatePerms={delegatePerms} pendingOwner={needsOwnerVerification.length} pendingOwnerResolution={needsOwnerResolution.length} pendingResolve={needsAdminResolution.length} pendingRegistrations={effectiveCanManageRegistrations ? pendingRegistrations.length : 0} canResolve={canResolveIncidentsNow} canManageRegistrations={effectiveCanManageRegistrations} onOwnerClick={()=>{setIncidentQuickFilter('ownerVerification');setView('incidents');}} onResolveClick={()=>{setIncidentQuickFilter('requiresResolution');setView('incidents');}} onRegistrationsClick={()=>setView('approvals')} onAddResClick={()=>{setIncidentQuickFilter('needsResolution');setView('incidents');}} />}
         {view==="about" && <CommunityMissionView lang={lang} config={adminInfo.config} />}
         {view==="listings"  && <ListingsView lang={lang} listings={listings} incidents={incidents} user={user} contactProps={contactProps} isGlobalAdmin={effectiveIsGlobalAdmin} canEditGlobal={delegatePerms.canUpdateGlobalListings} canDeleteGlobal={delegatePerms.canDeleteGlobalListings} canResolveGlobal={canResolveIncidentsNow} floorOpenState={listingFloorOpen} onFloorToggle={toggleListingFloor} onAdd={()=>{ if(!user){login();return;} setModal({type:"addListing"}); }} onEdit={l=>setModal({type:"editListing",data:l})} onDelete={deleteListing} onReport={l=>{ if(!user){login();return;} setModal({type:"incident",data:{aptId:l.id}}); }} onVerify={inc=>setModal({type:"verifyIncident",data:inc})} onResolve={resolveIncident} onAddResolution={inc=>setModal({type:"addResolution",data:inc})} onFloorFilter={f=>{setIncidentQuickFilter({type:'floorFilter',aptIds:f.aptIds,status:f.status});setView('incidents');}} />}
+
         {view==="incidents" && <IncidentsView lang={lang} incidents={incidents} listings={listings} user={user} quickFilter={incidentQuickFilter} onQuickFilterApplied={()=>setIncidentQuickFilter(null)} contactProps={contactProps} isGlobalAdmin={effectiveIsGlobalAdmin} canUpdateGlobal={delegatePerms.canUpdateGlobalIncidents} canDeleteGlobal={delegatePerms.canDeleteGlobalIncidents} canResolveGlobal={canResolveIncidentsNow} onAdd={()=>{ if(!user){login();return;} setModal({type:"incident"}); }} onResolve={resolveIncident} onDelete={deleteIncident} onVerify={inc=>setModal({type:"verifyIncident",data:inc})} onAddResolution={inc=>setModal({type:"addResolution",data:inc})} />}
         {view==="notifications" && user && <NotificationsView lang={lang} notifications={notifications} incidents={incidents} listings={listings} contactProps={contactProps} onRead={markNotificationRead} onReadAll={markAllNotificationsRead} smartAlerts={smartAlerts} />}
         {view==="approvals" && user && effectiveCanManageRegistrations && <PendingApprovalsView lang={lang} pending={pendingRegistrations} onApprove={id=>reviewRegistrationAction(id,'approve')} onDecline={id=>reviewRegistrationAction(id,'decline')} active={activeRegistrations} />}
@@ -2103,19 +2104,19 @@ function ProfileView({ user, lang, userProfile, onSave }) {
 }
 
 function DashboardFocus({ lang="es-CO", effectiveIsGlobalAdmin=false, effectiveRole='user', delegatePerms={},
-  pendingOwner=0, pendingResolve=0, pendingRegistrations=0, openCount=0,
+  pendingOwner=0, pendingOwnerResolution=0, pendingResolve=0, pendingRegistrations=0, openCount=0,
   myListingCount=0, myOpenCount=0,
   canResolve=false, canManageRegistrations=false,
-  onOwnerClick=()=>{}, onResolveClick=()=>{}, onRegistrationsClick=()=>{}, onOpenClick=()=>{}, setView=()=>{} }) {
+  onOwnerClick=()=>{}, onResolveClick=()=>{}, onRegistrationsClick=()=>{}, onOpenClick=()=>{}, setView=()=>{}, onAddResClick=()=>{} }) {
   const isEn = lang==='en';
   const role = effectiveIsGlobalAdmin ? 'global' : effectiveRole==='delegate_admin' ? 'delegate' : 'standard';
 
   // Role-specific card sets — each role sees only what matters to them
   const cards = role==='standard' ? [
-    { id:'myListings',     icon:'🏠', count:myListingCount, label:isEn?'My listings':'Mis listings',          sub:isEn?'Your registered apartments':'Tus apartamentos registrados',              accent:'teal',  onClick:()=>setView('my') },
-    { id:'myVerification', icon:'✅', count:pendingOwner,   label:isEn?'Need my action':'Requieren mi acción', sub:isEn?'Incidents awaiting your verification':'Incidentes esperando tu verificación', accent:'amber', onClick:onOwnerClick },
-    { id:'myOpen',         icon:'⚠️', count:myOpenCount,   label:isEn?'My open reports':'Mis reportes',       sub:isEn?'Open reports on your listings':'Reportes abiertos en tus listings',       accent:'red',   onClick:()=>setView('incidents') },
-  ] : role==='delegate' ? [
+    { id:'verify',        icon:'⚠️', count:pendingOwner,           label:isEn?'⚠️ Verify now':'⚠️ Verificar',        sub:isEn?'Step 1 · Open incidents on your units requiring verification':'Paso 1 · Incidentes abiertos en tus unidades que requieren verificación', accent:'red',   onClick:onOwnerClick,   show:true },
+    { id:'addResolution', icon:'📝', count:pendingOwnerResolution, label:isEn?'📝 Add resolution':'📝 Agregar resolución', sub:isEn?'Step 2 · Verified — add resolution to allow admin to close':'Paso 2 · Verificados — agrega resolución para que admin pueda cerrar', accent:'amber', onClick:onAddResClick,  show:true },
+    { id:'myListings',    icon:'🏠', count:myListingCount,         label:isEn?'My listings':'Mis listings',             sub:isEn?'Your registered units':'Tus unidades registradas',                                                                                       accent:'teal',  onClick:()=>setView('my'), show:true },
+  ].filter(c=>c.show!==false) : role==='delegate' ? [
     { id:'ownerVerification', icon:'✅', count:pendingOwner,         label:isEn?'Need verification':'Requieren verificación',   sub:isEn?'Awaiting owner confirmation':'Esperando confirmación propietario',  accent:'amber', onClick:onOwnerClick,         show:true },
     { id:'requiresResolution',icon:'🛠️',count:pendingResolve,       label:isEn?'Ready to resolve':'Listos para resolver',       sub:isEn?'Verified, ready to close':'Verificados, listos para cerrar',        accent:'green', onClick:onResolveClick,       show:canResolve },
     { id:'registrations',     icon:'📝', count:pendingRegistrations,  label:isEn?'Registrations':'Registros',                   sub:isEn?'Pending approval':'Pendientes de aprobación',                         accent:'blue',  onClick:onRegistrationsClick, show:canManageRegistrations },
@@ -2227,7 +2228,7 @@ function Dashboard({ listings, incidents, user, contactProps={}, setView, onRepo
   effectiveIsGlobalAdmin=false, effectiveRole='user', delegatePerms={},
   pendingOwner=0, pendingOwnerResolution=0, pendingResolve=0, pendingRegistrations=0,
   canResolve=false, canManageRegistrations=false,
-  onOwnerClick=()=>{}, onResolveClick=()=>{}, onRegistrationsClick=()=>{} }) {
+  onOwnerClick=()=>{}, onResolveClick=()=>{}, onRegistrationsClick=()=>{}, onAddResClick=()=>{} }) {
   const isEn = lang==='en';
   const open     = incidents.filter(i=>i.status==="open");
   const resolved = incidents.filter(i=>i.status==="resolved");
@@ -2256,7 +2257,7 @@ function Dashboard({ listings, incidents, user, contactProps={}, setView, onRepo
 
       {user && <DashboardGreeting user={user} lang={lang} role={dashRole} pendingOwner={pendingOwner} pendingOwnerResolution={pendingOwnerResolution} pendingResolve={pendingResolve} pendingRegistrations={pendingRegistrations} myOpenCount={myOpen.length} onOwnerClick={onOwnerClick} onResolveClick={onResolveClick} onRegistrationsClick={onRegistrationsClick} setView={setView}/>}
 
-      <DashboardFocus lang={lang} effectiveIsGlobalAdmin={effectiveIsGlobalAdmin} effectiveRole={effectiveRole} delegatePerms={delegatePerms} pendingOwner={pendingOwner} pendingResolve={pendingResolve} pendingRegistrations={pendingRegistrations} openCount={open.length} myListingCount={myListings.length} myOpenCount={myOpen.length} canResolve={canResolve} canManageRegistrations={canManageRegistrations} onOwnerClick={onOwnerClick} onResolveClick={onResolveClick} onRegistrationsClick={onRegistrationsClick} onOpenClick={()=>setView('incidents')} setView={setView} />
+      <DashboardFocus lang={lang} effectiveIsGlobalAdmin={effectiveIsGlobalAdmin} effectiveRole={effectiveRole} delegatePerms={delegatePerms} pendingOwner={pendingOwner} pendingOwnerResolution={pendingOwnerResolution} pendingResolve={pendingResolve} pendingRegistrations={pendingRegistrations} openCount={open.length} myListingCount={myListings.length} myOpenCount={myOpen.length} canResolve={canResolve} canManageRegistrations={canManageRegistrations} onOwnerClick={onOwnerClick} onResolveClick={onResolveClick} onRegistrationsClick={onRegistrationsClick} onOpenClick={()=>setView('incidents')} setView={setView} onAddResClick={onAddResClick} />
 
       {/* ── Community health stats — 4 focused metrics ── */}
       <div className="stats6" style={{gridTemplateColumns:'repeat(auto-fit,minmax(140px,1fr))'}}>
@@ -2286,20 +2287,24 @@ function Dashboard({ listings, incidents, user, contactProps={}, setView, onRepo
 
 function MyListings({ listings, incidents, user, contactProps={}, isGlobalAdmin=false, canResolveGlobal=false, onAdd, onEdit, onDelete, onReport, onVerify, onResolve, onAddResolution, lang="es-CO" }) {
   const [selectedId, setSelectedId] = useState(null);
-  const [statFilter, setStatFilter] = useState(null); // null | 'open' | 'verified' | 'resolved'
+  const [statFilter, setStatFilter] = useState(null); // null | 'open' | 'pendingResolution' | 'awaitingAdmin' | 'resolved'
   const isEn = lang==='en';
   const myListingIds = new Set(listings.map(l=>l.id));
   const incAgainstMe = incidents.filter(i=>myListingIds.has(i.aptId));
   const incIReported = incidents.filter(i=>i.reporterUid===user.uid&&!myListingIds.has(i.aptId));
   const totalGuests  = listings.reduce((a,l)=>a+(l.guests||0),0);
-  const openC    = incAgainstMe.filter(i=>i.status==='open').length;
-  const verifiedC= incAgainstMe.filter(i=>i.status==='verified').length;
-  const resolvedC= incAgainstMe.filter(i=>i.status==='resolved').length;
+  const openC          = incAgainstMe.filter(i=>i.status==='open').length;
+  const pendingResC    = incAgainstMe.filter(i=>i.status==='verified'&&!String(i.ownerResolution||'').trim()).length;
+  const awaitingAdminC = incAgainstMe.filter(i=>i.status==='verified'&& String(i.ownerResolution||'').trim()).length;
+  const resolvedC      = incAgainstMe.filter(i=>i.status==='resolved').length;
   const allSorted = [...listings].sort((a,b)=>a.apt.localeCompare(b.apt));
-  // Apply stat filter: only show listings that have incidents of that status
-  const sorted = statFilter
-    ? allSorted.filter(l=>incidents.some(i=>i.aptId===l.id&&i.status===statFilter))
-    : allSorted;
+  // Apply stat filter — verified is split into pendingResolution / awaitingAdmin
+  const matchesStat = (l, sf) => incidents.some(i => i.aptId===l.id && (
+    sf==='pendingResolution' ? (i.status==='verified'&&!String(i.ownerResolution||'').trim()) :
+    sf==='awaitingAdmin'     ? (i.status==='verified'&& String(i.ownerResolution||'').trim()) :
+    i.status===sf
+  ));
+  const sorted = statFilter ? allSorted.filter(l=>matchesStat(l,statFilter)) : allSorted;
   const toggleStat = (s) => { setStatFilter(f=>f===s?null:s); setSelectedId(null); };
   return (
     <div className="fade">
@@ -2311,31 +2316,36 @@ function MyListings({ listings, incidents, user, contactProps={}, isGlobalAdmin=
         <button className="btn-p" onClick={onAdd}>{appText(lang,"listings.add")}</button>
       </div>
 
-      {/* ── Summary stats — click to filter listings below ── */}
+      {/* ── Summary stats — 4 workflow states + total; click any to filter ── */}
       <div className="ml-stats">
-        <div className={`ml-stat${statFilter?'':' ml-stat-active'}`} onClick={()=>toggleStat(null)} style={{cursor:'pointer'}} title={isEn?'Show all listings':'Ver todos los listings'}>
+        <div className={`ml-stat${!statFilter?' ml-stat-active':''}`} onClick={()=>toggleStat(null)} style={{cursor:'pointer'}} title={isEn?'Show all listings':'Ver todos los listings'}>
           <span className="ml-stat-val">{listings.length}</span>
-          <span className="ml-stat-lbl">🏠 {isEn?'All listings':'Todos'}</span>
+          <span className="ml-stat-lbl">🏠 {isEn?'All':'Todos'}</span>
         </div>
-        <div className="ml-stat" style={{cursor:'default'}}>
-          <span className="ml-stat-val">{totalGuests}</span>
-          <span className="ml-stat-lbl">👥 {isEn?'Guest cap.':'Huéspedes'}</span>
-        </div>
-        <div className={`ml-stat${openC>0?' ml-stat-warn':''}${statFilter==='open'?' ml-stat-active':''}`} onClick={()=>openC>0&&toggleStat('open')} style={{cursor:openC>0?'pointer':'default'}} title={isEn?'Filter to listings with open incidents':'Ver listings con incidentes abiertos'}>
+        <div className={`ml-stat${openC>0?' ml-stat-warn':''}${statFilter==='open'?' ml-stat-active':''}`} onClick={()=>openC>0&&toggleStat('open')} style={{cursor:openC>0?'pointer':'default'}} title={isEn?'Step 1: Filter to listings needing your verification':'Paso 1: Ver listings que requieren tu verificación'}>
           <span className="ml-stat-val">{openC}</span>
-          <span className="ml-stat-lbl">⚠️ {isEn?'Open':'Abiertos'}</span>
+          <span className="ml-stat-lbl">⚠️ {isEn?'Verify':'Verificar'}</span>
         </div>
-        <div className={`ml-stat${verifiedC>0?' ml-stat-ver':''}${statFilter==='verified'?' ml-stat-active':''}`} onClick={()=>verifiedC>0&&toggleStat('verified')} style={{cursor:verifiedC>0?'pointer':'default'}} title={isEn?'Filter to listings with verified incidents':'Ver listings con incidentes verificados'}>
-          <span className="ml-stat-val">{verifiedC}</span>
-          <span className="ml-stat-lbl">👤 {isEn?'Verified':'Verificados'}</span>
+        <div className={`ml-stat${pendingResC>0?' ml-stat-ver':''}${statFilter==='pendingResolution'?' ml-stat-active':''}`} onClick={()=>pendingResC>0&&toggleStat('pendingResolution')} style={{cursor:pendingResC>0?'pointer':'default'}} title={isEn?'Step 2: Filter to listings where you must add a resolution':'Paso 2: Ver listings donde debes agregar una resolución'}>
+          <span className="ml-stat-val">{pendingResC}</span>
+          <span className="ml-stat-lbl">📝 {isEn?'Add resolution':'Resolución'}</span>
         </div>
-        <div className={`ml-stat${resolvedC>0?' ml-stat-res':''}${statFilter==='resolved'?' ml-stat-active':''}`} onClick={()=>resolvedC>0&&toggleStat('resolved')} style={{cursor:resolvedC>0?'pointer':'default'}} title={isEn?'Filter to listings with resolved incidents':'Ver listings con incidentes resueltos'}>
+        <div className={`ml-stat${awaitingAdminC>0?' ml-stat-ver':''}${statFilter==='awaitingAdmin'?' ml-stat-active':''}`} onClick={()=>awaitingAdminC>0&&toggleStat('awaitingAdmin')} style={{cursor:awaitingAdminC>0?'pointer':'default'}} title={isEn?'Filter to listings with verified incidents awaiting admin review':'Ver listings con incidentes verificados esperando al admin'}>
+          <span className="ml-stat-val">{awaitingAdminC}</span>
+          <span className="ml-stat-lbl">⏳ {isEn?'Admin review':'Admin'}</span>
+        </div>
+        <div className={`ml-stat${resolvedC>0?' ml-stat-res':''}${statFilter==='resolved'?' ml-stat-active':''}`} onClick={()=>resolvedC>0&&toggleStat('resolved')} style={{cursor:resolvedC>0?'pointer':'default'}} title={isEn?'Filter to listings with closed incidents':'Ver listings con incidentes cerrados'}>
           <span className="ml-stat-val">{resolvedC}</span>
-          <span className="ml-stat-lbl">✓ {isEn?'Resolved':'Resueltos'}</span>
+          <span className="ml-stat-lbl">✓ {isEn?'Closed':'Cerrados'}</span>
         </div>
       </div>
       {statFilter&&<div style={{fontSize:'.78rem',color:'#496674',marginBottom:6}}>
-        {isEn?'Showing:':'Mostrando:'} <strong>{statFilter==='open'?(isEn?'Open incidents':'Incidentes abiertos'):statFilter==='verified'?(isEn?'In-progress incidents':'Incidentes en progreso'):(isEn?'Closed incidents':'Incidentes cerrados')}</strong> · {sorted.length} {isEn?(sorted.length===1?'listing':'listings'):(sorted.length===1?'listing':'listings')} <span style={{color:'#8a9fa5',fontStyle:'italic'}}>{isEn?'(click again to show all)':'(clic de nuevo para ver todos)'}</span>
+        {isEn?'Showing:':'Mostrando:'} <strong>{{
+          open:isEn?'⚠️ Needs verification':'⚠️ Requieren verificación',
+          pendingResolution:isEn?'📝 Needs resolution (Step 2)':'📝 Necesitan resolución (Paso 2)',
+          awaitingAdmin:isEn?'⏳ Awaiting admin review':'⏳ Esperando revisión del admin',
+          resolved:isEn?'✓ Closed':'✓ Cerrados',
+        }[statFilter]}</strong> · {sorted.length} {isEn?(sorted.length===1?'listing':'listings'):'listing'+(sorted.length!==1?'s':'')} <span style={{color:'#8a9fa5',fontStyle:'italic'}}>{isEn?'(click again to show all)':'(clic de nuevo para ver todos)'}</span>
       </div>}
 
       {/* ── My listings — click to see incidents ── */}
@@ -2466,11 +2476,12 @@ function AptContactPopup({ ownerName='', ownerEmail='', ownerWaRaw='', operatorN
 
 function AptDoor({ l, incidents, isSelected, onSelect, lang, isEn }) {
   const status = aptDoorStatus(l, incidents);
-  const aptInc       = incidents.filter(i => i.aptId === l.id);
-  const openCount    = aptInc.filter(i => i.status === 'open').length;
-  const verifiedCount= aptInc.filter(i => i.status === 'verified').length;
-  const resolvedCount= aptInc.filter(i => i.status === 'resolved').length;
-  const totalCount   = aptInc.length;
+  const aptInc         = incidents.filter(i => i.aptId === l.id);
+  const openCount      = aptInc.filter(i => i.status === 'open').length;
+  const pendingResCount= aptInc.filter(i => i.status === 'verified' && !String(i.ownerResolution||'').trim()).length;
+  const awaitingCount  = aptInc.filter(i => i.status === 'verified' &&  String(i.ownerResolution||'').trim()).length;
+  const resolvedCount  = aptInc.filter(i => i.status === 'resolved').length;
+  const totalCount     = aptInc.length;
   const ownerEmail = l.userEmail || l.email || '';
   const ownerWaRaw = l.contact || '';
   return (
@@ -2502,8 +2513,9 @@ function AptDoor({ l, incidents, isSelected, onSelect, lang, isEn }) {
         {totalCount === 0
           ? <span className="dis-clean">✅ {isEn?'No incidents':'Sin incidentes'}</span>
           : <>
-              {openCount>0&&<span className="dis-pill dis-open" title={isEn?`${openCount} new — needs attention`:`${openCount} nuevo${openCount>1?'s':''} — requiere atención`}>⚠️ {openCount} {isEn?'new':'nuevo'}{openCount>1&&isEn?'s':''}</span>}
-              {verifiedCount>0&&<span className="dis-pill dis-ver" title={isEn?`${verifiedCount} in progress — pending close`:`${verifiedCount} en progreso — pendiente de cierre`}>⏳ {verifiedCount}</span>}
+              {openCount>0&&<span className="dis-pill dis-open" title={isEn?`${openCount} open — Step 1: verify required`:`${openCount} abierto${openCount>1?'s':''} — Paso 1: verificación requerida`}>⚠️ {openCount}</span>}
+              {pendingResCount>0&&<span className="dis-pill dis-pending-res" title={isEn?`${pendingResCount} verified — Step 2: add resolution`:`${pendingResCount} verificado${pendingResCount>1?'s':''} — Paso 2: agregar resolución`}>📝 {pendingResCount}</span>}
+              {awaitingCount>0&&<span className="dis-pill dis-ver" title={isEn?`${awaitingCount} awaiting admin review`:`${awaitingCount} esperando revisión del admin`}>⏳ {awaitingCount}</span>}
               {resolvedCount>0&&<span className="dis-pill dis-res" title={isEn?`${resolvedCount} closed`:`${resolvedCount} cerrado${resolvedCount>1?'s':''}`}>✓ {resolvedCount}</span>}
             </>
         }
@@ -2638,10 +2650,11 @@ function AptDetailPanel({ l, incidents, contactProps={}, canEdit, canDelete, onE
 function BuildingFloor({ floor, apts, incidents, user, contactProps, isGlobalAdmin, canEditGlobal, canDeleteGlobal, canResolveGlobal, onEdit, onDelete, onReport, onVerify, onResolve, onAddResolution, onFloorFilter, isOpen, onToggle, lang, isEn }) {
   const [selectedAptId, setSelectedAptId] = useState(null);
   const color = floorColor(floor);
-  const floorInc   = incidents.filter(i=>apts.some(l=>l.id===i.aptId));
-  const openCount  = floorInc.filter(i=>i.status==='open').length;
-  const verCount   = floorInc.filter(i=>i.status==='verified').length;
-  const resCount   = floorInc.filter(i=>i.status==='resolved').length;
+  const floorInc       = incidents.filter(i=>apts.some(l=>l.id===i.aptId));
+  const openCount      = floorInc.filter(i=>i.status==='open').length;
+  const verPendingRes  = floorInc.filter(i=>i.status==='verified'&&!String(i.ownerResolution||'').trim()).length;
+  const verAwaiting    = floorInc.filter(i=>i.status==='verified'&& String(i.ownerResolution||'').trim()).length;
+  const resCount       = floorInc.filter(i=>i.status==='resolved').length;
   const selectedApt = apts.find(l=>l.id===selectedAptId);
   const handleSelect = (id) => setSelectedAptId(id);
 
@@ -2654,9 +2667,10 @@ function BuildingFloor({ floor, apts, incidents, user, contactProps, isGlobalAdm
         </div>
         <div className="bld-floor-stats">
           <span className="bld-stat-pill bld-stat-apts" title={isEn?`${apts.length} unit${apts.length===1?'':'s'} on this floor`:`${apts.length} unidad${apts.length===1?'':'es'} en este piso`}>🏠 {apts.length} {isEn?(apts.length===1?'apt':'apts'):'apto'+(apts.length>1?'s':'')}</span>
-          {openCount>0  && <button type="button" className="bld-stat-pill bld-stat-inc bld-stat-btn" title={isEn?`${openCount} open — click to view in Incidents`:`${openCount} abierto${openCount>1?'s':''} — clic para ver en Incidentes`} onClick={e=>{e.stopPropagation();onFloorFilter&&onFloorFilter({aptIds:apts.map(a=>a.id),status:'open'});}}>⚠️ {openCount} {isEn?'open':'abierto'}{openCount>1&&isEn?'s':''}</button>}
-          {verCount>0   && <button type="button" className="bld-stat-pill bld-stat-ver bld-stat-btn" title={isEn?`${verCount} in progress — click to view in Incidents`:`${verCount} en progreso — clic para ver en Incidentes`} onClick={e=>{e.stopPropagation();onFloorFilter&&onFloorFilter({aptIds:apts.map(a=>a.id),status:'verified'});}}>👤 {verCount} {isEn?'verified':'verificado'}{verCount>1&&isEn?'s':''}</button>}
-          {resCount>0   && <button type="button" className="bld-stat-pill bld-stat-res bld-stat-btn" title={isEn?`${resCount} closed — click to view in Incidents`:`${resCount} cerrado${resCount>1?'s':''} — clic para ver en Incidentes`} onClick={e=>{e.stopPropagation();onFloorFilter&&onFloorFilter({aptIds:apts.map(a=>a.id),status:'resolved'});}}>✓ {resCount} {isEn?'resolved':'resuelto'}{resCount>1&&isEn?'s':''}</button>}
+          {openCount>0     && <button type="button" className="bld-stat-pill bld-stat-inc bld-stat-btn" title={isEn?`${openCount} open — Step 1: verify required · click to filter`:`${openCount} abierto${openCount>1?'s':''} — Paso 1: verificación requerida`} onClick={e=>{e.stopPropagation();onFloorFilter&&onFloorFilter({aptIds:apts.map(a=>a.id),status:'open'});}}>⚠️ {openCount} {isEn?'verify':'verificar'}</button>}
+          {verPendingRes>0 && <button type="button" className="bld-stat-pill bld-stat-ver bld-stat-btn" title={isEn?`${verPendingRes} verified — Step 2: add resolution · click to filter`:`${verPendingRes} verificado${verPendingRes>1?'s':''} — Paso 2: agregar resolución`} onClick={e=>{e.stopPropagation();onFloorFilter&&onFloorFilter({aptIds:apts.map(a=>a.id),status:'pendingResolution'});}}>📝 {verPendingRes} {isEn?'add res.':'resolución'}</button>}
+          {verAwaiting>0   && <button type="button" className="bld-stat-pill bld-stat-ver bld-stat-btn" style={{background:'rgba(11,127,79,.08)',color:'#0b5f3a',borderColor:'rgba(11,127,79,.2)'}} title={isEn?`${verAwaiting} awaiting admin review · click to filter`:`${verAwaiting} esperando revisión del admin`} onClick={e=>{e.stopPropagation();onFloorFilter&&onFloorFilter({aptIds:apts.map(a=>a.id),status:'awaitingAdmin'});}}>⏳ {verAwaiting} {isEn?'admin':'admin'}</button>}
+          {resCount>0      && <button type="button" className="bld-stat-pill bld-stat-res bld-stat-btn" title={isEn?`${resCount} closed · click to filter`:`${resCount} cerrado${resCount>1?'s':''}`} onClick={e=>{e.stopPropagation();onFloorFilter&&onFloorFilter({aptIds:apts.map(a=>a.id),status:'resolved'});}}>✓ {resCount} {isEn?'closed':'cerrados'}</button>}
         </div>
         <span className={`bld-chev${isOpen?' bld-chev-up':''}`}>›</span>
       </button>
@@ -2919,7 +2933,10 @@ function IncidentsView({ incidents, listings, user, quickFilter=null, onQuickFil
     if (!quickFilter) return;
     if (typeof quickFilter === 'object' && quickFilter.type === 'floorFilter') {
       setFloorFilter({aptIds: quickFilter.aptIds, status: quickFilter.status});
-      setScope("all"); setSf(quickFilter.status||"all"); setCf("all"); setSearch("");
+      setScope("all");
+      // Map sub-statuses to the sf dropdown; pendingResolution/awaitingAdmin both sit under 'verified'
+      const sfVal = quickFilter.status==='pendingResolution'||quickFilter.status==='awaitingAdmin' ? 'verified' : (quickFilter.status||'all');
+      setSf(sfVal); setCf("all"); setSearch("");
       onQuickFilterApplied(); return;
     }
     if (quickFilter === "ownerVerification") { setScope("ownerVerification"); setSf("all"); setCf("all"); setFloorFilter(null); onQuickFilterApplied(); }
@@ -2946,8 +2963,13 @@ function IncidentsView({ incidents, listings, user, quickFilter=null, onQuickFil
   if(scope==="requiresResolution") list=list.filter(i=>
     i.status==="verified" && String(i.ownerResolution||'').trim() && (isGlobalAdmin||canResolveGlobal)
   );
-  // Floor filter — restricts to specific apt IDs from the Units page
-  if(floorFilter?.aptIds) list=list.filter(i=>floorFilter.aptIds.includes(i.aptId));
+  // Floor filter — restricts to specific apt IDs + optional sub-status from the Units page
+  if(floorFilter?.aptIds) {
+    list=list.filter(i=>floorFilter.aptIds.includes(i.aptId));
+    if(floorFilter.status==='pendingResolution') list=list.filter(i=>i.status==='verified'&&!String(i.ownerResolution||'').trim());
+    else if(floorFilter.status==='awaitingAdmin') list=list.filter(i=>i.status==='verified'&&String(i.ownerResolution||'').trim());
+    else if(floorFilter.status&&floorFilter.status!=='all') list=list.filter(i=>i.status===floorFilter.status);
+  }
   if(sf!=="all") list=list.filter(i=>i.status===sf);
   if(cf!=="all") list=list.filter(i=>i.category===cf);
   if(search.trim()){
@@ -3056,7 +3078,13 @@ function IncidentsView({ incidents, listings, user, quickFilter=null, onQuickFil
       {/* Floor filter banner — shown when navigated from Units page stat pill */}
       {floorFilter&&(
         <div className="floor-filter-banner">
-          <span>🏢 {isEn?'Filtered to selected floor units':'Filtrado a unidades del piso seleccionado'} · <strong>{isEn?`${floorFilter.status==='open'?'New / Open':floorFilter.status==='verified'?'In Progress':'Closed'} incidents`:`Incidentes ${floorFilter.status==='open'?'nuevos':floorFilter.status==='verified'?'en progreso':'cerrados'}`}</strong></span>
+          <span>🏢 {isEn?'Filtered to floor units':'Filtrado a unidades del piso'} · <strong>{{
+            open:           isEn?'⚠️ Needs verification':'⚠️ Requieren verificación',
+            pendingResolution: isEn?'📝 Needs resolution (Step 2)':'📝 Necesitan resolución (Paso 2)',
+            awaitingAdmin:  isEn?'⏳ Awaiting admin review':'⏳ Esperando revisión del admin',
+            resolved:       isEn?'✓ Closed':'✓ Cerrados',
+            verified:       isEn?'In progress':'En progreso',
+          }[floorFilter.status]||floorFilter.status}</strong></span>
           <button className="ffb-clear" onClick={()=>setFloorFilter(null)}>✕ {isEn?'Show all':'Ver todos'}</button>
         </div>
       )}
@@ -3081,8 +3109,8 @@ function IncidentsView({ incidents, listings, user, quickFilter=null, onQuickFil
           {/* Pending resolution — available to all authenticated users:
               owners see their listings waiting for their resolution note;
               admins/delegates see all verified incidents missing a resolution */}
-          <button className={`fchip fchip-sm ${scope==='needsResolution'?'fchip-on fchip-warn':''}`} onClick={()=>{setScope(scope==='needsResolution'?'all':'needsResolution');setSf('all');}}>
-            ⏳ {isEn?'Pending resolution':'Pendiente resolución'}
+          <button className={`fchip fchip-sm ${scope==='needsResolution'?'fchip-on fchip-warn':''}`} onClick={()=>{setScope(scope==='needsResolution'?'all':'needsResolution');setSf('all');setFloorFilter(null);}}>
+            📝 {isEn?'Add resolution':'Agregar resolución'}
           </button>
           {/* Ready to close — admins/delegates only: verified + owner resolution provided */}
           {(isGlobalAdmin||canResolveGlobal)&&(

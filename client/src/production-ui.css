@@ -564,9 +564,14 @@ table { width: 100%; border-collapse: collapse; }
   border: 1px solid transparent;
   line-height: 1.4;
 }
-.dis-open { background: rgba(160,80,0,.1);  color: #a05000; border-color: rgba(160,80,0,.22); }
-.dis-ver  { background: rgba(11,127,79,.1); color: #0b5f3a; border-color: rgba(11,127,79,.22); }
-.dis-res  { background: rgba(80,130,100,.1);color: #4a7060; border-color: rgba(80,130,100,.22); }
+.dis-open        { background: rgba(160,80,0,.1);   color: #a05000; border-color: rgba(160,80,0,.22); }
+.dis-pending-res { background: rgba(11,127,79,.12); color: #0b5f3a; border-color: rgba(11,127,79,.25); }
+.dis-ver         { background: rgba(11,100,140,.1); color: #0b5f72; border-color: rgba(11,100,140,.2); }
+.dis-res         { background: rgba(80,130,100,.1); color: #4a7060; border-color: rgba(80,130,100,.22); }
+
+/* MyListings stat bar — allow 5 columns for the 4 workflow states + all */
+.ml-stats { grid-template-columns: repeat(5, 1fr) !important; }
+@media(max-width:640px) { .ml-stats { grid-template-columns: repeat(3, 1fr) !important; } }
 
 /* ── Overflow fix: allow apt-cpop popups to escape irow / wfg-section bounds ─ */
 /* irow::before is the left accent bar — give it matching corner radius so it
