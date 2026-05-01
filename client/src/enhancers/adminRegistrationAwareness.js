@@ -41,9 +41,14 @@ const TEXT = {
 }
 
 function currentLang() {
+  // Primary: explicit lang attribute set by the React app on <html>
   const htmlLang = document.documentElement.lang || ''
+  if (htmlLang.toLowerCase().startsWith('en')) return 'en'
+  if (htmlLang.toLowerCase().startsWith('es')) return 'es'
+  // Secondary: look for English indicator text using current nav labels
+  // Updated patterns to match renamed labels (My Units, Incidents, Inventory)
   const bodyText = document.body?.innerText || ''
-  if (/English|My listings|Reports/i.test(bodyText) || htmlLang.toLowerCase().startsWith('en')) return 'en'
+  if (/\bEnglish\b|\bMy Units\b|\bIncidents\b|\bInventory\b|\bAdd unit\b|\bFile a report\b/i.test(bodyText)) return 'en'
   return 'es'
 }
 

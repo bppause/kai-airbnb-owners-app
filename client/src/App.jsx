@@ -245,15 +245,15 @@ const APP_I18N = {
   "my.title": { es:"🏠 Mis Unidades", en:"🏠 My Units" },
   "my.units": { es:"unidades", en:"units" },
   "my.guestsTotal": { es:"huéspedes total", en:"total guests" },
-  "my.addApt": { es:"＋ Agregar apto", en:"＋ Add apt" },
-  "my.myApts": { es:"Mis propiedades", en:"My listings" },
+  "my.addApt": { es:"＋ Agregar unidad", en:"＋ Add unit" },
+  "my.myApts": { es:"Mis unidades", en:"My units" },
   "my.capacityShort": { es:"Cap. total", en:"Total cap." },
-  "my.noApts": { es:"Sin apartamentos", en:"No apartments" },
-  "my.addFirst": { es:"Agrega tu primera unidad", en:"Add your first unit" },
+  "my.noApts": { es:"Sin unidades registradas", en:"No units registered" },
+  "my.addFirst": { es:"Registra tu primera unidad en Morros KAI", en:"Register your first unit at Morros KAI" },
 
   "listings.title": { es:"🏢 Inventario de Unidades", en:"🏢 Unit Inventory" },
   "listings.subtitle": { es:"Morros KAI · {count} unidades registradas", en:"Morros KAI · {count} registered units" },
-  "listings.add": { es:"＋ Agregar apto", en:"＋ Add apt" },
+  "listings.add": { es:"＋ Agregar unidad", en:"＋ Add unit" },
   "listings.search": { es:"🔍 Buscar por número de apto o propietario...", en:"🔍 Search by apartment number or owner..." },
   "incidents.search": { es:"🔍 Buscar por apto, propietario, huésped, ciudad, país, tipo...", en:"🔍 Search by apartment, owner, guest, city, country, type..." },
   "listings.none": { es:"Sin apartamentos", en:"No apartments" },
@@ -263,7 +263,7 @@ const APP_I18N = {
   "listings.noOpenReports": { es:"✅ Sin reportes abiertos", en:"✅ No open reports" },
   "listings.openReportSingular": { es:"⚠️ {count} reporte abierto", en:"⚠️ {count} open report" },
   "listings.openReportPlural": { es:"⚠️ {count} reportes abiertos", en:"⚠️ {count} open reports" },
-  "listing.apt": { es:"Apto", en:"Apartment" },
+  "listing.apt": { es:"Unidad", en:"Unit" },
   "listing.tower": { es:"Torre", en:"Tower" },
   "listing.owner": { es:"Propietario", en:"Owner" },
   "listing.googleEmail": { es:"Email Google", en:"Google email" },
@@ -394,7 +394,7 @@ const APP_I18N = {
   "analytics.byStatus": { es:"📌 Por estado", en:"📌 By status" },
   "analytics.byMonth": { es:"📅 Tendencia mensual", en:"📅 Monthly trend" },
   "analytics.noData": { es:"Sin datos", en:"No data" },
-  "analytics.table.apt": { es:"Apto", en:"Apt" },
+  "analytics.table.apt": { es:"Unidad", en:"Unit" },
   "analytics.table.owner": { es:"Propietario", en:"Owner" },
   "analytics.table.operator": { es:"Operador", en:"Operator" },
   "analytics.table.type": { es:"Tipo", en:"Type" },
@@ -470,12 +470,12 @@ const APP_I18N = {
   "filters.workflow": { es:"Estado del flujo", en:"Workflow status" },
   "filters.category": { es:"Tipo de seguimiento", en:"Tracking category" },
   "filters.categoryAll": { es:"Todas las categorías", en:"All categories" },
-  "modal.listing.addTitle": { es:"＋ Agregar apto", en:"＋ Add apt" },
-  "modal.listing.editTitle": { es:"✏️ Editar apto", en:"✏️ Edit apartment" },
+  "modal.listing.addTitle": { es:"＋ Agregar unidad", en:"＋ Add unit" },
+  "modal.listing.editTitle": { es:"✏️ Editar unidad", en:"✏️ Edit unit" },
   "modal.listing.ownerPrefix": { es:"Propietario", en:"Owner" },
   "modal.listing.requiredHelp": { es:"Los campos marcados con * son requeridos. Torre KAI es fija y no se puede cambiar. Operador, email operador y WhatsApp operador son opcionales.", en:"Fields marked with * are required. Tower KAI is fixed and cannot be changed. Operator, operator email, and operator WhatsApp are optional." },
   "modal.listing.registrationHelp": { es:"Debes incluir al menos un listing. Torre KAI es fija. Airbnb URL, operador, email operador y WhatsApp operador son opcionales. El email del listing se llena con tu Google email, pero puedes cambiarlo.", en:"You must include at least one listing. Tower KAI is fixed. Airbnb URL, operator, operator email, and operator WhatsApp are optional. Listing email defaults to your Google email, but you can change it." },
-  "form.aptNumber": { es:"🚪 Número de apartamento *", en:"🚪 Apartment number *" },
+  "form.aptNumber": { es:"🚪 Número de unidad *", en:"🚪 Unit number *" },
   "form.tower": { es:"🏢 Torre", en:"🏢 Tower" },
   "form.towerHelp": { es:"Torre fija del edificio.", en:"Fixed building tower." },
   "form.rooms": { es:"🛏️ Habitaciones *", en:"🛏️ Bedrooms *" },
@@ -535,8 +535,8 @@ Object.assign(APP_I18N, {
   "tooltips.english": { es:"Tooltip inglés", en:"English tooltip" },
   "tooltips.save": { es:"Guardar tooltips", en:"Save tooltips" },
   "tooltip.reportIncident": { es:"Reporta un incidente visible para propietarios aprobados. Incluye datos claros y verificables.", en:"Report an incident visible to approved owners. Include clear, verifiable details." },
-  "tooltip.addListing": { es:"Agrega un apartamento que te pertenece. El número debe ser único y quedará asociado a tu cuenta Google.", en:"Add an apartment you own. The number must be unique and will be tied to your Google account." },
-  "tooltip.aptNumber": { es:"Ingresa 3 dígitos. Ejemplo: 000. Solo un propietario puede registrar cada apartamento.", en:"Enter 3 digits. Example: 000. Each apartment can only be registered to one owner." },
+  "tooltip.addListing": { es:"Registra una unidad que te pertenece en Morros KAI. El número debe ser único y quedará asociado a tu cuenta Google.", en:"Register a unit you own at Morros KAI. The number must be unique and will be tied to your Google account." },
+  "tooltip.aptNumber": { es:"Ingresa 3 dígitos (ej: 705). Solo un propietario puede registrar cada unidad.", en:"Enter 3 digits (e.g. 705). Each unit can only be registered to one owner." },
   "tooltip.listingEmail": { es:"Email que recibirá notificaciones del listing. Si queda igual, usa tu email de Google.", en:"Email that receives listing notifications. If unchanged, it uses your Google email." },
   "tooltip.ownerWhatsapp": { es:"WhatsApp del propietario para contacto operativo.", en:"Owner WhatsApp for operational contact." },
   "tooltip.operator": { es:"Operador del apartamento. Opcional.", en:"Apartment operator. Optional." },
@@ -853,9 +853,9 @@ class ErrorBoundary extends Component {
 // ─── ROOT ─────────────────────────────────────────────────────────────────────
 export default function App() {
   const [user,      setUser]      = useState(null);
-  const [lang, setLangState] = useState(localStorage.getItem("kai_lang") || "es-CO");
+  const [lang, setLangState] = useState(() => { const v = localStorage.getItem("kai_lang") || "es-CO"; document.documentElement.lang = v.startsWith('en') ? 'en' : 'es'; return v; });
   const t = getT(lang);
-  const setLang = (next) => { const v = next === "en" ? "en" : "es-CO"; setLangState(v); localStorage.setItem("kai_lang", v); if (user?.uid) api.put("/api/users/preference", { uid:user.uid, email:user.email, name:user.name, language:v }).catch(()=>{}); };
+  const setLang = (next) => { const v = next === "en" ? "en" : "es-CO"; setLangState(v); localStorage.setItem("kai_lang", v); document.documentElement.lang = v.startsWith('en') ? 'en' : 'es'; if (user?.uid) api.put("/api/users/preference", { uid:user.uid, email:user.email, name:user.name, language:v }).catch(()=>{}); };
   const [authLoading, setAuthLoading] = useState(true);
   const [listings,  setListings]  = useState([]);
   const [incidents, setIncidents] = useState([]);
@@ -1371,7 +1371,7 @@ export default function App() {
 
       {/* LoginModal removed — Google popup handles auth directly */}
       {modal?.type==="addListing" && <ListingModal title={appText(lang,"listings.add")} lang={lang} config={adminInfo.config} user={user} onSave={addListing} onClose={()=>setModal(null)} />}
-      {modal?.type==="editListing" && <ListingModal title={lang === "en" ? "Edit apartment" : "Editar apartamento"} lang={lang} config={adminInfo.config} user={user} initial={modal.data} onSave={d=>editListing(modal.data.id, modal.data.ownerUid, d)} onClose={()=>setModal(null)} />}
+      {modal?.type==="editListing" && <ListingModal title={appText(lang,"modal.listing.editTitle")} lang={lang} config={adminInfo.config} user={user} initial={modal.data} onSave={d=>editListing(modal.data.id, modal.data.ownerUid, d)} onClose={()=>setModal(null)} />}
       {modal?.type==="incident" && <IncidentModal lang={lang} config={adminInfo.config} listings={listings} user={user} presetApt={modal.data?.aptId} onSave={addIncident} onClose={()=>setModal(null)} />}
       {modal?.type==="verifyIncident" && <VerifyIncidentModal lang={lang} config={adminInfo.config} incident={modal.data} onSave={payload=>verifyIncident(modal.data.id,payload)} onClose={()=>setModal(null)} />}
       {modal?.type==="addResolution" && <AddResolutionModal lang={lang} incident={modal.data} onSave={text=>addResolution(modal.data.id,text)} onClose={()=>setModal(null)} />}
@@ -2348,7 +2348,7 @@ function MyListings({ listings, incidents, user, contactProps={}, isGlobalAdmin=
               return (
                 <div key={l.id} className={`ml-listing${isSel?' ml-listing-sel':''}`}>
                   <div className="ml-listing-row apt-cpop-wrap" onClick={()=>setSelectedId(isSel?null:l.id)}>
-                    <div className="ml-listing-apt">Apt {l.apt}</div>
+                    <div className="ml-listing-apt">{isEn?'Unit':'Unidad'} {l.apt}</div>
                     <div className="ml-listing-chips">
                       <span className="chip c-teal">🛏️ {l.rooms}</span>
                       <span className="chip c-blue">👥 {l.guests}</span>
@@ -2521,7 +2521,7 @@ function AptDetailPanel({ l, incidents, contactProps={}, canEdit, canDelete, onE
     <div className="adp-wrap">
       <div className="adp-header">
         <div className="adp-apt-id">
-          <span className="adp-apt-num">Apt {l.apt}</span>
+          <span className="adp-apt-num">{isEn?'Unit':'Unidad'} {l.apt}</span>
           <span className="chip c-teal">🛏️ {l.rooms}</span>
           <span className="chip c-blue">👥 {l.guests}</span>
           {l.airbnb && <a className="adp-airbnb-lnk" href={l.airbnb} target="_blank" rel="noreferrer" title="Airbnb">🔗</a>}
@@ -2673,7 +2673,7 @@ function AptRow({ l, incCount, user, contactProps={}, isGlobalAdmin=false, canEd
   return (
     <div className={`fls-row${expanded?' fls-row-open':''}`}>
       <div className="fls-row-main apt-cpop-wrap" onClick={()=>setExpanded(x=>!x)} role="button" aria-expanded={expanded}>
-        <span className="fls-apt-num">Apt {l.apt}</span>
+        <span className="fls-apt-num">{isEn?'Unit':'Unidad'} {l.apt}</span>
         <span className="fls-owner-wrap"><UserContact name={l.owner} uid={l.ownerUid} email={l.userEmail||l.email} whatsapp={l.contact} apartments={l.apt?[aptDisplay(l.apt,lang)]:[]} {...contactProps}/></span>
         {hasOp&&<span className="fls-op-pill">🔧 {l.operator||'—'}</span>}
         <span className="fls-row-chips"><span className="chip c-teal">🛏️ {l.rooms}</span><span className="chip c-blue">👥 {l.guests}</span></span>
