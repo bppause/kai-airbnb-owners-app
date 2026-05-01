@@ -164,7 +164,7 @@ const PERMISSION_LABELS = {
   canDeleteGlobalIncidents: { es:'Eliminar incidentes globales', en:'Delete global incidents' },
 };
 const MENU_LABELS = {
-  dashboard:{es:'Dashboard',en:'Dashboard'}, listings:{es:'Apartamentos',en:'Apartments'}, incidents:{es:'Reportes',en:'Reports'}, notifications:{es:'Avisos',en:'Alerts'}, about:{es:'Misión',en:'Mission'}, my:{es:'Mis propiedades',en:'My listings'}, analytics:{es:'Analíticas',en:'Analytics'}
+  dashboard:{es:'Dashboard',en:'Dashboard'}, listings:{es:'Inventario',en:'Inventory'}, incidents:{es:'Incidentes',en:'Incidents'}, notifications:{es:'Alertas',en:'Alerts'}, about:{es:'Misión',en:'Mission'}, my:{es:'Mis Unidades',en:'My Units'}, analytics:{es:'Analíticas',en:'Analytics'}
 };
 const TXT = {
   "es-CO": {
@@ -173,7 +173,7 @@ const TXT = {
     loginHero:"Estamos construyendo una comunidad de propietarios comprometidos con la excelencia en la operación, el cuidado de nuestras propiedades y una mejor experiencia para nuestros huéspedes.",
     rulesTitle:"📌 Normas de uso de la comunidad", firstAccess:"⏳ Primer acceso:", firstAccessText:"al iniciar sesión por primera vez deberás registrar al menos una propiedad. Tu solicitud quedará pendiente de aprobación antes de acceder a la plataforma.",
     secure:"🔐 Para proteger la información de la comunidad, primero debes iniciar sesión con Google.", google:"Continuar con Google",
-    nav:{dashboard:"Dashboard",about:"Misión",listings:"Apartamentos",incidents:"Reportes",notifications:"Avisos",approvals:"Registros",admin:"Admin",analytics:"Analíticas",my:"Mis propiedades",help:"Ayuda"},
+    nav:{dashboard:"Dashboard",about:"Misión",listings:"Inventario",incidents:"Incidentes",notifications:"Alertas",approvals:"Registros",admin:"Admin",analytics:"Analíticas",my:"Mis Unidades",help:"Ayuda"},
     cards:[['🏡','Gestión centralizada','Organizar apartamentos, contactos, emails de notificación y enlaces importantes en un solo lugar.'],['⚠️','Reportes transparentes','Documentar incidentes de manera rápida para que el propietario correcto reciba aviso y pueda tomar acción.'],['🤝','Colaboración comunitaria','Compartir información útil entre propietarios aprobados para operar mejor y prevenir problemas repetidos.'],['📊','Mejora continua','Usar datos y tendencias para elevar la calidad del servicio, la comunicación y la experiencia del huésped.']],
     rules:['Reporta incidentes con información clara, objetiva y verificable.','Usa la plataforma con respeto, responsabilidad y enfoque constructivo.','Evita contenido innecesario, ofensivo o no relacionado con la operación.','Colabora para proteger el valor de nuestras propiedades y mejorar el servicio.'],
     missionTitle:"🌊 Misión y normas de la comunidad", missionSub:"Referencia para propietarios aprobados · Propietarios Airbnb KAI", missionHeading:"Crear una comunidad organizada, informada y proactiva.", missionBody:"La aplicación ayuda a proteger el valor de nuestras propiedades, mejorar la coordinación entre propietarios y elevar la experiencia de los huéspedes en Morros KAI."
@@ -184,7 +184,7 @@ const TXT = {
     loginHero:"We are building a community of owners committed to operational excellence, property care, and a better guest experience.",
     rulesTitle:"📌 Community engagement rules", firstAccess:"⏳ First access:", firstAccessText:"when you sign in for the first time, you must register at least one property. Your request will remain pending approval before you can access the platform.",
     secure:"🔐 To protect community information, you must first sign in with Google.", google:"Continue with Google",
-    nav:{dashboard:"Dashboard",about:"Mission",listings:"Apartments",incidents:"Reports",notifications:"Alerts",approvals:"Registrations",admin:"Admin",analytics:"Analytics",my:"My listings",help:"Help"},
+    nav:{dashboard:"Dashboard",about:"Mission",listings:"Inventory",incidents:"Incidents",notifications:"Alerts",approvals:"Registrations",admin:"Admin",analytics:"Analytics",my:"My Units",help:"Help"},
     cards:[['🏡','Centralized management','Organize apartments, contacts, notification emails, and important links in one place.'],['⚠️','Transparent reports','Document incidents quickly so the correct owner receives notice and can take action.'],['🤝','Community collaboration','Share useful information among approved owners to operate better and prevent repeated issues.'],['📊','Continuous improvement','Use data and trends to improve service quality, communication, and guest experience.']],
     rules:['Report incidents with clear, objective, and verifiable information.','Use the platform respectfully, responsibly, and constructively.','Avoid unnecessary, offensive, or non-operational content.','Collaborate to protect property value and improve service.'],
     missionTitle:"🌊 Mission and community rules", missionSub:"Reference for approved owners · KAI Airbnb Owners", missionHeading:"Create an organized, informed, and proactive community.", missionBody:"The app helps protect the value of our properties, improve coordination among owners, and elevate the guest experience at Morros KAI."
@@ -242,7 +242,7 @@ const APP_I18N = {
   "dashboard.view": { es:"Ver →", en:"View →" },
   "dashboard.noReports": { es:"Sin reportes", en:"No reports" },
 
-  "my.title": { es:"🔑 Mis propiedades e incidentes", en:"🔑 My listings and incidents" },
+  "my.title": { es:"🏠 Mis Unidades", en:"🏠 My Units" },
   "my.units": { es:"unidades", en:"units" },
   "my.guestsTotal": { es:"huéspedes total", en:"total guests" },
   "my.addApt": { es:"＋ Agregar apto", en:"＋ Add apt" },
@@ -251,8 +251,8 @@ const APP_I18N = {
   "my.noApts": { es:"Sin apartamentos", en:"No apartments" },
   "my.addFirst": { es:"Agrega tu primera unidad", en:"Add your first unit" },
 
-  "listings.title": { es:"Inventario de Apartamentos", en:"Apartment Inventory" },
-  "listings.subtitle": { es:"Todas las unidades · Morros KAI · {count} registradas", en:"All units · Morros KAI · {count} registered" },
+  "listings.title": { es:"🏢 Inventario de Unidades", en:"🏢 Unit Inventory" },
+  "listings.subtitle": { es:"Morros KAI · {count} unidades registradas", en:"Morros KAI · {count} registered units" },
   "listings.add": { es:"＋ Agregar apto", en:"＋ Add apt" },
   "listings.search": { es:"🔍 Buscar por número de apto o propietario...", en:"🔍 Search by apartment number or owner..." },
   "incidents.search": { es:"🔍 Buscar por apto, propietario, huésped, ciudad, país, tipo...", en:"🔍 Search by apartment, owner, guest, city, country, type..." },
@@ -277,10 +277,10 @@ const APP_I18N = {
   "listing.operatorWhatsapp": { es:"WhatsApp operador", en:"Operator WhatsApp" },
   "listing.openLink": { es:"Abrir enlace", en:"Open link" },
 
-  "reports.title": { es:"Reportes de Incidentes", en:"Incident Reports" },
-  "reports.subtitle": { es:"Historial completo · {total} total · {open} abiertos", en:"Full history · {total} total · {open} open" },
+  "reports.title": { es:"📋 Gestión de Incidentes", en:"📋 Incident Management" },
+  "reports.subtitle": { es:"Historial completo · {total} total · {open} activos", en:"Full history · {total} total · {open} active" },
   "reports.new": { es:"＋ Nuevo reporte", en:"＋ New report" },
-  "reports.reportIncident": { es:"⚠️ Reportar incidente", en:"⚠️ Report incident" },
+  "reports.reportIncident": { es:"⚠️ Reportar incidente", en:"⚠️ File a report" },
   "actions.ownerVerificationTitle": { es:"Incidentes pendientes de verificación", en:"Incidents requiring owner verification" },
   "actions.ownerVerificationMsg": { es:"Tienes {count} incidente(s) que requieren verificación del propietario.", en:"You have {count} incident(s) requiring owner verification." },
   "actions.resolveTitle": { es:"Incidentes listos para resolver", en:"Incidents ready to resolve" },
@@ -320,12 +320,12 @@ const APP_I18N = {
   "smart.live": { es:"En vivo", en:"Live" },
   "smart.none": { es:"Sin acciones pendientes", en:"No pending actions" },
   "smart.noneSub": { es:"Todo está al día. Las alertas aparecerán aquí cuando requieran atención.", en:"Everything is up to date. Alerts will appear here when attention is needed." },
-  "smart.ownerTitle": { es:"Verificación de propietario requerida", en:"Owner verification required" },
-  "smart.ownerMsg": { es:"{count} incidente(s) abierto(s) necesitan confirmación del propietario.", en:"{count} open incident(s) need owner confirmation." },
-  "smart.ownerResolutionTitle": { es:"Resolución del propietario pendiente", en:"Owner resolution pending" },
-  "smart.ownerResolutionMsg": { es:"{count} incidente(s) verificado(s) esperan que agregues la resolución para poder cerrarse.", en:"{count} verified incident(s) are waiting for your resolution note before they can be closed." },
-  "smart.resolveTitle": { es:"Listos para cerrar", en:"Ready to close" },
-  "smart.resolveMsg": { es:"{count} incidente(s) verificado(s) con resolución del propietario — listos para resolución administrativa.", en:"{count} verified incident(s) with owner resolution — ready for admin closure." },
+  "smart.ownerTitle": { es:"Acción del propietario requerida", en:"Owner action required" },
+  "smart.ownerMsg": { es:"{count} incidente(s) en tus unidades esperan tu confirmación y documentación de acción tomada.", en:"{count} incident(s) on your units need your confirmation and action documentation." },
+  "smart.ownerResolutionTitle": { es:"Resolución pendiente de documentar", en:"Resolution pending documentation" },
+  "smart.ownerResolutionMsg": { es:"{count} incidente(s) verificado(s) requieren que documentes el resultado antes de que administración pueda cerrarlos.", en:"{count} verified incident(s) require you to document the outcome before management can close them." },
+  "smart.resolveTitle": { es:"Listos para cierre administrativo", en:"Ready for management closure" },
+  "smart.resolveMsg": { es:"{count} incidente(s) documentados por el propietario — listos para revisión y cierre por administración.", en:"{count} incident(s) documented by owner — ready for management review and closure." },
   "smart.registrationTitle": { es:"Registros pendientes", en:"Pending registrations" },
   "smart.registrationMsg": { es:"{count} solicitud(es) de registro esperan aprobación o rechazo.", en:"{count} registration request(s) need approval or decline." },
   "smart.unreadTitle": { es:"Avisos sin leer", en:"Unread alerts" },
@@ -403,9 +403,9 @@ const APP_I18N = {
   "analytics.table.nextSla": { es:"Próximo SLA", en:"Next SLA" },
   "analytics.table.desc": { es:"Descripción", en:"Description" },
 
-  "modal.report.title": { es:"⚠️ Reportar Incidente", en:"⚠️ Report Incident" },
-  "modal.report.sub": { es:"Por: {name} · Visible para toda la comunidad", en:"By: {name} · Visible to the whole community" },
-  "modal.report.help": { es:"Completa apartamento, fecha, tipo, categoría y descripción. El propietario confirmará luego el nombre del huésped, ciudad y país.", en:"Complete apartment, date, type, category, and description. The owner will later confirm guest name, city, and country." },
+  "modal.report.title": { es:"📋 Registrar Incidente", en:"📋 File an Incident Report" },
+  "modal.report.sub": { es:"Por: {name} · Registro formal de incidente · Morros KAI", en:"By: {name} · Formal incident record · Morros KAI" },
+  "modal.report.help": { es:"Selecciona la unidad, fecha, categoría y usa una plantilla como punto de partida. El propietario confirmará los datos del huésped en el paso de verificación.", en:"Select the unit, date, category, and use a template as a starting point. The owner will confirm guest details in the verification step." },
   "form.apartment": { es:"🏠 Apartamento *", en:"🏠 Apartment *" },
   "form.select": { es:"Seleccionar...", en:"Select..." },
   "form.date": { es:"📅 Fecha *", en:"📅 Date *" },
@@ -416,8 +416,8 @@ const APP_I18N = {
   "form.cancel": { es:"Cancelar", en:"Cancel" },
   "form.registerReport": { es:"⚠️ Registrar reporte", en:"⚠️ Submit report" },
   "form.saveVerification": { es:"Guardar verificación", en:"Save verification" },
-  "modal.verify.title": { es:"✅ Verificar incidente", en:"✅ Verify incident" },
-  "modal.verify.sub": { es:"{apt} · El SLA se detendrá cuando verifiques el incidente.", en:"{apt} · The SLA will stop when you verify the incident." },
+  "modal.verify.title": { es:"✅ Confirmar y documentar acción", en:"✅ Confirm & document action" },
+  "modal.verify.sub": { es:"{apt} · Confirma los datos del huésped y documenta la acción que tomaste.", en:"{apt} · Confirm guest details and document the action you took." },
   "modal.verify.help": { es:"Confirma los datos del huésped y describe la acción inmediata tomada (requerida). La resolución propuesta es opcional al verificar, pero un administrador solo podrá cerrar el incidente una vez que la agregues.", en:"Confirm the guest details and describe the immediate action taken (required). The proposed resolution is optional at verification, but an admin can only close the incident once you add it." },
   "form.guestNames": { es:"👥 Huésped(es) confirmado(s) *", en:"👥 Confirmed guest(s) *" },
   "form.guestNamesPlaceholder": { es:"Nombre de huésped 1, huésped 2...", en:"Guest 1 name, guest 2 name..." },
@@ -2163,18 +2163,24 @@ function DashboardGreeting({ user, lang, role, pendingOwner=0, pendingResolve=0,
   let msg = '';
 
   if (role==='standard') {
+    const parts=[], pills=[];
     if (pendingOwner>0) {
-      msg = isEn
-        ? `You have ${pendingOwner} incident${pendingOwner>1?'s':''} waiting for your verification.`
-        : `Tienes ${pendingOwner} incidente${pendingOwner>1?'s':''} esperando tu verificación.`;
-      urgentPills.push(<button key="verify" className="dg-pill dg-pill-amber" onClick={onOwnerClick}>✅ {isEn?`Verify ${pendingOwner} incident${pendingOwner>1?'s':''}`:`Verificar ${pendingOwner} incidente${pendingOwner>1?'s':''}`}</button>);
-    } else if (myOpenCount>0) {
-      msg = isEn
-        ? `Your listings have ${myOpenCount} open report${myOpenCount>1?'s':''}. No immediate action needed from you.`
-        : `Tus listings tienen ${myOpenCount} reporte${myOpenCount>1?'s':''} abierto${myOpenCount>1?'s':''}. Sin acción inmediata de tu parte.`;
-      urgentPills.push(<button key="open" className="dg-pill dg-pill-red" onClick={()=>setView('incidents')}>⚠️ {isEn?`View ${myOpenCount} report${myOpenCount>1?'s':''}`:`Ver ${myOpenCount} reporte${myOpenCount>1?'s':''}`}</button>);
+      parts.push(isEn?`${pendingOwner} incident${pendingOwner>1?'s':''} need your verification`:`${pendingOwner} incidente${pendingOwner>1?'s':''} esperan tu verificación`);
+      pills.push(<button key="verify" className="dg-pill dg-pill-amber" onClick={onOwnerClick}>✅ {isEn?`Verify now (${pendingOwner})`:`Verificar ahora (${pendingOwner})`}</button>);
+    }
+    if (pendingResolve>0) {
+      parts.push(isEn?`${pendingResolve} verified — add your resolution`:`${pendingResolve} verificado${pendingResolve>1?'s':''} — agrega tu resolución`);
+      pills.push(<button key="res" className="dg-pill dg-pill-amber" onClick={()=>setView('incidents')}>📝 {isEn?`Add resolution (${pendingResolve})`:`Agregar resolución (${pendingResolve})`}</button>);
+    }
+    if (myOpenCount>0 && pendingOwner===0) {
+      parts.push(isEn?`${myOpenCount} open report${myOpenCount>1?'s':''} on your units`:`${myOpenCount} reporte${myOpenCount>1?'s':''} abierto${myOpenCount>1?'s':''} en tus unidades`);
+      if (pills.length===0) pills.push(<button key="open" className="dg-pill dg-pill-red" onClick={()=>setView('incidents')}>⚠️ {isEn?`View reports`:`Ver reportes`}</button>);
+    }
+    urgentPills.push(...pills);
+    if (parts.length>0) {
+      msg = (isEn?'Action needed: ':'Acción requerida: ')+parts.join(' · ')+'.';
     } else {
-      msg = isEn ? "You're all caught up — no pending actions today! 🎉" : "¡Estás al día — sin acciones pendientes hoy! 🎉";
+      msg = isEn ? "All units clear — no pending actions today! 🎉" : "¡Unidades al día — sin acciones pendientes hoy! 🎉";
     }
   } else if (role==='delegate') {
     const parts = [];
@@ -2217,16 +2223,24 @@ function Dashboard({ listings, incidents, user, contactProps={}, setView, onRepo
   pendingOwner=0, pendingResolve=0, pendingRegistrations=0,
   canResolve=false, canManageRegistrations=false,
   onOwnerClick=()=>{}, onResolveClick=()=>{}, onRegistrationsClick=()=>{} }) {
-  const open=incidents.filter(i=>i.status==="open"), naughty=incidents.filter(i=>i.category==="naughty"), resolved=incidents.filter(i=>i.status==="resolved");
-  const totalCap=listings.reduce((a,l)=>a+(l.guests||0),0);
-  const recent=[...incidents].sort((a,b)=>new Date(b.createdAt)-new Date(a.createdAt)).slice(0,4);
-  // Owner-specific counts for DashboardFocus
+  const isEn = lang==='en';
+  const open     = incidents.filter(i=>i.status==="open");
+  const resolved = incidents.filter(i=>i.status==="resolved");
+  const pendingRes = incidents.filter(i=>i.status==="verified"&&!String(i.ownerResolution||'').trim());
+  const recent   = [...incidents].sort((a,b)=>new Date(b.createdAt)-new Date(a.createdAt)).slice(0,5);
   const myListings = user ? listings.filter(l=>l.ownerUid===user.uid) : [];
   const myOpen = incidents.filter(i=>myListings.some(l=>l.id===i.aptId)&&i.status==="open");
   const dashRole = effectiveIsGlobalAdmin ? 'global' : effectiveRole==='delegate_admin' ? 'delegate' : 'standard';
+
+  const stats = [
+    { icon:"🏠", val:listings.length,    label:isEn?"Registered units":"Unidades registradas", color:"#2a9aaa", click:()=>setView("listings") },
+    { icon:"⚠️", val:open.length,        label:isEn?"Open reports":"Reportes abiertos",         color:"#d4634a", click:()=>setView("incidents") },
+    { icon:"⏳", val:pendingRes.length,   label:isEn?"Pending resolution":"Pendiente resolución", color:"#e07b2a", click:()=>setView("incidents") },
+    { icon:"✅", val:resolved.length,     label:isEn?"Closed this cycle":"Cerrados",              color:"#2e7d32" },
+  ];
+
   return (
     <div className="fade">
-      {/* ── Personalised greeting ── */}
       <div className="ph" style={{alignItems:'flex-start',flexWrap:'wrap',gap:10}}>
         <div style={{flex:1,minWidth:0}}>
           <h1 className="ptitle" style={{fontSize:'1.5rem',marginBottom:4}}>{appText(lang,"dashboard.title")}</h1>
@@ -2234,44 +2248,33 @@ function Dashboard({ listings, incidents, user, contactProps={}, setView, onRepo
         </div>
         {user&&<button className="btn-p btn-report" title={localizedTooltips({},lang).reportIncident} onClick={onReport}>{appText(lang,"dashboard.reportIncident")}</button>}
       </div>
+
       {user && <DashboardGreeting user={user} lang={lang} role={dashRole} pendingOwner={pendingOwner} pendingResolve={pendingResolve} pendingRegistrations={pendingRegistrations} myOpenCount={myOpen.length} onOwnerClick={onOwnerClick} onResolveClick={onResolveClick} onRegistrationsClick={onRegistrationsClick} setView={setView}/>}
+
       <DashboardFocus lang={lang} effectiveIsGlobalAdmin={effectiveIsGlobalAdmin} effectiveRole={effectiveRole} delegatePerms={delegatePerms} pendingOwner={pendingOwner} pendingResolve={pendingResolve} pendingRegistrations={pendingRegistrations} openCount={open.length} myListingCount={myListings.length} myOpenCount={myOpen.length} canResolve={canResolve} canManageRegistrations={canManageRegistrations} onOwnerClick={onOwnerClick} onResolveClick={onResolveClick} onRegistrationsClick={onRegistrationsClick} onOpenClick={()=>setView('incidents')} setView={setView} />
-      <div className="stats6">
-        {[{icon:"🏠",val:listings.length,label:appText(lang,"dashboard.apartments"),color:"#2a9aaa",click:()=>setView("listings")},{icon:"👥",val:totalCap,label:appText(lang,"dashboard.capacity"),color:"#c9a84c"},{icon:"⚠️",val:open.length,label:appText(lang,"dashboard.openReports"),color:"#d4634a",click:()=>setView("incidents")},...(showBlacklist?[{icon:"😈",val:naughty.length,label:appText(lang,"dashboard.blacklist"),color:"#b71c1c",click:()=>setView("naughty")}]:[]),{icon:"✅",val:resolved.length,label:appText(lang,"dashboard.resolved"),color:"#2e7d32"},{icon:"🔗",val:listings.filter(l=>l.airbnb).length,label:appText(lang,"dashboard.onAirbnb"),color:"#FF5A5F"}].map((s,i)=>(
+
+      {/* ── Community health stats — 4 focused metrics ── */}
+      <div className="stats6" style={{gridTemplateColumns:'repeat(auto-fit,minmax(140px,1fr))'}}>
+        {stats.map((s,i)=>(
           <div key={i} className="scard" style={{borderTop:`3px solid ${s.color}`,cursor:s.click?"pointer":"default"}} onClick={s.click}>
-            <div style={{fontSize:"1.5rem"}}>{s.icon}</div><div className="sval" style={{color:s.color}}>{s.val}</div><div className="slabel">{s.label}</div>
+            <div style={{fontSize:"1.5rem"}}>{s.icon}</div>
+            <div className="sval" style={{color:s.color}}>{s.val}</div>
+            <div className="slabel">{s.label}</div>
           </div>
         ))}
       </div>
-      <div className="two-col">
-        <div className="card"><div className="card-hdr"><span className="card-title">{appText(lang,"dashboard.recentReports")}</span><button className="lnk" onClick={()=>setView("incidents")}>{appText(lang,"dashboard.viewAll")}</button></div>{recent.length===0?<Empty icon="✅" msg={appText(lang,"dashboard.noReports")}/>:recent.map(i=><IRow key={i.id} inc={i} compact lang={lang}/>)}</div>
-        <div className="card"><div className="card-hdr"><span className="card-title">🏠 {appText(lang,"dashboard.apartments")}</span><button className="lnk" onClick={()=>setView("listings")}>{appText(lang,"dashboard.viewAll")}</button></div>
-          {[...listings].sort((a,b)=>a.apt.localeCompare(b.apt)).map(l=>{
-            const waDigits = normalizePhoneForWhatsApp(l.contact||'');
-            return (
-              <div key={l.id} className="apt-row">
-                <div className="ar-info">
-                  <div className="ar-apt">{appText(lang,"listing.apt")} {l.apt}</div>
-                  <div className="ar-meta">
-                    <UserContact name={l.owner} uid={l.ownerUid} email={l.email} whatsapp={l.contact}
-                      apartments={l.apt?[aptDisplay(l.apt,lang)]:[]} {...contactProps}/>
-                    <div className="ar-chips">
-                      <span className="chip c-teal">🛏️ {l.rooms}</span>
-                      <span className="chip c-blue">👥 {l.guests}</span>
-                    </div>
-                  </div>
-                </div>
-                <div className="ar-actions">
-                  {l.email && <a href={`mailto:${l.email}`} className="ar-act" target="_blank" rel="noreferrer" title={l.email} aria-label="Email">✉️</a>}
-                  {waDigits && <a href={`https://wa.me/${waDigits}`} className="ar-act ar-act-wa" target="_blank" rel="noreferrer" title={l.contact} aria-label="WhatsApp">💬</a>}
-                  {l.airbnb && <a href={l.airbnb} className="ar-act ar-act-ab" target="_blank" rel="noreferrer" title="Airbnb" aria-label="Airbnb">↗</a>}
-                </div>
-              </div>
-            );
-          })}
+
+      {/* ── Recent incident activity ── */}
+      <div className="card">
+        <div className="card-hdr">
+          <span className="card-title">🕐 {isEn?'Recent incident activity':'Actividad reciente de incidentes'}</span>
+          <button className="lnk" onClick={()=>setView("incidents")}>{appText(lang,"dashboard.viewAll")}</button>
         </div>
+        {recent.length===0
+          ? <Empty icon="✅" msg={appText(lang,"dashboard.noReports")}/>
+          : recent.map(i=><IRow key={i.id} inc={i} compact lang={lang}/>)
+        }
       </div>
-      {showBlacklist&&naughty.length>0&&<div className="card ncard"><div className="card-hdr"><span className="card-title" style={{color:"#ff6b6b"}}>😈 {appText(lang,"dashboard.blacklist")}</span><button className="lnk" onClick={()=>setView("naughty")}>{appText(lang,"dashboard.view")}</button></div><div className="nrow">{naughty.slice(0,4).map(i=><div key={i.id} className="npill"><div style={{fontSize:"1.2rem"}}>😈</div><div><div className="np-name">{i.guestName}</div><div className="np-loc">📍 {i.guestCity}, {i.guestCountry}</div><div className="np-apt">{i.aptLabel}</div></div></div>)}</div></div>}
     </div>
   );
 }
@@ -2943,9 +2946,9 @@ function IncidentsView({ incidents, listings, user, quickFilter=null, onQuickFil
         : (isEn?`${verifiedReady} ready to close`:`${verifiedReady} listos para cerrar`);
 
   const wfGroups = [
-    { key:'open',     icon:'⚠️', color:'#d9a030', label:appText(lang,'workflow.open'),     sublabel:isEn?'Pending owner verification':'Pendiente verificación del propietario' },
-    { key:'verified', icon:'👤', color:'#0b7f4f', label:appText(lang,'workflow.verified'),  sublabel:verifiedSublabel },
-    { key:'resolved', icon:'✓',  color:'#6a9a7a', label:appText(lang,'workflow.resolved'),  sublabel:isEn?'Closed incidents':'Incidentes cerrados' },
+    { key:'open',     icon:'⚠️', color:'#d4634a', label:isEn?'1 · New — Action required':'1 · Nuevo — Acción requerida',  sublabel:isEn?'Owner must verify and document immediate action':'El propietario debe verificar y documentar acción tomada' },
+    { key:'verified', icon:'👤', color:'#0b7f4f', label:isEn?'2 · In Progress':'2 · En Progreso',                          sublabel:verifiedSublabel },
+    { key:'resolved', icon:'✓',  color:'#2e7d32', label:isEn?'3 · Closed':'3 · Cerrado',                                   sublabel:isEn?'Resolved and filed by management':'Resuelto y archivado por administración' },
   ];
 
   return (
@@ -3138,9 +3141,10 @@ function IRow({ inc, user, listings=[], contactProps={}, isGlobalAdmin=false, ca
         <div className="ir-tags">
           <span className="ir-type" style={{background:ti.bg,color:ti.color}}>{tiLabel}</span>
           {ci&&<span className="ir-cat" style={{background:ci.bg,color:ci.color}}>{ci.icon} {ciLabel}</span>}
-          <span className={`ir-status ${inc.status==="open"?"is-open":inc.status==="resolved"?"is-resolved":"is-verified"}`}>
-            {inc.status==="open"?(isEn?"⚠️ Open":"⚠️ Abierto"):inc.status==="verified"?(isEn?"✅ Verified":"✅ Verificado"):(isEn?"🛠️ Resolved":"🛠️ Resuelto")}
-          </span>
+          {inc.status==="open"&&<span className="ir-status is-open">{isEn?"⚠️ New":"⚠️ Nuevo"}</span>}
+          {inc.status==="verified"&&!String(inc.ownerResolution||'').trim()&&<span className="ir-status is-pending-res">{isEn?"⏳ Add resolution":"⏳ Agregar resolución"}</span>}
+          {inc.status==="verified"&& String(inc.ownerResolution||'').trim()&&<span className="ir-status is-verified">{isEn?"👤 In review":"👤 En revisión"}</span>}
+          {inc.status==="resolved"&&<span className="ir-status is-resolved">{isEn?"✓ Closed":"✓ Cerrado"}</span>}
           {inc.slaCycleCount>0&&<span className="ir-cat" style={{background:"#fff3e0",color:"#e65100"}}>⏱️ SLA {inc.slaCycleCount}</span>}
         </div>
         {!compact&&<div className="ir-desc">{inc.desc}</div>}
@@ -3879,8 +3883,9 @@ const CSS = `
 .fchip-resolve.fchip-on{background:#0b7f4f!important;border-color:#0b7f4f!important;}
 .ir-type,.ir-cat,.ir-status,.chip{font-weight:800!important;border:1px solid rgba(0,0,0,.06);}
 .is-open{background:#ffe2d7!important;color:#b83215!important;}
+.is-pending-res{background:#fff3e0!important;color:#e07b2a!important;}
 .is-verified{background:#dff5e4!important;color:#1f7a35!important;}
-.is-resolved,.is-res{background:#d8f2f5!important;color:#0a6673!important;}
+.is-resolved,.is-res{background:#e8f5e9!important;color:#2e7d32!important;}
 .bs-resolve{background:#dff5e4!important;color:#1f7a35!important;font-weight:800;}
 .bs-del{background:#f7d6d2!important;color:#9d1f16!important;font-weight:800;}
 .bs-edit{background:#f7edc8!important;color:#8a6a00!important;font-weight:800;}
