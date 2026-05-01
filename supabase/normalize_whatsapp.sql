@@ -61,7 +61,7 @@ WHERE operator_whatsapp IS NOT NULL AND operator_whatsapp != '' AND operator_wha
 UNION ALL
 SELECT
   'app_users.whatsapp',
-  app_users.id::text,
+  app_users.uid,
   '',
   app_users.name,
   app_users.whatsapp
