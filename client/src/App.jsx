@@ -2629,6 +2629,7 @@ function UnitDetailCard({ l, incidents, canEdit=false, canDelete=false, onEdit, 
     <nav className="udc-breadcrumb" aria-label="breadcrumb">
       {crumbs.map((c,i)=>(
         <span key={i} className="udc-bc-item">
+          {i>0&&<span className="udc-bc-sep">›</span>}
           {c.onClick
             ? <button type="button" className="udc-bc-link" onClick={c.onClick}>‹ {c.label}</button>
             : <span className="udc-bc-current">{c.label}</span>
