@@ -2744,12 +2744,12 @@ function UnitDetailCard({ l, incidents, canEdit=false, canDelete=false, onEdit, 
       ? {label: isEn?'Verified — resolution needed':'Verificado — falta respuesta', cls:'idd-status-pres', icon:'📝'}
       : {label: isEn?'Awaiting admin close':'En espera del admin', cls:'idd-status-wait', icon:'⏳'};
 
+    // Timeline step: icon lives inside the dot circle, title + timestamp inline
     const TlStep = ({icon, title, ts, accent, children}) => (
       <div className={`idd-tl-step${accent?' idd-tl-'+accent:''}`}>
-        <div className="idd-tl-dot"></div>
+        <div className="idd-tl-dot">{icon}</div>
         <div className="idd-tl-body">
           <div className="idd-tl-header">
-            <span className="idd-tl-icon">{icon}</span>
             <span className="idd-tl-title">{title}</span>
             {ts&&<span className="idd-tl-ts">{fmtDateTime(ts, lang)}</span>}
           </div>
@@ -2759,30 +2759,36 @@ function UnitDetailCard({ l, incidents, canEdit=false, canDelete=false, onEdit, 
     );
 
     return (
-      <div className="udc-wrap">
-        <UnitHero/>
-        <Breadcrumb crumbs={[
-          {label:`${isEn?'Unit':'Unidad'} ${l.apt}`, onClick: goToInfo},
-          {label: isEn?'Incidents':'Incidentes', onClick: goToList},
-          {label: `${ti.icon||''} ${incidentTypeLabel(ti.value,lang)}`}
-        ]}/>
+      <div className="udc-wrap idd-wrap">
+        {/* ── Compact header bar instead of full UnitHero at step 3 ── */}
+        <div className="idd-top-bar">
+          <div className="idd-top-plate">
+            <span className="idd-top-num">{l.apt}</span>
+            <span className="idd-top-tower">{l.tower||'KAI'}</span>
+          </div>
+          <div className="idd-top-breadcrumb">
+            <button type="button" className="idd-bc-btn" onClick={goToInfo}>{isEn?'Unit':'Unidad'} {l.apt}</button>
+            <span className="idd-bc-sep">›</span>
+            <button type="button" className="idd-bc-btn" onClick={goToList}>{isEn?'Incidents':'Incidentes'}</button>
+            <span className="idd-bc-sep">›</span>
+            <span className="idd-bc-cur">{incidentTypeLabel(ti.value,lang)}</span>
+          </div>
+        </div>
 
-        {/* ── Status banner ── */}
+        {/* ── Status + meta row ── */}
         <div className={`idd-status-banner ${statusMeta.cls}`}>
           <span className="idd-status-icon">{statusMeta.icon}</span>
           <span className="idd-status-label">{statusMeta.label}</span>
+          <div className="idd-status-chips">
+            <span className="ir-type" style={{background:ti.bg,color:ti.color,padding:'3px 9px',borderRadius:'999px',fontSize:'.67rem',fontWeight:700}}>{ti.icon||''} {incidentTypeLabel(ti.value,lang)}</span>
+            {ci&&<span className="ir-cat" style={{background:ci.bg,color:ci.color,padding:'3px 9px',borderRadius:'999px',fontSize:'.67rem'}}>{ci.icon} {categoryLabel(ci.value,lang)}</span>}
+            <span className="idd-chip-date">📅 {fmtDate(inc.date)}</span>
+          </div>
         </div>
 
-        {/* ── Meta chips ── */}
-        <div className="idd-chips">
-          <span className="ir-type" style={{background:ti.bg,color:ti.color,padding:'4px 11px',borderRadius:'999px',fontSize:'.72rem',fontWeight:700}}>{ti.icon||''} {incidentTypeLabel(ti.value,lang)}</span>
-          {ci&&<span className="ir-cat" style={{background:ci.bg,color:ci.color,padding:'4px 11px',borderRadius:'999px',fontSize:'.72rem'}}>{ci.icon} {categoryLabel(ci.value,lang)}</span>}
-          <span className="idd-chip-date">📅 {fmtDate(inc.date)}</span>
-        </div>
-
-        {/* ── Action callout (owner action required) ── */}
+        {/* ── Owner action callout ── */}
         {user&&inc.status!=='resolved'&&isOwner&&(
-          <div className={`udc-action-needed${inc.status==='open'?' udc-an-step1':' udc-an-step2'}`} style={{marginTop:10}}>
+          <div className={`udc-action-needed${inc.status==='open'?' udc-an-step1':' udc-an-step2'}`}>
             <div className="udc-an-step-num">{inc.status==='open'?'①':'②'}</div>
             <div className="udc-an-body">
               <strong>{inc.status==='open'?(isEn?'Your action needed — Step 1':'Tu acción — Paso 1'):(isEn?'Your action needed — Step 2':'Tu acción — Paso 2')}</strong>
@@ -2794,11 +2800,11 @@ function UnitDetailCard({ l, incidents, canEdit=false, canDelete=false, onEdit, 
         {/* ── Timeline ── */}
         <div className="idd-timeline">
           <TlStep icon="📋" title={isEn?'Filed':'Reportado'} ts={inc.createdAtFull||inc.createdAt} accent="filed">
-            <div className="idd-tl-reporter">{isEn?'Reported by':'Reportado por'}: <strong>{inc.reporterName||'—'}</strong></div>
+            <span className="idd-tl-reporter">{isEn?'Reported by':'Reportado por'}: <strong>{inc.reporterName||'—'}</strong></span>
           </TlStep>
 
           <TlStep icon="📝" title={isEn?'Description':'Descripción'} accent="desc">
-            <div className="idd-tl-desc">{inc.desc}</div>
+            <p className="idd-tl-desc">{inc.desc}</p>
           </TlStep>
 
           {guests.length>0&&(
@@ -2816,20 +2822,20 @@ function UnitDetailCard({ l, incidents, canEdit=false, canDelete=false, onEdit, 
 
           {inc.ownerComments&&(
             <TlStep icon="✅" title={isEn?'Action taken':'Acción tomada'} ts={inc.ownerVerifiedAt} accent="action">
-              <div className="idd-tl-blockquote">{inc.ownerComments}</div>
+              <blockquote className="idd-tl-blockquote">{inc.ownerComments}</blockquote>
             </TlStep>
           )}
 
           {inc.ownerResolution&&(
             <TlStep icon="🔍" title={isEn?'Resolution':'Respuesta'} ts={inc.ownerResolutionAt||inc.ownerVerifiedAt} accent="resolution">
-              <div className="idd-tl-blockquote idd-tl-blockquote-res">{inc.ownerResolution}</div>
+              <blockquote className="idd-tl-blockquote idd-tl-blockquote-res">{inc.ownerResolution}</blockquote>
             </TlStep>
           )}
 
           {inc.status==='resolved'&&(
-            <TlStep icon="✅" title={isEn?'Closed':'Cerrado'} ts={inc.resolvedAt} accent="closed">
-              {inc.resolvedBy&&<div className="idd-tl-reporter">{isEn?'Closed by':'Cerrado por'}: <strong>{inc.resolvedBy}</strong></div>}
-              {inc.resolutionComments&&<div className="idd-tl-blockquote" style={{marginTop:6}}>{inc.resolutionComments}</div>}
+            <TlStep icon="🏁" title={isEn?'Closed':'Cerrado'} ts={inc.resolvedAt} accent="closed">
+              {inc.resolvedBy&&<span className="idd-tl-reporter">{isEn?'Closed by':'Cerrado por'}: <strong>{inc.resolvedBy}</strong></span>}
+              {inc.resolutionComments&&<blockquote className="idd-tl-blockquote" style={{marginTop:6}}>{inc.resolutionComments}</blockquote>}
             </TlStep>
           )}
         </div>
