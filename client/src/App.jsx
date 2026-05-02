@@ -1434,6 +1434,25 @@ export default function App() {
         {view==="help" && <HelpView lang={lang} effectiveRole={effectiveRole} effectiveIsGlobalAdmin={effectiveIsGlobalAdmin} delegatePerms={delegatePerms} listings={listings} incidents={incidents} user={user} setView={setView} onReport={()=>{ if(!user){login();return;} setModal({type:'incident'}); }} onAddListing={()=>{ if(!user){login();return;} setModal({type:'addListing'}); }} setIncidentQuickFilter={setIncidentQuickFilter} openMore={()=>setOpenDropdown('more')} />}
       </main>
 
+      {/* Mobile bottom navigation — sticky 4-tab bar for small screens */}
+      {user && isApproved && (
+        <nav className="mob-bottom-nav" aria-label={lang==='en'?'Main navigation':'Navegación principal'}>
+          {[
+            { id:'my',            icon:'🔑', label:lang==='en'?'My Units':'Mis Unidades', badge: myListings.length>0&&(needsOwnerVerification.length+needsOwnerResolution.length)||0 },
+            { id:'incidents',     icon:'⚠️', label:lang==='en'?'Incidents':'Incidentes',  badge: openCount },
+            { id:'notifications', icon:'🔔', label:lang==='en'?'Alerts':'Alertas',         badge: unreadNotifications },
+            { id:'my',            icon:'👤', label:lang==='en'?'Profile':'Perfil',          badge: 0, toProfile:true },
+          ].map((n,i)=>(
+            <button key={i} type="button"
+              className={`mbn-bottom${view===(n.toProfile?'profile':n.id)?' mbn-bottom-active':''}`}
+              onClick={()=>{setView(n.toProfile?'profile':n.id);setOpenDropdown(null);}}>
+              <span className="mbn-bottom-icon">{n.icon}{n.badge>0&&<span className="mbn-bottom-badge">{n.badge}</span>}</span>
+              <span className="mbn-bottom-lbl">{n.label}</span>
+            </button>
+          ))}
+        </nav>
+      )}
+
       {/* Global unit detail overlay — triggered from any unit number click across the app */}
       {unitDetailOverlay && (() => {
         const udl = listings.find(x=>x.id===unitDetailOverlay.listingId);
@@ -2342,6 +2361,26 @@ function Dashboard({ listings, incidents, user, contactProps={}, setView, onRepo
 
       <DashboardFocus lang={lang} effectiveIsGlobalAdmin={effectiveIsGlobalAdmin} effectiveRole={effectiveRole} delegatePerms={delegatePerms} pendingOwner={pendingOwner} pendingOwnerResolution={pendingOwnerResolution} pendingResolve={pendingResolve} pendingRegistrations={pendingRegistrations} openCount={open.length} myListingCount={myListings.length} myOpenCount={myOpen.length} canResolve={canResolve} canManageRegistrations={canManageRegistrations} onOwnerClick={onOwnerClick} onResolveClick={onResolveClick} onRegistrationsClick={onRegistrationsClick} onOpenClick={()=>setView('incidents')} setView={setView} onAddResClick={onAddResClick} />
 
+      {/* ── My attention needed — owner's actionable incidents ── */}
+      {user && myListings.length>0 && (()=>{
+        const myAttnOpen = myOpen;
+        const myAttnPending = incidents.filter(i=>myListings.some(l=>l.id===i.aptId)&&i.status==='verified'&&!String(i.ownerResolution||'').trim());
+        if(!myAttnOpen.length&&!myAttnPending.length) return null;
+        return (
+          <div className="card attn-card">
+            <div className="card-hdr">
+              <span className="card-title">🚨 {isEn?'Needs your attention':'Requiere tu atención'}</span>
+              <span className="attn-badge">{myAttnOpen.length+myAttnPending.length}</span>
+            </div>
+            <div className="attn-sub">{isEn?'These incidents on your units need action before admin can close them.':'Estos incidentes en tus unidades requieren tu acción antes de que el admin pueda cerrarlos.'}</div>
+            {myAttnOpen.length>0&&<div className="attn-group-lbl">⚠️ {isEn?'Step 1 — Verify':'Paso 1 — Verificar'}</div>}
+            {myAttnOpen.map(i=><IRow key={i.id} inc={i} compact listings={listings} contactProps={contactProps} lang={lang} onIncidentDetail={onIncidentDetail}/>)}
+            {myAttnPending.length>0&&<div className="attn-group-lbl" style={{marginTop:myAttnOpen.length?10:0}}>📝 {isEn?'Step 2 — Add resolution':'Paso 2 — Agregar respuesta'}</div>}
+            {myAttnPending.map(i=><IRow key={i.id} inc={i} compact listings={listings} contactProps={contactProps} lang={lang} onIncidentDetail={onIncidentDetail}/>)}
+          </div>
+        );
+      })()}
+
       {/* ── Community health stats — 4 focused metrics ── */}
       <div className="stats6" style={{gridTemplateColumns:'repeat(auto-fit,minmax(140px,1fr))'}}>
         {stats.map((s,i)=>(
@@ -2399,6 +2438,44 @@ function MyListings({ listings, incidents, user, contactProps={}, isGlobalAdmin=
         </div>
         <button className="btn-p" onClick={onAdd}>{appText(lang,"listings.add")}</button>
       </div>
+
+      {/* ── Feature: Profile completeness warning ── */}
+      {(()=>{
+        const noEmailListings = listings.filter(l=>l.operator&&!l.operatorEmail);
+        if(!noEmailListings.length) return null;
+        return (
+          <div className="profile-warn-banner">
+            ⚠️ <strong>{isEn?'Incomplete operator profile':'Perfil de operador incompleto'}</strong>{' — '}
+            {isEn
+              ? `${noEmailListings.length} unit${noEmailListings.length!==1?'s':''} (${noEmailListings.map(l=>aptDisplay(l.apt,lang)).join(', ')}) have an operator name but no email — they won't receive incident notifications.`
+              : `${noEmailListings.length} unidad${noEmailListings.length!==1?'es':''} (${noEmailListings.map(l=>aptDisplay(l.apt,lang)).join(', ')}) tienen operador sin email — no recibirán notificaciones de incidentes.`}
+            {' '}<span style={{fontSize:'.78rem',opacity:.8}}>{isEn?'Edit each unit to add the operator email.':'Edita cada unidad para agregar el email del operador.'}</span>
+          </div>
+        );
+      })()}
+
+      {/* ── Feature: Action guide banner — "What do I do next?" ── */}
+      {(openC>0||pendingResC>0)&&(
+        <div className="action-guide-banner">
+          <div className="agb-title">🎯 {isEn?'What do you need to do next?':'¿Qué debes hacer ahora?'}</div>
+          <div className="agb-items">
+            {openC>0&&(
+              <button className="agb-item agb-item-warn" onClick={()=>toggleStat('open')}>
+                <span className="agb-badge">{openC}</span>
+                <span>⚠️ {isEn?`${openC} incident${openC!==1?'s':''} need Step 1 — verify guest & action taken`:`${openC} incidente${openC!==1?'s':''} necesita${openC!==1?'n':''} Paso 1 — verificar huésped y acción tomada`}</span>
+                <span className="agb-arr">→</span>
+              </button>
+            )}
+            {pendingResC>0&&(
+              <button className="agb-item agb-item-res" onClick={()=>toggleStat('pendingResolution')}>
+                <span className="agb-badge agb-badge-res">{pendingResC}</span>
+                <span>📝 {isEn?`${pendingResC} incident${pendingResC!==1?'s':''} need Step 2 — add your resolution`:`${pendingResC} incidente${pendingResC!==1?'s':''} necesita${pendingResC!==1?'n':''} Paso 2 — agregar resolución`}</span>
+                <span className="agb-arr">→</span>
+              </button>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* ── Summary stats — 4 workflow states + total; click any to filter ── */}
       <div className="ml-stats">
@@ -3377,6 +3454,8 @@ function WorkflowGroup({ statusKey, icon, label, sublabel, color, incidents, lis
 
 function IncidentsView({ incidents, listings, user, quickFilter=null, onQuickFilterApplied=()=>{}, contactProps={}, isGlobalAdmin=false, canUpdateGlobal=false, canDeleteGlobal=false, canResolveGlobal=false, onAdd, onResolve, onDelete, onVerify, onAddResolution, onUnitDetail, onIncidentDetail, lang="es-CO" }) {
   const [sf,setSf]=useState("all"), [cf,setCf]=useState("all"), [scope,setScope]=useState("all"), [search,setSearch]=useState("");
+  const [dateFrom,setDateFrom]=useState('');
+  const [dateTo,setDateTo]=useState('');
   // Floor filter: set when user clicks a stat pill on the Units page floor header
   const [floorFilter, setFloorFilter] = useState(null); // {aptIds:string[], status:string, label:string} | null
   useEffect(()=>{
@@ -3446,10 +3525,13 @@ function IncidentsView({ incidents, listings, user, quickFilter=null, onQuickFil
       return apt.includes(q)||owner.includes(q)||operator.includes(q)||desc.includes(q)||type.includes(q)||reporter.includes(q)||guest.includes(q)||city.includes(q)||country.includes(q)||vGuests.includes(q)||vCity.includes(q)||vCountry.includes(q)||guestDetails.includes(q);
     });
   }
+  // Date range filter — filter by incident date (i.date is YYYY-MM-DD)
+  if(dateFrom) list=list.filter(i=>String(i.date||i.createdAt||'').slice(0,10)>=dateFrom);
+  if(dateTo)   list=list.filter(i=>String(i.date||i.createdAt||'').slice(0,10)<=dateTo);
   list.sort((a,b)=>new Date(b.createdAt)-new Date(a.createdAt));
   const isEn = lang==='en';
-  const anyFilter = sf!=='all'||cf!=='all'||scope!=='all'||search.trim()!==''||!!floorFilter;
-  const resetAll = () => { setSf('all'); setCf('all'); setScope('all'); setSearch(''); setFloorFilter(null); };
+  const anyFilter = sf!=='all'||cf!=='all'||scope!=='all'||search.trim()!==''||!!floorFilter||!!dateFrom||!!dateTo;
+  const resetAll = () => { setSf('all'); setCf('all'); setScope('all'); setSearch(''); setFloorFilter(null); setDateFrom(''); setDateTo(''); };
   // ── Persist group open/close to localStorage; restore on mount ──────────────
   const WFG_KEY = 'kai_wfg_state';
   const [groupOpen, setGroupOpen] = useState(() => {
@@ -3539,9 +3621,19 @@ function IncidentsView({ incidents, listings, user, quickFilter=null, onQuickFil
           <button className="ffb-clear" onClick={()=>setFloorFilter(null)}>✕ {isEn?'Show all':'Ver todos'}</button>
         </div>
       )}
-      <div className="inc-search-wrap" style={{marginBottom:10}}>
-        <input className="search inc-search" placeholder={appText(lang,"incidents.search")} value={search} onChange={e=>setSearch(e.target.value)}/>
-        {search&&<button className="inc-search-clear" onClick={()=>setSearch('')}>✕</button>}
+      <div className="inc-filters-bar">
+        <div className="inc-search-wrap" style={{flex:'1 1 200px',minWidth:0}}>
+          <input className="search inc-search" placeholder={appText(lang,"incidents.search")} value={search} onChange={e=>setSearch(e.target.value)}/>
+          {search&&<button className="inc-search-clear" onClick={()=>setSearch('')}>✕</button>}
+        </div>
+        <div className="inc-date-range">
+          <label className="inc-date-lbl">{isEn?'From':'Desde'}</label>
+          <input type="date" className="inc-date-input" value={dateFrom} max={dateTo||''} onChange={e=>setDateFrom(e.target.value)}/>
+          <span className="inc-date-sep">–</span>
+          <label className="inc-date-lbl">{isEn?'To':'Hasta'}</label>
+          <input type="date" className="inc-date-input" value={dateTo} min={dateFrom||''} onChange={e=>setDateTo(e.target.value)}/>
+          {(dateFrom||dateTo)&&<button className="inc-search-clear" style={{position:'static',transform:'none',marginLeft:2}} onClick={()=>{setDateFrom('');setDateTo('');}}>✕</button>}
+        </div>
       </div>
 
       <div className="wfg-filters">
@@ -3632,14 +3724,69 @@ const localizeNotification = (n={}, lang="es-CO") => {
 };
 
 function NotificationsView({ notifications, incidents, listings=[], contactProps={}, onRead, onReadAll, lang="es-CO", smartAlerts=[], onIncidentDetail=null }) {
+  const isEn = lang==='en';
   const unread = notifications.filter(n => !n.isRead).length;
   const hasAlerts = smartAlerts.length > 0;
+  // Group notifications by incidentId (or '__general__' for those without)
+  const [openGroups, setOpenGroups] = useState({});
+  const toggleGroup = (key) => setOpenGroups(s=>({...s,[key]:!s[key]}));
+
+  const grouped = notifications.reduce((acc, n) => {
+    const key = n.incidentId || '__general__';
+    if (!acc[key]) acc[key] = [];
+    acc[key].push(n);
+    return acc;
+  }, {});
+  // Sort group keys: incident groups with unread first (most recent), then general
+  const groupKeys = Object.keys(grouped).sort((a, b) => {
+    if (a==='__general__' && b!=='__general__') return 1;
+    if (b==='__general__' && a!=='__general__') return -1;
+    const aUnread = grouped[a].filter(n=>!n.isRead).length;
+    const bUnread = grouped[b].filter(n=>!n.isRead).length;
+    if (aUnread !== bUnread) return bUnread - aUnread;
+    return new Date(grouped[b][0]?.createdAt||0) - new Date(grouped[a][0]?.createdAt||0);
+  });
+  // On first load, open groups that have unread notifications
+  useEffect(() => {
+    const init = {};
+    groupKeys.forEach(k => {
+      init[k] = grouped[k].some(n=>!n.isRead);
+    });
+    setOpenGroups(init);
+  }, []); // eslint-disable-line
+
+  const renderNotifCard = (n) => {
+    const inc=incidents.find(i=>i.id===n.incidentId);
+    const nt=localizeNotification(n,lang);
+    const canOpenDetail = !!(inc && onIncidentDetail);
+    return (
+      <div key={n.id} className={`notice-card ${n.isRead?'notice-read':'notice-new'}${canOpenDetail?' notice-card-clickable':''}`}
+        onClick={canOpenDetail?()=>onIncidentDetail(inc.id):undefined}
+        role={canOpenDetail?'button':undefined}
+        tabIndex={canOpenDetail?0:undefined}
+        onKeyDown={canOpenDetail?e=>{if(e.key==='Enter'||e.key===' ')onIncidentDetail(inc.id);}:undefined}
+        title={canOpenDetail?(isEn?'Click to view full incident details':'Clic para ver detalles del incidente'):undefined}
+      >
+        <div className="notice-main">
+          <div className="notice-title">{n.isRead?'🔔':'🆕'} {nt.title}</div>
+          <div className="notice-msg">{nt.message}</div>
+          <div className="notice-meta">{new Date(n.createdAt).toLocaleString(isEn?'en-US':'es-CO')} · {appText(lang,'common.email')}: {n.emailSent?(appText(lang,'common.sent')+' ✅'):(appText(lang,'common.notSent')+' ⚠️')}{n.emailError?` · ${n.emailError}`:''}</div>
+          {inc&&<div className="notice-inc-row">
+            <span className="notice-inc-desc"><strong>{appText(lang,'notifications.detail')}:</strong> {String(inc.desc||'').slice(0,100)}{String(inc.desc||'').length>100?'…':''}</span>
+            {canOpenDetail&&<span className="notice-inc-hint">{isEn?'View details':'Ver detalles'} ›</span>}
+          </div>}
+        </div>
+        {!n.isRead&&<button className="bsm bs-resolve" onClick={e=>{e.stopPropagation();onRead(n.id);}}>{appText(lang,"notifications.markRead")}</button>}
+      </div>
+    );
+  };
+
   return (
     <div className="fade">
       <div className="ph">
         <div>
-          <h1 className="ptitle">🔔 {lang==='en'?'Notifications':'Notificaciones'}</h1>
-          <p className="psub">{lang==='en'
+          <h1 className="ptitle">🔔 {isEn?'Notifications':'Notificaciones'}</h1>
+          <p className="psub">{isEn
             ? `${hasAlerts?smartAlerts.length+' priority action'+(smartAlerts.length!==1?'s':'')+' · ':''}${unread} unread alert${unread!==1?'s':''}`
             : `${hasAlerts?smartAlerts.length+' acción'+(smartAlerts.length!==1?'es':'')+' prioritaria'+(smartAlerts.length!==1?'s':'')+' · ':''}${unread} aviso${unread!==1?'s':''} sin leer`}
           </p>
@@ -3650,7 +3797,7 @@ function NotificationsView({ notifications, incidents, listings=[], contactProps
       {hasAlerts && (
         <div className="notif-alerts-section">
           <div className="section-label" style={{marginBottom:10}}>
-            🎯 {lang==='en'?'Priority actions — tap to act':'Acciones prioritarias — toca para actuar'}
+            🎯 {isEn?'Priority actions — tap to act':'Acciones prioritarias — toca para actuar'}
           </div>
           <div className="notif-alerts-grid">
             {smartAlerts.map(a => (
@@ -3666,36 +3813,42 @@ function NotificationsView({ notifications, incidents, listings=[], contactProps
       )}
 
       <div className="section-label" style={{margin:`${hasAlerts?20:0}px 0 10px`}}>
-        {lang==='en'?'Alert history':'Historial de avisos'}
+        {isEn?'Alert history':'Historial de avisos'}{groupKeys.length>1&&<span style={{fontWeight:'normal',fontSize:'.78rem',marginLeft:6,opacity:.7}}>({groupKeys.length} {isEn?'groups':'grupos'})</span>}
       </div>
       {notifications.length===0
         ? <EmptyState icon="🔔" title={appText(lang,"notifications.none")} sub={appText(lang,"notifications.noneSub")}/>
-        : <div className="notice-list">{notifications.map(n=>{
-            const inc=incidents.find(i=>i.id===n.incidentId);
-            const nt=localizeNotification(n,lang);
-            const canOpenDetail = !!(inc && onIncidentDetail);
-            const isEn = lang==='en';
-            return (
-              <div key={n.id} className={`notice-card ${n.isRead?'notice-read':'notice-new'}${canOpenDetail?' notice-card-clickable':''}`}
-                onClick={canOpenDetail?()=>onIncidentDetail(inc.id):undefined}
-                role={canOpenDetail?'button':undefined}
-                tabIndex={canOpenDetail?0:undefined}
-                onKeyDown={canOpenDetail?e=>{if(e.key==='Enter'||e.key===' ')onIncidentDetail(inc.id);}:undefined}
-                title={canOpenDetail?(isEn?'Click to view full incident details':'Clic para ver detalles del incidente'):undefined}
-              >
-                <div className="notice-main">
-                  <div className="notice-title">{n.isRead?'🔔':'🆕'} {nt.title}</div>
-                  <div className="notice-msg">{nt.message}</div>
-                  <div className="notice-meta">{new Date(n.createdAt).toLocaleString(isEn?'en-US':'es-CO')} · {appText(lang,'common.email')}: {n.emailSent?(appText(lang,'common.sent')+' ✅'):(appText(lang,'common.notSent')+' ⚠️')}{n.emailError?` · ${n.emailError}`:''}</div>
-                  {inc&&<div className="notice-inc-row">
-                    <span className="notice-inc-desc"><strong>{appText(lang,'notifications.detail')}:</strong> {String(inc.desc||'').slice(0,100)}{String(inc.desc||'').length>100?'…':''}</span>
-                    {canOpenDetail&&<span className="notice-inc-hint">{isEn?'View details':'Ver detalles'} ›</span>}
-                  </div>}
+        : <div className="notice-groups">
+            {groupKeys.map(gkey => {
+              const groupNotifs = grouped[gkey];
+              const inc = gkey!=='__general__' ? incidents.find(i=>i.id===gkey) : null;
+              const listing = inc ? listings.find(l=>l.id===inc.aptId) : null;
+              const gUnread = groupNotifs.filter(n=>!n.isRead).length;
+              const isOpen = !!openGroups[gkey];
+              const groupLabel = inc
+                ? `${aptDisplay(listing?.apt||'',lang)} — ${String(inc.desc||'').slice(0,60)}${String(inc.desc||'').length>60?'…':''}`
+                : (isEn?'General alerts':'Avisos generales');
+              const groupIcon = inc ? (inc.status==='resolved'?'✓':inc.status==='open'?'⚠️':'📝') : '🔔';
+              return (
+                <div key={gkey} className={`notif-group${isOpen?' notif-group-open':''}`}>
+                  <button type="button" className="notif-group-hdr" onClick={()=>toggleGroup(gkey)}>
+                    <span className="notif-group-icon">{groupIcon}</span>
+                    <span className="notif-group-label">{groupLabel}</span>
+                    <div style={{display:'flex',alignItems:'center',gap:6,marginLeft:'auto',flexShrink:0}}>
+                      {gUnread>0&&<span className="notif-group-badge">{gUnread}</span>}
+                      <span className="notif-group-count">{groupNotifs.length} {isEn?'alert'+(groupNotifs.length!==1?'s':''):'aviso'+(groupNotifs.length!==1?'s':'')}</span>
+                      {inc&&onIncidentDetail&&<button type="button" className="bsm" style={{fontSize:'.68rem',padding:'2px 8px'}} onClick={e=>{e.stopPropagation();onIncidentDetail(inc.id);}}>{isEn?'View incident':'Ver incidente'} ›</button>}
+                      <span className={`notif-group-chev${isOpen?' notif-group-chev-open':''}`}>›</span>
+                    </div>
+                  </button>
+                  {isOpen&&(
+                    <div className="notice-list" style={{padding:'8px 14px 12px'}}>
+                      {groupNotifs.map(n=>renderNotifCard(n))}
+                    </div>
+                  )}
                 </div>
-                {!n.isRead&&<button className="bsm bs-resolve" onClick={e=>{e.stopPropagation();onRead(n.id);}}>{appText(lang,"notifications.markRead")}</button>}
-              </div>
-            );
-          })}</div>
+              );
+            })}
+          </div>
       }
     </div>
   );
@@ -3979,8 +4132,27 @@ function ListingModal({ title, user, initial={}, onSave, onClose, lang="es-CO", 
 function IncidentModal({ listings, user, presetApt, onSave, onClose, lang="es-CO", config={} }) {
   const tips = localizedTooltips(config, lang);
   const isEn = lang === 'en';
-  const [f,setF]=useState({aptId:presetApt||"",date:today(),type:"noise",category:"minor",desc:""});
+  const DRAFT_KEY = 'kai_incident_draft';
+  // Restore draft from localStorage if no preset apt; save draft on every change
+  const [f,setF]=useState(()=>{
+    if(presetApt) return {aptId:presetApt,date:today(),type:"noise",category:"minor",desc:""};
+    try{
+      const saved=JSON.parse(localStorage.getItem(DRAFT_KEY)||'null');
+      if(saved&&typeof saved==='object'&&(saved.aptId||saved.desc))
+        return {aptId:saved.aptId||'',date:saved.date||today(),type:saved.type||'noise',category:saved.category||'minor',desc:saved.desc||''};
+    }catch{}
+    return {aptId:"",date:today(),type:"noise",category:"minor",desc:""};
+  });
+  const [draftRestored] = useState(()=>{
+    if(presetApt) return false;
+    try{const s=JSON.parse(localStorage.getItem(DRAFT_KEY)||'null');return !!(s&&typeof s==='object'&&(s.aptId||s.desc));}catch{return false;}
+  });
   const [errors,setErrors]=useState({});
+  // Auto-save draft on every field change (skip when preset apt is used)
+  useEffect(()=>{
+    if(presetApt) return;
+    try{localStorage.setItem(DRAFT_KEY,JSON.stringify(f));}catch{}
+  },[f]);// eslint-disable-line
   const s=(k,v)=>{ setF(p=>({...p,[k]:v})); setErrors(e=>({...e,[k]:undefined})); };
   const validate=()=>{
     const e={};
@@ -4015,6 +4187,16 @@ function IncidentModal({ listings, user, presetApt, onSave, onClose, lang="es-CO
     <Overlay onClose={onClose} wide>
       <div className="modal-title">{appText(lang,"modal.report.title")}</div>
       <div className="inc-modal-meta">{appText(lang,"modal.report.sub",{name:user?.name||""})} · <span className="inc-modal-hint">{appText(lang,"modal.report.help")}</span></div>
+
+      {draftRestored&&(
+        <div className="draft-restored-banner">
+          📋 <strong>{isEn?'Draft restored':'Borrador restaurado'}</strong> — {isEn?'Your last unsaved report has been loaded.':'Se cargó tu último reporte sin guardar.'}
+          <button type="button" className="btn-ghost bsm" style={{marginLeft:8,fontSize:'.68rem'}}
+            onClick={()=>{try{localStorage.removeItem(DRAFT_KEY);}catch{}setF({aptId:presetApt||'',date:today(),type:'noise',category:'minor',desc:''});}}>
+            {isEn?'Clear draft':'Limpiar'}
+          </button>
+        </div>
+      )}
 
       <div className="fg2 inc-form-grid">
         {/* Row 1: Unit + Date */}
@@ -4077,7 +4259,7 @@ function IncidentModal({ listings, user, presetApt, onSave, onClose, lang="es-CO
       </div>
       <div className="mact">
         <button className="btn-ghost" onClick={onClose}>{appText(lang,"form.cancel")}</button>
-        <button className="btn-danger" title={tips.reportIncident} onClick={()=>{if(validate()) onSave(f);}}>{appText(lang,"form.registerReport")}</button>
+        <button className="btn-danger" title={tips.reportIncident} onClick={()=>{if(validate()){try{localStorage.removeItem(DRAFT_KEY);}catch{}onSave(f);}}}>{appText(lang,"form.registerReport")}</button>
       </div>
     </Overlay>
   );
@@ -4400,6 +4582,109 @@ function AdminSection({ title, subtitle, action, open, onToggle, children }) {
   );
 }
 
+// ─── AUDIT LOG VIEWER ────────────────────────────────────────────────────────
+const AUDIT_ENTITIES = ['all','listing','incident','user_role','app_config','registration','email_template'];
+function AuditLogViewer({ user, lang="es-CO", isEn=false }) {
+  const [logs, setLogs] = useState([]);
+  const [total, setTotal] = useState(0);
+  const [loading, setLoading] = useState(false);
+  const [entity, setEntity] = useState('all');
+  const [actor, setActor] = useState('');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
+  const [offset, setOffset] = useState(0);
+  const PAGE = 50;
+  const load = useCallback(async (off=0) => {
+    if(!user?.uid) return;
+    setLoading(true);
+    try {
+      const p = new URLSearchParams({ uid:user.uid, email:user.email||'', limit:PAGE, offset:off });
+      if(entity && entity!=='all') p.set('entity', entity);
+      if(actor.trim()) p.set('actor', actor.trim());
+      if(dateFrom) p.set('dateFrom', dateFrom);
+      if(dateTo) p.set('dateTo', dateTo);
+      const r = await api.get('/api/admin/audit-logs?' + p.toString());
+      setLogs(r.logs || []);
+      setTotal(r.total || 0);
+      setOffset(off);
+    } catch(e) { console.error('[AUDIT_LOG]', e); }
+    finally { setLoading(false); }
+  }, [user?.uid, user?.email, entity, actor, dateFrom, dateTo]);
+  useEffect(() => { load(0); }, []); // eslint-disable-line
+  const fmt = (ts) => { try{ return new Date(ts).toLocaleString(isEn?'en-US':'es-CO',{month:'short',day:'numeric',year:'numeric',hour:'2-digit',minute:'2-digit'}); }catch{ return ts||''; }};
+  const entityLabel = (e) => ({ listing:'🏠',incident:'⚠️',user_role:'👥',app_config:'⚙️',registration:'📝',email_template:'📨' }[e]||'•') + ' ' + (e||'');
+  return (
+    <div className="audit-wrap">
+      {/* Filters */}
+      <div className="audit-filters">
+        <select className="audit-select" value={entity} onChange={e=>setEntity(e.target.value)}>
+          {AUDIT_ENTITIES.map(e=><option key={e} value={e}>{e==='all'?(isEn?'All entities':'Todas las entidades'):entityLabel(e)}</option>)}
+        </select>
+        <input className="audit-input" placeholder={isEn?'Filter by actor email…':'Filtrar por email del actor…'} value={actor} onChange={e=>setActor(e.target.value)}/>
+        <input type="date" className="audit-input audit-date" value={dateFrom} max={dateTo||''} onChange={e=>setDateFrom(e.target.value)} title={isEn?'From date':'Desde'}/>
+        <span style={{color:'#8a9fa5',flexShrink:0}}>–</span>
+        <input type="date" className="audit-input audit-date" value={dateTo} min={dateFrom||''} onChange={e=>setDateTo(e.target.value)} title={isEn?'To date':'Hasta'}/>
+        <button className="btn-p" style={{minHeight:36,padding:'6px 14px',flexShrink:0}} onClick={()=>load(0)} disabled={loading}>
+          {loading?'…':(isEn?'Search':'Buscar')}
+        </button>
+        {(entity!=='all'||actor||dateFrom||dateTo)&&
+          <button className="btn-ghost" style={{minHeight:36,padding:'6px 10px',flexShrink:0}} onClick={()=>{setEntity('all');setActor('');setDateFrom('');setDateTo('');setTimeout(()=>load(0),0);}}>✕</button>}
+      </div>
+      {/* Stats bar */}
+      <div className="audit-stats-bar">
+        <span>{isEn?`${total} total entries`:`${total} entradas totales`}</span>
+        {total>PAGE&&<span style={{opacity:.6}}>{isEn?`Showing ${offset+1}–${Math.min(offset+PAGE,total)}`:`Mostrando ${offset+1}–${Math.min(offset+PAGE,total)}`}</span>}
+      </div>
+      {/* Table */}
+      {loading
+        ? <div style={{padding:'18px 0',color:'#2a5a6a',display:'flex',alignItems:'center',gap:8}}><span className="spinner-sm"/> {isEn?'Loading…':'Cargando…'}</div>
+        : logs.length===0
+          ? <div style={{padding:'20px 0',color:'#8a9fa5',fontStyle:'italic'}}>{isEn?'No entries found for the selected filters.':'No se encontraron entradas con los filtros seleccionados.'}</div>
+          : <div className="table-wrap">
+              <table className="admin-table audit-table">
+                <thead><tr>
+                  <th>{isEn?'Time':'Fecha/hora'}</th>
+                  <th>{isEn?'Entity':'Entidad'}</th>
+                  <th>{isEn?'Action':'Acción'}</th>
+                  <th>{isEn?'Actor':'Actor'}</th>
+                  <th>{isEn?'Details':'Detalles'}</th>
+                </tr></thead>
+                <tbody>
+                  {logs.map((r,i)=>(
+                    <tr key={r.id||i}>
+                      <td style={{whiteSpace:'nowrap',fontSize:'.72rem',color:'#496674'}}>{fmt(r.created_at)}</td>
+                      <td><span className="audit-entity-chip">{entityLabel(r.entity)}</span>{r.entity_id&&<code className="audit-id">{String(r.entity_id).slice(0,8)}…</code>}</td>
+                      <td><span className="audit-action">{r.action}</span></td>
+                      <td style={{fontSize:'.74rem',color:'#17313a',maxWidth:160,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{r.actor_email||r.actor_uid||'—'}</td>
+                      <td>
+                        {(r.before||r.after)&&(
+                          <details className="audit-detail">
+                            <summary className="audit-detail-toggle">{isEn?'diff':'diff'}</summary>
+                            <div className="audit-detail-body">
+                              {r.before&&<div><strong>Before:</strong><pre className="audit-json">{JSON.stringify(r.before,null,2)}</pre></div>}
+                              {r.after&&<div><strong>After:</strong><pre className="audit-json">{JSON.stringify(r.after,null,2)}</pre></div>}
+                            </div>
+                          </details>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+      }
+      {/* Pagination */}
+      {total>PAGE&&(
+        <div className="audit-pagination">
+          <button className="btn-ghost bsm" disabled={offset===0||loading} onClick={()=>load(Math.max(0,offset-PAGE))}>← {isEn?'Prev':'Anterior'}</button>
+          <span style={{fontSize:'.78rem',color:'#496674'}}>{Math.floor(offset/PAGE)+1} / {Math.ceil(total/PAGE)}</span>
+          <button className="btn-ghost bsm" disabled={offset+PAGE>=total||loading} onClick={()=>load(offset+PAGE)}>{isEn?'Next':'Siguiente'} →</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function AdminSettings({ config={}, user, listings=[], contactProps={}, onSave, showToast=()=>{}, lang="es-CO" }) {
   const isEn = lang === 'en';
   const tips = localizedTooltips(config || {}, lang);
@@ -4429,7 +4714,7 @@ function AdminSettings({ config={}, user, listings=[], contactProps={}, onSave, 
   const [emailNotifSaving,setEmailNotifSaving]=useState(false);
   const [adminErrors,setAdminErrors]=useState([]);
   const [lastUiError,setLastUiError]=useState('');
-  const ADMIN_SEC_DEFAULT = {roles:true,sla:false,mission:false,menu:false,delegate:false,users:true,tooltips:false,uiLabels:false,email:false,emailNotif:false};
+  const ADMIN_SEC_DEFAULT = {roles:true,sla:false,mission:false,menu:false,delegate:false,users:true,tooltips:false,uiLabels:false,email:false,emailNotif:false,auditLog:false};
   const [openSections,setOpenSections] = useState(()=>{
     try{ const s=JSON.parse(localStorage.getItem('kai_admin_open')||'null'); return s&&typeof s==='object'?{...ADMIN_SEC_DEFAULT,...s}:ADMIN_SEC_DEFAULT; }catch{ return ADMIN_SEC_DEFAULT; }
   });
@@ -4900,6 +5185,11 @@ function AdminSettings({ config={}, user, listings=[], contactProps={}, onSave, 
       </AdminSection>
     );
   })()}
+
+  {/* ── Audit Log Viewer ───────────────────��─────────────────────────── */}
+  <AdminSection title={`🕵️ ${isEn?'Audit Log':'Log de auditoría'}`} subtitle={isEn?'Full activity history for listings, incidents, roles, and config changes.':'Historial completo de actividad: listings, incidentes, roles y configuración.'} open={openSections.auditLog} onToggle={()=>toggleSection('auditLog')}>
+    <AuditLogViewer user={user} lang={lang} isEn={isEn}/>
+  </AdminSection>
 
 </div>;
 }
@@ -5568,5 +5858,85 @@ html{font-size:clamp(14px,1.1vw,16px);-webkit-text-size-adjust:100%}body{overflo
 /* Registration profile box: slightly highlighted to distinguish from listing boxes */
 .reg-profile-box{background:linear-gradient(135deg,rgba(11,127,79,.04),rgba(11,127,140,.03))!important;border-color:rgba(11,127,140,.22)!important}
 @media(max-width:600px){.prof-ro-row{grid-template-columns:1fr;gap:2px}.prof-ro-lbl{font-size:.74rem;color:#5a8090}}
+
+/* ── v80 — 8 new features ────────────────────────────────────────────────── */
+
+/* Feature 3: Draft restored banner */
+.draft-restored-banner{background:rgba(217,160,48,.1);border:1px solid rgba(217,160,48,.35);border-left:4px solid #d9a030;border-radius:8px;padding:8px 12px;margin-bottom:14px;font-size:.8rem;color:#7a4a00;display:flex;align-items:center;flex-wrap:wrap;gap:6px;line-height:1.4}
+
+/* Feature 1: Profile completeness warning banner */
+.profile-warn-banner{background:rgba(220,100,0,.07);border:1px solid rgba(220,100,0,.28);border-left:4px solid #d9700e;border-radius:10px;padding:10px 14px;margin-bottom:14px;font-size:.8rem;color:#6a3000;line-height:1.45}
+
+/* Feature 2: Action guide banner */
+.action-guide-banner{background:rgba(11,127,79,.06);border:1px solid rgba(11,127,79,.2);border-radius:12px;padding:12px 14px;margin-bottom:14px}
+.agb-title{font-size:.78rem;font-weight:900;color:#0b4f32;text-transform:uppercase;letter-spacing:.07em;margin-bottom:8px}
+.agb-items{display:flex;flex-direction:column;gap:6px}
+.agb-item{display:flex;align-items:center;gap:10px;background:rgba(255,255,255,.9);border:1px solid rgba(47,79,58,.18);border-radius:9px;padding:8px 12px;cursor:pointer;text-align:left;font-size:.82rem;color:#17313a;transition:all .14s;width:100%}
+.agb-item:hover{background:#fff;box-shadow:0 4px 12px rgba(32,46,38,.1);border-color:#0b7f4f}
+.agb-item-warn{border-left:3px solid #d9700e}
+.agb-item-res{border-left:3px solid #0b7f4f}
+.agb-badge{background:#d9700e;color:#fff;border-radius:999px;font-size:.7rem;font-weight:900;padding:2px 8px;flex-shrink:0;min-width:24px;text-align:center}
+.agb-badge-res{background:#0b7f4f}
+.agb-arr{margin-left:auto;color:#8a9fa5;font-size:1rem;flex-shrink:0}
+
+/* Feature 6: Dashboard attention section */
+.attn-card{border-left:4px solid #d4634a!important}
+.attn-badge{background:#d4634a;color:#fff;border-radius:999px;font-size:.7rem;font-weight:900;padding:2px 9px;min-width:24px;text-align:center;flex-shrink:0}
+.attn-sub{font-size:.76rem;color:#6a3000;background:rgba(212,99,74,.06);border-radius:7px;padding:6px 10px;margin-bottom:10px;line-height:1.4}
+.attn-group-lbl{font-size:.7rem;font-weight:900;text-transform:uppercase;letter-spacing:.08em;color:#2a5a6a;margin:4px 0 4px;padding-bottom:4px;border-bottom:1px solid rgba(47,79,58,.08)}
+
+/* Feature 7: Incident date filter bar */
+.inc-filters-bar{display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap}
+.inc-date-range{display:flex;align-items:center;gap:6px;flex-shrink:0;flex-wrap:wrap}
+.inc-date-lbl{font-size:.68rem;font-weight:800;text-transform:uppercase;letter-spacing:.07em;color:#2a5a6a;white-space:nowrap}
+.inc-date-input{height:36px;border-radius:9px;border:1px solid rgba(47,79,58,.22)!important;background:rgba(255,255,255,.95)!important;color:#17313a!important;padding:0 9px!important;font-size:.82rem;min-width:136px;cursor:pointer}
+@media(max-width:600px){.inc-filters-bar{flex-direction:column;align-items:stretch}.inc-date-range{flex-wrap:wrap}}
+
+/* Feature 5: Notification grouping */
+.notice-groups{display:flex;flex-direction:column;gap:10px}
+.notif-group{background:rgba(255,255,255,.92);border:1px solid rgba(47,79,58,.16);border-radius:14px;overflow:hidden;box-shadow:0 6px 16px rgba(32,46,38,.07)}
+.notif-group-open{border-color:rgba(11,127,140,.3)}
+.notif-group-hdr{width:100%;display:flex;align-items:center;gap:8px;padding:12px 14px;background:none;border:0;border-left:4px solid rgba(47,79,58,.15);cursor:pointer;text-align:left;transition:background .14s}
+.notif-group-open .notif-group-hdr{border-left-color:#0b7f8c;background:rgba(11,127,140,.04)}
+.notif-group-hdr:hover{background:rgba(11,127,140,.04)}
+.notif-group-icon{font-size:1rem;flex-shrink:0}
+.notif-group-label{font-size:.84rem;font-weight:700;color:#17313a;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.notif-group-badge{background:#d4634a;color:#fff;border-radius:999px;font-size:.65rem;font-weight:900;padding:2px 7px;flex-shrink:0}
+.notif-group-count{font-size:.72rem;color:#496674;white-space:nowrap;flex-shrink:0}
+.notif-group-chev{font-size:1.1rem;color:#8a9fa5;font-weight:900;transition:transform .18s;display:inline-block;flex-shrink:0}
+.notif-group-chev-open{transform:rotate(90deg)}
+
+/* Feature 4: Mobile bottom navigation */
+.mob-bottom-nav{display:none;position:fixed;bottom:0;left:0;right:0;z-index:9500;background:rgba(255,255,255,.97);backdrop-filter:blur(14px);border-top:1px solid rgba(47,79,58,.12);box-shadow:0 -4px 18px rgba(32,46,38,.1);padding:0;padding-bottom:env(safe-area-inset-bottom,0)}
+@media(max-width:768px){.mob-bottom-nav{display:flex;justify-content:space-around;align-items:stretch}}
+.mbn-bottom{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;padding:8px 4px 10px;background:none;border:0;cursor:pointer;color:#496674;min-height:56px;position:relative;transition:color .14s}
+.mbn-bottom:active{background:rgba(11,127,140,.06)}
+.mbn-bottom-active{color:#0b7f8c!important}
+.mbn-bottom-active .mbn-bottom-icon::after{content:'';position:absolute;bottom:-2px;left:50%;transform:translateX(-50%);width:20px;height:3px;background:#0b7f8c;border-radius:999px}
+.mbn-bottom-icon{font-size:1.2rem;position:relative;line-height:1}
+.mbn-bottom-lbl{font-size:.58rem;font-weight:800;letter-spacing:.03em;text-transform:uppercase}
+.mbn-bottom-badge{position:absolute;top:-4px;right:-6px;background:#d4634a;color:#fff;border-radius:999px;font-size:.54rem;font-weight:900;padding:1px 5px;min-width:16px;text-align:center;line-height:1.4}
+/* Shift main content up so bottom nav doesn't cover it on mobile */
+@media(max-width:768px){.main{padding-bottom:70px!important}}
+
+/* Feature 8: Audit log viewer */
+.audit-wrap{display:flex;flex-direction:column;gap:12px}
+.audit-filters{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.audit-select{height:36px;border-radius:9px;border:1px solid rgba(47,79,58,.22)!important;background:rgba(255,255,255,.95)!important;color:#17313a!important;padding:0 10px!important;font-size:.82rem;min-width:160px;cursor:pointer}
+.audit-input{height:36px;border-radius:9px;border:1px solid rgba(47,79,58,.22)!important;background:rgba(255,255,255,.95)!important;color:#17313a!important;padding:0 10px!important;font-size:.82rem;min-width:130px}
+.audit-date{min-width:138px!important;cursor:pointer}
+.audit-stats-bar{font-size:.74rem;color:#496674;display:flex;gap:12px;align-items:center;padding:4px 0;border-bottom:1px solid rgba(47,79,58,.08)}
+.audit-table{font-size:.78rem}
+.audit-entity-chip{background:rgba(11,127,140,.1);color:#0b5f72;border-radius:999px;padding:2px 8px;font-size:.68rem;font-weight:800;white-space:nowrap}
+.audit-id{background:rgba(47,79,58,.07);border-radius:5px;padding:1px 5px;font-size:.65rem;color:#496674;margin-left:5px}
+.audit-action{font-weight:800;color:#17313a;font-size:.76rem}
+.audit-detail{cursor:pointer}
+.audit-detail-toggle{font-size:.7rem;color:#0b7f8c;cursor:pointer;list-style:none;border:1px solid rgba(11,127,140,.2);border-radius:6px;padding:2px 8px;background:rgba(11,127,140,.06)}
+.audit-detail-body{padding:8px;background:rgba(245,248,244,.9);border-radius:8px;margin-top:6px;border:1px solid rgba(47,79,58,.1)}
+.audit-json{font-size:.65rem;color:#17313a;white-space:pre-wrap;word-break:break-word;max-height:200px;overflow:auto;margin:4px 0 0;background:rgba(255,255,255,.8);border-radius:6px;padding:6px 8px}
+.audit-pagination{display:flex;align-items:center;justify-content:center;gap:12px;padding-top:8px;border-top:1px solid rgba(47,79,58,.08)}
+@media(max-width:640px){.audit-filters{flex-direction:column;align-items:stretch}.audit-filters .btn-p{width:100%}}
+/* On mobile, push toast above the bottom nav */
+@media(max-width:768px){.toast{bottom:80px!important}}
 
 `;
