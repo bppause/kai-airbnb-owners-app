@@ -830,6 +830,38 @@ const fmtDateTime = (iso, lang='es-CO') => {
 };
 const today = () => new Date().toISOString().split("T")[0];
 
+// ─── PHOTO COMPRESSION — client-side, Canvas API ─────────────────────────────
+// Resize to ≤1200px, JPEG quality 0.72. If compressed size > 1.5MB try 0.45.
+// Rejects if file > 10MB or not an image. Returns { data, name, size } where
+// data is a data:image/jpeg;base64,… URI and size is compressed bytes.
+const compressImage = (file) => new Promise((resolve, reject) => {
+  if (!file.type.startsWith('image/')) { reject(new Error('Only image files (JPEG, PNG, WebP, HEIC) are allowed.')); return; }
+  if (file.size > 10 * 1024 * 1024) { reject(new Error('Image too large — max 10 MB before compression.')); return; }
+  const reader = new FileReader();
+  reader.onerror = () => reject(new Error('Could not read file'));
+  reader.onload = (e) => {
+    const img = new Image();
+    img.onerror = () => reject(new Error('Could not decode image'));
+    img.onload = () => {
+      const MAX_PX = 1200;
+      let {width, height} = img;
+      if (width > MAX_PX || height > MAX_PX) {
+        if (width > height) { height = Math.round(height * MAX_PX / width); width = MAX_PX; }
+        else { width = Math.round(width * MAX_PX / height); height = MAX_PX; }
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width = width; canvas.height = height;
+      canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+      let dataUrl = canvas.toDataURL('image/jpeg', 0.72);
+      // If still > 1.5 MB after first pass, use lower quality
+      if (dataUrl.length > 2 * 1024 * 1024) dataUrl = canvas.toDataURL('image/jpeg', 0.45);
+      resolve({ data: dataUrl, name: file.name, size: Math.round(dataUrl.length * 0.75) });
+    };
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+});
+
 // ─── API HELPERS (30s timeout handles Render cold starts) ────────────────────
 const fetchT = (url, opts={}, ms=35000) => {
   const ctrl = new AbortController();
@@ -1170,6 +1202,7 @@ export default function App() {
   const allNavItems = [
     canSeeMenu('my') && isApproved         ? { id:'my',        icon:'🔑', label:t.nav.my,        badge:myListings.length } : null,
     canSeeMenu('incidents')                 ? { id:'incidents',  icon:'⚠️', label:t.nav.incidents,  badge:openCount } : null,
+    isApproved                              ? { id:'general',    icon:'📢', label:lang==='en'?'Community':'Comunidad', badge: incidents.filter(i=>i.isGeneral&&i.status!=='resolved').length||0 } : null,
     canSeeMenu('listings')                  ? { id:'listings',   icon:'🏠', label:t.nav.listings } : null,
     canSeeMenu('dashboard')                 ? { id:'dashboard',  icon:'📊', label:t.nav.dashboard } : null,
     effectiveCanManageRegistrations && isApproved ? { id:'approvals', icon:'📝', label:t.nav.approvals, badge:pendingRegistrations.length } : null,
@@ -1225,11 +1258,31 @@ export default function App() {
   const addIncident = async (data) => {
     setSyncing(true);
     try {
-      const apt = listings.find(l => l.id === data.aptId);
-      const newI = await api.post('/api/incidents', { ...data, reporterUid: user.uid, reporterName: user.name, aptLabel: apt ? aptDisplay(apt.apt, lang) : '?' });
+      const apt = data.aptId ? listings.find(l => l.id === data.aptId) : null;
+      const aptLabel = data.isGeneral ? '' : apt ? aptDisplay(apt.apt, lang) : '?';
+      const newI = await api.post('/api/incidents', { ...data, reporterUid: user.uid, reporterName: user.name, aptLabel });
       setIncidents(i => [newI, ...i]);
-      setModal(null); showToast("⚠️ Reporte registrado");
+      setModal(null);
+      showToast(data.isGeneral ? (lang==='en'?'📢 General report submitted':'📢 Reporte general registrado') : '⚠️ Reporte registrado');
     } catch(e) { console.error('Save incident error', e); showToast("Error al reportar: " + (e.message || 'Revise Supabase/Render'), true); } finally { setSyncing(false); }
+  };
+
+  const assignIncident = async (incidentId, aptId) => {
+    setSyncing(true);
+    try {
+      const updated = await api.patch(`/api/incidents/${incidentId}/assign`, { actorUid:user.uid, actorEmail:user.email, aptId });
+      setIncidents(i => i.map(x => x.id === incidentId ? updated : x));
+      setModal(null); showToast(lang==='en'?'🏠 Incident assigned to unit':'🏠 Incidente asignado a unidad');
+    } catch(e) { showToast('Error: ' + (e.message||''), true); } finally { setSyncing(false); }
+  };
+
+  const closeGeneralIncident = async (incidentId, { action, resolution, resolutionComments='' }) => {
+    setSyncing(true);
+    try {
+      const updated = await api.patch(`/api/incidents/${incidentId}/close-general`, { actorUid:user.uid, actorEmail:user.email, action, resolution, resolutionComments });
+      setIncidents(i => i.map(x => x.id === incidentId ? updated : x));
+      setModal(null); showToast(lang==='en'?'✓ General incident closed':'✓ Incidente general cerrado');
+    } catch(e) { showToast('Error: ' + (e.message||''), true); } finally { setSyncing(false); }
   };
 
   const resolveIncident = async (id) => {
@@ -1429,6 +1482,7 @@ export default function App() {
         {view==="listings"  && <ListingsView lang={lang} listings={listings} incidents={incidents} user={user} contactProps={contactProps} isGlobalAdmin={effectiveIsGlobalAdmin} canEditGlobal={delegatePerms.canUpdateGlobalListings} canDeleteGlobal={delegatePerms.canDeleteGlobalListings} canResolveGlobal={canResolveIncidentsNow} floorOpenState={listingFloorOpen} onFloorToggle={toggleListingFloor} onAdd={()=>{ if(!user){login();return;} setModal({type:"addListing"}); }} onEdit={l=>setModal({type:"editListing",data:l})} onDelete={deleteListing} onReport={l=>{ if(!user){login();return;} setModal({type:"incident",data:{aptId:l.id}}); }} onVerify={inc=>setModal({type:"verifyIncident",data:inc})} onResolve={resolveIncident} onAddResolution={inc=>setModal({type:"addResolution",data:inc})} onFloorFilter={f=>{setIncidentQuickFilter({type:'floorFilter',aptIds:f.aptIds,status:f.status});setView('incidents');}} />}
 
         {view==="incidents" && <IncidentsView lang={lang} incidents={incidents} listings={listings} user={user} quickFilter={incidentQuickFilter} onQuickFilterApplied={()=>setIncidentQuickFilter(null)} contactProps={contactProps} isGlobalAdmin={effectiveIsGlobalAdmin} canUpdateGlobal={delegatePerms.canUpdateGlobalIncidents} canDeleteGlobal={delegatePerms.canDeleteGlobalIncidents} canResolveGlobal={canResolveIncidentsNow} onAdd={()=>{ if(!user){login();return;} setModal({type:"incident"}); }} onResolve={resolveIncident} onDelete={deleteIncident} onVerify={inc=>setModal({type:"verifyIncident",data:inc})} onAddResolution={inc=>setModal({type:"addResolution",data:inc})} onUnitDetail={id=>setUnitDetailOverlay({listingId:id})} onIncidentDetail={openIncidentDetail} />}
+        {view==="general" && user && <GeneralIncidentsView lang={lang} incidents={incidents} listings={listings} user={user} contactProps={contactProps} isGlobalAdmin={effectiveIsGlobalAdmin} canResolveGlobal={canResolveIncidentsNow} onIncidentDetail={openIncidentDetail} onAssign={inc=>setModal({type:'assignGeneral',data:inc})} onClose={inc=>setModal({type:'closeGeneral',data:inc})} />}
         {view==="notifications" && user && <NotificationsView lang={lang} notifications={notifications} incidents={incidents} listings={listings} contactProps={contactProps} onRead={markNotificationRead} onReadAll={markAllNotificationsRead} smartAlerts={smartAlerts} onIncidentDetail={openIncidentDetail} />}
         {view==="approvals" && user && effectiveCanManageRegistrations && <PendingApprovalsView lang={lang} pending={pendingRegistrations} onApprove={id=>reviewRegistrationAction(id,'approve')} onDecline={id=>reviewRegistrationAction(id,'decline')} active={activeRegistrations} />}
         {view==="analytics" && user && (effectiveIsGlobalAdmin || analyticsEnabledForAll) && <AnalyticsDashboard lang={lang} user={user} contactProps={contactProps} showToast={showToast} isGlobalAdmin={effectiveIsGlobalAdmin} />}
@@ -1523,6 +1577,8 @@ export default function App() {
       {modal?.type==="incident" && <IncidentModal lang={lang} config={adminInfo.config} listings={listings} user={user} presetApt={modal.data?.aptId} onSave={addIncident} onClose={()=>setModal(null)} />}
       {modal?.type==="verifyIncident" && <VerifyIncidentModal lang={lang} config={adminInfo.config} incident={modal.data} onSave={payload=>verifyIncident(modal.data.id,payload)} onClose={()=>setModal(null)} />}
       {modal?.type==="addResolution" && <AddResolutionModal lang={lang} incident={modal.data} onSave={text=>addResolution(modal.data.id,text)} onClose={()=>setModal(null)} />}
+      {modal?.type==="assignGeneral" && <AssignToUnitModal lang={lang} incident={modal.data} listings={listings} onSave={aptId=>assignIncident(modal.data.id,aptId)} onClose={()=>setModal(null)} />}
+      {modal?.type==="closeGeneral" && <CloseGeneralModal lang={lang} incident={modal.data} onSave={data=>closeGeneralIncident(modal.data.id,data)} onClose={()=>setModal(null)} />}
       {modal?.type==="sendUserEmail" && <SendUserEmailModal lang={lang} contact={modal.data} fromUser={user} onSend={sendUserEmail} onClose={()=>setModal(null)} />}
 
       {syncing && <div className="sync-overlay"><div className="spinner-sm"/><span>{lang === "en" ? "Saving to server..." : "Guardando en servidor..."}</span></div>}
@@ -3989,6 +4045,16 @@ function IRow({ inc, user, listings=[], contactProps={}, isGlobalAdmin=false, ca
         {/* Body: description + structured sections */}
         <div className="ir-body">
           {inc.desc&&<p className="ir-body-desc">{inc.desc}</p>}
+          {/* Photo thumbnails */}
+          {Array.isArray(inc.photos)&&inc.photos.length>0&&(
+            <div className="inc-photo-row">
+              {inc.photos.map((p,i)=>(
+                <img key={i} src={p.data} alt={p.name||`photo-${i+1}`} className="inc-photo-thumb"
+                  title={isEn?'Click to view full size':'Clic para ver tamaño completo'}
+                  onClick={()=>window.open(p.data,'_blank')}/>
+              ))}
+            </div>
+          )}
 
           {/* Guests */}
           {guests.length>0 ? (
@@ -4152,11 +4218,30 @@ function IncidentModal({ listings, user, presetApt, onSave, onClose, lang="es-CO
     try{const s=JSON.parse(localStorage.getItem(DRAFT_KEY)||'null');return !!(s&&typeof s==='object'&&(s.aptId||s.desc));}catch{return false;}
   });
   const [errors,setErrors]=useState({});
+  const [photos,setPhotos]=useState([]);
+  const [photoError,setPhotoError]=useState('');
+  const [photoLoading,setPhotoLoading]=useState(false);
+  const [isGeneral,setIsGeneral]=useState(false);
   // Auto-save draft on every field change (skip when preset apt is used)
   useEffect(()=>{
     if(presetApt) return;
     try{localStorage.setItem(DRAFT_KEY,JSON.stringify(f));}catch{}
   },[f]);// eslint-disable-line
+
+  const handlePhotoAdd = async (files) => {
+    const remaining = 3 - photos.length;
+    if(remaining<=0){setPhotoError(isEn?'Maximum 3 photos allowed.':'Máximo 3 fotos permitidas.');return;}
+    const toProcess = Array.from(files).slice(0,remaining);
+    setPhotoLoading(true); setPhotoError('');
+    const results=[]; const errs=[];
+    await Promise.all(toProcess.map(async f=>{
+      try{results.push(await compressImage(f));}catch(e){errs.push(e.message);}
+    }));
+    if(errs.length) setPhotoError(errs.join('; '));
+    if(results.length) setPhotos(p=>[...p,...results].slice(0,3));
+    setPhotoLoading(false);
+  };
+  const removePhoto = (i) => setPhotos(p=>p.filter((_,idx)=>idx!==i));
   const s=(k,v)=>{ setF(p=>({...p,[k]:v})); setErrors(e=>({...e,[k]:undefined})); };
   const validate=()=>{
     const e={};
@@ -4202,15 +4287,25 @@ function IncidentModal({ listings, user, presetApt, onSave, onClose, lang="es-CO
         </div>
       )}
 
+      {/* ── General incident toggle ── */}
+      <div className="gen-toggle-wrap">
+        <label className="gen-toggle-label">
+          <input type="checkbox" checked={isGeneral} onChange={e=>{setIsGeneral(e.target.checked);if(e.target.checked)s('aptId','');}}/>
+          <span className="gen-toggle-box"/>
+          <span>📢 {isEn?'This is a general community incident (not specific to one unit)':'Este es un incidente general de la comunidad (no específico de una unidad)'}</span>
+        </label>
+        {isGeneral&&<div className="gen-toggle-hint">{isEn?'A global/delegate admin will review, assign to a unit, or close this incident.':'Un admin global/delegado revisará, asignará a una unidad, o cerrará este incidente.'}</div>}
+      </div>
+
       <div className="fg2 inc-form-grid">
         {/* Row 1: Unit + Date */}
-        <div className="fg"><label>{appText(lang,"form.apartment")} <Tip text={tips.incidentApartment}/></label>
+        {!isGeneral&&<div className="fg"><label>{appText(lang,"form.apartment")} <Tip text={tips.incidentApartment}/></label>
           <select className={inputCls("aptId")} value={f.aptId} onChange={e=>s("aptId",e.target.value)}>
             <option value="">{appText(lang,"form.select")}</option>
             {[...listings].sort((a,b)=>a.apt.localeCompare(b.apt)).map(l=><option key={l.id} value={l.id}>{aptDisplay(l.apt, lang)} – {l.owner}</option>)}
           </select>
           {errors.aptId&&<span className="err-msg">{errors.aptId}</span>}
-        </div>
+        </div>}
         <div className="fg"><label>{appText(lang,"form.date")}</label>
           <input className={inputCls("date")} type="date" value={f.date} onChange={e=>s("date",e.target.value)}/>
           {errors.date&&<span className="err-msg">{errors.date}</span>}
@@ -4261,9 +4356,38 @@ function IncidentModal({ listings, user, presetApt, onSave, onClose, lang="es-CO
           {errors.desc&&<span className="err-msg">{errors.desc}</span>}
         </div>
       </div>
+        {/* Photo attachments */}
+        <div className="fg full">
+          <label>📷 {isEn?`Photos — up to 3 (JPEG/PNG/WebP, max 10 MB each before compression)`:`Fotos — hasta 3 (JPEG/PNG/WebP, máx 10 MB antes de comprimir)`}</label>
+          <div className="inc-photo-upload-area">
+            {photos.map((p,i)=>(
+              <div key={i} className="inc-photo-preview">
+                <img src={p.data} alt={p.name} className="inc-photo-preview-img"/>
+                <button type="button" className="inc-photo-remove" onClick={()=>removePhoto(i)} title={isEn?'Remove':'Quitar'}>✕</button>
+                <span className="inc-photo-size">{p.size>1024*1024?`${(p.size/1024/1024).toFixed(1)}MB`:`${Math.round(p.size/1024)}KB`}</span>
+              </div>
+            ))}
+            {photos.length<3&&(
+              <label className="inc-photo-add-btn" title={isEn?'Add photo':'Agregar foto'}>
+                {photoLoading?<span className="spinner-sm"/>:<>📷 {isEn?'Add':'Agregar'}</>}
+                <input type="file" accept="image/*" multiple style={{display:'none'}} disabled={photoLoading}
+                  onChange={e=>{handlePhotoAdd(e.target.files);e.target.value='';}}/>
+              </label>
+            )}
+          </div>
+          {photoError&&<span className="err-msg">{photoError}</span>}
+          <span className="help-msg">{isEn?'Photos are compressed automatically. Click a thumbnail to view full size.':'Las fotos se comprimen automáticamente. Clic en la miniatura para ver tamaño completo.'}</span>
+        </div>
+      </div>
       <div className="mact">
         <button className="btn-ghost" onClick={onClose}>{appText(lang,"form.cancel")}</button>
-        <button className="btn-danger" title={tips.reportIncident} onClick={()=>{if(validate()){try{localStorage.removeItem(DRAFT_KEY);}catch{}onSave(f);}}}>{appText(lang,"form.registerReport")}</button>
+        <button className="btn-danger" title={tips.reportIncident} onClick={()=>{
+          // For general incidents, aptId is not required
+          const valid = isGeneral
+            ? (f.date&&f.type&&f.category&&String(f.desc||'').trim())
+            : validate();
+          if(valid){try{localStorage.removeItem(DRAFT_KEY);}catch{}onSave({...f,photos,isGeneral,aptId:isGeneral?'':f.aptId});}
+        }}>{appText(lang,"form.registerReport")}</button>
       </div>
     </Overlay>
   );
@@ -4472,6 +4596,7 @@ function AnalyticsDashboard({ user, contactProps={}, showToast=()=>{}, isGlobalA
 const NAV_CONFIG_ITEMS = [
   { id:'my',        labelEs:'Mis Unidades',  labelEn:'My Units' },
   { id:'incidents', labelEs:'Incidentes',    labelEn:'Incidents' },
+  { id:'general',   labelEs:'Comunidad',     labelEn:'Community' },
   { id:'listings',  labelEs:'Inventario',    labelEn:'Inventory' },
   { id:'dashboard', labelEs:'Dashboard',     labelEn:'Dashboard' },
   { id:'notifications',labelEs:'Alertas',   labelEn:'Alerts' },
@@ -5196,6 +5321,160 @@ function AdminSettings({ config={}, user, listings=[], contactProps={}, onSave, 
   </AdminSection>
 
 </div>;
+}
+
+// ─── ASSIGN GENERAL INCIDENT TO UNIT ─────────────────────────────────────────
+function AssignToUnitModal({ incident, listings=[], onSave, onClose, lang='es-CO' }) {
+  const isEn = lang==='en';
+  const [aptId,setAptId] = useState('');
+  return (
+    <Overlay onClose={onClose}>
+      <div className="modal-title">🏠 {isEn?'Assign incident to unit':'Asignar incidente a unidad'}</div>
+      <div className="modal-sub">{isEn?'Select the unit this incident relates to. Once assigned it follows the standard workflow.':'Selecciona la unidad a la que aplica este incidente. Una vez asignado sigue el flujo estándar.'}</div>
+      <div className="fg2">
+        <div className="fg full">
+          <div className="gen-inc-preview" style={{marginBottom:10}}>
+            <span style={{fontSize:'.72rem',fontWeight:800,color:'#496674',textTransform:'uppercase',letterSpacing:'.06em'}}>{isEn?'Incident':'Incidente'}</span>
+            <div style={{fontSize:'.84rem',color:'#17313a',marginTop:4,lineHeight:1.4}}>{String(incident.desc||'').slice(0,120)}</div>
+            <div style={{fontSize:'.72rem',color:'#8a9fa5',marginTop:4}}>{incident.type} · {incident.date}</div>
+          </div>
+          <label>{isEn?'Select unit to assign':'Seleccionar unidad para asignar'}</label>
+          <select value={aptId} onChange={e=>setAptId(e.target.value)} style={{minWidth:0}}>
+            <option value="">— {isEn?'Choose a unit':'Elige una unidad'} —</option>
+            {[...listings].sort((a,b)=>a.apt.localeCompare(b.apt)).map(l=>(
+              <option key={l.id} value={l.id}>{aptDisplay(l.apt,'es-CO')} – {l.owner}</option>
+            ))}
+          </select>
+        </div>
+      </div>
+      <div className="mact">
+        <button className="btn-ghost" onClick={onClose}>{isEn?'Cancel':'Cancelar'}</button>
+        <button className="btn-p" disabled={!aptId} onClick={()=>aptId&&onSave(aptId)}>
+          🏠 {isEn?'Assign to unit':'Asignar a unidad'}
+        </button>
+      </div>
+    </Overlay>
+  );
+}
+
+// ─── CLOSE GENERAL INCIDENT (admin direct close) ──────────────────────────────
+function CloseGeneralModal({ incident, onSave, onClose, lang='es-CO' }) {
+  const isEn = lang==='en';
+  const [action,setAction] = useState('');
+  const [resolution,setResolution] = useState('');
+  const [comments,setComments] = useState('');
+  const canSave = String(action||'').trim().length>3 && String(resolution||'').trim().length>3;
+  return (
+    <Overlay onClose={onClose} wide>
+      <div className="modal-title">✓ {isEn?'Close general incident':'Cerrar incidente general'}</div>
+      <div className="modal-sub">{isEn?'Provide the action taken and resolution. This closes the incident without assigning it to a unit.':'Indica la acción tomada y la resolución. Esto cierra el incidente sin asignarlo a una unidad.'}</div>
+      <div className="fg2">
+        <div className="fg full">
+          <div className="gen-inc-preview">
+            <span style={{fontSize:'.72rem',fontWeight:800,color:'#496674',textTransform:'uppercase',letterSpacing:'.06em'}}>{isEn?'Incident':'Incidente'}</span>
+            <div style={{fontSize:'.84rem',color:'#17313a',marginTop:4,lineHeight:1.4}}>{String(incident.desc||'').slice(0,160)}</div>
+            <div style={{fontSize:'.72rem',color:'#8a9fa5',marginTop:4}}>{incident.type} · {incident.date}</div>
+          </div>
+        </div>
+        <div className="fg full">
+          <label>✅ {isEn?'Action taken *':'Acción tomada *'}</label>
+          <textarea rows={3} value={action} onChange={e=>setAction(e.target.value)} placeholder={isEn?'Describe the action taken to address this incident...':'Describe la acción tomada para atender este incidente...'}/>
+        </div>
+        <div className="fg full">
+          <label>🔍 {isEn?'Resolution *':'Resolución *'}</label>
+          <textarea rows={3} value={resolution} onChange={e=>setResolution(e.target.value)} placeholder={isEn?'How was this resolved? What is the outcome?':'¿Cómo se resolvió? ¿Cuál es el resultado?'}/>
+        </div>
+        <div className="fg full">
+          <label>💬 {isEn?'Closing notes (optional)':'Notas de cierre (opcional)'}</label>
+          <textarea rows={2} value={comments} onChange={e=>setComments(e.target.value)} placeholder={isEn?'Any additional closing notes...':'Notas adicionales de cierre...'}/>
+        </div>
+      </div>
+      <div className="mact">
+        <button className="btn-ghost" onClick={onClose}>{isEn?'Cancel':'Cancelar'}</button>
+        <button className="btn-p" disabled={!canSave} onClick={()=>canSave&&onSave({action:action.trim(),resolution:resolution.trim(),resolutionComments:comments.trim()})}>
+          ✓ {isEn?'Close incident':'Cerrar incidente'}
+        </button>
+      </div>
+    </Overlay>
+  );
+}
+
+// ─── GENERAL INCIDENTS VIEW ───────────────────────────────────────────────────
+function GeneralIncidentsView({ incidents=[], listings=[], user, contactProps={}, isGlobalAdmin=false, canResolveGlobal=false, onIncidentDetail=null, onAssign, onClose: onCloseGeneral, lang='es-CO' }) {
+  const isEn = lang==='en';
+  const general = incidents.filter(i=>i.isGeneral).sort((a,b)=>new Date(b.createdAt)-new Date(a.createdAt));
+  const open = general.filter(i=>i.status!=='resolved');
+  const closed = general.filter(i=>i.status==='resolved');
+  const [showClosed,setShowClosed] = useState(false);
+  const canAct = isGlobalAdmin || canResolveGlobal;
+  return (
+    <div className="fade">
+      <div className="ph">
+        <div>
+          <h1 className="ptitle">📢 {isEn?'General Incidents':'Incidentes Generales'}</h1>
+          <p className="psub">{isEn?`Community-wide incidents not tied to a specific unit · ${open.length} open`:`Incidentes de la comunidad no asociados a una unidad · ${open.length} abiertos`}</p>
+        </div>
+      </div>
+
+      <div className="gen-info-banner">
+        {isEn
+          ? '📢 General incidents affect the building or community and are not specific to one unit. Anyone can report them. Admins can assign them to a unit (switching to normal workflow) or close them directly.'
+          : '📢 Los incidentes generales afectan el edificio o la comunidad y no están vinculados a una unidad específica. Cualquier usuario puede reportarlos. Los admins pueden asignarlos a una unidad (flujo normal) o cerrarlos directamente.'}
+      </div>
+
+      {open.length===0 && <EmptyState icon="✅" title={isEn?'No open general incidents':'Sin incidentes generales abiertos'} sub={isEn?'All community incidents have been addressed.':'Todos los incidentes de la comunidad han sido atendidos.'}/>}
+
+      {open.length>0&&<div className="gen-list">
+        {open.map(inc=>(
+          <div key={inc.id} className={`gen-card${inc.status==='resolved'?' gen-card-closed':''}`}>
+            <div className="gen-card-header">
+              <span className={`gen-card-status-dot ${inc.status==='open'?'gen-dot-open':'gen-dot-wait'}`}/>
+              <span className="gen-card-type">{incidentTypeLabel(inc.type,lang)}</span>
+              <span className="gen-card-cat">{categoryLabel(inc.category,lang)}</span>
+              <span className="gen-card-date">📅 {fmtDate(inc.date)}</span>
+              {inc.slaCycleCount>0&&<span className="gen-card-sla">⏱️ SLA {inc.slaCycleCount}</span>}
+              {onIncidentDetail&&<button className="ir-detail-pill" onClick={()=>onIncidentDetail(inc.id)}>{isEn?'Details':'Detalles'} ›</button>}
+            </div>
+            <p className="gen-card-desc">{inc.desc}</p>
+            {inc.reporterName&&<div className="gen-card-reporter">📋 {isEn?'Reported by':'Reportado por'}: {inc.reporterName}</div>}
+            {Array.isArray(inc.photos)&&inc.photos.length>0&&(
+              <div className="inc-photo-row">
+                {inc.photos.map((p,i)=><img key={i} src={p.data} alt={p.name||`photo-${i+1}`} className="inc-photo-thumb" onClick={()=>window.open(p.data,'_blank')}/>)}
+              </div>
+            )}
+            {canAct&&inc.status!=='resolved'&&(
+              <div className="gen-card-acts">
+                <button className="btn-p bsm" onClick={()=>onAssign&&onAssign(inc)}>🏠 {isEn?'Assign to unit':'Asignar a unidad'}</button>
+                <button className="btn-ghost bsm" onClick={()=>onCloseGeneral&&onCloseGeneral(inc)}>✓ {isEn?'Close directly':'Cerrar directamente'}</button>
+              </div>
+            )}
+          </div>
+        ))}
+      </div>}
+
+      {closed.length>0&&(
+        <div style={{marginTop:16}}>
+          <button className="btn-ghost bsm" onClick={()=>setShowClosed(s=>!s)}>
+            {showClosed?(isEn?'▲ Hide closed':'▲ Ocultar cerrados'):(isEn?`▼ Show ${closed.length} closed`:`▼ Ver ${closed.length} cerrados`)}
+          </button>
+          {showClosed&&<div className="gen-list" style={{marginTop:8,opacity:.75}}>
+            {closed.map(inc=>(
+              <div key={inc.id} className="gen-card gen-card-closed">
+                <div className="gen-card-header">
+                  <span className="gen-card-status-dot gen-dot-closed"/>
+                  <span className="gen-card-type">{incidentTypeLabel(inc.type,lang)}</span>
+                  <span className="gen-card-date">📅 {fmtDate(inc.date)}</span>
+                  {onIncidentDetail&&<button className="ir-detail-pill" onClick={()=>onIncidentDetail(inc.id)}>{isEn?'Details':'Detalles'} ›</button>}
+                </div>
+                <p className="gen-card-desc">{inc.desc}</p>
+                {inc.resolutionComments&&<div className="gen-card-resolution">✓ {inc.resolutionComments}</div>}
+              </div>
+            ))}
+          </div>}
+        </div>
+      )}
+    </div>
+  );
 }
 
 function AdminFallback({ lang='es-CO', error={} }){
@@ -5942,5 +6221,49 @@ html{font-size:clamp(14px,1.1vw,16px);-webkit-text-size-adjust:100%}body{overflo
 @media(max-width:640px){.audit-filters{flex-direction:column;align-items:stretch}.audit-filters .btn-p{width:100%}}
 /* On mobile, push toast above the bottom nav */
 @media(max-width:768px){.toast{bottom:80px!important}}
+
+/* ── v81 — Photos + General Incidents ───────────────────────────────────── */
+
+/* Photo thumbnails in IRow / GeneralIncidentsView */
+.inc-photo-row{display:flex;gap:6px;flex-wrap:wrap;margin:6px 0 2px}
+.inc-photo-thumb{width:56px;height:56px;object-fit:cover;border-radius:8px;cursor:pointer;border:1.5px solid rgba(47,79,58,.18);transition:transform .14s,box-shadow .14s}
+.inc-photo-thumb:hover{transform:scale(1.06);box-shadow:0 4px 14px rgba(32,46,38,.18)}
+
+/* Photo upload UI in IncidentModal */
+.inc-photo-upload-area{display:flex;gap:8px;flex-wrap:wrap;align-items:flex-start;margin-top:6px}
+.inc-photo-preview{position:relative;width:72px;height:72px;flex-shrink:0}
+.inc-photo-preview-img{width:72px;height:72px;object-fit:cover;border-radius:10px;border:1.5px solid rgba(47,79,58,.18);display:block}
+.inc-photo-remove{position:absolute;top:-6px;right:-6px;width:20px;height:20px;border-radius:50%;background:#d4634a;color:#fff;border:2px solid #fff;font-size:.62rem;font-weight:900;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1}
+.inc-photo-size{position:absolute;bottom:2px;left:0;right:0;text-align:center;font-size:.55rem;color:rgba(255,255,255,.9);background:rgba(0,0,0,.4);border-radius:0 0 8px 8px;padding:1px 3px}
+.inc-photo-add-btn{width:72px;height:72px;border-radius:10px;border:2px dashed rgba(11,127,140,.35);background:rgba(11,127,140,.06);color:#0b7f8c;font-size:.72rem;font-weight:800;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;transition:all .14s}
+.inc-photo-add-btn:hover{background:rgba(11,127,140,.12);border-color:#0b7f8c}
+
+/* General incident toggle in IncidentModal */
+.gen-toggle-wrap{background:rgba(11,127,140,.06);border:1px solid rgba(11,127,140,.2);border-radius:10px;padding:10px 14px;margin-bottom:14px;display:flex;flex-direction:column;gap:6px}
+.gen-toggle-label{display:flex;align-items:center;gap:10px;cursor:pointer;font-size:.84rem;color:#17313a;font-weight:600}
+.gen-toggle-label input[type="checkbox"]{width:16px;height:16px;flex-shrink:0;accent-color:#0b7f8c;cursor:pointer}
+.gen-toggle-box{display:none}
+.gen-toggle-hint{font-size:.74rem;color:#0b5f72;background:rgba(11,127,140,.07);border-radius:7px;padding:5px 10px;line-height:1.4}
+
+/* GeneralIncidentsView */
+.gen-info-banner{background:rgba(11,127,140,.07);border:1px solid rgba(11,127,140,.22);border-left:4px solid #0b7f8c;border-radius:10px;padding:10px 14px;margin-bottom:16px;font-size:.8rem;color:#0b4f5e;line-height:1.5}
+.gen-list{display:flex;flex-direction:column;gap:12px}
+.gen-card{background:rgba(255,255,255,.94);border:1px solid rgba(47,79,58,.18);border-left:4px solid #d4634a;border-radius:14px;padding:14px 16px;box-shadow:0 6px 16px rgba(32,46,38,.08);display:flex;flex-direction:column;gap:8px}
+.gen-card-closed{border-left-color:rgba(47,79,58,.25)!important;opacity:.8}
+.gen-card-header{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.gen-card-status-dot{width:9px;height:9px;border-radius:50%;flex-shrink:0}
+.gen-dot-open{background:#d4634a}
+.gen-dot-wait{background:#d9a030}
+.gen-dot-closed{background:#4a7060}
+.gen-card-type{font-size:.72rem;font-weight:800;color:#496674;background:rgba(47,79,58,.08);border-radius:999px;padding:2px 8px}
+.gen-card-cat{font-size:.7rem;color:#6a8a9a;background:rgba(47,79,58,.06);border-radius:999px;padding:2px 7px}
+.gen-card-date{font-size:.7rem;color:#8a9fa5;margin-left:auto}
+.gen-card-sla{font-size:.68rem;font-weight:800;color:#e65100;background:#fff3e0;border-radius:999px;padding:2px 7px}
+.gen-card-desc{font-size:.86rem;color:#17313a;line-height:1.5;margin:0}
+.gen-card-reporter{font-size:.72rem;color:#496674}
+.gen-card-resolution{font-size:.78rem;color:#0b4f32;background:rgba(11,127,79,.07);border-radius:7px;padding:6px 10px;border-left:3px solid #0b7f4f}
+.gen-card-acts{display:flex;gap:8px;flex-wrap:wrap;padding-top:6px;border-top:1px solid rgba(47,79,58,.08)}
+/* General incident preview in modals */
+.gen-inc-preview{background:rgba(47,79,58,.05);border-radius:8px;padding:8px 10px;border:1px solid rgba(47,79,58,.1)}
 
 `;

@@ -64,6 +64,7 @@ const DEFAULT_EMAIL_NOTIFICATION_CONFIG = {
   incident_verified:           { enabled:true,  reporter:true, owner:true,  operator:true,  globalAdmin:true,  delegateAdmin:true  },
   incident_resolution_added:   { enabled:true,  reporter:true, owner:true,  operator:true,  globalAdmin:true,  delegateAdmin:true  },
   incident_resolved:           { enabled:true,  reporter:true, owner:true,  operator:true,  globalAdmin:true,  delegateAdmin:true  },
+  incident_general_sla:        { enabled:true,  reporter:false, owner:false, operator:false, globalAdmin:true,  delegateAdmin:true  },
   registration_submitted:    { enabled:true,  owner:true,  operator:false, globalAdmin:false, delegateAdmin:false },
   registration_approved:     { enabled:true,  owner:true,  operator:false, globalAdmin:true,  delegateAdmin:true  },
   registration_declined:     { enabled:true,  owner:true,  operator:false, globalAdmin:true,  delegateAdmin:true  },
@@ -477,6 +478,8 @@ const incidentFromDb = (r) => ({
   slaCycleCount: r.sla_cycle_count || 0,
   createdAt: (r.created_at || '').slice(0, 10),
   createdAtFull: r.created_at || '',
+  isGeneral: Boolean(r.is_general),
+  photos: Array.isArray(r.photos) ? r.photos : [],
 });
 
 const incidentToDb = (i) => ({
@@ -510,6 +513,8 @@ const incidentToDb = (i) => ({
   next_sla_reminder_at: i.nextSlaReminderAt || null,
   sla_cycle_count: i.slaCycleCount || 0,
   created_at: i.createdAt || new Date().toISOString(),
+  is_general: Boolean(i.isGeneral),
+  photos: Array.isArray(i.photos) ? i.photos : [],
 });
 
 const notificationFromDb = (r) => ({
@@ -1043,48 +1048,76 @@ app.get('/api/incidents', async (req, res) => {
 
 app.post('/api/incidents', async (req, res) => {
   if (!requireSupabaseEnv(res)) return;
-  const { reporterUid, reporterName, aptId, aptLabel, date, type, category, desc } = req.body;
-  if (!reporterUid || !aptId || !date || !type || !category || !String(desc || '').trim()) return res.status(400).json({ error: 'Apartamento, fecha, tipo, categoría y descripción son requeridos.' });
-
-  const { data: listing, error: listingError } = await supabase.from('listings').select('*').eq('id', aptId).eq('status','approved').single();
-  if (listingError || !listing) return res.status(404).json({ error: 'Listing not found for selected apartment.' });
+  const { reporterUid, reporterName, aptId, aptLabel, date, type, category, desc, isGeneral=false, photos=[] } = req.body;
+  if (!reporterUid || !date || !type || !category || !String(desc || '').trim())
+    return res.status(400).json({ error: 'Fecha, tipo, categoría y descripción son requeridos.' });
+  // Validate photos: max 3, each base64 data URI must be under 2MB
+  if (!Array.isArray(photos) || photos.length > 3)
+    return res.status(400).json({ error: 'Se permiten máximo 3 fotos.' });
+  const MAX_PHOTO_BYTES = 2 * 1024 * 1024;
+  for (const p of photos) {
+    if (!p || typeof p.data !== 'string' || p.data.length > MAX_PHOTO_BYTES)
+      return res.status(400).json({ error: 'Cada foto debe ser base64 de máximo 2 MB. Reduce el tamaño de la imagen.' });
+  }
 
   const appUrl = publicAppUrl(req);
   const slaHours = await getSlaHours();
   const nowIso = new Date().toISOString();
-  const item = { id:'inc_'+uuidv4().slice(0,8), reporterUid, reporterName, aptId, aptLabel: aptLabel || ('Apto ' + listing.apt), guestName:'', guestCity:'', guestCountry:'', date, type, category, desc, status:'open', slaHours, nextSlaReminderAt:addHoursIso(nowIso, slaHours), slaCycleCount:0, createdAt:nowIso };
+
+  // ── General incident (not tied to a specific unit) ────────────────────────
+  if (isGeneral) {
+    const item = { id:'inc_'+uuidv4().slice(0,8), reporterUid, reporterName, aptId:null, aptLabel:'', guestName:'', guestCity:'', guestState:'', guestCountry:'', date, type, category, desc, status:'open', isGeneral:true, photos, slaHours, nextSlaReminderAt:addHoursIso(nowIso, slaHours), slaCycleCount:0, createdAt:nowIso };
+    const { data, error } = await supabase.from('incidents').insert(incidentToDb(item)).select('*').single();
+    if (error) return sendSupabaseError(res, error);
+    const savedIncident = incidentFromDb(data);
+    await auditLog({ entity:'incident', entityId:data.id, action:'create', actorUid:reporterUid, actorName:reporterName, after:data });
+    // Notify admins in-app
+    const adminEmails = getGlobalAdminEmails();
+    const generalNote = adminEmails.length ? { id:'not_'+uuidv4().slice(0,8), ownerUid:null, listingId:null, incidentId:savedIncident.id, title:'Nuevo incidente general reportado', message:String(savedIncident.desc||'').slice(0,160), isRead:false, emailSent:false, emailError:'', createdAt:nowIso } : null;
+    let generalNoteError = null;
+    if (generalNote) {
+      const { error: ne } = await supabase.from('notifications').insert(notificationToDb(generalNote));
+      if (ne) { generalNoteError = ne; warn('General incident notification save failed: ' + ne.message); }
+    }
+    res.json({ ...savedIncident, notificationSaved:!generalNoteError, emailQueued:Boolean(emailConfigured), emailSent:false, emailError:emailConfigured?'':'Resend email is not configured in Render.' });
+    setImmediate(async () => {
+      if (!emailConfigured) return;
+      try {
+        const notifCfg = await getEmailNotificationConfig();
+        const typeCfg = notifCfg['incident_new'] || {};
+        const reporterEmail = await getReporterEmail(reporterUid);
+        const recips = [];
+        if (typeCfg.globalAdmin  !== false) recips.push(...getGlobalAdminEmails(), ...await getEscalationCcEmails());
+        if (typeCfg.delegateAdmin !== false) recips.push(...await getDelegateAdminsWithPermission('canResolveIncidents'));
+        if (typeCfg.reporter !== false && reporterEmail) recips.push(reporterEmail);
+        const recipients = normalizeRecipients(recips);
+        if (recipients.length) {
+          const incidentLink = appUrl + '/?view=incidents&incident=' + savedIncident.id;
+          await sendTemplatedEmail({ key:'incident_new', to:recipients, vars:{ apt:'General (sin unidad)', owner:'', operator:'No indicado', operatorEmail:'', guestName:'', date:savedIncident.date||'', type:savedIncident.type||'', category:savedIncident.category||'', status:'open', desc:savedIncident.desc||'', incidentLink, slaCycleCount:'0', pendingStep:'step1', pendingStepLabel:'Admin action required on general incident', pendingStepLabelEs:'Se requiere acción del admin en incidente general' }, relatedEntity:'incident', relatedId:savedIncident.id });
+        }
+        if (generalNote) await supabase.from('notifications').update({ email_sent:true, email_error:'' }).eq('id', generalNote.id);
+      } catch(mailError) {
+        warn('General incident email failed: ' + (mailError?.message || mailError));
+        if (generalNote) await supabase.from('notifications').update({ email_sent:false, email_error:mailError?.message||'Email failed' }).eq('id', generalNote.id);
+      }
+    });
+    return;
+  }
+
+  // ── Normal incident (tied to a unit) ─────────────────────────────────────
+  if (!aptId) return res.status(400).json({ error: 'Apartamento es requerido para incidentes de unidad.' });
+  const { data: listing, error: listingError } = await supabase.from('listings').select('*').eq('id', aptId).eq('status','approved').single();
+  if (listingError || !listing) return res.status(404).json({ error: 'Listing not found for selected apartment.' });
+
+  const item = { id:'inc_'+uuidv4().slice(0,8), reporterUid, reporterName, aptId, aptLabel: aptLabel || ('Apto ' + listing.apt), guestName:'', guestCity:'', guestState:'', guestCountry:'', date, type, category, desc, status:'open', isGeneral:false, photos, slaHours, nextSlaReminderAt:addHoursIso(nowIso, slaHours), slaCycleCount:0, createdAt:nowIso };
   const { data, error } = await supabase.from('incidents').insert(incidentToDb(item)).select('*').single();
   if (error) return sendSupabaseError(res, error);
-
   const savedIncident = incidentFromDb(data);
   await auditLog({ entity:'incident', entityId:data.id, action:'create', actorUid:reporterUid, actorName:reporterName, after:data });
-  const notification = {
-    id: 'not_' + uuidv4().slice(0, 8),
-    ownerUid: listing.owner_uid,
-    listingId: listing.id,
-    incidentId: savedIncident.id,
-    title: 'Nuevo incidente abierto - Apto ' + listing.apt,
-    message: String(savedIncident.desc || '').slice(0, 160),
-    isRead: false,
-    emailSent: false,
-    emailError: '',
-    createdAt: new Date().toISOString(),
-  };
-
-  // Save the in-app notification first, then respond immediately.
-  // Email is sent in the background so a slow SMTP provider never leaves the user
-  // stuck on "Guardando en servidor...".
+  const notification = { id:'not_'+uuidv4().slice(0,8), ownerUid:listing.owner_uid, listingId:listing.id, incidentId:savedIncident.id, title:'Nuevo incidente abierto - Apto '+listing.apt, message:String(savedIncident.desc||'').slice(0,160), isRead:false, emailSent:false, emailError:'', createdAt:new Date().toISOString() };
   const { error: notificationError } = await supabase.from('notifications').insert(notificationToDb(notification));
   if (notificationError) warn('Notification save failed: ' + notificationError.message);
-
-  res.json({
-    ...savedIncident,
-    notificationSaved: !notificationError,
-    emailQueued: Boolean(emailConfigured),
-    emailSent: false,
-    emailError: emailConfigured ? '' : 'Resend email is not configured in Render.',
-  });
-
+  res.json({ ...savedIncident, notificationSaved:!notificationError, emailQueued:Boolean(emailConfigured), emailSent:false, emailError:emailConfigured?'':'Resend email is not configured in Render.' });
   setImmediate(async () => {
     const emailStatus = { email_sent: false, email_error: '' };
     try {
@@ -1099,12 +1132,8 @@ app.post('/api/incidents', async (req, res) => {
       emailStatus.email_sent = false;
       emailStatus.email_error = mailError?.message || 'Email failed';
     }
-
     if (!notificationError) {
-      const { error: updateEmailError } = await supabase
-        .from('notifications')
-        .update(emailStatus)
-        .eq('id', notification.id);
+      const { error: updateEmailError } = await supabase.from('notifications').update(emailStatus).eq('id', notification.id);
       if (updateEmailError) warn('Notification email status update failed: ' + updateEmailError.message);
     }
   });
@@ -1129,6 +1158,7 @@ app.get('/api/admin/email-templates', async (req, res) => {
     registration_approved:['userName','userEmail','dashboardLink'],
     registration_declined:['userName','userEmail','reason','reasonLine','reasonHtml','registrationLink'],
     registration_reviewer:['reviewerName','userName','userEmail','approvalsLink'],
+    incident_general_sla:['apt','desc','type','category','slaCycleCount','slaHours','incidentLink','pendingStep','pendingStepLabel','pendingStepLabelEs'],
     listing_created:['apt','owner','listingEmail','listingLink'],
     listing_updated:['apt','owner','listingEmail','listingLink'],
     listing_deleted:['apt','owner','listingEmail']
@@ -1434,6 +1464,70 @@ app.patch('/api/incidents/:id/add-resolution', async (req, res) => {
   res.json(updatedIncident);
 });
 
+// ── Assign a general incident to a specific unit ─────────────────────────────
+app.patch('/api/incidents/:id/assign', async (req, res) => {
+  if (!requireSupabaseEnv(res)) return;
+  const { actorUid='', actorEmail='', aptId='' } = req.body || {};
+  if (!actorUid || !actorEmail || !aptId) return res.status(400).json({ error:'actorUid, actorEmail y aptId son requeridos.' });
+  if (!(await isGlobalAdmin(actorUid, actorEmail)) && !(await hasDelegatePermission(actorUid, actorEmail, 'canResolveIncidents')))
+    return res.status(403).json({ error:'Solo administradores con permiso canResolveIncidents pueden asignar incidentes.' });
+  const { data: existing, error: findError } = await supabase.from('incidents').select('*').eq('id', req.params.id).single();
+  if (findError || !existing) return res.status(404).json({ error:'Incident not found.' });
+  if (!existing.is_general) return res.status(400).json({ error:'Solo los incidentes generales pueden asignarse a una unidad.' });
+  const { data: listing, error: listingError } = await supabase.from('listings').select('*').eq('id', aptId).eq('status','approved').single();
+  if (listingError || !listing) return res.status(404).json({ error:'Listing not found for selected apartment.' });
+  const { data, error } = await supabase.from('incidents').update({ apt_id:aptId, apt_label:'Apto '+listing.apt, is_general:false }).eq('id', req.params.id).select('*').single();
+  if (error) return sendSupabaseError(res, error);
+  await auditLog({ entity:'incident', entityId:data.id, action:'assign', actorUid, actorEmail, before:existing, after:data });
+  const updatedIncident = incidentFromDb(data);
+  if (listing.owner_uid) {
+    try {
+      const note = { id:'not_'+uuidv4().slice(0,8), ownerUid:listing.owner_uid, listingId:listing.id, incidentId:data.id, title:'Incidente asignado a tu unidad - Apto '+listing.apt, message:String(existing.description||'').slice(0,160), isRead:false, emailSent:false, emailError:'', createdAt:new Date().toISOString() };
+      await supabase.from('notifications').insert(notificationToDb(note));
+    } catch(e) { warn('Assign notification insert failed: ' + (e?.message || e)); }
+  }
+  setImmediate(() => sendIncidentEmail({ listing:listingFromDb(listing), incident:updatedIncident, appUrl:publicAppUrl(req) }).catch(e => warn('Assign incident email failed: ' + (e?.message || e))));
+  res.json(updatedIncident);
+});
+
+// ── Close a general incident without assigning to a unit ─────────────────────
+app.patch('/api/incidents/:id/close-general', async (req, res) => {
+  if (!requireSupabaseEnv(res)) return;
+  const { actorUid='', actorEmail='', action:closingAction='', resolution='', resolutionComments='' } = req.body || {};
+  if (!actorUid || !actorEmail) return res.status(400).json({ error:'actorUid y actorEmail son requeridos.' });
+  if (!String(closingAction||'').trim() || !String(resolution||'').trim()) return res.status(400).json({ error:'action y resolution son requeridos.' });
+  if (!(await isGlobalAdmin(actorUid, actorEmail)) && !(await hasDelegatePermission(actorUid, actorEmail, 'canResolveIncidents')))
+    return res.status(403).json({ error:'Solo administradores con permiso canResolveIncidents pueden cerrar incidentes generales.' });
+  const { data: existing, error: findError } = await supabase.from('incidents').select('*').eq('id', req.params.id).single();
+  if (findError || !existing) return res.status(404).json({ error:'Incident not found.' });
+  if (!existing.is_general) return res.status(400).json({ error:'Este endpoint solo cierra incidentes generales.' });
+  if (existing.status === 'resolved') return res.status(400).json({ error:'El incidente ya está resuelto.' });
+  const nowIso = new Date().toISOString();
+  const upd = { status:'resolved', owner_comments:String(closingAction).trim(), owner_resolution:String(resolution).trim(), resolution_comments:String(resolutionComments||'').trim(), resolved_at:nowIso, resolved_by:actorEmail, next_sla_reminder_at:null };
+  const { data, error } = await supabase.from('incidents').update(upd).eq('id', req.params.id).select('*').single();
+  if (error) return sendSupabaseError(res, error);
+  await auditLog({ entity:'incident', entityId:data.id, action:'close-general', actorUid, actorEmail, before:existing, after:data });
+  const resolvedIncident = incidentFromDb(data);
+  setImmediate(async () => {
+    if (!emailConfigured) return;
+    try {
+      const notifCfg = await getEmailNotificationConfig();
+      const typeCfg = notifCfg['incident_resolved'] || {};
+      const reporterEmail = await getReporterEmail(existing.reporter_uid);
+      const recips = [];
+      if (typeCfg.globalAdmin  !== false) recips.push(...getGlobalAdminEmails(), ...await getEscalationCcEmails());
+      if (typeCfg.delegateAdmin !== false) recips.push(...await getDelegateAdminsWithPermission('canResolveIncidents'));
+      if (typeCfg.reporter !== false && reporterEmail) recips.push(reporterEmail);
+      const recipients = normalizeRecipients(recips);
+      if (recipients.length) {
+        const incidentLink = publicAppUrl() + '/?view=incidents&incident=' + resolvedIncident.id;
+        await sendTemplatedEmail({ key:'incident_resolved', to:recipients, vars:{ apt:'General', owner:'', operator:'No indicado', operatorEmail:'', resolvedBy:actorEmail, resolutionComments:String(resolutionComments||'').trim(), ownerAnswer:String(resolution).trim(), date:resolvedIncident.date||'', type:resolvedIncident.type||'', category:resolvedIncident.category||'', incidentLink }, relatedEntity:'incident', relatedId:resolvedIncident.id });
+      }
+    } catch(e) { warn('Close-general resolved email failed: ' + (e?.message || e)); }
+  });
+  res.json(resolvedIncident);
+});
+
 app.patch('/api/incidents/:id/resolve', async (req, res) => {
   if (!requireSupabaseEnv(res)) return;
   const { actorUid='', actorEmail='', actorName='', resolutionComments='' } = req.body || {};
@@ -1444,11 +1538,16 @@ app.patch('/api/incidents/:id/resolve', async (req, res) => {
   const ownerUid = existing.listings?.owner_uid || '';
   if (!(await hasDelegatePermission(actorUid, actorEmail, 'canResolveIncidents'))) return res.status(403).json({ error:'Only global admins or delegates with resolve permission can resolve incidents.' });
   const ownerGuests = Array.isArray(existing.owner_guests) ? existing.owner_guests : [];
-  if (existing.status !== 'verified' || !existing.owner_verified_at || !ownerGuests.length || !String(existing.owner_comments || '').trim()) {
-    return res.status(400).json({ error:'Owner must verify the incident with guest(s), city, country, and immediate action before resolution.' });
-  }
-  if (!String(existing.owner_resolution || '').trim()) {
-    return res.status(400).json({ error:'Owner must provide their answer before this incident can be closed.' });
+  // General incidents (is_general=true) skip owner verification steps — admins close directly.
+  if (!existing.is_general) {
+    if (existing.status !== 'verified' || !existing.owner_verified_at || !ownerGuests.length || !String(existing.owner_comments || '').trim()) {
+      return res.status(400).json({ error:'Owner must verify the incident with guest(s), city, country, and immediate action before resolution.' });
+    }
+    if (!String(existing.owner_resolution || '').trim()) {
+      return res.status(400).json({ error:'Owner must provide their answer before this incident can be closed.' });
+    }
+  } else if (existing.status === 'resolved') {
+    return res.status(400).json({ error:'El incidente ya está resuelto.' });
   }
   const upd = { status: 'resolved', resolution_comments: comments, resolved_at: new Date().toISOString(), resolved_by: actorEmail || actorName || actorUid };
   const { data, error } = await supabase.from('incidents').update(upd).eq('id', req.params.id).select('*').single();
@@ -1510,6 +1609,27 @@ app.patch('/api/notifications/read-all', async (req, res) => {
 });
 
 
+const sendGeneralIncidentSlaEmail = async (inc, slaHours, appUrl) => {
+  if (!emailConfigured) return;
+  const notifCfg = await getEmailNotificationConfig();
+  const typeCfg = notifCfg['incident_general_sla'] || { enabled:true, globalAdmin:true, delegateAdmin:true };
+  if (!typeCfg.enabled) return;
+  const recips = [];
+  if (typeCfg.globalAdmin  !== false) recips.push(...getGlobalAdminEmails(), ...await getEscalationCcEmails());
+  if (typeCfg.delegateAdmin !== false) recips.push(...await getDelegateAdminsWithPermission('canResolveIncidents'));
+  const recipients = normalizeRecipients(recips);
+  if (!recipients.length) return;
+  const incidentLink = appUrl + '/?view=incidents&incident=' + inc.id;
+  // Use incident_sla template if incident_general_sla template not set; fallback to inline text
+  return sendTemplatedEmail({
+    key: 'incident_general_sla',
+    to: recipients,
+    vars: { apt:'General', owner:'', operator:'No indicado', operatorEmail:'', guestName:'', date:inc.date||'', type:inc.type||'', category:inc.category||'', status:'open', desc:inc.desc||'', incidentLink, slaCycleCount:String(inc.slaCycleCount||0), slaHours:String(slaHours), pendingStep:'assign-or-close', pendingStepLabel:'Assign this general incident to a unit or close it directly', pendingStepLabelEs:'Asigna este incidente general a una unidad o ciérralo directamente' },
+    relatedEntity: 'incident',
+    relatedId: inc.id,
+  });
+};
+
 const runSlaEscalations = async () => {
   if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY || !emailConfigured) return;
   try {
@@ -1527,7 +1647,21 @@ const runSlaEscalations = async () => {
     if (error) { warn('SLA escalation query failed: ' + error.message); return; }
     for (const row of rows || []) {
       const listing = row.listings;
-      if (!listing) continue;
+      if (!listing) {
+        // General incident — no unit owner; alert admins to assign or close it.
+        if (row.is_general) {
+          try {
+            const inc = incidentFromDb(row);
+            const slaHours = Number(row.sla_hours || await getSlaHours() || 24);
+            await sendGeneralIncidentSlaEmail(inc, slaHours, publicAppUrl());
+            await supabase.from('incidents').update({ sla_cycle_count: Number(row.sla_cycle_count||0)+1, next_sla_reminder_at: addHoursIso(now, slaHours) }).eq('id', row.id);
+          } catch(e) {
+            warn('General incident SLA email failed for ' + row.id + ': ' + (e?.message || e));
+            await supabase.from('incidents').update({ next_sla_reminder_at: addHoursIso(now, 1) }).eq('id', row.id);
+          }
+        }
+        continue;
+      }
       // Skip verified+resolved-resolution (both steps done — next_sla should already be null, but guard here)
       if (row.status === 'verified' && String(row.owner_resolution || '').trim()) {
         await supabase.from('incidents').update({ next_sla_reminder_at: null }).eq('id', row.id);

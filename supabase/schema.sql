@@ -162,6 +162,9 @@ alter table public.incidents add column if not exists owner_guest_city text not 
 alter table public.incidents add column if not exists owner_guest_country text not null default '';
 -- v42: multi-guest jsonb
 alter table public.incidents add column if not exists owner_guests jsonb not null default '[]'::jsonb;
+-- v80: photo attachments (up to 3, base64-compressed) and general (non-unit) incident flag
+alter table public.incidents add column if not exists photos jsonb not null default '[]'::jsonb;
+alter table public.incidents add column if not exists is_general boolean not null default false;
 
 -- Status constraint (drop old, add updated)
 alter table public.incidents drop constraint if exists incidents_status_check;
