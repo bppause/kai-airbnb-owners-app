@@ -1606,7 +1606,10 @@ app.delete('/api/incidents/:id', async (req, res) => {
 
   const { data: existing, error: findError } = await supabase.from('incidents').select('*').eq('id', req.params.id).single();
   if (findError || !existing) return res.status(404).json({ error: 'Not found' });
-  if (existing.reporter_uid !== reporterUid && !(await canDeleteGlobalIncident(reporterUid, actorEmail))) return res.status(403).json({ error: 'Forbidden' });
+  // Only global admins and delegate admins with canDeleteGlobalIncidents can delete incidents.
+  // Reporters and standard owners cannot delete — incidents are permanent audit records.
+  if (!(await canDeleteGlobalIncident(reporterUid, actorEmail)))
+    return res.status(403).json({ error: 'Solo administradores globales o delegados con permiso "Eliminar incidentes" pueden eliminar incidentes.' });
 
   const { error } = await supabase.from('incidents').delete().eq('id', req.params.id);
   if (error) return sendSupabaseError(res, error);

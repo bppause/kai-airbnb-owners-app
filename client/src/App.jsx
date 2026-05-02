@@ -4220,8 +4220,8 @@ function IRow({ inc, user, listings=[], contactProps={}, isGlobalAdmin=false, ca
             {(isGlobalAdmin||canResolveGlobal)&&inc.status==='verified'&&hasPendingRes&&(
               <div className="ir-act-waiting">🔒 {isEn?'Waiting for owner resolution':'Esperando respuesta del propietario'}</div>
             )}
-            {(isReporter||isGlobalAdmin||canDeleteGlobal)&&(
-              <button className="bsm bs-del ir-act-del" onClick={()=>onDelete&&onDelete(inc.id)}>🗑️</button>
+            {(isGlobalAdmin||canDeleteGlobal)&&(
+              <button className="bsm bs-del ir-act-del" title={isEn?'Delete incident (admin only)':'Eliminar incidente (solo admin)'} onClick={()=>onDelete&&onDelete(inc.id)}>🗑️</button>
             )}
           </div>
         )}
