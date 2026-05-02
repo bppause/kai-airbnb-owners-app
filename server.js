@@ -293,105 +293,138 @@ const getReporterEmail = async (reporterUid='') => {
     return String(data?.email || '').trim().toLowerCase();
   } catch(e) { return ''; }
 };
-// Build recipients list for an incident email type based on admin notification config.
-// Pass reporterEmail to also notify the person who filed the incident.
-const buildIncidentRecipients = async (key, listing, typeCfg, reporterEmail='') => {
-  const recips = [];
-  if (typeCfg.owner)        recips.push(...getListingOwnerEmails(listing));
-  if (typeCfg.operator)     recips.push(...getListingOperatorEmails(listing));
-  if (typeCfg.globalAdmin)  recips.push(...getGlobalAdminEmails(), ...await getEscalationCcEmails());
-  if (typeCfg.delegateAdmin) {
-    // Always gate on canResolveIncidents — those delegates are the action-capable
-    // parties for all incident lifecycle stages (new, verified, resolved).
-    // If a delegate loses this permission they stop receiving all incident emails.
-    recips.push(...await getDelegateAdminsWithPermission('canResolveIncidents'));
-  }
-  // Include the reporter (person who filed) only when reporter routing is enabled for this type.
-  // Defaults to true so existing databases that lack the 'reporter' key still notify reporters.
-  if (typeCfg.reporter !== false && reporterEmail) recips.push(reporterEmail);
-  return normalizeRecipients(recips);
+// ── Split recipient builder ─────────────────────────────────────────────────
+// Returns two separate lists so individual recipients (reporter, owner, operator)
+// each receive a private email addressed only to them, while admin groups receive
+// a single combined email.  This prevents any recipient from seeing another's address.
+const buildSplitRecipients = async (typeCfg, listing, reporterEmail='') => {
+  // Individual recipients — specific people involved in this incident/listing
+  const individual = normalizeRecipients([
+    typeCfg.reporter !== false && reporterEmail ? reporterEmail : '',
+    typeCfg.owner    ? getListingOwnerEmails(listing)    : [],
+    typeCfg.operator ? getListingOperatorEmails(listing) : [],
+  ].flat());
+
+  // Group recipients — admin roles receive together as a coordinating team
+  const groupList = [];
+  if (typeCfg.globalAdmin)   groupList.push(...getGlobalAdminEmails(), ...await getEscalationCcEmails());
+  if (typeCfg.delegateAdmin) groupList.push(...await getDelegateAdminsWithPermission('canResolveIncidents'));
+  const group = normalizeRecipients(groupList);
+
+  return { individual, group };
 };
 
-const sendIncidentEmail = async ({ listing, incident, appUrl, to, isEscalation=false }) => {
-  if (!emailConfigured) return { sent:false, skipped:true, reason:'Resend email is not configured. Add RESEND_API_KEY and EMAIL_FROM in Render.' };
+// Send individual private emails + one group admin email for an incident event.
+// Each individual (reporter/owner/operator) gets their own private email so they
+// cannot see who else was notified.  Admin group receives one combined email.
+const sendSplitEmail = async ({ key, individual, group, vars, relatedEntity, relatedId }) => {
+  if (!emailConfigured) return { sent:false, skipped:true, reason:'Resend email is not configured.' };
+  const results = [];
+
+  // One email per individual — addressed privately to that person only
+  for (const email of individual) {
+    try {
+      const lang = await getUserLanguageByEmail(email);
+      const templates = await getEmailTemplates(lang);
+      const defaults = lang === 'en' ? DEFAULT_EMAIL_TEMPLATES_EN : DEFAULT_EMAIL_TEMPLATES;
+      const t = templates[key] || defaults[key];
+      if (!t) continue;
+      const subject = renderTemplate(t.subject, vars);
+      const text    = renderTemplate(t.text,    vars);
+      const html    = renderTemplate(t.html,    vars);
+      const result  = await sendSpanishEmail({ to:[email], subject, text, html });
+      await logEmailDelivery({ eventType:key, recipients:[email], subject, status:result.sent?'sent':'skipped', errorMessage:result.reason||'', relatedEntity, relatedId });
+      results.push(result);
+    } catch(e) { warn(`Individual email (${key}) to ${email} failed: ${e?.message||e}`); }
+  }
+
+  // One combined email for the admin group
+  if (group.length) {
+    try {
+      const result = await sendTemplatedEmail({ key, to:group, vars, relatedEntity, relatedId });
+      results.push(result);
+    } catch(e) { warn(`Group email (${key}) failed: ${e?.message||e}`); }
+  }
+
+  const sent = results.some(r => r?.sent);
+  const skipped = results.length > 0 && results.every(r => r?.skipped);
+  return { sent, skipped, results };
+};
+
+const sendIncidentEmail = async ({ listing, incident, appUrl, isEscalation=false }) => {
   const key = isEscalation ? 'incident_sla' : 'incident_new';
   const notifCfg = await getEmailNotificationConfig();
   const typeCfg = notifCfg[key];
   if (!typeCfg.enabled) return { sent:false, skipped:true, reason:`Email type '${key}' is disabled.` };
-  // Include reporter so they receive confirmation when their report is filed
   const reporterEmail = await getReporterEmail(incident.reporterUid);
-  const recipients = to ? normalizeRecipients([...to, reporterEmail]) : await buildIncidentRecipients(key, listing, typeCfg, reporterEmail);
-  if (!recipients.length) return { sent:false, skipped:true, reason:'No recipients for this incident email.' };
+  const { individual, group } = await buildSplitRecipients(typeCfg, listing, reporterEmail);
+  if (!individual.length && !group.length) return { sent:false, skipped:true, reason:'No recipients.' };
   const apt = listing.apt || String(incident.aptLabel || '').replace(/[^0-9]/g,'');
   const incidentLink = appUrl + '/?view=incidents&incident=' + incident.id;
-  const pendingStepLabel = incident.pendingStepLabel || (incident.status === 'open' ? 'Step 1: Verify the incident — confirm guest details and document your immediate action' : 'Step 2: Add your resolution — describe how you resolved this so admin can close it');
-  const pendingStepLabelEs = incident.pendingStepLabelEs || (incident.status === 'open' ? 'Paso 1: Verifica el incidente — confirma los datos del huésped y documenta tu acción inmediata' : 'Paso 2: Agrega tu respuesta — describe cómo resolviste el incidente para que el admin pueda cerrarlo');
-  return sendTemplatedEmail({ key, to: recipients, vars: { apt, owner: listing.owner || '', operator: listing.operator || 'No indicado', operatorEmail: listing.operatorEmail || listing.operator_email || '', guestName: incident.guestName || '', date: incident.date || '', type: incident.type || '', category: incident.category || '', status: incident.status || 'open', desc: incident.desc || '', incidentLink, slaCycleCount: String(incident.slaCycleCount || incident.sla_cycle_count || ''), pendingStep: incident.pendingStep || (incident.status === 'open' ? 'step1' : 'step2'), pendingStepLabel, pendingStepLabelEs } });
+  const pendingStepLabel   = incident.pendingStepLabel   || (incident.status==='open' ? 'Step 1: Verify the incident — confirm guest details and document your immediate action' : 'Step 2: Add your resolution — describe how you resolved this so admin can close it');
+  const pendingStepLabelEs = incident.pendingStepLabelEs || (incident.status==='open' ? 'Paso 1: Verifica el incidente — confirma los datos del huésped y documenta tu acción inmediata' : 'Paso 2: Agrega tu respuesta — describe cómo resolviste el incidente para que el admin pueda cerrarlo');
+  const vars = { apt, owner:listing.owner||'', operator:listing.operator||'No indicado', operatorEmail:listing.operatorEmail||listing.operator_email||'', guestName:incident.guestName||'', date:incident.date||'', type:incident.type||'', category:incident.category||'', status:incident.status||'open', desc:incident.desc||'', incidentLink, slaCycleCount:String(incident.slaCycleCount||incident.sla_cycle_count||''), pendingStep:incident.pendingStep||(incident.status==='open'?'step1':'step2'), pendingStepLabel, pendingStepLabelEs };
+  return sendSplitEmail({ key, individual, group, vars, relatedEntity:'incident', relatedId:incident.id });
 };
 
 const sendIncidentVerifiedEmail = async ({ listing, incident, appUrl }) => {
-  if (!emailConfigured) return { sent:false, skipped:true, reason:'Resend email is not configured. Add RESEND_API_KEY and EMAIL_FROM in Render.' };
   const notifCfg = await getEmailNotificationConfig();
   const typeCfg = notifCfg['incident_verified'];
-  if (!typeCfg.enabled) return { sent:false, skipped:true, reason:'Email type \'incident_verified\' is disabled.' };
-  // Include reporter so they know when the owner has verified their incident
+  if (!typeCfg.enabled) return { sent:false, skipped:true, reason:"Email type 'incident_verified' is disabled." };
   const reporterEmail = await getReporterEmail(incident.reporterUid);
-  const recipients = await buildIncidentRecipients('incident_verified', listing, typeCfg, reporterEmail);
-  if (!recipients.length) return { sent:false, skipped:true, reason:'No recipients for verified email.' };
+  const { individual, group } = await buildSplitRecipients(typeCfg, listing, reporterEmail);
+  if (!individual.length && !group.length) return { sent:false, skipped:true, reason:'No recipients.' };
   const apt = listing.apt || String(incident.aptLabel || '').replace(/[^0-9]/g,'');
   const incidentLink = appUrl + '/?view=incidents&incident=' + incident.id;
-  return sendTemplatedEmail({ key:'incident_verified', to:recipients, vars:{ apt, owner:listing.owner || '', operator:listing.operator || 'No indicado', operatorEmail:listing.operatorEmail || listing.operator_email || '', ownerGuestNames:incident.ownerGuestNames || '', ownerGuestCity:incident.ownerGuestCity || '', ownerGuestCountry:incident.ownerGuestCountry || '', ownerComments:incident.ownerComments || '', ownerAnswer:incident.ownerResolution || '', incidentLink } });
+  const vars = { apt, owner:listing.owner||'', operator:listing.operator||'No indicado', operatorEmail:listing.operatorEmail||listing.operator_email||'', ownerGuestNames:incident.ownerGuestNames||'', ownerGuestCity:incident.ownerGuestCity||'', ownerGuestCountry:incident.ownerGuestCountry||'', ownerComments:incident.ownerComments||'', ownerAnswer:incident.ownerResolution||'', incidentLink };
+  return sendSplitEmail({ key:'incident_verified', individual, group, vars, relatedEntity:'incident', relatedId:incident.id });
 };
 
 // Step 2 complete: owner added resolution — notifies all parties that incident is ready to close.
-// Distinct from incident_verified (Step 1) so admins know they can now action the closure.
 const sendIncidentResolutionAddedEmail = async ({ listing, incident, appUrl }) => {
-  if (!emailConfigured) return { sent:false, skipped:true, reason:'Resend email is not configured.' };
   const notifCfg = await getEmailNotificationConfig();
-  const typeCfg = notifCfg['incident_resolution_added'] || { enabled:true, owner:true, operator:true, globalAdmin:true, delegateAdmin:true };
+  const typeCfg = notifCfg['incident_resolution_added'] || { enabled:true, reporter:true, owner:true, operator:true, globalAdmin:true, delegateAdmin:true };
   if (!typeCfg.enabled) return { sent:false, skipped:true, reason:"Email type 'incident_resolution_added' is disabled." };
   const reporterEmail = await getReporterEmail(incident.reporterUid);
-  const recipients = await buildIncidentRecipients('incident_resolution_added', listing, typeCfg, reporterEmail);
-  if (!recipients.length) return { sent:false, skipped:true, reason:'No recipients for resolution-added email.' };
+  const { individual, group } = await buildSplitRecipients(typeCfg, listing, reporterEmail);
+  if (!individual.length && !group.length) return { sent:false, skipped:true, reason:'No recipients.' };
   const apt = listing.apt || String(incident.aptLabel || '').replace(/[^0-9]/g,'');
   const incidentLink = appUrl + '/?view=incidents&incident=' + incident.id;
-  return sendTemplatedEmail({ key:'incident_resolution_added', to:recipients, vars:{
-    apt, owner:listing.owner||'', operator:listing.operator||'No indicado',
-    operatorEmail:listing.operatorEmail||listing.operator_email||'',
-    ownerGuestNames:incident.ownerGuestNames||'', ownerGuestCity:incident.ownerGuestCity||'',
-    ownerGuestCountry:incident.ownerGuestCountry||'', ownerComments:incident.ownerComments||'',
-    ownerAnswer:incident.ownerResolution||'', incidentLink
-  }, relatedEntity:'incident', relatedId:incident.id });
+  const vars = { apt, owner:listing.owner||'', operator:listing.operator||'No indicado', operatorEmail:listing.operatorEmail||listing.operator_email||'', ownerGuestNames:incident.ownerGuestNames||'', ownerGuestCity:incident.ownerGuestCity||'', ownerGuestCountry:incident.ownerGuestCountry||'', ownerComments:incident.ownerComments||'', ownerAnswer:incident.ownerResolution||'', incidentLink };
+  return sendSplitEmail({ key:'incident_resolution_added', individual, group, vars, relatedEntity:'incident', relatedId:incident.id });
 };
 
 const sendIncidentResolvedEmail = async ({ listing, incident, appUrl }) => {
-  if (!emailConfigured) return { sent:false, skipped:true, reason:'Resend email is not configured. Add RESEND_API_KEY and EMAIL_FROM in Render.' };
   const notifCfg = await getEmailNotificationConfig();
   const typeCfg = notifCfg['incident_resolved'];
-  if (!typeCfg.enabled) return { sent:false, skipped:true, reason:'Email type \'incident_resolved\' is disabled.' };
-  // Include reporter so they are notified when their incident is closed
+  if (!typeCfg.enabled) return { sent:false, skipped:true, reason:"Email type 'incident_resolved' is disabled." };
   const reporterEmail = await getReporterEmail(incident.reporterUid);
-  const recipients = await buildIncidentRecipients('incident_resolved', listing, typeCfg, reporterEmail);
-  if (!recipients.length) return { sent:false, skipped:true, reason:'No recipients for resolved email.' };
+  const { individual, group } = await buildSplitRecipients(typeCfg, listing, reporterEmail);
+  if (!individual.length && !group.length) return { sent:false, skipped:true, reason:'No recipients.' };
   const apt = listing.apt || String(incident.aptLabel || '').replace(/[^0-9]/g,'');
   const incidentLink = appUrl + '/?view=incidents&incident=' + incident.id;
-  return sendTemplatedEmail({ key:'incident_resolved', to:recipients, vars:{ apt, owner:listing.owner || '', operator:listing.operator || 'No indicado', operatorEmail:listing.operatorEmail || listing.operator_email || '', resolvedBy:incident.resolvedBy || incident.resolved_by || '', resolutionComments:incident.resolutionComments || incident.resolution_comments || '', ownerAnswer:incident.ownerResolution || '', date:incident.date || '', type:incident.type || '', category:incident.category || '', incidentLink }, relatedEntity:'incident', relatedId:incident.id });
+  const vars = { apt, owner:listing.owner||'', operator:listing.operator||'No indicado', operatorEmail:listing.operatorEmail||listing.operator_email||'', resolvedBy:incident.resolvedBy||incident.resolved_by||'', resolutionComments:incident.resolutionComments||incident.resolution_comments||'', ownerAnswer:incident.ownerResolution||'', date:incident.date||'', type:incident.type||'', category:incident.category||'', incidentLink };
+  return sendSplitEmail({ key:'incident_resolved', individual, group, vars, relatedEntity:'incident', relatedId:incident.id });
 };
 
-const getListingRecipients = (listing) => normalizeRecipients([listing?.email, listing?.user_email, listing?.userEmail]);
 const sendListingChangeEmail = async ({ listing, action, appUrl }) => {
   const key = action === 'created' ? 'listing_created' : action === 'updated' ? 'listing_updated' : 'listing_deleted';
   const notifCfg = await getEmailNotificationConfig();
   const typeCfg = notifCfg[key];
   if (!typeCfg.enabled) return { sent:false, skipped:true, reason:`Email type '${key}' is disabled.` };
-  const recips = [];
-  if (typeCfg.owner)        recips.push(...getListingOwnerEmails(listing));
-  if (typeCfg.operator)     recips.push(...getListingOperatorEmails(listing));
-  if (typeCfg.globalAdmin)  recips.push(...getGlobalAdminEmails());
-  if (typeCfg.delegateAdmin) recips.push(...await getDelegateAdminsWithPermission('canUpdateGlobalListings'));
-  const recipients = normalizeRecipients(recips);
-  if (!recipients.length) return { sent:false, skipped:true, reason:'No recipients for listing change email.' };
-  return sendTemplatedEmail({ key, to: recipients, vars: { apt: listing.apt || '', owner: listing.owner || '', listingEmail: listing.email || listing.user_email || '', listingLink: appUrl + '/?view=listings' } });
+  // Individual: owner + operator of this specific listing (each gets their own email)
+  const individual = normalizeRecipients([
+    typeCfg.owner    ? getListingOwnerEmails(listing)    : [],
+    typeCfg.operator ? getListingOperatorEmails(listing) : [],
+  ].flat());
+  // Group: admin roles
+  const groupList = [];
+  if (typeCfg.globalAdmin)   groupList.push(...getGlobalAdminEmails());
+  if (typeCfg.delegateAdmin) groupList.push(...await getDelegateAdminsWithPermission('canUpdateGlobalListings'));
+  const group = normalizeRecipients(groupList);
+  if (!individual.length && !group.length) return { sent:false, skipped:true, reason:'No recipients for listing change email.' };
+  const vars = { apt:listing.apt||'', owner:listing.owner||'', listingEmail:listing.email||listing.user_email||'', listingLink:appUrl+'/?view=listings' };
+  return sendSplitEmail({ key, individual, group, vars, relatedEntity:'listing', relatedId:listing.id });
 };
 
 const isThreeDigitApt = (apt) => /^[0-9]{3}$/.test(String(apt || '').trim());
