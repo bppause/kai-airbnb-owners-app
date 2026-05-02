@@ -901,19 +901,23 @@ export default function App() {
   const [openDropdown, setOpenDropdown] = useState(null);
   const initialView = new URLSearchParams(window.location.search).get('view') || 'my';
   const [view,      setView]      = useState(initialView);
-  // Apply role-based landing once admin config loads (only if no ?view= URL param)
+  // Apply role-based landing once admin config has fully loaded from server.
+  // Must wait for adminLoading===false — without this guard the effect fires on the
+  // initial render (config:{}) before the real config arrives, sets the ref, and the
+  // actual nav_config landing is never applied.  Default is always 'my'.
   const _landingApplied = useRef(false);
   useEffect(() => {
-    if (_landingApplied.current || !adminInfo?.config || !user) return;
+    if (_landingApplied.current || !user || adminLoading) return;
     _landingApplied.current = true;
     if (new URLSearchParams(window.location.search).get('view')) return;
     try {
-      const navCfg = JSON.parse(adminInfo.config.nav_config || '{}');
+      const navCfg = JSON.parse(adminInfo?.config?.nav_config || '{}');
       const roleKey = effectiveIsGlobalAdmin ? 'global' : effectiveRole === 'delegate_admin' ? 'delegate' : 'user';
-      const landing = navCfg[roleKey]?.landing;
-      if (landing) setView(landing);
-    } catch(e) {}
-  }, [adminInfo, user]);
+      // Explicit default of 'my' — admin can override per role via NavConfigEditor
+      const landing = navCfg[roleKey]?.landing || 'my';
+      setView(landing);
+    } catch(e) { setView('my'); }
+  }, [adminInfo, user, adminLoading]);
   const [loading,   setLoading]   = useState(true);
   const [syncing,   setSyncing]   = useState(false);
   const [lastSync,  setLastSync]  = useState(null);
