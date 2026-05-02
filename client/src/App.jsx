@@ -808,7 +808,6 @@ const localizeMissionSections = (config={}, lang='es-CO') => {
 
 // Build timestamp injected by Vite at build time via vite.config.js define.__BUILD_TIME__
 // Falls back gracefully if the constant isn't defined (e.g. older builds or test envs).
-const APP_VERSION = '1.0.0';
 const BUILD_TIME = (() => {
   try {
     const iso = typeof __BUILD_TIME__ !== 'undefined' ? __BUILD_TIME__ : '';
