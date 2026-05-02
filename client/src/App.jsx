@@ -4355,8 +4355,8 @@ function IncidentModal({ listings, user, presetApt, onSave, onClose, lang="es-CO
             placeholder={descPlaceholder} rows={3}/>
           {errors.desc&&<span className="err-msg">{errors.desc}</span>}
         </div>
-      </div>
-        {/* Photo attachments */}
+
+        {/* Photo attachments — inside fg2 grid so layout stays consistent */}
         <div className="fg full">
           <label>📷 {isEn?`Photos — up to 3 (JPEG/PNG/WebP, max 10 MB each before compression)`:`Fotos — hasta 3 (JPEG/PNG/WebP, máx 10 MB antes de comprimir)`}</label>
           <div className="inc-photo-upload-area">
