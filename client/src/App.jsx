@@ -959,6 +959,20 @@ export default function App() {
   const [unitDetailOverlay, setUnitDetailOverlay] = useState(null); // { listingId, defaultStep? }
   const [incidentDetailOverlay, setIncidentDetailOverlay] = useState(null); // { incidentId }
   const openIncidentDetail = (incidentId) => setIncidentDetailOverlay({ incidentId });
+
+  // ── Email deep-link: ?incident=inc_xxx opens the incident popup after data loads ──
+  const _deepLinkApplied = useRef(false);
+  useEffect(() => {
+    if (_deepLinkApplied.current || loading || !incidents.length) return;
+    const params = new URLSearchParams(window.location.search);
+    const incId = params.get('incident');
+    if (incId && incidents.find(i => i.id === incId)) {
+      _deepLinkApplied.current = true;
+      setView('incidents');
+      // Small delay so the view renders before the overlay mounts
+      setTimeout(() => openIncidentDetail(incId), 120);
+    }
+  }, [loading, incidents]);
   const [incidentQuickFilter, setIncidentQuickFilter] = useState(null);
   const [userProfile, setUserProfile] = useState({ whatsapp:'' });
   // Listing floor collapse state — lives here so it persists across navigation
@@ -4344,9 +4358,12 @@ function IncidentModal({ listings, user, presetApt, onSave, onClose, lang="es-CO
     setErrors(e=>({...e, type:undefined, desc:undefined}));
   };
 
-  // Placeholder: use the chip text for the current type if desc is empty
+  // Placeholder: prefix with "(Example) " so it's unmistakably not real content
   const currentChip = categoryChips.find(c=>c.typeValue===f.type);
-  const descPlaceholder = (!String(f.desc||'').trim() && currentChip) ? currentChip.text : appText(lang,"form.descriptionPlaceholder");
+  const _examplePrefix = isEn ? '(Example) ' : '(Ejemplo) ';
+  const descPlaceholder = (!String(f.desc||'').trim() && currentChip)
+    ? _examplePrefix + currentChip.text
+    : appText(lang,"form.descriptionPlaceholder");
 
   return (
     <Overlay onClose={onClose} wide>
@@ -4405,7 +4422,7 @@ function IncidentModal({ listings, user, presetApt, onSave, onClose, lang="es-CO
 
         {/* Row 3: Examples grid (compact 2-col, type name + tap to pre-fill) */}
         <div className="fg full">
-          <label>💡 {isEn?'Tap an example — pre-fills type & description':'Toca un ejemplo — pre-completa tipo y descripción'}</label>
+          <label>💡 {isEn?'Quick-fill examples — tap a chip to pre-fill the type and description with sample text (you can edit it)':'Ejemplos rápidos — toca un chip para pre-completar tipo y descripción con texto de muestra (puedes editarlo)'}</label>
           <div className="inc-chips-grid">
             {categoryChips.map(chip=>(
               <button key={chip.typeValue} type="button"
@@ -4429,6 +4446,11 @@ function IncidentModal({ listings, user, presetApt, onSave, onClose, lang="es-CO
           <label>{appText(lang,"form.description")} <Tip text={tips.incidentDescription}/></label>
           <textarea className={inputCls("desc")} value={f.desc} onChange={e=>s("desc",e.target.value)}
             placeholder={descPlaceholder} rows={3}/>
+          {!String(f.desc||'').trim()&&currentChip&&(
+            <span className="help-msg" style={{fontStyle:'italic',color:'#8a9fa5'}}>
+              ✏️ {isEn?'The gray text above is an example — start typing to replace it, or tap a chip to pre-fill.':'El texto gris de arriba es un ejemplo — empieza a escribir para reemplazarlo, o toca un chip para pre-completar.'}
+            </span>
+          )}
           {errors.desc&&<span className="err-msg">{errors.desc}</span>}
         </div>
 
@@ -5317,16 +5339,16 @@ function AdminSettings({ config={}, user, listings=[], contactProps={}, onSave, 
       ]},
     ];
     const COL_INFO = [
-      { key:'reporter',      icon:'📋', label: isEn?'Reporter (who filed the incident)':'Reportador (quien reportó el incidente)', short: isEn?'Rep.':'Rep.' },
-      { key:'owner',         icon:'👤', label: isEn?'Owner / Registrant':'Propietario / Registrante', short: isEn?'Owner':'Prop.' },
-      { key:'operator',      icon:'🔧', label: isEn?'Operator':'Operador',                            short: isEn?'Oper.':'Oper.' },
-      { key:'globalAdmin',   icon:'🌍', label: isEn?'Global Admin':'Admin Global',                   short: isEn?'Global':'Global' },
-      { key:'delegateAdmin', icon:'🎯', label: isEn?'Delegate Admin (permission-gated)':'Admin Delegado (según permisos)', short: isEn?'Deleg.':'Deleg.' },
+      { key:'reporter',      icon:'📋', label: isEn?'Reporter — individual person who filed this incident or request':'Reportador — persona específica que reportó el incidente', short: isEn?'Rep.':'Rep.', tag: isEn?'individual':'individual' },
+      { key:'owner',         icon:'🏠', label: isEn?'Owner — individual listing owner / registrant':'Propietario — dueño específico del listing o registro', short: isEn?'Owner':'Prop.', tag: isEn?'individual':'individual' },
+      { key:'operator',      icon:'🔧', label: isEn?'Operator — individual listing operator (if set)':'Operador — operador específico del listing (si está configurado)', short: isEn?'Oper.':'Oper.', tag: isEn?'individual':'individual' },
+      { key:'delegateAdmin', icon:'👥', label: isEn?'Delegate Admins — all delegates with incident permission (group)':'Admins Delegados — todos los delegados con permiso de incidentes (grupo)', short: isEn?'Deleg.':'Deleg.', tag: isEn?'group':'grupo' },
+      { key:'globalAdmin',   icon:'🌐', label: isEn?'Global Admins — all configured global admins (group)':'Admins Globales — todos los admins globales configurados (grupo)', short: isEn?'Global':'Global', tag: isEn?'group':'grupo' },
     ];
     return (
       <AdminSection
         title={`📧 ${isEn?'Email Routing':'Enrutamiento de emails'}`}
-        subtitle={isEn?'Enable or disable email types and choose who receives them. Based on current app workflows.':'Activa o desactiva tipos de email y elige a quiénes se envían. Basado en los flujos actuales de la app.'}
+        subtitle={isEn?'Enable or disable email types and choose who receives them. Individual recipients receive the email directly at their own address; group recipients are all members of that role.':'Activa o desactiva tipos de email y elige quiénes los reciben. Los destinatarios individuales reciben el email en su dirección propia; los grupos incluyen a todos los miembros de ese rol.'}
         action={<button className="bsm" onClick={saveEmailNotifConfig} disabled={emailNotifSaving} style={{whiteSpace:'nowrap'}}>{emailNotifSaving?(isEn?'Saving...':'Guardando...'):`💾 ${isEn?'Save':'Guardar'}`}</button>}
         open={openSections.emailNotif}
         onToggle={()=>toggleSection('emailNotif')}
@@ -5336,8 +5358,13 @@ function AdminSettings({ config={}, user, listings=[], contactProps={}, onSave, 
           : <>
             {/* Legend */}
             <div className="enc-legend">
-              {COL_INFO.map(c=><span key={c.key}><strong>{c.icon}</strong> {c.label}</span>)}
-              <span style={{color:'#9aafb0'}}>— = {isEn?'not applicable':'no aplica'}</span>
+              {COL_INFO.map(c=>(
+                <span key={c.key}>
+                  <strong>{c.icon}</strong> {c.label}
+                  {c.tag&&<span className={`enc-tag enc-tag-${c.tag}`}>{c.tag}</span>}
+                </span>
+              ))}
+              <span style={{color:'#9aafb0'}}>— = {isEn?'not applicable for this email type':'no aplica para este tipo de email'}</span>
             </div>
             <div className="enc-table">
               {/* Column header */}
@@ -5348,6 +5375,7 @@ function AdminSettings({ config={}, user, listings=[], contactProps={}, onSave, 
                   <div key={c.key} className="enc-col-r enc-col-r-hdr" title={c.label}>
                     <span>{c.icon}</span>
                     <span>{c.short}</span>
+                    {c.tag&&<span className={`enc-tag enc-tag-${c.tag}`} style={{fontSize:'.5rem'}}>{c.tag}</span>}
                   </div>
                 ))}
               </div>
@@ -6297,6 +6325,11 @@ html{font-size:clamp(14px,1.1vw,16px);-webkit-text-size-adjust:100%}body{overflo
 @media(max-width:640px){.audit-filters{flex-direction:column;align-items:stretch}.audit-filters .btn-p{width:100%}}
 /* On mobile, push toast above the bottom nav */
 @media(max-width:768px){.toast{bottom:80px!important}}
+
+/* Email routing individual/group tags */
+.enc-tag{display:inline-block;border-radius:999px;font-size:.55rem;font-weight:800;padding:1px 6px;margin-left:4px;text-transform:uppercase;letter-spacing:.04em;vertical-align:middle}
+.enc-tag-individual,.enc-tag-individual{background:rgba(11,127,140,.12);color:#0b5f72;border:1px solid rgba(11,127,140,.2)}
+.enc-tag-group,.enc-tag-grupo{background:rgba(106,27,154,.1);color:#4a1a7a;border:1px solid rgba(106,27,154,.15)}
 
 /* ── v81 — Photos + General Incidents ───────────────────────────────────── */
 
