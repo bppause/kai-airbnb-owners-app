@@ -3786,6 +3786,27 @@ function IRow({ inc, user, listings=[], contactProps={}, isGlobalAdmin=false, ca
             {inc.slaCycleCount>0&&<span style={{background:'#fff3e0',color:'#e65100',fontSize:'.63rem',padding:'2px 8px',borderRadius:'999px',fontWeight:700}}>⏱️ SLA {inc.slaCycleCount}</span>}
             <span className="ir-ss-date">📅 {fmtDate(inc.date)}</span>
           </div>
+          {/* Quick-action buttons — shown whenever owner action is required */}
+          {user&&inc.status==='open'&&isOwner&&(
+            <button type="button" className="ir-ss-act ir-ss-act-verify"
+              onClick={e=>{e.stopPropagation();onVerify&&onVerify(inc);}}
+              title={isEn?'Step 1: Verify guest details and document your action':'Paso 1: Verificar datos del huésped y documentar acción'}>
+              ① {isEn?'Verify':'Verificar'}
+            </button>
+          )}
+          {user&&inc.status==='verified'&&isOwner&&hasPendingRes&&(
+            <button type="button" className="ir-ss-act ir-ss-act-resolve"
+              onClick={e=>{e.stopPropagation();onAddResolution&&onAddResolution(inc);}}
+              title={isEn?'Step 2: Add your resolution so admin can close':'Paso 2: Agrega tu respuesta para que el admin pueda cerrar'}>
+              ② {isEn?'Add resolution':'Agregar respuesta'}
+            </button>
+          )}
+          {user&&(isGlobalAdmin||canResolveGlobal)&&inc.status==='verified'&&!hasPendingRes&&(
+            <button type="button" className="ir-ss-act ir-ss-act-close"
+              onClick={e=>{e.stopPropagation();onResolve&&onResolve(inc.id);}}>
+              {isEn?'Close':'Cerrar'}
+            </button>
+          )}
           {hasDetail&&(
             <button type="button" className="ir-detail-pill" onClick={()=>onIncidentDetail(inc.id)}>
               {isEn?'Details':'Detalles'} ›
