@@ -57,13 +57,13 @@ const DEFAULT_DELEGATE_PERMISSIONS = {
 // owner   = listing owner / registrant   operator    = listing operator
 // globalAdmin = env GLOBAL_ADMIN_EMAILS + escalation CC   delegateAdmin = role-gated per type
 const DEFAULT_EMAIL_NOTIFICATION_CONFIG = {
-  incident_new:              { enabled:true,  owner:true,  operator:true,  globalAdmin:true,  delegateAdmin:true  },
-  incident_sla_notification: { enabled:true,  owner:true,  operator:true,  globalAdmin:false, delegateAdmin:false },
-  incident_sla_reminder:     { enabled:true,  owner:true,  operator:true,  globalAdmin:false, delegateAdmin:false },
-  incident_sla:              { enabled:true,  owner:true,  operator:true,  globalAdmin:true,  delegateAdmin:false },
-  incident_verified:           { enabled:true,  owner:true,  operator:true,  globalAdmin:true,  delegateAdmin:true  },
-  incident_resolution_added:   { enabled:true,  owner:true,  operator:true,  globalAdmin:true,  delegateAdmin:true  },
-  incident_resolved:           { enabled:true,  owner:true,  operator:true,  globalAdmin:true,  delegateAdmin:true  },
+  incident_new:              { enabled:true,  reporter:true, owner:true,  operator:true,  globalAdmin:true,  delegateAdmin:true  },
+  incident_sla_notification: { enabled:true,  reporter:true, owner:true,  operator:true,  globalAdmin:false, delegateAdmin:false },
+  incident_sla_reminder:     { enabled:true,  reporter:true, owner:true,  operator:true,  globalAdmin:false, delegateAdmin:false },
+  incident_sla:              { enabled:true,  reporter:true, owner:true,  operator:true,  globalAdmin:true,  delegateAdmin:false },
+  incident_verified:           { enabled:true,  reporter:true, owner:true,  operator:true,  globalAdmin:true,  delegateAdmin:true  },
+  incident_resolution_added:   { enabled:true,  reporter:true, owner:true,  operator:true,  globalAdmin:true,  delegateAdmin:true  },
+  incident_resolved:           { enabled:true,  reporter:true, owner:true,  operator:true,  globalAdmin:true,  delegateAdmin:true  },
   registration_submitted:    { enabled:true,  owner:true,  operator:false, globalAdmin:false, delegateAdmin:false },
   registration_approved:     { enabled:true,  owner:true,  operator:false, globalAdmin:true,  delegateAdmin:true  },
   registration_declined:     { enabled:true,  owner:true,  operator:false, globalAdmin:true,  delegateAdmin:true  },
@@ -303,8 +303,9 @@ const buildIncidentRecipients = async (key, listing, typeCfg, reporterEmail='') 
     // If a delegate loses this permission they stop receiving all incident emails.
     recips.push(...await getDelegateAdminsWithPermission('canResolveIncidents'));
   }
-  // Always include the reporter (person who filed the incident) if their email is known
-  if (reporterEmail) recips.push(reporterEmail);
+  // Include the reporter (person who filed) only when reporter routing is enabled for this type.
+  // Defaults to true so existing databases that lack the 'reporter' key still notify reporters.
+  if (typeCfg.reporter !== false && reporterEmail) recips.push(reporterEmail);
   return normalizeRecipients(recips);
 };
 

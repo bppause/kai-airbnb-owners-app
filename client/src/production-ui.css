@@ -698,6 +698,24 @@ table { width: 100%; border-collapse: collapse; }
   bottom: -7px;
   height: 7px;
 }
+/* ── Inside IRow card: popup flies RIGHT so it doesn't cover incident content ── */
+.irow.irow-card .unit-mini-card.apt-cpop-wrap .apt-cpop {
+  left: calc(100% + 8px) !important;
+  right: auto !important;
+  top: 0 !important;
+  bottom: auto !important;
+  min-width: 220px !important;
+  max-width: 270px !important;
+}
+/* Bridge extends LEFT from popup to fill the 8px gap */
+.irow.irow-card .unit-mini-card.apt-cpop-wrap .apt-cpop::before {
+  top: 0 !important;
+  bottom: 0 !important;
+  left: -8px !important;
+  right: auto !important;
+  width: 8px !important;
+  height: 100% !important;
+}
 
 /* ── AptDetailPanel modal layout ──────────────────────────────────────────── */
 /* Unit hero header — dark plate matching AptDoor style */

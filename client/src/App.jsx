@@ -4753,12 +4753,13 @@ function AdminSettings({ config={}, user, listings=[], contactProps={}, onSave, 
     const tog = (key,field,val) => setEmailNotifConfig(c=>({...c,[key]:{...c[key],[field]:val}}));
     const GROUPS = [
       { id:'incident', label: isEn?'⚠️ Incidents':'⚠️ Incidentes', types:[
-        { key:'incident_new',              label:isEn?'New incident':'Incidente nuevo',                     cols:['owner','operator','globalAdmin','delegateAdmin'] },
-        { key:'incident_sla',              label:isEn?'SLA escalation':'Escalación SLA',                   cols:['owner','operator','globalAdmin'] },
-        { key:'incident_sla_notification', label:isEn?'SLA notification (initial)':'SLA — notificación inicial', cols:['owner','operator','globalAdmin'] },
-        { key:'incident_sla_reminder',     label:isEn?'SLA reminder (cycle)':'SLA — recordatorio (ciclo)', cols:['owner','operator','globalAdmin'] },
-        { key:'incident_verified',         label:isEn?'Incident verified':'Incidente verificado',           cols:['owner','operator','globalAdmin','delegateAdmin'] },
-        { key:'incident_resolved',         label:isEn?'Incident resolved':'Incidente resuelto',             cols:['owner','operator','globalAdmin','delegateAdmin'] },
+        { key:'incident_new',                label:isEn?'New incident filed':'Incidente nuevo reportado',               cols:['reporter','owner','operator','globalAdmin','delegateAdmin'] },
+        { key:'incident_sla',                label:isEn?'SLA escalation':'Escalación SLA',                             cols:['reporter','owner','operator','globalAdmin'] },
+        { key:'incident_sla_notification',   label:isEn?'SLA notification (initial)':'SLA — notificación inicial',     cols:['reporter','owner','operator','globalAdmin'] },
+        { key:'incident_sla_reminder',       label:isEn?'SLA reminder (cycle)':'SLA — recordatorio (ciclo)',           cols:['reporter','owner','operator','globalAdmin'] },
+        { key:'incident_verified',           label:isEn?'Step 1 verified by owner':'Paso 1 verificado por propietario', cols:['reporter','owner','operator','globalAdmin','delegateAdmin'] },
+        { key:'incident_resolution_added',   label:isEn?'Step 2 resolution added (ready to close)':'Paso 2 respuesta agregada (listo para cerrar)', cols:['reporter','owner','operator','globalAdmin','delegateAdmin'] },
+        { key:'incident_resolved',           label:isEn?'Incident closed':'Incidente cerrado',                         cols:['reporter','owner','operator','globalAdmin','delegateAdmin'] },
       ]},
       { id:'registration', label: isEn?'📝 Registrations':'📝 Registros', types:[
         { key:'registration_submitted',    label:isEn?'Received (to registrant)':'Recibido (al registrante)',     cols:['owner'] },
@@ -4773,6 +4774,7 @@ function AdminSettings({ config={}, user, listings=[], contactProps={}, onSave, 
       ]},
     ];
     const COL_INFO = [
+      { key:'reporter',      icon:'📋', label: isEn?'Reporter (who filed the incident)':'Reportador (quien reportó el incidente)', short: isEn?'Rep.':'Rep.' },
       { key:'owner',         icon:'👤', label: isEn?'Owner / Registrant':'Propietario / Registrante', short: isEn?'Owner':'Prop.' },
       { key:'operator',      icon:'🔧', label: isEn?'Operator':'Operador',                            short: isEn?'Oper.':'Oper.' },
       { key:'globalAdmin',   icon:'🌍', label: isEn?'Global Admin':'Admin Global',                   short: isEn?'Global':'Global' },
