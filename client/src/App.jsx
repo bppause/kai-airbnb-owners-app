@@ -4417,6 +4417,8 @@ function AdminSettings({ config={}, user, listings=[], contactProps={}, onSave, 
   const [uiLabelsEn,setUiLabelsEn]=useState(()=>parseJsonObject(config?.ui_labels_en,{}));
   const [uiLabelSearch,setUiLabelSearch]=useState('');
   const [uiLabelLang,setUiLabelLang]=useState('es');
+  const [uiLabelOpenGroups,setUiLabelOpenGroups]=useState({});
+  const toggleUlaGroup = (id) => setUiLabelOpenGroups(s=>({...s,[id]:!s[id]}));
   const [templates,setTemplates]=useState({});
   const [templateVars,setTemplateVars]=useState({});
   const [selectedTemplate,setSelectedTemplate]=useState('incident_new');
@@ -4653,8 +4655,8 @@ function AdminSettings({ config={}, user, listings=[], contactProps={}, onSave, 
           <NavConfigEditor lang={lang} isEn={isEn} config={config} onSave={cfg=>onSave({nav_config:JSON.stringify(cfg)})} showToast={showToast}/>
         </AdminSection>
 
-        {/* ── UI Labels ── */}
-  <AdminSection title={`🏷️ ${isEn?'UI Labels':'Etiquetas de la interfaz'}`} subtitle={isEn?'Customize any title, button, status label or action text shown in the app. Overrides apply to all users immediately after saving.':'Personaliza cualquier título, botón, etiqueta de estado o texto de acción de la app. Los cambios se aplican a todos los usuarios al guardar.'} action={<button className="btn-ghost" onClick={saveUiLabels}>💾 {isEn?'Save labels':'Guardar etiquetas'}</button>} open={openSections.uiLabels} onToggle={()=>toggleSection('uiLabels')}>
+        {/* ── UI Labels — organized by page/section with expand/collapse ── */}
+  <AdminSection title={`🏷️ ${isEn?'UI Labels':'Etiquetas de la interfaz'}`} subtitle={isEn?'Customize any text in the app by page section. Changes apply to all users immediately after saving.':'Personaliza cualquier texto de la app por sección de página. Los cambios se aplican al guardar.'} action={<button className="btn-ghost" onClick={saveUiLabels}>💾 {isEn?'Save labels':'Guardar etiquetas'}</button>} open={openSections.uiLabels} onToggle={()=>toggleSection('uiLabels')}>
     {(()=>{
       const currentLabels = uiLabelLang==='en' ? uiLabelsEn : uiLabelsEs;
       const setLabel = (key, val) => uiLabelLang==='en'
@@ -4663,88 +4665,124 @@ function AdminSettings({ config={}, user, listings=[], contactProps={}, onSave, 
       const resetLabel = (key) => uiLabelLang==='en'
         ? setUiLabelsEn(p=>{const n={...p};delete n[key];return n;})
         : setUiLabelsEs(p=>{const n={...p};delete n[key];return n;});
-      // Group keys by prefix for organised display
+
+      // Page/section oriented groups — ordered by how users encounter them
       const labelGroups = [
-        { id:'nav',   icon:'🧭', label:isEn?'Navigation':'Navegación',        prefix:'nav.' },
-        { id:'dash',  icon:'📊', label:isEn?'Dashboard':'Dashboard',           prefix:'dashboard.' },
-        { id:'action',icon:'⚡', label:isEn?'Actions & buttons':'Acciones y botones', prefix:'actions.' },
-        { id:'rep',   icon:'⚠️', label:isEn?'Incidents / Reports':'Incidentes / Reportes', prefix:'reports.' },
-        { id:'wf',    icon:'🔄', label:isEn?'Workflow states':'Estados del flujo', prefix:'workflow.' },
-        { id:'smart', icon:'🔔', label:isEn?'Smart alerts':'Alertas inteligentes', prefix:'smart.' },
-        { id:'form',  icon:'📝', label:isEn?'Form labels':'Etiquetas de formulario', prefix:'form.' },
-        { id:'my',    icon:'🏠', label:isEn?'My Listings':'Mis listings',      prefix:'my.' },
-        { id:'listing',icon:'🏠',label:isEn?'Listings page':'Página listings', prefix:'listings.' },
-        { id:'modal', icon:'💬', label:isEn?'Modal / Verify':'Modales',        prefix:'modal.' },
-        { id:'notif', icon:'🔔', label:isEn?'Notifications':'Notificaciones',  prefix:'notifications.' },
-        { id:'roles', icon:'👥', label:isEn?'Role descriptions':'Descripciones de rol', prefix:'roles.' },
-        { id:'other', icon:'🔤', label:isEn?'Other labels':'Otras etiquetas',  prefix:null },
+        { id:'nav',    icon:'🧭', label:isEn?'Navigation & menu':'Navegación y menú',          prefixes:['nav.'] },
+        { id:'dash',   icon:'📊', label:isEn?'Dashboard':'Dashboard',                           prefixes:['dashboard.','actions.','smart.'] },
+        { id:'inc',    icon:'⚠️', label:isEn?'Incidents & Reports':'Incidentes y Reportes',     prefixes:['reports.','workflow.','incidents.'] },
+        { id:'form',   icon:'📝', label:isEn?'Forms & Validation':'Formularios y validación',   prefixes:['form.','validation.','modal.'] },
+        { id:'my',     icon:'🔑', label:isEn?'My Units':'Mis Unidades',                         prefixes:['my.'] },
+        { id:'listing',icon:'🏠', label:isEn?'Inventory':'Inventario',                          prefixes:['listings.'] },
+        { id:'notif',  icon:'🔔', label:isEn?'Notifications & Alerts':'Notificaciones y Alertas', prefixes:['notifications.'] },
+        { id:'roles',  icon:'👥', label:isEn?'Roles & Permissions':'Roles y permisos',          prefixes:['roles.'] },
+        { id:'common', icon:'🔤', label:isEn?'Common & Other':'Común y otros',                  prefixes:['common.','tooltips.',null] },
       ];
+
       const q = uiLabelSearch.trim().toLowerCase();
-      // Build list of all APP_I18N keys filtered by search
       const allKeys = Object.keys(APP_I18N).sort();
       const filteredKeys = q
-        ? allKeys.filter(k => {
-            const dEn = String(APP_I18N[k]?.en||'').toLowerCase();
-            const dEs = String(APP_I18N[k]?.es||'').toLowerCase();
-            const custom = String(currentLabels[k]||'').toLowerCase();
-            return k.toLowerCase().includes(q) || dEn.includes(q) || dEs.includes(q) || custom.includes(q);
+        ? allKeys.filter(k=>{
+            const dEn=String(APP_I18N[k]?.en||'').toLowerCase();
+            const dEs=String(APP_I18N[k]?.es||'').toLowerCase();
+            const custom=String(currentLabels[k]||'').toLowerCase();
+            return k.toLowerCase().includes(q)||dEn.includes(q)||dEs.includes(q)||custom.includes(q);
           })
         : allKeys;
-      const modified = Object.keys(currentLabels).length;
+
+      const totalModified = Object.keys(currentLabels).length;
+
+      // Render a single label row
+      const LabelRow = ({key:_,rkey,shortKey,defVal}) => {
+        const custom = currentLabels[rkey];
+        const isChanged = custom !== undefined;
+        return (
+          <div className={`ula-row${isChanged?' ula-row-changed':''}`}>
+            <div className="ula-row-key">
+              <code className="ula-key" title={rkey}>{shortKey}</code>
+              {isChanged&&<span className="ula-changed-dot" title={isEn?'Customized':'Personalizado'}>●</span>}
+            </div>
+            <div className="ula-row-content">
+              <div className="ula-default">{defVal||<span style={{color:'#aaa',fontStyle:'italic'}}>{isEn?'(empty)':'(vacío)'}</span>}</div>
+              <div className="ula-input-wrap">
+                <input className="ula-input" value={isChanged?custom:defVal} onChange={e=>setLabel(rkey,e.target.value)}
+                  onFocus={e=>{if(!isChanged){setLabel(rkey,defVal);setTimeout(()=>e.target.select(),0);}}}
+                  placeholder={defVal}/>
+                {isChanged&&<button type="button" className="ula-reset" title={isEn?'Reset to default':'Restablecer'} onClick={()=>resetLabel(rkey)}>↩</button>}
+              </div>
+            </div>
+          </div>
+        );
+      };
+
       return (
         <div className="ula-wrap">
+          {/* Toolbar */}
           <div className="ula-toolbar">
             <div className="ula-lang-toggle">
               <button className={`fchip${uiLabelLang==='es'?' fchip-on':''}`} onClick={()=>setUiLabelLang('es')}>🇨🇴 Español</button>
               <button className={`fchip${uiLabelLang==='en'?' fchip-on':''}`} onClick={()=>setUiLabelLang('en')}>🇺🇸 English</button>
             </div>
             <div style={{position:'relative',flex:1,maxWidth:340}}>
-              <input className="search" style={{paddingRight:32}} placeholder={isEn?'Search labels…':'Buscar etiquetas…'} value={uiLabelSearch} onChange={e=>setUiLabelSearch(e.target.value)}/>
+              <input className="search" style={{paddingRight:32}} placeholder={isEn?'Search all labels…':'Buscar en todas las etiquetas…'} value={uiLabelSearch} onChange={e=>setUiLabelSearch(e.target.value)}/>
               {uiLabelSearch&&<button className="inc-search-clear" onClick={()=>setUiLabelSearch('')}>✕</button>}
             </div>
-            {modified>0&&<span className="ula-modified-badge">{modified} {isEn?'overridden':'modificadas'}</span>}
+            <div style={{display:'flex',gap:6,alignItems:'center',flexShrink:0}}>
+              {totalModified>0&&<span className="ula-modified-badge">{totalModified} {isEn?'overridden':'modificadas'}</span>}
+              {!q&&<button type="button" className="bsm" style={{fontSize:'.72rem'}}
+                onClick={()=>setUiLabelOpenGroups(s=>{const allOpen=labelGroups.every(g=>s[g.id]);return Object.fromEntries(labelGroups.map(g=>[g.id,!allOpen]));})}>
+                {labelGroups.every(g=>uiLabelOpenGroups[g.id])?(isEn?'Collapse all':'Colapsar todo'):(isEn?'Expand all':'Expandir todo')}
+              </button>}
+            </div>
           </div>
-          {/* Show by group when no search, flat list when searching */}
-          {q
-            ? <div className="ula-group">
-                <div className="ula-group-hdr">{filteredKeys.length} {isEn?'results':'resultados'}</div>
+
+          {/* Search results — flat list */}
+          {q ? (
+            <div className="ula-group ula-group-open">
+              <div className="ula-group-hdr ula-group-hdr-plain">
+                🔍 {filteredKeys.length} {isEn?`result${filteredKeys.length!==1?'s':''}`:`resultado${filteredKeys.length!==1?'s':''}`}
+              </div>
+              <div className="ula-rows">
                 {filteredKeys.map(key=>{
-                  const defVal = APP_I18N[key]?.[uiLabelLang==='en'?'en':'es'] || APP_I18N[key]?.es || '';
-                  const custom = currentLabels[key];
-                  const isChanged = custom !== undefined;
-                  return <div key={key} className={`ula-row${isChanged?' ula-row-changed':''}`}>
-                    <div className="ula-key" title={key}>{key}</div>
-                    <div className="ula-default" title={isEn?'Default value':'Valor por defecto'}>{defVal}</div>
-                    <input className="ula-input" value={isChanged ? custom : defVal} onChange={e=>setLabel(key, e.target.value)} onFocus={e=>{if(!isChanged)e.target.select();}} placeholder={defVal}/>
-                    {isChanged&&<button type="button" className="ula-reset" title={isEn?'Reset to default':'Restablecer por defecto'} onClick={()=>resetLabel(key)}>↩</button>}
-                  </div>;
+                  const defVal=APP_I18N[key]?.[uiLabelLang==='en'?'en':'es']||APP_I18N[key]?.es||'';
+                  return <LabelRow key={key} rkey={key} shortKey={key} defVal={defVal}/>;
                 })}
               </div>
-            : labelGroups.map(g=>{
-                const gKeys = g.prefix
-                  ? filteredKeys.filter(k=>k.startsWith(g.prefix))
-                  : filteredKeys.filter(k=>!labelGroups.slice(0,-1).some(lg=>lg.prefix&&k.startsWith(lg.prefix)));
-                if(!gKeys.length) return null;
-                return (
-                  <div key={g.id} className="ula-group">
-                    <div className="ula-group-hdr">{g.icon} {g.label}</div>
-                    {gKeys.map(key=>{
-                      const defVal = APP_I18N[key]?.[uiLabelLang==='en'?'en':'es'] || APP_I18N[key]?.es || '';
-                      const custom = currentLabels[key];
-                      const isChanged = custom !== undefined;
-                      return <div key={key} className={`ula-row${isChanged?' ula-row-changed':''}`}>
-                        <div className="ula-key" title={key}>{key.replace(g.prefix||'','')}</div>
-                        <div className="ula-default" title={isEn?'Default value':'Valor por defecto'}>{defVal}</div>
-                        <input className="ula-input" value={isChanged ? custom : defVal} onChange={e=>setLabel(key, e.target.value)} onFocus={e=>{if(!isChanged) { setLabel(key, defVal); setTimeout(()=>e.target.select(),0); }}} placeholder={defVal}/>
-                        {isChanged&&<button type="button" className="ula-reset" title={isEn?'Reset to default':'Restablecer por defecto'} onClick={()=>resetLabel(key)}>↩</button>}
-                      </div>;
-                    })}
-                  </div>
-                );
-              })
-          }
+            </div>
+          ) : (
+            /* Grouped by page/section — each group has its own expand/collapse */
+            labelGroups.map(g=>{
+              const gKeys = g.prefixes.includes(null)
+                ? filteredKeys.filter(k=>!labelGroups.slice(0,-1).some(lg=>lg.prefixes.filter(Boolean).some(p=>k.startsWith(p))))
+                : filteredKeys.filter(k=>g.prefixes.some(p=>k.startsWith(p)));
+              if(!gKeys.length) return null;
+              const isOpen = !!uiLabelOpenGroups[g.id];
+              const groupModified = gKeys.filter(k=>currentLabels[k]!==undefined).length;
+              return (
+                <div key={g.id} className={`ula-group${isOpen?' ula-group-open':''}`}>
+                  <button type="button" className="ula-group-toggle" onClick={()=>toggleUlaGroup(g.id)}>
+                    <span className="ula-group-icon">{g.icon}</span>
+                    <span className="ula-group-label">{g.label}</span>
+                    <span className="ula-group-count">{gKeys.length} {isEn?'labels':'etiquetas'}</span>
+                    {groupModified>0&&<span className="ula-modified-badge" style={{fontSize:'.65rem',padding:'1px 7px'}}>{groupModified} {isEn?'edited':'editadas'}</span>}
+                    <span className={`ula-group-chev${isOpen?' ula-group-chev-open':''}`}>›</span>
+                  </button>
+                  {isOpen&&(
+                    <div className="ula-rows">
+                      {gKeys.map(key=>{
+                        const shortKey = g.prefixes.filter(Boolean).reduce((s,p)=>s.startsWith(p)?s.slice(p.length):s, key);
+                        const defVal=APP_I18N[key]?.[uiLabelLang==='en'?'en':'es']||APP_I18N[key]?.es||'';
+                        return <LabelRow key={key} rkey={key} shortKey={shortKey} defVal={defVal}/>;
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            })
+          )}
+
           <div className="mact" style={{marginTop:16}}>
-            <button className="btn-ghost" onClick={()=>{if(uiLabelLang==='en'){setUiLabelsEn({});}else{setUiLabelsEs({});} }} title={isEn?'Reset all overrides to defaults':'Restablecer todas las etiquetas'}>
+            <button className="btn-ghost" onClick={()=>{if(uiLabelLang==='en')setUiLabelsEn({});else setUiLabelsEs({});}}>
               ↩ {isEn?'Reset all to defaults':'Restablecer todo'}
             </button>
             <button className="btn-p" onClick={saveUiLabels}>💾 {isEn?'Save labels':'Guardar etiquetas'}</button>

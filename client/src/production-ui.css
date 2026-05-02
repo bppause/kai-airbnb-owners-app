@@ -777,36 +777,48 @@ table { width: 100%; border-collapse: collapse; }
 .adp-contacts {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
   margin-bottom: 10px;
 }
 .adp-party {
   background: rgba(255,255,255,.97);
   border: 1px solid rgba(18,50,53,.09);
-  border-radius: 10px;
-  overflow: hidden;
+  border-radius: 12px;
+  padding: 12px 14px;
   box-shadow: 0 1px 4px rgba(18,50,53,.05);
 }
 .adp-party-lbl {
-  font-size: .7rem !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 5px !important;
+  font-size: .68rem !important;
   font-weight: 900 !important;
   text-transform: uppercase !important;
   letter-spacing: .08em !important;
-  color: #c8f0ec !important;
-  background: linear-gradient(135deg, #1a3a3e 0%, #152e31 100%) !important;
-  padding: 7px 14px !important;
+  color: #0b4f5e !important;
+  background: rgba(11,127,140,.12) !important;
+  border: 1.5px solid rgba(11,127,140,.25) !important;
+  padding: 5px 12px !important;
+  border-radius: 999px !important;
+  margin: 10px 0 6px !important;
+  align-self: flex-start !important;
 }
 .adp-party-row {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 10px 12px;
+  padding: 6px 0 0;
   flex-wrap: wrap;
 }
-.adp-party-cbtns { display: flex; gap: 5px; flex-shrink: 0; margin-left: auto; }
+.adp-party-name {
+  font-size: .92rem;
+  font-weight: 700;
+  color: #17313a;
+  flex: 1;
+}
+.adp-party-cbtns { display: flex; gap: 6px; flex-shrink: 0; margin-left: auto; }
 .adp-party-none { opacity: .75; }
-.adp-party-none .adp-party-row { padding: 8px 12px; }
-.adp-no-op { font-size: .78rem; color: #8a9fa5; font-style: italic; }
+.adp-no-op { font-size: .8rem; color: #8a9fa5; font-style: italic; margin-top: 4px; }
 
 /* ── adp-wfg-list: workflow groups inside AptDetailPanel ─────────────────── */
 .adp-wfg-list { display: flex; flex-direction: column; gap: 8px; margin-top: 4px; }
@@ -1086,25 +1098,26 @@ button.unit-plate:focus-visible { outline: 2px solid rgba(200,216,160,.6) !impor
 /* ── UnitDetailCard: structured listing detail + incident summary ────────── */
 .udc-wrap { display: flex; flex-direction: column; gap: 0; }
 
-/* ── Section labels inside UnitDetailCard — dark gradient header bars ── */
+/* ── Section labels inside UnitDetailCard — light teal accent style ── */
+/* Light background + dark text = far more readable than dark-on-dark */
 .udc-wrap .adp-section-lbl {
   display: flex !important;
   align-items: center !important;
   gap: 8px !important;
-  padding: 9px 14px !important;
-  background: linear-gradient(135deg, #1a3a3e 0%, #0f2a2d 100%) !important;
-  border-radius: 10px !important;
-  color: #c8f0ec !important;
-  font-size: .74rem !important;
+  padding: 8px 14px !important;
+  background: rgba(11,127,140,.1) !important;
+  border-left: 4px solid rgba(11,127,140,.55) !important;
+  border-radius: 0 8px 8px 0 !important;
+  color: #0b4f5e !important;
+  font-size: .78rem !important;
   font-weight: 900 !important;
   text-transform: uppercase !important;
-  letter-spacing: .09em !important;
-  margin: 10px 0 8px !important;
+  letter-spacing: .07em !important;
+  margin: 12px 0 8px !important;
   border-bottom: none !important;
-  box-shadow: 0 2px 6px rgba(11,50,53,.15) !important;
+  box-shadow: none !important;
 }
-/* First section label gets tighter top margin */
-.udc-wrap .adp-section-lbl:first-of-type { margin-top: 4px !important; }
+.udc-wrap .adp-section-lbl:first-of-type { margin-top: 6px !important; }
 
 /* ── Listing details grid card ── */
 .udc-fields {
@@ -1112,32 +1125,30 @@ button.unit-plate:focus-visible { outline: 2px solid rgba(200,216,160,.6) !impor
   grid-template-columns: auto 1fr;
   gap: 0;
   background: rgba(255,255,255,.97);
-  border: 1px solid rgba(18,50,53,.09);
+  border: 1px solid rgba(18,50,53,.1);
   border-radius: 10px;
   overflow: hidden;
   margin-bottom: 10px;
   box-shadow: 0 1px 4px rgba(18,50,53,.06);
 }
-/* Alternating row tint */
-.udc-fields > span:nth-child(4n+1),
-.udc-fields > span:nth-child(4n+2) { background: rgba(11,127,140,.03); }
 .udc-field-lbl {
-  font-size: .7rem;
-  font-weight: 900;
+  font-size: .73rem;
+  font-weight: 800;
   text-transform: uppercase;
-  letter-spacing: .07em;
-  color: #2e4a58;
+  letter-spacing: .06em;
+  color: #496674;
   white-space: nowrap;
-  padding: 9px 14px;
+  padding: 10px 14px;
   border-bottom: 1px solid rgba(18,50,53,.07);
   display: flex;
   align-items: center;
-  background: rgba(11,50,60,.04);
+  background: rgba(11,50,60,.03);
+  min-width: 110px;
 }
 .udc-fields > span:last-child,
 .udc-fields > span:nth-last-child(2) { border-bottom: none; }
 .udc-field-val {
-  font-size: .88rem;
+  font-size: .92rem;
   font-weight: 700;
   color: #17313a;
   padding: 9px 14px;
@@ -1173,56 +1184,60 @@ button.unit-plate:focus-visible { outline: 2px solid rgba(200,216,160,.6) !impor
 /* ── UnitDetailCard 3-step navigation ──────────────────────────────────── */
 
 /* "View incidents" navigation button (step 1 → 2) */
+/* "View incidents" navigation button — teal outline style, dark text, easy to read */
 .udc-nav-btn {
   display: flex !important;
   align-items: center !important;
   gap: 10px !important;
   width: 100% !important;
   margin-top: 12px !important;
-  padding: 13px 16px !important;
-  background: linear-gradient(135deg, #1a3a3e 0%, #0f2a2d 100%) !important;
-  border: none !important;
+  padding: 12px 16px !important;
+  background: rgba(11,127,140,.08) !important;
+  border: 2px solid rgba(11,127,140,.3) !important;
   border-radius: 12px !important;
-  color: rgba(200,240,236,.92) !important;
-  font-size: .86rem !important;
+  color: #0b4f5e !important;
+  font-size: .88rem !important;
   font-weight: 800 !important;
   cursor: pointer !important;
   min-height: 0 !important;
   text-align: left !important;
-  box-shadow: 0 2px 8px rgba(11,50,53,.18) !important;
-  transition: filter .13s, transform .1s, box-shadow .13s !important;
+  box-shadow: none !important;
+  transition: background .13s, border-color .13s, transform .1s !important;
 }
-.udc-nav-btn:hover { filter: brightness(1.15) !important; transform: translateY(-1px) !important; box-shadow: 0 4px 14px rgba(11,50,53,.28) !important; }
-/* Badge on the dark nav button — lighter treatment to show on dark bg */
+.udc-nav-btn:hover {
+  background: rgba(11,127,140,.15) !important;
+  border-color: rgba(11,127,140,.55) !important;
+  transform: translateY(-1px) !important;
+}
 .udc-nav-badge {
-  background: rgba(255,255,255,.18);
-  color: rgba(200,240,236,.95);
+  background: rgba(11,127,140,.18);
+  color: #0b4f5e;
   border-radius: 999px;
   padding: 2px 10px;
   font-size: .72rem;
   font-weight: 900;
 }
-.udc-nav-chev { margin-left: auto; font-size: 1.1rem; font-weight: 400; color: rgba(200,240,236,.7); }
+.udc-nav-chev { margin-left: auto; font-size: 1.1rem; color: rgba(11,127,140,.7); }
 
-/* Breadcrumb navigation (steps 2 + 3) */
+/* Breadcrumb navigation (steps 2 + 3) — light teal strip, dark text */
 .udc-breadcrumb {
   display: flex;
   align-items: center;
   gap: 4px;
-  padding: 8px 14px;
-  background: linear-gradient(135deg, #1a3a3e 0%, #0f2a2d 100%);
-  border-radius: 10px;
+  padding: 7px 12px;
+  background: rgba(11,127,140,.08);
+  border: 1px solid rgba(11,127,140,.2);
+  border-radius: 8px;
   margin-bottom: 12px;
   flex-wrap: wrap;
-  box-shadow: 0 2px 6px rgba(11,50,53,.15);
 }
 .udc-bc-item { display: flex; align-items: center; gap: 4px; }
 .udc-bc-link {
   background: none !important;
   border: none !important;
-  padding: 3px 8px !important;
+  padding: 2px 7px !important;
   border-radius: 6px !important;
-  color: #c8f0ec !important;
+  color: #0b5f72 !important;
   font-size: .76rem !important;
   font-weight: 700 !important;
   cursor: pointer !important;
@@ -1230,11 +1245,11 @@ button.unit-plate:focus-visible { outline: 2px solid rgba(200,216,160,.6) !impor
   display: inline-flex !important;
   align-items: center !important;
   gap: 3px !important;
-  transition: color .12s, background .12s !important;
+  transition: background .12s !important;
 }
-.udc-bc-link:hover { color: #fff !important; background: rgba(255,255,255,.1) !important; }
-.udc-bc-current { font-size: .76rem; font-weight: 800; color: #fff; }
-.udc-bc-sep { color: rgba(255,255,255,.4); font-size: .72rem; }
+.udc-bc-link:hover { background: rgba(11,127,140,.12) !important; color: #083f4e !important; }
+.udc-bc-current { font-size: .76rem; font-weight: 800; color: #17313a; }
+.udc-bc-sep { color: rgba(11,50,53,.35); font-size: .72rem; }
 
 /* Incident summary list (step 2) — expand/collapse */
 .udc-inc-list { display: flex; flex-direction: column; gap: 8px; }
@@ -1296,46 +1311,56 @@ button.unit-plate:focus-visible { outline: 2px solid rgba(200,216,160,.6) !impor
 
 /* Compact top bar (replaces full UnitHero at step 3) */
 .idd-wrap { padding-top: 0 !important; }
+/* Step 3 compact header: keep the hero dark plate for the number (that's fine),
+   but use light-teal breadcrumb row below it */
 .idd-top-bar {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 14px 18px 12px;
-  background: linear-gradient(135deg,#1a3a3e 0%,#0f2a2d 100%);
-  border-radius: 14px;
-  margin-bottom: 14px;
+  padding: 0;
+  margin-bottom: 12px;
+  flex-direction: column;
+  align-items: stretch;
 }
+/* Dark plate showing unit number — stays dark, numbers are clear */
 .idd-top-plate {
   display: flex;
   align-items: baseline;
-  gap: 6px;
-  flex-shrink: 0;
+  gap: 8px;
+  padding: 10px 16px 9px;
+  background: linear-gradient(135deg,#1a3a3e 0%,#0f2a2d 100%);
+  border-radius: 12px 12px 0 0;
 }
-.idd-top-num  { font-size: 1.6rem; font-weight: 900; color: #fff; letter-spacing: -.02em; }
-.idd-top-tower{ font-size: .75rem; font-weight: 700; color: rgba(127,230,220,.7); letter-spacing: .08em; text-transform: uppercase; }
+.idd-top-num  { font-size: 1.7rem; font-weight: 900; color: #fff; letter-spacing: -.02em; }
+.idd-top-tower{ font-size: .75rem; font-weight: 700; color: rgba(127,230,220,.85); letter-spacing: .1em; text-transform: uppercase; align-self: flex-end; padding-bottom: 3px; }
+/* Breadcrumb row — light teal bg, dark text, easy to read */
 .idd-top-breadcrumb {
   display: flex;
   align-items: center;
-  gap: 5px;
+  gap: 4px;
   flex-wrap: wrap;
   min-width: 0;
+  padding: 7px 14px;
+  background: rgba(11,127,140,.08);
+  border: 1px solid rgba(11,127,140,.2);
+  border-top: none;
+  border-radius: 0 0 10px 10px;
 }
 .idd-bc-btn {
   background: none !important;
   border: none !important;
-  padding: 2px 6px !important;
+  padding: 2px 7px !important;
   font-size: .76rem !important;
   font-weight: 700 !important;
-  color: #c8f0ec !important;
+  color: #0b5f72 !important;
   cursor: pointer !important;
   min-height: 0 !important;
-  border-radius: 4px !important;
-  transition: color .12s, background .12s !important;
+  border-radius: 5px !important;
+  transition: background .12s !important;
 }
-.idd-bc-btn:hover { color: #fff !important; background: rgba(255,255,255,.1) !important; }
-.idd-bc-sep { font-size: .72rem; color: rgba(255,255,255,.4); }
-.idd-bc-cur { font-size: .76rem; font-weight: 800; color: #fff; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.idd-top-tower { font-size: .72rem; font-weight: 700; color: #c8f0ec; letter-spacing: .1em; text-transform: uppercase; }
+.idd-bc-btn:hover { background: rgba(11,127,140,.14) !important; color: #083f4e !important; }
+.idd-bc-sep { font-size: .72rem; color: rgba(11,50,53,.35); }
+.idd-bc-cur { font-size: .76rem; font-weight: 800; color: #17313a; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* Status banner — full-width, horizontally flex with chips on the right */
 .idd-status-banner {
@@ -2013,11 +2038,12 @@ button.dis-pill:hover { transform: translateY(-1px); box-shadow: 0 2px 6px rgba(
 .ula-modified-badge { background: rgba(11,127,140,.15) !important; color: #0b3d4a !important; font-weight: 900; }
 
 /* ── Admin UI Label editor ────────────────────────────────────────────────── */
-.ula-wrap { display: flex; flex-direction: column; gap: 12px; }
+/* ── UI Labels editor — page-grouped, expand/collapse ── */
+.ula-wrap { display: flex; flex-direction: column; gap: 8px; }
 .ula-toolbar {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   flex-wrap: wrap;
   padding-bottom: 10px;
   border-bottom: 1px solid rgba(47,79,58,.1);
@@ -2033,57 +2059,113 @@ button.dis-pill:hover { transform: translateY(-1px); box-shadow: 0 2px 6px rgba(
   font-weight: 800;
   white-space: nowrap;
 }
-.ula-group { display: flex; flex-direction: column; gap: 2px; }
-.ula-group-hdr {
-  font-size: .68rem;
-  font-weight: 900;
-  text-transform: uppercase;
-  letter-spacing: .09em;
-  color: #496674;
-  padding: 8px 0 4px;
-  border-bottom: 1px solid rgba(47,79,58,.08);
-  margin-bottom: 4px;
+
+/* ── Group: collapsible card ── */
+.ula-group {
+  border: 1px solid rgba(47,79,58,.12);
+  border-radius: 10px;
+  overflow: hidden;
+  background: rgba(255,255,255,.96);
 }
+.ula-group-open { border-color: rgba(11,127,140,.25); }
+
+/* Toggle button = group header */
+.ula-group-toggle {
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  width: 100% !important;
+  padding: 10px 14px !important;
+  background: rgba(47,79,58,.03) !important;
+  border: none !important;
+  border-radius: 0 !important;
+  text-align: left !important;
+  cursor: pointer !important;
+  min-height: 0 !important;
+  transition: background .12s !important;
+}
+.ula-group-open .ula-group-toggle { background: rgba(11,127,140,.06) !important; }
+.ula-group-toggle:hover { background: rgba(11,127,140,.08) !important; }
+.ula-group-icon { font-size: 1rem; flex-shrink: 0; }
+.ula-group-label { font-size: .82rem; font-weight: 800; color: #17313a; flex: 1; }
+.ula-group-count { font-size: .7rem; color: #8a9fa5; white-space: nowrap; }
+.ula-group-chev {
+  font-size: 1rem; color: #8a9fa5; transform: rotate(0deg);
+  transition: transform .18s; margin-left: 4px;
+}
+.ula-group-chev-open { transform: rotate(90deg); }
+/* Plain (search result) header */
+.ula-group-hdr-plain {
+  font-size: .78rem; font-weight: 700; color: #496674;
+  padding: 8px 14px; background: rgba(47,79,58,.03);
+}
+
+/* Rows container */
+.ula-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  border-top: 1px solid rgba(47,79,58,.08);
+}
+
+/* Individual label row — two stacked sub-rows (key+default / input) */
 .ula-row {
-  display: grid;
-  grid-template-columns: 200px 1fr 1fr auto;
-  gap: 8px;
-  align-items: center;
-  padding: 4px 6px;
-  border-radius: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 14px;
+  border-bottom: 1px solid rgba(47,79,58,.06);
   transition: background .1s;
 }
-.ula-row:hover { background: rgba(47,79,58,.04); }
-.ula-row-changed { background: rgba(11,127,140,.06) !important; }
+.ula-row:last-child { border-bottom: none; }
+.ula-row:hover { background: rgba(47,79,58,.02); }
+.ula-row-changed { background: rgba(11,127,140,.04) !important; }
+.ula-row-changed:hover { background: rgba(11,127,140,.07) !important; }
+
+.ula-row-key {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
 .ula-key {
-  font-size: .65rem;
+  font-size: .67rem;
   font-family: monospace;
   color: #496674;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  background: rgba(47,79,58,.06);
+  padding: 1px 6px;
+  border-radius: 4px;
+}
+.ula-changed-dot { color: rgba(11,127,140,.8); font-size: .65rem; }
+
+.ula-row-content {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
 .ula-default {
-  font-size: .75rem;
+  font-size: .78rem;
   color: #8a9fa5;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
   font-style: italic;
+  line-height: 1.3;
+}
+.ula-input-wrap {
+  display: flex;
+  gap: 6px;
+  align-items: center;
 }
 .ula-input {
-  font-size: .8rem !important;
-  padding: 4px 8px !important;
-  min-height: 32px !important;
-  border-radius: 6px !important;
+  flex: 1 !important;
+  font-size: .84rem !important;
+  padding: 6px 10px !important;
+  min-height: 34px !important;
+  border-radius: 7px !important;
   border: 1.5px solid rgba(47,79,58,.2) !important;
   background: #fff !important;
   color: #17313a !important;
-  width: 100%;
 }
 .ula-row-changed .ula-input {
   border-color: rgba(11,127,140,.4) !important;
-  background: rgba(11,127,140,.04) !important;
+  background: rgba(11,127,140,.03) !important;
 }
 .ula-reset {
   background: none;
@@ -2091,17 +2173,13 @@ button.dis-pill:hover { transform: translateY(-1px); box-shadow: 0 2px 6px rgba(
   border-radius: 6px;
   color: #496674;
   font-size: .75rem;
-  padding: 3px 8px;
+  padding: 4px 9px;
   cursor: pointer;
   white-space: nowrap;
   flex-shrink: 0;
-  min-height: 28px !important;
+  min-height: 0 !important;
 }
 .ula-reset:hover { background: rgba(47,79,58,.08); color: #203f2b; }
-@media(max-width: 760px) {
-  .ula-row { grid-template-columns: 120px 1fr auto; }
-  .ula-default { display: none; }
-}
 
 /* ── Admin role reference grid ─────────────────────────────────────────────── */
 .role-ref-grid {
