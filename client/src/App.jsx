@@ -1279,7 +1279,17 @@ export default function App() {
       setIncidents(i => [newI, ...i]);
       setModal(null);
       showToast(data.isGeneral ? (lang==='en'?'📢 General report submitted':'📢 Reporte general registrado') : '⚠️ Reporte registrado');
-    } catch(e) { console.error('Save incident error', e); showToast("Error al reportar: " + (e.message || 'Revise Supabase/Render'), true); } finally { setSyncing(false); }
+    } catch(e) {
+      console.error('Save incident error', e);
+      let errMsg;
+      if (e.status === 413)
+        errMsg = lang==='en'
+          ? '⚠️ Photos are too large to upload. Try attaching fewer photos or using images with lower resolution.'
+          : '⚠️ Las fotos son demasiado grandes para enviar. Intenta con menos fotos o imágenes de menor resolución.';
+      else
+        errMsg = (lang==='en' ? 'Error saving report: ' : 'Error al reportar: ') + (e.message && !e.message.startsWith('<') ? e.message : 'Revise Supabase/Render');
+      showToast(errMsg, true);
+    } finally { setSyncing(false); }
   };
 
   const assignIncident = async (incidentId, aptId) => {
@@ -4229,7 +4239,14 @@ function IRow({ inc, user, listings=[], contactProps={}, isGlobalAdmin=false, ca
             </div>
           )}
 
-          {!compact&&(
+          {/* ── Parties — always visible (compact = mini strip, full = hover cards) ── */}
+          {compact?(
+            <div className="ir-bparty-compact">
+              {inc.reporterName&&<span className="ir-bpc-item" title={isEn?'Reporter':'Reportado por'}>📋 {inc.reporterName}</span>}
+              {listing&&<span className="ir-bpc-item" title={isEn?'Owner':'Propietario'}>🏠 {listing.owner||listing.userEmail||'—'}</span>}
+              {listing&&(listing.operator||listing.operatorEmail)&&<span className="ir-bpc-item" title={isEn?'Operator':'Operador'}>🔧 {listing.operator||listing.operatorEmail}</span>}
+            </div>
+          ):(
             <div className="ir-body-parties">
               <span className="ir-bparty">
                 <span className="ir-bparty-lbl">📋 {isEn?'Reporter':'Reportado por'}</span>
@@ -4379,10 +4396,28 @@ function IncidentModal({ listings, user, presetApt, onSave, onClose, lang="es-CO
     const toProcess = Array.from(files).slice(0,remaining);
     setPhotoLoading(true); setPhotoError('');
     const results=[]; const errs=[];
-    await Promise.all(toProcess.map(async f=>{
-      try{results.push(await compressImage(f));}catch(e){errs.push(e.message);}
+    await Promise.all(toProcess.map(async file=>{
+      try{results.push(await compressImage(file));}catch(e){
+        const raw = e.message || '';
+        let msg;
+        if(raw.includes('too large')||raw.includes('10 MB')||raw.includes('10MB'))
+          msg = isEn
+            ? '⚠️ Photo too large — max 10 MB per image before compression. Please choose a smaller file.'
+            : '⚠️ Foto demasiado grande — máx 10 MB por imagen antes de comprimir. Elige un archivo más pequeño.';
+        else if(raw.includes('Only image')||raw.includes('image files'))
+          msg = isEn
+            ? '⚠️ Only image files are allowed (JPEG, PNG, WebP).'
+            : '⚠️ Solo se permiten imágenes (JPEG, PNG, WebP).';
+        else if(raw.includes('Could not read')||raw.includes('Could not decode'))
+          msg = isEn
+            ? '⚠️ Could not read this image file. Try a different format.'
+            : '⚠️ No se pudo leer la imagen. Intenta con otro formato.';
+        else
+          msg = isEn ? `⚠️ Photo error: ${raw}` : `⚠️ Error en foto: ${raw}`;
+        errs.push(msg);
+      }
     }));
-    if(errs.length) setPhotoError(errs.join('; '));
+    if(errs.length) setPhotoError(errs.join(' '));
     if(results.length) setPhotos(p=>[...p,...results].slice(0,3));
     setPhotoLoading(false);
   };
@@ -6452,5 +6487,8 @@ html{font-size:clamp(14px,1.1vw,16px);-webkit-text-size-adjust:100%}body{overflo
 .ir-body-parties{display:flex;flex-wrap:wrap;gap:4px 16px;margin-top:8px;padding-top:7px;border-top:1px solid rgba(47,79,58,.09)}
 .ir-bparty{display:inline-flex;align-items:center;gap:5px;font-size:.78rem;color:#496674}
 .ir-bparty-lbl{font-weight:900;color:#2a5a6a;font-size:.64rem;text-transform:uppercase;letter-spacing:.07em;white-space:nowrap;flex-shrink:0}
+/* IRow parties strip (compact / dashboard) */
+.ir-bparty-compact{display:flex;flex-wrap:wrap;gap:3px 10px;margin-top:5px;padding-top:5px;border-top:1px solid rgba(47,79,58,.08)}
+.ir-bpc-item{font-size:.69rem;color:#6a8a9a;white-space:nowrap}
 
 `;
