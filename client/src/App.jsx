@@ -3044,6 +3044,43 @@ function UnitDetailCard({ l, incidents, canEdit=false, canDelete=false, onEdit, 
           </div>
         </div>
 
+        {/* ── Responsible parties ── */}
+        <div className="idd-parties">
+          <div className="idd-parties-hdr">👥 {isEn?'Incident Parties':'Partes del Incidente'}</div>
+          <div className="idd-parties-grid">
+            <div className="idd-pi-item">
+              <span className="idd-pi-role">📋 {isEn?'Reporter':'Reportado por'}</span>
+              <span className="idd-pi-name">{inc.reporterName||'—'}</span>
+            </div>
+            <div className="idd-pi-item idd-pi-owner">
+              <span className="idd-pi-role">🏠 {isEn?'Owner':'Propietario'}{inc.status!=='resolved'&&<span className="idd-pi-resp-badge">{isEn?'Responsible — Steps 1 & 2':'Responsable — Pasos 1 y 2'}</span>}</span>
+              <span className="idd-pi-name">{l.owner||ownerEmail||'—'}</span>
+              {(ownerEmail||ownerWa)&&(
+                <div className="idd-pi-contacts">
+                  {ownerEmail&&<a href={`mailto:${ownerEmail}`} className="idd-pi-link">✉️ {ownerEmail}</a>}
+                  {ownerWa&&<a href={`https://wa.me/${ownerWa}`} target="_blank" rel="noopener noreferrer" className="idd-pi-link idd-pi-wa">💬 WhatsApp</a>}
+                </div>
+              )}
+            </div>
+            <div className="idd-pi-item">
+              <span className="idd-pi-role">🔧 {isEn?'Operator':'Operador'}</span>
+              {hasOp?(
+                <>
+                  <span className="idd-pi-name">{l.operator||l.operatorEmail||'—'}</span>
+                  {(l.operatorEmail||opWa)&&(
+                    <div className="idd-pi-contacts">
+                      {l.operatorEmail&&<a href={`mailto:${l.operatorEmail}`} className="idd-pi-link">✉️ {l.operatorEmail}</a>}
+                      {opWa&&<a href={`https://wa.me/${opWa}`} target="_blank" rel="noopener noreferrer" className="idd-pi-link idd-pi-wa">💬 WhatsApp</a>}
+                    </div>
+                  )}
+                </>
+              ):(
+                <span className="idd-pi-none">{isEn?'No operator assigned':'Sin operador asignado'}</span>
+              )}
+            </div>
+          </div>
+        </div>
+
         {/* ── Owner action callout ── */}
         {user&&inc.status!=='resolved'&&isOwner&&(
           <div className={`udc-action-needed${inc.status==='open'?' udc-an-step1':' udc-an-step2'}`}>
@@ -4191,9 +4228,26 @@ function IRow({ inc, user, listings=[], contactProps={}, isGlobalAdmin=false, ca
             </div>
           )}
 
-          {!compact&&!isReporter&&<div className="ir-body-reporter">
-            {isEn?'Reported by':'Reportado por'}: <UserContact name={inc.reporterName} uid={inc.reporterUid} {...contactProps}/>
-          </div>}
+          {!compact&&(
+            <div className="ir-body-parties">
+              <span className="ir-bparty">
+                <span className="ir-bparty-lbl">📋 {isEn?'Reporter':'Reportado por'}</span>
+                <UserContact name={inc.reporterName||'—'} uid={inc.reporterUid||''} {...contactProps}/>
+              </span>
+              {listing&&(
+                <span className="ir-bparty">
+                  <span className="ir-bparty-lbl">🏠 {isEn?'Owner':'Propietario'}</span>
+                  <UserContact name={listing.owner||listing.userEmail||'—'} uid={listing.ownerUid||''} email={listing.userEmail||listing.email||''} whatsapp={listing.contact||''} {...contactProps}/>
+                </span>
+              )}
+              {listing&&(listing.operator||listing.operatorEmail)&&(
+                <span className="ir-bparty">
+                  <span className="ir-bparty-lbl">🔧 {isEn?'Operator':'Operador'}</span>
+                  <UserContact name={listing.operator||listing.operatorEmail} uid='' email={listing.operatorEmail||''} whatsapp={listing.operatorWhatsapp||''} {...contactProps}/>
+                </span>
+              )}
+            </div>
+          )}
         </div>
 
         {/* ── Action footer — mirrors idd-actions ── */}
@@ -6374,5 +6428,28 @@ html{font-size:clamp(14px,1.1vw,16px);-webkit-text-size-adjust:100%}body{overflo
 .gen-card-acts{display:flex;gap:8px;flex-wrap:wrap;padding-top:6px;border-top:1px solid rgba(47,79,58,.08)}
 /* General incident preview in modals */
 .gen-inc-preview{background:rgba(47,79,58,.05);border-radius:8px;padding:8px 10px;border:1px solid rgba(47,79,58,.1)}
+
+/* ── v82 — Responsible Parties panels ───────────────────────────────────────*/
+
+/* Incident detail (UnitDetailCard step=incident) parties panel */
+.idd-parties{background:rgba(11,127,79,.04);border:1px solid rgba(11,127,79,.16);border-radius:12px;padding:12px 14px;margin-bottom:12px}
+.idd-parties-hdr{font-size:.67rem;font-weight:900;text-transform:uppercase;letter-spacing:.09em;color:#0b5f3a;margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid rgba(11,127,79,.12);display:flex;align-items:center;gap:6px}
+.idd-parties-grid{display:flex;flex-direction:column;gap:6px}
+.idd-pi-item{display:flex;flex-direction:column;gap:3px;padding:8px 10px;border-radius:8px;background:rgba(255,255,255,.85);border:1px solid rgba(47,79,58,.1)}
+.idd-pi-owner{border-color:rgba(11,127,79,.25)!important;background:rgba(11,127,79,.04)!important}
+.idd-pi-role{font-size:.67rem;font-weight:900;text-transform:uppercase;letter-spacing:.07em;color:#2a5a6a;display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:1px}
+.idd-pi-resp-badge{background:rgba(11,127,79,.15);color:#0b5f3a;border-radius:999px;font-size:.6rem;font-weight:900;padding:2px 8px;text-transform:none;letter-spacing:0;white-space:nowrap}
+.idd-pi-name{font-size:.88rem;font-weight:700;color:#17313a}
+.idd-pi-contacts{display:flex;gap:7px;flex-wrap:wrap;margin-top:4px}
+.idd-pi-link{font-size:.73rem;color:#0b5f72;text-decoration:none;background:rgba(11,127,140,.08);border:1px solid rgba(11,127,140,.2);border-radius:6px;padding:3px 9px;white-space:nowrap;display:inline-flex;align-items:center;gap:3px;transition:background .12s}
+.idd-pi-link:hover{background:rgba(11,127,140,.18);color:#083f4f}
+.idd-pi-wa{background:rgba(37,211,102,.07)!important;border-color:rgba(37,211,102,.22)!important;color:#1a6b34!important}
+.idd-pi-wa:hover{background:rgba(37,211,102,.14)!important}
+.idd-pi-none{font-size:.8rem;color:#8a9fa5;font-style:italic}
+
+/* IRow parties strip (non-compact) */
+.ir-body-parties{display:flex;flex-wrap:wrap;gap:4px 16px;margin-top:8px;padding-top:7px;border-top:1px solid rgba(47,79,58,.09)}
+.ir-bparty{display:inline-flex;align-items:center;gap:5px;font-size:.78rem;color:#496674}
+.ir-bparty-lbl{font-weight:900;color:#2a5a6a;font-size:.64rem;text-transform:uppercase;letter-spacing:.07em;white-space:nowrap;flex-shrink:0}
 
 `;
