@@ -257,12 +257,9 @@ const getEmailNotificationConfig = async () => {
   const result = {};
   for (const [key, def] of Object.entries(DEFAULT_EMAIL_NOTIFICATION_CONFIG)) {
     const stored = (raw[key] && typeof raw[key] === 'object') ? raw[key] : {};
+    // Stored admin config overrides defaults; defaults are all-on so any fresh
+    // deployment gets globalAdmin+delegateAdmin enabled without extra setup.
     result[key] = { ...def, ...stored };
-    // Global and delegate admins must always be CC'd on every email type.
-    // This overrides any previously-saved "false" values in the DB so that
-    // existing deployments are covered immediately on redeploy.
-    result[key].globalAdmin   = true;
-    result[key].delegateAdmin = true;
   }
   return result;
 };
