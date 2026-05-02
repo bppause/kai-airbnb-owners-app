@@ -831,7 +831,8 @@ const fmtDateTime = (iso, lang='es-CO') => {
 const today = () => new Date().toISOString().split("T")[0];
 
 // ─── PHOTO COMPRESSION — client-side, Canvas API ─────────────────────────────
-// Resize to ≤1200px, JPEG quality 0.72. If compressed size > 1.5MB try 0.45.
+// Resize to ≤900px, JPEG quality 0.65. Falls back to 0.38 if > 500 KB.
+// Target: ≤400 KB per photo so 3 photos ≤ 1.2 MB base64 — safely under server 15 MB limit.
 // Rejects if file > 10MB or not an image. Returns { data, name, size } where
 // data is a data:image/jpeg;base64,… URI and size is compressed bytes.
 const compressImage = (file) => new Promise((resolve, reject) => {
@@ -843,7 +844,7 @@ const compressImage = (file) => new Promise((resolve, reject) => {
     const img = new Image();
     img.onerror = () => reject(new Error('Could not decode image'));
     img.onload = () => {
-      const MAX_PX = 1200;
+      const MAX_PX = 900;
       let {width, height} = img;
       if (width > MAX_PX || height > MAX_PX) {
         if (width > height) { height = Math.round(height * MAX_PX / width); width = MAX_PX; }
@@ -852,9 +853,9 @@ const compressImage = (file) => new Promise((resolve, reject) => {
       const canvas = document.createElement('canvas');
       canvas.width = width; canvas.height = height;
       canvas.getContext('2d').drawImage(img, 0, 0, width, height);
-      let dataUrl = canvas.toDataURL('image/jpeg', 0.72);
-      // If still > 1.5 MB after first pass, use lower quality
-      if (dataUrl.length > 2 * 1024 * 1024) dataUrl = canvas.toDataURL('image/jpeg', 0.45);
+      let dataUrl = canvas.toDataURL('image/jpeg', 0.65);
+      // If still > 500 KB (base64 ~667 KB string) after first pass, compress harder
+      if (dataUrl.length > 667 * 1024) dataUrl = canvas.toDataURL('image/jpeg', 0.38);
       resolve({ data: dataUrl, name: file.name, size: Math.round(dataUrl.length * 0.75) });
     };
     img.src = e.target.result;

@@ -727,7 +727,7 @@ const sendSupabaseError = (res, error, status = 500) => {
 
 // ─── MIDDLEWARE ───────────────────────────────────────────────────────────────
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '15mb' })); // photos stored as base64: 3 × ≤600KB each ≈ ≤2MB total
 
 // Serve built React app
 const DIST = path.join(__dirname, 'client', 'dist');
