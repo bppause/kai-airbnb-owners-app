@@ -57,22 +57,22 @@ const DEFAULT_DELEGATE_PERMISSIONS = {
 // owner   = listing owner / registrant   operator    = listing operator
 // globalAdmin = env GLOBAL_ADMIN_EMAILS + escalation CC   delegateAdmin = role-gated per type
 const DEFAULT_EMAIL_NOTIFICATION_CONFIG = {
-  incident_new:              { enabled:true,  reporter:true, owner:true,  operator:true,  globalAdmin:true,  delegateAdmin:true  },
-  incident_sla_notification: { enabled:true,  reporter:true, owner:true,  operator:true,  globalAdmin:false, delegateAdmin:false },
-  incident_sla_reminder:     { enabled:true,  reporter:true, owner:true,  operator:true,  globalAdmin:false, delegateAdmin:false },
-  incident_sla:              { enabled:true,  reporter:true, owner:true,  operator:true,  globalAdmin:true,  delegateAdmin:false },
-  incident_verified:           { enabled:true,  reporter:true, owner:true,  operator:true,  globalAdmin:true,  delegateAdmin:true  },
-  incident_resolution_added:   { enabled:true,  reporter:true, owner:true,  operator:true,  globalAdmin:true,  delegateAdmin:true  },
-  incident_resolved:           { enabled:true,  reporter:true, owner:true,  operator:true,  globalAdmin:true,  delegateAdmin:true  },
-  incident_general_sla:        { enabled:true,  reporter:false, owner:false, operator:false, globalAdmin:true,  delegateAdmin:true  },
-  registration_submitted:    { enabled:true,  owner:true,  operator:false, globalAdmin:false, delegateAdmin:false },
+  incident_new:              { enabled:true,  reporter:true,  owner:true,  operator:true,  globalAdmin:true,  delegateAdmin:true  },
+  incident_sla_notification: { enabled:true,  reporter:true,  owner:true,  operator:true,  globalAdmin:true,  delegateAdmin:true  },
+  incident_sla_reminder:     { enabled:true,  reporter:true,  owner:true,  operator:true,  globalAdmin:true,  delegateAdmin:true  },
+  incident_sla:              { enabled:true,  reporter:true,  owner:true,  operator:true,  globalAdmin:true,  delegateAdmin:true  },
+  incident_verified:         { enabled:true,  reporter:true,  owner:true,  operator:true,  globalAdmin:true,  delegateAdmin:true  },
+  incident_resolution_added: { enabled:true,  reporter:true,  owner:true,  operator:true,  globalAdmin:true,  delegateAdmin:true  },
+  incident_resolved:         { enabled:true,  reporter:true,  owner:true,  operator:true,  globalAdmin:true,  delegateAdmin:true  },
+  incident_general_sla:      { enabled:true,  reporter:false, owner:false, operator:false, globalAdmin:true,  delegateAdmin:true  },
+  registration_submitted:    { enabled:true,  owner:true,  operator:false, globalAdmin:true,  delegateAdmin:true  },
   registration_approved:     { enabled:true,  owner:true,  operator:false, globalAdmin:true,  delegateAdmin:true  },
   registration_declined:     { enabled:true,  owner:true,  operator:false, globalAdmin:true,  delegateAdmin:true  },
   registration_status_admin: { enabled:true,  owner:false, operator:false, globalAdmin:true,  delegateAdmin:true  },
   registration_reviewer:     { enabled:true,  owner:true,  operator:false, globalAdmin:true,  delegateAdmin:true  },
-  listing_created:           { enabled:true,  owner:true,  operator:false, globalAdmin:false, delegateAdmin:false },
-  listing_updated:           { enabled:true,  owner:true,  operator:false, globalAdmin:false, delegateAdmin:false },
-  listing_deleted:           { enabled:true,  owner:true,  operator:false, globalAdmin:false, delegateAdmin:false },
+  listing_created:           { enabled:true,  owner:true,  operator:false, globalAdmin:true,  delegateAdmin:true  },
+  listing_updated:           { enabled:true,  owner:true,  operator:false, globalAdmin:true,  delegateAdmin:true  },
+  listing_deleted:           { enabled:true,  owner:true,  operator:false, globalAdmin:true,  delegateAdmin:true  },
 };
 const DEFAULT_STANDARD_MENU_PERMISSIONS = {
   dashboard: true,
@@ -258,6 +258,11 @@ const getEmailNotificationConfig = async () => {
   for (const [key, def] of Object.entries(DEFAULT_EMAIL_NOTIFICATION_CONFIG)) {
     const stored = (raw[key] && typeof raw[key] === 'object') ? raw[key] : {};
     result[key] = { ...def, ...stored };
+    // Global and delegate admins must always be CC'd on every email type.
+    // This overrides any previously-saved "false" values in the DB so that
+    // existing deployments are covered immediately on redeploy.
+    result[key].globalAdmin   = true;
+    result[key].delegateAdmin = true;
   }
   return result;
 };
