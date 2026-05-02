@@ -806,6 +806,22 @@ const localizeMissionSections = (config={}, lang='es-CO') => {
   return { ...es, title:translateToEnglish(es.title), subtitle:translateToEnglish(es.subtitle), sectionLabel:translateToEnglish(es.sectionLabel), heading:translateToEnglish(es.heading), body:translateToEnglish(es.body), cards:(es.cards||[]).map(c=>({icon:c.icon,title:translateToEnglish(c.title),text:translateToEnglish(c.text)})), participationTitle:translateToEnglish(es.participationTitle), participationRules:(es.participationRules||[]).map(translateToEnglish), accessTitle:translateToEnglish(es.accessTitle), accessRules:(es.accessRules||[]).map(translateToEnglish) };
 };
 
+// Build timestamp injected by Vite at build time via vite.config.js define.__BUILD_TIME__
+// Falls back gracefully if the constant isn't defined (e.g. older builds or test envs).
+const APP_VERSION = '1.0.0';
+const BUILD_TIME = (() => {
+  try {
+    const iso = typeof __BUILD_TIME__ !== 'undefined' ? __BUILD_TIME__ : '';
+    if (!iso) return '';
+    const d = new Date(iso);
+    // Format: "Jan 1, 2026 · 07:48 PM UTC"
+    return d.toLocaleString('en-US', {
+      month: 'short', day: 'numeric', year: 'numeric',
+      hour: '2-digit', minute: '2-digit', timeZoneName: 'short'
+    });
+  } catch(e) { return ''; }
+})();
+
 const fmtDate = d => { if(!d) return ""; const [y,m,day]=String(d).split("T")[0].split("-"); return `${parseInt(day)} ${["ene","feb","mar","abr","may","jun","jul","ago","sep","oct","nov","dic"][parseInt(m)-1]} ${y}`; };
 const fmtDateTime = (iso, lang='es-CO') => {
   if (!iso) return '';
@@ -1320,7 +1336,7 @@ export default function App() {
       <header className="hdr">
         <div className="hdr-inner">
           <div className="logo" onClick={()=>setView("dashboard")}>
-            <div className="logo-mark" title="KAI Owners App v1.0.0 · BETA"><span className="logo-k">K</span><span className="logo-wave">~</span></div>
+            <div className="logo-mark" title={`KAI Owners App v${APP_VERSION} · BETA${BUILD_TIME ? '\nBuilt ' + BUILD_TIME : ''}`}><span className="logo-k">K</span><span className="logo-wave">~</span></div>
             <div>
               <div className="logo-title">{t.appName}</div>
               <div className="logo-sub">{t.location} <span className="beta-badge">BETA</span></div>
