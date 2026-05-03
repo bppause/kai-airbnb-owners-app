@@ -5299,7 +5299,9 @@ function AdminSettings({ config={}, user, listings=[], contactProps={}, onSave, 
   const [brandingLocation,setBrandingLocation]=useState(config?.complex_location||'Serena del Mar · Cartagena 🇨🇴');
   const [brandingLogo,setBrandingLogo]=useState(config?.complex_logo||'');
   const [brandingLogoMode,setBrandingLogoMode]=useState('url');
-  const ADMIN_SEC_DEFAULT = {branding:false,roles:true,sla:false,mission:false,menu:false,delegate:false,users:true,tooltips:false,uiLabels:false,email:false,emailNotif:false,auditLog:false};
+  const [emailFromName,setEmailFromName]=useState(config?.email_from_name||'Propietarios Airbnb KAI');
+  const [emailFromAddress,setEmailFromAddress]=useState(config?.email_from_address||'');
+  const ADMIN_SEC_DEFAULT = {branding:false,emailSender:false,roles:true,sla:false,mission:false,menu:false,delegate:false,users:true,tooltips:false,uiLabels:false,email:false,emailNotif:false,auditLog:false};
   const [openSections,setOpenSections] = useState(()=>{
     try{ const s=JSON.parse(localStorage.getItem('kai_admin_open')||'null'); return s&&typeof s==='object'?{...ADMIN_SEC_DEFAULT,...s}:ADMIN_SEC_DEFAULT; }catch{ return ADMIN_SEC_DEFAULT; }
   });
@@ -5402,6 +5404,7 @@ function AdminSettings({ config={}, user, listings=[], contactProps={}, onSave, 
   const saveTooltips = () => onSave({ tooltipsEs, tooltipsEn });
   const saveUiLabels = () => onSave({ uiLabelsEs, uiLabelsEn });
   const saveBranding = () => onSave({ complexNameEs:brandingNameEs, complexNameEn:brandingNameEn, complexLocation:brandingLocation, complexLogo:brandingLogo });
+  const saveEmailSender = () => { if (!emailFromAddress.trim()) { showToast(isEn?'Email address is required':'El email es requerido', true); return; } onSave({ emailFromName, emailFromAddress }); };
   const toggleMenuPermission = (key) => setStandardMenuPermissions(p => ({ ...p, [key]: key === 'dashboard' ? true : !p[key] }));
   const toggleDefaultDelegatePermission = (key) => setDefaultDelegatePermissions(p => ({ ...p, [key]: !p[key] }));
   const saveStandardMenuPermissions = async () => {
@@ -5458,6 +5461,26 @@ function AdminSettings({ config={}, user, listings=[], contactProps={}, onSave, 
       {brandingLogo && <div style={{marginTop:6}}><button type="button" className="btn-ghost" style={{fontSize:'.75rem',padding:'3px 10px'}} onClick={()=>setBrandingLogo('')}>{isEn?'Remove logo':'Quitar logo'}</button></div>}
       {!brandingLogo && <div style={{marginTop:8,padding:8,background:'#f6f6f4',borderRadius:8,display:'inline-block'}}><img src="/morros-kai.png" alt="default logo" style={{maxHeight:64,maxWidth:220,objectFit:'contain'}}/><div style={{fontSize:'.7rem',color:'#888',marginTop:4}}>{isEn?'Default logo (morros-kai.png)':'Logo predeterminado (morros-kai.png)'}</div></div>}
     </div>
+  </AdminSection>
+
+  {/* ── Email Sender ────────────────────────────────────────────── */}
+  <AdminSection title={`📤 ${isEn?'Email Sender':'Remitente de emails'}`} subtitle={isEn?'Display name and address used as the "From" field on all outgoing emails. The address must be verified in your Resend account.':'Nombre y dirección que aparecen como remitente en todos los emails. La dirección debe estar verificada en tu cuenta Resend.'} action={<button className="btn-p" style={{minHeight:36,padding:'6px 14px'}} onClick={saveEmailSender}>💾 {isEn?'Save':'Guardar'}</button>} open={openSections.emailSender} onToggle={()=>toggleSection('emailSender')}>
+    <div className="fg-row" style={{gap:12,flexWrap:'wrap',alignItems:'flex-end'}}>
+      <div className="fg" style={{minWidth:200}}>
+        <label>{isEn?'Display name':'Nombre visible'}</label>
+        <input value={emailFromName} onChange={e=>setEmailFromName(e.target.value)} className="input" placeholder="Propietarios Airbnb KAI"/>
+      </div>
+      <div className="fg" style={{minWidth:220}}>
+        <label>{isEn?'From email address':'Dirección de envío'}</label>
+        <input value={emailFromAddress} onChange={e=>setEmailFromAddress(e.target.value)} className="input" type="email" placeholder="kai@yourdomain.com"/>
+      </div>
+    </div>
+    <div className="form-alert" style={{marginTop:10,fontSize:'.78rem'}}>
+      {isEn
+        ? '⚠️ The email address must be verified in Resend (Domains or single email). Using an unverified address will cause delivery failures.'
+        : '⚠️ La dirección debe estar verificada en Resend (Dominios o email individual). Usar una dirección no verificada causará fallos de entrega.'}
+    </div>
+    {emailFromAddress && <div style={{marginTop:8,fontSize:'.78rem',color:'#555'}}>{isEn?'Preview:':'Vista previa:'} <strong>{emailFromName ? `${emailFromName} <${emailFromAddress}>` : emailFromAddress}</strong></div>}
   </AdminSection>
 
   {/* ── Role Reference ─────────────────────────────────────────── */}
