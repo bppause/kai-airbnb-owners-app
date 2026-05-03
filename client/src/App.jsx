@@ -5395,7 +5395,52 @@ function AdminSettings({ config={}, user, listings=[], contactProps={}, onSave, 
   </AdminSection>
 
   <AdminSection title={`💡 ${appText(lang,'tooltips.adminTitle')}`} subtitle={appText(lang,'tooltips.adminSub')} action={<button className="btn-ghost" onClick={saveTooltips}>💾 {appText(lang,'tooltips.save')}</button>} open={openSections.tooltips} onToggle={()=>toggleSection('tooltips')}>
-    <div className="table-wrap"><table className="admin-table"><thead><tr><th>{appText(lang,'tooltips.key')}</th><th>{appText(lang,'tooltips.spanish')}</th><th>{appText(lang,'tooltips.english')}</th></tr></thead><tbody>{Object.keys(DEFAULT_TOOLTIPS).map(k=><tr key={k}><td><code>{k}</code></td><td><textarea className="admin-tooltip-textarea" rows={3} value={tooltipsEs[k]||''} onChange={e=>setTooltipsEs(v=>({...v,[k]:e.target.value}))}/></td><td><textarea className="admin-tooltip-textarea" rows={3} value={tooltipsEn[k]||''} onChange={e=>setTooltipsEn(v=>({...v,[k]:e.target.value}))}/></td></tr>)}</tbody></table></div>
+    {(()=>{
+      const isEn = lang==='en';
+      const TOOLTIP_GROUPS = [
+        { id:'actions',  label: isEn?'⚡ Action Buttons':'⚡ Botones de acción',                    keys:['reportIncident','addListing'] },
+        { id:'listing',  label: isEn?'🏠 Listing / Registration Fields':'🏠 Campos de listing / registro', keys:['aptNumber','listingEmail','ownerWhatsapp','operator','operatorEmail','operatorWhatsapp'] },
+        { id:'incident', label: isEn?'⚠️ Incident Fields':'⚠️ Campos de incidente',               keys:['incidentApartment','incidentType','incidentCategory','incidentDescription','verifyIncident','resolveIncident'] },
+      ];
+      const KEY_LABELS = {
+        reportIncident:      { es:'Botón "Reportar incidente"',        en:'"Report Incident" button' },
+        addListing:          { es:'Botón "Registrar unidad"',           en:'"Add Listing" button' },
+        aptNumber:           { es:'Campo número de apartamento',        en:'Apartment number field' },
+        listingEmail:        { es:'Campo email del listing',            en:'Listing email field' },
+        ownerWhatsapp:       { es:'Campo WhatsApp propietario',         en:'Owner WhatsApp field' },
+        operator:            { es:'Campo operador',                     en:'Operator field' },
+        operatorEmail:       { es:'Campo email del operador',           en:'Operator email field' },
+        operatorWhatsapp:    { es:'Campo WhatsApp operador',            en:'Operator WhatsApp field' },
+        incidentApartment:   { es:'Campo apartamento (incidente)',      en:'Apartment field (incident)' },
+        incidentType:        { es:'Campo tipo de incidente',            en:'Incident type field' },
+        incidentCategory:    { es:'Campo categoría de incidente',       en:'Incident category field' },
+        incidentDescription: { es:'Campo descripción del incidente',    en:'Incident description field' },
+        verifyIncident:      { es:'Botón "Verificar incidente"',        en:'"Verify Incident" button' },
+        resolveIncident:     { es:'Botón "Resolver incidente"',         en:'"Resolve Incident" button' },
+      };
+      return (
+        <div className="table-wrap">
+          <table className="admin-table">
+            <thead><tr><th>{appText(lang,'tooltips.key')}</th><th>{appText(lang,'tooltips.spanish')}</th><th>{appText(lang,'tooltips.english')}</th></tr></thead>
+            <tbody>
+              {TOOLTIP_GROUPS.flatMap(group=>[
+                <tr key={`${group.id}-hdr`}><td colSpan={3} style={{background:'#e8f4f7',fontWeight:700,fontSize:'.8rem',padding:'8px 12px',color:'#1a4a5a',letterSpacing:'.02em',borderTop:'2px solid #c4dde6'}}>{group.label}</td></tr>,
+                ...group.keys.map(k=>(
+                  <tr key={k}>
+                    <td>
+                      <div style={{fontWeight:600,fontSize:'.78rem',color:'#2a5a6a',marginBottom:2}}>{KEY_LABELS[k]?.[isEn?'en':'es']||k}</div>
+                      <code style={{fontSize:'.72rem',color:'#888'}}>{k}</code>
+                    </td>
+                    <td><textarea className="admin-tooltip-textarea" rows={3} value={tooltipsEs[k]||''} onChange={e=>setTooltipsEs(v=>({...v,[k]:e.target.value}))}/></td>
+                    <td><textarea className="admin-tooltip-textarea" rows={3} value={tooltipsEn[k]||''} onChange={e=>setTooltipsEn(v=>({...v,[k]:e.target.value}))}/></td>
+                  </tr>
+                ))
+              ])}
+            </tbody>
+          </table>
+        </div>
+      );
+    })()}
   </AdminSection>
 
   <AdminSection title={`📨 ${lt(lang,'Plantillas de emails')}`} subtitle={lt(lang,'Edita y guarda la versión en Español e Inglés por separado. El sistema envía según la preferencia del destinatario.')} action={tplLoading?<span className="sync-pill"><span className="spinner-sm"/> {lt(lang,'Cargando...')}</span>:null} open={openSections.email} onToggle={()=>toggleSection('email')}>
