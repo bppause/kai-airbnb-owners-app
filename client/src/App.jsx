@@ -936,7 +936,7 @@ class ErrorBoundary extends Component {
 // ─── ROOT ─────────────────────────────────────────────────────────────────────
 export default function App() {
   const [user,      setUser]      = useState(null);
-  const [lang, setLangState] = useState(() => { const v = localStorage.getItem("kai_lang") || "es-CO"; document.documentElement.lang = v.startsWith('en') ? 'en' : 'es'; return v; });
+  const [lang, setLangState] = useState(() => { let v = localStorage.getItem("kai_lang"); if (!v) { const bl = (navigator.language || navigator.userLanguage || 'es-CO').toLowerCase(); v = bl.startsWith('en') ? 'en' : 'es-CO'; localStorage.setItem("kai_lang", v); } document.documentElement.lang = v.startsWith('en') ? 'en' : 'es'; return v; });
   const t = getT(lang);
   const setLang = (next) => { const v = next === "en" ? "en" : "es-CO"; setLangState(v); localStorage.setItem("kai_lang", v); document.documentElement.lang = v.startsWith('en') ? 'en' : 'es'; if (user?.uid) api.put("/api/users/preference", { uid:user.uid, email:user.email, name:user.name, language:v }).catch(()=>{}); };
   const [authLoading, setAuthLoading] = useState(true);
