@@ -1100,7 +1100,7 @@ export default function App() {
   useEffect(() => {
     if (!user?.uid) { setAdminInfo({role:'user', isGlobalAdmin:false, canManageRegistrations:false, config:{}}); setAdminLoading(false); return; }
     setAdminLoading(true);
-    api.get('/api/admin/me?uid=' + encodeURIComponent(user.uid) + '&email=' + encodeURIComponent(user.email || '') + '&name=' + encodeURIComponent(user.name || ''))
+    api.get('/api/admin/me?uid=' + encodeURIComponent(user.uid) + '&email=' + encodeURIComponent(user.email || '') + '&name=' + encodeURIComponent(user.name || '') + '&lang=' + encodeURIComponent(lang))
       .then(adminResponse => {
         const info = adminResponse || {role:'user', isGlobalAdmin:false, canManageRegistrations:false, config:{}};
         setAdminInfo(info);
@@ -1149,7 +1149,7 @@ export default function App() {
   const submitRegistration = async ({ listings: listingsToRegister, profile = {} }) => {
     setSyncing(true);
     try {
-      const r = await api.post('/api/registrations', { userUid:user.uid, userName:user.name, userEmail:user.email, listings:listingsToRegister, profileWhatsapp:profile.whatsapp||'' });
+      const r = await api.post('/api/registrations', { userUid:user.uid, userName:user.name, userEmail:user.email, listings:listingsToRegister, profileWhatsapp:profile.whatsapp||'', language:lang });
       setRegistration(r);
       if (profile.whatsapp) setUserProfile({ whatsapp:profile.whatsapp });
       showToast('✅ Registro enviado. Pendiente de aprobación.');

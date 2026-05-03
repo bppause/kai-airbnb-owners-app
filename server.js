@@ -814,7 +814,7 @@ app.get('/api/registrations/status', async (req, res) => {
 
 app.post('/api/registrations', async (req, res) => {
   if (!requireSupabaseEnv(res)) return;
-  const { userUid, userName, userEmail, listings, profileWhatsapp } = req.body || {};
+  const { userUid, userName, userEmail, listings, profileWhatsapp, language } = req.body || {};
   if (!userUid || !userName || !userEmail || !isValidEmail(userEmail)) return res.status(400).json({ error:'Google login name and email are required.' });
   if (!profileWhatsapp || String(profileWhatsapp).replace(/[^0-9]/g,'').length < 10) return res.status(400).json({ error:'WhatsApp del propietario es requerido con código de país (mín. 10 dígitos).' });
   if (!Array.isArray(listings) || listings.length < 1) return res.status(400).json({ error:'Debe registrar al menos un listing propio.' });
@@ -844,12 +844,13 @@ app.post('/api/registrations', async (req, res) => {
   let { data: savedRows, error: rowsError } = await supabase.from('listings').insert(rows).select('*');
   if (rowsError) return sendSupabaseError(res, rowsError);
 
-  // Save owner WhatsApp to profile (best-effort — already validated above)
+  // Save owner WhatsApp to profile; also set language_preference for users who have none yet
   try {
-    await supabase.from('app_users').upsert({
-      uid: userUid, email: String(userEmail).toLowerCase(), name: userName || '',
-      whatsapp: ownerContact, updated_at: new Date().toISOString()
-    }, { onConflict: 'uid' });
+    const regLang = normalizeLanguage(language || 'es-CO');
+    const { data: existingLangRow } = await supabase.from('app_users').select('language_preference').eq('uid', userUid).maybeSingle();
+    const profileRow = { uid: userUid, email: String(userEmail).toLowerCase(), name: userName || '', whatsapp: ownerContact, updated_at: new Date().toISOString() };
+    if (!existingLangRow) profileRow.language_preference = regLang;
+    await supabase.from('app_users').upsert(profileRow, { onConflict: 'uid' });
   } catch(e) { warn('Profile whatsapp save on registration failed: ' + (e?.message || e)); }
 
   const appUrl = publicAppUrl(req);
@@ -1303,19 +1304,26 @@ app.get('/api/admin/me', async (req, res) => {
   const uid = String(req.query.uid || '').trim();
   const email = String(req.query.email || '').trim().toLowerCase();
   const name = String(req.query.name || '').trim();
+  const clientLang = normalizeLanguage(req.query.lang || 'es-CO');
   const role = await getUserRole({ uid, email });
+  let languagePreference = clientLang;
   try {
     if (uid && email) {
-      const row = { uid, email, name, updated_at:new Date().toISOString() };
-      if (role === 'global_admin') row.role = 'global_admin';
-      await supabase.from('app_users').upsert(row, { onConflict:'uid' });
+      // Check for existing row so we can preserve a stored language preference
+      const { data: existing } = await supabase.from('app_users').select('language_preference').eq('uid', uid).maybeSingle();
+      if (existing) {
+        languagePreference = normalizeLanguage(existing.language_preference || clientLang);
+        const row = { uid, email, name, updated_at: new Date().toISOString() };
+        if (role === 'global_admin') row.role = 'global_admin';
+        await supabase.from('app_users').update(row).eq('uid', uid);
+      } else {
+        languagePreference = clientLang;
+        const row = { uid, email, name, language_preference: clientLang, updated_at: new Date().toISOString() };
+        if (role === 'global_admin') row.role = 'global_admin';
+        await supabase.from('app_users').insert(row);
+      }
     }
   } catch(e) { warn('app_users upsert in /api/admin/me failed: ' + (e?.message || e)); }
-  let languagePreference = 'es-CO';
-  try {
-    const { data } = await supabase.from('app_users').select('language_preference').eq('uid', uid).maybeSingle();
-    languagePreference = data?.language_preference || 'es-CO';
-  } catch(e) {}
   const config = await getAppConfig();
   const permissions = await getUserPermissions({ uid, email });
   res.json({ role, isGlobalAdmin: role === 'global_admin', canManageRegistrations: role === 'global_admin' || !!permissions.delegate?.canApproveRegistrations, languagePreference, config, permissions });
