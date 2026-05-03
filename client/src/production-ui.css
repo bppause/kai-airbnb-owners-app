@@ -2321,3 +2321,92 @@ p { line-height: 1.45; }
   .more-menu,
   .popover { display: none !important; }
 }
+
+/* ── Role badge in profile dropdown ───────────────────────────────────── */
+.profile-role-badge {
+  display: inline-block;
+  border-radius: 999px;
+  padding: 3px 10px;
+  font-size: .71rem;
+  font-weight: 900;
+  margin-top: 4px;
+  align-self: flex-start;
+}
+.prb-user     { background: #e8f4f7; color: #0b7f8c; border: 1px solid #b0dce6; }
+.prb-delegate { background: #f0ebff; color: #6b3fa0; border: 1px solid #d0b8f0; }
+.prb-global   { background: #fef3e2; color: #b35c00; border: 1px solid #f0d0a0; }
+
+/* ── DashboardFocus role subtitle ─────────────────────────────────────── */
+.dfc-role-sub {
+  margin: 3px 0 0;
+  font-size: .75rem;
+  color: #235f72;
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+/* ── Incident workflow step progress ──────────────────────────────────── */
+.inc-steps {
+  display: flex;
+  align-items: flex-start;
+  padding: 12px 0 6px;
+  overflow-x: auto;
+  gap: 0;
+  margin: 0 0 4px;
+}
+.inc-step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  min-width: 60px;
+  flex: 1;
+}
+.inc-step-dot {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: .73rem;
+  font-weight: 900;
+  background: #eef2f4;
+  color: #94aab2;
+  border: 2px solid #d4e0e4;
+  flex-shrink: 0;
+}
+.inc-step-lbl {
+  font-size: .64rem;
+  font-weight: 700;
+  color: #7a9aaa;
+  text-align: center;
+  line-height: 1.25;
+}
+.inc-step-you {
+  font-size: .6rem;
+  color: #0b7f8c;
+  font-weight: 900;
+}
+.inc-step-line {
+  flex: 1;
+  height: 2px;
+  background: #d4e0e4;
+  min-width: 10px;
+  max-width: 32px;
+  margin-top: 13px;
+  flex-shrink: 1;
+}
+.isl-done { background: #8ad4a8; }
+
+.inc-step-done .inc-step-dot { background: #e8f6f0; color: #2a9a6a; border-color: #8ad4a8; }
+.inc-step-done .inc-step-lbl { color: #2a7a5a; }
+
+.inc-step-active .inc-step-dot {
+  background: linear-gradient(135deg, #0b7f4f, #0b7f8c);
+  color: #fff;
+  border-color: transparent;
+  box-shadow: 0 4px 10px rgba(11,127,140,.28);
+}
+.inc-step-active .inc-step-lbl { color: #0b7f8c; font-weight: 900; }
+.inc-step-active .inc-step-you { color: #0b7f4f; }

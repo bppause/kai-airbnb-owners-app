@@ -1470,6 +1470,7 @@ export default function App() {
                     <strong>{user.name}</strong>
                     <span>{user.email}</span>
                     <small>{myListings.length ? `${myListings.length} ${lang === 'en' ? (myListings.length>1?'units':'unit') : ('unidad' + (myListings.length>1?'es':''))}` : (lang === "en" ? "Visitor" : "Visitante")}</small>
+                    <span className={`profile-role-badge prb-${effectiveIsGlobalAdmin?'global':effectiveRole==='delegate_admin'?'delegate':'user'}`}>{effectiveIsGlobalAdmin?(lang==='en'?'🌐 Global Admin':'🌐 Admin global'):effectiveRole==='delegate_admin'?(lang==='en'?'🛡️ Delegate Admin':'🛡️ Admin delegado'):(lang==='en'?'🏠 Unit Owner':'🏠 Propietario')}</span>
                   </div>
                   <button className="dd-item" onClick={()=>{setView('profile');setOpenDropdown(null);}}>{lang === "en" ? "👤 My profile" : "👤 Mi perfil"}</button>
                   <button className="dd-item" onClick={()=>{setView('my');setOpenDropdown(null);}}>🏠 {t.nav.my}</button>
@@ -2392,17 +2393,23 @@ function DashboardFocus({ lang="es-CO", effectiveIsGlobalAdmin=false, effectiveR
 
   const roleConfig = {
     standard: { icon:'🏠', title:isEn?'Your focus':'Tu enfoque',
+      sub: isEn?'Verify incidents on your units and keep your listing info current.':'Verifica incidentes en tus unidades y mantén tu listing actualizado.',
       actions:[{label:isEn?'Verify pending':'Verificar pendientes',view:'incidents'},{label:isEn?'Update listing info':'Actualizar listing',view:'my'}] },
-    delegate: { icon:'🛡️', title:isEn?'Admin actions':'Acciones admin',
+    delegate: { icon:'🛡️', title:isEn?'Delegate admin':'Admin delegado',
+      sub: isEn?'Review pending registrations and resolve verified community incidents.':'Revisa registros pendientes y cierra incidentes verificados de la comunidad.',
       actions:[{label:isEn?'Registrations':'Registros',view:'approvals'},...(canResolve?[{label:isEn?'Resolve incidents':'Resolver incidentes',view:'incidents'}]:[])].slice(0,2) },
     global:   { icon:'🌐', title:isEn?'Community overview':'Vista comunidad',
+      sub: isEn?'Full access — manage settings, users, analytics, and all incidents.':'Acceso total — gestiona configuración, usuarios, analíticas e incidentes.',
       actions:[{label:isEn?'Analytics':'Analíticas',view:'analytics'},{label:isEn?'Settings':'Configuración',view:'admin'}] },
   }[role];
 
   return (
     <div className="dash-focus card">
       <div className="dash-focus-head">
-        <strong className="dfc-role-title">{roleConfig.icon} {roleConfig.title}</strong>
+        <div>
+          <strong className="dfc-role-title">{roleConfig.icon} {roleConfig.title}</strong>
+          {roleConfig.sub && <p className="dfc-role-sub">{roleConfig.sub}</p>}
+        </div>
         <div className="dash-focus-actions">
           {roleConfig.actions.map((a,i)=><button key={i} type="button" className="role-chip" onClick={()=>setView(a.view)}>{a.label}</button>)}
         </div>
@@ -3145,6 +3152,28 @@ function UnitDetailCard({ l, incidents, canEdit=false, canDelete=false, onEdit, 
             </TlStep>
           )}
         </div>
+
+        {/* ── Workflow progress ── */}
+        {(()=>{
+          const steps = [
+            { label: isEn?'Reported':'Reportado',       done: true,                                                                          mine: false },
+            { label: isEn?'Owner verifies':'Verifica',   done: inc.status!=='open',                                                           mine: inc.status==='open'&&isOwner },
+            { label: isEn?'Owner resolves':'Responde',   done: Boolean(String(inc.ownerResolution||'').trim()),                               mine: inc.status==='verified'&&hasPendingRes&&isOwner },
+            { label: isEn?'Admin closes':'Admin cierra', done: inc.status==='resolved',                                                       mine: (isGlobalAdmin||canResolveGlobal)&&inc.status==='verified'&&!hasPendingRes },
+          ];
+          const nodes = [];
+          steps.forEach((s,i)=>{
+            if (i>0) nodes.push(<div key={`l${i}`} className={`inc-step-line${steps[i-1].done?' isl-done':''}`}/>);
+            nodes.push(
+              <div key={`s${i}`} className={`inc-step${s.done?' inc-step-done':s.mine?' inc-step-active':' inc-step-idle'}`}>
+                <span className="inc-step-dot">{s.done?'✓':i+1}</span>
+                <span className="inc-step-lbl">{s.label}</span>
+                {s.mine&&<span className="inc-step-you">{isEn?'← yours':'← tú'}</span>}
+              </div>
+            );
+          });
+          return <div className="inc-steps">{nodes}</div>;
+        })()}
 
         {/* ── Action buttons ── */}
         {user&&inc.status!=='resolved'&&(
