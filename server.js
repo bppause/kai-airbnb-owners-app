@@ -237,6 +237,10 @@ const getAppConfig = async () => {
   const cfg = {
     sla_hours:String(DEFAULT_SLA_HOURS||24),
     escalation_cc_emails:DEFAULT_ESCALATION_CC_EMAILS.join(','),
+    complex_name_es: 'Propietarios Airbnb KAI',
+    complex_name_en: 'KAI Airbnb Owners',
+    complex_location: 'Serena del Mar · Cartagena 🇨🇴',
+    complex_logo: '',
     mission_title_es:'Misión y normas de la comunidad',
     mission_body_es:'Crear una comunidad organizada, informada y proactiva que proteja el valor de nuestras propiedades y eleve la experiencia en Morros KAI.',
     mission_title_en:'Mission and community rules',
@@ -791,6 +795,18 @@ app.get('/api/version', (req, res) => {
   }
 });
 
+app.get('/api/branding', async (req, res) => {
+  try {
+    const cfg = await getAppConfig();
+    res.json({
+      complexNameEs: cfg.complex_name_es || 'Propietarios Airbnb KAI',
+      complexNameEn: cfg.complex_name_en || 'KAI Airbnb Owners',
+      complexLocation: cfg.complex_location || 'Serena del Mar · Cartagena 🇨🇴',
+      complexLogo: cfg.complex_logo || '',
+    });
+  } catch(e) { res.json({ complexNameEs:'Propietarios Airbnb KAI', complexNameEn:'KAI Airbnb Owners', complexLocation:'Serena del Mar · Cartagena 🇨🇴', complexLogo:'' }); }
+});
+
 // ─── API: REGISTRATION / APPROVAL WORKFLOW ──────────────────────────────────
 
 app.get('/api/apartments/check', async (req, res) => {
@@ -1340,7 +1356,7 @@ app.get('/api/admin/me', async (req, res) => {
 
 app.put('/api/admin/config', async (req, res) => {
   if (!requireSupabaseEnv(res)) return;
-  const { actorUid, actorEmail, slaHours, escalationCcEmails, analyticsEnabled, missionTitle, missionBody, missionTitleEs, missionBodyEs, missionTitleEn, missionBodyEn, missionSectionsEs, standardMenuPermissions, defaultDelegatePermissions, tooltipsEs, tooltipsEn, uiLabelsEs, uiLabelsEn } = req.body || {};
+  const { actorUid, actorEmail, slaHours, escalationCcEmails, analyticsEnabled, missionTitle, missionBody, missionTitleEs, missionBodyEs, missionTitleEn, missionBodyEn, missionSectionsEs, standardMenuPermissions, defaultDelegatePermissions, tooltipsEs, tooltipsEn, uiLabelsEs, uiLabelsEn, complexNameEs, complexNameEn, complexLocation, complexLogo } = req.body || {};
   if (!(await isGlobalAdmin(actorUid, actorEmail))) return res.status(403).json({ error:'Solo un administrador global puede cambiar la configuración.' });
   const before = await getAppConfig();
   const rows = [];
@@ -1360,6 +1376,10 @@ app.put('/api/admin/config', async (req, res) => {
   if (tooltipsEn !== undefined) rows.push({ key:'tooltips_en', value: typeof tooltipsEn === 'string' ? tooltipsEn : JSON.stringify(safeJsonObject(tooltipsEn, {})) });
   if (uiLabelsEs !== undefined) rows.push({ key:'ui_labels_es', value: typeof uiLabelsEs === 'string' ? uiLabelsEs : JSON.stringify(safeJsonObject(uiLabelsEs, {})) });
   if (uiLabelsEn !== undefined) rows.push({ key:'ui_labels_en', value: typeof uiLabelsEn === 'string' ? uiLabelsEn : JSON.stringify(safeJsonObject(uiLabelsEn, {})) });
+  if (complexNameEs !== undefined) rows.push({ key:'complex_name_es', value:String(complexNameEs||'') });
+  if (complexNameEn !== undefined) rows.push({ key:'complex_name_en', value:String(complexNameEn||'') });
+  if (complexLocation !== undefined) rows.push({ key:'complex_location', value:String(complexLocation||'') });
+  if (complexLogo !== undefined) rows.push({ key:'complex_logo', value:String(complexLogo||'') });
   for (const row of rows) {
     const { error } = await supabase.from('app_config').upsert(row, { onConflict:'key' });
     if (error) return sendSupabaseError(res, error);
