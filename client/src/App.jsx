@@ -1526,13 +1526,13 @@ export default function App() {
         {view==="about" && <CommunityMissionView lang={lang} config={adminInfo.config} />}
         {view==="listings"  && <ListingsView lang={lang} listings={listings} incidents={incidents} user={user} contactProps={contactProps} isGlobalAdmin={effectiveIsGlobalAdmin} canEditGlobal={delegatePerms.canUpdateGlobalListings} canDeleteGlobal={delegatePerms.canDeleteGlobalListings} canResolveGlobal={canResolveIncidentsNow} floorOpenState={listingFloorOpen} onFloorToggle={toggleListingFloor} onAdd={()=>{ if(!user){login();return;} setModal({type:"addListing"}); }} onEdit={l=>setModal({type:"editListing",data:l})} onDelete={deleteListing} onReport={l=>{ if(!user){login();return;} setModal({type:"incident",data:{aptId:l.id}}); }} onVerify={inc=>setModal({type:"verifyIncident",data:inc})} onResolve={resolveIncident} onAddResolution={inc=>setModal({type:"addResolution",data:inc})} onFloorFilter={f=>{setIncidentQuickFilter({type:'floorFilter',aptIds:f.aptIds,status:f.status});setView('incidents');}} onAssign={inc=>setModal({type:'assignGeneral',data:inc})} onCloseGeneral={inc=>setModal({type:'closeGeneral',data:inc})} onIncidentDetail={openIncidentDetail} />}
 
-        {view==="incidents" && <IncidentsView lang={lang} incidents={incidents} listings={listings} user={user} quickFilter={incidentQuickFilter} onQuickFilterApplied={()=>setIncidentQuickFilter(null)} contactProps={contactProps} isGlobalAdmin={effectiveIsGlobalAdmin} canUpdateGlobal={delegatePerms.canUpdateGlobalIncidents} canDeleteGlobal={delegatePerms.canDeleteGlobalIncidents} canResolveGlobal={canResolveIncidentsNow} onAdd={()=>{ if(!user){login();return;} setModal({type:"incident"}); }} onResolve={resolveIncident} onDelete={deleteIncident} onVerify={inc=>setModal({type:"verifyIncident",data:inc})} onAddResolution={inc=>setModal({type:"addResolution",data:inc})} onUnitDetail={id=>setUnitDetailOverlay({listingId:id})} onIncidentDetail={openIncidentDetail} />}
+        {view==="incidents" && <IncidentsView lang={lang} incidents={incidents} listings={listings} user={user} quickFilter={incidentQuickFilter} onQuickFilterApplied={()=>setIncidentQuickFilter(null)} contactProps={contactProps} isGlobalAdmin={effectiveIsGlobalAdmin} canUpdateGlobal={delegatePerms.canUpdateGlobalIncidents} canDeleteGlobal={delegatePerms.canDeleteGlobalIncidents} canResolveGlobal={canResolveIncidentsNow} onAdd={()=>{ if(!user){login();return;} setModal({type:"incident"}); }} onResolve={resolveIncident} onDelete={deleteIncident} onVerify={inc=>setModal({type:"verifyIncident",data:inc})} onAddResolution={inc=>setModal({type:"addResolution",data:inc})} onUnitDetail={id=>setUnitDetailOverlay({listingId:id})} onIncidentDetail={openIncidentDetail} onAssign={inc=>setModal({type:'assignGeneral',data:inc})} onCloseGeneral={inc=>setModal({type:'closeGeneral',data:inc})} />}
         {view==="general" && user && <GeneralIncidentsView lang={lang} incidents={incidents} listings={listings} user={user} contactProps={contactProps} isGlobalAdmin={effectiveIsGlobalAdmin} canResolveGlobal={canResolveIncidentsNow} onIncidentDetail={openIncidentDetail} onAssign={inc=>setModal({type:'assignGeneral',data:inc})} onClose={inc=>setModal({type:'closeGeneral',data:inc})} />}
         {view==="notifications" && user && <NotificationsView lang={lang} notifications={notifications} incidents={incidents} listings={listings} contactProps={contactProps} onRead={markNotificationRead} onReadAll={markAllNotificationsRead} smartAlerts={smartAlerts} onIncidentDetail={openIncidentDetail} />}
         {view==="approvals" && user && effectiveCanManageRegistrations && <PendingApprovalsView lang={lang} pending={pendingRegistrations} onApprove={id=>reviewRegistrationAction(id,'approve')} onDecline={id=>reviewRegistrationAction(id,'decline')} active={activeRegistrations} />}
         {view==="analytics" && user && (effectiveIsGlobalAdmin || analyticsEnabledForAll) && <AnalyticsDashboard lang={lang} user={user} contactProps={contactProps} showToast={showToast} isGlobalAdmin={effectiveIsGlobalAdmin} />}
         {view==="admin" && user && (effectiveIsGlobalAdmin ? <ErrorBoundary section="admin" fallback={(err)=><AdminFallback lang={lang} error={err}/>}><AdminSettings config={adminInfo.config || {}} user={user} listings={listings} contactProps={contactProps} onSave={saveAdminConfig} showToast={showToast} lang={lang} /></ErrorBoundary> : <AdminAccessHelp user={user} adminInfo={adminInfo} lang={lang} />)}
-        {view==="my" && user && <MyListings lang={lang} listings={myListings} incidents={incidents} user={user} contactProps={contactProps} isGlobalAdmin={effectiveIsGlobalAdmin} canResolveGlobal={canResolveIncidentsNow} onAdd={()=>setModal({type:"addListing"})} onEdit={l=>setModal({type:"editListing",data:l})} onDelete={deleteListing} onReport={l=>setModal({type:"incident",data:{aptId:l.id}})} onVerify={inc=>setModal({type:"verifyIncident",data:inc})} onResolve={resolveIncident} onAddResolution={inc=>setModal({type:"addResolution",data:inc})} onNavigateToIncidents={f=>{setIncidentQuickFilter({type:'floorFilter',aptIds:f.aptIds,status:f.status||'all'});setView('incidents');}} onIncidentDetail={openIncidentDetail} />}
+        {view==="my" && user && <MyListings lang={lang} listings={myListings} incidents={incidents} user={user} contactProps={contactProps} isGlobalAdmin={effectiveIsGlobalAdmin} canResolveGlobal={canResolveIncidentsNow} onAdd={()=>setModal({type:"addListing"})} onEdit={l=>setModal({type:"editListing",data:l})} onDelete={deleteListing} onReport={l=>setModal({type:"incident",data:{aptId:l.id}})} onVerify={inc=>setModal({type:"verifyIncident",data:inc})} onResolve={resolveIncident} onAddResolution={inc=>setModal({type:"addResolution",data:inc})} onNavigateToIncidents={f=>{setIncidentQuickFilter({type:'floorFilter',aptIds:f.aptIds,status:f.status||'all'});setView('incidents');}} onIncidentDetail={openIncidentDetail} onAssign={inc=>setModal({type:'assignGeneral',data:inc})} onCloseGeneral={inc=>setModal({type:'closeGeneral',data:inc})} />}
         {view==="profile" && user && <ProfileView lang={lang} user={user} userProfile={userProfile} onSave={saveProfile} />}
         {view==="help" && <HelpView lang={lang} effectiveRole={effectiveRole} effectiveIsGlobalAdmin={effectiveIsGlobalAdmin} delegatePerms={delegatePerms} listings={listings} incidents={incidents} user={user} setView={setView} onReport={()=>{ if(!user){login();return;} setModal({type:'incident'}); }} onAddListing={()=>{ if(!user){login();return;} setModal({type:'addListing'}); }} setIncidentQuickFilter={setIncidentQuickFilter} openMore={()=>setOpenDropdown('more')} />}
       </main>
@@ -2638,7 +2638,7 @@ function Dashboard({ listings, incidents, user, contactProps={}, setView, onRepo
   );
 }
 
-function MyListings({ listings, incidents, user, contactProps={}, isGlobalAdmin=false, canResolveGlobal=false, onAdd, onEdit, onDelete, onReport, onVerify, onResolve, onAddResolution, onNavigateToIncidents, onIncidentDetail=null, lang="es-CO" }) {
+function MyListings({ listings, incidents, user, contactProps={}, isGlobalAdmin=false, canResolveGlobal=false, onAdd, onEdit, onDelete, onReport, onVerify, onResolve, onAddResolution, onNavigateToIncidents, onIncidentDetail=null, onAssign, onCloseGeneral, lang="es-CO" }) {
   const [selectedId, setSelectedId] = useState(null);
   const [statFilter, setStatFilter] = useState(null); // null | 'open' | 'pendingResolution' | 'awaitingAdmin' | 'resolved'
   const isEn = lang==='en';
@@ -2812,7 +2812,7 @@ function MyListings({ listings, incidents, user, contactProps={}, isGlobalAdmin=
         <div className="ml-section" style={{marginTop:24}}>
           <div className="ml-section-hdr">📋 {isEn?'Incidents I reported':'Incidentes que reporté'}</div>
           {[...incIReported].sort((a,b)=>new Date(b.createdAt)-new Date(a.createdAt)).map(i=>(
-            <IRow key={i.id} inc={i} listings={listings} contactProps={contactProps} isGlobalAdmin={isGlobalAdmin} canResolveGlobal={canResolveGlobal} onResolve={onResolve} onDelete={()=>{}} onVerify={onVerify} onAddResolution={onAddResolution} onIncidentDetail={onIncidentDetail} lang={lang}/>
+            <IRow key={i.id} inc={i} listings={listings} contactProps={contactProps} isGlobalAdmin={isGlobalAdmin} canResolveGlobal={canResolveGlobal} onResolve={onResolve} onDelete={()=>{}} onVerify={onVerify} onAddResolution={onAddResolution} onIncidentDetail={onIncidentDetail} onAssign={onAssign} onCloseGeneral={onCloseGeneral} lang={lang}/>
           ))}
         </div>
       )}
@@ -3635,7 +3635,17 @@ function GeneralListingsSection({ incidents, isGlobalAdmin=false, canResolveGlob
                       <span className="gen-card-type">{incidentTypeLabel(inc.type, lang)}</span>
                       <span className="gen-card-cat">{categoryLabel(inc.category, lang)}</span>
                       <span className="gen-card-date">📅 {fmtDate(inc.date)}</span>
-                      {inc.slaCycleCount > 0 && <span className="gen-card-sla">⏱️ ×{inc.slaCycleCount}</span>}
+                      {(()=>{
+                        const now = new Date();
+                        const deadline = inc.nextSlaReminderAt ? new Date(inc.nextSlaReminderAt) : null;
+                        const hoursLeft = deadline ? Math.round((deadline - now) / 3600000) : null;
+                        if (inc.slaCycleCount > 0 && hoursLeft !== null && hoursLeft < 0) {
+                          return <span className="gen-card-sla gen-card-sla-breach">🔴 SLA {isEn?'overdue':'vencido'} ×{inc.slaCycleCount}</span>;
+                        }
+                        if (inc.slaCycleCount > 0) return <span className="gen-card-sla">⏱️ ×{inc.slaCycleCount}</span>;
+                        if (hoursLeft !== null && hoursLeft <= 4 && hoursLeft >= 0) return <span className="gen-card-sla gen-card-sla-urgent">🟠 {isEn?`${hoursLeft}h`:`${hoursLeft}h`}</span>;
+                        return null;
+                      })()}
                       {onIncidentDetail && <button className="ir-detail-pill" onClick={() => onIncidentDetail(inc.id)}>{isEn ? 'Details' : 'Detalles'} ›</button>}
                     </div>
                     <p className="gen-card-desc">{inc.desc}</p>
@@ -3800,7 +3810,7 @@ const guestFullName = (g={}) => [g.firstName, g.middleName, g.lastName].map(x=>S
 // Location includes city, state (if present), and country
 const guestLocation = (g={}) => [g.city, g.state, g.country].map(x=>String(x||'').trim()).filter(Boolean).join(', ');
 
-function WorkflowGroup({ statusKey, icon, label, sublabel, color, incidents, listings, isOpen, onToggle, user, contactProps, isGlobalAdmin, canUpdateGlobal, canDeleteGlobal, canResolveGlobal, onResolve, onDelete, onVerify, onAddResolution, onUnitDetail, onIncidentDetail, hideUnit=false, lang, isEn }) {
+function WorkflowGroup({ statusKey, icon, label, sublabel, color, incidents, listings, isOpen, onToggle, user, contactProps, isGlobalAdmin, canUpdateGlobal, canDeleteGlobal, canResolveGlobal, onResolve, onDelete, onVerify, onAddResolution, onUnitDetail, onIncidentDetail, onAssign, onCloseGeneral, hideUnit=false, lang, isEn }) {
   const count = incidents.length;
   return (
     <div className="wfg-section">
@@ -3817,7 +3827,7 @@ function WorkflowGroup({ statusKey, icon, label, sublabel, color, incidents, lis
         <div className="wfg-body">
           {count===0
             ? <div className="wfg-empty">✓ {isEn?'None here':'Nada aquí'}</div>
-            : incidents.map(inc=><IRow key={inc.id} inc={inc} user={user} listings={listings} contactProps={contactProps} isGlobalAdmin={isGlobalAdmin} canUpdateGlobal={canUpdateGlobal} canDeleteGlobal={canDeleteGlobal} canResolveGlobal={canResolveGlobal} onResolve={onResolve} onDelete={onDelete} onVerify={onVerify} onAddResolution={onAddResolution} onUnitDetail={onUnitDetail} onIncidentDetail={onIncidentDetail} hideUnit={hideUnit} lang={lang}/>)
+            : incidents.map(inc=><IRow key={inc.id} inc={inc} user={user} listings={listings} contactProps={contactProps} isGlobalAdmin={isGlobalAdmin} canUpdateGlobal={canUpdateGlobal} canDeleteGlobal={canDeleteGlobal} canResolveGlobal={canResolveGlobal} onResolve={onResolve} onDelete={onDelete} onVerify={onVerify} onAddResolution={onAddResolution} onUnitDetail={onUnitDetail} onIncidentDetail={onIncidentDetail} onAssign={onAssign} onCloseGeneral={onCloseGeneral} hideUnit={hideUnit} lang={lang}/>)
           }
         </div>
       )}
@@ -3825,7 +3835,7 @@ function WorkflowGroup({ statusKey, icon, label, sublabel, color, incidents, lis
   );
 }
 
-function IncidentsView({ incidents, listings, user, quickFilter=null, onQuickFilterApplied=()=>{}, contactProps={}, isGlobalAdmin=false, canUpdateGlobal=false, canDeleteGlobal=false, canResolveGlobal=false, onAdd, onResolve, onDelete, onVerify, onAddResolution, onUnitDetail, onIncidentDetail, lang="es-CO" }) {
+function IncidentsView({ incidents, listings, user, quickFilter=null, onQuickFilterApplied=()=>{}, contactProps={}, isGlobalAdmin=false, canUpdateGlobal=false, canDeleteGlobal=false, canResolveGlobal=false, onAdd, onResolve, onDelete, onVerify, onAddResolution, onUnitDetail, onIncidentDetail, onAssign, onCloseGeneral, lang="es-CO" }) {
   const [sf,setSf]=useState("all"), [cf,setCf]=useState("all"), [scope,setScope]=useState("all"), [search,setSearch]=useState("");
   const [dateFrom,setDateFrom]=useState('');
   const [dateTo,setDateTo]=useState('');
@@ -4075,6 +4085,8 @@ function IncidentsView({ incidents, listings, user, quickFilter=null, onQuickFil
             onAddResolution={onAddResolution}
             onUnitDetail={onUnitDetail}
             onIncidentDetail={onIncidentDetail}
+            onAssign={onAssign}
+            onCloseGeneral={onCloseGeneral}
             lang={lang}
             isEn={isEn}
           />
@@ -4286,7 +4298,7 @@ function UnitMiniCard({ listing, onUnitDetail, isEn=false }) {
   );
 }
 
-function IRow({ inc, user, listings=[], contactProps={}, isGlobalAdmin=false, canUpdateGlobal=false, canDeleteGlobal=false, canResolveGlobal=false, onResolve, onDelete, onVerify, onAddResolution, onUnitDetail, onIncidentDetail, compact, naughtyMode, hideUnit=false, lang="es-CO" }) {
+function IRow({ inc, user, listings=[], contactProps={}, isGlobalAdmin=false, canUpdateGlobal=false, canDeleteGlobal=false, canResolveGlobal=false, onResolve, onDelete, onVerify, onAddResolution, onUnitDetail, onIncidentDetail, onAssign, onCloseGeneral, compact, naughtyMode, hideUnit=false, lang="es-CO" }) {
   const listing    = listings.find(l=>l.id===inc.aptId);
   const isOwner    = Boolean(user?.uid && listing?.ownerUid === user.uid);
   const isReporter = Boolean(user?.uid && inc.reporterUid === user.uid);
@@ -4350,6 +4362,19 @@ function IRow({ inc, user, listings=[], contactProps={}, isGlobalAdmin=false, ca
             })()}
             <span className="ir-ss-date">📅 {fmtDate(inc.date)}</span>
           </div>
+          {/* General incident quick actions — admin only */}
+          {inc.isGeneral && (isGlobalAdmin||canResolveGlobal) && inc.status!=='resolved' && (
+            <>
+              <button type="button" className="ir-ss-act ir-ss-act-assign"
+                onClick={e=>{e.stopPropagation();onAssign&&onAssign(inc);}}>
+                🏠 {isEn?'Assign to unit':'Asignar a unidad'}
+              </button>
+              <button type="button" className="ir-ss-act ir-ss-act-close-gen"
+                onClick={e=>{e.stopPropagation();onCloseGeneral&&onCloseGeneral(inc);}}>
+                ✓ {isEn?'Close':'Cerrar'}
+              </button>
+            </>
+          )}
           {/* Quick-action buttons — shown whenever owner action is required */}
           {user&&inc.status==='open'&&isOwner&&(
             <button type="button" className="ir-ss-act ir-ss-act-verify"
@@ -4393,7 +4418,7 @@ function IRow({ inc, user, listings=[], contactProps={}, isGlobalAdmin=false, ca
           )}
 
           {/* Guests */}
-          {guests.length>0 ? (
+          {!inc.isGeneral&&(guests.length>0 ? (
             <div className="ir-body-section">
               <span className="ir-body-lbl">👥 {isEn?'Guests':'Huéspedes'}</span>
               <div className="ir-body-guests">
@@ -4411,7 +4436,7 @@ function IRow({ inc, user, listings=[], contactProps={}, isGlobalAdmin=false, ca
               <span className="ir-body-pending">{inc.guestName||(isEn?'Pending verification':'Pendiente verificación')}</span>
               {inc.guestCity&&<span className="ir-body-guest-loc" style={{display:'block',marginTop:2}}>📍 {inc.guestCity}{inc.guestCountry?', '+inc.guestCountry:''}</span>}
             </div>
-          )}
+          ))}
 
           {/* Action taken */}
           {inc.ownerComments&&(
@@ -4469,6 +4494,17 @@ function IRow({ inc, user, listings=[], contactProps={}, isGlobalAdmin=false, ca
         {/* ── Action footer — mirrors idd-actions ── */}
         {!compact&&user&&(
           <div className="ir-footer-acts">
+            {/* General incident footer actions */}
+            {inc.isGeneral && (isGlobalAdmin||canResolveGlobal) && inc.status!=='resolved' && (
+              <>
+                <button className="btn-p ir-act-btn" onClick={()=>onAssign&&onAssign(inc)}>
+                  🏠 {isEn?'Assign to unit — owner will be notified':'Asignar a unidad — propietario recibirá aviso'}
+                </button>
+                <button className="btn-ghost ir-act-btn" onClick={()=>onCloseGeneral&&onCloseGeneral(inc)}>
+                  ✓ {isEn?'Close directly':'Cerrar directamente'}
+                </button>
+              </>
+            )}
             {inc.status==='open'&&isOwner&&(
               <button className="btn-p ir-act-btn" onClick={()=>onVerify&&onVerify(inc)}>
                 ① {isEn?'Verify — add guest info & action':'Verificar — agregar info y acción'}
@@ -5869,7 +5905,17 @@ function GeneralIncidentsView({ incidents=[], listings=[], user, contactProps={}
               <span className="gen-card-type">{incidentTypeLabel(inc.type,lang)}</span>
               <span className="gen-card-cat">{categoryLabel(inc.category,lang)}</span>
               <span className="gen-card-date">📅 {fmtDate(inc.date)}</span>
-              {inc.slaCycleCount>0&&<span className="gen-card-sla">⏱️ SLA {inc.slaCycleCount}</span>}
+              {(()=>{
+                const now = new Date();
+                const deadline = inc.nextSlaReminderAt ? new Date(inc.nextSlaReminderAt) : null;
+                const hoursLeft = deadline ? Math.round((deadline - now) / 3600000) : null;
+                if (inc.slaCycleCount > 0 && hoursLeft !== null && hoursLeft < 0) {
+                  return <span className="gen-card-sla gen-card-sla-breach">🔴 SLA {isEn?'overdue':'vencido'} ×{inc.slaCycleCount}</span>;
+                }
+                if (inc.slaCycleCount > 0) return <span className="gen-card-sla">⏱️ ×{inc.slaCycleCount}</span>;
+                if (hoursLeft !== null && hoursLeft <= 4 && hoursLeft >= 0) return <span className="gen-card-sla gen-card-sla-urgent">🟠 {isEn?`${hoursLeft}h`:`${hoursLeft}h`}</span>;
+                return null;
+              })()}
               {onIncidentDetail&&<button className="ir-detail-pill" onClick={()=>onIncidentDetail(inc.id)}>{isEn?'Details':'Detalles'} ›</button>}
             </div>
             <p className="gen-card-desc">{inc.desc}</p>

@@ -1615,6 +1615,23 @@ button.unit-plate:focus-visible { outline: 2px solid rgba(200,216,160,.6) !impor
   color: #0b4f6a !important;
   border: 1.5px solid rgba(11,100,140,.3) !important;
 }
+/* General incident — Assign to unit: green */
+.ir-ss-act-assign {
+  background: rgba(11,127,79,.14) !important;
+  color: #0b5f3a !important;
+  border: 1.5px solid rgba(11,127,79,.32) !important;
+}
+.ir-ss-act-assign:hover { background: rgba(11,127,79,.22) !important; }
+/* General incident — Close directly: neutral */
+.ir-ss-act-close-gen {
+  background: rgba(47,79,58,.09) !important;
+  color: #2a4a5a !important;
+  border: 1.5px solid rgba(47,79,58,.22) !important;
+}
+.ir-ss-act-close-gen:hover { background: rgba(47,79,58,.16) !important; }
+/* General incident SLA urgency chips */
+.gen-card-sla-breach { background: #ffe5e5 !important; color: #b71c1c !important; border: 1px solid rgba(183,28,28,.25) !important; }
+.gen-card-sla-urgent { background: #fff3e0 !important; color: #e07b2a !important; border: 1px solid rgba(224,123,42,.25) !important; }
 
 /* Details pill button in status strip */
 .ir-detail-pill {
