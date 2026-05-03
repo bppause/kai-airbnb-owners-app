@@ -2468,3 +2468,32 @@ p { line-height: 1.45; }
 .ir-sla-breached { background: #fde8e8; color: #9d1f16; border-color: #f0b8b8; }
 .ir-sla-urgent   { background: #fef3e2; color: #b35c00; border-color: #f0d0a0; }
 .ir-sla-reminded { background: #fff3e0; color: #e65100; border-color: #fce0b0; }
+
+/* ── Update-available banner ─────────────────────────────────────────── */
+.update-banner {
+  position: sticky;
+  top: 0;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 8px 16px;
+  background: #1a3a4a;
+  border-bottom: 2px solid #2F8F6A;
+  color: #e0f4ed;
+  font-size: .85rem;
+  font-weight: 500;
+}
+.update-banner-btn {
+  background: #2F8F6A;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  padding: 4px 14px;
+  font-size: .82rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background .15s;
+}
+.update-banner-btn:hover { background: #237a58; }

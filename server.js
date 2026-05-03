@@ -782,6 +782,15 @@ app.get('/api/health', async (req, res) => {
   res.json(result);
 });
 
+app.get('/api/version', (req, res) => {
+  try {
+    const meta = JSON.parse(fs.readFileSync(path.join(DIST, 'build-meta.json'), 'utf8'));
+    res.json({ buildTime: meta.buildTime || '' });
+  } catch(e) {
+    res.json({ buildTime: '' });
+  }
+});
+
 // ─── API: REGISTRATION / APPROVAL WORKFLOW ──────────────────────────────────
 
 app.get('/api/apartments/check', async (req, res) => {

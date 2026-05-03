@@ -1399,6 +1399,16 @@ export default function App() {
     finally { setSyncing(false); }
   };
 
+  const [updateAvailable, setUpdateAvailable] = useState(false);
+  useEffect(() => {
+    const clientBuild = typeof __BUILD_TIME__ !== 'undefined' ? __BUILD_TIME__ : '';
+    if (!clientBuild) return;
+    const check = () => api.get('/api/version').then(r => { if (r?.buildTime && r.buildTime !== clientBuild) setUpdateAvailable(true); }).catch(()=>{});
+    check();
+    const id = setInterval(check, 5 * 60 * 1000);
+    return () => clearInterval(id);
+  }, []);
+
   if (authLoading || (user && (adminLoading || registrationLoading)) || (isApproved && loading) || loadError) return (
     <div style={{fontFamily:"'DM Sans',sans-serif",minHeight:"100vh",background:"#07141e",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:24}}>
       <style>{CSS}</style>
@@ -1432,6 +1442,15 @@ export default function App() {
   return (
     <div className="app-shell">
       <style>{CSS}</style>
+
+      {updateAvailable && (
+        <div className="update-banner" role="alert">
+          <span>🔄 {lang==='en' ? 'A new version is available.' : 'Hay una nueva versión disponible.'}</span>
+          <button className="update-banner-btn" onClick={() => window.location.reload()}>
+            {lang==='en' ? 'Reload' : 'Actualizar'}
+          </button>
+        </div>
+      )}
 
       <header className="hdr">
         <div className="hdr-inner">
