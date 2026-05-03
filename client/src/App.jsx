@@ -3845,10 +3845,13 @@ function IncidentsView({ incidents, listings, user, quickFilter=null, onQuickFil
     if (quickFilter === "needsResolution")   { setScope("needsResolution");   setSf("all"); setCf("all"); setFloorFilter(null); onQuickFilterApplied(); }
     if (quickFilter === "requiresResolution") { setScope("requiresResolution"); setSf("all"); setCf("all"); setFloorFilter(null); onQuickFilterApplied(); }
     if (quickFilter === "seriousOpen") { setScope("all"); setSf("all"); setCf("serious"); setFloorFilter(null); onQuickFilterApplied(); }
+    if (quickFilter === "generalIncidents") { setScope("general"); setSf("all"); setCf("all"); setFloorFilter(null); onQuickFilterApplied(); }
   }, [quickFilter, onQuickFilterApplied]);
   const listingMap = Object.fromEntries(listings.map(l=>[l.id, l]));
   const myListingIds = new Set((user ? listings.filter(l=>l.ownerUid===user.uid) : []).map(l=>l.id));
   let list=[...incidents];
+  // "General" — community incidents not linked to any unit
+  if(scope==="general") list=list.filter(i=>i.isGeneral);
   // "I reported" — incidents the current user filed (any apartment)
   if(scope==="iReported"   && user) list=list.filter(i=>i.reporterUid===user.uid);
   // "My listings" — incidents against apartments the user owns
@@ -3883,6 +3886,8 @@ function IncidentsView({ incidents, listings, user, quickFilter=null, onQuickFil
       const desc     = String(i.desc||'').toLowerCase();
       const type     = String(i.type||'').toLowerCase();
       const reporter = String(i.reporterName||'').toLowerCase();
+      // General incident keyword — matches "general" and "comunidad/community"
+      const genFlag  = i.isGeneral ? 'general comunidad community' : '';
       // Initial report guest fields
       const guest    = String(i.guestName||'').toLowerCase();
       const city     = String(i.guestCity||'').toLowerCase();
@@ -3895,7 +3900,7 @@ function IncidentsView({ incidents, listings, user, quickFilter=null, onQuickFil
       const guestDetails = Array.isArray(i.ownerGuests)
         ? i.ownerGuests.map(g=>[g.firstName,g.middleName,g.lastName,g.city,g.country].filter(Boolean).join(' ')).join(' ').toLowerCase()
         : '';
-      return apt.includes(q)||owner.includes(q)||operator.includes(q)||desc.includes(q)||type.includes(q)||reporter.includes(q)||guest.includes(q)||city.includes(q)||country.includes(q)||vGuests.includes(q)||vCity.includes(q)||vCountry.includes(q)||guestDetails.includes(q);
+      return apt.includes(q)||owner.includes(q)||operator.includes(q)||desc.includes(q)||type.includes(q)||reporter.includes(q)||genFlag.includes(q)||guest.includes(q)||city.includes(q)||country.includes(q)||vGuests.includes(q)||vCity.includes(q)||vCountry.includes(q)||guestDetails.includes(q);
     });
   }
   // Date range filter — filter by incident date (i.date is YYYY-MM-DD)
@@ -3905,6 +3910,7 @@ function IncidentsView({ incidents, listings, user, quickFilter=null, onQuickFil
   const isEn = lang==='en';
   const anyFilter = sf!=='all'||cf!=='all'||scope!=='all'||search.trim()!==''||!!floorFilter||!!dateFrom||!!dateTo;
   const resetAll = () => { setSf('all'); setCf('all'); setScope('all'); setSearch(''); setFloorFilter(null); setDateFrom(''); setDateTo(''); };
+  const generalOpenCount = incidents.filter(i=>i.isGeneral&&i.status!=='resolved').length;
   // ── Persist group open/close to localStorage; restore on mount ──────────────
   const WFG_KEY = 'kai_wfg_state';
   const [groupOpen, setGroupOpen] = useState(() => {
@@ -4022,6 +4028,9 @@ function IncidentsView({ incidents, listings, user, quickFilter=null, onQuickFil
               🏠 {isEn?'My listings':'Mis listings'}
             </button>
           </>}
+          <button className={`fchip fchip-sm ${scope==='general'?'fchip-on':''}`} onClick={()=>{setScope(scope==='general'?'all':'general');setSf('all');setFloorFilter(null);}}>
+            📢 {isEn?'General':'General'}{generalOpenCount>0&&scope!=='general'&&<span className="mbn-badge" style={{marginLeft:5,minWidth:15,height:15,fontSize:'.58rem',lineHeight:'15px',padding:'0 4px'}}>{generalOpenCount}</span>}
+          </button>
           {/* Pending resolution — available to all authenticated users:
               owners see their listings waiting for their resolution note;
               admins/delegates see all verified incidents missing a resolution */}
@@ -4291,6 +4300,8 @@ function IRow({ inc, user, listings=[], contactProps={}, isGlobalAdmin=false, ca
   // Status strip config — matches idd-status-banner colours
   const statusMeta = inc.status==='resolved'
     ? { cls:'ir-ss-resolved', icon:'✓',  label: isEn?'Closed':'Cerrado' }
+    : inc.isGeneral && inc.status==='open'
+    ? { cls:'ir-ss-general',  icon:'📢', label: isEn?'General — Admin action needed':'General — Acción del admin requerida' }
     : inc.status==='open'
     ? { cls:'ir-ss-open',     icon:'⚠️', label: isEn?'Open — verify required':'Abierto — verificación requerida' }
     : hasPendingRes
@@ -4301,11 +4312,13 @@ function IRow({ inc, user, listings=[], contactProps={}, isGlobalAdmin=false, ca
     <div className={`irow irow-card${naughtyMode?' irow-naughty':''}`}>
       {/* ── Left sidebar: unit card + reporter context ── */}
       <div className="ir-l">
-        {!hideUnit && (listing
-          ? <UnitMiniCard listing={listing} onUnitDetail={onUnitDetail} isEn={isEn}/>
-          : <div className="ir-apt-context"><div className="ir-apt">{inc.aptLabel}</div></div>
+        {!hideUnit && (inc.isGeneral
+          ? <div className="ir-apt-context"><div className="ir-apt ir-apt-general">📢 {isEn?'General':'General'}</div><div className="ir-apt-sub">{isEn?'Community — no unit':'Comunidad — sin unidad'}</div></div>
+          : listing
+            ? <UnitMiniCard listing={listing} onUnitDetail={onUnitDetail} isEn={isEn}/>
+            : <div className="ir-apt-context"><div className="ir-apt">{inc.aptLabel}</div></div>
         )}
-        {hideUnit && <div className="ir-apt-context"><div className="ir-apt">{inc.aptLabel}</div></div>}
+        {hideUnit && <div className="ir-apt-context"><div className="ir-apt">{inc.isGeneral?'📢 General':inc.aptLabel}</div></div>}
         {user&&(isReporter||isOwner)&&(
           <div className="ir-ctx-tags">
             {isReporter&&isOwner&&<span className="inc-ctx-tag inc-ctx-reporter">{isEn?'📋 I reported · my listing':'📋 Yo reporté · mi listing'}</span>}

@@ -1569,6 +1569,9 @@ button.unit-plate:focus-visible { outline: 2px solid rgba(200,216,160,.6) !impor
 .ir-ss-wait .ir-ss-label     { color: #0b4f6a; }
 .ir-ss-resolved { background: rgba(80,130,100,.06); border-left: 3px solid rgba(80,130,100,.35); }
 .ir-ss-resolved .ir-ss-label { color: #2d6048; }
+.ir-ss-general  { background: rgba(217,112,14,.07);  border-left: 3px solid rgba(217,112,14,.5); }
+.ir-ss-general .ir-ss-label  { color: #7a3a00; }
+.ir-apt-general { color: #d9700e !important; }
 
 /* ── Quick-action buttons inside the status strip ── */
 /* These appear immediately when owner action is required — no scrolling needed */
