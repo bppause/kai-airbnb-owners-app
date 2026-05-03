@@ -1374,7 +1374,7 @@ app.get('/api/admin/me', async (req, res) => {
 
 app.put('/api/admin/config', async (req, res) => {
   if (!requireSupabaseEnv(res)) return;
-  const { actorUid, actorEmail, slaHours, escalationCcEmails, analyticsEnabled, missionTitle, missionBody, missionTitleEs, missionBodyEs, missionTitleEn, missionBodyEn, missionSectionsEs, standardMenuPermissions, defaultDelegatePermissions, tooltipsEs, tooltipsEn, uiLabelsEs, uiLabelsEn, complexNameEs, complexNameEn, complexLocation, complexLogo, complexBg, emailFromName, emailFromAddress, emailFromNameEn, emailFromAddressEn } = req.body || {};
+  const { actorUid, actorEmail, slaHours, escalationCcEmails, analyticsEnabled, missionTitle, missionBody, missionTitleEs, missionBodyEs, missionTitleEn, missionBodyEn, missionSectionsEs, standardMenuPermissions, defaultDelegatePermissions, tooltipsEs, tooltipsEn, uiLabelsEs, uiLabelsEn, complexNameEs, complexNameEn, complexLocation, complexLogo, complexBg, emailFromName, emailFromAddress, emailFromNameEn, emailFromAddressEn, nav_config } = req.body || {};
   if (!(await isGlobalAdmin(actorUid, actorEmail))) return res.status(403).json({ error:'Solo un administrador global puede cambiar la configuración.' });
   const before = await getAppConfig();
   const rows = [];
@@ -1403,6 +1403,7 @@ app.put('/api/admin/config', async (req, res) => {
   if (emailFromAddress !== undefined) rows.push({ key:'email_from_address', value:String(emailFromAddress||'').toLowerCase().trim() });
   if (emailFromNameEn !== undefined) rows.push({ key:'email_from_name_en', value:String(emailFromNameEn||'') });
   if (emailFromAddressEn !== undefined) rows.push({ key:'email_from_address_en', value:String(emailFromAddressEn||'').toLowerCase().trim() });
+  if (nav_config !== undefined) rows.push({ key:'nav_config', value: typeof nav_config === 'string' ? nav_config : JSON.stringify(safeJsonObject(nav_config, {})) });
   for (const row of rows) {
     const { error } = await supabase.from('app_config').upsert(row, { onConflict:'key' });
     if (error) return sendSupabaseError(res, error);
