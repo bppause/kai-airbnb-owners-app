@@ -1524,7 +1524,7 @@ export default function App() {
       <main className="main">
         {view==="dashboard" && <Dashboard lang={lang} listings={listings} incidents={incidents} user={user} contactProps={contactProps} setView={setView} showBlacklist={false} onReport={()=>{ if(!user){login();return;} setModal({type:"incident"}); }} effectiveIsGlobalAdmin={effectiveIsGlobalAdmin} effectiveRole={effectiveRole} delegatePerms={delegatePerms} pendingOwner={needsOwnerVerification.length} pendingOwnerResolution={needsOwnerResolution.length} pendingResolve={needsAdminResolution.length} pendingRegistrations={effectiveCanManageRegistrations ? pendingRegistrations.length : 0} canResolve={canResolveIncidentsNow} canManageRegistrations={effectiveCanManageRegistrations} onOwnerClick={()=>{setIncidentQuickFilter('ownerVerification');setView('incidents');}} onResolveClick={()=>{setIncidentQuickFilter('requiresResolution');setView('incidents');}} onRegistrationsClick={()=>setView('approvals')} onAddResClick={()=>{setIncidentQuickFilter('needsResolution');setView('incidents');}} onIncidentDetail={openIncidentDetail} />}
         {view==="about" && <CommunityMissionView lang={lang} config={adminInfo.config} />}
-        {view==="listings"  && <ListingsView lang={lang} listings={listings} incidents={incidents} user={user} contactProps={contactProps} isGlobalAdmin={effectiveIsGlobalAdmin} canEditGlobal={delegatePerms.canUpdateGlobalListings} canDeleteGlobal={delegatePerms.canDeleteGlobalListings} canResolveGlobal={canResolveIncidentsNow} floorOpenState={listingFloorOpen} onFloorToggle={toggleListingFloor} onAdd={()=>{ if(!user){login();return;} setModal({type:"addListing"}); }} onEdit={l=>setModal({type:"editListing",data:l})} onDelete={deleteListing} onReport={l=>{ if(!user){login();return;} setModal({type:"incident",data:{aptId:l.id}}); }} onVerify={inc=>setModal({type:"verifyIncident",data:inc})} onResolve={resolveIncident} onAddResolution={inc=>setModal({type:"addResolution",data:inc})} onFloorFilter={f=>{setIncidentQuickFilter({type:'floorFilter',aptIds:f.aptIds,status:f.status});setView('incidents');}} />}
+        {view==="listings"  && <ListingsView lang={lang} listings={listings} incidents={incidents} user={user} contactProps={contactProps} isGlobalAdmin={effectiveIsGlobalAdmin} canEditGlobal={delegatePerms.canUpdateGlobalListings} canDeleteGlobal={delegatePerms.canDeleteGlobalListings} canResolveGlobal={canResolveIncidentsNow} floorOpenState={listingFloorOpen} onFloorToggle={toggleListingFloor} onAdd={()=>{ if(!user){login();return;} setModal({type:"addListing"}); }} onEdit={l=>setModal({type:"editListing",data:l})} onDelete={deleteListing} onReport={l=>{ if(!user){login();return;} setModal({type:"incident",data:{aptId:l.id}}); }} onVerify={inc=>setModal({type:"verifyIncident",data:inc})} onResolve={resolveIncident} onAddResolution={inc=>setModal({type:"addResolution",data:inc})} onFloorFilter={f=>{setIncidentQuickFilter({type:'floorFilter',aptIds:f.aptIds,status:f.status});setView('incidents');}} onAssign={inc=>setModal({type:'assignGeneral',data:inc})} onCloseGeneral={inc=>setModal({type:'closeGeneral',data:inc})} onIncidentDetail={openIncidentDetail} />}
 
         {view==="incidents" && <IncidentsView lang={lang} incidents={incidents} listings={listings} user={user} quickFilter={incidentQuickFilter} onQuickFilterApplied={()=>setIncidentQuickFilter(null)} contactProps={contactProps} isGlobalAdmin={effectiveIsGlobalAdmin} canUpdateGlobal={delegatePerms.canUpdateGlobalIncidents} canDeleteGlobal={delegatePerms.canDeleteGlobalIncidents} canResolveGlobal={canResolveIncidentsNow} onAdd={()=>{ if(!user){login();return;} setModal({type:"incident"}); }} onResolve={resolveIncident} onDelete={deleteIncident} onVerify={inc=>setModal({type:"verifyIncident",data:inc})} onAddResolution={inc=>setModal({type:"addResolution",data:inc})} onUnitDetail={id=>setUnitDetailOverlay({listingId:id})} onIncidentDetail={openIncidentDetail} />}
         {view==="general" && user && <GeneralIncidentsView lang={lang} incidents={incidents} listings={listings} user={user} contactProps={contactProps} isGlobalAdmin={effectiveIsGlobalAdmin} canResolveGlobal={canResolveIncidentsNow} onIncidentDetail={openIncidentDetail} onAssign={inc=>setModal({type:'assignGeneral',data:inc})} onClose={inc=>setModal({type:'closeGeneral',data:inc})} />}
@@ -2387,9 +2387,9 @@ function ProfileView({ user, lang, userProfile, onSave }) {
 
 function DashboardFocus({ lang="es-CO", effectiveIsGlobalAdmin=false, effectiveRole='user', delegatePerms={},
   pendingOwner=0, pendingOwnerResolution=0, pendingResolve=0, pendingRegistrations=0, openCount=0,
-  myListingCount=0, myOpenCount=0,
+  myListingCount=0, myOpenCount=0, pendingGeneral=0,
   canResolve=false, canManageRegistrations=false,
-  onOwnerClick=()=>{}, onResolveClick=()=>{}, onRegistrationsClick=()=>{}, onOpenClick=()=>{}, setView=()=>{}, onAddResClick=()=>{} }) {
+  onOwnerClick=()=>{}, onResolveClick=()=>{}, onRegistrationsClick=()=>{}, onOpenClick=()=>{}, setView=()=>{}, onAddResClick=()=>{}, onGeneralClick=()=>{} }) {
   const isEn = lang==='en';
   const role = effectiveIsGlobalAdmin ? 'global' : effectiveRole==='delegate_admin' ? 'delegate' : 'standard';
 
@@ -2399,14 +2399,16 @@ function DashboardFocus({ lang="es-CO", effectiveIsGlobalAdmin=false, effectiveR
     { id:'addResolution', icon:'📝', count:pendingOwnerResolution, label:isEn?'📝 Add resolution':'📝 Agregar respuesta', sub:isEn?'Step 2 · Verified — add your resolution to allow admin to close':'Paso 2 · Verificados — agrega tu respuesta para que admin pueda cerrar', accent:'amber', onClick:onAddResClick,  show:true },
     { id:'myListings',    icon:'🏠', count:myListingCount,         label:isEn?'My listings':'Mis listings',             sub:isEn?'Your registered units':'Tus unidades registradas',                                                                                       accent:'teal',  onClick:()=>setView('my'), show:true },
   ].filter(c=>c.show!==false) : role==='delegate' ? [
-    { id:'ownerVerification', icon:'✅', count:pendingOwner,         label:isEn?'Need verification':'Requieren verificación',   sub:isEn?'Awaiting owner confirmation':'Esperando confirmación propietario',  accent:'amber', onClick:onOwnerClick,         show:true },
-    { id:'requiresResolution',icon:'🛠️',count:pendingResolve,       label:isEn?'Ready to resolve':'Listos para resolver',       sub:isEn?'Verified, ready to close':'Verificados, listos para cerrar',        accent:'green', onClick:onResolveClick,       show:canResolve },
-    { id:'registrations',     icon:'📝', count:pendingRegistrations,  label:isEn?'Registrations':'Registros',                   sub:isEn?'Pending approval':'Pendientes de aprobación',                         accent:'blue',  onClick:onRegistrationsClick, show:canManageRegistrations },
-    { id:'allOpen',           icon:'⚠️', count:openCount,             label:isEn?'All open':'Total abiertos',                   sub:isEn?'Community incidents in progress':'Incidentes activos comunidad',       accent:null,    onClick:onOpenClick,          show:true },
+    { id:'general',           icon:'📢', count:pendingGeneral,         label:isEn?'General incidents':'Incidentes generales',     sub:isEn?'Unassigned — assign or close':'Sin unidad — asigna o cierra',         accent:'orange',onClick:onGeneralClick,       show:canResolve&&pendingGeneral>0 },
+    { id:'ownerVerification', icon:'✅', count:pendingOwner,           label:isEn?'Need verification':'Requieren verificación',   sub:isEn?'Awaiting owner confirmation':'Esperando confirmación propietario',  accent:'amber', onClick:onOwnerClick,         show:true },
+    { id:'requiresResolution',icon:'🛠️',count:pendingResolve,         label:isEn?'Ready to resolve':'Listos para resolver',       sub:isEn?'Verified, ready to close':'Verificados, listos para cerrar',        accent:'green', onClick:onResolveClick,       show:canResolve },
+    { id:'registrations',     icon:'📝', count:pendingRegistrations,   label:isEn?'Registrations':'Registros',                   sub:isEn?'Pending approval':'Pendientes de aprobación',                         accent:'blue',  onClick:onRegistrationsClick, show:canManageRegistrations },
+    { id:'allOpen',           icon:'⚠️', count:openCount,              label:isEn?'All open':'Total abiertos',                   sub:isEn?'Community incidents in progress':'Incidentes activos comunidad',       accent:null,    onClick:onOpenClick,          show:true },
   ].filter(x=>x.show!==false) : [
-    { id:'allOpen',           icon:'⚠️', count:openCount,             label:isEn?'Open incidents':'Incidentes abiertos',         sub:isEn?'Community-wide open reports':'Reportes abiertos en comunidad',        accent:'red',   onClick:onOpenClick },
-    { id:'ownerVerification', icon:'✅', count:pendingOwner,          label:isEn?'Need verification':'Requieren verificación',   sub:isEn?'Awaiting owner action':'Esperando acción del propietario',            accent:'amber', onClick:onOwnerClick },
-    { id:'requiresResolution',icon:'🛠️',count:pendingResolve,        label:isEn?'Ready to resolve':'Listos para resolver',       sub:isEn?'Verified, ready to close':'Verificados, listos para cerrar',         accent:'green', onClick:onResolveClick },
+    { id:'general',           icon:'📢', count:pendingGeneral,         label:isEn?'General incidents':'Incidentes generales',     sub:isEn?'Unassigned — assign or close':'Sin unidad — asigna o cierra',         accent:'orange',onClick:onGeneralClick,       show:pendingGeneral>0 },
+    { id:'allOpen',           icon:'⚠️', count:openCount,              label:isEn?'Open incidents':'Incidentes abiertos',         sub:isEn?'Community-wide open reports':'Reportes abiertos en comunidad',        accent:'red',   onClick:onOpenClick },
+    { id:'ownerVerification', icon:'✅', count:pendingOwner,           label:isEn?'Need verification':'Requieren verificación',   sub:isEn?'Awaiting owner action':'Esperando acción del propietario',            accent:'amber', onClick:onOwnerClick },
+    { id:'requiresResolution',icon:'🛠️',count:pendingResolve,         label:isEn?'Ready to resolve':'Listos para resolver',       sub:isEn?'Verified, ready to close':'Verificados, listos para cerrar',         accent:'green', onClick:onResolveClick },
     { id:'registrations',     icon:'📝', count:pendingRegistrations,   label:isEn?'Pending registrations':'Registros pendientes', sub:isEn?'Awaiting approval':'Esperando aprobación',                           accent:'blue',  onClick:onRegistrationsClick, show:canManageRegistrations },
   ].filter(x=>x.show!==false);
 
@@ -2519,13 +2521,14 @@ function Dashboard({ listings, incidents, user, contactProps={}, setView, onRepo
   onOwnerClick=()=>{}, onResolveClick=()=>{}, onRegistrationsClick=()=>{}, onAddResClick=()=>{},
   onIncidentDetail=null }) {
   const isEn = lang==='en';
-  const open     = incidents.filter(i=>i.status==="open");
-  const resolved = incidents.filter(i=>i.status==="resolved");
+  const open       = incidents.filter(i=>i.status==="open");
+  const resolved   = incidents.filter(i=>i.status==="resolved");
   const pendingRes = incidents.filter(i=>i.status==="verified"&&!String(i.ownerResolution||'').trim());
-  const recent   = [...incidents].sort((a,b)=>new Date(b.createdAt)-new Date(a.createdAt)).slice(0,5);
+  const recent     = [...incidents].sort((a,b)=>new Date(b.createdAt)-new Date(a.createdAt)).slice(0,5);
   const myListings = user ? listings.filter(l=>l.ownerUid===user.uid) : [];
-  const myOpen = incidents.filter(i=>myListings.some(l=>l.id===i.aptId)&&i.status==="open");
-  const dashRole = effectiveIsGlobalAdmin ? 'global' : effectiveRole==='delegate_admin' ? 'delegate' : 'standard';
+  const myOpen     = incidents.filter(i=>myListings.some(l=>l.id===i.aptId)&&i.status==="open");
+  const generalOpen = incidents.filter(i=>i.isGeneral&&i.status!=='resolved');
+  const dashRole   = effectiveIsGlobalAdmin ? 'global' : effectiveRole==='delegate_admin' ? 'delegate' : 'standard';
 
   const stats = [
     { icon:"🏠", val:listings.length,    label:isEn?"Registered units":"Unidades registradas", color:"#2a9aaa", click:()=>setView("listings") },
@@ -2546,7 +2549,7 @@ function Dashboard({ listings, incidents, user, contactProps={}, setView, onRepo
 
       {user && <DashboardGreeting user={user} lang={lang} role={dashRole} pendingOwner={pendingOwner} pendingOwnerResolution={pendingOwnerResolution} pendingResolve={pendingResolve} pendingRegistrations={pendingRegistrations} myOpenCount={myOpen.length} onOwnerClick={onOwnerClick} onResolveClick={onResolveClick} onRegistrationsClick={onRegistrationsClick} setView={setView}/>}
 
-      <DashboardFocus lang={lang} effectiveIsGlobalAdmin={effectiveIsGlobalAdmin} effectiveRole={effectiveRole} delegatePerms={delegatePerms} pendingOwner={pendingOwner} pendingOwnerResolution={pendingOwnerResolution} pendingResolve={pendingResolve} pendingRegistrations={pendingRegistrations} openCount={open.length} myListingCount={myListings.length} myOpenCount={myOpen.length} canResolve={canResolve} canManageRegistrations={canManageRegistrations} onOwnerClick={onOwnerClick} onResolveClick={onResolveClick} onRegistrationsClick={onRegistrationsClick} onOpenClick={()=>setView('incidents')} setView={setView} onAddResClick={onAddResClick} />
+      <DashboardFocus lang={lang} effectiveIsGlobalAdmin={effectiveIsGlobalAdmin} effectiveRole={effectiveRole} delegatePerms={delegatePerms} pendingOwner={pendingOwner} pendingOwnerResolution={pendingOwnerResolution} pendingResolve={pendingResolve} pendingRegistrations={pendingRegistrations} openCount={open.length} myListingCount={myListings.length} myOpenCount={myOpen.length} pendingGeneral={generalOpen.length} canResolve={canResolve} canManageRegistrations={canManageRegistrations} onOwnerClick={onOwnerClick} onResolveClick={onResolveClick} onRegistrationsClick={onRegistrationsClick} onOpenClick={()=>setView('incidents')} setView={setView} onAddResClick={onAddResClick} onGeneralClick={()=>setView('general')} />
 
       {/* ── My attention needed — owner's actionable incidents ── */}
       {user && myListings.length>0 && (()=>{
@@ -2577,6 +2580,37 @@ function Dashboard({ listings, incidents, user, contactProps={}, setView, onRepo
           </div>
         );
       })()}
+
+      {/* ── General incidents admin attention card ── */}
+      {user && (effectiveIsGlobalAdmin || effectiveRole==='delegate_admin') && generalOpen.length>0 && (
+        <div className="card attn-card gen-attn-card">
+          <div className="card-hdr">
+            <span className="card-title">📢 {isEn?'General incidents need review':'Incidentes generales requieren revisión'}</span>
+            <span className="attn-badge" style={{background:'#d9700e'}}>{generalOpen.length}</span>
+          </div>
+          <div className="attn-sub">{isEn
+            ?'These incidents are not linked to any unit. Assign to the responsible unit (owner gets notified) or close directly.'
+            :'Estos incidentes no están vinculados a ninguna unidad. Asigna a la unidad responsable (el propietario recibe aviso) o cierra directamente.'
+          }</div>
+          <div className="gen-attn-list">
+            {generalOpen.slice(0,3).map(inc=>(
+              <div key={inc.id} className="gen-attn-item">
+                <span className={`gen-card-status-dot ${inc.status==='open'?'gen-dot-open':'gen-dot-wait'}`} style={{marginTop:2,flexShrink:0}}/>
+                <div className="gen-attn-body">
+                  <span className="gen-attn-type">{incidentTypeLabel(inc.type,lang)} · {categoryLabel(inc.category,lang)}</span>
+                  <span className="gen-attn-desc">{String(inc.desc||'').slice(0,120)}{inc.desc&&inc.desc.length>120?'…':''}</span>
+                  <span className="gen-attn-meta">📅 {fmtDate(inc.date)}{inc.reporterName?` · ${inc.reporterName}`:''}{inc.slaCycleCount>0?` · ⏱️ SLA ×${inc.slaCycleCount}`:''}</span>
+                </div>
+              </div>
+            ))}
+            {generalOpen.length>3&&<div style={{fontSize:'.76rem',color:'#496674',marginTop:6,paddingLeft:16}}>+{generalOpen.length-3} {isEn?'more':'más'}</div>}
+          </div>
+          <div style={{marginTop:12,display:'flex',gap:8,flexWrap:'wrap'}}>
+            <button className="btn-p bsm" onClick={()=>setView('listings')}>🏠 {isEn?'Review in Inventory':'Revisar en Inventario'}</button>
+            <button className="btn-ghost bsm" onClick={()=>setView('general')}>📢 {isEn?'Community tab':'Pestaña Comunidad'}</button>
+          </div>
+        </div>
+      )}
 
       {/* ── Community health stats — 4 focused metrics ── */}
       <div className="stats6" style={{gridTemplateColumns:'repeat(auto-fit,minmax(140px,1fr))'}}>
@@ -3556,7 +3590,80 @@ function FloorSection({ floor, apts, openCount, incidents, user, contactProps, i
   );
 }
 
-function ListingsView({ listings, incidents, user, contactProps={}, isGlobalAdmin=false, canEditGlobal=false, canDeleteGlobal=false, canResolveGlobal=false, floorOpenState={}, onFloorToggle, onAdd, onEdit, onDelete, onReport, onVerify, onResolve, onAddResolution, onFloorFilter, lang="es-CO" }) {
+function GeneralListingsSection({ incidents, isGlobalAdmin=false, canResolveGlobal=false, onAssign, onCloseGeneral, onIncidentDetail, lang='es-CO' }) {
+  const isEn = lang === 'en';
+  const canAct = isGlobalAdmin || canResolveGlobal;
+  const generalOpen = incidents.filter(i => i.isGeneral && i.status !== 'resolved')
+    .sort((a,b) => new Date(b.createdAt) - new Date(a.createdAt));
+  const [open, setOpen] = useState(true);
+
+  return (
+    <div className="gen-ls-section">
+      <button className="gen-ls-hdr" onClick={() => setOpen(o => !o)}>
+        <span className="gen-ls-icon">📢</span>
+        <div className="gen-ls-hdr-body">
+          <span className="gen-ls-label">{isEn ? 'General — Unassigned' : 'General — Sin unidad'}</span>
+          {generalOpen.length > 0
+            ? <span className="gen-ls-sublabel">{canAct
+                ? (isEn ? 'Assign to a unit or close directly' : 'Asigna a una unidad o cierra directamente')
+                : (isEn ? 'Community incidents under admin review' : 'Incidentes de comunidad en revisión')}</span>
+            : <span className="gen-ls-sublabel gen-ls-sublabel-ok">{isEn ? 'No open general incidents' : 'Sin incidentes generales abiertos'}</span>
+          }
+        </div>
+        {generalOpen.length > 0 && <span className="gen-ls-badge">{generalOpen.length}</span>}
+        <span className={`fls-chev${open ? ' fls-chev-up' : ''}`}>›</span>
+      </button>
+
+      {open && (
+        <div className="gen-ls-body">
+          {generalOpen.length === 0 ? (
+            <div className="gen-ls-empty">✅ {isEn ? 'All community incidents have been addressed.' : 'Todos los incidentes de la comunidad han sido atendidos.'}</div>
+          ) : (
+            <>
+              {canAct && (
+                <div className="gen-ls-admin-banner">
+                  🔔 {isEn
+                    ? `${generalOpen.length} general incident${generalOpen.length > 1 ? 's' : ''} need${generalOpen.length === 1 ? 's' : ''} admin review — assign to a unit so the owner is notified, or close directly.`
+                    : `${generalOpen.length} incidente${generalOpen.length > 1 ? 's' : ''} general${generalOpen.length > 1 ? 'es' : ''} requiere${generalOpen.length > 1 ? 'n' : ''} revisión — asigna a una unidad para notificar al propietario, o cierra directamente.`}
+                </div>
+              )}
+              <div className="gen-list" style={{marginTop:10}}>
+                {generalOpen.map(inc => (
+                  <div key={inc.id} className="gen-card">
+                    <div className="gen-card-header">
+                      <span className={`gen-card-status-dot ${inc.status === 'open' ? 'gen-dot-open' : 'gen-dot-wait'}`} />
+                      <span className="gen-card-type">{incidentTypeLabel(inc.type, lang)}</span>
+                      <span className="gen-card-cat">{categoryLabel(inc.category, lang)}</span>
+                      <span className="gen-card-date">📅 {fmtDate(inc.date)}</span>
+                      {inc.slaCycleCount > 0 && <span className="gen-card-sla">⏱️ ×{inc.slaCycleCount}</span>}
+                      {onIncidentDetail && <button className="ir-detail-pill" onClick={() => onIncidentDetail(inc.id)}>{isEn ? 'Details' : 'Detalles'} ›</button>}
+                    </div>
+                    <p className="gen-card-desc">{inc.desc}</p>
+                    {inc.reporterName && <div className="gen-card-reporter">📋 {isEn ? 'Reported by' : 'Reportado por'}: {inc.reporterName}</div>}
+                    {Array.isArray(inc.photos) && inc.photos.length > 0 && (
+                      <div className="inc-photo-row">
+                        {inc.photos.slice(0, 3).map((p, i) => <img key={i} src={p.data} alt={p.name || `photo-${i+1}`} className="inc-photo-thumb" onClick={() => window.open(p.data, '_blank')} />)}
+                        {inc.photos.length > 3 && <span className="gen-card-reporter" style={{alignSelf:'center'}}>+{inc.photos.length - 3}</span>}
+                      </div>
+                    )}
+                    {canAct && (
+                      <div className="gen-card-acts">
+                        <button className="btn-p bsm" onClick={() => onAssign && onAssign(inc)}>🏠 {isEn ? 'Assign to unit' : 'Asignar a unidad'}</button>
+                        <button className="btn-ghost bsm" onClick={() => onCloseGeneral && onCloseGeneral(inc)}>✓ {isEn ? 'Close directly' : 'Cerrar directamente'}</button>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ListingsView({ listings, incidents, user, contactProps={}, isGlobalAdmin=false, canEditGlobal=false, canDeleteGlobal=false, canResolveGlobal=false, floorOpenState={}, onFloorToggle, onAdd, onEdit, onDelete, onReport, onVerify, onResolve, onAddResolution, onFloorFilter, onAssign, onCloseGeneral, onIncidentDetail, lang="es-CO" }) {
   const [search, setSearch]   = useState('');
   const [scope, setScope]     = useState('all');
   const isEn = lang === 'en';
@@ -3581,7 +3688,9 @@ function ListingsView({ listings, incidents, user, contactProps={}, isGlobalAdmi
         {user&&<button className="btn-p" onClick={onAdd}>{appText(lang,'listings.add')}</button>}
       </div>
 
-      <div className="fls-toolbar">
+      <GeneralListingsSection incidents={incidents} isGlobalAdmin={isGlobalAdmin} canResolveGlobal={canResolveGlobal} onAssign={onAssign} onCloseGeneral={onCloseGeneral} onIncidentDetail={onIncidentDetail} lang={lang} />
+
+      <div className="fls-toolbar" style={{marginTop:14}}>
         {user&&<div className="filter-row" style={{margin:0,gap:6}}>
           <button className={`fchip ${scope==='all'?'fchip-on':''}`} onClick={()=>setScope('all')}>{appText(lang,'filters.scopeAll')}</button>
           <button className={`fchip ${scope==='mine'?'fchip-on':''}`} onClick={()=>setScope('mine')}>🔑 {isEn?'Mine':'Mis apts'}</button>
@@ -6611,5 +6720,33 @@ html{font-size:clamp(14px,1.1vw,16px);-webkit-text-size-adjust:100%}body{overflo
 /* IRow parties strip (compact / dashboard) */
 .ir-bparty-compact{display:flex;flex-wrap:wrap;gap:3px 10px;margin-top:5px;padding-top:5px;border-top:1px solid rgba(47,79,58,.08)}
 .ir-bpc-item{font-size:.69rem;color:#6a8a9a;white-space:nowrap}
+
+/* GeneralListingsSection — "General" category at top of Inventory/Listings */
+.gen-ls-section{background:rgba(255,255,255,.94);border:1px solid rgba(217,112,14,.28);border-left:5px solid #d9700e;border-radius:16px;overflow:hidden;box-shadow:0 6px 18px rgba(32,46,38,.07);margin-bottom:16px}
+.gen-ls-hdr{width:100%;display:flex;align-items:center;gap:10px;padding:13px 16px;background:linear-gradient(90deg,rgba(217,112,14,.06),rgba(217,112,14,.02));border:0;cursor:pointer;text-align:left;transition:background .14s}
+.gen-ls-hdr:hover{background:rgba(217,112,14,.08)}
+.gen-ls-icon{font-size:1.25rem;flex-shrink:0}
+.gen-ls-hdr-body{display:flex;flex-direction:column;gap:2px;flex:1;min-width:0}
+.gen-ls-label{font-family:'Playfair Display',serif;font-size:1rem;font-weight:900;color:#203f2b}
+.gen-ls-sublabel{font-size:.74rem;color:#8a5000;font-weight:700}
+.gen-ls-sublabel-ok{color:#2e7d32!important}
+.gen-ls-badge{display:inline-flex;min-width:24px;height:24px;align-items:center;justify-content:center;border-radius:999px;background:#d9700e;color:#fff;font-size:.72rem;font-weight:900;padding:0 6px;flex-shrink:0}
+.gen-ls-body{padding:12px 16px 16px;border-top:1px solid rgba(217,112,14,.14)}
+.gen-ls-admin-banner{background:rgba(217,112,14,.09);border:1px solid rgba(217,112,14,.28);border-left:4px solid #d9700e;border-radius:10px;padding:10px 14px;font-size:.8rem;color:#7a3a00;line-height:1.5;font-weight:700}
+.gen-ls-empty{padding:8px 4px;font-size:.8rem;color:#4a7060;font-weight:600}
+
+/* Dashboard general incidents attention card */
+.gen-attn-card{border-left:5px solid #d9700e!important}
+.gen-attn-list{display:flex;flex-direction:column;gap:8px;margin-top:10px}
+.gen-attn-item{display:flex;gap:10px;align-items:flex-start;padding:8px 10px;background:rgba(217,112,14,.05);border:1px solid rgba(217,112,14,.14);border-radius:10px}
+.gen-attn-body{display:flex;flex-direction:column;gap:2px;min-width:0;flex:1}
+.gen-attn-type{font-size:.72rem;font-weight:800;color:#496674}
+.gen-attn-desc{font-size:.84rem;color:#17313a;line-height:1.4}
+.gen-attn-meta{font-size:.7rem;color:#8a9fa5}
+
+/* DashboardFocus orange accent card */
+.dfc-orange .dfc-count{background:rgba(217,112,14,.12);color:#d9700e}
+.dfc-orange.dfc-active{border-color:#d9700e!important;box-shadow:0 8px 22px rgba(217,112,14,.18)!important}
+.dfc-orange.dfc-active .dfc-count{background:#d9700e;color:#fff}
 
 `;
