@@ -576,6 +576,25 @@ const localizedTooltips = (config={}, lang='es-CO') => {
   Object.keys(DEFAULT_TOOLTIPS).forEach(k => { out[k] = (isEn ? enOverrides[k] : esOverrides[k]) || DEFAULT_TOOLTIPS[k][isEn ? 'en' : 'es'] || ''; });
   return out;
 };
+
+// Returns SLA urgency info for a step-2 pending resolution incident, or null if not applicable.
+const slaResInfo = (inc) => {
+  if (inc.status !== 'verified' || String(inc.ownerResolution||'').trim()) return null;
+  const verifiedAt = inc.ownerVerifiedAt ? new Date(inc.ownerVerifiedAt) : null;
+  if (!verifiedAt) return null;
+  const slaHours = inc.slaHours || 24;
+  const deadline = new Date(verifiedAt.getTime() + slaHours * 3600000);
+  const now = new Date();
+  const hoursLeft = Math.round((deadline - now) / 3600000);
+  return {
+    deadline,
+    isBreached: hoursLeft < 0,
+    hoursLeft,          // negative = overdue
+    cycleCount: inc.slaCycleCount || 0,
+    slaHours,
+  };
+};
+
 const Tip = ({ text }) => {
   const [tp, setTp] = useState(null);
   if (!text) return null;
@@ -2543,8 +2562,18 @@ function Dashboard({ listings, incidents, user, contactProps={}, setView, onRepo
             <div className="attn-sub">{isEn?'These incidents on your units need action before admin can close them.':'Estos incidentes en tus unidades requieren tu acción antes de que el admin pueda cerrarlos.'}</div>
             {myAttnOpen.length>0&&<div className="attn-group-lbl">⚠️ {isEn?'Step 1 — Verify':'Paso 1 — Verificar'}</div>}
             {myAttnOpen.map(i=><IRow key={i.id} inc={i} compact listings={listings} contactProps={contactProps} lang={lang} onIncidentDetail={onIncidentDetail}/>)}
-            {myAttnPending.length>0&&<div className="attn-group-lbl" style={{marginTop:myAttnOpen.length?10:0}}>📝 {isEn?'Step 2 — Add resolution':'Paso 2 — Agregar respuesta'}</div>}
-            {myAttnPending.map(i=><IRow key={i.id} inc={i} compact listings={listings} contactProps={contactProps} lang={lang} onIncidentDetail={onIncidentDetail}/>)}
+            {myAttnPending.length>0&&(()=>{
+              const breached = myAttnPending.filter(i=>{const s=slaResInfo(i);return s&&s.isBreached;});
+              const urgent   = myAttnPending.filter(i=>{const s=slaResInfo(i);return s&&!s.isBreached&&s.hoursLeft<=4;});
+              return (<>
+                <div className="attn-group-lbl" style={{marginTop:myAttnOpen.length?10:0}}>
+                  📝 {isEn?'Step 2 — Add resolution':'Paso 2 — Agregar respuesta'}
+                  {breached.length>0&&<span className="attn-sla-pill attn-sla-breached">{breached.length} SLA {isEn?'breached':'vencido'}</span>}
+                  {!breached.length&&urgent.length>0&&<span className="attn-sla-pill attn-sla-urgent">{urgent.length} {isEn?'due soon':'por vencer'}</span>}
+                </div>
+                {myAttnPending.map(i=><IRow key={i.id} inc={i} compact listings={listings} contactProps={contactProps} lang={lang} onIncidentDetail={onIncidentDetail}/>)}
+              </>);
+            })()}
           </div>
         );
       })()}
@@ -3106,6 +3135,14 @@ function UnitDetailCard({ l, incidents, canEdit=false, canDelete=false, onEdit, 
             <div className="udc-an-body">
               <strong>{inc.status==='open'?(isEn?'Your action needed — Step 1':'Tu acción — Paso 1'):(isEn?'Your action needed — Step 2':'Tu acción — Paso 2')}</strong>
               <span>{inc.status==='open'?(isEn?'Confirm guest details and document your immediate action.':'Confirma datos del huésped y documenta tu acción inmediata.'):(isEn?'Add your resolution so admin can close this incident.':'Agrega tu respuesta para que el admin pueda cerrar.')}</span>
+              {inc.status==='verified'&&hasPendingRes&&(()=>{
+                const sla = slaResInfo(inc);
+                if (!sla) return null;
+                const label = sla.isBreached
+                  ? `⏰ ${isEn?`SLA breached — ${Math.abs(sla.hoursLeft)}h overdue`:`SLA vencido — ${Math.abs(sla.hoursLeft)}h de retraso`}${sla.cycleCount>0?` · ${sla.cycleCount} ${isEn?`reminder${sla.cycleCount>1?'s':''} sent`:`recordatorio${sla.cycleCount>1?'s':''} enviado${sla.cycleCount>1?'s':''}`}`:''}`
+                  : `⏰ ${isEn?`Resolution due in ${sla.hoursLeft}h`:`Respuesta requerida en ${sla.hoursLeft}h`}${sla.cycleCount>0?` · ${sla.cycleCount} ${isEn?`reminder${sla.cycleCount>1?'s':''} sent`:`recordatorio${sla.cycleCount>1?'s':''} enviado${sla.cycleCount>1?'s':''}`}`:''}`;
+                return <span className={`udc-sla-dl${sla.isBreached?' udc-sla-breached':sla.hoursLeft<=4?' udc-sla-urgent':''}`}>{label}</span>;
+              })()}
             </div>
           </div>
         )}
@@ -4178,7 +4215,17 @@ function IRow({ inc, user, listings=[], contactProps={}, isGlobalAdmin=false, ca
           <div className="ir-ss-chips">
             <span className="ir-type" style={{background:ti.bg,color:ti.color,fontSize:'.63rem',padding:'2px 8px',borderRadius:'999px',fontWeight:700}}>{incidentTypeLabel(ti.value,lang)}</span>
             {ci&&<span className="ir-cat" style={{background:ci.bg,color:ci.color,fontSize:'.63rem',padding:'2px 8px',borderRadius:'999px'}}>{ci.icon} {categoryLabel(ci.value,lang)}</span>}
-            {inc.slaCycleCount>0&&<span style={{background:'#fff3e0',color:'#e65100',fontSize:'.63rem',padding:'2px 8px',borderRadius:'999px',fontWeight:700}}>⏱️ SLA {inc.slaCycleCount}</span>}
+            {(()=>{
+              if (hasPendingRes) {
+                const sla = slaResInfo(inc);
+                if (!sla) return null;
+                if (sla.isBreached) return <span className="ir-sla-chip ir-sla-breached">🔴 {isEn?`${Math.abs(sla.hoursLeft)}h overdue`:`${Math.abs(sla.hoursLeft)}h retraso`}</span>;
+                if (sla.hoursLeft<=4) return <span className="ir-sla-chip ir-sla-urgent">🟠 {isEn?`Due in ${sla.hoursLeft}h`:`Vence en ${sla.hoursLeft}h`}</span>;
+                if (sla.cycleCount>0) return <span className="ir-sla-chip ir-sla-reminded">⏱️ {sla.cycleCount} {isEn?`reminder${sla.cycleCount>1?'s':''}`:`recordatorio${sla.cycleCount>1?'s':''}`}</span>;
+                return <span className="ir-sla-chip">⏰ {isEn?`${sla.hoursLeft}h left`:`${sla.hoursLeft}h restantes`}</span>;
+              }
+              return inc.slaCycleCount>0 ? <span className="ir-sla-chip ir-sla-reminded">⏱️ SLA ×{inc.slaCycleCount}</span> : null;
+            })()}
             <span className="ir-ss-date">📅 {fmtDate(inc.date)}</span>
           </div>
           {/* Quick-action buttons — shown whenever owner action is required */}
