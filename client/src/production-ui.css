@@ -2519,3 +2519,27 @@ p { line-height: 1.45; }
 @media (max-width: 600px) {
   .email-sender-grid { grid-template-columns: 1fr !important; }
 }
+
+/* ── Login/registration background image + overlay ──────────────────── */
+.gate-shell-bg {
+  background-size: cover !important;
+  background-position: center !important;
+  background-repeat: no-repeat !important;
+  position: relative;
+}
+.gate-shell-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(7, 20, 30, 0.52);
+  backdrop-filter: blur(1px);
+  pointer-events: none;
+  z-index: 0;
+}
+.gate-shell-bg .gate-card,
+.gate-shell-bg .welcome-card {
+  position: relative;
+  z-index: 1;
+  background: rgba(255,255,255,0.93) !important;
+  backdrop-filter: blur(18px) !important;
+  -webkit-backdrop-filter: blur(18px) !important;
+}

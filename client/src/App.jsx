@@ -954,6 +954,7 @@ export default function App() {
   const complexName = lang === 'en' ? complexNameEn : complexNameEs;
   const complexLocation = adminInfo.config?.complex_location || 'Serena del Mar · Cartagena 🇨🇴';
   const complexLogo = adminInfo.config?.complex_logo || '';
+  const complexBg = adminInfo.config?.complex_bg ?? '/morros-kai-bg.jpg';
   const [previewRole, setPreviewRole] = useState(null);
   const [openDropdown, setOpenDropdown] = useState(null);
   const initialView = new URLSearchParams(window.location.search).get('view') || 'my';
@@ -1441,8 +1442,8 @@ export default function App() {
     </div>
   );
 
-  if (!user) return <AuthGate onLogin={login} lang={lang} setLang={setLang} complexLogo={complexLogo} complexNameEs={complexNameEs} complexNameEn={complexNameEn} complexLocation={complexLocation} />;
-  if (!isApproved) return <RegistrationGate user={user} registration={registration} onSubmit={submitRegistration} onLogout={logout} syncing={syncing} toast={toast} lang={lang} setLang={setLang} complexLogo={complexLogo} complexName={complexName} complexLocation={complexLocation} />;
+  if (!user) return <AuthGate onLogin={login} lang={lang} setLang={setLang} complexLogo={complexLogo} complexNameEs={complexNameEs} complexNameEn={complexNameEn} complexLocation={complexLocation} complexBg={complexBg} />;
+  if (!isApproved) return <RegistrationGate user={user} registration={registration} onSubmit={submitRegistration} onLogout={logout} syncing={syncing} toast={toast} lang={lang} setLang={setLang} complexLogo={complexLogo} complexName={complexName} complexLocation={complexLocation} complexBg={complexBg} />;
 
   return (
     <div className="app-shell">
@@ -2071,12 +2072,14 @@ function RoleOutcomeGuide({ lang="es-CO", adminInfo={}, delegatePerms={}, ownerC
 }
 
 // ─── VIEWS ────────────────────────────────────────────────────────────────────
-function AuthGate({ onLogin, lang="es-CO", setLang=()=>{}, complexLogo='', complexNameEs='Propietarios Airbnb KAI', complexNameEn='KAI Airbnb Owners', complexLocation='Serena del Mar · Cartagena 🇨🇴' }) {
+function AuthGate({ onLogin, lang="es-CO", setLang=()=>{}, complexLogo='', complexNameEs='Propietarios Airbnb KAI', complexNameEn='KAI Airbnb Owners', complexLocation='Serena del Mar · Cartagena 🇨🇴', complexBg='/morros-kai-bg.jpg' }) {
   const complexName = lang === 'en' ? complexNameEn : complexNameEs;
   const logoSrc = complexLogo || '/morros-kai.png';
   const t = getT(lang);
+  const bgStyle = complexBg ? { backgroundImage:`url(${complexBg})`, backgroundSize:'cover', backgroundPosition:'center' } : {};
   return (
-    <div className="app-shell gate-shell"><style>{CSS}</style>
+    <div className="app-shell gate-shell gate-shell-bg" style={bgStyle}><style>{CSS}</style>
+      <div className="gate-shell-overlay"/>
       <div className="gate-card welcome-card">
         <div className="gate-lang"><LanguageSwitch lang={lang} setLang={setLang} /></div>
         <div className="welcome-brand">
@@ -2132,12 +2135,14 @@ function CommunityMissionView({ lang="es-CO", config={} }) {
   );
 }
 
-function RegistrationGate({ user, registration, onSubmit, onLogout, syncing, toast, lang="es-CO", setLang=()=>{}, complexLogo='', complexName='Propietarios Airbnb KAI', complexLocation='Serena del Mar · Cartagena 🇨🇴' }) {
+function RegistrationGate({ user, registration, onSubmit, onLogout, syncing, toast, lang="es-CO", setLang=()=>{}, complexLogo='', complexName='Propietarios Airbnb KAI', complexLocation='Serena del Mar · Cartagena 🇨🇴', complexBg='/morros-kai-bg.jpg' }) {
   const logoSrc = complexLogo || '/morros-kai.png';
   const t = getT(lang);
   const status = registration?.status || 'none';
+  const bgStyle = complexBg ? { backgroundImage:`url(${complexBg})`, backgroundSize:'cover', backgroundPosition:'center' } : {};
   return (
-    <div className="app-shell gate-shell"><style>{CSS}</style>
+    <div className="app-shell gate-shell gate-shell-bg" style={bgStyle}><style>{CSS}</style>
+      <div className="gate-shell-overlay"/>
       <div className="gate-card gate-wide">
         <div className="gate-top">{complexLogo ? <img src={complexLogo} className="gate-logo-img" alt={complexName}/> : <div className="logo-mark"><span className="logo-k">K</span><span className="logo-wave">~</span></div>}<LanguageSwitch lang={lang} setLang={setLang} /><button className="btn-ghost" onClick={onLogout}>Salir</button></div>
         <h1 className="ptitle">Registro de propietario KAI</h1>
@@ -5299,6 +5304,8 @@ function AdminSettings({ config={}, user, listings=[], contactProps={}, onSave, 
   const [brandingLocation,setBrandingLocation]=useState(config?.complex_location||'Serena del Mar · Cartagena 🇨🇴');
   const [brandingLogo,setBrandingLogo]=useState(config?.complex_logo||'');
   const [brandingLogoMode,setBrandingLogoMode]=useState('url');
+  const [brandingBg,setBrandingBg]=useState(config?.complex_bg??'/morros-kai-bg.jpg');
+  const [brandingBgMode,setBrandingBgMode]=useState('url');
   const [emailFromName,setEmailFromName]=useState(config?.email_from_name||'Propietarios Airbnb KAI');
   const [emailFromAddress,setEmailFromAddress]=useState(config?.email_from_address||'');
   const [emailFromNameEn,setEmailFromNameEn]=useState(config?.email_from_name_en||'KAI Airbnb Owners');
@@ -5405,7 +5412,7 @@ function AdminSettings({ config={}, user, listings=[], contactProps={}, onSave, 
   const saveConfig = () => onSave({slaHours, escalationCcEmails, analyticsEnabled, missionSectionsEs:mission, defaultDelegatePermissions, tooltipsEs, tooltipsEn});
   const saveTooltips = () => onSave({ tooltipsEs, tooltipsEn });
   const saveUiLabels = () => onSave({ uiLabelsEs, uiLabelsEn });
-  const saveBranding = () => onSave({ complexNameEs:brandingNameEs, complexNameEn:brandingNameEn, complexLocation:brandingLocation, complexLogo:brandingLogo });
+  const saveBranding = () => onSave({ complexNameEs:brandingNameEs, complexNameEn:brandingNameEn, complexLocation:brandingLocation, complexLogo:brandingLogo, complexBg:brandingBg });
   const saveEmailSender = () => { if (!emailFromAddress.trim() || !emailFromAddressEn.trim()) { showToast(isEn?'Both email addresses are required':'Ambos emails son requeridos', true); return; } onSave({ emailFromName, emailFromAddress, emailFromNameEn, emailFromAddressEn }); };
   const toggleMenuPermission = (key) => setStandardMenuPermissions(p => ({ ...p, [key]: key === 'dashboard' ? true : !p[key] }));
   const toggleDefaultDelegatePermission = (key) => setDefaultDelegatePermissions(p => ({ ...p, [key]: !p[key] }));
@@ -5462,6 +5469,24 @@ function AdminSettings({ config={}, user, listings=[], contactProps={}, onSave, 
       {brandingLogo && <div style={{marginTop:8,padding:8,background:'#f6f6f4',borderRadius:8,display:'inline-block'}}><img src={brandingLogo} alt="logo preview" style={{maxHeight:64,maxWidth:220,objectFit:'contain'}}/></div>}
       {brandingLogo && <div style={{marginTop:6}}><button type="button" className="btn-ghost" style={{fontSize:'.75rem',padding:'3px 10px'}} onClick={()=>setBrandingLogo('')}>{isEn?'Remove logo':'Quitar logo'}</button></div>}
       {!brandingLogo && <div style={{marginTop:8,padding:8,background:'#f6f6f4',borderRadius:8,display:'inline-block'}}><img src="/morros-kai.png" alt="default logo" style={{maxHeight:64,maxWidth:220,objectFit:'contain'}}/><div style={{fontSize:'.7rem',color:'#888',marginTop:4}}>{isEn?'Default logo (morros-kai.png)':'Logo predeterminado (morros-kai.png)'}</div></div>}
+    </div>
+    <div style={{marginTop:16}}>
+      <div className="section-label" style={{marginBottom:6}}>{isEn?'Background image (login & registration screens)':'Imagen de fondo (pantallas de login y registro)'}</div>
+      <div style={{display:'flex',gap:8,marginBottom:8}}>
+        <button type="button" className={`chip ${brandingBgMode==='url'?'chip-active':''}`} onClick={()=>setBrandingBgMode('url')}>URL</button>
+        <button type="button" className={`chip ${brandingBgMode==='file'?'chip-active':''}`} onClick={()=>setBrandingBgMode('file')}>{isEn?'Upload file':'Subir archivo'}</button>
+      </div>
+      {brandingBgMode==='url' && <input value={brandingBg} onChange={e=>setBrandingBg(e.target.value)} className="input" placeholder="/morros-kai-bg.jpg or https://..." style={{marginBottom:8}}/>}
+      {brandingBgMode==='file' && <input type="file" accept="image/*" style={{marginBottom:8}} onChange={e=>{const f=e.target.files?.[0];if(!f)return;const r=new FileReader();r.onload=ev=>{setBrandingBg(ev.target?.result||'');};r.readAsDataURL(f);}}/>}
+      {brandingBg && <div style={{marginTop:8,borderRadius:10,overflow:'hidden',display:'inline-block',position:'relative',maxWidth:320,boxShadow:'0 4px 14px rgba(0,0,0,.18)'}}>
+        <img src={brandingBg} alt="bg preview" style={{width:320,height:160,objectFit:'cover',display:'block'}} onError={e=>{e.target.style.display='none';}} />
+        <div style={{position:'absolute',inset:0,background:'rgba(0,0,0,.35)',display:'flex',alignItems:'center',justifyContent:'center',color:'#fff',fontSize:'.72rem',letterSpacing:'.04em',opacity:.8,pointerEvents:'none'}}>PREVIEW</div>
+      </div>}
+      {brandingBg && <div style={{marginTop:6,display:'flex',gap:8}}>
+        <button type="button" className="btn-ghost" style={{fontSize:'.75rem',padding:'3px 10px'}} onClick={()=>setBrandingBg('')}>{isEn?'Remove background':'Quitar fondo'}</button>
+        <button type="button" className="btn-ghost" style={{fontSize:'.75rem',padding:'3px 10px'}} onClick={()=>setBrandingBg('/morros-kai-bg.jpg')}>{isEn?'Reset to default':'Restablecer por defecto'}</button>
+      </div>}
+      {!brandingBg && <div style={{marginTop:8,fontSize:'.78rem',color:'#888'}}>{isEn?'No background — solid color fallback.':'Sin fondo — se usa color sólido como alternativa.'}</div>}
     </div>
   </AdminSection>
 

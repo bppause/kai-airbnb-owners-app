@@ -253,6 +253,7 @@ const getAppConfig = async () => {
     complex_name_en: 'KAI Airbnb Owners',
     complex_location: 'Serena del Mar · Cartagena 🇨🇴',
     complex_logo: '',
+    complex_bg: '/morros-kai-bg.jpg',
     email_from_name: (EMAIL_FROM.match(/^(.*?)\s*<[^>]+>/) || [])[1]?.trim() || 'Propietarios Airbnb KAI',
     email_from_address: (EMAIL_FROM.match(/<([^>]+)>/) || [])[1]?.trim() || EMAIL_FROM,
     email_from_name_en: (EMAIL_FROM.match(/^(.*?)\s*<[^>]+>/) || [])[1]?.trim() || 'KAI Airbnb Owners',
@@ -819,8 +820,9 @@ app.get('/api/branding', async (req, res) => {
       complexNameEn: cfg.complex_name_en || 'KAI Airbnb Owners',
       complexLocation: cfg.complex_location || 'Serena del Mar · Cartagena 🇨🇴',
       complexLogo: cfg.complex_logo || '',
+      complexBg: cfg.complex_bg || '/morros-kai-bg.jpg',
     });
-  } catch(e) { res.json({ complexNameEs:'Propietarios Airbnb KAI', complexNameEn:'KAI Airbnb Owners', complexLocation:'Serena del Mar · Cartagena 🇨🇴', complexLogo:'' }); }
+  } catch(e) { res.json({ complexNameEs:'Propietarios Airbnb KAI', complexNameEn:'KAI Airbnb Owners', complexLocation:'Serena del Mar · Cartagena 🇨🇴', complexLogo:'', complexBg:'/morros-kai-bg.jpg' }); }
 });
 
 // ─── API: REGISTRATION / APPROVAL WORKFLOW ──────────────────────────────────
@@ -1372,7 +1374,7 @@ app.get('/api/admin/me', async (req, res) => {
 
 app.put('/api/admin/config', async (req, res) => {
   if (!requireSupabaseEnv(res)) return;
-  const { actorUid, actorEmail, slaHours, escalationCcEmails, analyticsEnabled, missionTitle, missionBody, missionTitleEs, missionBodyEs, missionTitleEn, missionBodyEn, missionSectionsEs, standardMenuPermissions, defaultDelegatePermissions, tooltipsEs, tooltipsEn, uiLabelsEs, uiLabelsEn, complexNameEs, complexNameEn, complexLocation, complexLogo, emailFromName, emailFromAddress, emailFromNameEn, emailFromAddressEn } = req.body || {};
+  const { actorUid, actorEmail, slaHours, escalationCcEmails, analyticsEnabled, missionTitle, missionBody, missionTitleEs, missionBodyEs, missionTitleEn, missionBodyEn, missionSectionsEs, standardMenuPermissions, defaultDelegatePermissions, tooltipsEs, tooltipsEn, uiLabelsEs, uiLabelsEn, complexNameEs, complexNameEn, complexLocation, complexLogo, complexBg, emailFromName, emailFromAddress, emailFromNameEn, emailFromAddressEn } = req.body || {};
   if (!(await isGlobalAdmin(actorUid, actorEmail))) return res.status(403).json({ error:'Solo un administrador global puede cambiar la configuración.' });
   const before = await getAppConfig();
   const rows = [];
@@ -1396,6 +1398,7 @@ app.put('/api/admin/config', async (req, res) => {
   if (complexNameEn !== undefined) rows.push({ key:'complex_name_en', value:String(complexNameEn||'') });
   if (complexLocation !== undefined) rows.push({ key:'complex_location', value:String(complexLocation||'') });
   if (complexLogo !== undefined) rows.push({ key:'complex_logo', value:String(complexLogo||'') });
+  if (complexBg !== undefined) rows.push({ key:'complex_bg', value:String(complexBg||'') });
   if (emailFromName !== undefined) rows.push({ key:'email_from_name', value:String(emailFromName||'') });
   if (emailFromAddress !== undefined) rows.push({ key:'email_from_address', value:String(emailFromAddress||'').toLowerCase().trim() });
   if (emailFromNameEn !== undefined) rows.push({ key:'email_from_name_en', value:String(emailFromNameEn||'') });
