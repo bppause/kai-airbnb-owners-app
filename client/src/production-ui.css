@@ -2514,3 +2514,8 @@ p { line-height: 1.45; }
   object-fit: contain;
   border-radius: 4px;
 }
+
+/* ── Email sender bilingual grid ─────────────────────────────────────── */
+@media (max-width: 600px) {
+  .email-sender-grid { grid-template-columns: 1fr !important; }
+}

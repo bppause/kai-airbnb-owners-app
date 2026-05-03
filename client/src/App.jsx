@@ -5301,6 +5301,8 @@ function AdminSettings({ config={}, user, listings=[], contactProps={}, onSave, 
   const [brandingLogoMode,setBrandingLogoMode]=useState('url');
   const [emailFromName,setEmailFromName]=useState(config?.email_from_name||'Propietarios Airbnb KAI');
   const [emailFromAddress,setEmailFromAddress]=useState(config?.email_from_address||'');
+  const [emailFromNameEn,setEmailFromNameEn]=useState(config?.email_from_name_en||'KAI Airbnb Owners');
+  const [emailFromAddressEn,setEmailFromAddressEn]=useState(config?.email_from_address_en||'');
   const ADMIN_SEC_DEFAULT = {branding:false,emailSender:false,roles:true,sla:false,mission:false,menu:false,delegate:false,users:true,tooltips:false,uiLabels:false,email:false,emailNotif:false,auditLog:false};
   const [openSections,setOpenSections] = useState(()=>{
     try{ const s=JSON.parse(localStorage.getItem('kai_admin_open')||'null'); return s&&typeof s==='object'?{...ADMIN_SEC_DEFAULT,...s}:ADMIN_SEC_DEFAULT; }catch{ return ADMIN_SEC_DEFAULT; }
@@ -5404,7 +5406,7 @@ function AdminSettings({ config={}, user, listings=[], contactProps={}, onSave, 
   const saveTooltips = () => onSave({ tooltipsEs, tooltipsEn });
   const saveUiLabels = () => onSave({ uiLabelsEs, uiLabelsEn });
   const saveBranding = () => onSave({ complexNameEs:brandingNameEs, complexNameEn:brandingNameEn, complexLocation:brandingLocation, complexLogo:brandingLogo });
-  const saveEmailSender = () => { if (!emailFromAddress.trim()) { showToast(isEn?'Email address is required':'El email es requerido', true); return; } onSave({ emailFromName, emailFromAddress }); };
+  const saveEmailSender = () => { if (!emailFromAddress.trim() || !emailFromAddressEn.trim()) { showToast(isEn?'Both email addresses are required':'Ambos emails son requeridos', true); return; } onSave({ emailFromName, emailFromAddress, emailFromNameEn, emailFromAddressEn }); };
   const toggleMenuPermission = (key) => setStandardMenuPermissions(p => ({ ...p, [key]: key === 'dashboard' ? true : !p[key] }));
   const toggleDefaultDelegatePermission = (key) => setDefaultDelegatePermissions(p => ({ ...p, [key]: !p[key] }));
   const saveStandardMenuPermissions = async () => {
@@ -5465,22 +5467,37 @@ function AdminSettings({ config={}, user, listings=[], contactProps={}, onSave, 
 
   {/* ── Email Sender ────────────────────────────────────────────── */}
   <AdminSection title={`📤 ${isEn?'Email Sender':'Remitente de emails'}`} subtitle={isEn?'Display name and address used as the "From" field on all outgoing emails. The address must be verified in your Resend account.':'Nombre y dirección que aparecen como remitente en todos los emails. La dirección debe estar verificada en tu cuenta Resend.'} action={<button className="btn-p" style={{minHeight:36,padding:'6px 14px'}} onClick={saveEmailSender}>💾 {isEn?'Save':'Guardar'}</button>} open={openSections.emailSender} onToggle={()=>toggleSection('emailSender')}>
-    <div className="fg-row" style={{gap:12,flexWrap:'wrap',alignItems:'flex-end'}}>
-      <div className="fg" style={{minWidth:200}}>
-        <label>{isEn?'Display name':'Nombre visible'}</label>
-        <input value={emailFromName} onChange={e=>setEmailFromName(e.target.value)} className="input" placeholder="Propietarios Airbnb KAI"/>
+    <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:16,flexWrap:'wrap'}} className="email-sender-grid">
+      <div style={{padding:'12px 14px',background:'#f8f9fa',borderRadius:8,border:'1px solid #e8eaed'}}>
+        <div className="section-label" style={{marginBottom:8}}>🇨🇴 {isEn?'Spanish recipients':'Destinatarios en Español'}</div>
+        <div className="fg" style={{marginBottom:8}}>
+          <label>{isEn?'Display name':'Nombre visible'}</label>
+          <input value={emailFromName} onChange={e=>setEmailFromName(e.target.value)} className="input" placeholder="Propietarios Airbnb KAI"/>
+        </div>
+        <div className="fg">
+          <label>{isEn?'From address':'Dirección de envío'}</label>
+          <input value={emailFromAddress} onChange={e=>setEmailFromAddress(e.target.value)} className="input" type="email" placeholder="kai@yourdomain.com"/>
+        </div>
+        {emailFromAddress && <div style={{marginTop:6,fontSize:'.75rem',color:'#555'}}>→ <strong>{emailFromName ? `${emailFromName} <${emailFromAddress}>` : emailFromAddress}</strong></div>}
       </div>
-      <div className="fg" style={{minWidth:220}}>
-        <label>{isEn?'From email address':'Dirección de envío'}</label>
-        <input value={emailFromAddress} onChange={e=>setEmailFromAddress(e.target.value)} className="input" type="email" placeholder="kai@yourdomain.com"/>
+      <div style={{padding:'12px 14px',background:'#f8f9fa',borderRadius:8,border:'1px solid #e8eaed'}}>
+        <div className="section-label" style={{marginBottom:8}}>🇺🇸 {isEn?'English recipients':'Destinatarios en Inglés'}</div>
+        <div className="fg" style={{marginBottom:8}}>
+          <label>{isEn?'Display name':'Nombre visible'}</label>
+          <input value={emailFromNameEn} onChange={e=>setEmailFromNameEn(e.target.value)} className="input" placeholder="KAI Airbnb Owners"/>
+        </div>
+        <div className="fg">
+          <label>{isEn?'From address':'Dirección de envío'}</label>
+          <input value={emailFromAddressEn} onChange={e=>setEmailFromAddressEn(e.target.value)} className="input" type="email" placeholder="kai@yourdomain.com"/>
+        </div>
+        {emailFromAddressEn && <div style={{marginTop:6,fontSize:'.75rem',color:'#555'}}>→ <strong>{emailFromNameEn ? `${emailFromNameEn} <${emailFromAddressEn}>` : emailFromAddressEn}</strong></div>}
       </div>
     </div>
     <div className="form-alert" style={{marginTop:10,fontSize:'.78rem'}}>
       {isEn
-        ? '⚠️ The email address must be verified in Resend (Domains or single email). Using an unverified address will cause delivery failures.'
-        : '⚠️ La dirección debe estar verificada en Resend (Dominios o email individual). Usar una dirección no verificada causará fallos de entrega.'}
+        ? '⚠️ Both addresses must be verified in Resend (Domains or single sender). Using an unverified address will cause delivery failures.'
+        : '⚠️ Ambas direcciones deben estar verificadas en Resend (Dominios o sender individual). Usar una dirección no verificada causará fallos de entrega.'}
     </div>
-    {emailFromAddress && <div style={{marginTop:8,fontSize:'.78rem',color:'#555'}}>{isEn?'Preview:':'Vista previa:'} <strong>{emailFromName ? `${emailFromName} <${emailFromAddress}>` : emailFromAddress}</strong></div>}
   </AdminSection>
 
   {/* ── Role Reference ─────────────────────────────────────────── */}

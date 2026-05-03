@@ -141,21 +141,22 @@ const normalizeRecipients = (emails) => [...new Set((Array.isArray(emails) ? ema
 const escapeHtml = (v) => String(v || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\"/g, '&quot;');
 const publicAppUrl = (req) => (process.env.PUBLIC_APP_URL || process.env.APP_BASE_URL || (req ? `${req.protocol}://${req.get('host')}` : '')).replace(/\/$/, '');
 const buttonHtml = (href, label) => '<p style="margin:18px 0"><a href="' + escapeHtml(href) + '" style="background:#2F4F3A;color:#fff;text-decoration:none;padding:10px 16px;border-radius:10px;display:inline-block;font-weight:700">' + escapeHtml(label) + '</a></p>';
-const getEffectiveEmailFrom = async () => {
+const getEffectiveEmailFrom = async (lang='es-CO') => {
   try {
     const cfg = await getAppConfig();
-    const name = (cfg.email_from_name || '').trim();
-    const addr = (cfg.email_from_address || '').trim();
+    const isEn = normalizeLanguage(lang) === 'en';
+    const name = ((isEn ? cfg.email_from_name_en : cfg.email_from_name) || '').trim();
+    const addr = ((isEn ? cfg.email_from_address_en : cfg.email_from_address) || '').trim();
     if (addr) return name ? `${name} <${addr}>` : addr;
   } catch(e) { /* fall through */ }
   return EMAIL_FROM;
 };
 
-const sendSpanishEmail = async ({ to, subject, text, html }) => {
+const sendSpanishEmail = async ({ to, subject, text, html, lang='es-CO' }) => {
   if (!emailConfigured) return { sent:false, skipped:true, reason:'Resend email is not configured. Add RESEND_API_KEY and EMAIL_FROM in Render.' };
   const recipients = normalizeRecipients(to);
   if (!recipients.length) return { sent:false, skipped:true, reason:'Recipient email is missing.' };
-  const from = await getEffectiveEmailFrom();
+  const from = await getEffectiveEmailFrom(lang);
   const { data, error: resendError } = await resend.emails.send({ from, to:recipients, subject, text, html });
   if (resendError) throw new Error(resendError.message || JSON.stringify(resendError));
   return { sent:true, skipped:false, id:data?.id || '' };
@@ -233,7 +234,7 @@ const sendTemplatedEmail = async ({ key, to, vars={}, language='auto', relatedEn
     const text = renderTemplate(t.text, vars);
     const html = renderTemplate(t.html, vars);
     try {
-      const result = await sendSpanishEmail({ to:recips, subject, text, html });
+      const result = await sendSpanishEmail({ to:recips, subject, text, html, lang });
       await logEmailDelivery({ eventType:key, recipients:recips, subject, status:result.sent ? 'sent' : 'skipped', errorMessage:result.reason || '', relatedEntity, relatedId });
       results.push(result);
     } catch(e) {
@@ -254,6 +255,8 @@ const getAppConfig = async () => {
     complex_logo: '',
     email_from_name: (EMAIL_FROM.match(/^(.*?)\s*<[^>]+>/) || [])[1]?.trim() || 'Propietarios Airbnb KAI',
     email_from_address: (EMAIL_FROM.match(/<([^>]+)>/) || [])[1]?.trim() || EMAIL_FROM,
+    email_from_name_en: (EMAIL_FROM.match(/^(.*?)\s*<[^>]+>/) || [])[1]?.trim() || 'KAI Airbnb Owners',
+    email_from_address_en: (EMAIL_FROM.match(/<([^>]+)>/) || [])[1]?.trim() || EMAIL_FROM,
     mission_title_es:'Misión y normas de la comunidad',
     mission_body_es:'Crear una comunidad organizada, informada y proactiva que proteja el valor de nuestras propiedades y eleve la experiencia en Morros KAI.',
     mission_title_en:'Mission and community rules',
@@ -349,7 +352,7 @@ const sendSplitEmail = async ({ key, individual, group, vars, relatedEntity, rel
       const subject = renderTemplate(t.subject, vars);
       const text    = renderTemplate(t.text,    vars);
       const html    = renderTemplate(t.html,    vars);
-      const result  = await sendSpanishEmail({ to:[email], subject, text, html });
+      const result  = await sendSpanishEmail({ to:[email], subject, text, html, lang });
       await logEmailDelivery({ eventType:key, recipients:[email], subject, status:result.sent?'sent':'skipped', errorMessage:result.reason||'', relatedEntity, relatedId });
       results.push(result);
     } catch(e) { warn(`Individual email (${key}) to ${email} failed: ${e?.message||e}`); }
@@ -1369,7 +1372,7 @@ app.get('/api/admin/me', async (req, res) => {
 
 app.put('/api/admin/config', async (req, res) => {
   if (!requireSupabaseEnv(res)) return;
-  const { actorUid, actorEmail, slaHours, escalationCcEmails, analyticsEnabled, missionTitle, missionBody, missionTitleEs, missionBodyEs, missionTitleEn, missionBodyEn, missionSectionsEs, standardMenuPermissions, defaultDelegatePermissions, tooltipsEs, tooltipsEn, uiLabelsEs, uiLabelsEn, complexNameEs, complexNameEn, complexLocation, complexLogo, emailFromName, emailFromAddress } = req.body || {};
+  const { actorUid, actorEmail, slaHours, escalationCcEmails, analyticsEnabled, missionTitle, missionBody, missionTitleEs, missionBodyEs, missionTitleEn, missionBodyEn, missionSectionsEs, standardMenuPermissions, defaultDelegatePermissions, tooltipsEs, tooltipsEn, uiLabelsEs, uiLabelsEn, complexNameEs, complexNameEn, complexLocation, complexLogo, emailFromName, emailFromAddress, emailFromNameEn, emailFromAddressEn } = req.body || {};
   if (!(await isGlobalAdmin(actorUid, actorEmail))) return res.status(403).json({ error:'Solo un administrador global puede cambiar la configuración.' });
   const before = await getAppConfig();
   const rows = [];
@@ -1395,6 +1398,8 @@ app.put('/api/admin/config', async (req, res) => {
   if (complexLogo !== undefined) rows.push({ key:'complex_logo', value:String(complexLogo||'') });
   if (emailFromName !== undefined) rows.push({ key:'email_from_name', value:String(emailFromName||'') });
   if (emailFromAddress !== undefined) rows.push({ key:'email_from_address', value:String(emailFromAddress||'').toLowerCase().trim() });
+  if (emailFromNameEn !== undefined) rows.push({ key:'email_from_name_en', value:String(emailFromNameEn||'') });
+  if (emailFromAddressEn !== undefined) rows.push({ key:'email_from_address_en', value:String(emailFromAddressEn||'').toLowerCase().trim() });
   for (const row of rows) {
     const { error } = await supabase.from('app_config').upsert(row, { onConflict:'key' });
     if (error) return sendSupabaseError(res, error);
