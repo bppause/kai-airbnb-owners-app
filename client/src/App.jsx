@@ -5168,8 +5168,8 @@ const DEFAULT_NAV_CONFIG = {
   global:   { landing:'my', primary:['my','incidents','listings','dashboard'] },
 };
 
-function NavConfigEditor({ lang, isEn, config, onSave, showToast=()=>{} }) {
-  const [activeRole, setActiveRole] = useState('user');
+function NavConfigEditor({ lang, isEn, config, onSave, showToast=()=>{}, defaultRole='global' }) {
+  const [activeRole, setActiveRole] = useState(defaultRole);
   const [cfg, setCfg] = useState(()=>{
     try { return { ...DEFAULT_NAV_CONFIG, ...JSON.parse(config?.nav_config||'{}') }; }
     catch(e) { return { ...DEFAULT_NAV_CONFIG }; }
