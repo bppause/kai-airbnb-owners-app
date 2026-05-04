@@ -1,7 +1,8 @@
 -- Supabase schema for Propietarios Airbnb KAI
--- v73: owner_resolution_at on incidents; SLA continues through verified-without-resolution;
+-- v74: notification_email on app_users; co_owners JSONB on listings; owner directory search.
+--      Previous: v73: owner_resolution_at on incidents; SLA continues through verified-without-resolution;
 --      ui_labels_es / ui_labels_en in app_config for admin-editable UI text; guest_state field.
---      Previous versions: v45 owner WhatsApp, v43 role/permission controls, v42 multi-guest jsonb,
+--      Older: v45 owner WhatsApp, v43 role/permission controls, v42 multi-guest jsonb,
 --      v37 guest city/country, v34 email delivery logs, v27 audit_logs, v26 analytics indexes.
 -- Run this in Supabase Dashboard → SQL Editor → New query → Run.
 -- Safe to run on an existing database — all statements use IF NOT EXISTS / ON CONFLICT DO NOTHING.
@@ -32,6 +33,7 @@ create table if not exists public.listings (
   contact text not null default '',
   email text not null default '',
   airbnb text default '',
+  co_owners jsonb not null default '[]'::jsonb,
   created_at timestamptz not null default now()
 );
 
@@ -140,6 +142,8 @@ create table if not exists public.incidents (
   owner_guest_city text not null default '',
   owner_guest_country text not null default '',
   owner_guests jsonb not null default '[]'::jsonb,
+  photos jsonb not null default '[]'::jsonb,
+  is_general boolean not null default false,
   created_at timestamptz not null default now()
 );
 
@@ -241,6 +245,7 @@ create table if not exists public.app_users (
   language_preference text not null default 'es-CO' check (language_preference in ('es-CO','en')),
   whatsapp text not null default '',
   country text not null default 'Colombia',
+  notification_email text not null default '',
   updated_at timestamptz not null default now()
 );
 
