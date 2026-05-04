@@ -1710,6 +1710,10 @@ button.unit-plate:focus-visible { outline: 2px solid rgba(200,216,160,.6) !impor
   background: rgba(8,127,111,.05);
 }
 
+/* ── Summary card parties grid — reuses idd-pi-item, no outer panel ── */
+.ir-parties-grid { margin-top: 6px; padding-top: 8px; border-top: 1px solid rgba(47,79,58,.09); }
+.ir-parties-grid .idd-pi-item { background: rgba(255,255,255,.7); }
+
 /* ── Action footer — mirrors idd-actions ── */
 .ir-footer-acts {
   display: flex;
