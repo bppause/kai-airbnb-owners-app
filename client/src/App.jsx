@@ -199,7 +199,7 @@ const TXT = {
     loginHero:"Estamos construyendo una comunidad de propietarios comprometidos con la excelencia en la operación, el cuidado de nuestras propiedades y una mejor experiencia para nuestros huéspedes.",
     rulesTitle:"📌 Normas de uso de la comunidad", firstAccess:"⏳ Primer acceso:", firstAccessText:"al iniciar sesión por primera vez deberás registrar al menos una propiedad. Tu solicitud quedará pendiente de aprobación antes de acceder a la plataforma.",
     secure:"🔐 Para proteger la información de la comunidad, primero debes iniciar sesión con Google.", google:"Continuar con Google",
-    nav:{dashboard:"Dashboard",about:"Misión",listings:"Inventario",incidents:"Incidentes de Unidad",notifications:"Alertas",approvals:"Registros",admin:"Admin",analytics:"Analíticas",my:"Mis Unidades",help:"Ayuda"},
+    nav:{dashboard:"Dashboard",about:"Misión",listings:"Inventario",incidents:"Incidentes",notifications:"Alertas",approvals:"Registros",admin:"Admin",analytics:"Analíticas",my:"Mis Unidades",help:"Ayuda"},
     cards:[['🏡','Gestión centralizada','Organizar apartamentos, contactos, emails de notificación y enlaces importantes en un solo lugar.'],['⚠️','Reportes transparentes','Documentar incidentes de manera rápida para que el propietario correcto reciba aviso y pueda tomar acción.'],['🤝','Colaboración comunitaria','Compartir información útil entre propietarios aprobados para operar mejor y prevenir problemas repetidos.'],['📊','Mejora continua','Usar datos y tendencias para elevar la calidad del servicio, la comunicación y la experiencia del huésped.']],
     rules:['Reporta incidentes con información clara, objetiva y verificable.','Usa la plataforma con respeto, responsabilidad y enfoque constructivo.','Evita contenido innecesario, ofensivo o no relacionado con la operación.','Colabora para proteger el valor de nuestras propiedades y mejorar el servicio.'],
     missionTitle:"🌊 Misión y normas de la comunidad", missionSub:"Referencia para propietarios aprobados · Propietarios Airbnb KAI", missionHeading:"Crear una comunidad organizada, informada y proactiva.", missionBody:"La aplicación ayuda a proteger el valor de nuestras propiedades, mejorar la coordinación entre propietarios y elevar la experiencia de los huéspedes en Morros KAI."
@@ -210,7 +210,7 @@ const TXT = {
     loginHero:"We are building a community of owners committed to operational excellence, property care, and a better guest experience.",
     rulesTitle:"📌 Community engagement rules", firstAccess:"⏳ First access:", firstAccessText:"when you sign in for the first time, you must register at least one property. Your request will remain pending approval before you can access the platform.",
     secure:"🔐 To protect community information, you must first sign in with Google.", google:"Continue with Google",
-    nav:{dashboard:"Dashboard",about:"Mission",listings:"Inventory",incidents:"Unit Incidents",notifications:"Alerts",approvals:"Registrations",admin:"Admin",analytics:"Analytics",my:"My Units",help:"Help"},
+    nav:{dashboard:"Dashboard",about:"Mission",listings:"Inventory",incidents:"Incidents",notifications:"Alerts",approvals:"Registrations",admin:"Admin",analytics:"Analytics",my:"My Units",help:"Help"},
     cards:[['🏡','Centralized management','Organize apartments, contacts, notification emails, and important links in one place.'],['⚠️','Transparent reports','Document incidents quickly so the correct owner receives notice and can take action.'],['🤝','Community collaboration','Share useful information among approved owners to operate better and prevent repeated issues.'],['📊','Continuous improvement','Use data and trends to improve service quality, communication, and guest experience.']],
     rules:['Report incidents with clear, objective, and verifiable information.','Use the platform respectfully, responsibly, and constructively.','Avoid unnecessary, offensive, or non-operational content.','Collaborate to protect property value and improve service.'],
     missionTitle:"🌊 Mission and community rules", missionSub:"Reference for approved owners · KAI Airbnb Owners", missionHeading:"Create an organized, informed, and proactive community.", missionBody:"The app helps protect the value of our properties, improve coordination among owners, and elevate the guest experience at Morros KAI."
@@ -303,7 +303,7 @@ const APP_I18N = {
   "listing.operatorWhatsapp": { es:"WhatsApp operador", en:"Operator WhatsApp" },
   "listing.openLink": { es:"Abrir enlace", en:"Open link" },
 
-  "reports.title": { es:"📋 Incidentes de Unidad", en:"📋 Unit Incidents" },
+  "reports.title": { es:"📋 Incidentes", en:"📋 Incidents" },
   "reports.subtitle": { es:"Historial completo · {total} total · {open} activos", en:"Full history · {total} total · {open} active" },
   "reports.new": { es:"＋ Nuevo reporte", en:"＋ New report" },
   "reports.reportIncident": { es:"⚠️ Reportar incidente", en:"⚠️ File a report" },
@@ -1268,7 +1268,6 @@ export default function App() {
   const allNavItems = [
     canSeeMenu('my') && isApproved         ? { id:'my',        icon:'🔑', label:t.nav.my,        badge:myListings.length } : null,
     canSeeMenu('incidents')                 ? { id:'incidents',  icon:'⚠️', label:t.nav.incidents,  badge:openCount } : null,
-    isApproved                              ? { id:'general',    icon:'📢', label:lang==='en'?'General Incidents':'Incidentes Generales', badge: incidents.filter(i=>i.isGeneral&&i.status!=='resolved').length||0 } : null,
     canSeeMenu('listings')                  ? { id:'listings',   icon:'🏠', label:t.nav.listings } : null,
     canSeeMenu('dashboard')                 ? { id:'dashboard',  icon:'📊', label:t.nav.dashboard } : null,
     effectiveCanManageRegistrations && isApproved ? { id:'approvals', icon:'📝', label:t.nav.approvals, badge:pendingRegistrations.length } : null,
@@ -1579,8 +1578,7 @@ export default function App() {
         {view==="about" && <CommunityMissionView lang={lang} config={adminInfo.config} />}
         {view==="listings"  && <ListingsView lang={lang} listings={listings} incidents={incidents} user={user} contactProps={contactProps} isGlobalAdmin={effectiveIsGlobalAdmin} canEditGlobal={delegatePerms.canUpdateGlobalListings} canDeleteGlobal={delegatePerms.canDeleteGlobalListings} canResolveGlobal={canResolveIncidentsNow} floorOpenState={listingFloorOpen} onFloorToggle={toggleListingFloor} onAdd={()=>{ if(!user){login();return;} setModal({type:"addListing"}); }} onEdit={l=>setModal({type:"editListing",data:l})} onDelete={deleteListing} onReport={l=>{ if(!user){login();return;} setModal({type:"incident",data:{aptId:l.id}}); }} onVerify={inc=>setModal({type:"verifyIncident",data:inc})} onResolve={resolveIncident} onAddResolution={inc=>setModal({type:"addResolution",data:inc})} onFloorFilter={f=>{setIncidentQuickFilter({type:'floorFilter',aptIds:f.aptIds,status:f.status});setView('incidents');}} onAssign={inc=>setModal({type:'assignGeneral',data:inc})} onCloseGeneral={inc=>setModal({type:'closeGeneral',data:inc})} onIncidentDetail={openIncidentDetail} />}
 
-        {view==="incidents" && <IncidentsView lang={lang} incidents={incidents} listings={listings} user={user} quickFilter={incidentQuickFilter} onQuickFilterApplied={()=>setIncidentQuickFilter(null)} contactProps={contactProps} isGlobalAdmin={effectiveIsGlobalAdmin} canUpdateGlobal={delegatePerms.canUpdateGlobalIncidents} canDeleteGlobal={delegatePerms.canDeleteGlobalIncidents} canResolveGlobal={canResolveIncidentsNow} onAdd={()=>{ if(!user){login();return;} setModal({type:"incident"}); }} onResolve={resolveIncident} onDelete={deleteIncident} onVerify={inc=>setModal({type:"verifyIncident",data:inc})} onAddResolution={inc=>setModal({type:"addResolution",data:inc})} onUnitDetail={id=>setUnitDetailOverlay({listingId:id})} onIncidentDetail={openIncidentDetail} onAssign={inc=>setModal({type:'assignGeneral',data:inc})} onCloseGeneral={inc=>setModal({type:'closeGeneral',data:inc})} />}
-        {view==="general" && user && <GeneralIncidentsView lang={lang} incidents={incidents} listings={listings} user={user} contactProps={contactProps} isGlobalAdmin={effectiveIsGlobalAdmin} canResolveGlobal={canResolveIncidentsNow} onIncidentDetail={openIncidentDetail} onAssign={inc=>setModal({type:'assignGeneral',data:inc})} onClose={inc=>setModal({type:'closeGeneral',data:inc})} />}
+        {(view==="incidents"||view==="general") && <IncidentsView key={view} defaultTab={view==='general'?'general':'unit'} lang={lang} incidents={incidents} listings={listings} user={user} quickFilter={incidentQuickFilter} onQuickFilterApplied={()=>setIncidentQuickFilter(null)} contactProps={contactProps} isGlobalAdmin={effectiveIsGlobalAdmin} canUpdateGlobal={delegatePerms.canUpdateGlobalIncidents} canDeleteGlobal={delegatePerms.canDeleteGlobalIncidents} canResolveGlobal={canResolveIncidentsNow} onAdd={()=>{ if(!user){login();return;} setModal({type:"incident"}); }} onResolve={resolveIncident} onDelete={deleteIncident} onVerify={inc=>setModal({type:"verifyIncident",data:inc})} onAddResolution={inc=>setModal({type:"addResolution",data:inc})} onUnitDetail={id=>setUnitDetailOverlay({listingId:id})} onIncidentDetail={openIncidentDetail} onAssign={inc=>setModal({type:'assignGeneral',data:inc})} onCloseGeneral={inc=>setModal({type:'closeGeneral',data:inc})} />}
         {view==="notifications" && user && <NotificationsView lang={lang} notifications={notifications} incidents={incidents} listings={listings} contactProps={contactProps} onRead={markNotificationRead} onReadAll={markAllNotificationsRead} smartAlerts={smartAlerts} onIncidentDetail={openIncidentDetail} />}
         {view==="approvals" && user && effectiveCanManageRegistrations && <PendingApprovalsView lang={lang} pending={pendingRegistrations} onApprove={id=>reviewRegistrationAction(id,'approve')} onDecline={id=>reviewRegistrationAction(id,'decline')} active={activeRegistrations} />}
         {view==="analytics" && user && (effectiveIsGlobalAdmin || analyticsEnabledForAll) && <AnalyticsDashboard lang={lang} user={user} contactProps={contactProps} showToast={showToast} isGlobalAdmin={effectiveIsGlobalAdmin} />}
@@ -4051,10 +4049,13 @@ function WorkflowGroup({ statusKey, icon, label, sublabel, color, incidents, lis
   );
 }
 
-function IncidentsView({ incidents, listings, user, quickFilter=null, onQuickFilterApplied=()=>{}, contactProps={}, isGlobalAdmin=false, canUpdateGlobal=false, canDeleteGlobal=false, canResolveGlobal=false, onAdd, onResolve, onDelete, onVerify, onAddResolution, onUnitDetail, onIncidentDetail, onAssign, onCloseGeneral, lang="es-CO" }) {
+function IncidentsView({ incidents, listings, user, quickFilter=null, onQuickFilterApplied=()=>{}, contactProps={}, isGlobalAdmin=false, canUpdateGlobal=false, canDeleteGlobal=false, canResolveGlobal=false, onAdd, onResolve, onDelete, onVerify, onAddResolution, onUnitDetail, onIncidentDetail, onAssign, onCloseGeneral, lang="es-CO", defaultTab='unit' }) {
   const [sf,setSf]=useState("all"), [cf,setCf]=useState("all"), [scope,setScope]=useState("all"), [search,setSearch]=useState("");
   const [dateFrom,setDateFrom]=useState('');
   const [dateTo,setDateTo]=useState('');
+  const [tab, setTab] = useState(defaultTab || 'unit');
+  const unitOpenCount = incidents.filter(i=>!i.isGeneral&&i.status==='open').length;
+  const generalOpenCount = incidents.filter(i=>i.isGeneral&&i.status!=='resolved').length;
   // Floor filter: set when user clicks a stat pill on the Units page floor header
   const [floorFilter, setFloorFilter] = useState(null); // {aptIds:string[], status:string, label:string} | null
   useEffect(()=>{
@@ -4071,13 +4072,12 @@ function IncidentsView({ incidents, listings, user, quickFilter=null, onQuickFil
     if (quickFilter === "needsResolution")   { setScope("needsResolution");   setSf("all"); setCf("all"); setFloorFilter(null); onQuickFilterApplied(); }
     if (quickFilter === "requiresResolution") { setScope("requiresResolution"); setSf("all"); setCf("all"); setFloorFilter(null); onQuickFilterApplied(); }
     if (quickFilter === "seriousOpen") { setScope("all"); setSf("all"); setCf("serious"); setFloorFilter(null); onQuickFilterApplied(); }
-    if (quickFilter === "generalIncidents") { setScope("general"); setSf("all"); setCf("all"); setFloorFilter(null); onQuickFilterApplied(); }
+    if (quickFilter === "generalIncidents") { setTab('general'); setSf("all"); setCf("all"); setFloorFilter(null); onQuickFilterApplied(); return; }
   }, [quickFilter, onQuickFilterApplied]);
   const listingMap = Object.fromEntries(listings.map(l=>[l.id, l]));
   const myListingIds = new Set((user ? listings.filter(l=>l.ownerUid===user.uid) : []).map(l=>l.id));
   let list=[...incidents];
-  // "General" — community incidents not linked to any unit
-  if(scope==="general") list=list.filter(i=>i.isGeneral);
+  list = list.filter(i => !i.isGeneral);
   // "I reported" — incidents the current user filed (any apartment)
   if(scope==="iReported"   && user) list=list.filter(i=>i.reporterUid===user.uid);
   // "My listings" — incidents against apartments the user owns
@@ -4136,7 +4136,6 @@ function IncidentsView({ incidents, listings, user, quickFilter=null, onQuickFil
   const isEn = lang==='en';
   const anyFilter = sf!=='all'||cf!=='all'||scope!=='all'||search.trim()!==''||!!floorFilter||!!dateFrom||!!dateTo;
   const resetAll = () => { setSf('all'); setCf('all'); setScope('all'); setSearch(''); setFloorFilter(null); setDateFrom(''); setDateTo(''); };
-  const generalOpenCount = incidents.filter(i=>i.isGeneral&&i.status!=='resolved').length;
   // ── Persist group open/close to localStorage; restore on mount ──────────────
   const WFG_KEY = 'kai_wfg_state';
   const [groupOpen, setGroupOpen] = useState(() => {
@@ -4204,6 +4203,19 @@ function IncidentsView({ incidents, listings, user, quickFilter=null, onQuickFil
 
   return (
     <div className="fade">
+      <div className="inc-tab-bar">
+        <button className={`inc-tab${tab==='unit'?' inc-tab-on':''}`} onClick={()=>setTab('unit')}>
+          ⚠️ {isEn?'Unit Incidents':'Incidentes de Unidad'}
+          {unitOpenCount>0&&<span className="inc-tab-badge">{unitOpenCount}</span>}
+        </button>
+        <button className={`inc-tab${tab==='general'?' inc-tab-on':''}`} onClick={()=>setTab('general')}>
+          📢 {isEn?'General Incidents':'Incidentes Generales'}
+          {generalOpenCount>0&&<span className="inc-tab-badge">{generalOpenCount}</span>}
+        </button>
+      </div>
+      {tab==='general'
+        ? <GeneralIncidentsView incidents={incidents} listings={listings} user={user} contactProps={contactProps} isGlobalAdmin={isGlobalAdmin} canResolveGlobal={canResolveGlobal} onIncidentDetail={onIncidentDetail} onAssign={onAssign} onClose={onCloseGeneral} lang={lang} embedded={true}/>
+        : <>
       <div className="ph">
         <div>
           <h1 className="ptitle">{appText(lang,"reports.title")}</h1>
@@ -4254,9 +4266,6 @@ function IncidentsView({ incidents, listings, user, quickFilter=null, onQuickFil
               🏠 {isEn?'My listings':'Mis listings'}
             </button>
           </>}
-          <button className={`fchip fchip-sm ${scope==='general'?'fchip-on':''}`} onClick={()=>{setScope(scope==='general'?'all':'general');setSf('all');setFloorFilter(null);}}>
-            📢 {isEn?'General':'General'}{generalOpenCount>0&&scope!=='general'&&<span className="mbn-badge" style={{marginLeft:5,minWidth:15,height:15,fontSize:'.58rem',lineHeight:'15px',padding:'0 4px'}}>{generalOpenCount}</span>}
-          </button>
           {/* Pending resolution — available to all authenticated users:
               owners see their listings waiting for their resolution note;
               admins/delegates see all verified incidents missing a resolution */}
@@ -4308,6 +4317,7 @@ function IncidentsView({ incidents, listings, user, quickFilter=null, onQuickFil
           />
         ))}
       </div>
+      </>}
     </div>
   );
 }
@@ -5386,7 +5396,7 @@ function AnalyticsDashboard({ user, contactProps={}, showToast=()=>{}, isGlobalA
 // All navigable views and their labels (bilingual)
 const NAV_CONFIG_ITEMS = [
   { id:'my',        labelEs:'Mis Unidades',        labelEn:'My Units' },
-  { id:'incidents', labelEs:'Incidentes de Unidad', labelEn:'Unit Incidents' },
+  { id:'incidents', labelEs:'Incidentes', labelEn:'Incidents' },
   { id:'general',   labelEs:'Incidentes Generales', labelEn:'General Incidents' },
   { id:'listings',  labelEs:'Inventario',    labelEn:'Inventory' },
   { id:'dashboard', labelEs:'Dashboard',     labelEn:'Dashboard' },
@@ -5402,9 +5412,9 @@ const NAV_ROLES = [
   { key:'global',   labelEs:'Admin Global',  labelEn:'Global Admin' },
 ];
 const DEFAULT_NAV_CONFIG = {
-  user:     { landing:'my', primary:['my','incidents','general','listings','dashboard'] },
-  delegate: { landing:'my', primary:['my','incidents','general','listings','dashboard'] },
-  global:   { landing:'my', primary:['my','incidents','general','listings','dashboard'] },
+  user:     { landing:'my', primary:['my','incidents','listings','dashboard'] },
+  delegate: { landing:'my', primary:['my','incidents','listings','dashboard'] },
+  global:   { landing:'my', primary:['my','incidents','listings','dashboard'] },
 };
 
 function NavConfigEditor({ lang, isEn, config, onSave, showToast=()=>{}, defaultRole='global' }) {
@@ -6333,22 +6343,15 @@ function CloseGeneralModal({ incident, onSave, onClose, lang='es-CO' }) {
 }
 
 // ─── GENERAL INCIDENTS VIEW ───────────────────────────────────────────────────
-function GeneralIncidentsView({ incidents=[], listings=[], user, contactProps={}, isGlobalAdmin=false, canResolveGlobal=false, onIncidentDetail=null, onAssign, onClose: onCloseGeneral, lang='es-CO' }) {
+function GeneralIncidentsView({ incidents=[], listings=[], user, contactProps={}, isGlobalAdmin=false, canResolveGlobal=false, onIncidentDetail=null, onAssign, onClose: onCloseGeneral, lang='es-CO', embedded=false }) {
   const isEn = lang==='en';
   const general = incidents.filter(i=>i.isGeneral).sort((a,b)=>new Date(b.createdAt)-new Date(a.createdAt));
   const open = general.filter(i=>i.status!=='resolved');
   const closed = general.filter(i=>i.status==='resolved');
   const [showClosed,setShowClosed] = useState(false);
   const canAct = isGlobalAdmin || canResolveGlobal;
-  return (
-    <div className="fade">
-      <div className="ph">
-        <div>
-          <h1 className="ptitle">📢 {isEn?'General Incidents':'Incidentes Generales'}</h1>
-          <p className="psub">{isEn?`Community-wide incidents not tied to a specific unit · ${open.length} open`:`Incidentes de la comunidad no asociados a una unidad · ${open.length} abiertos`}</p>
-        </div>
-      </div>
-
+  const inner = (
+    <>
       <div className="gen-info-banner">
         {isEn
           ? '📢 General incidents affect the building or community and are not specific to one unit. Anyone can report them. Admins can assign them to a unit (switching to normal workflow) or close them directly.'
@@ -6416,6 +6419,17 @@ function GeneralIncidentsView({ incidents=[], listings=[], user, contactProps={}
           </div>}
         </div>
       )}
+    </>
+  );
+  return embedded ? inner : (
+    <div className="fade">
+      <div className="ph">
+        <div>
+          <h1 className="ptitle">📢 {isEn?'General Incidents':'Incidentes Generales'}</h1>
+          <p className="psub">{isEn?`Community-wide incidents not tied to a specific unit · ${open.length} open`:`Incidentes de la comunidad no asociados a una unidad · ${open.length} abiertos`}</p>
+        </div>
+      </div>
+      {inner}
     </div>
   );
 }
@@ -7239,6 +7253,14 @@ html{font-size:clamp(14px,1.1vw,16px);-webkit-text-size-adjust:100%}body{overflo
 /* IRow parties strip (compact / dashboard) */
 .ir-bparty-compact{display:flex;flex-wrap:wrap;gap:3px 10px;margin-top:5px;padding-top:5px;border-top:1px solid rgba(47,79,58,.08)}
 .ir-bpc-item{font-size:.69rem;color:#6a8a9a;white-space:nowrap}
+
+/* Incidents tab bar */
+.inc-tab-bar{display:flex;gap:0;border-bottom:2px solid rgba(47,79,58,.12);margin-bottom:18px}
+.inc-tab{flex:1;padding:11px 14px;background:transparent;border:0;border-bottom:3px solid transparent;margin-bottom:-2px;cursor:pointer;font-size:.88rem;font-weight:700;color:#496674;display:flex;align-items:center;justify-content:center;gap:7px;transition:color .14s,border-color .14s}
+.inc-tab:hover{color:#17313a;background:rgba(47,79,58,.04)}
+.inc-tab-on{color:#0b7f8c!important;border-bottom-color:#0b7f8c!important;background:rgba(11,127,140,.05)!important}
+.inc-tab-badge{display:inline-flex;min-width:20px;height:20px;align-items:center;justify-content:center;border-radius:999px;background:#d4634a;color:#fff;font-size:.68rem;font-weight:900;padding:0 5px}
+.inc-tab-on .inc-tab-badge{background:#0b7f8c}
 
 /* GeneralListingsSection — "General" category at top of Inventory/Listings */
 .gen-ls-section{background:rgba(255,255,255,.94);border:1px solid rgba(217,112,14,.28);border-left:5px solid #d9700e;border-radius:16px;overflow:hidden;box-shadow:0 6px 18px rgba(32,46,38,.07);margin-bottom:16px}
