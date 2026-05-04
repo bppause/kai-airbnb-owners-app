@@ -1025,7 +1025,7 @@ export default function App() {
     }
   }, [loading, incidents]);
   const [incidentQuickFilter, setIncidentQuickFilter] = useState(null);
-  const [userProfile, setUserProfile] = useState({ whatsapp:'', country:'Colombia' });
+  const [userProfile, setUserProfile] = useState({ whatsapp:'', country:'Colombia', notificationEmail:'' });
   // Listing floor collapse state — lives here so it persists across navigation
   const [listingFloorOpen, setListingFloorOpen] = useState({});
   const toggleListingFloor = (f) => setListingFloorOpen(s=>({...s,[f]:!s[f]}));
@@ -1158,19 +1158,20 @@ export default function App() {
 
   // Load owner profile (whatsapp + country)
   useEffect(() => {
-    if (!user?.uid) { setUserProfile({ whatsapp:'', country:'Colombia' }); return; }
+    if (!user?.uid) { setUserProfile({ whatsapp:'', country:'Colombia', notificationEmail:'' }); return; }
     api.get('/api/users/profile?uid=' + encodeURIComponent(user.uid))
-      .then(p => setUserProfile({ whatsapp:p.whatsapp||'', country:p.country||'Colombia' }))
+      .then(p => setUserProfile({ whatsapp:p.whatsapp||'', country:p.country||'Colombia', notificationEmail:p.notificationEmail||'' }))
       .catch(() => {});
   }, [user?.uid]);
 
   const saveProfile = async (profileData) => {
     setSyncing(true);
     try {
-      const result = await api.put('/api/users/profile', { uid:user.uid, email:user.email, whatsapp:profileData.whatsapp, country:profileData.country||'Colombia' });
-      setUserProfile({ whatsapp:result.whatsapp||'', country:result.country||'Colombia' });
-      // Also update cached whatsapp in listings for the current user
-      setListings(ls => ls.map(l => l.ownerUid===user.uid ? {...l, contact:result.whatsapp||'', email:user.email} : l));
+      const result = await api.put('/api/users/profile', { uid:user.uid, email:user.email, whatsapp:profileData.whatsapp, country:profileData.country||'Colombia', notificationEmail:profileData.notificationEmail||'' });
+      setUserProfile({ whatsapp:result.whatsapp||'', country:result.country||'Colombia', notificationEmail:result.notificationEmail||'' });
+      // Also update cached contact info in listings for the current user
+      const effectiveEmail = result.notificationEmail || user.email;
+      setListings(ls => ls.map(l => l.ownerUid===user.uid ? {...l, contact:result.whatsapp||'', email:effectiveEmail} : l));
       showToast(lang==='en' ? '✅ Profile updated' : '✅ Perfil actualizado');
     } catch(e) {
       showToast((lang==='en' ? 'Could not save: ' : 'No se pudo guardar: ') + (e.message || ''), true);
@@ -2387,12 +2388,15 @@ function ProfileView({ user, lang, userProfile, onSave }) {
   const isEn = lang === 'en';
   const [country, setCountry] = useState(userProfile.country || 'Colombia');
   const [whatsapp, setWhatsapp] = useState(userProfile.whatsapp || '');
+  const [notificationEmail, setNotificationEmail] = useState(userProfile.notificationEmail || '');
   const [error, setError] = useState('');
+  const [emailError, setEmailError] = useState('');
   const [saving, setSaving] = useState(false);
 
   // Sync when profile loads from server
   useEffect(() => { setWhatsapp(userProfile.whatsapp || ''); }, [userProfile.whatsapp]);
   useEffect(() => { setCountry(userProfile.country || 'Colombia'); }, [userProfile.country]);
+  useEffect(() => { setNotificationEmail(userProfile.notificationEmail || ''); }, [userProfile.notificationEmail]);
 
   const handleCountryChange = (val) => {
     const code = OWNER_COUNTRIES.find(c=>c.name===val)?.code||'';
@@ -2406,13 +2410,19 @@ function ProfileView({ user, lang, userProfile, onSave }) {
     const err = validateWhatsApp(whatsapp, lang);
     if (err) { setError(err); return false; }
     setError('');
+    const ne = String(notificationEmail||'').trim();
+    if (ne && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(ne)) {
+      setEmailError(isEn ? 'Enter a valid email address' : 'Ingresa un email válido');
+      return false;
+    }
+    setEmailError('');
     return true;
   };
 
   const handleSave = async () => {
     if (!validate()) return;
     setSaving(true);
-    try { await onSave({ whatsapp: whatsapp.trim(), country }); }
+    try { await onSave({ whatsapp: whatsapp.trim(), country, notificationEmail: notificationEmail.trim() }); }
     finally { setSaving(false); }
   };
 
@@ -2458,6 +2468,23 @@ function ProfileView({ user, lang, userProfile, onSave }) {
               <label>WhatsApp <span style={{color:'#e53935',fontSize:'0.75rem'}}>*</span></label>
               <input className={error?'field-error':''} type="tel" value={whatsapp} onChange={e=>{setWhatsapp(e.target.value);setError('');}} onBlur={e=>{let v=String(e.target.value||'').trim();if(!v){setError(isEn?'WhatsApp is required':'WhatsApp es requerido');return;}const digits=v.replace(/[^0-9]/g,'');if(!v.startsWith('+')&&digits.length>=10){v='+'+digits;setWhatsapp(v);}const err=validateWhatsApp(v,lang);if(err)setError(err);else setError('');}} placeholder="+57 300 000 0000"/>
               {error ? <span className="err-msg">{error}</span> : <span className="help-msg">{isEn?'With country code, e.g. +57 300 000 0000':'Con código de país, ej. +57 300 000 0000'}</span>}
+            </div>
+          </div>
+        </div>
+
+        {/* ── Notification email ───────────────────── */}
+        <div className="prof-section">
+          <div className="prof-section-hdr">✉️ {isEn ? 'Notification email' : 'Email de notificaciones'}</div>
+          <p style={{fontSize:'.84rem',color:'#2a5a6a',margin:'0 0 14px',lineHeight:1.5}}>
+            {isEn
+              ? 'Optional. If set, notifications will be sent here instead of your Google email.'
+              : 'Opcional. Si lo configuras, las notificaciones llegarán aquí en lugar de a tu email de Google.'}
+          </p>
+          <div className="fg2" style={{maxWidth:360}}>
+            <div className="fg full">
+              <label>{isEn ? 'Notification email' : 'Email alternativo'} <span style={{color:'#70d6c6',fontStyle:'italic',fontSize:'0.68rem'}}>({isEn?'optional':'opcional'})</span></label>
+              <input className={emailError?'field-error':''} type="email" value={notificationEmail} onChange={e=>{setNotificationEmail(e.target.value);setEmailError('');}} onBlur={e=>{const v=String(e.target.value||'').trim();if(v&&!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v))setEmailError(isEn?'Enter a valid email address':'Ingresa un email válido');else setEmailError('');}} placeholder="otro@email.com"/>
+              {emailError ? <span className="err-msg">{emailError}</span> : <span className="help-msg">{isEn?'Leave blank to use your Google email':'Deja en blanco para usar tu email de Google'}</span>}
             </div>
           </div>
         </div>
@@ -2864,7 +2891,7 @@ function MyListings({ listings, incidents, user, contactProps={}, isGlobalAdmin=
                       <button className="bsm bs-del" onClick={()=>onDelete(l)}>🗑️</button>
                     </div>
                     <span className={`fls-chev${isSel?' fls-chev-up':''}`} style={{marginLeft:'auto',flexShrink:0}}>›</span>
-                    <AptContactPopup ownerName={l.owner} ownerEmail={l.userEmail||l.email} ownerWaRaw={l.contact} isEn={isEn}/>
+                    <AptContactPopup ownerName={l.owner} ownerEmail={l.userEmail||l.email} ownerWaRaw={l.contact} coOwners={l.coOwners||[]} isEn={isEn}/>
                   </div>
                   {isSel&&(
                     <div className="ml-listing-detail" onClick={e=>e.stopPropagation()}>
@@ -2939,7 +2966,7 @@ const IconEmail = () => (
 // card showing owner email + WhatsApp (+ operator if present) with branded icons
 // and direct mailto / wa.me external links.  Popup has pointer-events:none on
 // the shell so the underlying click target still fires; links have auto.
-function AptContactPopup({ ownerName='', ownerEmail='', ownerWaRaw='', operatorName='', operatorEmail='', opWaRaw='', isEn=false }) {
+function AptContactPopup({ ownerName='', ownerEmail='', ownerWaRaw='', operatorName='', operatorEmail='', opWaRaw='', coOwners=[], isEn=false }) {
   const ownerWaDigits = normalizePhoneForWhatsApp(ownerWaRaw);
   const opWaDigits    = normalizePhoneForWhatsApp(opWaRaw);
   const ownerWaOk     = !ownerWaRaw || ownerWaRaw.trim().startsWith('+');
@@ -2956,6 +2983,19 @@ function AptContactPopup({ ownerName='', ownerEmail='', ownerWaRaw='', operatorN
           ? <a className="apt-cpop-link" href={`https://wa.me/${ownerWaDigits}`} target="_blank" rel="noreferrer"><IconWhatsApp/><span>{ownerWaRaw}{!ownerWaOk&&<span style={{color:'#f0c040'}}> ⚠️</span>}</span></a>
           : <span className="apt-cpop-miss">{isEn?'No WhatsApp':'Sin WhatsApp'}</span>}
       </div>
+      {/* Co-owners */}
+      {coOwners.filter(co=>co.firstName||co.lastName).map((co,i)=>{
+        const coName=[co.firstName,co.middleName,co.lastName].filter(Boolean).join(' ');
+        const coWaDigits=normalizePhoneForWhatsApp(co.whatsapp);
+        return (
+          <div key={i} className="apt-cpop-section">
+            <span className="apt-cpop-lbl">👤 {isEn?'Co-owner':'Copropietario'}{coName?` · ${coName}`:''}</span>
+            {coWaDigits
+              ? <a className="apt-cpop-link" href={`https://wa.me/${coWaDigits}`} target="_blank" rel="noreferrer"><IconWhatsApp/><span>{co.whatsapp}</span></a>
+              : <span className="apt-cpop-miss">{isEn?'No WhatsApp':'Sin WhatsApp'}</span>}
+          </div>
+        );
+      })}
       {/* Operator — only if any contact info exists */}
       {hasOperator && (
         <div className="apt-cpop-section">
@@ -3067,6 +3107,21 @@ function UnitDetailCard({ l, incidents, canEdit=false, canDelete=false, onEdit, 
             </div>
           </div>
         </div>
+        {(l.coOwners||[]).filter(co=>co.firstName||co.lastName).map((co,i)=>{
+          const coName=[co.firstName,co.middleName,co.lastName].filter(Boolean).join(' ');
+          const coWa=normalizePhoneForWhatsApp(co.whatsapp);
+          return (
+            <div key={i} className="adp-party">
+              <div className="adp-party-lbl">👤 {isEn?`Co-owner ${i+1}`:`Copropietario ${i+1}`}</div>
+              <div className="adp-party-row">
+                <UserContact name={coName} email="" whatsapp={co.whatsapp} apartments={[]} {...contactProps}/>
+                <div className="adp-party-cbtns">
+                  {coWa&&<a href={`https://wa.me/${coWa}`} className="ac-cbtn ac-cbtn-wa" target="_blank" rel="noreferrer"><IconWhatsApp/></a>}
+                </div>
+              </div>
+            </div>
+          );
+        })}
         {hasOp ? (
           <div className="adp-party">
             <div className="adp-party-lbl">🔧 {isEn?'Operator':'Operador'}</div>
@@ -3421,7 +3476,7 @@ function AptDoor({ l, incidents, onUnitDetail, onViewIncidents, onPillFilter, la
       </div>
 
       {/* Contact popup — hover only, not a click target */}
-      <AptContactPopup ownerName={l.owner} ownerEmail={ownerEmail} ownerWaRaw={ownerWaRaw} operatorName={l.operator} operatorEmail={l.operatorEmail} opWaRaw={l.operatorWhatsapp} isEn={isEn}/>
+      <AptContactPopup ownerName={l.owner} ownerEmail={ownerEmail} ownerWaRaw={ownerWaRaw} operatorName={l.operator} operatorEmail={l.operatorEmail} opWaRaw={l.operatorWhatsapp} coOwners={l.coOwners||[]} isEn={isEn}/>
 
       {/* ★ CLICKABLE: Footer → open incident popup for this unit */}
       <button
@@ -3644,6 +3699,7 @@ function AptRow({ l, incCount, user, contactProps={}, isGlobalAdmin=false, canEd
           operatorName={l.operator}
           operatorEmail={l.operatorEmail}
           opWaRaw={l.operatorWhatsapp}
+          coOwners={l.coOwners||[]}
           isEn={isEn}
         />
       </div>
@@ -3760,15 +3816,81 @@ function GeneralListingsSection({ incidents, isGlobalAdmin=false, canResolveGlob
   );
 }
 
+function OwnerDirectoryView({ listings, lang }) {
+  const isEn = lang === 'en';
+  const [q, setQ] = useState('');
+  const ql = q.trim().toLowerCase();
+
+  // Build a flat list of owner entries (primary + co-owners) with their listing reference
+  const results = [];
+  for (const l of listings) {
+    // Primary owner
+    const primaryMatch = !ql ||
+      String(l.owner||'').toLowerCase().includes(ql) ||
+      String(l.email||'').toLowerCase().includes(ql) ||
+      String(l.userEmail||'').toLowerCase().includes(ql) ||
+      String(l.apt||'').includes(ql) ||
+      String(l.contact||'').replace(/\s/g,'').includes(ql.replace(/\s/g,''));
+    if (primaryMatch) {
+      results.push({ type:'primary', name:l.owner||'—', email:l.email||l.userEmail||'', whatsapp:l.contact||'', apt:l.apt, listingId:l.id });
+    }
+    // Co-owners
+    for (const co of (l.coOwners||[])) {
+      const fullName = [co.firstName,co.middleName,co.lastName].filter(Boolean).join(' ');
+      const coMatch = !ql ||
+        fullName.toLowerCase().includes(ql) ||
+        String(co.whatsapp||'').replace(/\s/g,'').includes(ql.replace(/\s/g,'')) ||
+        String(l.apt||'').includes(ql);
+      if (coMatch) {
+        results.push({ type:'co', name:fullName||'—', email:'', whatsapp:co.whatsapp||'', apt:l.apt, listingId:l.id });
+      }
+    }
+  }
+
+  return (
+    <div>
+      <div style={{position:'relative',marginBottom:14}}>
+        <input className="search" style={{paddingRight:36}} placeholder={isEn?'Search by name, email, unit or WhatsApp…':'Buscar por nombre, email, unidad o WhatsApp…'} value={q} onChange={e=>setQ(e.target.value)}/>
+        {q&&<button className="inc-search-clear" onClick={()=>setQ('')}>✕</button>}
+      </div>
+      {results.length===0
+        ? <EmptyState icon="👤" title={isEn?'No owners found':'Sin resultados'} sub={isEn?'Try a different search term.':'Intenta con otro término.'}/>
+        : <div style={{display:'flex',flexDirection:'column',gap:8}}>
+            {results.map((r,i)=>(
+              <div key={i} style={{background:'#fff',border:'1px solid #cce7ee',borderRadius:10,padding:'12px 16px',display:'flex',flexWrap:'wrap',gap:'6px 20px',alignItems:'flex-start'}}>
+                <div style={{flex:'1 1 160px'}}>
+                  <div style={{fontWeight:700,fontSize:'.93rem',color:'#1a4a5a'}}>{r.name}</div>
+                  {r.type==='co'&&<div style={{fontSize:'.72rem',color:'#70d6c6',marginTop:1}}>{isEn?'Co-owner':'Propietario adicional'}</div>}
+                </div>
+                <div style={{flex:'1 1 130px',fontSize:'.83rem',color:'#4a7a8a'}}>
+                  <span style={{fontWeight:600,marginRight:4}}>{isEn?'Unit':'Unidad'}:</span>{r.apt}
+                </div>
+                {r.email&&<div style={{flex:'1 1 180px',fontSize:'.83rem',color:'#4a7a8a',wordBreak:'break-all'}}>
+                  <span style={{fontWeight:600,marginRight:4}}>Email:</span>{r.email}
+                </div>}
+                {r.whatsapp&&<div style={{flex:'1 1 150px',fontSize:'.83rem',color:'#4a7a8a'}}>
+                  <span style={{fontWeight:600,marginRight:4}}>WhatsApp:</span>{r.whatsapp}
+                </div>}
+              </div>
+            ))}
+          </div>
+      }
+      <div style={{fontSize:'.75rem',color:'#8ab0bb',marginTop:10,textAlign:'right'}}>{results.length} {isEn?'result(s)':'resultado(s)'}</div>
+    </div>
+  );
+}
+
 function ListingsView({ listings, incidents, user, contactProps={}, isGlobalAdmin=false, canEditGlobal=false, canDeleteGlobal=false, canResolveGlobal=false, floorOpenState={}, onFloorToggle, onAdd, onEdit, onDelete, onReport, onVerify, onResolve, onAddResolution, onFloorFilter, onAssign, onCloseGeneral, onIncidentDetail, lang="es-CO" }) {
   const [search, setSearch]   = useState('');
   const [scope, setScope]     = useState('all');
+  const [mode, setMode]       = useState('building');
   const isEn = lang === 'en';
 
   const scoped   = scope==='mine'&&user ? listings.filter(l=>l.ownerUid===user.uid) : listings;
   const filtered = scoped.filter(l=>{
     const q=search.toLowerCase();
-    return !q||String(l.apt||'').includes(q)||String(l.owner||'').toLowerCase().includes(q)||String(l.operator||'').toLowerCase().includes(q);
+    const coMatch=(l.coOwners||[]).some(co=>[co.firstName,co.middleName,co.lastName].filter(Boolean).join(' ').toLowerCase().includes(q)||String(co.whatsapp||'').includes(q));
+    return !q||String(l.apt||'').includes(q)||String(l.owner||'').toLowerCase().includes(q)||String(l.operator||'').toLowerCase().includes(q)||String(l.email||'').toLowerCase().includes(q)||String(l.userEmail||'').toLowerCase().includes(q)||coMatch;
   });
   const sorted    = [...filtered].sort((a,b)=>String(a.apt||'').localeCompare(String(b.apt||'')));
   // Ascending floor order (floor 1 at top, floor 9 at bottom)
@@ -3788,20 +3910,28 @@ function ListingsView({ listings, incidents, user, contactProps={}, isGlobalAdmi
       <GeneralListingsSection incidents={incidents} isGlobalAdmin={isGlobalAdmin} canResolveGlobal={canResolveGlobal} onAssign={onAssign} onCloseGeneral={onCloseGeneral} onIncidentDetail={onIncidentDetail} lang={lang} />
 
       <div className="fls-toolbar" style={{marginTop:14}}>
-        {user&&<div className="filter-row" style={{margin:0,gap:6}}>
-          <button className={`fchip ${scope==='all'?'fchip-on':''}`} onClick={()=>setScope('all')}>{appText(lang,'filters.scopeAll')}</button>
-          <button className={`fchip ${scope==='mine'?'fchip-on':''}`} onClick={()=>setScope('mine')}>🔑 {isEn?'Mine':'Mis apts'}</button>
-        </div>}
+        <div className="filter-row" style={{margin:0,gap:6,flexWrap:'wrap'}}>
+          <button className={`fchip ${mode==='building'?'fchip-on':''}`} onClick={()=>setMode('building')}>🏠 {isEn?'Building':'Edificio'}</button>
+          <button className={`fchip ${mode==='directory'?'fchip-on':''}`} onClick={()=>setMode('directory')}>👤 {isEn?'Owner directory':'Directorio'}</button>
+          {mode==='building'&&user&&<>
+            <button className={`fchip ${scope==='all'?'fchip-on':''}`} onClick={()=>setScope('all')}>{appText(lang,'filters.scopeAll')}</button>
+            <button className={`fchip ${scope==='mine'?'fchip-on':''}`} onClick={()=>setScope('mine')}>🔑 {isEn?'Mine':'Mis apts'}</button>
+          </>}
+        </div>
       </div>
 
-      <div style={{position:'relative',marginBottom:14}}>
-        <input className="search" style={{paddingRight:36}} placeholder={appText(lang,'listings.search')} value={search} onChange={e=>setSearch(e.target.value)}/>
-        {search&&<button className="inc-search-clear" onClick={()=>setSearch('')}>✕</button>}
-      </div>
-
-      {filtered.length===0
-        ? <EmptyState icon="🏠" title={appText(lang,'listings.none')} sub={appText(lang,'listings.noResults')}/>
-        : <div className="bld-building">{floorNums.map(f=><BuildingFloor key={f} floor={f} apts={byFloor(f)} incidents={incidents} user={user} contactProps={contactProps} isGlobalAdmin={isGlobalAdmin} canEditGlobal={canEditGlobal} canDeleteGlobal={canDeleteGlobal} canResolveGlobal={canResolveGlobal} onEdit={onEdit} onDelete={onDelete} onReport={onReport} onVerify={onVerify} onResolve={onResolve} onAddResolution={onAddResolution} onFloorFilter={onFloorFilter} isOpen={!!floorOpenState[f]} onToggle={()=>onFloorToggle(f)} lang={lang} isEn={isEn}/>)}</div>
+      {mode==='directory'
+        ? <OwnerDirectoryView listings={listings} lang={lang}/>
+        : <>
+            <div style={{position:'relative',marginBottom:14}}>
+              <input className="search" style={{paddingRight:36}} placeholder={isEn?'Search by unit, owner, operator, email…':appText(lang,'listings.search')} value={search} onChange={e=>setSearch(e.target.value)}/>
+              {search&&<button className="inc-search-clear" onClick={()=>setSearch('')}>✕</button>}
+            </div>
+            {filtered.length===0
+              ? <EmptyState icon="🏠" title={appText(lang,'listings.none')} sub={appText(lang,'listings.noResults')}/>
+              : <div className="bld-building">{floorNums.map(f=><BuildingFloor key={f} floor={f} apts={byFloor(f)} incidents={incidents} user={user} contactProps={contactProps} isGlobalAdmin={isGlobalAdmin} canEditGlobal={canEditGlobal} canDeleteGlobal={canDeleteGlobal} canResolveGlobal={canResolveGlobal} onEdit={onEdit} onDelete={onDelete} onReport={onReport} onVerify={onVerify} onResolve={onResolve} onAddResolution={onAddResolution} onFloorFilter={onFloorFilter} isOpen={!!floorOpenState[f]} onToggle={()=>onFloorToggle(f)} lang={lang} isEn={isEn}/>)}</div>
+            }
+          </>
       }
     </div>
   );
@@ -3826,6 +3956,7 @@ function AptCard({ l, incCount, contactProps={}, canEdit=false, canDelete=false,
           operatorName={l.operator}
           operatorEmail={l.operatorEmail}
           opWaRaw={l.operatorWhatsapp}
+          coOwners={l.coOwners||[]}
           isEn={isEn}
         />
       </div>
@@ -4380,7 +4511,7 @@ function UnitMiniCard({ listing, onUnitDetail, isEn=false }) {
           : <div className="umc-op umc-no-op">{isEn?'No operator':'Sin operador'}</div>
         }
       </div>
-      <AptContactPopup ownerName={listing.owner} ownerEmail={ownerEmail} ownerWaRaw={ownerWaRaw} operatorName={listing.operator} operatorEmail={listing.operatorEmail} opWaRaw={listing.operatorWhatsapp} isEn={isEn}/>
+      <AptContactPopup ownerName={listing.owner} ownerEmail={ownerEmail} ownerWaRaw={ownerWaRaw} operatorName={listing.operator} operatorEmail={listing.operatorEmail} opWaRaw={listing.operatorWhatsapp} coOwners={listing.coOwners||[]} isEn={isEn}/>
     </div>
   );
 }
@@ -4625,13 +4756,22 @@ function IRow({ inc, user, listings=[], contactProps={}, isGlobalAdmin=false, ca
 
 // LoginModal replaced by Firebase signInWithPopup — no modal needed
 
+const EMPTY_CO_OWNER = { firstName:'', middleName:'', lastName:'', whatsapp:'' };
+
 function ListingModal({ title, user, initial={}, onSave, onClose, lang="es-CO", config={} }) {
   const tips = localizedTooltips(config, lang);
   const isEn = lang === 'en';
   const [f,setF]=useState({apt:"",rooms:"2",guests:4,operator:"",operatorEmail:"",operatorWhatsapp:"",airbnb:"",...initial,tower:"KAI"});
+  const [coOwners,setCoOwners]=useState(Array.isArray(initial?.coOwners)&&initial.coOwners.length?initial.coOwners:[]);
   const [errors,setErrors]=useState({});
+  const [coErrors,setCoErrors]=useState([]);
   const [checkingApt,setCheckingApt]=useState(false);
   const s=(k,v)=>{ setF(p=>({...p,[k]:v})); setErrors(e=>({...e,[k]:undefined})); };
+
+  const setCo=(i,k,v)=>setCoOwners(prev=>prev.map((o,idx)=>idx===i?{...o,[k]:v}:o));
+  const addCoOwner=()=>{ if(coOwners.length<3) setCoOwners(p=>[...p,{...EMPTY_CO_OWNER}]); };
+  const removeCoOwner=(i)=>{ setCoOwners(p=>p.filter((_,idx)=>idx!==i)); setCoErrors(p=>p.filter((_,idx)=>idx!==i)); };
+
   const checkApt=async()=>{
     const apt=String(f.apt||'').trim();
     if(!apt || !/^[0-9]{3}$/.test(apt)) return;
@@ -4642,6 +4782,19 @@ function ListingModal({ title, user, initial={}, onSave, onClose, lang="es-CO", 
     }catch(e){ setErrors(er=>({...er,apt:appText(lang,'validation.aptCheckFailed')})); }
     finally{ setCheckingApt(false); }
   };
+
+  const validateCoOwners=()=>{
+    const errs=coOwners.map(o=>{
+      const e={};
+      if(!String(o.firstName||'').trim()) e.firstName=isEn?'First name required':'Nombre requerido';
+      if(!String(o.lastName||'').trim()) e.lastName=isEn?'Last name required':'Apellido requerido';
+      const waErr=validateWhatsApp(o.whatsapp,lang); if(waErr) e.whatsapp=waErr;
+      return e;
+    });
+    setCoErrors(errs);
+    return errs.every(e=>Object.keys(e).length===0);
+  };
+
   const validate=()=>{
     const e={};
     if(!String(f.apt||"").trim()) e.apt=appText(lang,'validation.aptRequired');
@@ -4652,8 +4805,10 @@ function ListingModal({ title, user, initial={}, onSave, onClose, lang="es-CO", 
     const waOpErr=validateWhatsApp(f.operatorWhatsapp,lang); if(waOpErr) e.operatorWhatsapp=waOpErr;
     if(f.airbnb && !/^https?:\/\/.+/i.test(String(f.airbnb).trim())) e.airbnb=appText(lang,'validation.urlInvalid');
     setErrors(e);
-    return Object.keys(e).length===0;
+    const coOk=validateCoOwners();
+    return Object.keys(e).length===0 && coOk;
   };
+
   const inputCls=(k)=>errors[k]?"field-error":"";
   const optLabel = <span style={{color:"#70d6c6",fontStyle:"italic",textTransform:"none",letterSpacing:0,fontSize:"0.68rem"}}>({appText(lang,"form.optional")})</span>;
   return (
@@ -4676,8 +4831,41 @@ function ListingModal({ title, user, initial={}, onSave, onClose, lang="es-CO", 
         <div className="fg"><label>{appText(lang,"form.operatorOptional")} <Tip text={tips.operator}/></label><input className={inputCls("operator")} value={f.operator} onChange={e=>s("operator",e.target.value)} placeholder={appText(lang,"form.operatorPlaceholder")}/>{errors.operator&&<span className="err-msg">{errors.operator}</span>}</div>
         <div className="fg"><label>{appText(lang,"form.operatorEmailOptional")} {optLabel}</label><input className={inputCls("operatorEmail")} type="email" value={f.operatorEmail} onChange={e=>s("operatorEmail",e.target.value)} onBlur={e=>{const v=String(e.target.value||'').trim();if(v&&!validateEmail(v))setErrors(p=>({...p,operatorEmail:appText(lang,'validation.operatorEmailInvalid')}));else setErrors(p=>({...p,operatorEmail:undefined}));}} placeholder="operador@email.com"/>{errors.operatorEmail&&<span className="err-msg">{errors.operatorEmail}</span>}</div>
         <div className="fg full"><label>{appText(lang,"form.operatorWhatsappOptional")} {optLabel}</label><input className={inputCls("operatorWhatsapp")} type="tel" value={f.operatorWhatsapp} onChange={e=>s("operatorWhatsapp",e.target.value)} onBlur={e=>{const v=String(e.target.value||'').trim();const err=validateWhatsApp(v,lang);setErrors(p=>({...p,operatorWhatsapp:err||undefined}));}} placeholder="+57 300 000 0000"/>{errors.operatorWhatsapp?<span className="err-msg">{errors.operatorWhatsapp}</span>:<span className="help-msg">{isEn?'With country code, e.g. +57':'Con código de país, ej. +57'}</span>}</div>
+        {/* ── Co-owners ────────────────────────────────────── */}
+        <div className="fg full form-section-hdr">👥 {isEn?'Additional owners':'Propietarios adicionales'} {optLabel}</div>
+        {coOwners.length===0&&<div className="fg full" style={{color:'#6b9ba8',fontSize:'.83rem',margin:'-4px 0 4px'}}>{isEn?'Up to 3 additional owners can be added to this unit.':'Se pueden agregar hasta 3 propietarios adicionales a esta unidad.'}</div>}
+        {coOwners.map((co,i)=>(
+          <div key={i} className="fg full" style={{border:'1px solid #cce7ee',borderRadius:8,padding:'12px 14px',marginBottom:4,background:'#f5fbfd'}}>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:8}}>
+              <span style={{fontWeight:600,fontSize:'.85rem',color:'#1a4a5a'}}>{isEn?`Co-owner ${i+1}`:`Propietario ${i+1}`}</span>
+              <button type="button" style={{background:'none',border:'none',color:'#e53935',cursor:'pointer',fontSize:'1rem',padding:'0 2px'}} onClick={()=>removeCoOwner(i)}>✕</button>
+            </div>
+            <div className="fg2">
+              <div className="fg">
+                <label>{isEn?'First name':'Nombre'} <span style={{color:'#e53935',fontSize:'0.75rem'}}>*</span></label>
+                <input className={coErrors[i]?.firstName?'field-error':''} value={co.firstName} onChange={e=>setCo(i,'firstName',e.target.value)} placeholder={isEn?'First name':'Nombre'}/>
+                {coErrors[i]?.firstName&&<span className="err-msg">{coErrors[i].firstName}</span>}
+              </div>
+              <div className="fg">
+                <label>{isEn?'Middle name':'Segundo nombre'} {optLabel}</label>
+                <input value={co.middleName} onChange={e=>setCo(i,'middleName',e.target.value)} placeholder={isEn?'Middle name (optional)':'Segundo nombre (opcional)'}/>
+              </div>
+              <div className="fg">
+                <label>{isEn?'Last name':'Apellido'} <span style={{color:'#e53935',fontSize:'0.75rem'}}>*</span></label>
+                <input className={coErrors[i]?.lastName?'field-error':''} value={co.lastName} onChange={e=>setCo(i,'lastName',e.target.value)} placeholder={isEn?'Last name':'Apellido'}/>
+                {coErrors[i]?.lastName&&<span className="err-msg">{coErrors[i].lastName}</span>}
+              </div>
+              <div className="fg">
+                <label>WhatsApp {optLabel}</label>
+                <input className={coErrors[i]?.whatsapp?'field-error':''} type="tel" value={co.whatsapp} onChange={e=>setCo(i,'whatsapp',e.target.value)} onBlur={e=>{const err=validateWhatsApp(e.target.value,lang);setCoErrors(p=>p.map((ce,idx)=>idx===i?{...ce,whatsapp:err||undefined}:ce));}} placeholder="+57 300 000 0000"/>
+                {coErrors[i]?.whatsapp?<span className="err-msg">{coErrors[i].whatsapp}</span>:<span className="help-msg">{isEn?'With country code':'Con código de país'}</span>}
+              </div>
+            </div>
+          </div>
+        ))}
+        {coOwners.length<3&&<div className="fg full"><button type="button" className="btn-ghost" style={{fontSize:'.83rem',padding:'6px 14px'}} onClick={addCoOwner}>+ {isEn?'Add co-owner':'Agregar propietario'}</button></div>}
       </div>
-      <div className="mact"><button className="btn-ghost" onClick={onClose}>{appText(lang,"form.cancel")}</button><button className="btn-p" onClick={()=>{if(validate()) onSave({...f,apt:String(f.apt).trim(),tower:"KAI",operatorEmail:String(f.operatorEmail||"").trim().toLowerCase(),operatorWhatsapp:String(f.operatorWhatsapp||"").trim(),airbnb:String(f.airbnb||"").trim()});}}>{appText(lang,"form.save")}</button></div>
+      <div className="mact"><button className="btn-ghost" onClick={onClose}>{appText(lang,"form.cancel")}</button><button className="btn-p" onClick={()=>{if(validate()) onSave({...f,apt:String(f.apt).trim(),tower:"KAI",operatorEmail:String(f.operatorEmail||"").trim().toLowerCase(),operatorWhatsapp:String(f.operatorWhatsapp||"").trim(),airbnb:String(f.airbnb||"").trim(),coOwners:coOwners.map(o=>({...o,firstName:o.firstName.trim(),middleName:o.middleName.trim(),lastName:o.lastName.trim(),whatsapp:o.whatsapp.trim()}))});}}>{appText(lang,"form.save")}</button></div>
     </Overlay>
   );
 }

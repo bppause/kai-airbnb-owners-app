@@ -47,6 +47,7 @@ alter table public.listings add column if not exists operator_email text not nul
 alter table public.listings add column if not exists operator_whatsapp text not null default '';
 alter table public.listings alter column contact set default '';
 alter table public.listings alter column contact set not null;
+alter table public.listings add column if not exists co_owners jsonb not null default '[]'::jsonb;
 
 -- Constraint guards
 do $$
@@ -248,6 +249,7 @@ alter table public.app_users add column if not exists permissions jsonb not null
 alter table public.app_users add column if not exists language_preference text not null default 'es-CO';
 alter table public.app_users add column if not exists whatsapp text not null default '';
 alter table public.app_users add column if not exists country text not null default 'Colombia';
+alter table public.app_users add column if not exists notification_email text not null default '';
 
 -- ─────────────────────────────────────────────────────────────────────────────
 -- NOTIFICATIONS

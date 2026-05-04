@@ -451,6 +451,26 @@ const sendListingChangeEmail = async ({ listing, action, appUrl }) => {
 const isThreeDigitApt = (apt) => /^[0-9]{3}$/.test(String(apt || '').trim());
 const isValidEmail = (email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(email || '').trim());
 const isValidOptionalUrl = (url) => !String(url || '').trim() || /^https?:\/\/.+/i.test(String(url || '').trim());
+const isValidWhatsApp = (v) => { const raw = String(v || '').trim(); if (!raw) return true; return raw.startsWith('+') && raw.replace(/[^0-9]/g, '').length >= 10; };
+
+// Validate and sanitize co-owners array (max 3, each needs firstName+lastName, optional whatsapp)
+const parseCoOwners = (raw) => {
+  if (!Array.isArray(raw)) return { ok: true, coOwners: [] };
+  if (raw.length > 3) return { ok: false, error: 'Maximum 3 co-owners allowed.' };
+  const coOwners = [];
+  for (let i = 0; i < raw.length; i++) {
+    const o = raw[i] || {};
+    const firstName = String(o.firstName || '').trim();
+    const middleName = String(o.middleName || '').trim();
+    const lastName = String(o.lastName || '').trim();
+    const wa = String(o.whatsapp || '').trim();
+    if (!firstName) return { ok: false, error: `Co-owner ${i + 1}: first name is required.` };
+    if (!lastName) return { ok: false, error: `Co-owner ${i + 1}: last name is required.` };
+    if (wa && !isValidWhatsApp(wa)) return { ok: false, error: `Co-owner ${i + 1}: WhatsApp must start with + and country code.` };
+    coOwners.push({ firstName, middleName, lastName, whatsapp: wa });
+  }
+  return { ok: true, coOwners };
+};
 
 // ─── FIELD MAPPERS ───────────────────────────────────────────────────────────
 const listingFromDb = (r) => ({
@@ -474,6 +494,7 @@ const listingFromDb = (r) => ({
   contact: r.contact || '',
   email: r.email || '',
   airbnb: r.airbnb || '',
+  coOwners: Array.isArray(r.co_owners) ? r.co_owners : [],
   createdAt: (r.created_at || '').slice(0, 10),
 });
 
@@ -498,6 +519,7 @@ const listingToDb = (l) => ({
   contact: String(l.contact || '').trim(),
   email: String(l.email || l.userEmail || '').trim(),
   airbnb: String(l.airbnb || '').trim(),
+  co_owners: Array.isArray(l.coOwners) ? l.coOwners : [],
   created_at: l.createdAt || new Date().toISOString(),
 });
 
@@ -1045,22 +1067,25 @@ app.get('/api/listings', async (req, res) => {
 
 app.post('/api/listings', async (req, res) => {
   if (!requireSupabaseEnv(res)) return;
-  const { ownerUid, owner, userEmail, apt, rooms, guests, operator, operatorEmail, operatorWhatsapp, airbnb } = req.body;
+  const { ownerUid, owner, userEmail, apt, rooms, guests, operator, operatorEmail, operatorWhatsapp, airbnb, coOwners: coOwnersRaw } = req.body;
   if (!ownerUid || !owner || !apt || !rooms || !guests) return res.status(400).json({ error: 'Missing required fields: owner, apartment, rooms, and guests are required.' });
   if (!isThreeDigitApt(apt)) return res.status(400).json({ error: 'Apartment number must be exactly 3 digits, for example 000.' });
   if (operatorEmail && !isValidEmail(operatorEmail)) return res.status(400).json({ error: 'A valid operator email is required.' });
   if (!isValidOptionalUrl(airbnb)) return res.status(400).json({ error: 'Airbnb URL must start with http:// or https:// when provided.' });
+  const coOwnersParsed = parseCoOwners(coOwnersRaw || []);
+  if (!coOwnersParsed.ok) return res.status(400).json({ error: coOwnersParsed.error });
   try {
     const conflict = await validateApartmentUniqueness([{ apt }], { ownerUid, includePending: true });
     if (conflict) return res.status(409).json({ error: conflict.message, conflict });
   } catch(e) { return sendSupabaseError(res, e); }
 
   // Use owner's profile whatsapp and Google email as contact details
-  const { data: profileRow } = await supabase.from('app_users').select('whatsapp').eq('uid', ownerUid).maybeSingle();
+  const { data: profileRow } = await supabase.from('app_users').select('whatsapp,notification_email').eq('uid', ownerUid).maybeSingle();
   const ownerContact = String(profileRow?.whatsapp || '').trim();
-  const ownerEmail   = String(userEmail || '').trim().toLowerCase();
+  const googleEmail  = String(userEmail || '').trim().toLowerCase();
+  const ownerEmail   = (profileRow?.notification_email || googleEmail);
 
-  const item = { id:'lst_'+uuidv4().slice(0,8), ownerUid, owner:String(owner||'').trim(), userEmail:ownerEmail, apt:String(apt).trim(), tower:'KAI', rooms, guests:Number(guests), operator:operator||'', operatorEmail:operatorEmail||'', operatorWhatsapp:operatorWhatsapp||'', contact:ownerContact, email:ownerEmail, airbnb:String(airbnb||'').trim(), status:'approved', reviewedByUid:ownerUid, reviewedByName:owner, reviewedAt:new Date().toISOString(), createdAt:new Date().toISOString() };
+  const item = { id:'lst_'+uuidv4().slice(0,8), ownerUid, owner:String(owner||'').trim(), userEmail:googleEmail, apt:String(apt).trim(), tower:'KAI', rooms, guests:Number(guests), operator:operator||'', operatorEmail:operatorEmail||'', operatorWhatsapp:operatorWhatsapp||'', contact:ownerContact, email:ownerEmail, airbnb:String(airbnb||'').trim(), coOwners:coOwnersParsed.coOwners, status:'approved', reviewedByUid:ownerUid, reviewedByName:owner, reviewedAt:new Date().toISOString(), createdAt:new Date().toISOString() };
   const { data, error } = await supabase.from('listings').insert(listingToDb(item)).select('*').single();
   if (error) return sendSupabaseError(res, error);
   await auditEvent({ listingId:data.id, registrationId:data.registration_id, actorUid:ownerUid, actorName:owner, action:'listing_created', after:data });
@@ -1071,7 +1096,7 @@ app.post('/api/listings', async (req, res) => {
 
 app.put('/api/listings/:id', async (req, res) => {
   if (!requireSupabaseEnv(res)) return;
-  const { ownerUid, actorEmail, apt, rooms, guests, operator, operatorEmail, operatorWhatsapp, airbnb } = req.body;
+  const { ownerUid, actorEmail, apt, rooms, guests, operator, operatorEmail, operatorWhatsapp, airbnb, coOwners: coOwnersRaw } = req.body;
 
   const { data: existing, error: findError } = await supabase.from('listings').select('*').eq('id', req.params.id).single();
   if (findError || !existing) return res.status(404).json({ error: 'Not found' });
@@ -1081,17 +1106,20 @@ app.put('/api/listings/:id', async (req, res) => {
   if (!isThreeDigitApt(apt)) return res.status(400).json({ error: 'Apartment number must be exactly 3 digits, for example 000.' });
   if (operatorEmail && !isValidEmail(operatorEmail)) return res.status(400).json({ error: 'A valid operator email is required.' });
   if (!isValidOptionalUrl(airbnb)) return res.status(400).json({ error: 'Airbnb URL must start with http:// or https:// when provided.' });
+  const coOwnersParsed = parseCoOwners(coOwnersRaw || []);
+  if (!coOwnersParsed.ok) return res.status(400).json({ error: coOwnersParsed.error });
   try {
     const conflict = await validateApartmentUniqueness([{ apt }], { ownerUid, excludeListingId: req.params.id, includePending: true });
     if (conflict) return res.status(409).json({ error: conflict.message, conflict });
   } catch(e) { return sendSupabaseError(res, e); }
 
   // Re-sync contact/email from owner profile (keeps listings in sync with profile)
-  const { data: profileRow } = await supabase.from('app_users').select('whatsapp,email').eq('uid', existing.owner_uid).maybeSingle();
+  const { data: profileRow } = await supabase.from('app_users').select('whatsapp,email,notification_email').eq('uid', existing.owner_uid).maybeSingle();
   const ownerContact = String(profileRow?.whatsapp || existing.contact || '').trim();
-  const ownerEmail   = String(existing.user_email || profileRow?.email || '').trim().toLowerCase();
+  const googleEmail  = String(existing.user_email || profileRow?.email || '').trim().toLowerCase();
+  const ownerEmail   = profileRow?.notification_email || googleEmail;
 
-  const update = { apt:String(apt).trim(), tower:'KAI', rooms:String(rooms||''), guests:Number(guests||0), operator:operator||'', operator_email:String(operatorEmail||'').trim(), operator_whatsapp:String(operatorWhatsapp||'').trim(), contact:ownerContact, email:ownerEmail, airbnb:String(airbnb||'').trim() };
+  const update = { apt:String(apt).trim(), tower:'KAI', rooms:String(rooms||''), guests:Number(guests||0), operator:operator||'', operator_email:String(operatorEmail||'').trim(), operator_whatsapp:String(operatorWhatsapp||'').trim(), contact:ownerContact, email:ownerEmail, airbnb:String(airbnb||'').trim(), co_owners:coOwnersParsed.coOwners };
   const { data, error } = await supabase.from('listings').update(update).eq('id', req.params.id).select('*').single();
   if (error) return sendSupabaseError(res, error);
   await auditEvent({ listingId:data.id, registrationId:data.registration_id, actorUid:ownerUid, actorName:existing.owner, action:'listing_updated', before:existing, after:data });
@@ -1316,14 +1344,14 @@ app.get('/api/users/profile', async (req, res) => {
   if (!requireSupabaseEnv(res)) return;
   const uid = String(req.query.uid || '').trim();
   if (!uid) return res.status(400).json({ error:'uid is required.' });
-  const { data, error } = await supabase.from('app_users').select('whatsapp,country').eq('uid', uid).maybeSingle();
+  const { data, error } = await supabase.from('app_users').select('whatsapp,country,notification_email').eq('uid', uid).maybeSingle();
   if (error) return sendSupabaseError(res, error);
-  res.json({ whatsapp: data?.whatsapp || '', country: data?.country || 'Colombia' });
+  res.json({ whatsapp: data?.whatsapp || '', country: data?.country || 'Colombia', notificationEmail: data?.notification_email || '' });
 });
 
 app.put('/api/users/profile', async (req, res) => {
   if (!requireSupabaseEnv(res)) return;
-  const { uid, email, whatsapp, country } = req.body || {};
+  const { uid, email, whatsapp, country, notificationEmail } = req.body || {};
   if (!uid || !email) return res.status(400).json({ error:'uid and email are required.' });
   const waRaw = String(whatsapp || '').trim();
   // Auto-normalize: prepend + if the number has 10+ digits but no country code prefix
@@ -1331,15 +1359,19 @@ app.put('/api/users/profile', async (req, res) => {
   const wa = waRaw ? (waRaw.startsWith('+') ? waRaw : (waDigits.length >= 10 ? '+' + waDigits : waRaw)) : '';
   const em = String(email).toLowerCase();
   const countryVal = String(country || 'Colombia').trim();
+  const notifEmailRaw = String(notificationEmail || '').trim().toLowerCase();
+  const notifEmail = notifEmailRaw && isValidEmail(notifEmailRaw) ? notifEmailRaw : '';
+  // Email used for notifications: notification_email if set and valid, otherwise Google email
+  const effectiveEmail = notifEmail || em;
   const { error } = await supabase.from('app_users').upsert({
-    uid, email: em, whatsapp: wa, country: countryVal, updated_at: new Date().toISOString()
+    uid, email: em, whatsapp: wa, country: countryVal, notification_email: notifEmail, updated_at: new Date().toISOString()
   }, { onConflict: 'uid' });
   if (error) return sendSupabaseError(res, error);
-  // Propagate updated whatsapp to all of this owner's listings so contact info stays in sync
-  if (wa) {
-    await supabase.from('listings').update({ contact: wa, email: em }).eq('owner_uid', uid).in('status', ['approved', 'pending']);
+  // Propagate contact info to all of this owner's listings so notifications stay in sync
+  if (wa || effectiveEmail) {
+    await supabase.from('listings').update({ contact: wa, email: effectiveEmail }).eq('owner_uid', uid).in('status', ['approved', 'pending']);
   }
-  res.json({ ok: true, whatsapp: wa, country: countryVal });
+  res.json({ ok: true, whatsapp: wa, country: countryVal, notificationEmail: notifEmail });
 });
 
 app.get('/api/admin/me', async (req, res) => {
