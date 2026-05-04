@@ -3738,7 +3738,7 @@ function GeneralListingsSection({ incidents, isGlobalAdmin=false, canResolveGlob
   const canAct = isGlobalAdmin || canResolveGlobal;
   const generalOpen = incidents.filter(i => i.isGeneral && i.status !== 'resolved')
     .sort((a,b) => new Date(b.createdAt) - new Date(a.createdAt));
-  const [open, setOpen] = useState(true);
+  const [open, setOpen] = useState(false);
 
   return (
     <div className="gen-ls-section">
@@ -3906,8 +3906,6 @@ function ListingsView({ listings, incidents, user, contactProps={}, isGlobalAdmi
         </div>
         {user&&<button className="btn-p" onClick={onAdd}>{appText(lang,'listings.add')}</button>}
       </div>
-
-      <GeneralListingsSection incidents={incidents} isGlobalAdmin={isGlobalAdmin} canResolveGlobal={canResolveGlobal} onAssign={onAssign} onCloseGeneral={onCloseGeneral} onIncidentDetail={onIncidentDetail} lang={lang} />
 
       <div className="fls-toolbar" style={{marginTop:14}}>
         <div className="filter-row" style={{margin:0,gap:6,flexWrap:'wrap'}}>
@@ -4228,6 +4226,8 @@ function IncidentsView({ incidents, listings, user, quickFilter=null, onQuickFil
           <button className="ffb-clear" onClick={()=>setFloorFilter(null)}>✕ {isEn?'Show all':'Ver todos'}</button>
         </div>
       )}
+      <GeneralListingsSection incidents={incidents} isGlobalAdmin={isGlobalAdmin} canResolveGlobal={canResolveGlobal} onAssign={onAssign} onCloseGeneral={onCloseGeneral} onIncidentDetail={onIncidentDetail} lang={lang} />
+
       <div className="inc-filters-bar">
         <div className="inc-search-wrap" style={{flex:'1 1 200px',minWidth:0}}>
           <input className="search inc-search" placeholder={appText(lang,"incidents.search")} value={search} onChange={e=>setSearch(e.target.value)}/>
