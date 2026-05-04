@@ -3327,6 +3327,15 @@ function UnitDetailCard({ l, incidents, canEdit=false, canDelete=false, onEdit, 
 
           <TlStep icon="📝" title={isEn?'Description':'Descripción'} accent="desc">
             <p className="idd-tl-desc">{inc.desc}</p>
+            {Array.isArray(inc.photos)&&inc.photos.length>0&&(
+              <div className="inc-photo-row" style={{marginTop:8}}>
+                {inc.photos.map((p,i)=>(
+                  <img key={i} src={p.data} alt={p.name||`photo-${i+1}`} className="inc-photo-thumb"
+                    title={isEn?'Click to view full size':'Clic para ver tamaño completo'}
+                    onClick={()=>window.open(p.data,'_blank')}/>
+                ))}
+              </div>
+            )}
           </TlStep>
 
           {guests.length>0&&(
