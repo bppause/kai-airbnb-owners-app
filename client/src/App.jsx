@@ -3323,9 +3323,7 @@ function UnitDetailCard({ l, incidents, canEdit=false, canDelete=false, onEdit, 
 
         {/* ── Timeline ── */}
         <div className="idd-timeline">
-          <TlStep icon="📋" title={isEn?'Filed':'Reportado'} ts={inc.createdAtFull||inc.createdAt} accent="filed">
-            <span className="idd-tl-reporter">{isEn?'Reported by':'Reportado por'}: <strong>{inc.reporterName||'—'}</strong></span>
-          </TlStep>
+          <TlStep icon="📋" title={isEn?'Filed':'Reportado'} ts={inc.createdAtFull||inc.createdAt} accent="filed"/>
 
           <TlStep icon="📝" title={isEn?'Description':'Descripción'} accent="desc">
             <p className="idd-tl-desc">{inc.desc}</p>
@@ -4588,40 +4586,6 @@ function IRow({ inc, user, listings=[], contactProps={}, isGlobalAdmin=false, ca
             })()}
             <span className="ir-ss-date">📅 {fmtDate(inc.date)}</span>
           </div>
-          {/* General incident quick actions — admin only */}
-          {inc.isGeneral && (isGlobalAdmin||canResolveGlobal) && inc.status!=='resolved' && (
-            <>
-              <button type="button" className="ir-ss-act ir-ss-act-assign"
-                onClick={e=>{e.stopPropagation();onAssign&&onAssign(inc);}}>
-                🏠 {isEn?'Assign to unit':'Asignar a unidad'}
-              </button>
-              <button type="button" className="ir-ss-act ir-ss-act-close-gen"
-                onClick={e=>{e.stopPropagation();onCloseGeneral&&onCloseGeneral(inc);}}>
-                ✓ {isEn?'Close':'Cerrar'}
-              </button>
-            </>
-          )}
-          {/* Quick-action buttons — shown whenever owner action is required */}
-          {user&&inc.status==='open'&&isOwner&&(
-            <button type="button" className="ir-ss-act ir-ss-act-verify"
-              onClick={e=>{e.stopPropagation();onVerify&&onVerify(inc);}}
-              title={isEn?'Step 1: Verify guest details and document your action':'Paso 1: Verificar datos del huésped y documentar acción'}>
-              ① {isEn?'Verify':'Verificar'}
-            </button>
-          )}
-          {user&&inc.status==='verified'&&isOwner&&hasPendingRes&&(
-            <button type="button" className="ir-ss-act ir-ss-act-resolve"
-              onClick={e=>{e.stopPropagation();onAddResolution&&onAddResolution(inc);}}
-              title={isEn?'Step 2: Add your resolution so admin can close':'Paso 2: Agrega tu respuesta para que el admin pueda cerrar'}>
-              ② {isEn?'Add resolution':'Agregar respuesta'}
-            </button>
-          )}
-          {user&&(isGlobalAdmin||canResolveGlobal)&&inc.status==='verified'&&!hasPendingRes&&(
-            <button type="button" className="ir-ss-act ir-ss-act-close"
-              onClick={e=>{e.stopPropagation();onResolve&&onResolve(inc.id);}}>
-              {isEn?'Close':'Cerrar'}
-            </button>
-          )}
           {hasDetail&&(
             <button type="button" className="ir-detail-pill" onClick={()=>onIncidentDetail(inc.id)}>
               {isEn?'Details':'Detalles'} ›
@@ -4629,66 +4593,9 @@ function IRow({ inc, user, listings=[], contactProps={}, isGlobalAdmin=false, ca
           )}
         </div>
 
-        {/* Body: description + structured sections */}
         <div className="ir-body">
           {inc.desc&&<p className="ir-body-desc">{inc.desc}</p>}
-          {/* Photo thumbnails */}
-          {Array.isArray(inc.photos)&&inc.photos.length>0&&(
-            <div className="inc-photo-row">
-              {inc.photos.map((p,i)=>(
-                <img key={i} src={p.data} alt={p.name||`photo-${i+1}`} className="inc-photo-thumb"
-                  title={isEn?'Click to view full size':'Clic para ver tamaño completo'}
-                  onClick={()=>window.open(p.data,'_blank')}/>
-              ))}
-            </div>
-          )}
-
-          {/* Guests */}
-          {!inc.isGeneral&&(guests.length>0 ? (
-            <div className="ir-body-section">
-              <span className="ir-body-lbl">👥 {isEn?'Guests':'Huéspedes'}</span>
-              <div className="ir-body-guests">
-                {guests.map((g,i)=>(
-                  <div key={i} className="ir-body-guest-row">
-                    <span className="ir-body-guest-name">{guestFullName(g)}</span>
-                    {guestLocation(g)&&<span className="ir-body-guest-loc">📍 {guestLocation(g)}</span>}
-                  </div>
-                ))}
-              </div>
-            </div>
-          ) : (
-            <div className="ir-body-section">
-              <span className="ir-body-lbl">👤 {isEn?'Guest':'Huésped'}</span>
-              <span className="ir-body-pending">{inc.guestName||(isEn?'Pending verification':'Pendiente verificación')}</span>
-              {inc.guestCity&&<span className="ir-body-guest-loc" style={{display:'block',marginTop:2}}>📍 {inc.guestCity}{inc.guestCountry?', '+inc.guestCountry:''}</span>}
-            </div>
-          ))}
-
-          {/* Action taken */}
-          {inc.ownerComments&&(
-            <div className="ir-body-section">
-              <span className="ir-body-lbl">✅ {isEn?'Action taken':'Acción tomada'}{inc.ownerVerifiedAt&&<span className="ir-body-ts"> · {fmtDateTime(inc.ownerVerifiedAt,lang)}</span>}</span>
-              <blockquote className="ir-body-quote">{inc.ownerComments}</blockquote>
-            </div>
-          )}
-
-          {/* Resolution */}
-          {inc.ownerResolution&&(
-            <div className="ir-body-section">
-              <span className="ir-body-lbl">🔍 {isEn?'Resolution':'Respuesta'}{inc.ownerResolutionAt&&<span className="ir-body-ts"> · {fmtDateTime(inc.ownerResolutionAt,lang)}</span>}</span>
-              <blockquote className="ir-body-quote ir-body-quote-res">{inc.ownerResolution}</blockquote>
-            </div>
-          )}
-
-          {/* Closed */}
-          {inc.status==='resolved'&&(inc.resolutionComments||inc.resolvedBy)&&(
-            <div className="ir-body-section">
-              <span className="ir-body-lbl">🏁 {isEn?'Closed':'Cerrado'}{inc.resolvedAt&&<span className="ir-body-ts"> · {fmtDateTime(inc.resolvedAt,lang)}</span>}{inc.resolvedBy&&<span className="ir-body-by"> · {inc.resolvedBy}</span>}</span>
-              {inc.resolutionComments&&<blockquote className="ir-body-quote">{inc.resolutionComments}</blockquote>}
-            </div>
-          )}
-
-          {/* ── Parties — always visible (compact = mini strip, full = hover cards) ── */}
+          {/* ── Parties — reporter + owner always visible ── */}
           {compact?(
             <div className="ir-bparty-compact">
               {inc.reporterName&&<span className="ir-bpc-item" title={isEn?'Reporter':'Reportado por'}>📋 {inc.reporterName}</span>}
