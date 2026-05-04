@@ -4611,50 +4611,26 @@ function IRow({ inc, user, listings=[], contactProps={}, isGlobalAdmin=false, ca
               {listing&&<span className="ir-bpc-item" title={isEn?'Owner':'Propietario'}>🏠 {listing.owner||listing.userEmail||'—'}</span>}
               {listing&&(listing.operator||listing.operatorEmail)&&<span className="ir-bpc-item" title={isEn?'Operator':'Operador'}>🔧 {listing.operator||listing.operatorEmail}</span>}
             </div>
-          ):(()=>{
-            const ownerEmail = listing ? (listing.userEmail||listing.email||'') : '';
-            const ownerWa    = listing ? normalizePhoneForWhatsApp(listing.contact) : '';
-            const opWa       = listing ? normalizePhoneForWhatsApp(listing.operatorWhatsapp) : '';
-            const hasOp      = listing && !!(listing.operator||listing.operatorEmail||listing.operatorWhatsapp);
-            return (
-              <div className="idd-parties-grid ir-parties-grid">
-                <div className="idd-pi-item">
-                  <span className="idd-pi-role">📋 {isEn?'Reporter':'Reportado por'}</span>
-                  <span className="idd-pi-name">{inc.reporterName||'—'}</span>
-                </div>
-                {listing&&(
-                  <div className="idd-pi-item idd-pi-owner">
-                    <span className="idd-pi-role">🏠 {isEn?'Owner':'Propietario'}{inc.status!=='resolved'&&<span className="idd-pi-resp-badge">{isEn?'Responsible':'Responsable'}</span>}</span>
-                    <span className="idd-pi-name">{listing.owner||ownerEmail||'—'}</span>
-                    {(ownerEmail||ownerWa)&&(
-                      <div className="idd-pi-contacts">
-                        {ownerEmail&&<a href={`mailto:${ownerEmail}`} className="idd-pi-link">✉️ {ownerEmail}</a>}
-                        {ownerWa&&<a href={`https://wa.me/${ownerWa}`} target="_blank" rel="noopener noreferrer" className="idd-pi-link idd-pi-wa">💬 WhatsApp</a>}
-                      </div>
-                    )}
-                  </div>
-                )}
-                {listing&&(
-                  <div className="idd-pi-item">
-                    <span className="idd-pi-role">🔧 {isEn?'Operator':'Operador'}</span>
-                    {hasOp?(
-                      <>
-                        <span className="idd-pi-name">{listing.operator||listing.operatorEmail||'—'}</span>
-                        {(listing.operatorEmail||opWa)&&(
-                          <div className="idd-pi-contacts">
-                            {listing.operatorEmail&&<a href={`mailto:${listing.operatorEmail}`} className="idd-pi-link">✉️ {listing.operatorEmail}</a>}
-                            {opWa&&<a href={`https://wa.me/${opWa}`} target="_blank" rel="noopener noreferrer" className="idd-pi-link idd-pi-wa">💬 WhatsApp</a>}
-                          </div>
-                        )}
-                      </>
-                    ):(
-                      <span className="idd-pi-none">{isEn?'No operator assigned':'Sin operador asignado'}</span>
-                    )}
-                  </div>
-                )}
-              </div>
-            );
-          })()}
+          ):(
+            <div className="ir-body-parties">
+              <span className="ir-bparty">
+                <span className="ir-bparty-lbl">📋 {isEn?'Reporter':'Reportado por'}</span>
+                <UserContact name={inc.reporterName||'—'} uid={inc.reporterUid||''} {...contactProps}/>
+              </span>
+              {listing&&(
+                <span className="ir-bparty">
+                  <span className="ir-bparty-lbl">🏠 {isEn?'Owner':'Propietario'}</span>
+                  <UserContact name={listing.owner||listing.userEmail||'—'} uid={listing.ownerUid||''} email={listing.userEmail||listing.email||''} whatsapp={listing.contact||''} {...contactProps}/>
+                </span>
+              )}
+              {listing&&(listing.operator||listing.operatorEmail)&&(
+                <span className="ir-bparty">
+                  <span className="ir-bparty-lbl">🔧 {isEn?'Operator':'Operador'}</span>
+                  <UserContact name={listing.operator||listing.operatorEmail} uid='' email={listing.operatorEmail||''} whatsapp={listing.operatorWhatsapp||''} {...contactProps}/>
+                </span>
+              )}
+            </div>
+          )}
         </div>
 
         {/* ── Action footer — mirrors idd-actions ── */}
