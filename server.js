@@ -857,7 +857,7 @@ app.get('/api/registrations/status', async (req, res) => {
 
 app.post('/api/registrations', async (req, res) => {
   if (!requireSupabaseEnv(res)) return;
-  const { userUid, userName, userEmail, listings, profileWhatsapp, language } = req.body || {};
+  const { userUid, userName, userEmail, listings, profileWhatsapp, profileCountry, language } = req.body || {};
   if (!userUid || !userName || !userEmail || !isValidEmail(userEmail)) return res.status(400).json({ error:'Google login name and email are required.' });
   if (!profileWhatsapp || String(profileWhatsapp).replace(/[^0-9]/g,'').length < 10) return res.status(400).json({ error:'WhatsApp del propietario es requerido con código de país (mín. 10 dígitos).' });
   if (!Array.isArray(listings) || listings.length < 1) return res.status(400).json({ error:'Debe registrar al menos un listing propio.' });
@@ -891,7 +891,7 @@ app.post('/api/registrations', async (req, res) => {
   try {
     const regLang = normalizeLanguage(language || 'es-CO');
     const { data: existingLangRow } = await supabase.from('app_users').select('language_preference').eq('uid', userUid).maybeSingle();
-    const profileRow = { uid: userUid, email: String(userEmail).toLowerCase(), name: userName || '', whatsapp: ownerContact, updated_at: new Date().toISOString() };
+    const profileRow = { uid: userUid, email: String(userEmail).toLowerCase(), name: userName || '', whatsapp: ownerContact, country: String(profileCountry || 'Colombia').trim(), updated_at: new Date().toISOString() };
     if (!existingLangRow) profileRow.language_preference = regLang;
     await supabase.from('app_users').upsert(profileRow, { onConflict: 'uid' });
   } catch(e) { warn('Profile whatsapp save on registration failed: ' + (e?.message || e)); }
@@ -1316,29 +1316,30 @@ app.get('/api/users/profile', async (req, res) => {
   if (!requireSupabaseEnv(res)) return;
   const uid = String(req.query.uid || '').trim();
   if (!uid) return res.status(400).json({ error:'uid is required.' });
-  const { data, error } = await supabase.from('app_users').select('whatsapp').eq('uid', uid).maybeSingle();
+  const { data, error } = await supabase.from('app_users').select('whatsapp,country').eq('uid', uid).maybeSingle();
   if (error) return sendSupabaseError(res, error);
-  res.json({ whatsapp: data?.whatsapp || '' });
+  res.json({ whatsapp: data?.whatsapp || '', country: data?.country || 'Colombia' });
 });
 
 app.put('/api/users/profile', async (req, res) => {
   if (!requireSupabaseEnv(res)) return;
-  const { uid, email, whatsapp } = req.body || {};
+  const { uid, email, whatsapp, country } = req.body || {};
   if (!uid || !email) return res.status(400).json({ error:'uid and email are required.' });
   const waRaw = String(whatsapp || '').trim();
   // Auto-normalize: prepend + if the number has 10+ digits but no country code prefix
   const waDigits = waRaw.replace(/[^0-9]/g, '');
   const wa = waRaw ? (waRaw.startsWith('+') ? waRaw : (waDigits.length >= 10 ? '+' + waDigits : waRaw)) : '';
   const em = String(email).toLowerCase();
+  const countryVal = String(country || 'Colombia').trim();
   const { error } = await supabase.from('app_users').upsert({
-    uid, email: em, whatsapp: wa, updated_at: new Date().toISOString()
+    uid, email: em, whatsapp: wa, country: countryVal, updated_at: new Date().toISOString()
   }, { onConflict: 'uid' });
   if (error) return sendSupabaseError(res, error);
   // Propagate updated whatsapp to all of this owner's listings so contact info stays in sync
   if (wa) {
     await supabase.from('listings').update({ contact: wa, email: em }).eq('owner_uid', uid).in('status', ['approved', 'pending']);
   }
-  res.json({ ok: true, whatsapp: wa });
+  res.json({ ok: true, whatsapp: wa, country: countryVal });
 });
 
 app.get('/api/admin/me', async (req, res) => {

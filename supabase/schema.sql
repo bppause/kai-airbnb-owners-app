@@ -239,6 +239,7 @@ create table if not exists public.app_users (
   permissions jsonb not null default '{}'::jsonb,
   language_preference text not null default 'es-CO' check (language_preference in ('es-CO','en')),
   whatsapp text not null default '',
+  country text not null default 'Colombia',
   updated_at timestamptz not null default now()
 );
 
@@ -246,6 +247,7 @@ create table if not exists public.app_users (
 alter table public.app_users add column if not exists permissions jsonb not null default '{}'::jsonb;
 alter table public.app_users add column if not exists language_preference text not null default 'es-CO';
 alter table public.app_users add column if not exists whatsapp text not null default '';
+alter table public.app_users add column if not exists country text not null default 'Colombia';
 
 -- ─────────────────────────────────────────────────────────────────────────────
 -- NOTIFICATIONS

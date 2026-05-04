@@ -152,6 +152,31 @@ const INCIDENT_TEMPLATES = {
 };
 
 const COUNTRIES = ["Colombia","USA","Venezuela","Ecuador","Perú","México","Brasil","España","Argentina","Chile","Panamá","Costa Rica","Canadá","UK","Francia","Alemania","Italia","Otro"];
+const OWNER_COUNTRIES = [
+  { name:'Colombia',    code:'+57'  },
+  { name:'USA',         code:'+1'   },
+  { name:'Venezuela',   code:'+58'  },
+  { name:'Ecuador',     code:'+593' },
+  { name:'Perú',        code:'+51'  },
+  { name:'México',      code:'+52'  },
+  { name:'Brasil',      code:'+55'  },
+  { name:'España',      code:'+34'  },
+  { name:'Argentina',   code:'+54'  },
+  { name:'Chile',       code:'+56'  },
+  { name:'Panamá',      code:'+507' },
+  { name:'Costa Rica',  code:'+506' },
+  { name:'Canadá',      code:'+1'   },
+  { name:'UK',          code:'+44'  },
+  { name:'Francia',     code:'+33'  },
+  { name:'Alemania',    code:'+49'  },
+  { name:'Italia',      code:'+39'  },
+  { name:'Otro',        code:''     },
+];
+// Replace existing dial-code prefix with a new one, keeping the subscriber digits.
+const applyDialCode = (current='', newCode='') => {
+  const stripped = String(current || '').trim().replace(/^\+\d+\s*/, '');
+  return newCode ? (newCode + (stripped ? ' ' + stripped : '')).trim() : stripped;
+};
 const LANGS = { "es-CO": { label:"Español 🇨🇴", short:"ES" }, en:{ label:"English 🇺🇸", short:"EN" } };
 
 const DEFAULT_STANDARD_MENU_PERMISSIONS = { dashboard:true, listings:true, incidents:true, notifications:true, about:true, my:true, analytics:false };
@@ -1000,7 +1025,7 @@ export default function App() {
     }
   }, [loading, incidents]);
   const [incidentQuickFilter, setIncidentQuickFilter] = useState(null);
-  const [userProfile, setUserProfile] = useState({ whatsapp:'' });
+  const [userProfile, setUserProfile] = useState({ whatsapp:'', country:'Colombia' });
   // Listing floor collapse state — lives here so it persists across navigation
   const [listingFloorOpen, setListingFloorOpen] = useState({});
   const toggleListingFloor = (f) => setListingFloorOpen(s=>({...s,[f]:!s[f]}));
@@ -1131,19 +1156,19 @@ export default function App() {
       .finally(() => setRegistrationLoading(false));
   }, [user?.uid]);
 
-  // Load owner profile (whatsapp)
+  // Load owner profile (whatsapp + country)
   useEffect(() => {
-    if (!user?.uid) { setUserProfile({ whatsapp:'' }); return; }
+    if (!user?.uid) { setUserProfile({ whatsapp:'', country:'Colombia' }); return; }
     api.get('/api/users/profile?uid=' + encodeURIComponent(user.uid))
-      .then(p => setUserProfile({ whatsapp:p.whatsapp||'' }))
+      .then(p => setUserProfile({ whatsapp:p.whatsapp||'', country:p.country||'Colombia' }))
       .catch(() => {});
   }, [user?.uid]);
 
   const saveProfile = async (profileData) => {
     setSyncing(true);
     try {
-      const result = await api.put('/api/users/profile', { uid:user.uid, email:user.email, whatsapp:profileData.whatsapp });
-      setUserProfile({ whatsapp:result.whatsapp||'' });
+      const result = await api.put('/api/users/profile', { uid:user.uid, email:user.email, whatsapp:profileData.whatsapp, country:profileData.country||'Colombia' });
+      setUserProfile({ whatsapp:result.whatsapp||'', country:result.country||'Colombia' });
       // Also update cached whatsapp in listings for the current user
       setListings(ls => ls.map(l => l.ownerUid===user.uid ? {...l, contact:result.whatsapp||'', email:user.email} : l));
       showToast(lang==='en' ? '✅ Profile updated' : '✅ Perfil actualizado');
@@ -1155,9 +1180,9 @@ export default function App() {
   const submitRegistration = async ({ listings: listingsToRegister, profile = {} }) => {
     setSyncing(true);
     try {
-      const r = await api.post('/api/registrations', { userUid:user.uid, userName:user.name, userEmail:user.email, listings:listingsToRegister, profileWhatsapp:profile.whatsapp||'', language:lang });
+      const r = await api.post('/api/registrations', { userUid:user.uid, userName:user.name, userEmail:user.email, listings:listingsToRegister, profileWhatsapp:profile.whatsapp||'', profileCountry:profile.country||'Colombia', language:lang });
       setRegistration(r);
-      if (profile.whatsapp) setUserProfile({ whatsapp:profile.whatsapp });
+      if (profile.whatsapp) setUserProfile({ whatsapp:profile.whatsapp, country:profile.country||'Colombia' });
       showToast('✅ Registro enviado. Pendiente de aprobación.');
     } catch(e) { showToast('Error al enviar registro: ' + (e.message || 'Revise los datos'), true); }
     finally { setSyncing(false); }
@@ -2162,9 +2187,16 @@ function RegistrationListingForm({ user, onSubmit, submitText, lang="es-CO" }) {
   const tips = localizedTooltips({}, lang); // default tooltips — no admin config available at registration time
   const makeBlank = () => ({ apt:'', tower:'KAI', rooms:'2', guests:4, operator:'', operatorEmail:'', operatorWhatsapp:'', airbnb:'' });
   const [items,setItems]=useState([makeBlank()]);
-  const [whatsapp,setWhatsapp]=useState('');
+  const [country,setCountry]=useState('Colombia');
+  const [whatsapp,setWhatsapp]=useState('+57 ');
   const [errors,setErrors]=useState({});
   const [checking,setChecking]=useState({});
+  const handleCountryChange = (val) => {
+    const code = OWNER_COUNTRIES.find(c=>c.name===val)?.code||'';
+    setCountry(val);
+    setWhatsapp(applyDialCode(whatsapp, code));
+    setErrors(e=>({...e,whatsapp:undefined}));
+  };
   const setVal=(idx,k,v)=>{ setItems(rows=>rows.map((r,i)=>i===idx?{...r,[k]:v}:r)); setErrors(e=>({...e,[`${k}_${idx}`]:undefined})); };
   const checkApt=async(idx)=>{
     const apt=String(items[idx]?.apt||'').trim();
@@ -2213,6 +2245,12 @@ function RegistrationListingForm({ user, onSubmit, submitText, lang="es-CO" }) {
           <div style={{fontSize:'.82rem',color:'#2a5a6a'}}><strong>Email:</strong> {user?.email}</div>
         </div>
         <div className="fg full">
+          <label>🌍 {isEn?'Country':'País'} <span style={{color:'#e53935',fontSize:'0.75rem'}}>*</span></label>
+          <select value={country} onChange={e=>handleCountryChange(e.target.value)}>
+            {OWNER_COUNTRIES.map(c=><option key={c.name} value={c.name}>{c.name}{c.code?' ('+c.code+')':''}</option>)}
+          </select>
+        </div>
+        <div className="fg full">
           <label>WhatsApp <span style={{color:'#e53935',fontSize:'0.75rem'}}>*</span></label>
           <input className={cls('whatsapp')} type="tel" value={whatsapp} onChange={e=>{setWhatsapp(e.target.value);setErrors(er=>({...er,whatsapp:undefined}));}} onBlur={e=>{let v=String(e.target.value||'').trim();if(!v){setErrors(er=>({...er,whatsapp:isEn?'WhatsApp is required':'WhatsApp es requerido'}));return;}const digits=v.replace(/[^0-9]/g,'');if(!v.startsWith('+')&&digits.length>=10){v='+'+digits;setWhatsapp(v);}const err=validateWhatsApp(v,lang);setErrors(er=>({...er,whatsapp:err||undefined}));}} placeholder="+57 300 000 0000"/>
           {errors.whatsapp?<span className="err-msg">{errors.whatsapp}</span>:<span className="help-msg">{isEn?'Your WhatsApp with country code — used for all your listings':'Tu WhatsApp con código de país — se usará en todos tus listings'}</span>}
@@ -2238,7 +2276,7 @@ function RegistrationListingForm({ user, onSubmit, submitText, lang="es-CO" }) {
         <div className="fg full"><label>{appText(lang,"form.operatorWhatsappOptional")} <Tip text={tips.operatorWhatsapp}/></label><input className={cls(`operatorWhatsapp_${i}`)} type="tel" value={f.operatorWhatsapp} onChange={e=>setVal(i,'operatorWhatsapp',e.target.value)} onBlur={e=>{const v=String(e.target.value||'').trim();const key=`operatorWhatsapp_${i}`;const err=validateWhatsApp(v,lang);setErrors(p=>({...p,[key]:err||undefined}));}} placeholder="+57 300 000 0000"/>{errors[`operatorWhatsapp_${i}`]?<span className="err-msg">{errors[`operatorWhatsapp_${i}`]}</span>:<span className="help-msg">{isEn?'With country code, e.g. +57':'Con código de país, ej. +57'}</span>}</div>
       </div>
     </div>)}
-    <div className="mact"><button className="btn-ghost" onClick={()=>setItems(rows=>[...rows, makeBlank()])}>{appText(lang,"form.addAnotherListing")}</button><button className="btn-p" onClick={()=>{ if(validate()) onSubmit({ listings: items.map(x=>({...x,apt:String(x.apt).trim(),tower:'KAI',operatorEmail:String(x.operatorEmail||'').trim().toLowerCase(),operatorWhatsapp:String(x.operatorWhatsapp||'').trim(),airbnb:String(x.airbnb||'').trim()})), profile:{ whatsapp:whatsapp.trim() } }); }}>{submitText}</button></div>
+    <div className="mact"><button className="btn-ghost" onClick={()=>setItems(rows=>[...rows, makeBlank()])}>{appText(lang,"form.addAnotherListing")}</button><button className="btn-p" onClick={()=>{ if(validate()) onSubmit({ listings: items.map(x=>({...x,apt:String(x.apt).trim(),tower:'KAI',operatorEmail:String(x.operatorEmail||'').trim().toLowerCase(),operatorWhatsapp:String(x.operatorWhatsapp||'').trim(),airbnb:String(x.airbnb||'').trim()})), profile:{ whatsapp:whatsapp.trim(), country } }); }}>{submitText}</button></div>
   </div>;
 }
 
@@ -2347,12 +2385,21 @@ function BetaCommandCenter({ lang="es-CO", alerts=[], pendingOwner=0, pendingRes
 
 function ProfileView({ user, lang, userProfile, onSave }) {
   const isEn = lang === 'en';
+  const [country, setCountry] = useState(userProfile.country || 'Colombia');
   const [whatsapp, setWhatsapp] = useState(userProfile.whatsapp || '');
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
 
   // Sync when profile loads from server
   useEffect(() => { setWhatsapp(userProfile.whatsapp || ''); }, [userProfile.whatsapp]);
+  useEffect(() => { setCountry(userProfile.country || 'Colombia'); }, [userProfile.country]);
+
+  const handleCountryChange = (val) => {
+    const code = OWNER_COUNTRIES.find(c=>c.name===val)?.code||'';
+    setCountry(val);
+    setWhatsapp(applyDialCode(whatsapp, code));
+    setError('');
+  };
 
   const validate = () => {
     if (!String(whatsapp||'').trim()) { setError(isEn ? 'WhatsApp is required' : 'WhatsApp es requerido'); return false; }
@@ -2365,7 +2412,7 @@ function ProfileView({ user, lang, userProfile, onSave }) {
   const handleSave = async () => {
     if (!validate()) return;
     setSaving(true);
-    try { await onSave({ whatsapp: whatsapp.trim() }); }
+    try { await onSave({ whatsapp: whatsapp.trim(), country }); }
     finally { setSaving(false); }
   };
 
@@ -2396,11 +2443,17 @@ function ProfileView({ user, lang, userProfile, onSave }) {
 
         {/* ── Editable contact ────────────────────── */}
         <div className="prof-section">
-          <div className="prof-section-hdr">📱 WhatsApp</div>
+          <div className="prof-section-hdr">📱 {isEn ? 'Contact' : 'Contacto'}</div>
           <p style={{fontSize:'.84rem',color:'#2a5a6a',margin:'0 0 14px',lineHeight:1.5}}>
             {isEn ? 'Used as the contact WhatsApp for all your listings. Updating this will apply to all apartments you own.' : 'Se usa como WhatsApp de contacto en todos tus listings. Al actualizar aquí se aplica a todos tus apartamentos.'}
           </p>
-          <div className="fg2" style={{maxWidth:320}}>
+          <div className="fg2" style={{maxWidth:360}}>
+            <div className="fg full">
+              <label>🌍 {isEn ? 'Country' : 'País'} <span style={{color:'#e53935',fontSize:'0.75rem'}}>*</span></label>
+              <select value={country} onChange={e=>handleCountryChange(e.target.value)}>
+                {OWNER_COUNTRIES.map(c=><option key={c.name} value={c.name}>{c.name}{c.code?' ('+c.code+')':''}</option>)}
+              </select>
+            </div>
             <div className="fg full">
               <label>WhatsApp <span style={{color:'#e53935',fontSize:'0.75rem'}}>*</span></label>
               <input className={error?'field-error':''} type="tel" value={whatsapp} onChange={e=>{setWhatsapp(e.target.value);setError('');}} onBlur={e=>{let v=String(e.target.value||'').trim();if(!v){setError(isEn?'WhatsApp is required':'WhatsApp es requerido');return;}const digits=v.replace(/[^0-9]/g,'');if(!v.startsWith('+')&&digits.length>=10){v='+'+digits;setWhatsapp(v);}const err=validateWhatsApp(v,lang);if(err)setError(err);else setError('');}} placeholder="+57 300 000 0000"/>
