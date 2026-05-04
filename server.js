@@ -145,9 +145,15 @@ const getEffectiveEmailFrom = async (lang='es-CO') => {
   try {
     const cfg = await getAppConfig();
     const isEn = normalizeLanguage(lang) === 'en';
-    const name = ((isEn ? cfg.email_from_name_en : cfg.email_from_name) || '').trim();
     const addr = ((isEn ? cfg.email_from_address_en : cfg.email_from_address) || '').trim();
-    if (addr) return name ? `${name} <${addr}>` : addr;
+    if (!addr) return EMAIL_FROM;
+    // Explicit override wins; otherwise derive from community name
+    const explicitName = ((isEn ? cfg.email_from_name_en : cfg.email_from_name) || '').trim();
+    const communityName = ((isEn ? cfg.complex_name_en : cfg.complex_name_es) || '').trim();
+    const name = explicitName || (communityName
+      ? (isEn ? `${communityName} Community` : `Comunidad ${communityName}`)
+      : '');
+    return name ? `${name} <${addr}>` : addr;
   } catch(e) { /* fall through */ }
   return EMAIL_FROM;
 };
@@ -254,9 +260,9 @@ const getAppConfig = async () => {
     complex_location: 'Serena del Mar · Cartagena 🇨🇴',
     complex_logo: '',
     complex_bg: '/morros-kai-bg.jpg',
-    email_from_name: (EMAIL_FROM.match(/^(.*?)\s*<[^>]+>/) || [])[1]?.trim() || 'Propietarios Airbnb KAI',
+    email_from_name: 'Comunidad Morros KAI',
     email_from_address: (EMAIL_FROM.match(/<([^>]+)>/) || [])[1]?.trim() || EMAIL_FROM,
-    email_from_name_en: (EMAIL_FROM.match(/^(.*?)\s*<[^>]+>/) || [])[1]?.trim() || 'KAI Airbnb Owners',
+    email_from_name_en: 'Morros KAI Community',
     email_from_address_en: (EMAIL_FROM.match(/<([^>]+)>/) || [])[1]?.trim() || EMAIL_FROM,
     mission_title_es:'Misión y normas de la comunidad',
     mission_body_es:'Crear una comunidad organizada, informada y proactiva que proteja el valor de nuestras propiedades y eleve la experiencia en Morros KAI.',
