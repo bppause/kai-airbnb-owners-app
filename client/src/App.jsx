@@ -4507,9 +4507,10 @@ function UnitMiniCard({ listing, onUnitDetail, isEn=false }) {
   if (!listing) return null;
   const ownerEmail = listing.userEmail || listing.email || '';
   const ownerWaRaw = listing.contact || '';
+  const ownerWa    = normalizePhoneForWhatsApp(ownerWaRaw);
+  const opWa       = normalizePhoneForWhatsApp(listing.operatorWhatsapp);
   return (
-    <div className="unit-mini-card apt-cpop-wrap">
-      {/* Clickable plate — opens unit detail popup */}
+    <div className="unit-mini-card">
       <UnitPlate
         apt={listing.apt}
         tower={listing.tower||'KAI'}
@@ -4518,15 +4519,29 @@ function UnitMiniCard({ listing, onUnitDetail, isEn=false }) {
         title={onUnitDetail?(isEn?'View unit details':'Ver detalles de la unidad'):undefined}
         className="umc-plate-unit"
       />
-      {/* Light body — owner + operator */}
       <div className="umc-body">
-        <div className="umc-owner" title={listing.owner||'—'}><span className="umc-role-lbl">{isEn?'Owner':'Propietario'}</span> {listing.owner||'—'}</div>
-        {listing.operator
-          ? <div className="umc-op" title={listing.operator}><span className="umc-role-lbl">{isEn?'Operator':'Operador'}</span> {listing.operator}</div>
-          : <div className="umc-op umc-no-op">{isEn?'No operator':'Sin operador'}</div>
-        }
+        <div className="umc-party">
+          <div className="umc-owner" title={listing.owner||'—'}><span className="umc-role-lbl">{isEn?'Owner':'Propietario'}</span> {listing.owner||'—'}</div>
+          {(ownerEmail||ownerWa)&&(
+            <div className="umc-contacts">
+              {ownerEmail&&<a href={`mailto:${ownerEmail}`} className="idd-pi-link" onClick={e=>e.stopPropagation()}>✉️ {ownerEmail}</a>}
+              {ownerWa&&<a href={`https://wa.me/${ownerWa}`} target="_blank" rel="noopener noreferrer" className="idd-pi-link idd-pi-wa" onClick={e=>e.stopPropagation()}>💬 WhatsApp</a>}
+            </div>
+          )}
+        </div>
+        <div className="umc-party">
+          {listing.operator
+            ? <div className="umc-op" title={listing.operator}><span className="umc-role-lbl">{isEn?'Operator':'Operador'}</span> {listing.operator}</div>
+            : <div className="umc-op umc-no-op">{isEn?'No operator':'Sin operador'}</div>
+          }
+          {(listing.operatorEmail||opWa)&&(
+            <div className="umc-contacts">
+              {listing.operatorEmail&&<a href={`mailto:${listing.operatorEmail}`} className="idd-pi-link" onClick={e=>e.stopPropagation()}>✉️ {listing.operatorEmail}</a>}
+              {opWa&&<a href={`https://wa.me/${opWa}`} target="_blank" rel="noopener noreferrer" className="idd-pi-link idd-pi-wa" onClick={e=>e.stopPropagation()}>💬 WhatsApp</a>}
+            </div>
+          )}
+        </div>
       </div>
-      <AptContactPopup ownerName={listing.owner} ownerEmail={ownerEmail} ownerWaRaw={ownerWaRaw} operatorName={listing.operator} operatorEmail={listing.operatorEmail} opWaRaw={listing.operatorWhatsapp} coOwners={listing.coOwners||[]} isEn={isEn}/>
     </div>
   );
 }

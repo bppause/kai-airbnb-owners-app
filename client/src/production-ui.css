@@ -596,10 +596,10 @@ table { width: 100%; border-collapse: collapse; }
   display: flex;
   flex-direction: column;
   border-radius: 10px;
-  overflow: visible;           /* popup must escape — no clipping here */
+  overflow: visible;
   border: 1.5px solid rgba(47,79,58,.2);
-  min-width: 134px;
-  max-width: 158px;
+  min-width: 150px;
+  max-width: 200px;
   flex-shrink: 0;
   cursor: default;
   transition: border-color .15s, box-shadow .15s, transform .12s;
@@ -643,9 +643,12 @@ table { width: 100%; border-collapse: collapse; }
   border-radius: 0 0 8px 8px;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 6px;
   flex: 1;
 }
+.umc-party { display: flex; flex-direction: column; gap: 3px; }
+.umc-contacts { display: flex; flex-direction: column; gap: 3px; margin-top: 2px; }
+.umc-contacts .idd-pi-link { font-size: .62rem !important; padding: 2px 7px !important; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 180px; }
 .umc-owner {
   font-size: .7rem;
   font-weight: 700;
@@ -653,7 +656,6 @@ table { width: 100%; border-collapse: collapse; }
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 136px;
 }
 .umc-op {
   font-size: .63rem;
@@ -661,7 +663,6 @@ table { width: 100%; border-collapse: collapse; }
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 136px;
 }
 /* Role labels inside UnitMiniCard and IRow */
 .umc-role-lbl {
