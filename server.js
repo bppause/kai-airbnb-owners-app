@@ -1085,9 +1085,15 @@ app.post('/api/listings', async (req, res) => {
   const googleEmail  = String(userEmail || '').trim().toLowerCase();
   const ownerEmail   = (profileRow?.notification_email || googleEmail);
 
-  const item = { id:'lst_'+uuidv4().slice(0,8), ownerUid, owner:String(owner||'').trim(), userEmail:googleEmail, apt:String(apt).trim(), tower:'KAI', rooms, guests:Number(guests), operator:operator||'', operatorEmail:operatorEmail||'', operatorWhatsapp:operatorWhatsapp||'', contact:ownerContact, email:ownerEmail, airbnb:String(airbnb||'').trim(), coOwners:coOwnersParsed.coOwners, status:'approved', reviewedByUid:ownerUid, reviewedByName:owner, reviewedAt:new Date().toISOString(), createdAt:new Date().toISOString() };
+  const item = { id:'lst_'+uuidv4().slice(0,8), ownerUid, owner:String(owner||'').trim(), userEmail:googleEmail, apt:String(apt).trim(), tower:'KAI', rooms, guests:Number(guests), operator:operator||'', operatorEmail:operatorEmail||'', operatorWhatsapp:operatorWhatsapp||'', contact:ownerContact, email:ownerEmail, airbnb:String(airbnb||'').trim(), coOwners:[], status:'approved', reviewedByUid:ownerUid, reviewedByName:owner, reviewedAt:new Date().toISOString(), createdAt:new Date().toISOString() };
   const { data, error } = await supabase.from('listings').insert(listingToDb(item)).select('*').single();
   if (error) return sendSupabaseError(res, error);
+  // Save co_owners separately so a missing column (schema cache not yet refreshed) never breaks the main save
+  if (coOwnersParsed.coOwners.length > 0) {
+    const { error: coErr } = await supabase.from('listings').update({ co_owners: coOwnersParsed.coOwners }).eq('id', data.id);
+    if (coErr) warn('co_owners save failed (run schema migration): ' + (coErr.message || coErr));
+    else data.co_owners = coOwnersParsed.coOwners;
+  }
   await auditEvent({ listingId:data.id, registrationId:data.registration_id, actorUid:ownerUid, actorName:owner, action:'listing_created', after:data });
   await auditLog({ entity:'listing', entityId:data.id, action:'create', actorUid:ownerUid, actorEmail:userEmail || email, actorName:owner, after:data });
   setImmediate(() => sendListingChangeEmail({ listing: listingFromDb(data), action:'created', appUrl: publicAppUrl(req) }).catch(e => warn('Listing created email failed: ' + (e?.message || e))));
@@ -1119,9 +1125,13 @@ app.put('/api/listings/:id', async (req, res) => {
   const googleEmail  = String(existing.user_email || profileRow?.email || '').trim().toLowerCase();
   const ownerEmail   = profileRow?.notification_email || googleEmail;
 
-  const update = { apt:String(apt).trim(), tower:'KAI', rooms:String(rooms||''), guests:Number(guests||0), operator:operator||'', operator_email:String(operatorEmail||'').trim(), operator_whatsapp:String(operatorWhatsapp||'').trim(), contact:ownerContact, email:ownerEmail, airbnb:String(airbnb||'').trim(), co_owners:coOwnersParsed.coOwners };
+  const update = { apt:String(apt).trim(), tower:'KAI', rooms:String(rooms||''), guests:Number(guests||0), operator:operator||'', operator_email:String(operatorEmail||'').trim(), operator_whatsapp:String(operatorWhatsapp||'').trim(), contact:ownerContact, email:ownerEmail, airbnb:String(airbnb||'').trim() };
   const { data, error } = await supabase.from('listings').update(update).eq('id', req.params.id).select('*').single();
   if (error) return sendSupabaseError(res, error);
+  // Save co_owners separately so a missing column (schema cache not yet refreshed) never breaks the main save
+  const { error: coErr } = await supabase.from('listings').update({ co_owners: coOwnersParsed.coOwners }).eq('id', req.params.id);
+  if (coErr) warn('co_owners save failed (run schema migration): ' + (coErr.message || coErr));
+  else data.co_owners = coOwnersParsed.coOwners;
   await auditEvent({ listingId:data.id, registrationId:data.registration_id, actorUid:ownerUid, actorName:existing.owner, action:'listing_updated', before:existing, after:data });
   await auditLog({ entity:'listing', entityId:data.id, action:'update', actorUid:ownerUid, actorEmail:actorEmail, actorName:existing.owner, before:existing, after:data });
   setImmediate(() => sendListingChangeEmail({ listing: listingFromDb(data), action:'updated', appUrl: publicAppUrl(req) }).catch(e => warn('Listing updated email failed: ' + (e?.message || e))));
@@ -1344,7 +1354,11 @@ app.get('/api/users/profile', async (req, res) => {
   if (!requireSupabaseEnv(res)) return;
   const uid = String(req.query.uid || '').trim();
   if (!uid) return res.status(400).json({ error:'uid is required.' });
-  const { data, error } = await supabase.from('app_users').select('whatsapp,country,notification_email').eq('uid', uid).maybeSingle();
+  // Try with notification_email; fall back to base columns if column not yet in schema cache
+  let { data, error } = await supabase.from('app_users').select('whatsapp,country,notification_email').eq('uid', uid).maybeSingle();
+  if (error && String(error.message || '').includes('notification_email')) {
+    ({ data, error } = await supabase.from('app_users').select('whatsapp,country').eq('uid', uid).maybeSingle());
+  }
   if (error) return sendSupabaseError(res, error);
   res.json({ whatsapp: data?.whatsapp || '', country: data?.country || 'Colombia', notificationEmail: data?.notification_email || '' });
 });
@@ -1363,10 +1377,14 @@ app.put('/api/users/profile', async (req, res) => {
   const notifEmail = notifEmailRaw && isValidEmail(notifEmailRaw) ? notifEmailRaw : '';
   // Email used for notifications: notification_email if set and valid, otherwise Google email
   const effectiveEmail = notifEmail || em;
+  // Core upsert without notification_email — safe even before schema migration runs
   const { error } = await supabase.from('app_users').upsert({
-    uid, email: em, whatsapp: wa, country: countryVal, notification_email: notifEmail, updated_at: new Date().toISOString()
+    uid, email: em, whatsapp: wa, country: countryVal, updated_at: new Date().toISOString()
   }, { onConflict: 'uid' });
   if (error) return sendSupabaseError(res, error);
+  // Save notification_email separately so a missing column never breaks the main profile save
+  const { error: neErr } = await supabase.from('app_users').update({ notification_email: notifEmail }).eq('uid', uid);
+  if (neErr) warn('notification_email save failed (run schema migration): ' + (neErr.message || neErr));
   // Propagate contact info to all of this owner's listings so notifications stay in sync
   if (wa || effectiveEmail) {
     await supabase.from('listings').update({ contact: wa, email: effectiveEmail }).eq('owner_uid', uid).in('status', ['approved', 'pending']);
