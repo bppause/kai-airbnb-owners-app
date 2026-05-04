@@ -204,7 +204,7 @@ insert into public.app_config(key, value) values
   ('ui_labels_es', '{}'),
   ('ui_labels_en', '{}'),
   -- v74 admin-configurable nav order and default landing per role
-  ('nav_config', '{"user":{"landing":"my","primary":["my","incidents","listings","dashboard"]},"delegate":{"landing":"my","primary":["my","incidents","listings","dashboard"]},"global":{"landing":"my","primary":["my","incidents","listings","dashboard"]}}')
+  ('nav_config', '{"user":{"landing":"my","primary":["my","incidents","general","listings","dashboard"]},"delegate":{"landing":"my","primary":["my","incidents","general","listings","dashboard"]},"global":{"landing":"my","primary":["my","incidents","general","listings","dashboard"]}}')
 on conflict (key) do nothing;
 
 -- v27 bilingual mission/rules detailed content
