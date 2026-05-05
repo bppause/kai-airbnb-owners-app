@@ -6913,10 +6913,9 @@ function AdminSettings({ config={}, user, listings=[], contactProps={}, onSave, 
     </div>
   </AdminSection>
 
-  {/* ── Role Reference ─────────────────────────────────────────── */}
   <AdminSection
     title={lang==='en'?'👥 Role Reference — Capabilities by role':'👥 Referencia de roles — Capacidades por rol'}
-    subtitle={lang==='en'?'Quick reference for all three roles. Delegate permissions reflect current default settings above.':'Referencia rápida de los tres roles. Permisos del delegado reflejan la configuración predeterminada actual.'}
+    subtitle={lang==='en'?'All four roles in the platform. Community Admin is assigned per community; Delegate Admin and Global Admin are platform-wide.':'Los cuatro roles de la plataforma. Admin de comunidad se asigna por comunidad; Admin delegado y Admin global son de toda la plataforma.'}
     open={openSections.roles} onToggle={()=>toggleSection('roles')}>
     {(()=>{
       const isEn = lang==='en';
@@ -6942,41 +6941,57 @@ function AdminSettings({ config={}, user, listings=[], contactProps={}, onSave, 
         cap(true,  isEn?'View all community incidents':'Ver todos los incidentes de la comunidad'),
         cap(true,  isEn?'Hover contact cards (email + WhatsApp)':'Tarjetas de contacto (email + WhatsApp)'),
         cap(standardMenuPermissions.analytics||false, isEn?'Analytics (admin-controlled)':'Analíticas (controlado por admin)'),
+        cap(false, isEn?'Scope: own community, own units only':'Alcance: su comunidad, solo sus unidades'),
+      ];
+      const comm = [
+        cap(true,  isEn?'All Standard Owner capabilities':'Todas las capacidades del propietario estándar'),
+        conf(true, isEn?'Approve / decline registrations':'Aprobar / rechazar registros'),
+        conf(true, isEn?'Close incidents in their community':'Cerrar incidentes en su comunidad'),
+        conf(false, isEn?'Manage other owners\' listings':'Gestionar listings de otros propietarios'),
+        cap(true,  isEn?'Receive community notification emails':'Recibir emails de notificación de la comunidad'),
+        cap(false, isEn?'Full Admin panel':'Panel Admin completo'),
+        cap(false, isEn?'Cross-community access':'Acceso a otras comunidades'),
+        cap(false, isEn?'Manage roles or permissions':'Gestionar roles o permisos'),
+        cap(true,  isEn?'Scope: assigned community/communities only':'Alcance: solo su(s) comunidad(es) asignada(s)'),
       ];
       const del = [
         cap(true,  isEn?'All Standard Owner capabilities':'Todas las capacidades del propietario estándar'),
-        conf(dp.canApproveRegistrations, isEn?'Approve / decline registrations':'Aprobar / rechazar registros'),
-        conf(dp.canResolveIncidents,     isEn?'Close incidents (after owner Steps 1+2)':'Cerrar incidentes (tras Pasos 1+2 del propietario)'),
-        conf(dp.canUpdateGlobalListings, isEn?'Edit any unit':'Editar cualquier unidad'),
-        conf(dp.canDeleteGlobalListings, isEn?'Delete any unit':'Eliminar cualquier unidad'),
-        conf(dp.canUpdateGlobalIncidents,isEn?'Edit any incident':'Editar cualquier incidente'),
-        conf(dp.canDeleteGlobalIncidents,isEn?'Delete any incident':'Eliminar cualquier incidente'),
+        conf(dp.canApproveRegistrations, isEn?'Approve / decline registrations (all communities)':'Aprobar / rechazar registros (todas las comunidades)'),
+        conf(dp.canResolveIncidents,     isEn?'Close incidents (all communities)':'Cerrar incidentes (todas las comunidades)'),
+        conf(dp.canUpdateGlobalListings, isEn?'Edit any unit (all communities)':'Editar cualquier unidad (todas las comunidades)'),
+        conf(dp.canDeleteGlobalListings, isEn?'Delete any unit (all communities)':'Eliminar cualquier unidad (todas las comunidades)'),
+        conf(dp.canUpdateGlobalIncidents,isEn?'Edit any incident (all communities)':'Editar cualquier incidente (todas las comunidades)'),
+        conf(dp.canDeleteGlobalIncidents,isEn?'Delete any incident (all communities)':'Eliminar cualquier incidente (todas las comunidades)'),
         cap(true,  isEn?'Analytics (always enabled)':'Analíticas (siempre activo)'),
+        cap(true,  isEn?'Scope: platform-wide, all communities':'Alcance: toda la plataforma, todas las comunidades'),
       ];
       const glb = [
         cap(true, isEn?'All Delegate Admin capabilities':'Todas las capacidades del admin delegado'),
-        cap(true, isEn?'Admin settings panel':'Panel de configuración admin'),
+        cap(true, isEn?'Full Admin settings panel':'Panel de configuración admin completo'),
+        cap(true, isEn?'Manage communities (create/edit/delete)':'Gestionar comunidades (crear/editar/eliminar)'),
+        cap(true, isEn?'Promote community admins':'Promover admins de comunidad'),
         cap(true, isEn?'Manage user roles & permissions':'Gestionar roles y permisos de usuarios'),
         cap(true, isEn?'SLA hours + escalation email list':'Horas SLA + lista de emails de escalación'),
-        cap(true, isEn?'Community mission & content':'Misión y contenido de la comunidad'),
         cap(true, isEn?'Email templates + routing config':'Plantillas de email + configuración de envío'),
         cap(true, isEn?'Analytics — always on for global admin':'Analíticas — siempre activas para admin global'),
-        cap(true, isEn?'View As role preview':'Vista previa de rol (Ver como)'),
+        cap(true, isEn?'Scope: platform-wide, no restrictions':'Alcance: toda la plataforma, sin restricciones'),
       ];
-      const RoleCol = ({icon, title, color, rows, badge}) => (
+      const RoleCol = ({icon, title, color, rows, badge, scope}) => (
         <div className="role-ref-col" style={{borderTop:`3px solid ${color}`}}>
           <div className="role-ref-hdr">
             <span className="role-ref-icon">{icon}</span>
             <div><strong className="role-ref-title">{title}</strong>{badge&&<span className="role-ref-badge" style={{background:color+'22',color}}>{badge}</span>}</div>
           </div>
+          {scope && <div style={{fontSize:'.7rem',color:'#6b9ba8',marginBottom:6,paddingBottom:6,borderBottom:'1px solid #f0f8fb',fontStyle:'italic'}}>{scope}</div>}
           <div className="role-ref-rows">{rows}</div>
         </div>
       );
       return (
-        <div className="role-ref-grid">
-          <RoleCol icon="🏠" title={isEn?'Standard Owner':'Propietario estándar'} color="#2a9aaa" rows={std} badge={isEn?'Default':'Por defecto'}/>
-          <RoleCol icon="🛡️" title={isEn?'Delegate Admin':'Admin delegado'} color="#d9a030" rows={del} badge={isEn?'Configurable':'Configurable'}/>
-          <RoleCol icon="🌐" title={isEn?'Global Admin':'Admin global'} color="#0b7f4f" rows={glb} badge={isEn?'Full access':'Acceso total'}/>
+        <div className="role-ref-grid" style={{gridTemplateColumns:'repeat(4,1fr)'}}>
+          <RoleCol icon="🏠" title={isEn?'Standard Owner':'Propietario estándar'} color="#2a9aaa" rows={std} badge={isEn?'Default':'Por defecto'} scope={isEn?'One community · own units':'Una comunidad · propias unidades'}/>
+          <RoleCol icon="🏢" title={isEn?'Community Admin':'Admin comunidad'} color="#5a9a6a" rows={comm} badge={isEn?'Per community':'Por comunidad'} scope={isEn?'Assigned communities only':'Solo comunidades asignadas'}/>
+          <RoleCol icon="🛡️" title={isEn?'Delegate Admin':'Admin delegado'} color="#d9a030" rows={del} badge={isEn?'Configurable':'Configurable'} scope={isEn?'All communities':'Todas las comunidades'}/>
+          <RoleCol icon="🌐" title={isEn?'Global Admin':'Admin global'} color="#0b7f4f" rows={glb} badge={isEn?'Full access':'Acceso total'} scope={isEn?'All communities · no limits':'Todas las comunidades · sin límites'}/>
         </div>
       );
     })()}
