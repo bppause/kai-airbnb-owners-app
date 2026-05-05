@@ -6981,149 +6981,108 @@ function AdminSettings({ config={}, user, listings=[], contactProps={}, onSave, 
                   const str = commDraft['mission_sections_es'] ?? commData?.communityOverrides?.['mission_sections_es'] ?? '';
                   try { return normalizeMissionSections(JSON.parse(str || '{}')); } catch { return normalizeMissionSections({}); }
                 };
-                const setCommMissionField = (field, val) => {
-                  const m = getCommMission();
-                  setCommVal('mission_sections_es', JSON.stringify({...m, [field]: val}));
-                };
-                const setCommMissionCard = (idx, field, val) => {
-                  const m = getCommMission();
-                  const cards = m.cards.map((c,i) => i===idx ? {...c, [field]:val} : c);
-                  setCommVal('mission_sections_es', JSON.stringify({...m, cards}));
-                };
-                const setCommMissionRule = (group, idx, val) => {
-                  const m = getCommMission();
-                  setCommVal('mission_sections_es', JSON.stringify({...m, [group]: m[group].map((r,i) => i===idx ? val : r)}));
-                };
-                const addCommMissionRule = (group) => {
-                  const m = getCommMission();
-                  setCommVal('mission_sections_es', JSON.stringify({...m, [group]: [...m[group], '']}));
-                };
-                const removeCommMissionRule = (group, idx) => {
-                  const m = getCommMission();
-                  setCommVal('mission_sections_es', JSON.stringify({...m, [group]: m[group].filter((_,i) => i !== idx)}));
-                };
+                const setCommMissionField = (field, val) => { const m=getCommMission(); setCommVal('mission_sections_es', JSON.stringify({...m,[field]:val})); };
+                const setCommMissionCard = (idx, field, val) => { const m=getCommMission(); setCommVal('mission_sections_es', JSON.stringify({...m,cards:m.cards.map((c,i)=>i===idx?{...c,[field]:val}:c)})); };
+                const setCommMissionRule = (group, idx, val) => { const m=getCommMission(); setCommVal('mission_sections_es', JSON.stringify({...m,[group]:m[group].map((r,i)=>i===idx?val:r)})); };
+                const addCommMissionRule = (group) => { const m=getCommMission(); setCommVal('mission_sections_es', JSON.stringify({...m,[group]:[...m[group],'']})); };
+                const removeCommMissionRule = (group, idx) => { const m=getCommMission(); setCommVal('mission_sections_es', JSON.stringify({...m,[group]:m[group].filter((_,i)=>i!==idx)})); };
                 const getCommMissionEn = () => {
                   const str = commDraft['mission_sections_en'] ?? commData?.communityOverrides?.['mission_sections_en'] ?? '';
-                  try { const v = JSON.parse(str || '{}'); return {...MISSION_EN_DEFAULTS,...(v&&typeof v==='object'?v:{})}; } catch { return {...MISSION_EN_DEFAULTS}; }
+                  try { const v=JSON.parse(str||'{}'); return {...MISSION_EN_DEFAULTS,...(v&&typeof v==='object'?v:{})}; } catch { return {...MISSION_EN_DEFAULTS}; }
                 };
-                const setCommMissionEnField = (field, val) => {
-                  const m = getCommMissionEn();
-                  setCommVal('mission_sections_en', JSON.stringify({...m, [field]: val}));
-                };
-                const setCommMissionEnCard = (idx, field, val) => {
-                  const m = getCommMissionEn();
-                  const cards = m.cards.map((c,i) => i===idx ? {...c, [field]:val} : c);
-                  setCommVal('mission_sections_en', JSON.stringify({...m, cards}));
-                };
-                const setCommMissionEnRule = (group, idx, val) => {
-                  const m = getCommMissionEn();
-                  setCommVal('mission_sections_en', JSON.stringify({...m, [group]: m[group].map((r,i) => i===idx ? val : r)}));
-                };
-                const addCommMissionEnRule = (group) => {
-                  const m = getCommMissionEn();
-                  setCommVal('mission_sections_en', JSON.stringify({...m, [group]: [...m[group], '']}));
-                };
-                const removeCommMissionEnRule = (group, idx) => {
-                  const m = getCommMissionEn();
-                  setCommVal('mission_sections_en', JSON.stringify({...m, [group]: m[group].filter((_,i) => i !== idx)}));
-                };
+                const setCommMissionEnField = (field, val) => { const m=getCommMissionEn(); setCommVal('mission_sections_en', JSON.stringify({...m,[field]:val})); };
+                const setCommMissionEnCard = (idx, field, val) => { const m=getCommMissionEn(); setCommVal('mission_sections_en', JSON.stringify({...m,cards:m.cards.map((c,i)=>i===idx?{...c,[field]:val}:c)})); };
+                const setCommMissionEnRule = (group, idx, val) => { const m=getCommMissionEn(); setCommVal('mission_sections_en', JSON.stringify({...m,[group]:m[group].map((r,i)=>i===idx?val:r)})); };
+                const addCommMissionEnRule = (group) => { const m=getCommMissionEn(); setCommVal('mission_sections_en', JSON.stringify({...m,[group]:[...m[group],'']})); };
+                const removeCommMissionEnRule = (group, idx) => { const m=getCommMissionEn(); setCommVal('mission_sections_en', JSON.stringify({...m,[group]:m[group].filter((_,i)=>i!==idx)})); };
                 const cm = getCommMission();
                 const cme = getCommMissionEn();
                 return (
                   <div style={!commOverridesOn?{pointerEvents:'none',opacity:0.5,userSelect:'none'}:{}}>
-                    <div style={{marginBottom:10,padding:'6px 12px',background:'#f0f8fb',borderRadius:8,fontSize:'.76rem',color:'#2a5a6a',border:'1px solid #cce7ee'}}>
-                      🌐 = {isEn?'using global value':'usando valor global'} &nbsp;·&nbsp; 🏷️ = {isEn?'community override':'override de comunidad'}
+                    <div style={{display:'flex',gap:6,marginBottom:14}}>
+                      <button className={`fchip${commMissionLang==='es'?' fchip-on':''}`} onClick={()=>setCommMissionLang('es')}>🇨🇴 Español</button>
+                      <button className={`fchip${commMissionLang==='en'?' fchip-on':''}`} onClick={()=>setCommMissionLang('en')}>🇺🇸 English</button>
                     </div>
-                    <div className="card-title" style={{margin:'12px 0 8px'}}>🇨🇴 Español</div>
-                    <div className="fg2">
-                      {[
-                        {field:'title',label:isEn?'Title':'Título',rows:2},
-                        {field:'subtitle',label:isEn?'Subtitle':'Subtítulo',rows:2},
-                        {field:'heading',label:isEn?'Heading':'Encabezado',rows:2},
-                        {field:'body',label:isEn?'Body':'Cuerpo',rows:3},
-                      ].map(({field,label,rows})=>(
-                        <div key={field} className="fg full">
-                          <label style={{display:'flex',alignItems:'center',gap:6}}>
-                            {label}
-                            {hasOverride('mission_sections_es')
-                              ? <span style={{fontSize:'.65rem',background:'#d9b45a22',color:'#7a5a00',padding:'1px 6px',borderRadius:4,fontWeight:600}}>🏷️ {isEn?'community override':'override comunidad'}</span>
-                              : <span style={{fontSize:'.65rem',background:'#e8f5ec',color:'#2F4F3A',padding:'1px 6px',borderRadius:4}}>🌐 {isEn?'using global':'usando global'}</span>}
-                          </label>
-                          <textarea className="admin-textarea" rows={rows} value={cm[field]||''}
-                            onChange={e=>setCommMissionField(field,e.target.value)}
-                            style={{width:'100%',boxSizing:'border-box'}}/>
+                    {commMissionLang==='es' && <>
+                      <div className="fg2">
+                        {[{field:'title',label:'Título',rows:2},{field:'subtitle',label:'Subtítulo',rows:2},{field:'sectionLabel',label:'Etiqueta de sección',rows:1},{field:'heading',label:'Encabezado principal',rows:2},{field:'body',label:'Texto principal',rows:3}].map(({field,label,rows})=>(
+                          <div key={field} className="fg full">
+                            <label style={{display:'flex',alignItems:'center',gap:6}}>{label}
+                              {hasOverride('mission_sections_es')?<span style={{fontSize:'.65rem',background:'#d9b45a22',color:'#7a5a00',padding:'1px 6px',borderRadius:4,fontWeight:600}}>🏷️ override</span>:<span style={{fontSize:'.65rem',background:'#e8f5ec',color:'#2F4F3A',padding:'1px 6px',borderRadius:4}}>🌐 global</span>}
+                            </label>
+                            <textarea className="admin-textarea" rows={rows} value={cm[field]||''} onChange={e=>setCommMissionField(field,e.target.value)} style={{width:'100%',boxSizing:'border-box'}}/>
+                          </div>
+                        ))}
+                      </div>
+                      <div className="card-title" style={{margin:'16px 0 10px'}}>Tarjetas de propósito</div>
+                      {(cm.cards||[]).map((card,i)=>(
+                        <div className="fg2" key={i} style={{borderTop:'1px solid rgba(90,105,80,.12)',paddingTop:12,marginTop:8}}>
+                          <div className="fg"><label>Icono</label><input value={card?.icon||''} onChange={e=>setCommMissionCard(i,'icon',e.target.value)}/></div>
+                          <div className="fg"><label>Título tarjeta {i+1}</label><textarea className="admin-textarea" rows={2} value={card?.title||''} onChange={e=>setCommMissionCard(i,'title',e.target.value)}/></div>
+                          <div className="fg full"><label>Texto tarjeta {i+1}</label><textarea rows={2} value={card?.text||''} onChange={e=>setCommMissionCard(i,'text',e.target.value)}/></div>
                         </div>
                       ))}
-                    </div>
-                    <div className="card-title" style={{margin:'16px 0 10px'}}>{isEn?'Purpose cards':'Tarjetas de propósito'}</div>
-                    {(cm.cards||[]).map((card,i)=>(
-                      <div className="fg2" key={i} style={{borderTop:'1px solid rgba(90,105,80,.12)',paddingTop:12,marginTop:8}}>
-                        <div className="fg"><label>{isEn?'Icon':'Icono'}</label><input value={card?.icon||''} onChange={e=>setCommMissionCard(i,'icon',e.target.value)}/></div>
-                        <div className="fg"><label>{isEn?'Card title':'Título tarjeta'} {i+1}</label><textarea className="admin-textarea" rows={2} value={card?.title||''} onChange={e=>setCommMissionCard(i,'title',e.target.value)}/></div>
-                        <div className="fg full"><label>{isEn?'Card text':'Texto tarjeta'} {i+1}</label><textarea rows={2} value={card?.text||''} onChange={e=>setCommMissionCard(i,'text',e.target.value)}/></div>
+                      <div className="two-col" style={{marginTop:16}}>
+                        <div>
+                          <div className="fg"><label>Título reglas de participación</label><textarea className="admin-textarea" rows={2} value={cm.participationTitle||''} onChange={e=>setCommMissionField('participationTitle',e.target.value)}/></div>
+                          {(cm.participationRules||[]).map((r,i)=>(
+                            <div className="fg" key={i}><label>Regla {i+1}</label>
+                              <div style={{display:'flex',gap:8}}><textarea className="admin-textarea flex-grow" rows={2} value={r||''} onChange={e=>setCommMissionRule('participationRules',i,e.target.value)}/><button className="btn-ghost" onClick={()=>removeCommMissionRule('participationRules',i)}>🗑️</button></div>
+                            </div>
+                          ))}
+                          <button className="btn-ghost" onClick={()=>addCommMissionRule('participationRules')}>+ Agregar regla</button>
+                        </div>
+                        <div>
+                          <div className="fg"><label>Título acceso y responsabilidad</label><textarea className="admin-textarea" rows={2} value={cm.accessTitle||''} onChange={e=>setCommMissionField('accessTitle',e.target.value)}/></div>
+                          {(cm.accessRules||[]).map((r,i)=>(
+                            <div className="fg" key={i}><label>Regla {i+1}</label>
+                              <div style={{display:'flex',gap:8}}><textarea className="admin-textarea flex-grow" rows={2} value={r||''} onChange={e=>setCommMissionRule('accessRules',i,e.target.value)}/><button className="btn-ghost" onClick={()=>removeCommMissionRule('accessRules',i)}>🗑️</button></div>
+                            </div>
+                          ))}
+                          <button className="btn-ghost" onClick={()=>addCommMissionRule('accessRules')}>+ Agregar regla</button>
+                        </div>
                       </div>
-                    ))}
-                    <div className="two-col" style={{marginTop:16}}>
-                      <div>
-                        <div className="fg"><label>{isEn?'Participation title':'Título reglas de participación'}</label><textarea className="admin-textarea" rows={2} value={cm.participationTitle||''} onChange={e=>setCommMissionField('participationTitle',e.target.value)}/></div>
-                        {(cm.participationRules||[]).map((r,i)=>(
-                          <div className="fg" key={i}><label>{isEn?'Rule':'Regla'} {i+1}</label>
-                            <div style={{display:'flex',gap:8}}><textarea className="admin-textarea flex-grow" rows={2} value={r||''} onChange={e=>setCommMissionRule('participationRules',i,e.target.value)}/><button className="btn-ghost" onClick={()=>removeCommMissionRule('participationRules',i)}>🗑️</button></div>
+                    </>}
+                    {commMissionLang==='en' && <>
+                      <div className="fg2">
+                        {[{field:'title',label:'Title (EN)',rows:2},{field:'subtitle',label:'Subtitle (EN)',rows:2},{field:'sectionLabel',label:'Section label (EN)',rows:1},{field:'heading',label:'Main heading (EN)',rows:2},{field:'body',label:'Main body (EN)',rows:3}].map(({field,label,rows})=>(
+                          <div key={field} className="fg full">
+                            <label style={{display:'flex',alignItems:'center',gap:6}}>{label}
+                              {hasOverride('mission_sections_en')?<span style={{fontSize:'.65rem',background:'#d9b45a22',color:'#7a5a00',padding:'1px 6px',borderRadius:4,fontWeight:600}}>🏷️ override</span>:<span style={{fontSize:'.65rem',background:'#e8f5ec',color:'#2F4F3A',padding:'1px 6px',borderRadius:4}}>🌐 global</span>}
+                            </label>
+                            <textarea className="admin-textarea" rows={rows} value={cme[field]||''} onChange={e=>setCommMissionEnField(field,e.target.value)} style={{width:'100%',boxSizing:'border-box'}}/>
                           </div>
                         ))}
-                        <button className="btn-ghost" onClick={()=>addCommMissionRule('participationRules')}>+ {isEn?'Add rule':'Agregar regla'}</button>
                       </div>
-                      <div>
-                        <div className="fg"><label>{isEn?'Access title':'Título acceso y responsabilidad'}</label><textarea className="admin-textarea" rows={2} value={cm.accessTitle||''} onChange={e=>setCommMissionField('accessTitle',e.target.value)}/></div>
-                        {(cm.accessRules||[]).map((r,i)=>(
-                          <div className="fg" key={i}><label>{isEn?'Rule':'Regla'} {i+1}</label>
-                            <div style={{display:'flex',gap:8}}><textarea className="admin-textarea flex-grow" rows={2} value={r||''} onChange={e=>setCommMissionRule('accessRules',i,e.target.value)}/><button className="btn-ghost" onClick={()=>removeCommMissionRule('accessRules',i)}>🗑️</button></div>
-                          </div>
-                        ))}
-                        <button className="btn-ghost" onClick={()=>addCommMissionRule('accessRules')}>+ {isEn?'Add rule':'Agregar regla'}</button>
+                      <div className="card-title" style={{margin:'16px 0 10px'}}>Purpose cards (EN)</div>
+                      {(cme.cards||[]).map((c,i)=>(
+                        <div className="fg2" key={i} style={{borderTop:'1px solid rgba(90,105,80,.12)',paddingTop:12,marginTop:8}}>
+                          <div className="fg"><label>Icon</label><input value={c?.icon||''} onChange={e=>setCommMissionEnCard(i,'icon',e.target.value)}/></div>
+                          <div className="fg"><label>Card title {i+1}</label><textarea className="admin-textarea" rows={2} value={c?.title||''} onChange={e=>setCommMissionEnCard(i,'title',e.target.value)}/></div>
+                          <div className="fg full"><label>Card text {i+1}</label><textarea rows={2} value={c?.text||''} onChange={e=>setCommMissionEnCard(i,'text',e.target.value)}/></div>
+                        </div>
+                      ))}
+                      <div className="two-col" style={{marginTop:16}}>
+                        <div>
+                          <div className="fg"><label>Participation title (EN)</label><textarea className="admin-textarea" rows={2} value={cme.participationTitle||''} onChange={e=>setCommMissionEnField('participationTitle',e.target.value)}/></div>
+                          {(cme.participationRules||[]).map((r,i)=>(
+                            <div className="fg" key={i}><label>Rule {i+1}</label>
+                              <div style={{display:'flex',gap:8}}><textarea className="admin-textarea flex-grow" rows={2} value={r||''} onChange={e=>setCommMissionEnRule('participationRules',i,e.target.value)}/><button className="btn-ghost" onClick={()=>removeCommMissionEnRule('participationRules',i)}>🗑️</button></div>
+                            </div>
+                          ))}
+                          <button className="btn-ghost" onClick={()=>addCommMissionEnRule('participationRules')}>+ Add rule</button>
+                        </div>
+                        <div>
+                          <div className="fg"><label>Access title (EN)</label><textarea className="admin-textarea" rows={2} value={cme.accessTitle||''} onChange={e=>setCommMissionEnField('accessTitle',e.target.value)}/></div>
+                          {(cme.accessRules||[]).map((r,i)=>(
+                            <div className="fg" key={i}><label>Rule {i+1}</label>
+                              <div style={{display:'flex',gap:8}}><textarea className="admin-textarea flex-grow" rows={2} value={r||''} onChange={e=>setCommMissionEnRule('accessRules',i,e.target.value)}/><button className="btn-ghost" onClick={()=>removeCommMissionEnRule('accessRules',i)}>🗑️</button></div>
+                            </div>
+                          ))}
+                          <button className="btn-ghost" onClick={()=>addCommMissionEnRule('accessRules')}>+ Add rule</button>
+                        </div>
                       </div>
-                    </div>
-                    <div className="card-title" style={{margin:'20px 0 8px'}}>🇺🇸 English</div>
-                    <div style={{marginBottom:8,fontSize:'.73rem',color:'#6b9ba8'}}>
-                      {hasOverride('mission_sections_en')
-                        ? <span style={{background:'#d9b45a22',color:'#7a5a00',padding:'2px 8px',borderRadius:4,fontWeight:600}}>🏷️ {isEn?'community override active':'override de comunidad activo'}</span>
-                        : <span style={{background:'#e8f5ec',color:'#2F4F3A',padding:'2px 8px',borderRadius:4}}>🌐 {isEn?'using global values':'usando valores globales'}</span>}
-                    </div>
-                    <div className="fg2">
-                      <div className="fg full"><label>Title (EN)</label><textarea className="admin-textarea" rows={2} value={cme.title||''} onChange={e=>setCommMissionEnField('title',e.target.value)}/></div>
-                      <div className="fg full"><label>Subtitle (EN)</label><textarea className="admin-textarea" rows={2} value={cme.subtitle||''} onChange={e=>setCommMissionEnField('subtitle',e.target.value)}/></div>
-                      <div className="fg"><label>Section label (EN)</label><input value={cme.sectionLabel||''} onChange={e=>setCommMissionEnField('sectionLabel',e.target.value)}/></div>
-                      <div className="fg full"><label>Main heading (EN)</label><textarea className="admin-textarea" rows={2} value={cme.heading||''} onChange={e=>setCommMissionEnField('heading',e.target.value)}/></div>
-                      <div className="fg full"><label>Main body (EN)</label><textarea rows={3} value={cme.body||''} onChange={e=>setCommMissionEnField('body',e.target.value)}/></div>
-                    </div>
-                    <div className="card-title" style={{margin:'16px 0 10px'}}>Purpose cards (EN)</div>
-                    {(cme.cards||[]).map((c,i)=>(
-                      <div className="fg2" key={i} style={{borderTop:'1px solid rgba(90,105,80,.12)',paddingTop:12,marginTop:8}}>
-                        <div className="fg"><label>Icon</label><input value={c?.icon||''} onChange={e=>setCommMissionEnCard(i,'icon',e.target.value)}/></div>
-                        <div className="fg"><label>Card title {i+1}</label><textarea className="admin-textarea" rows={2} value={c?.title||''} onChange={e=>setCommMissionEnCard(i,'title',e.target.value)}/></div>
-                        <div className="fg full"><label>Card text {i+1}</label><textarea rows={2} value={c?.text||''} onChange={e=>setCommMissionEnCard(i,'text',e.target.value)}/></div>
-                      </div>
-                    ))}
-                    <div className="two-col" style={{marginTop:16}}>
-                      <div>
-                        <div className="fg"><label>Participation title (EN)</label><textarea className="admin-textarea" rows={2} value={cme.participationTitle||''} onChange={e=>setCommMissionEnField('participationTitle',e.target.value)}/></div>
-                        {(cme.participationRules||[]).map((r,i)=>(
-                          <div className="fg" key={i}><label>Rule {i+1}</label>
-                            <div style={{display:'flex',gap:8}}><textarea className="admin-textarea flex-grow" rows={2} value={r||''} onChange={e=>setCommMissionEnRule('participationRules',i,e.target.value)}/><button className="btn-ghost" onClick={()=>removeCommMissionEnRule('participationRules',i)}>🗑️</button></div>
-                          </div>
-                        ))}
-                        <button className="btn-ghost" onClick={()=>addCommMissionEnRule('participationRules')}>+ Add rule</button>
-                      </div>
-                      <div>
-                        <div className="fg"><label>Access title (EN)</label><textarea className="admin-textarea" rows={2} value={cme.accessTitle||''} onChange={e=>setCommMissionEnField('accessTitle',e.target.value)}/></div>
-                        {(cme.accessRules||[]).map((r,i)=>(
-                          <div className="fg" key={i}><label>Rule {i+1}</label>
-                            <div style={{display:'flex',gap:8}}><textarea className="admin-textarea flex-grow" rows={2} value={r||''} onChange={e=>setCommMissionEnRule('accessRules',i,e.target.value)}/><button className="btn-ghost" onClick={()=>removeCommMissionEnRule('accessRules',i)}>🗑️</button></div>
-                          </div>
-                        ))}
-                        <button className="btn-ghost" onClick={()=>addCommMissionEnRule('accessRules')}>+ Add rule</button>
-                      </div>
-                    </div>
+                    </>}
                   </div>
                 );
               })()}
@@ -7387,24 +7346,32 @@ function AdminSettings({ config={}, user, listings=[], contactProps={}, onSave, 
             {c.id !== 'kai' && <button className="btn-ghost" style={{fontSize:'.78rem',padding:'4px 10px',color:'#c62828'}} onClick={()=>deleteCommunity(c.id)}>🗑️ {isEn?'Delete':'Eliminar'}</button>}
           </div>
         </div>
-        {/* Config overrides toggle */}
-        <div style={{marginTop:8,padding:'6px 12px',background: communityConfigData[c.id]?.overridesEnabled ? '#e8f5ec' : '#fff3e0', borderRadius:8,display:'flex',alignItems:'center',gap:10,flexWrap:'wrap',border:'1px solid',borderColor:communityConfigData[c.id]?.overridesEnabled?'#b2dfdb':'#f5c97a'}}>
-          <span style={{fontSize:'.75rem',fontWeight:600,color:communityConfigData[c.id]?.overridesEnabled?'#2F4F3A':'#7a5a00'}}>
-            {communityConfigData[c.id]?.overridesEnabled ? (isEn?'✅ Community overrides ENABLED — mission, labels & tooltips use community values':'✅ Overrides de comunidad HABILITADOS — misión, etiquetas y tooltips usan valores de comunidad') : (isEn?'⏸ Community overrides DISABLED — all settings fall back to global defaults':'⏸ Overrides de comunidad DESHABILITADOS — todos los ajustes usan los valores globales')}
+        {/* Config overrides toggle switch */}
+        <div style={{marginTop:8,padding:'8px 14px',background:'#f5fbfd',borderRadius:8,display:'flex',alignItems:'center',gap:12,flexWrap:'wrap',border:'1px solid #cce7ee'}}>
+          <span style={{fontSize:'.8rem',fontWeight:600,color:'#17313a',flex:1}}>
+            {isEn?'Community overrides':'Overrides de comunidad'}
           </span>
-          <button className="btn-ghost" style={{fontSize:'.72rem',padding:'2px 10px',marginLeft:'auto'}}
-            onClick={async()=>{
-              if(!communityConfigData[c.id])await loadCommunityConfig(c.id);
-              const cur=!!communityConfigData[c.id]?.overridesEnabled;
-              try{
-                await api.put(`/api/communities/${c.id}/config`,{actorUid:user.uid,actorEmail:user.email,overrides:{config_overrides_enabled:String(!cur)}});
-                showToast(isEn?(!cur?'✅ Community overrides enabled':'✅ Community overrides disabled'):(!cur?'✅ Overrides de comunidad habilitados':'✅ Overrides de comunidad deshabilitados'));
-                loadCommunityConfig(c.id);
-              }catch(e){showToast(e.message||String(e),true);}
-            }}>
-            {communityConfigData[c.id]?.overridesEnabled?(isEn?'⏸ Disable overrides':'⏸ Deshabilitar overrides'):(isEn?'▶ Enable overrides':'▶ Habilitar overrides')}
-          </button>
-          {!communityConfigData[c.id] && <button className="btn-ghost" style={{fontSize:'.72rem',padding:'2px 10px'}} onClick={()=>loadCommunityConfig(c.id)}>↻ {isEn?'Load status':'Cargar estado'}</button>}
+          <span style={{fontSize:'.75rem',color:communityConfigData[c.id]?.overridesEnabled?'#2F4F3A':'#7a5a00'}}>
+            {communityConfigData[c.id]?.overridesEnabled
+              ? (isEn?'Enabled — community values apply':'Habilitados — se usan valores de comunidad')
+              : (isEn?'Disabled — falls back to global defaults':'Deshabilitados — usa valores globales')}
+          </span>
+          {!communityConfigData[c.id]
+            ? <button className="btn-ghost" style={{fontSize:'.72rem',padding:'2px 10px'}} onClick={()=>loadCommunityConfig(c.id)}>↻ {isEn?'Load':'Cargar'}</button>
+            : <label style={{display:'flex',alignItems:'center',gap:6,cursor:'pointer',userSelect:'none'}}>
+                <div style={{position:'relative',width:40,height:22,flexShrink:0}} onClick={async()=>{
+                  const cur=!!communityConfigData[c.id]?.overridesEnabled;
+                  try{
+                    await api.put(`/api/communities/${c.id}/config/overrides-enabled`,{actorUid:user.uid,actorEmail:user.email,enabled:!cur});
+                    showToast(isEn?(!cur?'✅ Overrides enabled':'✅ Overrides disabled'):(!cur?'✅ Overrides habilitados':'✅ Overrides deshabilitados'));
+                    await loadCommunityConfig(c.id);
+                  }catch(e){showToast(e.message||String(e),true);}
+                }}>
+                  <div style={{position:'absolute',inset:0,borderRadius:11,background:communityConfigData[c.id]?.overridesEnabled?'#2F4F3A':'#cdd9db',transition:'background .2s'}}/>
+                  <div style={{position:'absolute',top:3,left:communityConfigData[c.id]?.overridesEnabled?18:3,width:16,height:16,borderRadius:'50%',background:'#fff',boxShadow:'0 1px 3px rgba(0,0,0,.25)',transition:'left .2s'}}/>
+                </div>
+              </label>
+          }
         </div>
         {/* Members — expandable table with search */}
         <div style={{marginTop:8,borderTop:'1px solid #e8f4f8',paddingTop:8}}>
