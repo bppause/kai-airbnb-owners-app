@@ -5976,6 +5976,7 @@ function AdminSettings({ config={}, user, listings=[], contactProps={}, onSave, 
   const [templateVars,setTemplateVars]=useState({});
   const [selectedTemplate,setSelectedTemplate]=useState('incident_new');
   const [templateLang,setTemplateLang]=useState('es-CO');
+  const [templateCommunityId,setTemplateCommunityId]=useState('__global__');
   const [tplLoading,setTplLoading]=useState(false);
   const [emailNotifConfig,setEmailNotifConfig]=useState({});
   const [emailNotifLoading,setEmailNotifLoading]=useState(false);
@@ -6008,6 +6009,15 @@ function AdminSettings({ config={}, user, listings=[], contactProps={}, onSave, 
   const [communityConfigOpen, setCommunityConfigOpen] = useState({});
   const [communityConfigDraft, setCommunityConfigDraft] = useState({}); // {cid: {key: value}}
   const [communityOverridesEnabled, setCommunityOverridesEnabled] = useState({}); // {cid: bool}
+  const [communityTplOpen, setCommunityTplOpen] = useState({});
+  const [communityTplData, setCommunityTplData] = useState({});
+  const [communityTplLoading, setCommunityTplLoading] = useState({});
+  const [communityTplLang, setCommunityTplLang] = useState({});
+  const [communityTplSelected, setCommunityTplSelected] = useState({});
+  const [communityRoutingOpen, setCommunityRoutingOpen] = useState({});
+  const [communityRoutingData, setCommunityRoutingData] = useState({});
+  const [communityRoutingLoading, setCommunityRoutingLoading] = useState({});
+  const [communityRoutingDraft, setCommunityRoutingDraft] = useState({});
   const ADMIN_SEC_DEFAULT = {communities:false,branding:false,emailSender:false,roles:true,sla:false,mission:false,menu:false,delegate:false,users:true,tooltips:false,uiLabels:false,email:false,emailNotif:false,auditLog:false};
   const [openSections,setOpenSections] = useState(()=>{
     try{ const s=JSON.parse(localStorage.getItem('kai_admin_open')||'null'); return s&&typeof s==='object'?{...ADMIN_SEC_DEFAULT,...s}:ADMIN_SEC_DEFAULT; }catch{ return ADMIN_SEC_DEFAULT; }
@@ -6045,7 +6055,7 @@ function AdminSettings({ config={}, user, listings=[], contactProps={}, onSave, 
     if (!user?.uid) return;
     setTplLoading(true);
     setAdminErrors([]);
-    const url = '/api/admin/email-templates?uid=' + encodeURIComponent(user.uid) + '&email=' + encodeURIComponent(user.email || '') + '&language=' + encodeURIComponent(templateLang);
+    const url = '/api/admin/email-templates?uid=' + encodeURIComponent(user.uid) + '&email=' + encodeURIComponent(user.email || '') + '&language=' + encodeURIComponent(templateLang) + '&communityId=' + encodeURIComponent(templateCommunityId||'__global__');
     trace('loading templates', url);
     api.get(url).then(r => {
       const incoming = (r?.templates && typeof r.templates === 'object') ? r.templates : {};
@@ -6055,7 +6065,7 @@ function AdminSettings({ config={}, user, listings=[], contactProps={}, onSave, 
       if (!incoming[selectedTemplate] && keys.length) setSelectedTemplate(keys[0]);
       trace('templates loaded', keys);
     }).catch(e => { captureAdminError('email-templates', e); showToast(lt(lang,'Error cargando plantillas de email') + ': ' + (e.message || ''), true); }).finally(()=>setTplLoading(false));
-  }, [user?.uid, user?.email, selectedTemplate, lang, templateLang]);
+  }, [user?.uid, user?.email, selectedTemplate, lang, templateLang, templateCommunityId]);
   useEffect(()=>{ loadTemplates(); }, [loadTemplates]);
   const loadEmailNotifConfig = useCallback(()=>{
     if(!user?.uid) return;
@@ -6099,7 +6109,7 @@ function AdminSettings({ config={}, user, listings=[], contactProps={}, onSave, 
   const updateTpl = (field, value) => { if(!selectedKey) return; setTemplates(t => ({...(t||{}), [selectedKey]: {...((t||{})[selectedKey]||{}), [field]:value}})); };
   const saveTemplates = async () => {
     try {
-      const r = await api.put('/api/admin/email-templates', { actorUid:user.uid, actorEmail:user.email, templates, language:templateLang });
+      const r = await api.put('/api/admin/email-templates', { actorUid:user.uid, actorEmail:user.email, templates, language:templateLang, communityId:templateCommunityId||'__global__' });
       setTemplates((r && r.templates) || templates);
       showToast('✅ ' + lt(lang,'Plantillas guardadas.'));
     } catch(e) { captureAdminError('save-templates', e); showToast(lt(lang,'Error al guardar plantillas') + ': ' + (e.message || ''), true); }
@@ -6185,6 +6195,51 @@ function AdminSettings({ config={}, user, listings=[], contactProps={}, onSave, 
       setCommunityOverridesEnabled(p => ({...p,[cid]:enabled}));
       loadCommunityConfig(cid);
     } catch(e) { captureAdminError('toggle-community-overrides', e); showToast(e.message||String(e), true); }
+  };
+
+  const loadCommunityTemplates = async (cid, lang) => {
+    const l = lang || communityTplLang[cid] || 'es-CO';
+    setCommunityTplLoading(p => ({...p,[cid]:true}));
+    try {
+      const r = await api.get(`/api/admin/email-templates?uid=${encodeURIComponent(user.uid)}&email=${encodeURIComponent(user.email||'')}&language=${encodeURIComponent(l)}&communityId=${encodeURIComponent(cid)}`);
+      setCommunityTplData(p => ({...p,[cid]:r}));
+      const keys = Object.keys(r?.templates||{});
+      if (!communityTplSelected[cid] && keys.length) setCommunityTplSelected(p => ({...p,[cid]:keys[0]}));
+    } catch(e) { captureAdminError('load-community-templates', e); showToast((e.message||String(e)), true); }
+    finally { setCommunityTplLoading(p => ({...p,[cid]:false})); }
+  };
+
+  const saveCommunityTemplates = async (cid) => {
+    const tplD = communityTplData[cid];
+    if (!tplD?.templates) return;
+    try {
+      const r = await api.put('/api/admin/email-templates', { actorUid:user.uid, actorEmail:user.email, templates:tplD.templates, language:communityTplLang[cid]||'es-CO', communityId:cid });
+      setCommunityTplData(p => ({...p,[cid]:{...(p[cid]||{}), templates:r.templates||tplD.templates}}));
+      showToast(isEn?'✅ Community templates saved':'✅ Plantillas de comunidad guardadas');
+    } catch(e) { captureAdminError('save-community-templates', e); showToast((e.message||String(e)), true); }
+  };
+
+  const loadCommunityRouting = async (cid) => {
+    setCommunityRoutingLoading(p => ({...p,[cid]:true}));
+    try {
+      const r = await api.get(`/api/communities/${cid}/email-routing?uid=${encodeURIComponent(user.uid)}&email=${encodeURIComponent(user.email||'')}`);
+      setCommunityRoutingData(p => ({...p,[cid]:r}));
+      const draft = {};
+      (r.eventKeys||[]).forEach(k => { draft[k] = { cc: ((r.communityRouting||{})[k]?.cc||[]).join(', ') }; });
+      setCommunityRoutingDraft(p => ({...p,[cid]:draft}));
+    } catch(e) { captureAdminError('load-community-routing', e); showToast((e.message||String(e)), true); }
+    finally { setCommunityRoutingLoading(p => ({...p,[cid]:false})); }
+  };
+
+  const saveCommunityRouting = async (cid) => {
+    const draft = communityRoutingDraft[cid] || {};
+    const routing = {};
+    Object.entries(draft).forEach(([k, v]) => { if (v?.cc?.trim()) routing[k] = { cc: v.cc.split(',').map(e=>e.trim()).filter(Boolean) }; });
+    try {
+      const r = await api.put(`/api/communities/${cid}/email-routing`, { actorUid:user.uid, actorEmail:user.email, routing });
+      setCommunityRoutingData(p => ({...p,[cid]:{...(p[cid]||{}), communityRouting:r.communityRouting||{}}}));
+      showToast(isEn?'✅ Email routing saved':'✅ Enrutamiento de email guardado');
+    } catch(e) { captureAdminError('save-community-routing', e); showToast((e.message||String(e)), true); }
   };
 
   const saveCommunity = async (f) => {
@@ -6275,6 +6330,10 @@ function AdminSettings({ config={}, user, listings=[], contactProps={}, onSave, 
                 mission_body_en: 'Mission body (EN)',
                 escalation_cc_emails: isEn?'Escalation CC emails':'Emails de escalación CC',
                 community_admin_default_permissions: isEn?'Default admin permissions (JSON)':'Permisos default admin (JSON)',
+                tooltips_es: isEn?'Tooltips/instructions (ES, JSON)':'Tooltips/instrucciones (ES, JSON)',
+                tooltips_en: 'Tooltips/instructions (EN, JSON)',
+                ui_labels_es: isEn?'UI labels (ES, JSON)':'Etiquetas de UI (ES, JSON)',
+                ui_labels_en: 'UI labels (EN, JSON)',
               };
               return (
                 <div>
@@ -6327,6 +6386,118 @@ function AdminSettings({ config={}, user, listings=[], contactProps={}, onSave, 
             })()}
           </div>
         )}
+      </div>
+      {/* ── Community Email Templates ──────────────────────────────────────── */}
+      <div style={{borderTop:'1px solid #e8f4f8',paddingTop:8,marginTop:8}}>
+        <button type="button" className="btn-ghost" style={{fontSize:'.78rem',padding:'3px 10px'}}
+          onClick={()=>{
+            const opening = !communityTplOpen[ca.communityId];
+            setCommunityTplOpen(p=>({...p,[ca.communityId]:opening}));
+            if (opening && !communityTplData[ca.communityId]) loadCommunityTemplates(ca.communityId, 'es-CO');
+          }}>
+          ✉️ {isEn?'Community Email Templates':'Plantillas de email de comunidad'} {communityTplOpen[ca.communityId]?'▲':'▼'}
+        </button>
+        {communityTplOpen[ca.communityId] && (() => {
+          const tplD = communityTplData[ca.communityId];
+          const tplLang = communityTplLang[ca.communityId] || 'es-CO';
+          const selKey = communityTplSelected[ca.communityId] || '';
+          const tpl = selKey && tplD?.templates?.[selKey] ? tplD.templates[selKey] : null;
+          const overridesOn = communityOverridesEnabled[ca.communityId];
+          return (
+            <div style={{marginTop:10}}>
+              {communityTplLoading[ca.communityId] && <div style={{color:'#6b9ba8',fontSize:'.82rem'}}><span className="spinner-sm"/> {isEn?'Loading...':'Cargando...'}</div>}
+              {!overridesOn && <div style={{fontSize:'.75rem',color:'#8a9fa5',fontStyle:'italic',padding:'6px 0'}}>{isEn?'Overrides must be enabled by a global admin to edit community templates.':'El admin global debe habilitar los overrides para editar plantillas de comunidad.'}</div>}
+              {overridesOn && !communityTplLoading[ca.communityId] && (
+                <div>
+                  <div style={{display:'flex',gap:8,marginBottom:8,flexWrap:'wrap',alignItems:'center'}}>
+                    <select value={tplLang} onChange={e=>{setCommunityTplLang(p=>({...p,[ca.communityId]:e.target.value})); loadCommunityTemplates(ca.communityId, e.target.value);}}
+                      style={{padding:'3px 8px',borderRadius:6,border:'1px solid #cce7ee',fontSize:'.78rem'}}>
+                      <option value="es-CO">Español</option>
+                      <option value="en">English</option>
+                    </select>
+                    <select value={selKey} onChange={e=>setCommunityTplSelected(p=>({...p,[ca.communityId]:e.target.value}))}
+                      style={{padding:'3px 8px',borderRadius:6,border:'1px solid #cce7ee',fontSize:'.78rem',flex:1,minWidth:120}}>
+                      {Object.entries(tplD?.templates||{}).map(([k,v])=><option key={k} value={k}>{v?.label||k}</option>)}
+                    </select>
+                  </div>
+                  {tpl && (
+                    <div>
+                      <div style={{fontSize:'.72rem',fontWeight:700,color:'#2F4F3A',marginBottom:4}}>{isEn?'Subject:':'Asunto:'}</div>
+                      <input value={tpl.subject||''} onChange={e=>setCommunityTplData(p=>({...p,[ca.communityId]:{...(p[ca.communityId]||{}), templates:{...(p[ca.communityId]?.templates||{}), [selKey]:{...(p[ca.communityId]?.templates?.[selKey]||{}), subject:e.target.value}}}}))}
+                        style={{width:'100%',fontSize:'.78rem',padding:'4px 8px',borderRadius:6,border:'1px solid #cce7ee',boxSizing:'border-box',marginBottom:6}}/>
+                      <div style={{fontSize:'.72rem',fontWeight:700,color:'#2F4F3A',marginBottom:4}}>HTML:</div>
+                      <textarea value={tpl.html||''} onChange={e=>setCommunityTplData(p=>({...p,[ca.communityId]:{...(p[ca.communityId]||{}), templates:{...(p[ca.communityId]?.templates||{}), [selKey]:{...(p[ca.communityId]?.templates?.[selKey]||{}), html:e.target.value}}}}))}
+                        rows={5} style={{width:'100%',fontSize:'.72rem',fontFamily:'monospace',padding:'4px 8px',borderRadius:6,border:'1px solid #cce7ee',resize:'vertical',boxSizing:'border-box',marginBottom:4}}/>
+                    </div>
+                  )}
+                  <div style={{display:'flex',gap:8,marginTop:6}}>
+                    <button className="btn-p" style={{fontSize:'.78rem',padding:'4px 12px'}} onClick={()=>saveCommunityTemplates(ca.communityId)}>
+                      💾 {isEn?'Save templates':'Guardar plantillas'}
+                    </button>
+                    <button className="btn-ghost" style={{fontSize:'.72rem',padding:'3px 10px'}} onClick={()=>loadCommunityTemplates(ca.communityId, tplLang)}>
+                      ↻ {isEn?'Refresh':'Actualizar'}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })()}
+      </div>
+      {/* ── Community Email Routing ────────────────────────────────────────── */}
+      <div style={{borderTop:'1px solid #e8f4f8',paddingTop:8,marginTop:8}}>
+        <button type="button" className="btn-ghost" style={{fontSize:'.78rem',padding:'3px 10px'}}
+          onClick={()=>{
+            const opening = !communityRoutingOpen[ca.communityId];
+            setCommunityRoutingOpen(p=>({...p,[ca.communityId]:opening}));
+            if (opening && !communityRoutingData[ca.communityId]) loadCommunityRouting(ca.communityId);
+          }}>
+          📧 {isEn?'Community Email Routing':'Enrutamiento de email de comunidad'} {communityRoutingOpen[ca.communityId]?'▲':'▼'}
+        </button>
+        {communityRoutingOpen[ca.communityId] && (() => {
+          const rd = communityRoutingData[ca.communityId];
+          const draft = communityRoutingDraft[ca.communityId] || {};
+          const overridesOn = communityOverridesEnabled[ca.communityId];
+          return (
+            <div style={{marginTop:10}}>
+              {communityRoutingLoading[ca.communityId] && <div style={{color:'#6b9ba8',fontSize:'.82rem'}}><span className="spinner-sm"/> {isEn?'Loading...':'Cargando...'}</div>}
+              {!overridesOn && <div style={{fontSize:'.75rem',color:'#8a9fa5',fontStyle:'italic',padding:'6px 0'}}>{isEn?'Overrides must be enabled by a global admin to set community email routing.':'El admin global debe habilitar los overrides para configurar el enrutamiento de email.'}</div>}
+              {overridesOn && !communityRoutingLoading[ca.communityId] && rd && (
+                <div>
+                  <div style={{fontSize:'.75rem',color:'#6b9ba8',marginBottom:8}}>{isEn?'Add CC email addresses per event type. Enabled/disabled flags are global-only.':'Agrega emails en copia (CC) por tipo de evento. Los flags habilitado/deshabilitado son solo globales.'}</div>
+                  {(rd.eventKeys||[]).map(k => {
+                    const globalCfg = rd.globalConfig?.[k] || {};
+                    const ccVal = draft[k]?.cc ?? '';
+                    return (
+                      <div key={k} style={{marginBottom:8,paddingBottom:8,borderBottom:'1px solid #f0f8fb'}}>
+                        <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:4,flexWrap:'wrap'}}>
+                          <span style={{fontSize:'.72rem',fontWeight:700,color:'#2F4F3A',flex:1}}>{k}</span>
+                          <span style={{fontSize:'.65rem',padding:'1px 7px',borderRadius:10,background:globalCfg.enabled===false?'#fce4ec':'#e8f4f0',color:globalCfg.enabled===false?'#c62828':'#2F4F3A',fontWeight:600}}>
+                            {isEn?(globalCfg.enabled===false?'disabled':'enabled'):(globalCfg.enabled===false?'deshabilitado':'habilitado')} {isEn?'(global)':'(global)'}
+                          </span>
+                        </div>
+                        <input
+                          value={ccVal}
+                          onChange={e=>setCommunityRoutingDraft(p=>({...p,[ca.communityId]:{...(p[ca.communityId]||{}),[k]:{cc:e.target.value}}}))}
+                          placeholder={isEn?'CC emails, comma-separated':'Emails en CC, separados por coma'}
+                          style={{width:'100%',fontSize:'.75rem',padding:'4px 8px',borderRadius:6,border:'1px solid #cce7ee',boxSizing:'border-box'}}
+                        />
+                      </div>
+                    );
+                  })}
+                  <div style={{display:'flex',gap:8,marginTop:6}}>
+                    <button className="btn-p" style={{fontSize:'.78rem',padding:'4px 12px'}} onClick={()=>saveCommunityRouting(ca.communityId)}>
+                      💾 {isEn?'Save routing':'Guardar enrutamiento'}
+                    </button>
+                    <button className="btn-ghost" style={{fontSize:'.72rem',padding:'3px 10px'}} onClick={()=>loadCommunityRouting(ca.communityId)}>
+                      ↻ {isEn?'Refresh':'Actualizar'}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })()}
       </div>
     </div>
   ))}
@@ -6930,8 +7101,8 @@ function AdminSettings({ config={}, user, listings=[], contactProps={}, onSave, 
     })()}
   </AdminSection>
 
-  <AdminSection title={`📨 ${lt(lang,'Plantillas de emails')}`} subtitle={lt(lang,'Edita y guarda la versión en Español e Inglés por separado. El sistema envía según la preferencia del destinatario.')} action={tplLoading?<span className="sync-pill"><span className="spinner-sm"/> {lt(lang,'Cargando...')}</span>:null} open={openSections.email} onToggle={()=>toggleSection('email')}>
-    {templateEntries.length===0?<Empty icon="📨" msg={ui(lang,'templatesEmpty')}/>:<><div className="fg2"><div className="fg"><label>{lt(lang,'Idioma de plantilla')}</label><select value={templateLang} onChange={e=>setTemplateLang(e.target.value)}><option value="es-CO">{lt(lang,'Español')}</option><option value="en">{lt(lang,'Inglés')}</option></select></div><div className="fg"><label>{lt(lang,'Tipo de notificación')}</label><select value={selectedKey} onChange={e=>setSelectedTemplate(e.target.value)}>{templateEntries.map(([k,tpl])=><option key={k} value={k}>{tpl?.label||k}</option>)}</select></div><div className="fg full"><span className="help-msg">{lt(lang,'Variables disponibles')}: {selectedVars.map(v=>'{{'+v+'}}').join(', ')}</span></div><div className="fg full"><label>{lt(lang,'Asunto')}</label><input value={selected?.subject||''} onChange={e=>updateTpl('subject',e.target.value)}/></div><div className="fg full"><label>{lt(lang,'Texto plano')}</label><textarea rows={6} value={selected?.text||''} onChange={e=>updateTpl('text',e.target.value)}/></div><div className="fg full"><label>{lt(lang,'HTML del email')}</label><textarea rows={10} value={selected?.html||''} onChange={e=>updateTpl('html',e.target.value)}/><span className="help-msg">{lt(lang,'Conserva variables como href="{{incidentLink}}".')}</span></div></div><div className="mact"><button className="btn-p" onClick={saveTemplates}>💾 {lt(lang,'Guardar plantillas de email')}</button></div></>}
+  <AdminSection title={`📨 ${lt(lang,'Plantillas de emails')}`} subtitle={lt(lang,'Edita y guarda la versión en Español e Inglés por separado. El sistema envía según la preferencia del destinatario.')} action={tplLoading?<span className="sync-pill"><span className="spinner-sm"/> {lt(lang,'Cargando...')}</span>:null} open={openSections.email} onToggle={()=>{ toggleSection('email'); if (!openSections.email && !communities.length) loadCommunities(); }}>
+    {templateEntries.length===0?<Empty icon="📨" msg={ui(lang,'templatesEmpty')}/>:<><div className="fg2"><div className="fg"><label>{lang==='en'?'Community':'Comunidad'}</label><select value={templateCommunityId} onChange={e=>setTemplateCommunityId(e.target.value)}><option value="__global__">🌐 {lang==='en'?'Global (all communities)':'Global (todas las comunidades)'}</option>{communities.map(c=><option key={c.id} value={c.id}>{lang==='en'?(c.name_en||c.name):c.name} ({c.id})</option>)}</select></div><div className="fg"><label>{lt(lang,'Idioma de plantilla')}</label><select value={templateLang} onChange={e=>setTemplateLang(e.target.value)}><option value="es-CO">{lt(lang,'Español')}</option><option value="en">{lt(lang,'Inglés')}</option></select></div><div className="fg"><label>{lt(lang,'Tipo de notificación')}</label><select value={selectedKey} onChange={e=>setSelectedTemplate(e.target.value)}>{templateEntries.map(([k,tpl])=><option key={k} value={k}>{tpl?.label||k}</option>)}</select></div><div className="fg full"><span className="help-msg">{lt(lang,'Variables disponibles')}: {selectedVars.map(v=>'{{'+v+'}}').join(', ')}</span></div><div className="fg full"><label>{lt(lang,'Asunto')}</label><input value={selected?.subject||''} onChange={e=>updateTpl('subject',e.target.value)}/></div><div className="fg full"><label>{lt(lang,'Texto plano')}</label><textarea rows={6} value={selected?.text||''} onChange={e=>updateTpl('text',e.target.value)}/></div><div className="fg full"><label>{lt(lang,'HTML del email')}</label><textarea rows={10} value={selected?.html||''} onChange={e=>updateTpl('html',e.target.value)}/><span className="help-msg">{lt(lang,'Conserva variables como href="{{incidentLink}}".')}</span></div></div><div className="mact"><button className="btn-p" onClick={saveTemplates}>💾 {lt(lang,'Guardar plantillas de email')}</button>{templateCommunityId!=='__global__'&&<span style={{fontSize:'.78rem',color:'#d9b45a',marginLeft:8}}>⚠️ {lang==='en'?`Editing community: ${templateCommunityId}`:`Editando comunidad: ${templateCommunityId}`}</span>}</div></>}
   </AdminSection>
 
   {/* ── Email notification routing ─────────────────────────────────────── */}
