@@ -1007,6 +1007,7 @@ export default function App() {
   const complexTower = adminInfo.config?.community_tower || 'KAI';
   const [previewRole, setPreviewRole] = useState(null);
   const [openDropdown, setOpenDropdown] = useState(null);
+  const [showTour, setShowTour] = useState(false);
   const initialView = new URLSearchParams(window.location.search).get('view') || 'incidents';
   const [view,      setView]      = useState(initialView);
   // Apply role-based landing once admin config has fully loaded from server.
@@ -1627,6 +1628,7 @@ export default function App() {
                     <span className={`profile-role-badge prb-${effectiveIsGlobalAdmin?'global':effectiveRole==='delegate_admin'?'delegate':adminInfo.isCommunityAdmin?'community':'user'}`}>{effectiveIsGlobalAdmin?(lang==='en'?'🌐 Global Admin':'🌐 Admin global'):effectiveRole==='delegate_admin'?(lang==='en'?'🛡️ Delegate Admin':'🛡️ Admin delegado'):adminInfo.isCommunityAdmin?(lang==='en'?'🏢 Community Admin':'🏢 Admin comunidad'):(lang==='en'?'🏠 Unit Owner':'🏠 Propietario')}</span>
                   </div>
                   <button className="dd-item" onClick={()=>{setView('profile');setOpenDropdown(null);}}>{lang === "en" ? "👤 My profile" : "👤 Mi perfil"}</button>
+                  <button className="dd-item" onClick={()=>{setShowTour(true);setOpenDropdown(null);}}>🎯 {lang === "en" ? "Interactive tour" : "Tour interactivo"}</button>
                   <button className="dd-item" onClick={()=>{setView('my');setOpenDropdown(null);}}>🏠 {t.nav.my}</button>
                   <button className="dd-item" onClick={()=>{setView('about');setOpenDropdown(null);}}>🌊 {t.nav.about}</button>
                   {(effectiveIsGlobalAdmin || adminInfo.role === 'delegate_admin' || adminInfo.isCommunityAdmin) && <button className="dd-item" onClick={()=>{setView('admin');setOpenDropdown(null);}}>⚙️ {t.nav.admin}</button>}
@@ -1668,8 +1670,9 @@ export default function App() {
         {view==="admin" && user && ((effectiveIsGlobalAdmin || adminInfo.role === 'delegate_admin' || adminInfo.isCommunityAdmin) ? <ErrorBoundary section="admin" fallback={(err)=><AdminFallback lang={lang} error={err}/>}><AdminSettings config={adminInfo.config || {}} user={user} listings={listings} contactProps={contactProps} onSave={saveAdminConfig} showToast={showToast} lang={lang} adminInfo={adminInfo} /></ErrorBoundary> : <AdminAccessHelp user={user} adminInfo={adminInfo} lang={lang} />)}
         {view==="my" && user && <MyListings lang={lang} listings={myListings} allListings={listings} incidents={incidents} user={user} contactProps={contactProps} isGlobalAdmin={effectiveIsGlobalAdmin} canResolveGlobal={canResolveIncidentsNow} onAdd={()=>setModal({type:"addListing"})} onEdit={l=>setModal({type:"editListing",data:l})} onDelete={deleteListing} onReport={l=>setModal({type:"incident",data:{aptId:l.id}})} onVerify={inc=>setModal({type:"verifyIncident",data:inc})} onResolve={resolveIncident} onAddResolution={inc=>setModal({type:"addResolution",data:inc})} onNavigateToIncidents={f=>{setIncidentQuickFilter({type:'floorFilter',aptIds:f.aptIds,status:f.status||'all'});setView('incidents');}} onIncidentDetail={openIncidentDetail} onAssign={inc=>setModal({type:'assignGeneral',data:inc})} onCloseGeneral={inc=>setModal({type:'closeGeneral',data:inc})} />}
         {view==="profile" && user && <ProfileView lang={lang} user={user} userProfile={userProfile} onSave={saveProfile} communities={adminInfo.communities||[]} currentCommunityId={adminInfo.communityId||_communityId} onSwitchCommunity={switchCommunity} />}
-        {view==="help" && <HelpView lang={lang} effectiveRole={effectiveRole} effectiveIsGlobalAdmin={effectiveIsGlobalAdmin} delegatePerms={delegatePerms} listings={listings} incidents={incidents} user={user} setView={setView} onReport={()=>{ if(!user){login();return;} setModal({type:'incident'}); }} onAddListing={()=>{ if(!user){login();return;} setModal({type:'addListing'}); }} setIncidentQuickFilter={setIncidentQuickFilter} openMore={()=>setOpenDropdown('more')} />}
+        {view==="help" && <HelpView lang={lang} effectiveRole={effectiveRole} effectiveIsGlobalAdmin={effectiveIsGlobalAdmin} delegatePerms={delegatePerms} listings={listings} incidents={incidents} user={user} setView={setView} onReport={()=>{ if(!user){login();return;} setModal({type:'incident'}); }} onAddListing={()=>{ if(!user){login();return;} setModal({type:'addListing'}); }} setIncidentQuickFilter={setIncidentQuickFilter} openMore={()=>setOpenDropdown('more')} onStartTour={()=>setShowTour(true)} />}
       </main>
+      {showTour && <UserTour lang={lang} onClose={()=>setShowTour(false)} onGo={v=>{setShowTour(false);setView(v);}} onReport={()=>{setShowTour(false);if(user)setModal({type:'incident'});else login();}} onAddListing={()=>{setShowTour(false);if(user)setModal({type:'addListing'});else login();}} />}
 
       {/* Mobile bottom navigation — sticky 4-tab bar for small screens */}
       {user && isApproved && (
@@ -2043,7 +2046,7 @@ const HELP_ACTIONS = {
 
 // ─── HELP VIEW ────────────────────────────────────────────────────────────────
 function HelpView({ lang, effectiveRole, effectiveIsGlobalAdmin, listings=[], incidents=[], user,
-                    setView=()=>{}, onReport=()=>{}, onAddListing=()=>{}, setIncidentQuickFilter=()=>{}, openMore=()=>{} }) {
+                    setView=()=>{}, onReport=()=>{}, onAddListing=()=>{}, setIncidentQuickFilter=()=>{}, openMore=()=>{}, onStartTour=()=>{} }) {
   const [query, setQuery] = useState('');
   const [category, setCategory] = useState('all');
   const [selected, setSelected] = useState(null);
@@ -2121,7 +2124,12 @@ function HelpView({ lang, effectiveRole, effectiveIsGlobalAdmin, listings=[], in
           <h1 className="ptitle">❓ {lang === 'en' ? 'Help & Guide' : 'Ayuda y guía'}</h1>
           <p className="psub">{lang === 'en' ? 'Browse topics or search for any feature.' : 'Explora temas o busca cualquier función.'}</p>
         </div>
-        <span className="help-topic-count">{filtered.length} {lang === 'en' ? (filtered.length===1?'topic':'topics') : (filtered.length===1?'tema':'temas')}</span>
+        <div style={{display:'flex',alignItems:'center',gap:10,flexWrap:'wrap'}}>
+          <button className="btn-p" style={{display:'flex',alignItems:'center',gap:6,padding:'8px 16px',fontSize:'.88rem'}} onClick={onStartTour}>
+            🎯 {lang === 'en' ? 'Interactive Tour' : 'Tour interactivo'}
+          </button>
+          <span className="help-topic-count">{filtered.length} {lang === 'en' ? (filtered.length===1?'topic':'topics') : (filtered.length===1?'tema':'temas')}</span>
+        </div>
       </div>
       <input className="search" type="search"
         placeholder={lang === 'en' ? '🔍  Search topics…' : '🔍  Buscar temas…'}
@@ -2150,6 +2158,283 @@ function HelpView({ lang, effectiveRole, effectiveIsGlobalAdmin, listings=[], in
             ))}
           </div>
       }
+    </div>
+  );
+}
+
+function UserTour({ lang='es-CO', onClose=()=>{}, onGo=()=>{}, onReport=()=>{}, onAddListing=()=>{} }) {
+  const [step, setStep] = useState(0);
+  const [tourLang, setTourLang] = useState(lang);
+  const isEn = tourLang === 'en';
+  const T = (es, en) => isEn ? en : es;
+
+  const steps = [
+    {
+      icon: '👋', color: '#2F4F3A', bg: '#e8f5ec',
+      title: T('¡Bienvenido a la app!', 'Welcome to the app!'),
+      desc: T(
+        'Esta guía interactiva (7 pasos) te muestra todo lo que necesitas saber como propietario. Puedes cerrarla en cualquier momento y volver desde el menú de perfil → "Tour interactivo".',
+        'This interactive guide (7 steps) shows you everything you need as a registered owner. Close anytime and return from the profile menu → "Interactive tour".'
+      ),
+      mockup: () => (
+        <div style={{background:'#f5fbfd',borderRadius:10,padding:'14px 18px',border:'1px solid #cce7ee',fontSize:'.82rem',color:'#17313a'}}>
+          <div style={{fontWeight:700,marginBottom:8,fontSize:'.9rem'}}>🏢 Propietarios Airbnb KAI</div>
+          <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
+            {['📊 Dashboard','⚠️ Incidentes','🏠 Mis Unidades','🔔 Alertas','❓ Ayuda'].map(l=>(
+              <span key={l} style={{background:'#fff',border:'1px solid #cce7ee',borderRadius:20,padding:'4px 12px',fontSize:'.75rem',color:'#2a5a6a'}}>{l}</span>
+            ))}
+          </div>
+        </div>
+      ),
+      action: null,
+    },
+    {
+      icon: '📊', color: '#1565C0', bg: '#e3f2fd',
+      title: T('Panel principal (Dashboard)', 'Dashboard'),
+      desc: T(
+        'El Dashboard es tu pantalla de inicio. Muestra un resumen de incidentes abiertos, alertas de la comunidad y acciones pendientes en tus unidades. Todo de un vistazo.',
+        'The Dashboard is your home screen. It shows a summary of open incidents, community alerts, and pending actions on your units — all at a glance.'
+      ),
+      mockup: () => (
+        <div style={{background:'#f5fbfd',borderRadius:10,padding:'14px 18px',border:'1px solid #cce7ee',fontSize:'.8rem'}}>
+          <div style={{display:'flex',gap:10,marginBottom:10,flexWrap:'wrap'}}>
+            {[{n:'3',l:T('Abiertos','Open'),c:'#c62828'},{n:'1',l:T('Por verificar','To verify'),c:'#2F4F3A'},{n:'12',l:T('Mis unidades','My units'),c:'#1565C0'}].map(s=>(
+              <div key={s.l} style={{flex:1,minWidth:70,background:'#fff',borderRadius:8,padding:'10px',border:'1px solid #e0f2f1',textAlign:'center'}}>
+                <div style={{fontSize:'1.4rem',fontWeight:700,color:s.c}}>{s.n}</div>
+                <div style={{fontSize:'.7rem',color:'#6b9ba8'}}>{s.l}</div>
+              </div>
+            ))}
+          </div>
+          <div style={{background:'#fff3e0',borderRadius:8,padding:'8px 12px',color:'#e65100',fontSize:'.75rem',fontWeight:600}}>
+            ✅ {T('Tienes 1 incidente por verificar en tu unidad','You have 1 incident to verify on your unit')}
+          </div>
+        </div>
+      ),
+      action: { label: T('Ver mi Dashboard','Go to Dashboard'), fn: ()=>onGo('dashboard') },
+    },
+    {
+      icon: '⚠️', color: '#C62828', bg: '#ffebee',
+      title: T('Reportar un incidente', 'Report an Incident'),
+      desc: T(
+        'Cuando hay un problema en tu unidad o en la comunidad, presiona "Reportar incidente". Selecciona el tipo, categoría y describe el problema. El propietario y operador correctos reciben notificación automáticamente.',
+        'When there\'s an issue in your unit or the community, press "Report Incident". Select the type, category, and describe the problem. The right owner and operator are notified automatically.'
+      ),
+      mockup: () => (
+        <div style={{background:'#f5fbfd',borderRadius:10,padding:'14px 18px',border:'1px solid #cce7ee',fontSize:'.8rem'}}>
+          <div style={{fontWeight:600,marginBottom:10,color:'#c62828'}}>⚠️ {T('Nuevo incidente','New Incident')}</div>
+          <div style={{display:'flex',flexDirection:'column',gap:8}}>
+            {[
+              {l:T('Apartamento','Apartment'), v:'KAI-501'},
+              {l:T('Tipo','Type'), v:T('Daño físico','Physical damage')},
+              {l:T('Categoría','Category'), v:T('Plomería','Plumbing')},
+            ].map(f=>(
+              <div key={f.l} style={{display:'flex',justifyContent:'space-between',padding:'4px 0',borderBottom:'1px solid #eef6f8'}}>
+                <span style={{color:'#6b9ba8',fontSize:'.75rem'}}>{f.l}</span>
+                <span style={{fontWeight:600,color:'#17313a',fontSize:'.78rem'}}>{f.v}</span>
+              </div>
+            ))}
+            <div style={{marginTop:6}}>
+              <div style={{color:'#6b9ba8',fontSize:'.75rem',marginBottom:4}}>{T('Descripción','Description')}</div>
+              <div style={{background:'#fff',border:'1px solid #cce7ee',borderRadius:6,padding:'6px 10px',color:'#17313a',fontSize:'.78rem',fontStyle:'italic'}}>
+                {T('Hay una fuga en el baño principal...','There is a leak in the main bathroom...')}
+              </div>
+            </div>
+          </div>
+          <button style={{marginTop:12,width:'100%',background:'#C62828',color:'#fff',border:'none',borderRadius:8,padding:'8px',fontWeight:700,fontSize:'.82rem',cursor:'default'}}>
+            {T('📤 Enviar reporte','📤 Submit report')}
+          </button>
+        </div>
+      ),
+      action: { label: T('Reportar un incidente','Report an Incident'), fn: onReport },
+    },
+    {
+      icon: '📋', color: '#6A1B9A', bg: '#f3e5f5',
+      title: T('Seguimiento de incidentes', 'Track Incidents'),
+      desc: T(
+        'En "Incidentes" ves todos los reportes de la comunidad. Puedes filtrar por estado (abierto, verificado, resuelto), ver los de tus unidades específicamente, o agregar notas de resolución. Recibirás notificaciones cuando el estado cambie.',
+        'In "Incidents" you see all community reports. Filter by status (open, verified, resolved), view only your units, or add resolution notes. You\'ll be notified when status changes.'
+      ),
+      mockup: () => (
+        <div style={{background:'#f5fbfd',borderRadius:10,padding:'14px 18px',border:'1px solid #cce7ee',fontSize:'.8rem'}}>
+          <div style={{display:'flex',gap:6,marginBottom:10,flexWrap:'wrap'}}>
+            {[T('Todos','All'), T('Abiertos','Open'), T('Mis unidades','My units'), T('Por verificar','To verify')].map((f,i)=>(
+              <span key={f} style={{padding:'3px 10px',borderRadius:20,border:'1px solid',borderColor:i===1?'#6A1B9A':'#cce7ee',background:i===1?'#6A1B9A':'#fff',color:i===1?'#fff':'#6b9ba8',fontSize:'.72rem',fontWeight:i===1?700:400}}>{f}</span>
+            ))}
+          </div>
+          {[
+            {apt:'KAI-501',type:T('Plomería','Plumbing'),status:T('Abierto','Open'),color:'#c62828'},
+            {apt:'KAI-302',type:T('Eléctrico','Electrical'),status:T('En revisión','In review'),color:'#e65100'},
+            {apt:'KAI-208',type:T('Limpieza','Cleaning'),status:T('Resuelto','Resolved'),color:'#2F4F3A'},
+          ].map(r=>(
+            <div key={r.apt} style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'6px 0',borderBottom:'1px solid #eef6f8'}}>
+              <span style={{fontWeight:600,color:'#17313a'}}>🏠 {r.apt}</span>
+              <span style={{color:'#6b9ba8',fontSize:'.75rem'}}>{r.type}</span>
+              <span style={{fontSize:'.7rem',fontWeight:700,color:r.color,background:r.color+'15',padding:'2px 8px',borderRadius:12}}>{r.status}</span>
+            </div>
+          ))}
+        </div>
+      ),
+      action: { label: T('Ver incidentes','View Incidents'), fn: ()=>onGo('incidents') },
+    },
+    {
+      icon: '🏠', color: '#00695C', bg: '#e0f2f1',
+      title: T('Mis unidades', 'My Units'),
+      desc: T(
+        'En "Mis Unidades" gestionas tus apartamentos registrados. Mantén actualizado el email y WhatsApp del operador — son clave para que las notificaciones de incidentes lleguen al responsable correcto.',
+        'In "My Units" you manage your registered apartments. Keep the operator\'s email and WhatsApp up to date — they\'re key for incident notifications to reach the right person.'
+      ),
+      mockup: () => (
+        <div style={{background:'#f5fbfd',borderRadius:10,padding:'14px 18px',border:'1px solid #cce7ee',fontSize:'.8rem'}}>
+          <div style={{fontWeight:700,marginBottom:10,color:'#00695C'}}>🏠 KAI-501 · {T('Torre A, Piso 5','Tower A, Floor 5')}</div>
+          <div style={{display:'flex',flexDirection:'column',gap:6}}>
+            {[
+              {l:T('Propietario','Owner'), v:'María García · maria@email.com'},
+              {l:T('Operador','Operator'), v:'Carlos López'},
+              {l:T('WhatsApp operador','Operator WhatsApp'), v:'+57 300 123 4567'},
+              {l:T('Estado','Status'), v:T('✅ Aprobado','✅ Approved'), c:'#2F4F3A'},
+            ].map(f=>(
+              <div key={f.l} style={{display:'flex',justifyContent:'space-between',padding:'4px 0',borderBottom:'1px solid #eef6f8'}}>
+                <span style={{color:'#6b9ba8',fontSize:'.75rem'}}>{f.l}</span>
+                <span style={{fontWeight:600,color:f.c||'#17313a',fontSize:'.78rem'}}>{f.v}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      ),
+      action: { label: T('Ver mis unidades','View my units'), fn: ()=>onGo('my') },
+    },
+    {
+      icon: '🔔', color: '#E65100', bg: '#fff3e0',
+      title: T('Notificaciones y alertas', 'Notifications & Alerts'),
+      desc: T(
+        'El ícono de campana 🔔 en la barra de navegación muestra alertas de la comunidad. Recibirás notificaciones por email y en la app cuando cambien incidentes de tus unidades. Toca la campana para verlas todas.',
+        'The 🔔 bell icon in the navigation bar shows community alerts. You\'ll receive email and in-app notifications when incidents on your units change status. Tap the bell to see them all.'
+      ),
+      mockup: () => (
+        <div style={{background:'#f5fbfd',borderRadius:10,padding:'14px 18px',border:'1px solid #cce7ee',fontSize:'.8rem'}}>
+          <div style={{fontWeight:600,marginBottom:10,color:'#e65100'}}>🔔 {T('Alertas recientes','Recent Alerts')}</div>
+          {[
+            {icon:'✅',msg:T('Tu incidente KAI-501 fue verificado','Your incident KAI-501 was verified'),time:T('hace 2h','2h ago')},
+            {icon:'🛠️',msg:T('Nuevo comentario en KAI-302','New comment on KAI-302'),time:T('hace 5h','5h ago')},
+            {icon:'📝',msg:T('Incidente resuelto en KAI-208','Incident resolved on KAI-208'),time:T('ayer','yesterday')},
+          ].map((n,i)=>(
+            <div key={i} style={{display:'flex',alignItems:'flex-start',gap:8,padding:'6px 0',borderBottom:'1px solid #eef6f8'}}>
+              <span style={{fontSize:'1rem'}}>{n.icon}</span>
+              <span style={{flex:1,color:'#17313a',lineHeight:1.4}}>{n.msg}</span>
+              <span style={{color:'#aabcb8',fontSize:'.7rem',flexShrink:0}}>{n.time}</span>
+            </div>
+          ))}
+        </div>
+      ),
+      action: { label: T('Ver notificaciones','View Notifications'), fn: ()=>onGo('notifications') },
+    },
+    {
+      icon: '👤', color: '#37474F', bg: '#eceff1',
+      title: T('Tu perfil y preferencias', 'Your Profile & Preferences'),
+      desc: T(
+        'En tu Perfil (menú superior derecho → "Mi perfil") puedes cambiar el idioma de la app entre español e inglés, actualizar tu WhatsApp de contacto, y gestionar tus preferencias. Los cambios aplican de inmediato en toda la app.',
+        'In your Profile (top-right menu → "My profile") you can switch the app language between Spanish and English, update your contact WhatsApp, and manage your preferences. Changes apply immediately across the whole app.'
+      ),
+      mockup: () => (
+        <div style={{background:'#f5fbfd',borderRadius:10,padding:'14px 18px',border:'1px solid #cce7ee',fontSize:'.8rem'}}>
+          <div style={{fontWeight:700,marginBottom:10,color:'#37474F'}}>👤 {T('Mi perfil','My Profile')}</div>
+          <div style={{display:'flex',flexDirection:'column',gap:8}}>
+            {[
+              {l:T('Idioma de la app','App language'), v:'🇨🇴 Español / 🇺🇸 English'},
+              {l:T('Email (Google)','Email (Google)'), v:'propietario@gmail.com'},
+              {l:'WhatsApp', v:'+57 300 123 4567'},
+              {l:T('País','Country'), v:'Colombia 🇨🇴'},
+            ].map(f=>(
+              <div key={f.l} style={{display:'flex',justifyContent:'space-between',padding:'4px 0',borderBottom:'1px solid #eef6f8'}}>
+                <span style={{color:'#6b9ba8',fontSize:'.75rem'}}>{f.l}</span>
+                <span style={{fontWeight:600,color:'#17313a',fontSize:'.78rem'}}>{f.v}</span>
+              </div>
+            ))}
+          </div>
+          <button style={{marginTop:12,width:'100%',background:'#2F4F3A',color:'#fff',border:'none',borderRadius:8,padding:'8px',fontWeight:700,fontSize:'.82rem',cursor:'default'}}>
+            💾 {T('Guardar cambios','Save changes')}
+          </button>
+        </div>
+      ),
+      action: { label: T('Ir a mi perfil','Go to my profile'), fn: ()=>onGo('profile') },
+    },
+  ];
+
+  const cur = steps[step];
+  const total = steps.length;
+  const isFirst = step === 0;
+  const isLast = step === total - 1;
+
+  return (
+    <div style={{position:'fixed',inset:0,zIndex:9000,display:'flex',alignItems:'center',justifyContent:'center',padding:'16px',background:'rgba(10,25,18,.72)',backdropFilter:'blur(4px)'}}
+      onClick={e=>{if(e.target===e.currentTarget)onClose();}}>
+      <div style={{background:'#fff',borderRadius:18,boxShadow:'0 24px 80px rgba(0,0,0,.28)',maxWidth:540,width:'100%',maxHeight:'90vh',display:'flex',flexDirection:'column',overflow:'hidden'}}>
+        {/* Header */}
+        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'14px 20px',borderBottom:'1px solid #eef6f8',flexShrink:0}}>
+          <div style={{display:'flex',gap:6}}>
+            <button onClick={()=>setTourLang('es')} style={{padding:'3px 10px',borderRadius:20,border:'1.5px solid',borderColor:!isEn?'#2F4F3A':'#cce7ee',background:!isEn?'#2F4F3A':'#fff',color:!isEn?'#fff':'#6b9ba8',fontSize:'.73rem',fontWeight:!isEn?700:400,cursor:'pointer'}}>🇨🇴 ES</button>
+            <button onClick={()=>setTourLang('en')} style={{padding:'3px 10px',borderRadius:20,border:'1.5px solid',borderColor:isEn?'#2F4F3A':'#cce7ee',background:isEn?'#2F4F3A':'#fff',color:isEn?'#fff':'#6b9ba8',fontSize:'.73rem',fontWeight:isEn?700:400,cursor:'pointer'}}>🇺🇸 EN</button>
+          </div>
+          <div style={{fontSize:'.75rem',color:'#aabcb8',fontWeight:600}}>{T('Paso','Step')} {step+1} / {total}</div>
+          <button onClick={onClose} style={{background:'none',border:'none',fontSize:'1.3rem',cursor:'pointer',color:'#aabcb8',lineHeight:1,padding:'2px 6px'}} title={T('Cerrar','Close')}>✕</button>
+        </div>
+
+        {/* Body */}
+        <div style={{overflowY:'auto',flex:1,padding:'24px 24px 16px'}}>
+          {/* Step icon */}
+          <div style={{display:'flex',justifyContent:'center',marginBottom:18}}>
+            <div style={{width:72,height:72,borderRadius:'50%',background:cur.bg,display:'flex',alignItems:'center',justifyContent:'center',fontSize:'2.2rem',boxShadow:`0 4px 20px ${cur.color}22`}}>
+              {cur.icon}
+            </div>
+          </div>
+          <h2 style={{textAlign:'center',fontSize:'1.2rem',fontWeight:800,color:'#17313a',margin:'0 0 10px'}}>{cur.title}</h2>
+          <p style={{textAlign:'center',color:'#4a6a72',fontSize:'.88rem',lineHeight:1.65,margin:'0 0 20px'}}>{cur.desc}</p>
+
+          {/* Mockup */}
+          {cur.mockup && <div style={{marginBottom:20}}>{cur.mockup()}</div>}
+
+          {/* Try it action */}
+          {cur.action && (
+            <div style={{textAlign:'center',marginBottom:8}}>
+              <button onClick={cur.action.fn} style={{background:cur.color,color:'#fff',border:'none',borderRadius:10,padding:'10px 24px',fontWeight:700,fontSize:'.88rem',cursor:'pointer',boxShadow:`0 4px 16px ${cur.color}44`}}>
+                {cur.action.label} →
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div style={{padding:'14px 24px 20px',borderTop:'1px solid #eef6f8',flexShrink:0}}>
+          {/* Progress dots */}
+          <div style={{display:'flex',justifyContent:'center',gap:6,marginBottom:16}}>
+            {steps.map((_,i)=>(
+              <button key={i} onClick={()=>setStep(i)}
+                style={{width:i===step?24:8,height:8,borderRadius:4,border:'none',background:i===step?cur.color:'#d4e8ee',cursor:'pointer',transition:'all .2s',padding:0}}/>
+            ))}
+          </div>
+          {/* Prev / Next */}
+          <div style={{display:'flex',gap:10,alignItems:'center'}}>
+            <button onClick={()=>setStep(s=>s-1)} disabled={isFirst}
+              style={{flex:1,padding:'10px',borderRadius:10,border:'1.5px solid #cce7ee',background:isFirst?'#f5fbfd':'#fff',color:isFirst?'#aabcb8':'#2a5a6a',fontWeight:600,fontSize:'.85rem',cursor:isFirst?'default':'pointer'}}>
+              ← {T('Anterior','Previous')}
+            </button>
+            {isLast ? (
+              <button onClick={onClose}
+                style={{flex:2,padding:'10px',borderRadius:10,border:'none',background:'#2F4F3A',color:'#fff',fontWeight:700,fontSize:'.88rem',cursor:'pointer'}}>
+                🎉 {T('¡Listo, a explorar!','Done, let\'s explore!')}
+              </button>
+            ) : (
+              <button onClick={()=>setStep(s=>s+1)}
+                style={{flex:2,padding:'10px',borderRadius:10,border:'none',background:'#2F4F3A',color:'#fff',fontWeight:700,fontSize:'.88rem',cursor:'pointer'}}>
+                {T('Siguiente','Next')} →
+              </button>
+            )}
+          </div>
+          {!isFirst && !isLast && <div style={{textAlign:'center',marginTop:10}}>
+            <button onClick={onClose} style={{background:'none',border:'none',color:'#aabcb8',fontSize:'.75rem',cursor:'pointer',textDecoration:'underline'}}>{T('Saltar guía','Skip tour')}</button>
+          </div>}
+        </div>
+      </div>
     </div>
   );
 }
@@ -6086,6 +6371,8 @@ function AdminSettings({ config={}, user, listings=[], contactProps={}, onSave, 
   const [communityMembersOpen, setCommunityMembersOpen] = useState({});
   const [communityMembers, setCommunityMembers] = useState({});
   const [communityMembersLoading, setCommunityMembersLoading] = useState({});
+  const [commMemberSearch, setCommMemberSearch] = useState({});
+  const [commMemberOpen, setCommMemberOpen] = useState({});
   const [memberPermsEditing, setMemberPermsEditing] = useState({});  // {cid_uid: permissions obj}
   const [communityConfigData, setCommunityConfigData] = useState({}); // {cid: {globalValues, communityOverrides, overridesEnabled}}
   const [communityConfigLoading, setCommunityConfigLoading] = useState({});
@@ -6508,6 +6795,17 @@ function AdminSettings({ config={}, user, listings=[], contactProps={}, onSave, 
           </span>}
         </div>
 
+        {!adminInfo.isGlobalAdmin && (
+          <div style={{marginBottom:16,padding:'10px 14px',background:'#f0f8fb',borderRadius:10,fontSize:'.78rem',color:'#2a5a6a',border:'1px solid #cce7ee'}}>
+            <div style={{fontWeight:700,marginBottom:4}}>ℹ️ {isEn?'About community settings':'Acerca de la configuración de comunidad'}</div>
+            <ul style={{margin:0,paddingLeft:18,lineHeight:1.7}}>
+              <li>{isEn?'When community overrides are enabled, members of this community see community-specific mission, labels, and tooltips instead of platform defaults.':'Cuando los overrides de comunidad están habilitados, los miembros de esta comunidad ven la misión, etiquetas y tooltips específicos de la comunidad en lugar de los valores globales.'}</li>
+              <li>{isEn?'When disabled, all content falls back to the platform-wide global settings.':'Cuando están deshabilitados, todo el contenido usa la configuración global de la plataforma.'}</li>
+              <li>{isEn?'Your permissions determine which sections you can edit.':'Tus permisos determinan qué secciones puedes editar.'}</li>
+            </ul>
+          </div>
+        )}
+
         {!activeCommId && (
           <div style={{textAlign:'center',padding:'40px 20px',color:'#8a9fa5',fontSize:'.9rem'}}>
             {isEn?'Select a community above to edit its settings.':'Selecciona una comunidad arriba para editar su configuración.'}
@@ -6520,116 +6818,122 @@ function AdminSettings({ config={}, user, listings=[], contactProps={}, onSave, 
 
         {activeCommId && !commLoading && (
           <div>
-            {/* ── Override status bar ── */}
-            {commData && (
+            {activeCommId && !commLoading && commData && (
               <div style={{marginBottom:12,padding:'6px 14px',borderRadius:8,background:commOverridesOn?'#e8f5ec':'#fff8e1',border:'1px solid',borderColor:commOverridesOn?'#b2dfdb':'#ffe082',fontSize:'.76rem',color:commOverridesOn?'#2F4F3A':'#7a5a00',display:'flex',alignItems:'center',gap:8}}>
                 {commOverridesOn ? (isEn?'✅ Community overrides active — changes here override global defaults for this community only.':'✅ Overrides activos — los cambios aquí sobreescriben los valores globales solo para esta comunidad.') : (isEn?'⏸ Community overrides disabled — changes saved here are stored but not shown to users until overrides are enabled.':'⏸ Overrides deshabilitados — los cambios guardados aquí se almacenan pero no se muestran a los usuarios hasta que se habiliten los overrides.')}
-                {adminInfo.isGlobalAdmin && <button className="btn-ghost" style={{fontSize:'.7rem',padding:'2px 8px',marginLeft:'auto'}} onClick={()=>toggleCommunityOverrides(activeCommId,!commOverridesOn)}>{commOverridesOn?(isEn?'Disable':'Deshabilitar'):(isEn?'Enable':'Habilitar')}</button>}
+                {adminInfo.isGlobalAdmin && <button className="btn-ghost" style={{fontSize:'.7rem',padding:'2px 8px',marginLeft:'auto'}} onClick={async()=>{
+                  try{
+                    await api.put(`/api/communities/${activeCommId}/config`,{actorUid:user.uid,actorEmail:user.email,overrides:{config_overrides_enabled:String(!commOverridesOn)}});
+                    showToast(isEn?'✅ Override status updated':'✅ Estado de overrides actualizado');
+                    loadCommunityConfig(activeCommId);
+                  }catch(e){showToast(e.message||String(e),true);}
+                }}>{commOverridesOn?(isEn?'Disable':'Deshabilitar'):(isEn?'Enable':'Habilitar')}</button>}
               </div>
             )}
-            {/* ── Members ── */}
-            <AdminSection title={`👥 ${isEn?'Members':'Miembros'}`} subtitle={isEn?'Search and manage all members of this community. View roles and contact details.':'Busca y gestiona todos los miembros de esta comunidad. Ve roles y datos de contacto.'} action={<button className="btn-ghost" style={{fontSize:'.78rem',padding:'4px 10px'}} onClick={()=>loadCommunityMembers(activeCommId)}>{communityMembersLoading[activeCommId]?<span className="spinner-sm"/>:'↻'} {isEn?'Refresh':'Actualizar'}</button>} open={openSections.commMembers} onToggle={()=>{ toggleSection('commMembers'); if(!communityMembers[activeCommId])loadCommunityMembers(activeCommId); }}>
-              {communityMembersLoading[activeCommId] && <div style={{padding:'12px 0',color:'#6b9ba8',textAlign:'center'}}><span className="spinner-sm"/> {isEn?'Loading…':'Cargando…'}</div>}
-              {!communityMembersLoading[activeCommId] && !communityMembers[activeCommId] && (
-                <div style={{padding:'12px 0',textAlign:'center'}}><button className="btn-ghost" onClick={()=>loadCommunityMembers(activeCommId)}>{isEn?'Load members':'Cargar miembros'}</button></div>
-              )}
-              {communityMembers[activeCommId] && (()=>{
-                const allM = communityMembers[activeCommId];
-                const mq = (commMemberSearch[activeCommId]||'').trim().toLowerCase();
-                const filtered = mq ? allM.filter(m=>[
-                  (m.name||'').toLowerCase(),(m.userEmail||m.email||'').toLowerCase(),
-                  (m.whatsapp||'').toLowerCase(),
-                  ...(m.apts||[]).map(a=>String(a).toLowerCase())
-                ].some(v=>v.includes(mq))) : allM;
-                return (
-                  <div>
-                    <div style={{display:'flex',gap:8,alignItems:'center',marginBottom:10,flexWrap:'wrap'}}>
-                      <span style={{fontSize:'.78rem',color:'#6b9ba8',fontWeight:600}}>{allM.length} {isEn?'members':'miembros'} · {allM.filter(m=>m.isCommunityAdmin).length} {isEn?'admins':'admins'}</span>
-                      <div style={{flex:1,position:'relative',minWidth:200}}>
-                        <input placeholder={isEn?'Search by name, unit, email, WhatsApp…':'Buscar por nombre, unidad, email, WhatsApp…'}
-                          value={commMemberSearch[activeCommId]||''}
-                          onChange={e=>setCommMemberSearch(p=>({...p,[activeCommId]:e.target.value}))}
-                          style={{width:'100%',boxSizing:'border-box',padding:'6px 10px',borderRadius:6,border:'1px solid #cce7ee',fontSize:'.8rem'}}/>
-                        {(commMemberSearch[activeCommId]||'')&&<button style={{position:'absolute',right:6,top:'50%',transform:'translateY(-50%)',border:'none',background:'none',cursor:'pointer',color:'#6b9ba8',fontSize:'.8rem'}} onClick={()=>setCommMemberSearch(p=>({...p,[activeCommId]:''}))}>✕</button>}
-                      </div>
-                    </div>
-                    <div style={{fontSize:'.7rem',color:'#8a9fa5',marginBottom:8,padding:'4px 8px',background:'#f0f8fb',borderRadius:6}}>
-                      {isEn?'Roles: 🌐 Global Admin · 🛡️ Delegate Admin · 🏢 Community Admin · 🏠 Standard Owner':'Roles: 🌐 Admin global · 🛡️ Admin delegado · 🏢 Admin comunidad · 🏠 Propietario'}
-                    </div>
-                    {filtered.length===0&&<div style={{color:'#8a9fa5',fontSize:'.82rem',textAlign:'center',padding:'10px 0'}}>{isEn?'No results':'Sin resultados'}</div>}
-                    <div style={{maxHeight:360,overflowY:'auto',display:'flex',flexDirection:'column',gap:6}}>
-                      {filtered.map(m=>{
-                        const uid=m.userUid||m.uid; const email=m.userEmail||m.email||'';
-                        const pRole=m.platformRole||'user';
-                        const rb=pRole==='global_admin'?{icon:'🌐',label:isEn?'Global Admin':'Admin global',color:'#0b7f4f',bg:'#e8f5ec'}:pRole==='delegate_admin'?{icon:'🛡️',label:isEn?'Delegate Admin':'Admin delegado',color:'#5a2d82',bg:'#f3eafd'}:m.isCommunityAdmin?{icon:'🏢',label:isEn?'Community Admin':'Admin comunidad',color:'#1565c0',bg:'#e3f2fd'}:{icon:'🏠',label:isEn?'Standard Owner':'Propietario',color:'#2a5a6a',bg:'#eef6f8'};
-                        return (
-                          <div key={uid||email} style={{display:'flex',alignItems:'flex-start',gap:10,padding:'8px 10px',borderRadius:8,background:'#fff',border:'1px solid #e0eef2',flexWrap:'wrap'}}>
-                            <div style={{flex:'1 1 160px',minWidth:0}}>
-                              <div style={{display:'flex',alignItems:'center',gap:6,flexWrap:'wrap',marginBottom:2}}>
-                                <span style={{fontWeight:700,fontSize:'.82rem',color:'#17313a'}}>{m.name||email}</span>
-                                <span style={{fontSize:'.65rem',fontWeight:700,padding:'1px 7px',borderRadius:999,background:rb.bg,color:rb.color,whiteSpace:'nowrap'}}>{rb.icon} {rb.label}</span>
-                              </div>
-                              <div style={{fontSize:'.72rem',color:'#6b9ba8',display:'flex',gap:10,flexWrap:'wrap'}}>
-                                {email&&<span>{email}</span>}
-                                {m.whatsapp&&<span>📱 {m.whatsapp}</span>}
-                                {(m.apts||[]).length>0&&<span>🏠 {m.apts.join(', ')}</span>}
-                              </div>
-                            </div>
-                            {adminInfo.isGlobalAdmin && pRole!=='global_admin' && (
-                              <div style={{flexShrink:0}}>
-                                {m.isCommunityAdmin
-                                  ? <button className="bsm" style={{fontSize:'.68rem',padding:'2px 8px',color:'#c62828'}} onClick={()=>demoteCommunityAdmin(activeCommId,m)}>{isEn?'Remove admin':'Quitar admin'}</button>
-                                  : <button className="bsm" style={{fontSize:'.68rem',padding:'2px 8px'}} onClick={()=>promoteCommunityAdmin(activeCommId,m)}>{isEn?'Make admin':'Hacer admin'}</button>
-                                }
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                );
-              })()}
-            </AdminSection>
             {/* ── Mission ── */}
-            <AdminSection title={`🌊 ${isEn?'Mission':'Misión'}`} subtitle={isEn?'Override the community mission shown on the Mission page. Edit Spanish and English versions independently.':'Sobreescribe la misión de la comunidad. Edita las versiones en español e inglés de forma independiente.'} action={<button className="btn-p" style={{minHeight:36,padding:'6px 14px'}} onClick={()=>saveCommunitySection(activeCommId,['mission_sections_es','mission_sections_en'])} disabled={!canEditMissionContent}>💾 {isEn?'Save':'Guardar'}</button>} open={openSections.commMission} onToggle={()=>toggleSection('commMission')}>
+            <AdminSection title={`🌊 ${isEn?'Mission':'Misión'}`} subtitle={isEn?'Override the community mission title and body shown on the Mission page.':'Sobreescribe el título y cuerpo de misión mostrado en la página de Misión.'} action={<button className="btn-p" style={{minHeight:36,padding:'6px 14px'}} onClick={()=>saveCommunitySection(activeCommId,['mission_sections_es','mission_title_en','mission_body_en'])} disabled={!canEditMissionContent}>💾 {isEn?'Save':'Guardar'}</button>} open={openSections.commMission} onToggle={()=>toggleSection('commMission')}>
               {!canEditMissionContent && <div style={{marginBottom:12,padding:'8px 12px',background:'#fff3e0',borderRadius:8,fontSize:'.78rem',color:'#7a5a00',border:'1px solid #f5c97a'}}>{isEn?(!commOverridesOn?'Content editing is not enabled for this community. Contact your global admin to enable it.':'You do not have permission to edit the mission for this community.'):(!commOverridesOn?'La edición de contenido no está habilitada para esta comunidad. Contacta al administrador global para habilitarla.':'No tienes permiso para editar la misión de esta comunidad.')}</div>}
               {(()=>{
-                const getCommMission = () => { const str=commDraft['mission_sections_es']??commData?.communityOverrides?.['mission_sections_es']??''; try{return normalizeMissionSections(JSON.parse(str||'{}'));}catch{return normalizeMissionSections({});} };
-                const getCommMissionEn = () => { const str=commDraft['mission_sections_en']??commData?.communityOverrides?.['mission_sections_en']??''; try{const v=JSON.parse(str||'{}');return{...MISSION_EN_DEFAULTS,...(v&&typeof v==='object'?v:{})};}catch{return{...MISSION_EN_DEFAULTS};} };
-                const setCommMF=(f,v)=>{const m=getCommMission();setCommVal('mission_sections_es',JSON.stringify({...m,[f]:v}));};
-                const setCommMC=(i,f,v)=>{const m=getCommMission();setCommVal('mission_sections_es',JSON.stringify({...m,cards:m.cards.map((c,j)=>j===i?{...c,[f]:v}:c)}));};
-                const setCommMR=(g,i,v)=>{const m=getCommMission();setCommVal('mission_sections_es',JSON.stringify({...m,[g]:m[g].map((r,j)=>j===i?v:r)}));};
-                const addCommMR=(g)=>{const m=getCommMission();setCommVal('mission_sections_es',JSON.stringify({...m,[g]:[...m[g],'']}))} ;
-                const remCommMR=(g,i)=>{const m=getCommMission();setCommVal('mission_sections_es',JSON.stringify({...m,[g]:m[g].filter((_,j)=>j!==i)}));};
-                const setCommMEF=(f,v)=>{const m=getCommMissionEn();setCommVal('mission_sections_en',JSON.stringify({...m,[f]:v}));};
-                const setCommMEC=(i,f,v)=>{const m=getCommMissionEn();setCommVal('mission_sections_en',JSON.stringify({...m,cards:m.cards.map((c,j)=>j===i?{...c,[f]:v}:c)}));};
-                const setCommMER=(g,i,v)=>{const m=getCommMissionEn();setCommVal('mission_sections_en',JSON.stringify({...m,[g]:m[g].map((r,j)=>j===i?v:r)}));};
-                const addCommMER=(g)=>{const m=getCommMissionEn();setCommVal('mission_sections_en',JSON.stringify({...m,[g]:[...m[g],'']}))} ;
-                const remCommMER=(g,i)=>{const m=getCommMissionEn();setCommVal('mission_sections_en',JSON.stringify({...m,[g]:m[g].filter((_,j)=>j!==i)}));};
-                const cm=getCommMission(); const cmen=getCommMissionEn();
-                const oBadge=(key)=>hasOverride(key)?<span style={{fontSize:'.65rem',background:'#d9b45a22',color:'#7a5a00',padding:'1px 6px',borderRadius:4,fontWeight:600}}>🏷️ override</span>:<span style={{fontSize:'.65rem',background:'#e8f5ec',color:'#2F4F3A',padding:'1px 6px',borderRadius:4}}>🌐 global</span>;
+                const getCommMission = () => {
+                  const str = commDraft['mission_sections_es'] ?? commData?.communityOverrides?.['mission_sections_es'] ?? '';
+                  try { return normalizeMissionSections(JSON.parse(str || '{}')); } catch { return normalizeMissionSections({}); }
+                };
+                const setCommMissionField = (field, val) => {
+                  const m = getCommMission();
+                  setCommVal('mission_sections_es', JSON.stringify({...m, [field]: val}));
+                };
+                const setCommMissionCard = (idx, field, val) => {
+                  const m = getCommMission();
+                  const cards = m.cards.map((c,i) => i===idx ? {...c, [field]:val} : c);
+                  setCommVal('mission_sections_es', JSON.stringify({...m, cards}));
+                };
+                const setCommMissionRule = (group, idx, val) => {
+                  const m = getCommMission();
+                  setCommVal('mission_sections_es', JSON.stringify({...m, [group]: m[group].map((r,i) => i===idx ? val : r)}));
+                };
+                const addCommMissionRule = (group) => {
+                  const m = getCommMission();
+                  setCommVal('mission_sections_es', JSON.stringify({...m, [group]: [...m[group], '']}));
+                };
+                const removeCommMissionRule = (group, idx) => {
+                  const m = getCommMission();
+                  setCommVal('mission_sections_es', JSON.stringify({...m, [group]: m[group].filter((_,i) => i !== idx)}));
+                };
+                const cm = getCommMission();
                 return (
                   <div>
                     <div style={{marginBottom:10,padding:'6px 12px',background:'#f0f8fb',borderRadius:8,fontSize:'.76rem',color:'#2a5a6a',border:'1px solid #cce7ee'}}>
                       🌐 = {isEn?'using global value':'usando valor global'} &nbsp;·&nbsp; 🏷️ = {isEn?'community override':'override de comunidad'}
                     </div>
-                    <div style={{display:'flex',gap:6,marginBottom:14}}>
-                      <button className={`fchip${commMissionLang==='es'?' fchip-on':''}`} onClick={()=>setCommMissionLang('es')}>🇨🇴 Español</button>
-                      <button className={`fchip${commMissionLang==='en'?' fchip-on':''}`} onClick={()=>setCommMissionLang('en')}>🇺🇸 English</button>
+                    <div className="card-title" style={{margin:'12px 0 8px'}}>🇨🇴 Español</div>
+                    <div className="fg2">
+                      {[
+                        {field:'title',label:isEn?'Title':'Título',rows:2},
+                        {field:'subtitle',label:isEn?'Subtitle':'Subtítulo',rows:2},
+                        {field:'heading',label:isEn?'Heading':'Encabezado',rows:2},
+                        {field:'body',label:isEn?'Body':'Cuerpo',rows:3},
+                      ].map(({field,label,rows})=>(
+                        <div key={field} className="fg full">
+                          <label style={{display:'flex',alignItems:'center',gap:6}}>
+                            {label}
+                            {hasOverride('mission_sections_es')
+                              ? <span style={{fontSize:'.65rem',background:'#d9b45a22',color:'#7a5a00',padding:'1px 6px',borderRadius:4,fontWeight:600}}>🏷️ {isEn?'community override':'override comunidad'}</span>
+                              : <span style={{fontSize:'.65rem',background:'#e8f5ec',color:'#2F4F3A',padding:'1px 6px',borderRadius:4}}>🌐 {isEn?'using global':'usando global'}</span>}
+                          </label>
+                          <textarea className="admin-textarea" rows={rows} value={cm[field]||''}
+                            onChange={e=>setCommMissionField(field,e.target.value)}
+                            style={{width:'100%',boxSizing:'border-box'}}/>
+                        </div>
+                      ))}
                     </div>
-                    {commMissionLang==='es' && <>
-                      <div className="fg2">{[{f:'title',l:isEn?'Title':'Título',r:2},{f:'subtitle',l:isEn?'Subtitle':'Subtítulo',r:2},{f:'heading',l:isEn?'Heading':'Encabezado',r:2},{f:'body',l:isEn?'Body':'Cuerpo',r:3}].map(({f,l,r})=><div key={f} className="fg full"><label style={{display:'flex',alignItems:'center',gap:6}}>{l} {oBadge('mission_sections_es')}</label><textarea className="admin-textarea" rows={r} value={cm[f]||''} onChange={e=>setCommMF(f,e.target.value)} style={{width:'100%',boxSizing:'border-box'}}/></div>)}</div>
-                      <div className="card-title" style={{margin:'16px 0 10px'}}>{isEn?'Purpose cards':'Tarjetas de propósito'}</div>
-                      {(cm.cards||[]).map((c,i)=><div className="fg2" key={i} style={{borderTop:'1px solid rgba(90,105,80,.12)',paddingTop:12,marginTop:8}}><div className="fg"><label>{isEn?'Icon':'Icono'}</label><input value={c?.icon||''} onChange={e=>setCommMC(i,'icon',e.target.value)}/></div><div className="fg"><label>{isEn?'Card title':'Título tarjeta'} {i+1}</label><textarea className="admin-textarea" rows={2} value={c?.title||''} onChange={e=>setCommMC(i,'title',e.target.value)}/></div><div className="fg full"><label>{isEn?'Card text':'Texto tarjeta'} {i+1}</label><textarea rows={2} value={c?.text||''} onChange={e=>setCommMC(i,'text',e.target.value)}/></div></div>)}
-                      <div className="two-col" style={{marginTop:16}}><div><div className="fg"><label>{isEn?'Participation title':'Título reglas de participación'}</label><textarea className="admin-textarea" rows={2} value={cm.participationTitle||''} onChange={e=>setCommMF('participationTitle',e.target.value)}/></div>{(cm.participationRules||[]).map((r,i)=><div className="fg" key={i}><label>{isEn?'Rule':'Regla'} {i+1}</label><div style={{display:'flex',gap:8}}><textarea className="admin-textarea flex-grow" rows={2} value={r||''} onChange={e=>setCommMR('participationRules',i,e.target.value)}/><button className="btn-ghost" onClick={()=>remCommMR('participationRules',i)}>🗑️</button></div></div>)}<button className="btn-ghost" onClick={()=>addCommMR('participationRules')}>+ {isEn?'Add rule':'Agregar regla'}</button></div><div><div className="fg"><label>{isEn?'Access title':'Título acceso'}</label><textarea className="admin-textarea" rows={2} value={cm.accessTitle||''} onChange={e=>setCommMF('accessTitle',e.target.value)}/></div>{(cm.accessRules||[]).map((r,i)=><div className="fg" key={i}><label>{isEn?'Rule':'Regla'} {i+1}</label><div style={{display:'flex',gap:8}}><textarea className="admin-textarea flex-grow" rows={2} value={r||''} onChange={e=>setCommMR('accessRules',i,e.target.value)}/><button className="btn-ghost" onClick={()=>remCommMR('accessRules',i)}>🗑️</button></div></div>)}<button className="btn-ghost" onClick={()=>addCommMR('accessRules')}>+ {isEn?'Add rule':'Agregar regla'}</button></div></div>
-                    </>}
-                    {commMissionLang==='en' && <>
-                      <div className="fg2">{[{f:'title',l:'Title (EN)',r:2},{f:'subtitle',l:'Subtitle (EN)',r:2},{f:'heading',l:'Heading (EN)',r:2},{f:'body',l:'Body (EN)',r:3}].map(({f,l,r})=><div key={f} className="fg full"><label style={{display:'flex',alignItems:'center',gap:6}}>{l} {oBadge('mission_sections_en')}</label><textarea className="admin-textarea" rows={r} value={cmen[f]||''} onChange={e=>setCommMEF(f,e.target.value)} style={{width:'100%',boxSizing:'border-box'}}/></div>)}</div>
-                      <div className="card-title" style={{margin:'16px 0 10px'}}>Purpose cards (EN)</div>
-                      {(cmen.cards||[]).map((c,i)=><div className="fg2" key={i} style={{borderTop:'1px solid rgba(90,105,80,.12)',paddingTop:12,marginTop:8}}><div className="fg"><label>Icon</label><input value={c?.icon||''} onChange={e=>setCommMEC(i,'icon',e.target.value)}/></div><div className="fg"><label>Card title {i+1}</label><textarea className="admin-textarea" rows={2} value={c?.title||''} onChange={e=>setCommMEC(i,'title',e.target.value)}/></div><div className="fg full"><label>Card text {i+1}</label><textarea rows={2} value={c?.text||''} onChange={e=>setCommMEC(i,'text',e.target.value)}/></div></div>)}
-                      <div className="two-col" style={{marginTop:16}}><div><div className="fg"><label>Participation title (EN)</label><textarea className="admin-textarea" rows={2} value={cmen.participationTitle||''} onChange={e=>setCommMEF('participationTitle',e.target.value)}/></div>{(cmen.participationRules||[]).map((r,i)=><div className="fg" key={i}><label>Rule {i+1}</label><div style={{display:'flex',gap:8}}><textarea className="admin-textarea flex-grow" rows={2} value={r||''} onChange={e=>setCommMER('participationRules',i,e.target.value)}/><button className="btn-ghost" onClick={()=>remCommMER('participationRules',i)}>🗑️</button></div></div>)}<button className="btn-ghost" onClick={()=>addCommMER('participationRules')}>+ Add rule</button></div><div><div className="fg"><label>Access title (EN)</label><textarea className="admin-textarea" rows={2} value={cmen.accessTitle||''} onChange={e=>setCommMEF('accessTitle',e.target.value)}/></div>{(cmen.accessRules||[]).map((r,i)=><div className="fg" key={i}><label>Rule {i+1}</label><div style={{display:'flex',gap:8}}><textarea className="admin-textarea flex-grow" rows={2} value={r||''} onChange={e=>setCommMER('accessRules',i,e.target.value)}/><button className="btn-ghost" onClick={()=>remCommMER('accessRules',i)}>🗑️</button></div></div>)}<button className="btn-ghost" onClick={()=>addCommMER('accessRules')}>+ Add rule</button></div></div>
-                    </>}
+                    <div className="card-title" style={{margin:'16px 0 10px'}}>{isEn?'Purpose cards':'Tarjetas de propósito'}</div>
+                    {(cm.cards||[]).map((card,i)=>(
+                      <div className="fg2" key={i} style={{borderTop:'1px solid rgba(90,105,80,.12)',paddingTop:12,marginTop:8}}>
+                        <div className="fg"><label>{isEn?'Icon':'Icono'}</label><input value={card?.icon||''} onChange={e=>setCommMissionCard(i,'icon',e.target.value)}/></div>
+                        <div className="fg"><label>{isEn?'Card title':'Título tarjeta'} {i+1}</label><textarea className="admin-textarea" rows={2} value={card?.title||''} onChange={e=>setCommMissionCard(i,'title',e.target.value)}/></div>
+                        <div className="fg full"><label>{isEn?'Card text':'Texto tarjeta'} {i+1}</label><textarea rows={2} value={card?.text||''} onChange={e=>setCommMissionCard(i,'text',e.target.value)}/></div>
+                      </div>
+                    ))}
+                    <div className="two-col" style={{marginTop:16}}>
+                      <div>
+                        <div className="fg"><label>{isEn?'Participation title':'Título reglas de participación'}</label><textarea className="admin-textarea" rows={2} value={cm.participationTitle||''} onChange={e=>setCommMissionField('participationTitle',e.target.value)}/></div>
+                        {(cm.participationRules||[]).map((r,i)=>(
+                          <div className="fg" key={i}><label>{isEn?'Rule':'Regla'} {i+1}</label>
+                            <div style={{display:'flex',gap:8}}><textarea className="admin-textarea flex-grow" rows={2} value={r||''} onChange={e=>setCommMissionRule('participationRules',i,e.target.value)}/><button className="btn-ghost" onClick={()=>removeCommMissionRule('participationRules',i)}>🗑️</button></div>
+                          </div>
+                        ))}
+                        <button className="btn-ghost" onClick={()=>addCommMissionRule('participationRules')}>+ {isEn?'Add rule':'Agregar regla'}</button>
+                      </div>
+                      <div>
+                        <div className="fg"><label>{isEn?'Access title':'Título acceso y responsabilidad'}</label><textarea className="admin-textarea" rows={2} value={cm.accessTitle||''} onChange={e=>setCommMissionField('accessTitle',e.target.value)}/></div>
+                        {(cm.accessRules||[]).map((r,i)=>(
+                          <div className="fg" key={i}><label>{isEn?'Rule':'Regla'} {i+1}</label>
+                            <div style={{display:'flex',gap:8}}><textarea className="admin-textarea flex-grow" rows={2} value={r||''} onChange={e=>setCommMissionRule('accessRules',i,e.target.value)}/><button className="btn-ghost" onClick={()=>removeCommMissionRule('accessRules',i)}>🗑️</button></div>
+                          </div>
+                        ))}
+                        <button className="btn-ghost" onClick={()=>addCommMissionRule('accessRules')}>+ {isEn?'Add rule':'Agregar regla'}</button>
+                      </div>
+                    </div>
+                    <div className="card-title" style={{margin:'12px 0 8px'}}>🇺🇸 English</div>
+                    <div className="fg2">
+                      {[
+                        {key:'mission_title_en',label:'Mission title (EN)',rows:2},
+                        {key:'mission_body_en',label:'Mission body (EN)',rows:4},
+                      ].map(({key,label,rows})=>(
+                        <div key={key} className="fg full">
+                          <label style={{display:'flex',alignItems:'center',gap:6}}>
+                            {label}
+                            {hasOverride(key)
+                              ? <span style={{fontSize:'.65rem',background:'#d9b45a22',color:'#7a5a00',padding:'1px 6px',borderRadius:4,fontWeight:600}}>🏷️ {isEn?'community override':'override comunidad'}</span>
+                              : <span style={{fontSize:'.65rem',background:'#e8f5ec',color:'#2F4F3A',padding:'1px 6px',borderRadius:4}}>🌐 {isEn?'using global':'usando global'}</span>}
+                          </label>
+                          <textarea className="admin-textarea" rows={rows} value={getCommVal(key)}
+                            onChange={e=>setCommVal(key,e.target.value)}
+                            placeholder={commData?.globalValues?.[key]||(isEn?'Override…':'Valor comunidad…')}
+                            style={{width:'100%',boxSizing:'border-box'}}/>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 );
               })()}
@@ -6641,39 +6945,114 @@ function AdminSettings({ config={}, user, listings=[], contactProps={}, onSave, 
               {(()=>{
                 const lang2 = uiLabelLang;
                 const jsonKey = lang2==='en' ? 'ui_labels_en' : 'ui_labels_es';
-                const commLabels = getCommJsonObj(jsonKey);
-                const globalLabels = lang2==='en' ? uiLabelsEn : uiLabelsEs;
-                const allKeys = Object.keys(APP_I18N).sort();
-                return (
-                  <div>
-                    <div style={{display:'flex',gap:6,marginBottom:12}}>
-                      <button className={`fchip${lang2==='es'?' fchip-on':''}`} onClick={()=>setUiLabelLang('es')}>🇨🇴 Español</button>
-                      <button className={`fchip${lang2==='en'?' fchip-on':''}`} onClick={()=>setUiLabelLang('en')}>🇺🇸 English</button>
-                      {Object.keys(commLabels).length>0&&<span className="ula-modified-badge">{Object.keys(commLabels).length} {isEn?'overridden':'con override'}</span>}
+                const commLabels2 = getCommJsonObj(jsonKey);
+                const getDefVal2 = (key) => APP_I18N[key]?.[lang2==='en'?'en':'es'] || APP_I18N[key]?.es || '';
+                const labelGroups2 = [
+                  { id:'nav',    icon:'🧭', label:isEn?'Navigation & menu':'Navegación y menú',          prefixes:['nav.'] },
+                  { id:'dash',   icon:'📊', label:isEn?'Dashboard':'Dashboard',                           prefixes:['dashboard.','actions.','smart.'] },
+                  { id:'inc',    icon:'⚠️', label:isEn?'Incidents & Reports':'Incidentes y Reportes',     prefixes:['reports.','workflow.','incidents.'] },
+                  { id:'form',   icon:'📝', label:isEn?'Forms & Validation':'Formularios y validación',   prefixes:['form.','validation.','modal.'] },
+                  { id:'my',     icon:'🔑', label:isEn?'My Units':'Mis Unidades',                         prefixes:['my.'] },
+                  { id:'listing',icon:'🏠', label:isEn?'Inventory':'Inventario',                          prefixes:['listings.'] },
+                  { id:'notif',  icon:'🔔', label:isEn?'Notifications & Alerts':'Notificaciones y Alertas', prefixes:['notifications.'] },
+                  { id:'roles',  icon:'👥', label:isEn?'Roles & Permissions':'Roles y permisos',          prefixes:['roles.'] },
+                  { id:'common', icon:'🔤', label:isEn?'Common & Other':'Común y otros',                  prefixes:['common.','tooltips.',null] },
+                ];
+                const CommunityLabelRow = ({rkey, shortKey, defVal}) => {
+                  const custom = commLabels2[rkey];
+                  const isChanged = custom !== undefined;
+                  return (
+                    <div className={`ula-row${isChanged?' ula-row-changed':''}`}>
+                      <div className="ula-row-key">
+                        <code className="ula-key" title={rkey}>{shortKey}</code>
+                        {isChanged&&<span className="ula-changed-dot">●</span>}
+                      </div>
+                      <div className="ula-row-content">
+                        <div className="ula-default">{defVal||<span style={{color:'#aaa',fontStyle:'italic'}}>{isEn?'(empty)':'(vacío)'}</span>}</div>
+                        <div className="ula-input-wrap">
+                          <input className="ula-input" value={isChanged?custom:defVal}
+                            onChange={e=>setCommJsonKey(jsonKey,rkey,e.target.value)}
+                            onFocus={e=>{if(!isChanged){setCommJsonKey(jsonKey,rkey,defVal);setTimeout(()=>e.target.select(),0);}}}
+                            placeholder={defVal}/>
+                          {isChanged&&<button type="button" className="ula-reset" title={isEn?'Reset to global':'Resetear a global'} onClick={()=>setCommJsonKey(jsonKey,rkey,'')}>↩</button>}
+                        </div>
+                      </div>
                     </div>
-                    <div style={{maxHeight:400,overflowY:'auto'}}>
-                      {allKeys.slice(0,50).map(key=>{
-                        const defVal = globalLabels[key] || APP_I18N[key]?.[lang2==='en'?'en':'es'] || APP_I18N[key]?.es || '';
-                        const communityVal = commLabels[key];
-                        const isChanged = communityVal !== undefined;
+                  );
+                };
+                const q2 = uiLabelSearch.trim().toLowerCase();
+                const allKeys2 = Object.keys(APP_I18N).sort();
+                const filteredKeys2 = q2
+                  ? allKeys2.filter(k=>{
+                      const dEn=String(APP_I18N[k]?.en||'').toLowerCase();
+                      const dEs=String(APP_I18N[k]?.es||'').toLowerCase();
+                      const cust=String(commLabels2[k]||'').toLowerCase();
+                      return k.toLowerCase().includes(q2)||dEn.includes(q2)||dEs.includes(q2)||cust.includes(q2);
+                    })
+                  : allKeys2;
+                const totalModified2 = Object.keys(commLabels2).length;
+                return (
+                  <div className="ula-wrap">
+                    <div className="ula-toolbar">
+                      <div className="ula-lang-toggle">
+                        <button className={`fchip${lang2==='es'?' fchip-on':''}`} onClick={()=>setUiLabelLang('es')}>🇨🇴 Español</button>
+                        <button className={`fchip${lang2==='en'?' fchip-on':''}`} onClick={()=>setUiLabelLang('en')}>🇺🇸 English</button>
+                      </div>
+                      <div style={{position:'relative',flex:1,maxWidth:340}}>
+                        <input className="search" style={{paddingRight:32}} placeholder={isEn?'Search all labels…':'Buscar en todas las etiquetas…'} value={uiLabelSearch} onChange={e=>setUiLabelSearch(e.target.value)}/>
+                        {uiLabelSearch&&<button className="inc-search-clear" onClick={()=>setUiLabelSearch('')}>✕</button>}
+                      </div>
+                      <div style={{display:'flex',gap:6,alignItems:'center',flexShrink:0}}>
+                        {totalModified2>0&&<span className="ula-modified-badge">{totalModified2} {isEn?'overridden':'con override'}</span>}
+                        {!q2&&<button type="button" className="bsm" style={{fontSize:'.72rem'}}
+                          onClick={()=>setUiLabelOpenGroups(s=>{const allOpen=labelGroups2.every(g=>s[g.id]);return Object.fromEntries(labelGroups2.map(g=>[g.id,!allOpen]));})}>
+                          {labelGroups2.every(g=>uiLabelOpenGroups[g.id])?(isEn?'Collapse all':'Colapsar todo'):(isEn?'Expand all':'Expandir todo')}
+                        </button>}
+                      </div>
+                    </div>
+                    {q2 ? (
+                      <div className="ula-group ula-group-open">
+                        <div className="ula-group-hdr ula-group-hdr-plain">
+                          🔍 {filteredKeys2.length} {isEn?`result${filteredKeys2.length!==1?'s':''}`:`resultado${filteredKeys2.length!==1?'s':''}`}
+                        </div>
+                        <div className="ula-rows">
+                          {filteredKeys2.map(key=>{
+                            const defVal=getDefVal2(key);
+                            return <CommunityLabelRow key={key} rkey={key} shortKey={key} defVal={defVal}/>;
+                          })}
+                        </div>
+                      </div>
+                    ) : (
+                      labelGroups2.map(g=>{
+                        const gKeys = g.prefixes.includes(null)
+                          ? filteredKeys2.filter(k=>!labelGroups2.slice(0,-1).some(lg=>lg.prefixes.filter(Boolean).some(p=>k.startsWith(p))))
+                          : filteredKeys2.filter(k=>g.prefixes.some(p=>k.startsWith(p)));
+                        if(!gKeys.length) return null;
+                        const isOpen = !!uiLabelOpenGroups[g.id];
+                        const groupModified = gKeys.filter(k=>commLabels2[k]!==undefined).length;
                         return (
-                          <div key={key} className={`ula-row${isChanged?' ula-row-changed':''}`}>
-                            <div className="ula-row-key"><code className="ula-key">{key}</code>{isChanged&&<span className="ula-changed-dot">●</span>}</div>
-                            <div className="ula-row-content">
-                              <div className="ula-default">{defVal||<span style={{color:'#aaa',fontStyle:'italic'}}>{isEn?'(empty)':'(vacío)'}</span>}</div>
-                              <div className="ula-input-wrap">
-                                <input className="ula-input" value={isChanged?communityVal:defVal}
-                                  onChange={e=>setCommJsonKey(jsonKey,key,e.target.value)}
-                                  onFocus={e=>{if(!isChanged){setCommJsonKey(jsonKey,key,defVal);setTimeout(()=>e.target.select(),0);}}}
-                                  placeholder={defVal}/>
-                                {isChanged&&<button type="button" className="ula-reset" title={isEn?'Reset to global':'Resetear a global'} onClick={()=>setCommJsonKey(jsonKey,key,'')}>↩</button>}
+                          <div key={g.id} className={`ula-group${isOpen?' ula-group-open':''}`}>
+                            <button type="button" className="ula-group-toggle" onClick={()=>toggleUlaGroup(g.id)}>
+                              <span className="ula-group-icon">{g.icon}</span>
+                              <span className="ula-group-label">{g.label}</span>
+                              <span className="ula-group-count">{gKeys.length} {isEn?'labels':'etiquetas'}</span>
+                              {groupModified>0&&<span className="ula-modified-badge" style={{fontSize:'.65rem',padding:'1px 7px'}}>{groupModified} {isEn?'edited':'editadas'}</span>}
+                              <span className={`ula-group-chev${isOpen?' ula-group-chev-open':''}`}>›</span>
+                            </button>
+                            {isOpen&&(
+                              <div className="ula-rows">
+                                {gKeys.map(key=>{
+                                  const shortKey = g.prefixes.filter(Boolean).reduce((s,p)=>s.startsWith(p)?s.slice(p.length):s, key);
+                                  const defVal=getDefVal2(key);
+                                  return <CommunityLabelRow key={key} rkey={key} shortKey={shortKey} defVal={defVal}/>;
+                                })}
                               </div>
-                            </div>
+                            )}
                           </div>
                         );
-                      })}
-                    </div>
-                    <div className="mact" style={{marginTop:12}}>
+                      })
+                    )}
+                    <div className="mact" style={{marginTop:16}}>
                       <button className="btn-ghost" onClick={()=>setCommunityConfigDraft(p=>({...p,[activeCommId]:{...(p[activeCommId]||{}),[jsonKey]:'{}'}}))}>↩ {isEn?'Clear all overrides':'Limpiar todos los overrides'}</button>
                       <button className="btn-p" onClick={()=>saveCommunitySection(activeCommId,['ui_labels_es','ui_labels_en'])}>💾 {isEn?'Save community labels':'Guardar etiquetas de comunidad'}</button>
                     </div>
@@ -6818,19 +7197,63 @@ function AdminSettings({ config={}, user, listings=[], contactProps={}, onSave, 
             {c.id !== 'kai' && <button className="btn-ghost" style={{fontSize:'.78rem',padding:'4px 10px',color:'#c62828'}} onClick={()=>deleteCommunity(c.id)}>🗑️ {isEn?'Delete':'Eliminar'}</button>}
           </div>
         </div>
-        {/* Members summary — management is in User roles panel above */}
-        <div style={{marginTop:8,borderTop:'1px solid #e8f4f8',paddingTop:8,display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
-          <span style={{fontSize:'.75rem',color:'#6b9ba8'}}>
-            👥 {isEn?'Members managed in':'Miembros se gestionan en'} <strong>{isEn?'User roles & permissions':'Roles y permisos de usuarios'}</strong> {isEn?'panel above':'arriba'}
+        {/* Config overrides toggle */}
+        <div style={{marginTop:8,padding:'6px 12px',background: communityConfigData[c.id]?.overridesEnabled ? '#e8f5ec' : '#fff3e0', borderRadius:8,display:'flex',alignItems:'center',gap:10,flexWrap:'wrap',border:'1px solid',borderColor:communityConfigData[c.id]?.overridesEnabled?'#b2dfdb':'#f5c97a'}}>
+          <span style={{fontSize:'.75rem',fontWeight:600,color:communityConfigData[c.id]?.overridesEnabled?'#2F4F3A':'#7a5a00'}}>
+            {communityConfigData[c.id]?.overridesEnabled ? (isEn?'✅ Community overrides ENABLED — mission, labels & tooltips use community values':'✅ Overrides de comunidad HABILITADOS — misión, etiquetas y tooltips usan valores de comunidad') : (isEn?'⏸ Community overrides DISABLED — all settings fall back to global defaults':'⏸ Overrides de comunidad DESHABILITADOS — todos los ajustes usan los valores globales')}
           </span>
-          {communityMembers[c.id] && (
-            <span style={{fontSize:'.72rem',background:'#eef6f8',padding:'2px 8px',borderRadius:999,color:'#2a5a6a'}}>
-              {(communityMembers[c.id]||[]).length} {isEn?'members':'miembros'} · {(communityMembers[c.id]||[]).filter(m=>m.isCommunityAdmin).length} {isEn?'admins':'admins'}
-            </span>
-          )}
-          <button className="btn-ghost" style={{fontSize:'.7rem',padding:'2px 8px'}} onClick={()=>loadCommunityMembers(c.id)}>
-            ↻ {isEn?'Count':'Contar'}
+          <button className="btn-ghost" style={{fontSize:'.72rem',padding:'2px 10px',marginLeft:'auto'}}
+            onClick={async()=>{
+              if(!communityConfigData[c.id])await loadCommunityConfig(c.id);
+              const cur=!!communityConfigData[c.id]?.overridesEnabled;
+              try{
+                await api.put(`/api/communities/${c.id}/config`,{actorUid:user.uid,actorEmail:user.email,overrides:{config_overrides_enabled:String(!cur)}});
+                showToast(isEn?(!cur?'✅ Community overrides enabled':'✅ Community overrides disabled'):(!cur?'✅ Overrides de comunidad habilitados':'✅ Overrides de comunidad deshabilitados'));
+                loadCommunityConfig(c.id);
+              }catch(e){showToast(e.message||String(e),true);}
+            }}>
+            {communityConfigData[c.id]?.overridesEnabled?(isEn?'⏸ Disable overrides':'⏸ Deshabilitar overrides'):(isEn?'▶ Enable overrides':'▶ Habilitar overrides')}
           </button>
+          {!communityConfigData[c.id] && <button className="btn-ghost" style={{fontSize:'.72rem',padding:'2px 10px'}} onClick={()=>loadCommunityConfig(c.id)}>↻ {isEn?'Load status':'Cargar estado'}</button>}
+        </div>
+        {/* Members — expandable list with search */}
+        <div style={{marginTop:8,borderTop:'1px solid #e8f4f8',paddingTop:8}}>
+          <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
+            <button className="btn-ghost" style={{fontSize:'.75rem',padding:'3px 10px'}}
+              onClick={()=>{
+                setCommMemberOpen(p=>({...p,[c.id]:!p[c.id]}));
+                if(!communityMembers[c.id])loadCommunityMembers(c.id);
+              }}>
+              👥 {communityMembers[c.id]?`${communityMembers[c.id].length} ${isEn?'members':'miembros'}`:(isEn?'Show members':'Ver miembros')} {commMemberOpen[c.id]?'▲':'▼'}
+            </button>
+            {communityMembers[c.id] && <span style={{fontSize:'.72rem',color:'#6b9ba8'}}>{communityMembers[c.id].filter(m=>m.isCommunityAdmin).length} {isEn?'admins':'admins'}</span>}
+            {communityMembersLoading[c.id] && <span className="spinner-sm"/>}
+          </div>
+          {commMemberOpen[c.id] && communityMembers[c.id] && (
+            <div style={{marginTop:8}}>
+              <input placeholder={isEn?'Search by name, unit, email, WhatsApp…':'Buscar por nombre, unidad, email, WhatsApp…'}
+                value={commMemberSearch[c.id]||''}
+                onChange={e=>setCommMemberSearch(p=>({...p,[c.id]:e.target.value}))}
+                style={{width:'100%',boxSizing:'border-box',padding:'6px 10px',borderRadius:6,border:'1px solid #cce7ee',fontSize:'.8rem',marginBottom:8}}/>
+              <div style={{maxHeight:220,overflowY:'auto',display:'flex',flexDirection:'column',gap:4}}>
+                {communityMembers[c.id]
+                  .filter(m=>{
+                    const q=(commMemberSearch[c.id]||'').trim().toLowerCase();
+                    if(!q)return true;
+                    return [(m.name||'').toLowerCase(),(m.email||'').toLowerCase(),(m.aptNumber||m.unit||'').toLowerCase(),(m.whatsapp||'').toLowerCase()].some(v=>v.includes(q));
+                  })
+                  .map(m=>(
+                    <div key={m.uid||m.user_uid} style={{display:'flex',alignItems:'center',gap:8,padding:'4px 8px',borderRadius:6,background:'#f5fbfd',fontSize:'.78rem'}}>
+                      <span style={{flex:1,fontWeight:600,color:'#17313a'}}>{m.name||m.email}</span>
+                      {m.isCommunityAdmin&&<span className="chip c-teal" style={{fontSize:'.65rem',padding:'1px 6px'}}>admin</span>}
+                      {m.aptNumber&&<span style={{color:'#6b9ba8'}}>🏠 {m.aptNumber}</span>}
+                      {m.email&&<span style={{color:'#8a9fa5',fontSize:'.72rem'}}>{m.email}</span>}
+                      {m.whatsapp&&<span style={{color:'#8a9fa5',fontSize:'.72rem'}}>📱 {m.whatsapp}</span>}
+                    </div>
+                  ))}
+              </div>
+            </div>
+          )}
         </div>
         {/* Community settings are edited inline in Mission / UI Labels / Tooltips sections above */}
         {false && <div style={{marginTop:8,borderTop:'1px solid #e8f4f8',paddingTop:8}}>
