@@ -1142,34 +1142,38 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (!user?.uid) { setAdminInfo({role:'user', isGlobalAdmin:false, canManageRegistrations:false, config:{}}); setAdminLoading(false); return; }
+    if (!user?.uid) {
+      setAdminInfo({role:'user', isGlobalAdmin:false, canManageRegistrations:false, config:{}});
+      setAdminLoading(false);
+      setRegistration(null);
+      setRegistrationLoading(false);
+      return;
+    }
     setAdminLoading(true);
+    setRegistrationLoading(true);
     api.get('/api/admin/me?uid=' + encodeURIComponent(user.uid) + '&email=' + encodeURIComponent(user.email || '') + '&name=' + encodeURIComponent(user.name || '') + '&lang=' + encodeURIComponent(lang))
       .then(adminResponse => {
         const info = adminResponse || {role:'user', isGlobalAdmin:false, canManageRegistrations:false, config:{}};
         setAdminInfo(info);
-        // Apply any admin-configured UI label overrides globally (also updates _complexName)
         if (info.config) setCustomLabels(info.config);
-        // Phase 2: sync community ID for X-Community-Id header on all subsequent requests
+        // Confirm community from server before checking registration
         if (info.communityId) { _communityId = info.communityId; try { localStorage.setItem('kai_community', info.communityId); } catch(e) {} }
         if (info.languagePreference && info.languagePreference !== lang) {
           const pref = info.languagePreference === 'en' ? 'en' : 'es-CO';
           setLangState(pref);
           localStorage.setItem('kai_lang', pref);
         }
+        // Chain registration check so it always uses the confirmed communityId
+        return api.get('/api/registrations/status?uid=' + encodeURIComponent(user.uid));
       })
-      .catch(e => { console.error('Admin info error', e); setAdminInfo({role:'user', isGlobalAdmin:false, canManageRegistrations:false, config:{}}); })
-      .finally(() => setAdminLoading(false));
+      .then(r => { if (r !== undefined) setRegistration(r || {status:'none'}); })
+      .catch(e => {
+        console.error('Login init error', e);
+        setAdminInfo({role:'user', isGlobalAdmin:false, canManageRegistrations:false, config:{}});
+        setRegistration({status:'error', error:e.message});
+      })
+      .finally(() => { setAdminLoading(false); setRegistrationLoading(false); });
   }, [user?.uid, user?.email, user?.name]);
-
-  useEffect(() => {
-    if (!user?.uid) { setRegistration(null); setRegistrationLoading(false); return; }
-    setRegistrationLoading(true);
-    api.get('/api/registrations/status?uid=' + encodeURIComponent(user.uid))
-      .then(r => setRegistration(r || {status:'none'}))
-      .catch(e => { console.error('Registration status error', e); setRegistration({status:'error', error:e.message}); })
-      .finally(() => setRegistrationLoading(false));
-  }, [user?.uid]);
 
   // Load owner profile (whatsapp + country)
   useEffect(() => {
