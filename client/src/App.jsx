@@ -181,6 +181,15 @@ const LANGS = { "es-CO": { label:"Español 🇨🇴", short:"ES" }, en:{ label:"
 
 const DEFAULT_STANDARD_MENU_PERMISSIONS = { dashboard:true, listings:true, incidents:true, notifications:true, about:true, my:true, analytics:false };
 const DEFAULT_DELEGATE_PERMISSIONS = { canApproveRegistrations:true, canResolveIncidents:true, canUpdateGlobalListings:false, canDeleteGlobalListings:false, canUpdateGlobalIncidents:false, canDeleteGlobalIncidents:false };
+const DEFAULT_COMMUNITY_ADMIN_PERMISSIONS = { canApproveRegistrations:true, canResolveIncidents:true, canManageListings:false, canEditMission:true, canEditUiLabels:true, canEditTooltips:true };
+const COMMUNITY_ADMIN_PERMISSION_LABELS = {
+  canApproveRegistrations: { es:'Aprobar / rechazar registros', en:'Approve / deny registrations' },
+  canResolveIncidents: { es:'Resolver incidentes', en:'Resolve incidents' },
+  canManageListings: { es:'Gestionar listings de la comunidad', en:'Manage community listings' },
+  canEditMission: { es:'Editar misión de la comunidad', en:'Edit community mission' },
+  canEditUiLabels: { es:'Editar etiquetas UI de la comunidad', en:'Edit community UI labels' },
+  canEditTooltips: { es:'Editar tooltips de la comunidad', en:'Edit community tooltips' },
+};
 const PERMISSION_LABELS = {
   canApproveRegistrations: { es:'Aprobar / rechazar registros', en:'Approve / deny registrations' },
   canResolveIncidents: { es:'Resolver incidentes con comentarios', en:'Resolve incidents with comments' },
@@ -6029,6 +6038,7 @@ function AdminSettings({ config={}, user, listings=[], contactProps={}, onSave, 
   const [usersCommunityAdminEditing, setUsersCommunityAdminEditing] = useState({});
   const [standardMenuPermissions,setStandardMenuPermissions]=useState(()=>({ ...DEFAULT_STANDARD_MENU_PERMISSIONS }));
   const [defaultDelegatePermissions,setDefaultDelegatePermissions]=useState(()=>({ ...DEFAULT_DELEGATE_PERMISSIONS }));
+  const [defaultCommunityAdminPermissions,setDefaultCommunityAdminPermissions]=useState(()=>({ ...DEFAULT_COMMUNITY_ADMIN_PERMISSIONS }));
   const [mission,setMission]=useState(() => parseMissionSections(config || {}));
   const [tooltipsEs,setTooltipsEs]=useState(() => ({...Object.fromEntries(Object.entries(DEFAULT_TOOLTIPS).map(([k,v])=>[k,v.es])), ...parseJsonObject(config?.tooltips_es,{})}));
   const [tooltipsEn,setTooltipsEn]=useState(() => ({...Object.fromEntries(Object.entries(DEFAULT_TOOLTIPS).map(([k,v])=>[k,v.en])), ...parseJsonObject(config?.tooltips_en,{})}));
@@ -6085,7 +6095,7 @@ function AdminSettings({ config={}, user, listings=[], contactProps={}, onSave, 
   const [communityRoutingData, setCommunityRoutingData] = useState({});
   const [communityRoutingLoading, setCommunityRoutingLoading] = useState({});
   const [communityRoutingDraft, setCommunityRoutingDraft] = useState({});
-  const ADMIN_SEC_DEFAULT = {communities:false,branding:false,emailSender:false,roles:true,sla:false,mission:false,menu:false,delegate:false,users:true,tooltips:false,uiLabels:false,email:false,emailNotif:false,auditLog:false,commMission:false,commLabels:false,commTooltips:false,commTpl:false};
+  const ADMIN_SEC_DEFAULT = {communities:false,branding:false,emailSender:false,roles:true,sla:false,mission:false,menu:false,delegate:false,communityAdminPerms:false,users:true,tooltips:false,uiLabels:false,email:false,emailNotif:false,auditLog:false,commMission:false,commLabels:false,commTooltips:false,commTpl:false};
   const [openSections,setOpenSections] = useState(()=>{
     try{ const s=JSON.parse(localStorage.getItem('kai_admin_open')||'null'); return s&&typeof s==='object'?{...ADMIN_SEC_DEFAULT,...s}:ADMIN_SEC_DEFAULT; }catch{ return ADMIN_SEC_DEFAULT; }
   });
@@ -6162,6 +6172,7 @@ function AdminSettings({ config={}, user, listings=[], contactProps={}, onSave, 
       setUsers(rows);
       if (r?.standardMenuPermissions) setStandardMenuPermissions({ ...DEFAULT_STANDARD_MENU_PERMISSIONS, ...r.standardMenuPermissions });
       if (r?.defaultDelegatePermissions) setDefaultDelegatePermissions({ ...DEFAULT_DELEGATE_PERMISSIONS, ...r.defaultDelegatePermissions });
+      if (r?.defaultCommunityAdminPermissions) setDefaultCommunityAdminPermissions({ ...DEFAULT_COMMUNITY_ADMIN_PERMISSIONS, ...r.defaultCommunityAdminPermissions });
       trace('users loaded', rows.length);
     }).catch(e=>{ captureAdminError('admin-users', e); showToast(lt(lang,'Error cargando usuarios') + ': ' + (e.message||''), true); }).finally(()=>setUsersLoading(false));
   }, [user?.uid, user?.email, lang]);
@@ -6214,6 +6225,7 @@ function AdminSettings({ config={}, user, listings=[], contactProps={}, onSave, 
   const saveEmailSender = () => { if (!emailFromAddress.trim() || !emailFromAddressEn.trim()) { showToast(isEn?'Both email addresses are required':'Ambos emails son requeridos', true); return; } onSave({ emailFromName, emailFromAddress, emailFromNameEn, emailFromAddressEn }); };
   const toggleMenuPermission = (key) => setStandardMenuPermissions(p => ({ ...p, [key]: key === 'dashboard' ? true : !p[key] }));
   const toggleDefaultDelegatePermission = (key) => setDefaultDelegatePermissions(p => ({ ...p, [key]: !p[key] }));
+  const toggleDefaultCommunityAdminPermission = (key) => setDefaultCommunityAdminPermissions(p => ({ ...p, [key]: !p[key] }));
   const saveStandardMenuPermissions = async () => {
     try { await api.put('/api/admin/config', { actorUid:user.uid, actorEmail:user.email, standardMenuPermissions }); showToast('✅ ' + lt(lang,'Permisos guardados')); }
     catch(e) { showToast((e.message || String(e)), true); }
@@ -6221,6 +6233,10 @@ function AdminSettings({ config={}, user, listings=[], contactProps={}, onSave, 
   const setUserPermission = (idx, key, val) => setUsers(prev => prev.map((u,i)=> i===idx ? ({...u, permissions:{...(u.permissions||{}), [key]:val}}) : u));
   const saveDefaultDelegatePermissions = async () => {
     try { await api.put('/api/admin/config', { actorUid:user.uid, actorEmail:user.email, defaultDelegatePermissions }); showToast('✅ ' + lt(lang,'Permisos predeterminados guardados')); }
+    catch(e) { showToast((e.message || String(e)), true); }
+  };
+  const saveDefaultCommunityAdminPermissions = async () => {
+    try { await api.put('/api/admin/config', { actorUid:user.uid, actorEmail:user.email, communityAdminDefaultPermissions: defaultCommunityAdminPermissions }); showToast('✅ ' + (isEn?'Community admin defaults saved':'Permisos predeterminados de admin de comunidad guardados')); }
     catch(e) { showToast((e.message || String(e)), true); }
   };
   const saveUserPermissions = async (u) => {
@@ -6415,6 +6431,12 @@ function AdminSettings({ config={}, user, listings=[], contactProps={}, onSave, 
     const commData = activeCommId ? communityConfigData[activeCommId] : null;
     const commDraft = activeCommId ? (communityConfigDraft[activeCommId]||{}) : {};
     const commLoading = activeCommId ? communityConfigLoading[activeCommId] : false;
+    const commOverridesOn = !!communityOverridesEnabled[activeCommId];
+    const activeCaMembership = adminInfo.isGlobalAdmin ? null : (adminInfo.communityAdminOf||[]).find(ca=>ca.communityId===activeCommId);
+    const caPerms = activeCaMembership?.permissions || {};
+    const canEditMissionContent = adminInfo.isGlobalAdmin || (commOverridesOn && !!(caPerms.canEditMission ?? true));
+    const canEditLabelsContent = adminInfo.isGlobalAdmin || (commOverridesOn && !!(caPerms.canEditUiLabels ?? true));
+    const canEditTooltipsContent = adminInfo.isGlobalAdmin || (commOverridesOn && !!(caPerms.canEditTooltips ?? true));
 
     const getCommVal = (key) => {
       if (!commData) return '';
@@ -6478,7 +6500,8 @@ function AdminSettings({ config={}, user, listings=[], contactProps={}, onSave, 
         {activeCommId && !commLoading && (
           <div>
             {/* ── Mission ── */}
-            <AdminSection title={`🌊 ${isEn?'Mission':'Misión'}`} subtitle={isEn?'Override the community mission title and body shown on the Mission page.':'Sobreescribe el título y cuerpo de misión mostrado en la página de Misión.'} action={<button className="btn-p" style={{minHeight:36,padding:'6px 14px'}} onClick={()=>saveCommunitySection(activeCommId,['mission_title_es','mission_body_es','mission_title_en','mission_body_en'])}>💾 {isEn?'Save':'Guardar'}</button>} open={openSections.commMission} onToggle={()=>toggleSection('commMission')}>
+            <AdminSection title={`🌊 ${isEn?'Mission':'Misión'}`} subtitle={isEn?'Override the community mission title and body shown on the Mission page.':'Sobreescribe el título y cuerpo de misión mostrado en la página de Misión.'} action={<button className="btn-p" style={{minHeight:36,padding:'6px 14px'}} onClick={()=>saveCommunitySection(activeCommId,['mission_title_es','mission_body_es','mission_title_en','mission_body_en'])} disabled={!canEditMissionContent}>💾 {isEn?'Save':'Guardar'}</button>} open={openSections.commMission} onToggle={()=>toggleSection('commMission')}>
+              {!canEditMissionContent && <div style={{marginBottom:12,padding:'8px 12px',background:'#fff3e0',borderRadius:8,fontSize:'.78rem',color:'#7a5a00',border:'1px solid #f5c97a'}}>{isEn?(!commOverridesOn?'Content editing is not enabled for this community. Contact your global admin to enable it.':'You do not have permission to edit the mission for this community.'):(!commOverridesOn?'La edición de contenido no está habilitada para esta comunidad. Contacta al administrador global para habilitarla.':'No tienes permiso para editar la misión de esta comunidad.')}</div>}
               <div className="fg2">
                 {[
                   {key:'mission_title_es',label:isEn?'Mission title (ES)':'Título de misión (ES)',rows:2},
@@ -6503,7 +6526,8 @@ function AdminSettings({ config={}, user, listings=[], contactProps={}, onSave, 
             </AdminSection>
 
             {/* ── UI Labels ── */}
-            <AdminSection title={`🏷️ ${isEn?'UI Labels':'Etiquetas de interfaz'}`} subtitle={isEn?'Override any app text label for this community.':'Sobreescribe cualquier etiqueta de texto de la app para esta comunidad.'} action={<button className="btn-ghost" onClick={()=>saveCommunitySection(activeCommId,['ui_labels_es','ui_labels_en'])} disabled={!commData}>💾 {isEn?'Save labels':'Guardar etiquetas'}</button>} open={openSections.commLabels} onToggle={()=>toggleSection('commLabels')}>
+            <AdminSection title={`🏷️ ${isEn?'UI Labels':'Etiquetas de interfaz'}`} subtitle={isEn?'Override any app text label for this community.':'Sobreescribe cualquier etiqueta de texto de la app para esta comunidad.'} action={<button className="btn-ghost" onClick={()=>saveCommunitySection(activeCommId,['ui_labels_es','ui_labels_en'])} disabled={!commData||!canEditLabelsContent}>💾 {isEn?'Save labels':'Guardar etiquetas'}</button>} open={openSections.commLabels} onToggle={()=>toggleSection('commLabels')}>
+              {!canEditLabelsContent && <div style={{marginBottom:12,padding:'8px 12px',background:'#fff3e0',borderRadius:8,fontSize:'.78rem',color:'#7a5a00',border:'1px solid #f5c97a'}}>{isEn?(!commOverridesOn?'Content editing is not enabled for this community. Contact your global admin to enable it.':'You do not have permission to edit UI labels for this community.'):(!commOverridesOn?'La edición de contenido no está habilitada para esta comunidad. Contacta al administrador global para habilitarla.':'No tienes permiso para editar etiquetas UI de esta comunidad.')}</div>}
               {(()=>{
                 const lang2 = uiLabelLang;
                 const jsonKey = lang2==='en' ? 'ui_labels_en' : 'ui_labels_es';
@@ -6549,7 +6573,8 @@ function AdminSettings({ config={}, user, listings=[], contactProps={}, onSave, 
             </AdminSection>
 
             {/* ── Tooltips ── */}
-            <AdminSection title={`💡 ${isEn?'Tooltips / Instructions':'Tooltips / Instrucciones'}`} subtitle={isEn?'Override field help text and tooltips for this community.':'Sobreescribe el texto de ayuda de campos y tooltips para esta comunidad.'} action={<button className="btn-ghost" onClick={()=>saveCommunitySection(activeCommId,['tooltips_es','tooltips_en'])} disabled={!commData}>💾 {isEn?'Save tooltips':'Guardar tooltips'}</button>} open={openSections.commTooltips} onToggle={()=>toggleSection('commTooltips')}>
+            <AdminSection title={`💡 ${isEn?'Tooltips / Instructions':'Tooltips / Instrucciones'}`} subtitle={isEn?'Override field help text and tooltips for this community.':'Sobreescribe el texto de ayuda de campos y tooltips para esta comunidad.'} action={<button className="btn-ghost" onClick={()=>saveCommunitySection(activeCommId,['tooltips_es','tooltips_en'])} disabled={!commData||!canEditTooltipsContent}>💾 {isEn?'Save tooltips':'Guardar tooltips'}</button>} open={openSections.commTooltips} onToggle={()=>toggleSection('commTooltips')}>
+              {!canEditTooltipsContent && <div style={{marginBottom:12,padding:'8px 12px',background:'#fff3e0',borderRadius:8,fontSize:'.78rem',color:'#7a5a00',border:'1px solid #f5c97a'}}>{isEn?(!commOverridesOn?'Content editing is not enabled for this community. Contact your global admin to enable it.':'You do not have permission to edit tooltips for this community.'):(!commOverridesOn?'La edición de contenido no está habilitada para esta comunidad. Contacta al administrador global para habilitarla.':'No tienes permiso para editar tooltips de esta comunidad.')}</div>}
               {(()=>{
                 const TOOLTIP_KEYS = ['reportIncident','addListing','aptNumber','listingEmail','ownerWhatsapp','operator','operatorEmail','operatorWhatsapp','incidentApartment','incidentType','incidentCategory','incidentDescription','verifyIncident','resolveIncident'];
                 const KEY_LABELS_COMM = {reportIncident:{es:'Botón "Reportar incidente"',en:'"Report Incident" button'},addListing:{es:'Botón "Registrar unidad"',en:'"Add Listing" button'},aptNumber:{es:'Campo número de apartamento',en:'Apartment number field'},listingEmail:{es:'Campo email del listing',en:'Listing email field'},ownerWhatsapp:{es:'Campo WhatsApp propietario',en:'Owner WhatsApp field'},operator:{es:'Campo operador',en:'Operator field'},operatorEmail:{es:'Campo email del operador',en:'Operator email field'},operatorWhatsapp:{es:'Campo WhatsApp operador',en:'Operator WhatsApp field'},incidentApartment:{es:'Campo apartamento (incidente)',en:'Apartment field (incident)'},incidentType:{es:'Campo tipo de incidente',en:'Incident type field'},incidentCategory:{es:'Campo categoría de incidente',en:'Incident category field'},incidentDescription:{es:'Campo descripción del incidente',en:'Incident description field'},verifyIncident:{es:'Botón "Verificar incidente"',en:'"Verify Incident" button'},resolveIncident:{es:'Botón "Resolver incidente"',en:'"Resolve Incident" button'}};
@@ -6998,6 +7023,13 @@ function AdminSettings({ config={}, user, listings=[], contactProps={}, onSave, 
 
   <AdminSection title={`🛡️ ${lt(lang,'Permisos predeterminados del delegado')}`} subtitle={`${lt(lang,'Define qué permisos recibe un administrador delegado nuevo por defecto.')} ${lt(lang,'Los permisos estándar siempre se heredan.')}`} action={<button className="btn-ghost" onClick={saveDefaultDelegatePermissions}>💾 {lt(lang,'Guardar permisos predeterminados')}</button>} open={openSections.delegate} onToggle={()=>toggleSection('delegate')}>
     <div style={{display:'flex',gap:10,flexWrap:'wrap'}}>{Object.keys(DEFAULT_DELEGATE_PERMISSIONS).map(k=><label key={k} className="chip c-gray" style={{cursor:'pointer'}}><input type="checkbox" checked={!!defaultDelegatePermissions[k]} onChange={()=>toggleDefaultDelegatePermission(k)} style={{marginRight:6}}/>{PERMISSION_LABELS[k]?.[lang==='en'?'en':'es']||k}</label>)}</div>
+  </AdminSection>
+
+  <AdminSection title={`🏢 ${isEn?'Community Admin Default Permissions':'Permisos predeterminados del admin de comunidad'}`} subtitle={isEn?'Define what permissions a new community admin receives by default when promoted. Includes content editing rights when overrides are enabled for that community.':'Define qué permisos recibe un nuevo admin de comunidad al ser promovido. Incluye derechos de edición de contenido cuando los overrides están habilitados para esa comunidad.'} action={<button className="btn-ghost" onClick={saveDefaultCommunityAdminPermissions}>💾 {isEn?'Save community admin defaults':'Guardar permisos predeterminados'}</button>} open={openSections.communityAdminPerms} onToggle={()=>toggleSection('communityAdminPerms')}>
+    <div style={{marginBottom:10,padding:'8px 12px',background:'#f0f8fb',borderRadius:8,fontSize:'.78rem',color:'#2a5a6a'}}>
+      {isEn?'Content editing permissions (mission, UI labels, tooltips) only take effect when "Config Overrides Enabled" is turned on for the community.':'Los permisos de edición de contenido (misión, etiquetas UI, tooltips) solo tienen efecto cuando "Config Overrides Enabled" está activado para la comunidad.'}
+    </div>
+    <div style={{display:'flex',gap:10,flexWrap:'wrap'}}>{Object.keys(DEFAULT_COMMUNITY_ADMIN_PERMISSIONS).map(k=><label key={k} className="chip c-gray" style={{cursor:'pointer'}}><input type="checkbox" checked={!!defaultCommunityAdminPermissions[k]} onChange={()=>toggleDefaultCommunityAdminPermission(k)} style={{marginRight:6}}/>{COMMUNITY_ADMIN_PERMISSION_LABELS[k]?.[isEn?'en':'es']||k}</label>)}</div>
   </AdminSection>
 
   <AdminSection title={`👥 ${isEn?'User roles & permissions':'Roles y permisos de usuarios'}`}

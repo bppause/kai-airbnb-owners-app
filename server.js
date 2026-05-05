@@ -94,7 +94,8 @@ async function getAppPermissionsConfig() {
   const cfg = await getAppConfig();
   return {
     standardMenuPermissions: safeJsonObject(cfg.standard_menu_permissions, DEFAULT_STANDARD_MENU_PERMISSIONS),
-    defaultDelegatePermissions: safeJsonObject(cfg.default_delegate_permissions, DEFAULT_DELEGATE_PERMISSIONS)
+    defaultDelegatePermissions: safeJsonObject(cfg.default_delegate_permissions, DEFAULT_DELEGATE_PERMISSIONS),
+    defaultCommunityAdminPermissions: safeJsonObject(cfg.default_community_admin_permissions, COMMUNITY_ADMIN_PERM_DEFAULTS)
   };
 }
 async function getUserPermissions({ uid='', email='' }={}) {
@@ -1635,7 +1636,7 @@ app.get('/api/admin/me', async (req, res) => {
 
 app.put('/api/admin/config', async (req, res) => {
   if (!requireSupabaseEnv(res)) return;
-  const { actorUid, actorEmail, slaHours, escalationCcEmails, analyticsEnabled, missionTitle, missionBody, missionTitleEs, missionBodyEs, missionTitleEn, missionBodyEn, missionSectionsEs, standardMenuPermissions, defaultDelegatePermissions, tooltipsEs, tooltipsEn, uiLabelsEs, uiLabelsEn, complexNameEs, complexNameEn, complexLocation, complexLogo, complexBg, emailFromName, emailFromAddress, emailFromNameEn, emailFromAddressEn, nav_config, communityFeatureEnabled, defaultCommunityId } = req.body || {};
+  const { actorUid, actorEmail, slaHours, escalationCcEmails, analyticsEnabled, missionTitle, missionBody, missionTitleEs, missionBodyEs, missionTitleEn, missionBodyEn, missionSectionsEs, standardMenuPermissions, defaultDelegatePermissions, communityAdminDefaultPermissions, tooltipsEs, tooltipsEn, uiLabelsEs, uiLabelsEn, complexNameEs, complexNameEn, complexLocation, complexLogo, complexBg, emailFromName, emailFromAddress, emailFromNameEn, emailFromAddressEn, nav_config, communityFeatureEnabled, defaultCommunityId } = req.body || {};
   if (!(await isGlobalAdmin(actorUid, actorEmail))) return res.status(403).json({ error:'Solo un administrador global puede cambiar la configuración.' });
   const before = await getAppConfig();
   const rows = [];
@@ -1651,6 +1652,7 @@ app.put('/api/admin/config', async (req, res) => {
   if (missionSectionsEs !== undefined) rows.push({ key:'mission_sections_es', value: typeof missionSectionsEs === 'string' ? missionSectionsEs : JSON.stringify(missionSectionsEs) });
   if (standardMenuPermissions !== undefined) rows.push({ key:'standard_menu_permissions', value: JSON.stringify(safeJsonObject(standardMenuPermissions, DEFAULT_STANDARD_MENU_PERMISSIONS)) });
   if (defaultDelegatePermissions !== undefined) rows.push({ key:'default_delegate_permissions', value: JSON.stringify(safeJsonObject(defaultDelegatePermissions, DEFAULT_DELEGATE_PERMISSIONS)) });
+  if (communityAdminDefaultPermissions !== undefined) rows.push({ key:'default_community_admin_permissions', value: JSON.stringify(safeJsonObject(communityAdminDefaultPermissions, COMMUNITY_ADMIN_PERM_DEFAULTS)) });
   if (tooltipsEs !== undefined) rows.push({ key:'tooltips_es', value: typeof tooltipsEs === 'string' ? tooltipsEs : JSON.stringify(safeJsonObject(tooltipsEs, {})) });
   if (tooltipsEn !== undefined) rows.push({ key:'tooltips_en', value: typeof tooltipsEn === 'string' ? tooltipsEn : JSON.stringify(safeJsonObject(tooltipsEn, {})) });
   if (uiLabelsEs !== undefined) rows.push({ key:'ui_labels_es', value: typeof uiLabelsEs === 'string' ? uiLabelsEs : JSON.stringify(safeJsonObject(uiLabelsEs, {})) });
@@ -1711,7 +1713,7 @@ app.get('/api/admin/users', async (req, res) => {
     const communityMemberships = membershipByUid[u.uid] || [];
     return { uid:u.uid, email:u.email, name:u.name || '', role, permissions, languagePreference:u.language_preference || 'es-CO', approved: approved.has(u.uid), envGlobal, communityMemberships, communityIds: communityByUid[u.uid] || [] };
   });
-  res.json({ users, standardMenuPermissions: permsCfg.standardMenuPermissions, defaultDelegatePermissions: permsCfg.defaultDelegatePermissions });
+  res.json({ users, standardMenuPermissions: permsCfg.standardMenuPermissions, defaultDelegatePermissions: permsCfg.defaultDelegatePermissions, defaultCommunityAdminPermissions: permsCfg.defaultCommunityAdminPermissions });
 });
 
 app.post('/api/admin/delegate', async (req, res) => {
@@ -2338,7 +2340,8 @@ app.post('/api/communities/:id/members/:uid/promote', async (req, res) => {
   const { actorUid, actorEmail, userEmail, permissions } = req.body || {};
   if (!(await isCommunityAdmin(actorUid, actorEmail, req.params.id))) return res.status(403).json({ error:'Solo un administrador puede promover miembros.' });
   if (!req.params.uid) return res.status(400).json({ error:'uid is required.' });
-  const effectivePerms = safeJsonObject(permissions, COMMUNITY_ADMIN_PERM_DEFAULTS);
+  const permsCfg = await getAppPermissionsConfig();
+  const effectivePerms = safeJsonObject(permissions, permsCfg.defaultCommunityAdminPermissions);
   const row = { id:'mbr_'+uuidv4().slice(0,8), community_id:req.params.id, user_uid:req.params.uid, user_email:String(userEmail||'').toLowerCase(), role:'community_admin', permissions:effectivePerms, invited_by_uid:actorUid||'', joined_at:new Date().toISOString() };
   const { data, error } = await supabase.from('community_memberships').upsert(row, { onConflict:'community_id,user_uid' }).select('*').single();
   if (error) return sendSupabaseError(res, error);
