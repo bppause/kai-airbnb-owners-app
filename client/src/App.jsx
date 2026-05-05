@@ -2353,6 +2353,11 @@ function AuthGate({ onLogin, lang="es-CO", setLang=()=>{}, complexLogo='', compl
           <strong>{t.firstAccess}</strong> {t.firstAccessText}
         </div>
         <p className="secure-copy">{t.secure}</p>
+        <div style={{textAlign:'center',margin:'10px 0 4px'}}>
+          <a href="/guide.html" target="_blank" rel="noopener noreferrer" style={{fontSize:'.82rem',color:'#0b7f8c',fontWeight:700,textDecoration:'none'}}>
+            {lang==='en' ? '📖 View user guide' : '📖 Ver guía de usuario'}
+          </a>
+        </div>
         <div className="google-switch-help"><strong>{appText(lang,"login.switchGoogleTitle")}</strong><br/>{appText(lang,"login.switchGoogleHelp")}<br/><span>{appText(lang,"login.switchGoogleSteps")}</span></div>
         <button className="btn-google gate-btn" onClick={onLogin} title={appText(lang,"login.switchGoogleHelp")}><GoogleIcon/> {t.google}</button>
         <div style={{marginTop:16,fontSize:'.68rem',color:'rgba(47,79,58,.4)',textAlign:'center',letterSpacing:'.04em'}}>{complexName} · v{APP_VERSION}</div>
