@@ -6965,93 +6965,16 @@ function AdminSettings({ config={}, user, listings=[], contactProps={}, onSave, 
         {activeCommId && !commLoading && (
           <div>
             {activeCommId && !commLoading && commData && (
-              <div style={{marginBottom:12,padding:'6px 14px',borderRadius:8,background:commOverridesOn?'#e8f5ec':'#fff8e1',border:'1px solid',borderColor:commOverridesOn?'#b2dfdb':'#ffe082',fontSize:'.76rem',color:commOverridesOn?'#2F4F3A':'#7a5a00',display:'flex',alignItems:'center',gap:8}}>
-                {commOverridesOn ? (isEn?'✅ Community overrides active — changes here override global defaults for this community only.':'✅ Overrides activos — los cambios aquí sobreescriben los valores globales solo para esta comunidad.') : (isEn?'⏸ Community overrides disabled — changes saved here are stored but not shown to users until overrides are enabled.':'⏸ Overrides deshabilitados — los cambios guardados aquí se almacenan pero no se muestran a los usuarios hasta que se habiliten los overrides.')}
-                {adminInfo.isGlobalAdmin && <button className="btn-ghost" style={{fontSize:'.7rem',padding:'2px 8px',marginLeft:'auto'}} onClick={()=>toggleCommunityOverrides(activeCommId,!commOverridesOn)}>{commOverridesOn?(isEn?'⏸ Disable':'⏸ Deshabilitar'):(isEn?'▶ Enable':'▶ Habilitar')}</button>}
+              <div style={{marginBottom:16,padding:'10px 14px',borderRadius:8,background:commOverridesOn?'#e8f5ec':'#fff8e1',border:'1px solid',borderColor:commOverridesOn?'#b2dfdb':'#ffe082',fontSize:'.78rem',color:commOverridesOn?'#2F4F3A':'#7a5a00',display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
+                <span style={{flex:1}}>
+                  {commOverridesOn
+                    ? (isEn?'✅ Community overrides are active — content below is applied to this community.':'✅ Los overrides de comunidad están activos — el contenido aquí aplica a esta comunidad.')
+                    : (isEn?'🔒 Community overrides are disabled — all sections are read-only. A global admin must enable overrides from Platform → Communities.':'🔒 Los overrides de comunidad están deshabilitados — todas las secciones son solo lectura. Un admin global debe habilitar los overrides desde Plataforma → Comunidades.')}
+                </span>
               </div>
             )}
-            {/* ── Members ── */}
-            <AdminSection title={`👥 ${isEn?'Members':'Miembros'}`} subtitle={isEn?'All approved owners in this community. Search and manage roles.':'Todos los propietarios aprobados de esta comunidad. Busca y gestiona roles.'} open={openSections.commMembers} onToggle={()=>{ toggleSection('commMembers'); if(!communityMembers[activeCommId])loadCommunityMembers(activeCommId); }}>
-              {(()=>{
-                const mems = communityMembers[activeCommId] || [];
-                const mLoading = communityMembersLoading[activeCommId];
-                const mSearch = (commMemberSearch[activeCommId]||'').trim().toLowerCase();
-                const filtered = mems.filter(m=>{
-                  if(!mSearch) return true;
-                  return (m.name||'').toLowerCase().includes(mSearch)
-                    || (m.userEmail||m.email||'').toLowerCase().includes(mSearch)
-                    || (m.whatsapp||'').toLowerCase().includes(mSearch)
-                    || (m.apts||[]).some(a=>(a||'').toLowerCase().includes(mSearch))
-                    || (m.isCommunityAdmin?'admin':'owner').includes(mSearch)
-                    || (m.platformRole||'').toLowerCase().includes(mSearch);
-                });
-                if(mLoading) return <div style={{color:'#6b9ba8',fontSize:'.82rem',padding:'8px 0'}}><span className="spinner-sm"/> {isEn?'Loading…':'Cargando…'}</div>;
-                if(!mems.length) return <div style={{padding:'12px 0',color:'#8a9fa5',fontSize:'.85rem'}}>{isEn?'No members found for this community.':'No se encontraron miembros en esta comunidad.'} <button className="btn-ghost" style={{fontSize:'.75rem',padding:'3px 10px',marginLeft:8}} onClick={()=>loadCommunityMembers(activeCommId)}>↻ {isEn?'Reload':'Recargar'}</button></div>;
-                return (
-                  <div>
-                    <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:10,flexWrap:'wrap'}}>
-                      <input className="search" placeholder={isEn?'Search by name, unit, email, WhatsApp…':'Buscar por nombre, unidad, email, WhatsApp…'}
-                        value={commMemberSearch[activeCommId]||''}
-                        onChange={e=>setCommMemberSearch(p=>({...p,[activeCommId]:e.target.value}))}
-                        style={{flex:'1 1 260px',maxWidth:400}}/>
-                      <span style={{fontSize:'.75rem',color:'#6b9ba8',flexShrink:0}}>{filtered.length}/{mems.length} {isEn?'members':'miembros'}</span>
-                      <button className="btn-ghost" style={{fontSize:'.75rem',padding:'3px 10px'}} onClick={()=>loadCommunityMembers(activeCommId)}>↻</button>
-                    </div>
-                    <table className="admin-table" style={{width:'100%'}}>
-                      <thead><tr>
-                        <th>{isEn?'Name':'Nombre'}</th>
-                        <th>{isEn?'Unit(s)':'Unidad(es)'}</th>
-                        <th>Email</th>
-                        <th>WhatsApp</th>
-                        <th>{isEn?'Role(s)':'Rol(es)'}</th>
-                        {adminInfo.isGlobalAdmin && <th>{isEn?'Actions':'Acciones'}</th>}
-                      </tr></thead>
-                      <tbody>
-                        {filtered.map(m=>{
-                          const mUid = m.userUid||m.uid||m.email;
-                          const mEmail = m.userEmail||m.email||'—';
-                          const isGlobal = m.platformRole==='global_admin';
-                          const isDelegate = m.platformRole==='delegate_admin';
-                          const isCA = m.isCommunityAdmin;
-                          return (
-                            <tr key={mUid||mEmail}>
-                              <td style={{fontWeight:700,color:'#17313a'}}>{m.name||'—'}</td>
-                              <td style={{fontSize:'.82rem',color:'#2a5a6a'}}>{(m.apts||[]).length?(m.apts||[]).join(', '):'—'}</td>
-                              <td style={{fontSize:'.78rem',color:'#17313a',wordBreak:'break-all'}}>{mEmail}</td>
-                              <td style={{fontSize:'.78rem',color:'#17313a'}}>{m.whatsapp||'—'}</td>
-                              <td>
-                                <div style={{display:'flex',gap:4,flexWrap:'wrap'}}>
-                                  {isGlobal && <span style={{background:'#e8f0fe',color:'#3b5bdb',borderRadius:999,padding:'2px 8px',fontSize:'.72rem',fontWeight:700}}>🌐 Global</span>}
-                                  {isDelegate && <span style={{background:'#f3e8ff',color:'#7c3aed',borderRadius:999,padding:'2px 8px',fontSize:'.72rem',fontWeight:700}}>🛡️ Delegate</span>}
-                                  {isCA && <span style={{background:'#fef9c3',color:'#854d0e',borderRadius:999,padding:'2px 8px',fontSize:'.72rem',fontWeight:700}}>🏢 Admin</span>}
-                                  {!isGlobal && !isDelegate && !isCA && <span style={{background:'#f0f8fb',color:'#2a5a6a',borderRadius:999,padding:'2px 8px',fontSize:'.72rem'}}>🏠 {isEn?'Owner':'Propietario'}</span>}
-                                </div>
-                              </td>
-                              {adminInfo.isGlobalAdmin && (
-                                <td>
-                                  {!isGlobal && mUid && (
-                                    isCA
-                                      ? <button className="btn-ghost" style={{fontSize:'.72rem',padding:'3px 10px',color:'#9d1f16'}} onClick={async()=>{
-                                          try{await api.del(`/api/communities/${activeCommId}/members/${encodeURIComponent(mUid)}/promote`,{actorUid:user.uid,actorEmail:user.email});showToast(isEn?'✅ Demoted to owner':'✅ Degradado a propietario');loadCommunityMembers(activeCommId);}catch(e){showToast(e.message||String(e),true);}
-                                        }}>↓ {isEn?'Demote':'Degradar'}</button>
-                                      : <button className="btn-ghost" style={{fontSize:'.72rem',padding:'3px 10px',color:'#2F4F3A'}} onClick={async()=>{
-                                          try{await api.post(`/api/communities/${activeCommId}/members/${encodeURIComponent(mUid)}/promote`,{actorUid:user.uid,actorEmail:user.email});showToast(isEn?'✅ Promoted to community admin':'✅ Promovido a admin de comunidad');loadCommunityMembers(activeCommId);}catch(e){showToast(e.message||String(e),true);}
-                                        }}>↑ {isEn?'Promote':'Promover'}</button>
-                                  )}
-                                </td>
-                              )}
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                );
-              })()}
-            </AdminSection>
-
             {/* ── Mission ── */}
-            <AdminSection title={`🌊 ${isEn?'Mission':'Misión'}`} subtitle={isEn?'Override the community mission shown on the Mission page (Spanish and English).':'Sobreescribe la misión de comunidad mostrada en la página de Misión (español e inglés).'} action={<button className="btn-p" style={{minHeight:36,padding:'6px 14px'}} onClick={()=>saveCommunitySection(activeCommId,['mission_sections_es','mission_sections_en'])} disabled={!canEditMissionContent}>💾 {isEn?'Save':'Guardar'}</button>} open={openSections.commMission} onToggle={()=>toggleSection('commMission')}>
+            <AdminSection title={`🌊 ${lt(lang,'Misión y reglas de participación')}`} subtitle={isEn?'Override the community mission shown on the Mission page (Spanish and English).':'Sobreescribe la misión de comunidad mostrada en la página de Misión (español e inglés).'} action={!commOverridesOn?null:<button className="btn-p" style={{minHeight:36,padding:'6px 14px'}} onClick={()=>saveCommunitySection(activeCommId,['mission_sections_es','mission_sections_en'])} disabled={!canEditMissionContent}>💾 {isEn?'Save':'Guardar'}</button>} open={openSections.commMission} onToggle={()=>toggleSection('commMission')}>
               {!canEditMissionContent && <div style={{marginBottom:12,padding:'8px 12px',background:'#fff3e0',borderRadius:8,fontSize:'.78rem',color:'#7a5a00',border:'1px solid #f5c97a'}}>{isEn?(!commOverridesOn?'Content editing is not enabled for this community. Contact your global admin to enable it.':'You do not have permission to edit the mission for this community.'):(!commOverridesOn?'La edición de contenido no está habilitada para esta comunidad. Contacta al administrador global para habilitarla.':'No tienes permiso para editar la misión de esta comunidad.')}</div>}
               {(()=>{
                 const getCommMission = () => {
@@ -7107,7 +7030,7 @@ function AdminSettings({ config={}, user, listings=[], contactProps={}, onSave, 
                 const cm = getCommMission();
                 const cme = getCommMissionEn();
                 return (
-                  <div>
+                  <div style={!commOverridesOn?{pointerEvents:'none',opacity:0.5,userSelect:'none'}:{}}>
                     <div style={{marginBottom:10,padding:'6px 12px',background:'#f0f8fb',borderRadius:8,fontSize:'.76rem',color:'#2a5a6a',border:'1px solid #cce7ee'}}>
                       🌐 = {isEn?'using global value':'usando valor global'} &nbsp;·&nbsp; 🏷️ = {isEn?'community override':'override de comunidad'}
                     </div>
@@ -7207,7 +7130,7 @@ function AdminSettings({ config={}, user, listings=[], contactProps={}, onSave, 
             </AdminSection>
 
             {/* ── UI Labels ── */}
-            <AdminSection title={`🏷️ ${isEn?'UI Labels':'Etiquetas de interfaz'}`} subtitle={isEn?'Override any app text label for this community.':'Sobreescribe cualquier etiqueta de texto de la app para esta comunidad.'} action={<button className="btn-ghost" onClick={()=>saveCommunitySection(activeCommId,['ui_labels_es','ui_labels_en'])} disabled={!commData||!canEditLabelsContent}>💾 {isEn?'Save labels':'Guardar etiquetas'}</button>} open={openSections.commLabels} onToggle={()=>toggleSection('commLabels')}>
+            <AdminSection title={`🏷️ ${isEn?'UI Labels':'Etiquetas de interfaz'}`} subtitle={isEn?'Override any app text label for this community.':'Sobreescribe cualquier etiqueta de texto de la app para esta comunidad.'} action={!commOverridesOn?null:<button className="btn-ghost" onClick={()=>saveCommunitySection(activeCommId,['ui_labels_es','ui_labels_en'])} disabled={!commData||!canEditLabelsContent}>💾 {isEn?'Save labels':'Guardar etiquetas'}</button>} open={openSections.commLabels} onToggle={()=>toggleSection('commLabels')}>
               {!canEditLabelsContent && <div style={{marginBottom:12,padding:'8px 12px',background:'#fff3e0',borderRadius:8,fontSize:'.78rem',color:'#7a5a00',border:'1px solid #f5c97a'}}>{isEn?(!commOverridesOn?'Content editing is not enabled for this community. Contact your global admin to enable it.':'You do not have permission to edit UI labels for this community.'):(!commOverridesOn?'La edición de contenido no está habilitada para esta comunidad. Contacta al administrador global para habilitarla.':'No tienes permiso para editar etiquetas UI de esta comunidad.')}</div>}
               {(()=>{
                 const lang2 = uiLabelLang;
@@ -7259,7 +7182,7 @@ function AdminSettings({ config={}, user, listings=[], contactProps={}, onSave, 
                   : allKeys2;
                 const totalModified2 = Object.keys(commLabels2).length;
                 return (
-                  <div className="ula-wrap">
+                  <div className="ula-wrap" style={!commOverridesOn?{pointerEvents:'none',opacity:0.5,userSelect:'none'}:{}}>
                     <div className="ula-toolbar">
                       <div className="ula-lang-toggle">
                         <button className={`fchip${lang2==='es'?' fchip-on':''}`} onClick={()=>setUiLabelLang('es')}>🇨🇴 Español</button>
@@ -7329,7 +7252,7 @@ function AdminSettings({ config={}, user, listings=[], contactProps={}, onSave, 
             </AdminSection>
 
             {/* ── Tooltips ── */}
-            <AdminSection title={`💡 ${isEn?'Tooltips / Instructions':'Tooltips / Instrucciones'}`} subtitle={isEn?'Override field help text and tooltips for this community.':'Sobreescribe el texto de ayuda de campos y tooltips para esta comunidad.'} action={<button className="btn-ghost" onClick={()=>saveCommunitySection(activeCommId,['tooltips_es','tooltips_en'])} disabled={!commData||!canEditTooltipsContent}>💾 {isEn?'Save tooltips':'Guardar tooltips'}</button>} open={openSections.commTooltips} onToggle={()=>toggleSection('commTooltips')}>
+            <AdminSection title={`💡 ${isEn?'Tooltips / Instructions':'Tooltips / Instrucciones'}`} subtitle={isEn?'Override field help text and tooltips for this community.':'Sobreescribe el texto de ayuda de campos y tooltips para esta comunidad.'} action={!commOverridesOn?null:<button className="btn-ghost" onClick={()=>saveCommunitySection(activeCommId,['tooltips_es','tooltips_en'])} disabled={!commData||!canEditTooltipsContent}>💾 {isEn?'Save tooltips':'Guardar tooltips'}</button>} open={openSections.commTooltips} onToggle={()=>toggleSection('commTooltips')}>
               {!canEditTooltipsContent && <div style={{marginBottom:12,padding:'8px 12px',background:'#fff3e0',borderRadius:8,fontSize:'.78rem',color:'#7a5a00',border:'1px solid #f5c97a'}}>{isEn?(!commOverridesOn?'Content editing is not enabled for this community. Contact your global admin to enable it.':'You do not have permission to edit tooltips for this community.'):(!commOverridesOn?'La edición de contenido no está habilitada para esta comunidad. Contacta al administrador global para habilitarla.':'No tienes permiso para editar tooltips de esta comunidad.')}</div>}
               {(()=>{
                 const TOOLTIP_KEYS = ['reportIncident','addListing','aptNumber','listingEmail','ownerWhatsapp','operator','operatorEmail','operatorWhatsapp','incidentApartment','incidentType','incidentCategory','incidentDescription','verifyIncident','resolveIncident'];
@@ -7337,7 +7260,7 @@ function AdminSettings({ config={}, user, listings=[], contactProps={}, onSave, 
                 const commTipsEs = getCommJsonObj('tooltips_es');
                 const commTipsEn = getCommJsonObj('tooltips_en');
                 return (
-                  <div className="table-wrap">
+                  <div className="table-wrap" style={!commOverridesOn?{pointerEvents:'none',opacity:0.5,userSelect:'none'}:{}}>
                     <table className="admin-table">
                       <thead><tr><th>{isEn?'Field':'Campo'}</th><th>{isEn?'Spanish (ES)':'Español (ES)'} <span style={{fontSize:'.65rem',color:'#d9b45a'}}>community</span></th><th>English (EN) <span style={{fontSize:'.65rem',color:'#d9b45a'}}>community</span></th></tr></thead>
                       <tbody>
@@ -7362,7 +7285,7 @@ function AdminSettings({ config={}, user, listings=[], contactProps={}, onSave, 
             </AdminSection>
 
             {/* ── Email Templates (community) ── */}
-            <AdminSection title={`📨 ${isEn?'Email Templates':'Plantillas de email'}`} subtitle={isEn?'Override email notification templates for this community.':'Sobreescribe las plantillas de email para esta comunidad.'} action={null} open={openSections.commTpl} onToggle={()=>{ toggleSection('commTpl'); if(!communityTplData[activeCommId])loadCommunityTemplates(activeCommId); }}>
+            <AdminSection title={`📨 ${isEn?'Email Templates':'Plantillas de email'}`} subtitle={isEn?'Override email notification templates for this community.':'Sobreescribe las plantillas de email para esta comunidad.'} action={!commOverridesOn?<span style={{fontSize:'.72rem',color:'#7a5a00'}}>🔒 {isEn?'Read-only':'Solo lectura'}</span>:null} open={openSections.commTpl} onToggle={()=>{ toggleSection('commTpl'); if(!communityTplData[activeCommId])loadCommunityTemplates(activeCommId); }}>
               {(()=>{
                 const tplD = communityTplData[activeCommId];
                 const tplLang = communityTplLang[activeCommId] || 'es-CO';
@@ -7371,7 +7294,7 @@ function AdminSettings({ config={}, user, listings=[], contactProps={}, onSave, 
                 if (!tplD && communityTplLoading[activeCommId]) return <div style={{color:'#6b9ba8',fontSize:'.82rem'}}><span className="spinner-sm"/> {isEn?'Loading…':'Cargando…'}</div>;
                 if (!tplD) return <div style={{padding:'12px 0'}}><button className="btn-ghost" onClick={()=>loadCommunityTemplates(activeCommId)}>{isEn?'Load templates':'Cargar plantillas'}</button></div>;
                 return (
-                  <div>
+                  <div style={!commOverridesOn?{pointerEvents:'none',opacity:0.5,userSelect:'none'}:{}}>
                     <div style={{display:'flex',gap:8,marginBottom:8,flexWrap:'wrap',alignItems:'center'}}>
                       <select value={tplLang} onChange={e=>{setCommunityTplLang(p=>({...p,[activeCommId]:e.target.value}));loadCommunityTemplates(activeCommId,e.target.value);}} style={{padding:'3px 8px',borderRadius:6,border:'1px solid #cce7ee',fontSize:'.78rem'}}>
                         <option value="es-CO">Español</option>
@@ -7483,7 +7406,7 @@ function AdminSettings({ config={}, user, listings=[], contactProps={}, onSave, 
           </button>
           {!communityConfigData[c.id] && <button className="btn-ghost" style={{fontSize:'.72rem',padding:'2px 10px'}} onClick={()=>loadCommunityConfig(c.id)}>↻ {isEn?'Load status':'Cargar estado'}</button>}
         </div>
-        {/* Members — expandable list with search */}
+        {/* Members — expandable table with search */}
         <div style={{marginTop:8,borderTop:'1px solid #e8f4f8',paddingTop:8}}>
           <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
             <button className="btn-ghost" style={{fontSize:'.75rem',padding:'3px 10px'}}
@@ -7496,31 +7419,82 @@ function AdminSettings({ config={}, user, listings=[], contactProps={}, onSave, 
             {communityMembers[c.id] && <span style={{fontSize:'.72rem',color:'#6b9ba8'}}>{communityMembers[c.id].filter(m=>m.isCommunityAdmin).length} {isEn?'admins':'admins'}</span>}
             {communityMembersLoading[c.id] && <span className="spinner-sm"/>}
           </div>
-          {commMemberOpen[c.id] && communityMembers[c.id] && (
-            <div style={{marginTop:8}}>
-              <input placeholder={isEn?'Search by name, unit, email, WhatsApp…':'Buscar por nombre, unidad, email, WhatsApp…'}
-                value={commMemberSearch[c.id]||''}
-                onChange={e=>setCommMemberSearch(p=>({...p,[c.id]:e.target.value}))}
-                style={{width:'100%',boxSizing:'border-box',padding:'6px 10px',borderRadius:6,border:'1px solid #cce7ee',fontSize:'.8rem',marginBottom:8}}/>
-              <div style={{maxHeight:220,overflowY:'auto',display:'flex',flexDirection:'column',gap:4}}>
-                {communityMembers[c.id]
-                  .filter(m=>{
-                    const q=(commMemberSearch[c.id]||'').trim().toLowerCase();
-                    if(!q)return true;
-                    return [(m.name||'').toLowerCase(),(m.email||'').toLowerCase(),(m.aptNumber||m.unit||'').toLowerCase(),(m.whatsapp||'').toLowerCase()].some(v=>v.includes(q));
-                  })
-                  .map(m=>(
-                    <div key={m.uid||m.user_uid} style={{display:'flex',alignItems:'center',gap:8,padding:'4px 8px',borderRadius:6,background:'#f5fbfd',fontSize:'.78rem'}}>
-                      <span style={{flex:1,fontWeight:600,color:'#17313a'}}>{m.name||m.email}</span>
-                      {m.isCommunityAdmin&&<span className="chip c-teal" style={{fontSize:'.65rem',padding:'1px 6px'}}>admin</span>}
-                      {m.aptNumber&&<span style={{color:'#6b9ba8'}}>🏠 {m.aptNumber}</span>}
-                      {m.email&&<span style={{color:'#8a9fa5',fontSize:'.72rem'}}>{m.email}</span>}
-                      {m.whatsapp&&<span style={{color:'#8a9fa5',fontSize:'.72rem'}}>📱 {m.whatsapp}</span>}
-                    </div>
-                  ))}
+          {commMemberOpen[c.id] && (()=>{
+            const mems = communityMembers[c.id] || [];
+            const mLoading = communityMembersLoading[c.id];
+            const mSearch = (commMemberSearch[c.id]||'').trim().toLowerCase();
+            const filtered = mems.filter(m=>{
+              if(!mSearch) return true;
+              return (m.name||'').toLowerCase().includes(mSearch)
+                || (m.userEmail||'').toLowerCase().includes(mSearch)
+                || (m.whatsapp||'').toLowerCase().includes(mSearch)
+                || (m.apts||[]).some(a=>(a||'').toLowerCase().includes(mSearch))
+                || (m.isCommunityAdmin?'admin':'owner').includes(mSearch)
+                || (m.platformRole||'').toLowerCase().includes(mSearch);
+            });
+            if(mLoading) return <div style={{color:'#6b9ba8',fontSize:'.82rem',padding:'8px 0'}}><span className="spinner-sm"/> {isEn?'Loading…':'Cargando…'}</div>;
+            if(!mems.length) return <div style={{padding:'12px 0',color:'#8a9fa5',fontSize:'.85rem'}}>{isEn?'No members found.':'No se encontraron miembros.'} <button className="btn-ghost" style={{fontSize:'.75rem',padding:'3px 10px',marginLeft:8}} onClick={()=>loadCommunityMembers(c.id)}>↻ {isEn?'Reload':'Recargar'}</button></div>;
+            return (
+              <div style={{marginTop:8}}>
+                <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:8,flexWrap:'wrap'}}>
+                  <input className="search" placeholder={isEn?'Search by name, unit, email, WhatsApp…':'Buscar por nombre, unidad, email, WhatsApp…'}
+                    value={commMemberSearch[c.id]||''}
+                    onChange={e=>setCommMemberSearch(p=>({...p,[c.id]:e.target.value}))}
+                    style={{flex:'1 1 240px',maxWidth:380}}/>
+                  <span style={{fontSize:'.72rem',color:'#6b9ba8',flexShrink:0}}>{filtered.length}/{mems.length} {isEn?'members':'miembros'}</span>
+                  <button className="btn-ghost" style={{fontSize:'.72rem',padding:'2px 8px'}} onClick={()=>loadCommunityMembers(c.id)}>↻</button>
+                </div>
+                <div style={{overflowX:'auto'}}>
+                  <table className="admin-table" style={{width:'100%'}}>
+                    <thead><tr>
+                      <th>{isEn?'Name':'Nombre'}</th>
+                      <th>{isEn?'Unit(s)':'Unidad(es)'}</th>
+                      <th>Email</th>
+                      <th>WhatsApp</th>
+                      <th>{isEn?'Role(s)':'Rol(es)'}</th>
+                      <th>{isEn?'Actions':'Acciones'}</th>
+                    </tr></thead>
+                    <tbody>
+                      {filtered.map(m=>{
+                        const mUid = m.userUid||m.uid||m.userEmail;
+                        const mEmail = m.userEmail||'—';
+                        const isGlobal = m.platformRole==='global_admin';
+                        const isDelegate = m.platformRole==='delegate_admin';
+                        const isCA = m.isCommunityAdmin;
+                        return (
+                          <tr key={mUid||mEmail}>
+                            <td style={{fontWeight:700,color:'#17313a'}}>{m.name||'—'}</td>
+                            <td style={{fontSize:'.82rem',color:'#2a5a6a'}}>{(m.apts||[]).length?(m.apts||[]).join(', '):'—'}</td>
+                            <td style={{fontSize:'.78rem',color:'#17313a',wordBreak:'break-all'}}>{mEmail}</td>
+                            <td style={{fontSize:'.78rem',color:'#17313a'}}>{m.whatsapp||'—'}</td>
+                            <td>
+                              <div style={{display:'flex',gap:4,flexWrap:'wrap'}}>
+                                {isGlobal && <span style={{background:'#e8f0fe',color:'#3b5bdb',borderRadius:999,padding:'2px 8px',fontSize:'.72rem',fontWeight:700}}>🌐 Global</span>}
+                                {isDelegate && <span style={{background:'#f3e8ff',color:'#7c3aed',borderRadius:999,padding:'2px 8px',fontSize:'.72rem',fontWeight:700}}>🛡️ Delegate</span>}
+                                {isCA && <span style={{background:'#fef9c3',color:'#854d0e',borderRadius:999,padding:'2px 8px',fontSize:'.72rem',fontWeight:700}}>🏢 Admin</span>}
+                                {!isGlobal && !isDelegate && !isCA && <span style={{background:'#f0f8fb',color:'#2a5a6a',borderRadius:999,padding:'2px 8px',fontSize:'.72rem'}}>🏠 {isEn?'Owner':'Propietario'}</span>}
+                              </div>
+                            </td>
+                            <td>
+                              {!isGlobal && mUid && (
+                                isCA
+                                  ? <button className="btn-ghost" style={{fontSize:'.72rem',padding:'3px 10px',color:'#9d1f16'}} onClick={async()=>{
+                                      try{await api.del(`/api/communities/${c.id}/members/${encodeURIComponent(mUid)}/promote`,{actorUid:user.uid,actorEmail:user.email});showToast(isEn?'✅ Demoted to owner':'✅ Degradado a propietario');loadCommunityMembers(c.id);}catch(e){showToast(e.message||String(e),true);}
+                                    }}>↓ {isEn?'Demote':'Degradar'}</button>
+                                  : <button className="btn-ghost" style={{fontSize:'.72rem',padding:'3px 10px',color:'#2F4F3A'}} onClick={async()=>{
+                                      try{await api.post(`/api/communities/${c.id}/members/${encodeURIComponent(mUid)}/promote`,{actorUid:user.uid,actorEmail:user.email});showToast(isEn?'✅ Promoted to community admin':'✅ Promovido a admin de comunidad');loadCommunityMembers(c.id);}catch(e){showToast(e.message||String(e),true);}
+                                    }}>↑ {isEn?'Promote':'Promover'}</button>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
               </div>
-            </div>
-          )}
+            );
+          })()}
         </div>
         {/* Community settings are edited inline in Mission / UI Labels / Tooltips sections above */}
         {false && <div style={{marginTop:8,borderTop:'1px solid #e8f4f8',paddingTop:8}}>
@@ -7811,7 +7785,7 @@ function AdminSettings({ config={}, user, listings=[], contactProps={}, onSave, 
     <div className="fg2"><div className="fg"><label>⏱️ {lt(lang,'SLA en horas')}</label><input type="number" min="1" value={slaHours} onChange={e=>setSlaHours(e.target.value)}/><span className="help-msg">{lt(lang,'Default: 24 horas.')}</span></div><div className="fg full"><label>✉️ {lt(lang,'Emails en copia para escalaciones')}</label><input value={escalationCcEmails} onChange={e=>setEscalationCcEmails(e.target.value)} placeholder="admin1@email.com, admin2@email.com"/><span className="help-msg">{lt(lang,'Se copian en cada recordatorio SLA, además del propietario y operador.')}</span></div><div className="fg full"><label>📈 {lt(lang,'Visibilidad de analíticas')}</label><select value={analyticsEnabled?"true":"false"} onChange={e=>setAnalyticsEnabled(e.target.value==="true")}><option value="false">{lt(lang,'Solo administrador global')}</option><option value="true">{lt(lang,'Todos los usuarios aprobados')}</option></select><span className="help-msg">{lt(lang,'El administrador global puede activar o desactivar las analíticas para toda la comunidad.')}</span></div></div>
   </AdminSection>
 
-  <AdminSection title={`🌊 ${lt(lang,'Misión y reglas de participación')}`} subtitle={lt(lang,'Edita la misión en Español e Inglés de forma independiente.')} action={<button className="btn-p" style={{minHeight:36,padding:'6px 14px'}} onClick={saveConfig}>💾 {lt(lang,'Guardar')}</button>} open={openSections.mission} onToggle={()=>toggleSection('mission')}>
+  <AdminSection title={`🌊 ${lt(lang,'Misión y reglas de participación')}`} subtitle={lt(lang,'Edita la misión en Español e Inglés de forma independiente.')} action={<button className="btn-p" style={{minHeight:36,padding:'6px 14px'}} onClick={saveConfig}>💾 {isEn?'Save':'Guardar'}</button>} open={openSections.mission} onToggle={()=>toggleSection('mission')}>
     <div style={{display:'flex',gap:6,marginBottom:14}}>
       <button className={`fchip${missionLang==='es'?' fchip-on':''}`} onClick={()=>setMissionLang('es')}>🇨🇴 Español</button>
       <button className={`fchip${missionLang==='en'?' fchip-on':''}`} onClick={()=>setMissionLang('en')}>🇺🇸 English</button>
