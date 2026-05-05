@@ -386,7 +386,7 @@ const isCommunityAdmin = async (uid='', email='', communityId='kai') => {
   } catch(e) { return false; }
 };
 const COMMUNITY_ADMIN_PERM_DEFAULTS = { canApproveRegistrations:true, canResolveIncidents:true, canManageListings:false };
-const OVERRIDABLE_COMMUNITY_KEYS = ['mission_title_es','mission_body_es','mission_title_en','mission_body_en','mission_sections_es','escalation_cc_emails','community_admin_default_permissions','tooltips_es','tooltips_en','ui_labels_es','ui_labels_en'];
+const OVERRIDABLE_COMMUNITY_KEYS = ['mission_title_es','mission_body_es','mission_title_en','mission_body_en','mission_sections_es','mission_sections_en','escalation_cc_emails','community_admin_default_permissions','tooltips_es','tooltips_en','ui_labels_es','ui_labels_en'];
 const hasCommunityAdminPerm = async (uid='', email='', communityId='kai', permKey='') => {
   if (!uid && !email) return false;
   try {
@@ -1636,7 +1636,7 @@ app.get('/api/admin/me', async (req, res) => {
 
 app.put('/api/admin/config', async (req, res) => {
   if (!requireSupabaseEnv(res)) return;
-  const { actorUid, actorEmail, slaHours, escalationCcEmails, analyticsEnabled, missionTitle, missionBody, missionTitleEs, missionBodyEs, missionTitleEn, missionBodyEn, missionSectionsEs, standardMenuPermissions, defaultDelegatePermissions, communityAdminDefaultPermissions, tooltipsEs, tooltipsEn, uiLabelsEs, uiLabelsEn, complexNameEs, complexNameEn, complexLocation, complexLogo, complexBg, emailFromName, emailFromAddress, emailFromNameEn, emailFromAddressEn, nav_config, communityFeatureEnabled, defaultCommunityId } = req.body || {};
+  const { actorUid, actorEmail, slaHours, escalationCcEmails, analyticsEnabled, missionTitle, missionBody, missionTitleEs, missionBodyEs, missionTitleEn, missionBodyEn, missionSectionsEs, missionSectionsEn, standardMenuPermissions, defaultDelegatePermissions, communityAdminDefaultPermissions, tooltipsEs, tooltipsEn, uiLabelsEs, uiLabelsEn, complexNameEs, complexNameEn, complexLocation, complexLogo, complexBg, emailFromName, emailFromAddress, emailFromNameEn, emailFromAddressEn, nav_config, communityFeatureEnabled, defaultCommunityId } = req.body || {};
   if (!(await isGlobalAdmin(actorUid, actorEmail))) return res.status(403).json({ error:'Solo un administrador global puede cambiar la configuración.' });
   const before = await getAppConfig();
   const rows = [];
@@ -1650,6 +1650,7 @@ app.put('/api/admin/config', async (req, res) => {
   if (missionTitleEn !== undefined) rows.push({ key:'mission_title_en', value:String(missionTitleEn || '') });
   if (missionBodyEn !== undefined) rows.push({ key:'mission_body_en', value:String(missionBodyEn || '') });
   if (missionSectionsEs !== undefined) rows.push({ key:'mission_sections_es', value: typeof missionSectionsEs === 'string' ? missionSectionsEs : JSON.stringify(missionSectionsEs) });
+  if (missionSectionsEn !== undefined) rows.push({ key:'mission_sections_en', value: typeof missionSectionsEn === 'string' ? missionSectionsEn : JSON.stringify(missionSectionsEn) });
   if (standardMenuPermissions !== undefined) rows.push({ key:'standard_menu_permissions', value: JSON.stringify(safeJsonObject(standardMenuPermissions, DEFAULT_STANDARD_MENU_PERMISSIONS)) });
   if (defaultDelegatePermissions !== undefined) rows.push({ key:'default_delegate_permissions', value: JSON.stringify(safeJsonObject(defaultDelegatePermissions, DEFAULT_DELEGATE_PERMISSIONS)) });
   if (communityAdminDefaultPermissions !== undefined) rows.push({ key:'default_community_admin_permissions', value: JSON.stringify(safeJsonObject(communityAdminDefaultPermissions, COMMUNITY_ADMIN_PERM_DEFAULTS)) });
@@ -2293,28 +2294,32 @@ app.get('/api/communities/:id/members', async (req, res) => {
   const { uid, email } = req.query || {};
   if (!(await isCommunityAdmin(uid, email, req.params.id))) return res.status(403).json({ error:'Solo un administrador puede ver los miembros de la comunidad.' });
   // Derive members from approved listings (listings uses owner_uid / email, not user_uid / user_email)
-  const { data: listings, error: lErr } = await supabase.from('listings').select('owner_uid,email,registration_id,created_at,name').eq('community_id', req.params.id).eq('status','approved').order('created_at', { ascending:true });
+  const { data: listings, error: lErr } = await supabase.from('listings').select('owner_uid,email,registration_id,created_at,name,apt,operator_whatsapp').eq('community_id', req.params.id).eq('status','approved').order('created_at', { ascending:true });
   if (lErr) return sendSupabaseError(res, lErr);
   // Collect unique users (one entry per owner_uid; a user may own multiple listings)
   const seen = new Set();
   const uniqueUsers = [];
+  const ownerApts = {};
   for (const l of (listings||[])) {
     const key = l.owner_uid || l.email;
-    if (key && !seen.has(key)) { seen.add(key); uniqueUsers.push(l); }
+    if (!key) continue;
+    if (l.apt) { if (!ownerApts[key]) ownerApts[key]=[]; ownerApts[key].push(l.apt); }
+    if (!seen.has(key)) { seen.add(key); uniqueUsers.push(l); }
   }
   // Overlay community_memberships to get community_admin status
   const { data: admins } = await supabase.from('community_memberships').select('*').eq('community_id', req.params.id);
   const adminMap = {};
   (admins||[]).forEach(a => { adminMap[a.user_uid] = a; });
-  // Enrich with app_users for display name and platform role (delegate_admin etc.)
+  // Enrich with app_users for display name, whatsapp and platform role
   const uids = uniqueUsers.map(u => u.owner_uid).filter(Boolean);
   let userMap = {};
   if (uids.length) {
-    const { data: appUsers } = await supabase.from('app_users').select('uid,name,language_preference,role').in('uid', uids);
+    const { data: appUsers } = await supabase.from('app_users').select('uid,name,language_preference,role,whatsapp').in('uid', uids);
     (appUsers||[]).forEach(u => { userMap[u.uid] = u; });
   }
   const globalAdminSet = new Set(getGlobalAdminEmails());
   const members = uniqueUsers.map(u => {
+    const key = u.owner_uid || u.email;
     const communityAdminEntry = u.owner_uid ? adminMap[u.owner_uid] : null;
     const appUser = u.owner_uid ? userMap[u.owner_uid] : null;
     const memberEmail = (u.email || appUser?.email || '').toLowerCase();
@@ -2323,7 +2328,9 @@ app.get('/api/communities/:id/members', async (req, res) => {
     return {
       userUid: u.owner_uid,
       userEmail: u.email,
-      name: appUser?.name || '',
+      name: appUser?.name || u.name || '',
+      whatsapp: appUser?.whatsapp || u.operator_whatsapp || '',
+      apts: ownerApts[key] || [],
       languagePreference: appUser?.language_preference || 'es-CO',
       platformRole,
       joinedAt: u.created_at,
