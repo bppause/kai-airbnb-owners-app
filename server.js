@@ -403,7 +403,7 @@ const getUserCommunities = async (uid='', email='') => {
   const role = await getUserRole({ uid, email });
   if (role === 'global_admin') {
     try {
-      const { data } = await supabase.from('communities').select('*').eq('is_active', true).order('name');
+      const { data } = await supabase.from('communities').select('*').order('name');
       return data || [];
     } catch(e) { return []; }
   }

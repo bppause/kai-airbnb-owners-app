@@ -6373,6 +6373,7 @@ function AdminSettings({ config={}, user, listings=[], contactProps={}, onSave, 
   const [communityConfigDraft, setCommunityConfigDraft] = useState({}); // {cid: {key: value}}
   const [communityOverridesEnabled, setCommunityOverridesEnabled] = useState({}); // {cid: bool}
   const [communityConfigTab, setCommunityConfigTab] = useState({}); // {cid: tabId}
+  const [commMissionLang, setCommMissionLang] = useState('es'); // 'es' | 'en' tab in community mission section
   const [communityTplOpen, setCommunityTplOpen] = useState({});
   const [communityTplData, setCommunityTplData] = useState({});
   const [communityTplLoading, setCommunityTplLoading] = useState({});
@@ -6847,10 +6848,16 @@ function AdminSettings({ config={}, user, listings=[], contactProps={}, onSave, 
                 const cm = getCommMission();
                 return (
                   <div>
-                    <div style={{marginBottom:10,padding:'6px 12px',background:'#f0f8fb',borderRadius:8,fontSize:'.76rem',color:'#2a5a6a',border:'1px solid #cce7ee'}}>
-                      🌐 = {isEn?'using global value':'usando valor global'} &nbsp;·&nbsp; 🏷️ = {isEn?'community override':'override de comunidad'}
+                    <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:10,flexWrap:'wrap'}}>
+                      <div style={{flex:1,padding:'6px 12px',background:'#f0f8fb',borderRadius:8,fontSize:'.76rem',color:'#2a5a6a',border:'1px solid #cce7ee'}}>
+                        🌐 = {isEn?'using global value':'usando valor global'} &nbsp;·&nbsp; 🏷️ = {isEn?'community override':'override de comunidad'}
+                      </div>
+                      <div style={{display:'flex',gap:6}}>
+                        <button className={`fchip${commMissionLang==='es'?' fchip-on':''}`} onClick={()=>setCommMissionLang('es')}>🇨🇴 Español</button>
+                        <button className={`fchip${commMissionLang==='en'?' fchip-on':''}`} onClick={()=>setCommMissionLang('en')}>🇺🇸 English</button>
+                      </div>
                     </div>
-                    <div className="card-title" style={{margin:'12px 0 8px'}}>🇨🇴 Español</div>
+                    {commMissionLang==='es' && <>
                     <div className="fg2">
                       {[
                         {field:'title',label:isEn?'Title':'Título',rows:2},
@@ -6899,8 +6906,8 @@ function AdminSettings({ config={}, user, listings=[], contactProps={}, onSave, 
                         <button className="btn-ghost" onClick={()=>addCommMissionRule('accessRules')}>+ {isEn?'Add rule':'Agregar regla'}</button>
                       </div>
                     </div>
-                    <div className="card-title" style={{margin:'12px 0 8px'}}>🇺🇸 English</div>
-                    <div className="fg2">
+                    </>}
+                    {commMissionLang==='en' && <div className="fg2">
                       {[
                         {key:'mission_title_en',label:'Mission title (EN)',rows:2},
                         {key:'mission_body_en',label:'Mission body (EN)',rows:4},
@@ -6918,7 +6925,7 @@ function AdminSettings({ config={}, user, listings=[], contactProps={}, onSave, 
                             style={{width:'100%',boxSizing:'border-box'}}/>
                         </div>
                       ))}
-                    </div>
+                    </div>}
                   </div>
                 );
               })()}
