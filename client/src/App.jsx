@@ -6079,6 +6079,8 @@ function AdminSettings({ config={}, user, listings=[], contactProps={}, onSave, 
   const [communityMembersOpen, setCommunityMembersOpen] = useState({});
   const [communityMembers, setCommunityMembers] = useState({});
   const [communityMembersLoading, setCommunityMembersLoading] = useState({});
+  const [commMemberSearch, setCommMemberSearch] = useState({});
+  const [commMemberOpen, setCommMemberOpen] = useState({});
   const [memberPermsEditing, setMemberPermsEditing] = useState({});  // {cid_uid: permissions obj}
   const [communityConfigData, setCommunityConfigData] = useState({}); // {cid: {globalValues, communityOverrides, overridesEnabled}}
   const [communityConfigLoading, setCommunityConfigLoading] = useState({});
