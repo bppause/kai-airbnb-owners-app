@@ -186,15 +186,20 @@ const getUserLanguageByEmail = async (email='') => {
     return normalizeLanguage(data?.language_preference || 'es-CO');
   } catch(e) { return 'es-CO'; }
 };
-const getEmailTemplates = async (language='es-CO') => {
+const getEmailTemplates = async (language='es-CO', communityId='__global__') => {
   const lang = normalizeLanguage(language);
   const merged = { ...(lang === 'en' ? DEFAULT_EMAIL_TEMPLATES_EN : DEFAULT_EMAIL_TEMPLATES) };
+  const applyRows = (rows) => (rows||[]).forEach(t => {
+    if (merged[t.key]) merged[t.key] = { ...merged[t.key], label:t.label || merged[t.key].label, subject:t.subject || merged[t.key].subject, text:t.text || merged[t.key].text, html:t.html || merged[t.key].html };
+  });
   try {
-    const { data, error } = await supabase.from('email_templates').select('key,label,subject,text,html,language').eq('language', lang);
-    if (!error) (data||[]).forEach(t => {
-      if (merged[t.key]) merged[t.key] = { ...merged[t.key], label:t.label || merged[t.key].label, subject:t.subject || merged[t.key].subject, text:t.text || merged[t.key].text, html:t.html || merged[t.key].html };
-    });
-    if (error) warn('Email template read failed: ' + error.message);
+    const { data: globalData, error: ge } = await supabase.from('email_templates').select('key,label,subject,text,html,language').eq('language', lang).eq('community_id', '__global__');
+    if (ge) warn('Email template read failed: ' + ge.message);
+    else applyRows(globalData);
+    if (communityId && communityId !== '__global__') {
+      const { data: communityData } = await supabase.from('email_templates').select('key,label,subject,text,html,language').eq('language', lang).eq('community_id', communityId);
+      applyRows(communityData);
+    }
   } catch(e) { warn('Email template read failed: ' + (e?.message || e)); }
   return merged;
 };
@@ -214,7 +219,7 @@ const logEmailDelivery = async ({ eventType='', recipients=[], subject='', statu
     });
   } catch(e) { warn('Email delivery log failed: ' + (e?.message || e)); }
 };
-const sendTemplatedEmail = async ({ key, to, vars={}, language='auto', relatedEntity='', relatedId='' }) => {
+const sendTemplatedEmail = async ({ key, to, vars={}, language='auto', relatedEntity='', relatedId='', communityId='__global__' }) => {
   const recipients = normalizeRecipients(to);
   if (!recipients.length) {
     await logEmailDelivery({ eventType:key, recipients, subject:'', status:'skipped', errorMessage:'No recipient email provided', relatedEntity, relatedId });
@@ -222,7 +227,7 @@ const sendTemplatedEmail = async ({ key, to, vars={}, language='auto', relatedEn
   }
   const groups = {};
   if (language && language !== 'auto') {
-    groups[normalizeLanguage(language)] = recipients;
+    groups[normalizeLanguage(language)] = [...recipients];
   } else {
     for (const r of recipients) {
       const lang = await getUserLanguageByEmail(r);
@@ -230,9 +235,24 @@ const sendTemplatedEmail = async ({ key, to, vars={}, language='auto', relatedEn
       groups[lang].push(r);
     }
   }
+  // Apply community email routing CC overrides
+  if (communityId && communityId !== '__global__') {
+    try {
+      const { data: routingRow } = await supabase.from('community_config').select('value').eq('community_id', communityId).eq('key', 'community_email_routing').maybeSingle();
+      if (routingRow?.value) {
+        const routing = safeJsonObject(routingRow.value, {});
+        const eventCc = normalizeRecipients((routing[key] || {}).cc || []);
+        for (const cc of eventCc) {
+          const ccLang = await getUserLanguageByEmail(cc);
+          groups[ccLang] = groups[ccLang] || [];
+          if (!groups[ccLang].includes(cc)) groups[ccLang].push(cc);
+        }
+      }
+    } catch(e) { warn('Community email routing failed: ' + (e?.message || e)); }
+  }
   const results = [];
   for (const [lang, recips] of Object.entries(groups)) {
-    const templates = await getEmailTemplates(lang);
+    const templates = await getEmailTemplates(lang, communityId);
     const defaults = lang === 'en' ? DEFAULT_EMAIL_TEMPLATES_EN : DEFAULT_EMAIL_TEMPLATES;
     const t = templates[key] || defaults[key];
     if (!t) throw new Error('Email template not found: ' + key);
@@ -364,7 +384,7 @@ const isCommunityAdmin = async (uid='', email='', communityId='kai') => {
   } catch(e) { return false; }
 };
 const COMMUNITY_ADMIN_PERM_DEFAULTS = { canApproveRegistrations:true, canResolveIncidents:true, canManageListings:false };
-const OVERRIDABLE_COMMUNITY_KEYS = ['mission_title_es','mission_body_es','mission_title_en','mission_body_en','mission_sections_es','escalation_cc_emails','community_admin_default_permissions'];
+const OVERRIDABLE_COMMUNITY_KEYS = ['mission_title_es','mission_body_es','mission_title_en','mission_body_en','mission_sections_es','escalation_cc_emails','community_admin_default_permissions','tooltips_es','tooltips_en','ui_labels_es','ui_labels_en'];
 const hasCommunityAdminPerm = async (uid='', email='', communityId='kai', permKey='') => {
   if (!uid && !email) return false;
   try {
@@ -443,7 +463,7 @@ const buildSplitRecipients = async (typeCfg, listing, reporterEmail='', communit
 // Send individual private emails + one group admin email for an incident event.
 // Each individual (reporter/owner/operator) gets their own private email so they
 // cannot see who else was notified.  Admin group receives one combined email.
-const sendSplitEmail = async ({ key, individual, group, vars, relatedEntity, relatedId }) => {
+const sendSplitEmail = async ({ key, individual, group, vars, relatedEntity, relatedId, communityId='__global__' }) => {
   if (!emailConfigured) return { sent:false, skipped:true, reason:'Resend email is not configured.' };
   const results = [];
 
@@ -451,7 +471,7 @@ const sendSplitEmail = async ({ key, individual, group, vars, relatedEntity, rel
   for (const email of individual) {
     try {
       const lang = await getUserLanguageByEmail(email);
-      const templates = await getEmailTemplates(lang);
+      const templates = await getEmailTemplates(lang, communityId);
       const defaults = lang === 'en' ? DEFAULT_EMAIL_TEMPLATES_EN : DEFAULT_EMAIL_TEMPLATES;
       const t = templates[key] || defaults[key];
       if (!t) continue;
@@ -464,10 +484,10 @@ const sendSplitEmail = async ({ key, individual, group, vars, relatedEntity, rel
     } catch(e) { warn(`Individual email (${key}) to ${email} failed: ${e?.message||e}`); }
   }
 
-  // One combined email for the admin group
+  // One combined email for the admin group (includes community routing CC)
   if (group.length) {
     try {
-      const result = await sendTemplatedEmail({ key, to:group, vars, relatedEntity, relatedId });
+      const result = await sendTemplatedEmail({ key, to:group, vars, relatedEntity, relatedId, communityId });
       results.push(result);
     } catch(e) { warn(`Group email (${key}) failed: ${e?.message||e}`); }
   }
@@ -482,28 +502,30 @@ const sendIncidentEmail = async ({ listing, incident, appUrl, isEscalation=false
   const notifCfg = await getEmailNotificationConfig();
   const typeCfg = notifCfg[key];
   if (!typeCfg.enabled) return { sent:false, skipped:true, reason:`Email type '${key}' is disabled.` };
+  const communityId = listing.community_id || '__global__';
   const reporterEmail = await getReporterEmail(incident.reporterUid);
-  const { individual, group } = await buildSplitRecipients(typeCfg, listing, reporterEmail);
+  const { individual, group } = await buildSplitRecipients(typeCfg, listing, reporterEmail, communityId);
   if (!individual.length && !group.length) return { sent:false, skipped:true, reason:'No recipients.' };
   const apt = listing.apt || String(incident.aptLabel || '').replace(/[^0-9]/g,'');
   const incidentLink = appUrl + '/?view=incidents&incident=' + incident.id;
   const pendingStepLabel   = incident.pendingStepLabel   || (incident.status==='open' ? 'Step 1: Verify the incident — confirm guest details and document your immediate action' : 'Step 2: Add your resolution — describe how you resolved this so admin can close it');
   const pendingStepLabelEs = incident.pendingStepLabelEs || (incident.status==='open' ? 'Paso 1: Verifica el incidente — confirma los datos del huésped y documenta tu acción inmediata' : 'Paso 2: Agrega tu respuesta — describe cómo resolviste el incidente para que el admin pueda cerrarlo');
   const vars = { apt, owner:listing.owner||'', operator:listing.operator||'No indicado', operatorEmail:listing.operatorEmail||listing.operator_email||'', guestName:incident.guestName||'', date:incident.date||'', type:incident.type||'', category:incident.category||'', status:incident.status||'open', desc:incident.desc||'', incidentLink, slaCycleCount:String(incident.slaCycleCount||incident.sla_cycle_count||''), pendingStep:incident.pendingStep||(incident.status==='open'?'step1':'step2'), pendingStepLabel, pendingStepLabelEs };
-  return sendSplitEmail({ key, individual, group, vars, relatedEntity:'incident', relatedId:incident.id });
+  return sendSplitEmail({ key, individual, group, vars, relatedEntity:'incident', relatedId:incident.id, communityId });
 };
 
 const sendIncidentVerifiedEmail = async ({ listing, incident, appUrl }) => {
   const notifCfg = await getEmailNotificationConfig();
   const typeCfg = notifCfg['incident_verified'];
   if (!typeCfg.enabled) return { sent:false, skipped:true, reason:"Email type 'incident_verified' is disabled." };
+  const communityId = listing.community_id || '__global__';
   const reporterEmail = await getReporterEmail(incident.reporterUid);
-  const { individual, group } = await buildSplitRecipients(typeCfg, listing, reporterEmail);
+  const { individual, group } = await buildSplitRecipients(typeCfg, listing, reporterEmail, communityId);
   if (!individual.length && !group.length) return { sent:false, skipped:true, reason:'No recipients.' };
   const apt = listing.apt || String(incident.aptLabel || '').replace(/[^0-9]/g,'');
   const incidentLink = appUrl + '/?view=incidents&incident=' + incident.id;
   const vars = { apt, owner:listing.owner||'', operator:listing.operator||'No indicado', operatorEmail:listing.operatorEmail||listing.operator_email||'', ownerGuestNames:incident.ownerGuestNames||'', ownerGuestCity:incident.ownerGuestCity||'', ownerGuestCountry:incident.ownerGuestCountry||'', ownerComments:incident.ownerComments||'', ownerAnswer:incident.ownerResolution||'', incidentLink };
-  return sendSplitEmail({ key:'incident_verified', individual, group, vars, relatedEntity:'incident', relatedId:incident.id });
+  return sendSplitEmail({ key:'incident_verified', individual, group, vars, relatedEntity:'incident', relatedId:incident.id, communityId });
 };
 
 // Step 2 complete: owner added resolution — notifies all parties that incident is ready to close.
@@ -511,26 +533,28 @@ const sendIncidentResolutionAddedEmail = async ({ listing, incident, appUrl }) =
   const notifCfg = await getEmailNotificationConfig();
   const typeCfg = notifCfg['incident_resolution_added'] || { enabled:true, reporter:true, owner:true, operator:true, globalAdmin:true, delegateAdmin:true };
   if (!typeCfg.enabled) return { sent:false, skipped:true, reason:"Email type 'incident_resolution_added' is disabled." };
+  const communityId = listing.community_id || '__global__';
   const reporterEmail = await getReporterEmail(incident.reporterUid);
-  const { individual, group } = await buildSplitRecipients(typeCfg, listing, reporterEmail);
+  const { individual, group } = await buildSplitRecipients(typeCfg, listing, reporterEmail, communityId);
   if (!individual.length && !group.length) return { sent:false, skipped:true, reason:'No recipients.' };
   const apt = listing.apt || String(incident.aptLabel || '').replace(/[^0-9]/g,'');
   const incidentLink = appUrl + '/?view=incidents&incident=' + incident.id;
   const vars = { apt, owner:listing.owner||'', operator:listing.operator||'No indicado', operatorEmail:listing.operatorEmail||listing.operator_email||'', ownerGuestNames:incident.ownerGuestNames||'', ownerGuestCity:incident.ownerGuestCity||'', ownerGuestCountry:incident.ownerGuestCountry||'', ownerComments:incident.ownerComments||'', ownerAnswer:incident.ownerResolution||'', incidentLink };
-  return sendSplitEmail({ key:'incident_resolution_added', individual, group, vars, relatedEntity:'incident', relatedId:incident.id });
+  return sendSplitEmail({ key:'incident_resolution_added', individual, group, vars, relatedEntity:'incident', relatedId:incident.id, communityId });
 };
 
 const sendIncidentResolvedEmail = async ({ listing, incident, appUrl }) => {
   const notifCfg = await getEmailNotificationConfig();
   const typeCfg = notifCfg['incident_resolved'];
   if (!typeCfg.enabled) return { sent:false, skipped:true, reason:"Email type 'incident_resolved' is disabled." };
+  const communityId = listing.community_id || '__global__';
   const reporterEmail = await getReporterEmail(incident.reporterUid);
-  const { individual, group } = await buildSplitRecipients(typeCfg, listing, reporterEmail);
+  const { individual, group } = await buildSplitRecipients(typeCfg, listing, reporterEmail, communityId);
   if (!individual.length && !group.length) return { sent:false, skipped:true, reason:'No recipients.' };
   const apt = listing.apt || String(incident.aptLabel || '').replace(/[^0-9]/g,'');
   const incidentLink = appUrl + '/?view=incidents&incident=' + incident.id;
   const vars = { apt, owner:listing.owner||'', operator:listing.operator||'No indicado', operatorEmail:listing.operatorEmail||listing.operator_email||'', resolvedBy:incident.resolvedBy||incident.resolved_by||'', resolutionComments:incident.resolutionComments||incident.resolution_comments||'', ownerAnswer:incident.ownerResolution||'', date:incident.date||'', type:incident.type||'', category:incident.category||'', incidentLink };
-  return sendSplitEmail({ key:'incident_resolved', individual, group, vars, relatedEntity:'incident', relatedId:incident.id });
+  return sendSplitEmail({ key:'incident_resolved', individual, group, vars, relatedEntity:'incident', relatedId:incident.id, communityId });
 };
 
 const sendListingChangeEmail = async ({ listing, action, appUrl }) => {
@@ -857,7 +881,7 @@ const sendRegistrationSubmittedEmail = async ({ registration, appUrl }) => {
   const communityId = registration.communityId || 'kai';
   const community = await getCommunity(communityId);
   const communityName = community?.name || communityId;
-  return sendTemplatedEmail({ key:'registration_submitted', to: registration.userEmail, vars: { userName:registration.userName || '', userEmail:registration.userEmail || '', registrationLink: appUrl + '/?view=registration', communityName } });
+  return sendTemplatedEmail({ key:'registration_submitted', to: registration.userEmail, vars: { userName:registration.userName || '', userEmail:registration.userEmail || '', registrationLink: appUrl + '/?view=registration', communityName }, communityId });
 };
 const sendRegistrationStatusEmail = async ({ registration, appUrl, communityId='kai' }) => {
   const approved = registration.status === 'approved';
@@ -879,7 +903,7 @@ const sendRegistrationStatusEmail = async ({ registration, appUrl, communityId='
       recips.push(...await getCommunityAdminEmails(communityId));
     }
   }
-  return sendTemplatedEmail({ key, to: normalizeRecipients(recips), vars: { userName:registration.userName || '', userEmail:registration.userEmail || '', reason, reasonLine: reason ? 'Motivo/nota: ' + reason : '', reasonHtml: reason ? '<p><strong>Motivo/nota:</strong> ' + reason + '</p>' : '', reasonLineEn: reason ? 'Reason/note: ' + reason : '', reasonHtmlEn: reason ? '<p><strong>Reason/note:</strong> ' + reason + '</p>' : '', dashboardLink:link, registrationLink:link, communityName } });
+  return sendTemplatedEmail({ key, to: normalizeRecipients(recips), vars: { userName:registration.userName || '', userEmail:registration.userEmail || '', reason, reasonLine: reason ? 'Motivo/nota: ' + reason : '', reasonHtml: reason ? '<p><strong>Motivo/nota:</strong> ' + reason + '</p>' : '', reasonLineEn: reason ? 'Reason/note: ' + reason : '', reasonHtmlEn: reason ? '<p><strong>Reason/note:</strong> ' + reason + '</p>' : '', dashboardLink:link, registrationLink:link, communityName }, communityId });
 };
 const sendRegistrationReviewerEmail = async ({ reviewer, registration, appUrl }) => {
   const notifCfg = await getEmailNotificationConfig();
@@ -888,7 +912,7 @@ const sendRegistrationReviewerEmail = async ({ reviewer, registration, appUrl })
   const communityId = registration.communityId || 'kai';
   const community = await getCommunity(communityId);
   const communityName = community?.name || communityId;
-  return sendTemplatedEmail({ key:'registration_reviewer', to: reviewer.user_email, vars: { reviewerName: reviewer.user_name || 'propietario', userName:registration.userName || '', userEmail:registration.userEmail || '', approvalsLink: appUrl + '/?view=approvals', communityName } });
+  return sendTemplatedEmail({ key:'registration_reviewer', to: reviewer.user_email, vars: { reviewerName: reviewer.user_name || 'propietario', userName:registration.userName || '', userEmail:registration.userEmail || '', approvalsLink: appUrl + '/?view=approvals', communityName }, communityId });
 };
 
 const sendSupabaseError = (res, error, status = 500) => {
@@ -1422,8 +1446,15 @@ app.get('/api/admin/email-templates', async (req, res) => {
   if (!requireSupabaseEnv(res)) return;
   const { uid, email } = req.query || {};
   const language = String(req.query.language || 'es-CO');
-  if (!(await isGlobalAdmin(uid, email))) return res.status(403).json({ error:'Solo un administrador global puede ver plantillas de email.' });
-  res.json({ templates: await getEmailTemplates(language), variables: {
+  const requestedCommunityId = String(req.query.communityId || '__global__').trim();
+  const globalAdmin = await isGlobalAdmin(uid, email);
+  if (!globalAdmin) {
+    if (!uid) return res.status(403).json({ error:'Autenticación requerida.' });
+    if (requestedCommunityId === '__global__') return res.status(403).json({ error:'Solo un administrador global puede ver plantillas globales.' });
+    const communityAdminCheck = await isCommunityAdmin(uid, email, requestedCommunityId);
+    if (!communityAdminCheck) return res.status(403).json({ error:'Solo un administrador global o de comunidad puede ver plantillas de email.' });
+  }
+  res.json({ templates: await getEmailTemplates(language, requestedCommunityId), communityId: requestedCommunityId, variables: {
     incident_new:['apt','owner','operator','operatorEmail','guestName','date','type','category','status','desc','incidentLink'],
     incident_sla:['apt','owner','operator','operatorEmail','guestName','date','type','category','status','desc','incidentLink','slaCycleCount','pendingStep','pendingStepLabel','pendingStepLabelEs'],
     incident_sla_notification:['apt','owner','operator','operatorEmail','guestName','date','type','category','status','desc','incidentLink','slaCycleCount','pendingStep','pendingStepLabel','pendingStepLabelEs'],
@@ -1446,16 +1477,26 @@ app.put('/api/admin/email-templates', async (req, res) => {
   if (!requireSupabaseEnv(res)) return;
   const { actorUid, actorEmail, templates } = req.body || {};
   const language = normalizeLanguage(req.body?.language || 'es-CO');
-  if (!(await isGlobalAdmin(actorUid, actorEmail))) return res.status(403).json({ error:'Solo un administrador global puede actualizar plantillas de email.' });
+  const requestedCommunityId = String(req.body?.communityId || '__global__').trim();
+  const globalAdmin = await isGlobalAdmin(actorUid, actorEmail);
+  if (!globalAdmin) {
+    if (!actorUid) return res.status(403).json({ error:'Autenticación requerida.' });
+    if (requestedCommunityId === '__global__') return res.status(403).json({ error:'Solo un administrador global puede actualizar plantillas globales.' });
+    const caCheck = await isCommunityAdmin(actorUid, actorEmail, requestedCommunityId);
+    if (!caCheck) return res.status(403).json({ error:'Solo un administrador global o de comunidad puede actualizar plantillas de email.' });
+    const { data: oeRow } = await supabase.from('community_config').select('value').eq('community_id', requestedCommunityId).eq('key', 'config_overrides_enabled').maybeSingle();
+    if (oeRow?.value !== 'true') return res.status(403).json({ error:'Los overrides no están habilitados para esta comunidad. Pide al admin global que los habilite.' });
+  }
+  const communityId = requestedCommunityId;
   if (!templates || typeof templates !== 'object') return res.status(400).json({ error:'templates is required.' });
   for (const [key, t] of Object.entries(templates)) {
     if (!DEFAULT_EMAIL_TEMPLATES[key]) continue;
-    const row = { community_id:'__global__', key, language:String(language || 'es-CO'), label:String(t.label || DEFAULT_EMAIL_TEMPLATES[key].label || key), subject:String(t.subject || DEFAULT_EMAIL_TEMPLATES[key].subject || ''), text:String(t.text || DEFAULT_EMAIL_TEMPLATES[key].text || ''), html:String(t.html || DEFAULT_EMAIL_TEMPLATES[key].html || ''), updated_at:new Date().toISOString(), updated_by_email:String(actorEmail || '').toLowerCase() };
+    const row = { community_id:communityId, key, language:String(language || 'es-CO'), label:String(t.label || DEFAULT_EMAIL_TEMPLATES[key].label || key), subject:String(t.subject || DEFAULT_EMAIL_TEMPLATES[key].subject || ''), text:String(t.text || DEFAULT_EMAIL_TEMPLATES[key].text || ''), html:String(t.html || DEFAULT_EMAIL_TEMPLATES[key].html || ''), updated_at:new Date().toISOString(), updated_by_email:String(actorEmail || '').toLowerCase() };
     const { error } = await supabase.from('email_templates').upsert(row, { onConflict:'community_id,key,language' });
     if (error) return sendSupabaseError(res, error);
   }
-  await auditLog({ entity:'email_templates', entityId:String(language || 'es-CO'), action:'update', actorUid:actorUid, actorEmail:actorEmail, after:templates });
-  res.json({ ok:true, templates: await getEmailTemplates(language) });
+  await auditLog({ entity:'email_templates', entityId:String(communityId + ':' + language), action:'update', actorUid:actorUid, actorEmail:actorEmail, after:templates });
+  res.json({ ok:true, templates: await getEmailTemplates(language, communityId), communityId });
 });
 
 app.get('/api/admin/email-notification-config', async (req, res) => {
@@ -2317,6 +2358,49 @@ app.patch('/api/communities/:id/members/:uid/permissions', async (req, res) => {
   if (error) return sendSupabaseError(res, error);
   await auditLog({ entity:'community_membership', entityId:req.params.id, action:'update_permissions', actorUid:actorUid||'', actorEmail:actorEmail||'', after:{ uid:req.params.uid, permissions:perms } });
   res.json({ ok:true, permissions:perms });
+});
+
+// GET /api/communities/:id/email-routing — returns global notification config + community CC overrides
+app.get('/api/communities/:id/email-routing', async (req, res) => {
+  if (!requireSupabaseEnv(res)) return;
+  const { uid, email } = req.query || {};
+  const communityId = req.params.id;
+  if (!(await isCommunityAdmin(uid, email, communityId))) return res.status(403).json({ error:'Community admin or global admin required.' });
+  const globalConfig = await getEmailNotificationConfig();
+  let communityRouting = {};
+  try {
+    const { data } = await supabase.from('community_config').select('value').eq('community_id', communityId).eq('key', 'community_email_routing').maybeSingle();
+    if (data?.value) communityRouting = safeJsonObject(data.value, {});
+  } catch(e) { warn('community email routing load failed: ' + (e?.message || e)); }
+  res.json({ globalConfig, communityRouting, eventKeys: Object.keys(globalConfig) });
+});
+
+// PUT /api/communities/:id/email-routing — community admin saves CC overrides per event type
+app.put('/api/communities/:id/email-routing', async (req, res) => {
+  if (!requireSupabaseEnv(res)) return;
+  const { actorUid, actorEmail, routing } = req.body || {};
+  const communityId = req.params.id;
+  if (!(await isCommunityAdmin(actorUid, actorEmail, communityId))) return res.status(403).json({ error:'Community admin or global admin required.' });
+  const globalAdmin = await isGlobalAdmin(actorUid, actorEmail);
+  if (!globalAdmin) {
+    const { data: oeRow } = await supabase.from('community_config').select('value').eq('community_id', communityId).eq('key', 'config_overrides_enabled').maybeSingle();
+    if (oeRow?.value !== 'true') return res.status(403).json({ error:'Los overrides no están habilitados para esta comunidad.' });
+  }
+  if (!routing || typeof routing !== 'object') return res.status(400).json({ error:'routing object required.' });
+  const sanitized = {};
+  const globalConfig = await getEmailNotificationConfig();
+  for (const [key, val] of Object.entries(routing)) {
+    if (!globalConfig[key]) continue;
+    const cc = normalizeRecipients(Array.isArray(val?.cc) ? val.cc : String(val?.cc || '').split(',').map(e=>e.trim()));
+    if (cc.length) sanitized[key] = { cc };
+  }
+  await supabase.from('community_config').delete().eq('community_id', communityId).eq('key', 'community_email_routing');
+  if (Object.keys(sanitized).length) {
+    const { error } = await supabase.from('community_config').insert({ community_id:communityId, key:'community_email_routing', value:JSON.stringify(sanitized) });
+    if (error) return sendSupabaseError(res, error);
+  }
+  await auditLog({ entity:'community_email_routing', entityId:communityId, action:'update', actorUid:actorUid||'', actorEmail:actorEmail||'', after:sanitized });
+  res.json({ ok:true, communityRouting:sanitized });
 });
 
 // GET /api/me/communities — communities the calling user belongs to
