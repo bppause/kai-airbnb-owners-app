@@ -6124,8 +6124,132 @@ function AdminSettings({ config={}, user, listings=[], contactProps={}, onSave, 
 
   {(adminErrors.length > 0 || lastUiError) && <div className="card" style={{marginBottom:18,borderLeft:'4px solid #d4634a'}}><div className="card-title">🧪 {lt(lang,'Diagnóstico')}</div><p className="psub">{lt(lang,'Ver consola del navegador para más detalles.')}</p>{adminErrors.map((e,i)=><pre key={i} className="codebox" style={{whiteSpace:'pre-wrap',marginTop:8}}>{JSON.stringify(e,null,2)}</pre>)}{lastUiError&&<><div className="section-label" style={{marginTop:12}}>{lt(lang,'Último error de interfaz')}</div><pre className="codebox" style={{whiteSpace:'pre-wrap'}}>{lastUiError}</pre></>}<button className="btn-ghost" onClick={clearSavedErrors}>{lt(lang,'Limpiar error guardado')}</button></div>}
 
-  {/* ── Complex Branding ───────────────────────────────────────── */}
-  <AdminSection title={`🏢 ${isEn?'Complex Identity':'Identidad del complejo'}`} subtitle={isEn?'Logo, name, and location shown throughout the app. Logo can be a URL or uploaded file.':'Logo, nombre y ubicación visibles en toda la app. El logo puede ser una URL o un archivo subido.'} action={<button className="btn-p" style={{minHeight:36,padding:'6px 14px'}} onClick={saveBranding}>💾 {isEn?'Save':'Guardar'}</button>} open={openSections.branding} onToggle={()=>toggleSection('branding')}>
+  {/* ── Communities ────────────────────────────────────────────────────── */}
+  <AdminSection
+    title={`🌐 ${isEn?'Communities':'Comunidades'}`}
+    subtitle={isEn?'Create and manage multi-tenant communities. Each community has its own branding, tower, and member list.':'Crea y administra comunidades multi-tenant. Cada comunidad tiene su propio branding, torre y lista de miembros.'}
+    action={<button className="btn-p" style={{minHeight:36,padding:'6px 14px'}} onClick={()=>setCommunityModal({mode:'create',data:{}})}>{isEn?'＋ New community':'＋ Nueva comunidad'}</button>}
+    open={openSections.communities} onToggle={()=>toggleSection('communities')}>
+    {communitiesLoading && <div style={{padding:'20px 0',textAlign:'center'}}><span className="spinner-sm"/> {isEn?'Loading...':'Cargando...'}</div>}
+    {!communitiesLoading && communities.length === 0 && (
+      <div style={{padding:'16px 0',color:'#6b9ba8',textAlign:'center',fontSize:'.9rem'}}>
+        {isEn?'No communities yet. Create the first one above.':'Sin comunidades todavía. Crea la primera arriba.'}
+      </div>
+    )}
+    {!communitiesLoading && communities.map(c => (
+      <div key={c.id} className="card" style={{marginBottom:12,padding:'12px 16px',border:'1px solid #cce7ee'}}>
+        {/* Community header row */}
+        <div style={{display:'flex',alignItems:'center',gap:12,flexWrap:'wrap'}}>
+          {c.logo_url && <img src={c.logo_url} alt="logo" style={{width:36,height:36,objectFit:'contain',borderRadius:6,background:'#f5fbfd',padding:2}}/>}
+          <div style={{flex:1,minWidth:0}}>
+            <div style={{fontWeight:700,fontSize:'.95rem',color:'#17313a'}}>{c.name}{c.name_en&&c.name_en!==c.name&&<span style={{fontWeight:400,color:'#6b9ba8',marginLeft:8,fontSize:'.82rem'}}>{c.name_en}</span>}</div>
+            <div style={{fontSize:'.77rem',color:'#8a9fa5',marginTop:2}}>
+              <code style={{background:'#eef6f8',padding:'1px 5px',borderRadius:3,fontSize:'.75rem'}}>{c.id}</code>
+              {c.tower&&<span style={{marginLeft:8}}>🏢 {c.tower}</span>}
+              {c.city&&<span style={{marginLeft:8}}>📍 {c.city}{c.country?`, ${c.country}`:''}</span>}
+              <span className={`chip ${c.is_active?'c-teal':'c-red'}`} style={{marginLeft:8,fontSize:'.68rem',padding:'1px 7px'}}>{c.is_active?(isEn?'Active':'Activa'):(isEn?'Inactive':'Inactiva')}</span>
+            </div>
+          </div>
+          <div style={{display:'flex',gap:6,flexShrink:0}}>
+            <button className="btn-ghost" style={{fontSize:'.78rem',padding:'4px 10px'}} onClick={()=>setCommunityModal({mode:'edit',data:c})}>✏️ {isEn?'Edit':'Editar'}</button>
+            {c.id !== 'kai' && <button className="btn-ghost" style={{fontSize:'.78rem',padding:'4px 10px',color:'#c62828'}} onClick={()=>deleteCommunity(c.id)}>🗑️ {isEn?'Delete':'Eliminar'}</button>}
+          </div>
+        </div>
+        {/* Members toggle */}
+        <div style={{marginTop:10,borderTop:'1px solid #e8f4f8',paddingTop:8}}>
+          <button type="button" className="btn-ghost" style={{fontSize:'.78rem',padding:'3px 10px'}}
+            onClick={()=>toggleCommunityMembers(c.id)}>
+            👥 {isEn?'Members':'Miembros'} {communityMembersOpen[c.id]?'▲':'▼'}
+          </button>
+          {communityMembersOpen[c.id] && (
+            <div style={{marginTop:10}}>
+              {communityMembersLoading[c.id] && <div style={{color:'#6b9ba8',fontSize:'.82rem'}}><span className="spinner-sm"/> {isEn?'Loading members...':'Cargando miembros...'}</div>}
+              {!communityMembersLoading[c.id] && (communityMembers[c.id]||[]).length === 0 && (
+                <div style={{color:'#6b9ba8',fontSize:'.82rem',padding:'6px 0'}}>{isEn?'No members yet.':'Sin miembros todavía.'}</div>
+              )}
+              {!communityMembersLoading[c.id] && (communityMembers[c.id]||[]).map(m => {
+                const pk = `${c.id}_${m.userUid}`;
+                const defaultPerms = { canApproveRegistrations:true, canResolveIncidents:true, canManageListings:false };
+                const currentPerms = memberPermsEditing[pk] || m.permissions || defaultPerms;
+                const isDirty = !!memberPermsEditing[pk];
+                return (
+                <div key={m.id} style={{padding:'6px 0',borderBottom:'1px solid #f0f8fb'}}>
+                  <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
+                    <div style={{flex:1,minWidth:160}}>
+                      <div style={{fontWeight:600,fontSize:'.82rem',color:'#17313a'}}>{m.name||m.userEmail}</div>
+                      <div style={{fontSize:'.72rem',color:'#6b9ba8'}}>{m.userEmail}</div>
+                    </div>
+                    <select value={m.role} style={{fontSize:'.78rem',padding:'2px 6px',borderRadius:6,border:'1px solid #cce7ee',background:'#fff'}}
+                      onChange={e=>updateMemberRole(c.id, m, e.target.value)}>
+                      <option value="member">{isEn?'Member':'Miembro'}</option>
+                      <option value="community_admin">{isEn?'Community Admin':'Admin comunidad'}</option>
+                    </select>
+                    <button className="btn-ghost" style={{fontSize:'.72rem',padding:'2px 8px',color:'#c62828'}} onClick={()=>removeCommunityMember(c.id, m.userUid)}>✕ {isEn?'Remove':'Quitar'}</button>
+                  </div>
+                  {m.role === 'community_admin' && (
+                    <div style={{marginTop:6,paddingLeft:4,display:'flex',flexWrap:'wrap',gap:'6px 18px',alignItems:'center'}}>
+                      {[
+                        ['canApproveRegistrations', isEn?'Approve registrations':'Aprobar registros'],
+                        ['canResolveIncidents',     isEn?'Resolve incidents':'Resolver incidentes'],
+                        ['canManageListings',        isEn?'Manage listings':'Gestionar listings'],
+                      ].map(([key, label]) => (
+                        <label key={key} style={{display:'flex',alignItems:'center',gap:5,fontSize:'.75rem',color:'#2F4F3A',cursor:'pointer'}}>
+                          <input type="checkbox" checked={!!(currentPerms[key])}
+                            onChange={e => {
+                              const updated = { ...currentPerms, [key]: e.target.checked };
+                              setMemberPermsEditing(p => ({...p,[pk]:updated}));
+                            }}
+                            style={{accentColor:'#2F4F3A'}}
+                          />
+                          {label}
+                        </label>
+                      ))}
+                      {isDirty && (
+                        <button className="btn-p" style={{fontSize:'.72rem',padding:'2px 10px',marginLeft:4}}
+                          onClick={()=>updateMemberPerms(c.id, m.userUid, memberPermsEditing[pk])}>
+                          {isEn?'Save':'Guardar'}
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
+                );
+              })}
+              {/* Add member row */}
+              <div style={{display:'flex',gap:8,marginTop:10,flexWrap:'wrap',alignItems:'center'}}>
+                <input
+                  value={memberAddInput[c.id]||''}
+                  onChange={e=>setMemberAddInput(p=>({...p,[c.id]:e.target.value}))}
+                  placeholder={isEn?'Approved user email...':'Email de usuario aprobado...'}
+                  style={{flex:1,minWidth:180,fontSize:'.82rem',padding:'5px 10px',borderRadius:8,border:'1px solid #cce7ee'}}
+                  onKeyDown={e=>{if(e.key==='Enter')addCommunityMember(c.id);}}
+                />
+                <select value={memberAddRole[c.id]||'member'} onChange={e=>setMemberAddRole(p=>({...p,[c.id]:e.target.value}))}
+                  style={{fontSize:'.78rem',padding:'5px 8px',borderRadius:8,border:'1px solid #cce7ee',background:'#fff'}}>
+                  <option value="member">{isEn?'Member':'Miembro'}</option>
+                  <option value="community_admin">{isEn?'Community Admin':'Admin comunidad'}</option>
+                </select>
+                <button className="btn-p" style={{fontSize:'.78rem',padding:'5px 12px'}} onClick={()=>addCommunityMember(c.id)}>＋ {isEn?'Add':'Agregar'}</button>
+                <button className="btn-ghost" style={{fontSize:'.72rem',padding:'3px 8px'}} onClick={()=>loadCommunityMembers(c.id)}>↻ {isEn?'Refresh':'Actualizar'}</button>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    ))}
+    {communityModal && (
+      <CommunityCrudModal
+        mode={communityModal.mode}
+        initial={communityModal.data||{}}
+        onSave={saveCommunity}
+        onClose={()=>setCommunityModal(null)}
+        lang={lang}
+      />
+    )}
+  </AdminSection>
+
+  {/* ── Default / Fallback Branding ────────────────────────────── */}
+  <AdminSection title={`🏢 ${isEn?'Default Branding (fallback)':'Identidad predeterminada (respaldo)'}`} subtitle={isEn?'Fallback logo, name, and location used when no community branding overrides it. For multi-community setups configure branding inside each community above.':'Logo, nombre y ubicación de respaldo usados cuando ninguna comunidad los sobreescribe. En setups multi-comunidad configura el branding dentro de cada comunidad arriba.'} action={<button className="btn-p" style={{minHeight:36,padding:'6px 14px'}} onClick={saveBranding}>💾 {isEn?'Save':'Guardar'}</button>} open={openSections.branding} onToggle={()=>toggleSection('branding')}>
     <div className="fg-row" style={{gap:12,flexWrap:'wrap',alignItems:'flex-start'}}>
       <div className="fg" style={{minWidth:180}}>
         <label>{isEn?'Name (Spanish)':'Nombre (Español)'}</label>
@@ -6600,131 +6724,7 @@ function AdminSettings({ config={}, user, listings=[], contactProps={}, onSave, 
     );
   })()}
 
-  {/* ── Communities ────────────────────────────────────────────────────── */}
-  <AdminSection
-    title={`🌐 ${isEn?'Communities':'Comunidades'}`}
-    subtitle={isEn?'Create and manage multi-tenant communities. Each community has its own branding, tower, and member list.':'Crea y administra comunidades multi-tenant. Cada comunidad tiene su propio branding, torre y lista de miembros.'}
-    action={<button className="btn-p" style={{minHeight:36,padding:'6px 14px'}} onClick={()=>setCommunityModal({mode:'create',data:{}})}>{isEn?'＋ New community':'＋ Nueva comunidad'}</button>}
-    open={openSections.communities} onToggle={()=>toggleSection('communities')}>
-    {communitiesLoading && <div style={{padding:'20px 0',textAlign:'center'}}><span className="spinner-sm"/> {isEn?'Loading...':'Cargando...'}</div>}
-    {!communitiesLoading && communities.length === 0 && (
-      <div style={{padding:'16px 0',color:'#6b9ba8',textAlign:'center',fontSize:'.9rem'}}>
-        {isEn?'No communities yet. Create the first one above.':'Sin comunidades todavía. Crea la primera arriba.'}
-      </div>
-    )}
-    {!communitiesLoading && communities.map(c => (
-      <div key={c.id} className="card" style={{marginBottom:12,padding:'12px 16px',border:'1px solid #cce7ee'}}>
-        {/* Community header row */}
-        <div style={{display:'flex',alignItems:'center',gap:12,flexWrap:'wrap'}}>
-          {c.logo_url && <img src={c.logo_url} alt="logo" style={{width:36,height:36,objectFit:'contain',borderRadius:6,background:'#f5fbfd',padding:2}}/>}
-          <div style={{flex:1,minWidth:0}}>
-            <div style={{fontWeight:700,fontSize:'.95rem',color:'#17313a'}}>{c.name}{c.name_en&&c.name_en!==c.name&&<span style={{fontWeight:400,color:'#6b9ba8',marginLeft:8,fontSize:'.82rem'}}>{c.name_en}</span>}</div>
-            <div style={{fontSize:'.77rem',color:'#8a9fa5',marginTop:2}}>
-              <code style={{background:'#eef6f8',padding:'1px 5px',borderRadius:3,fontSize:'.75rem'}}>{c.id}</code>
-              {c.tower&&<span style={{marginLeft:8}}>🏢 {c.tower}</span>}
-              {c.city&&<span style={{marginLeft:8}}>📍 {c.city}{c.country?`, ${c.country}`:''}</span>}
-              <span className={`chip ${c.is_active?'c-teal':'c-red'}`} style={{marginLeft:8,fontSize:'.68rem',padding:'1px 7px'}}>{c.is_active?(isEn?'Active':'Activa'):(isEn?'Inactive':'Inactiva')}</span>
-            </div>
-          </div>
-          <div style={{display:'flex',gap:6,flexShrink:0}}>
-            <button className="btn-ghost" style={{fontSize:'.78rem',padding:'4px 10px'}} onClick={()=>setCommunityModal({mode:'edit',data:c})}>✏️ {isEn?'Edit':'Editar'}</button>
-            {c.id !== 'kai' && <button className="btn-ghost" style={{fontSize:'.78rem',padding:'4px 10px',color:'#c62828'}} onClick={()=>deleteCommunity(c.id)}>🗑️ {isEn?'Delete':'Eliminar'}</button>}
-          </div>
-        </div>
-        {/* Members toggle */}
-        <div style={{marginTop:10,borderTop:'1px solid #e8f4f8',paddingTop:8}}>
-          <button type="button" className="btn-ghost" style={{fontSize:'.78rem',padding:'3px 10px'}}
-            onClick={()=>toggleCommunityMembers(c.id)}>
-            👥 {isEn?'Members':'Miembros'} {communityMembersOpen[c.id]?'▲':'▼'}
-          </button>
-          {communityMembersOpen[c.id] && (
-            <div style={{marginTop:10}}>
-              {communityMembersLoading[c.id] && <div style={{color:'#6b9ba8',fontSize:'.82rem'}}><span className="spinner-sm"/> {isEn?'Loading members...':'Cargando miembros...'}</div>}
-              {!communityMembersLoading[c.id] && (communityMembers[c.id]||[]).length === 0 && (
-                <div style={{color:'#6b9ba8',fontSize:'.82rem',padding:'6px 0'}}>{isEn?'No members yet.':'Sin miembros todavía.'}</div>
-              )}
-              {!communityMembersLoading[c.id] && (communityMembers[c.id]||[]).map(m => {
-                const pk = `${c.id}_${m.userUid}`;
-                const defaultPerms = { canApproveRegistrations:true, canResolveIncidents:true, canManageListings:false };
-                const currentPerms = memberPermsEditing[pk] || m.permissions || defaultPerms;
-                const isDirty = !!memberPermsEditing[pk];
-                return (
-                <div key={m.id} style={{padding:'6px 0',borderBottom:'1px solid #f0f8fb'}}>
-                  <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
-                    <div style={{flex:1,minWidth:160}}>
-                      <div style={{fontWeight:600,fontSize:'.82rem',color:'#17313a'}}>{m.name||m.userEmail}</div>
-                      <div style={{fontSize:'.72rem',color:'#6b9ba8'}}>{m.userEmail}</div>
-                    </div>
-                    <select value={m.role} style={{fontSize:'.78rem',padding:'2px 6px',borderRadius:6,border:'1px solid #cce7ee',background:'#fff'}}
-                      onChange={e=>updateMemberRole(c.id, m, e.target.value)}>
-                      <option value="member">{isEn?'Member':'Miembro'}</option>
-                      <option value="community_admin">{isEn?'Community Admin':'Admin comunidad'}</option>
-                    </select>
-                    <button className="btn-ghost" style={{fontSize:'.72rem',padding:'2px 8px',color:'#c62828'}} onClick={()=>removeCommunityMember(c.id, m.userUid)}>✕ {isEn?'Remove':'Quitar'}</button>
-                  </div>
-                  {m.role === 'community_admin' && (
-                    <div style={{marginTop:6,paddingLeft:4,display:'flex',flexWrap:'wrap',gap:'6px 18px',alignItems:'center'}}>
-                      {[
-                        ['canApproveRegistrations', isEn?'Approve registrations':'Aprobar registros'],
-                        ['canResolveIncidents',     isEn?'Resolve incidents':'Resolver incidentes'],
-                        ['canManageListings',        isEn?'Manage listings':'Gestionar listings'],
-                      ].map(([key, label]) => (
-                        <label key={key} style={{display:'flex',alignItems:'center',gap:5,fontSize:'.75rem',color:'#2F4F3A',cursor:'pointer'}}>
-                          <input type="checkbox" checked={!!(currentPerms[key])}
-                            onChange={e => {
-                              const updated = { ...currentPerms, [key]: e.target.checked };
-                              setMemberPermsEditing(p => ({...p,[pk]:updated}));
-                            }}
-                            style={{accentColor:'#2F4F3A'}}
-                          />
-                          {label}
-                        </label>
-                      ))}
-                      {isDirty && (
-                        <button className="btn-p" style={{fontSize:'.72rem',padding:'2px 10px',marginLeft:4}}
-                          onClick={()=>updateMemberPerms(c.id, m.userUid, memberPermsEditing[pk])}>
-                          {isEn?'Save':'Guardar'}
-                        </button>
-                      )}
-                    </div>
-                  )}
-                </div>
-                );
-              })}
-              {/* Add member row */}
-              <div style={{display:'flex',gap:8,marginTop:10,flexWrap:'wrap',alignItems:'center'}}>
-                <input
-                  value={memberAddInput[c.id]||''}
-                  onChange={e=>setMemberAddInput(p=>({...p,[c.id]:e.target.value}))}
-                  placeholder={isEn?'Approved user email...':'Email de usuario aprobado...'}
-                  style={{flex:1,minWidth:180,fontSize:'.82rem',padding:'5px 10px',borderRadius:8,border:'1px solid #cce7ee'}}
-                  onKeyDown={e=>{if(e.key==='Enter')addCommunityMember(c.id);}}
-                />
-                <select value={memberAddRole[c.id]||'member'} onChange={e=>setMemberAddRole(p=>({...p,[c.id]:e.target.value}))}
-                  style={{fontSize:'.78rem',padding:'5px 8px',borderRadius:8,border:'1px solid #cce7ee',background:'#fff'}}>
-                  <option value="member">{isEn?'Member':'Miembro'}</option>
-                  <option value="community_admin">{isEn?'Community Admin':'Admin comunidad'}</option>
-                </select>
-                <button className="btn-p" style={{fontSize:'.78rem',padding:'5px 12px'}} onClick={()=>addCommunityMember(c.id)}>＋ {isEn?'Add':'Agregar'}</button>
-                <button className="btn-ghost" style={{fontSize:'.72rem',padding:'3px 8px'}} onClick={()=>loadCommunityMembers(c.id)}>↻ {isEn?'Refresh':'Actualizar'}</button>
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-    ))}
-    {communityModal && (
-      <CommunityCrudModal
-        mode={communityModal.mode}
-        initial={communityModal.data||{}}
-        onSave={saveCommunity}
-        onClose={()=>setCommunityModal(null)}
-        lang={lang}
-      />
-    )}
-  </AdminSection>
-
-  {/* ── Audit Log Viewer ───────────────────��─────────────────────────── */}
+  {/* ── Audit Log Viewer ───────────────────────────────────────────────── */}
   <AdminSection title={`🕵️ ${isEn?'Audit Log':'Log de auditoría'}`} subtitle={isEn?'Full activity history for listings, incidents, roles, and config changes.':'Historial completo de actividad: listings, incidentes, roles y configuración.'} open={openSections.auditLog} onToggle={()=>toggleSection('auditLog')}>
     <AuditLogViewer user={user} lang={lang} isEn={isEn}/>
   </AdminSection>
