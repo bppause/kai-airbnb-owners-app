@@ -5129,12 +5129,16 @@ function UnitPicker({ listings=[], value='', onChange=()=>{}, lang='es-CO', erro
   const filtered = React.useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return sorted;
-    return sorted.filter(l => l.apt.toLowerCase().includes(q) || String(l.owner||'').toLowerCase().includes(q));
+    return sorted.filter(l =>
+      l.apt.toLowerCase().includes(q) ||
+      String(l.owner||'').toLowerCase().includes(q) ||
+      String(l.email||'').toLowerCase().includes(q) ||
+      String(l.contact||l.whatsapp||'').toLowerCase().includes(q)
+    );
   }, [sorted, query]);
 
-  // Group by floor (first N-2 digits of the apt number)
+  // Always group by floor
   const grouped = React.useMemo(() => {
-    if (query.trim()) return [{ floor: null, units: filtered }];
     const map = {};
     for (const l of filtered) {
       const num = parseInt(l.apt, 10);
@@ -5144,7 +5148,7 @@ function UnitPicker({ listings=[], value='', onChange=()=>{}, lang='es-CO', erro
     return Object.entries(map)
       .sort(([a],[b]) => (a==='?'?999:Number(a)) - (b==='?'?999:Number(b)))
       .map(([floor, units]) => ({ floor, units }));
-  }, [filtered, query]);
+  }, [filtered]);
 
   const select = (l) => { onChange(l.id); setOpen(false); setQuery(''); };
   const clear   = () => { onChange('');   setOpen(true);  setQuery(''); setTimeout(()=>inputRef.current?.focus(),30); };
@@ -5165,7 +5169,7 @@ function UnitPicker({ listings=[], value='', onChange=()=>{}, lang='es-CO', erro
             className="upk-input"
             value={query}
             disabled={disabled}
-            placeholder={isEn ? 'Search by unit # or owner name…' : 'Buscar por número o nombre del propietario…'}
+            placeholder={isEn ? 'Search by unit #, owner name, email, or WhatsApp…' : 'Buscar por número, nombre, email o WhatsApp…'}
             onChange={e => { setQuery(e.target.value); setOpen(true); }}
             onFocus={() => setOpen(true)}
             autoComplete="off"
@@ -5180,18 +5184,28 @@ function UnitPicker({ listings=[], value='', onChange=()=>{}, lang='es-CO', erro
           )}
           {grouped.map(({ floor, units }) => (
             <div key={floor ?? 'all'}>
-              {floor !== null && (
-                <div className="upk-floor-hdr">
-                  {isEn ? `Floor ${floor}` : `Piso ${floor}`}
-                  <span className="upk-floor-count">{units.length}</span>
-                </div>
-              )}
-              {units.map(l => (
-                <button key={l.id} type="button" className="upk-item" onMouseDown={e=>{e.preventDefault();select(l);}}>
-                  <strong className="upk-item-apt">{aptDisplay(l.apt, lang)}</strong>
-                  <span className="upk-item-owner">{l.owner}</span>
-                </button>
-              ))}
+              <div className="upk-floor-hdr">
+                {isEn ? `Floor ${floor}` : `Piso ${floor}`}
+                <span className="upk-floor-count">{units.length}</span>
+              </div>
+              {units.map(l => {
+                const ownerEmail = l.email || '';
+                const ownerWa = l.contact || l.whatsapp || '';
+                return (
+                  <button key={l.id} type="button" className="upk-item" onMouseDown={e=>{e.preventDefault();select(l);}}>
+                    <div className="upk-item-row">
+                      <strong className="upk-item-apt">{aptDisplay(l.apt, lang)}</strong>
+                      <span className="upk-item-owner">{l.owner}</span>
+                    </div>
+                    {(ownerEmail || ownerWa) && (
+                      <div className="upk-item-contact">
+                        {ownerEmail && <span className="upk-item-email">✉ {ownerEmail}</span>}
+                        {ownerWa && <span className="upk-item-wa">📱 {ownerWa}</span>}
+                      </div>
+                    )}
+                  </button>
+                );
+              })}
             </div>
           ))}
         </div>
@@ -5201,6 +5215,10 @@ function UnitPicker({ listings=[], value='', onChange=()=>{}, lang='es-CO', erro
 }
 
 function IncidentModal({ listings, user, presetApt, onSave, onClose, lang="es-CO", config={} }) {
+  // Exclude units the current user owns — incidents are filed against other units
+  const reportableListings = React.useMemo(() =>
+    user?.uid ? listings.filter(l => l.ownerUid !== user.uid) : listings,
+  [listings, user?.uid]);
   const tips = localizedTooltips(config, lang);
   const isEn = lang === 'en';
   const DRAFT_KEY = 'kai_incident_draft';
@@ -5322,8 +5340,12 @@ function IncidentModal({ listings, user, presetApt, onSave, onClose, lang="es-CO
       <div className="fg2 inc-form-grid">
         {/* Row 1: Unit + Date */}
         {!isGeneral&&<div className="fg"><label>{appText(lang,"form.apartment")} <Tip text={tips.incidentApartment}/></label>
-          <UnitPicker listings={listings} value={f.aptId} onChange={v=>s("aptId",v)} lang={lang} error={!!errors.aptId} disabled={!!presetApt}/>
+          <UnitPicker listings={reportableListings} value={f.aptId} onChange={v=>s("aptId",v)} lang={lang} error={!!errors.aptId} disabled={!!presetApt}/>
           {errors.aptId&&<span className="err-msg">{errors.aptId}</span>}
+          {!presetApt && <div style={{fontSize:'.72rem',color:'#8a9fa5',marginTop:4,display:'flex',alignItems:'center',gap:4}}>
+            <span style={{color:'#d9b45a'}}>ⓘ</span>
+            {isEn ? 'Incidents are filed against another unit. Your own units are excluded.' : 'Los incidentes se reportan contra otra unidad. Tus propias unidades no aparecen.'}
+          </div>}
         </div>}
         <div className="fg"><label>{appText(lang,"form.date")}</label>
           <input className={inputCls("date")} type="date" value={f.date} onChange={e=>s("date",e.target.value)}/>
