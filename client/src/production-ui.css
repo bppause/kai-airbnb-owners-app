@@ -2403,6 +2403,7 @@ p { line-height: 1.45; }
 }
 .prb-user     { background: #e8f4f7; color: #0b7f8c; border: 1px solid #b0dce6; }
 .prb-delegate { background: #f0ebff; color: #6b3fa0; border: 1px solid #d0b8f0; }
+.prb-community{background:linear-gradient(135deg,#0b4f7f,#0b7f8c);color:#fff}
 .prb-global   { background: #fef3e2; color: #b35c00; border: 1px solid #f0d0a0; }
 
 /* ── DashboardFocus role subtitle ─────────────────────────────────────── */

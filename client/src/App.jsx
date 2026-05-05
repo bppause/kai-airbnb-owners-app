@@ -1324,7 +1324,7 @@ export default function App() {
     canSeeMenu('listings')                  ? { id:'listings',   icon:'🏠', label:t.nav.listings } : null,
     canSeeMenu('dashboard')                 ? { id:'dashboard',  icon:'📊', label:t.nav.dashboard } : null,
     effectiveCanManageRegistrations && isApproved ? { id:'approvals', icon:'📝', label:t.nav.approvals, badge:pendingRegistrations.length } : null,
-    effectiveIsGlobalAdmin && isApproved    ? { id:'admin',      icon:'⚙️', label:t.nav.admin } : null,
+    (effectiveIsGlobalAdmin || adminInfo.role === 'delegate_admin' || adminInfo.isCommunityAdmin) && isApproved    ? { id:'admin',      icon:'⚙️', label:t.nav.admin } : null,
     (effectiveIsGlobalAdmin || (analyticsEnabledForAll && canSeeMenu('analytics'))) && isApproved ? { id:'analytics', icon:'📈', label:t.nav.analytics } : null,
   ].filter(Boolean);
 
@@ -1603,12 +1603,12 @@ export default function App() {
                     <strong>{user.name}</strong>
                     <span>{user.email}</span>
                     <small>{myListings.length ? `${myListings.length} ${lang === 'en' ? (myListings.length>1?'units':'unit') : ('unidad' + (myListings.length>1?'es':''))}` : (lang === "en" ? "Visitor" : "Visitante")}</small>
-                    <span className={`profile-role-badge prb-${effectiveIsGlobalAdmin?'global':effectiveRole==='delegate_admin'?'delegate':'user'}`}>{effectiveIsGlobalAdmin?(lang==='en'?'🌐 Global Admin':'🌐 Admin global'):effectiveRole==='delegate_admin'?(lang==='en'?'🛡️ Delegate Admin':'🛡️ Admin delegado'):(lang==='en'?'🏠 Unit Owner':'🏠 Propietario')}</span>
+                    <span className={`profile-role-badge prb-${effectiveIsGlobalAdmin?'global':effectiveRole==='delegate_admin'?'delegate':adminInfo.isCommunityAdmin?'community':'user'}`}>{effectiveIsGlobalAdmin?(lang==='en'?'🌐 Global Admin':'🌐 Admin global'):effectiveRole==='delegate_admin'?(lang==='en'?'🛡️ Delegate Admin':'🛡️ Admin delegado'):adminInfo.isCommunityAdmin?(lang==='en'?'🏢 Community Admin':'🏢 Admin comunidad'):(lang==='en'?'🏠 Unit Owner':'🏠 Propietario')}</span>
                   </div>
                   <button className="dd-item" onClick={()=>{setView('profile');setOpenDropdown(null);}}>{lang === "en" ? "👤 My profile" : "👤 Mi perfil"}</button>
                   <button className="dd-item" onClick={()=>{setView('my');setOpenDropdown(null);}}>🏠 {t.nav.my}</button>
                   <button className="dd-item" onClick={()=>{setView('about');setOpenDropdown(null);}}>🌊 {t.nav.about}</button>
-                  {effectiveIsGlobalAdmin && <button className="dd-item" onClick={()=>{setView('admin');setOpenDropdown(null);}}>⚙️ {t.nav.admin}</button>}
+                  {(effectiveIsGlobalAdmin || adminInfo.role === 'delegate_admin' || adminInfo.isCommunityAdmin) && <button className="dd-item" onClick={()=>{setView('admin');setOpenDropdown(null);}}>⚙️ {t.nav.admin}</button>}
                   {(effectiveIsGlobalAdmin || analyticsEnabledForAll) && <button className="dd-item" onClick={()=>{setView('analytics');setOpenDropdown(null);}}>📈 {t.nav.analytics}</button>}
                   {adminInfo.isGlobalAdmin && <div className="profile-view-as"><span>👁 {lang==='en'?'View as:':'Ver como:'}</span><select className="view-as-select" value={previewRole||''} onChange={e=>{setPreviewRole(e.target.value||null);setOpenDropdown(null);}}><option value="">{lang==='en'?'Global Admin':'Admin global'}</option><option value="delegate_admin">{lang==='en'?'Delegate Admin':'Admin delegado'}</option><option value="user">{lang==='en'?'Owner/User':'Propietario/Usuario'}</option></select></div>}
                   <button className="dd-item danger" onClick={()=>{setOpenDropdown(null);logout();}}>{lang === "en" ? "🚪 Log out" : "🚪 Cerrar sesión"}</button>
@@ -1644,7 +1644,7 @@ export default function App() {
         {view==="notifications" && user && <NotificationsView lang={lang} notifications={notifications} incidents={incidents} listings={listings} contactProps={contactProps} onRead={markNotificationRead} onReadAll={markAllNotificationsRead} smartAlerts={smartAlerts} onIncidentDetail={openIncidentDetail} />}
         {view==="approvals" && user && effectiveCanManageRegistrations && <PendingApprovalsView lang={lang} pending={pendingRegistrations} onApprove={id=>reviewRegistrationAction(id,'approve')} onDecline={id=>reviewRegistrationAction(id,'decline')} active={activeRegistrations} />}
         {view==="analytics" && user && (effectiveIsGlobalAdmin || analyticsEnabledForAll) && <AnalyticsDashboard lang={lang} user={user} contactProps={contactProps} showToast={showToast} isGlobalAdmin={effectiveIsGlobalAdmin} />}
-        {view==="admin" && user && (effectiveIsGlobalAdmin ? <ErrorBoundary section="admin" fallback={(err)=><AdminFallback lang={lang} error={err}/>}><AdminSettings config={adminInfo.config || {}} user={user} listings={listings} contactProps={contactProps} onSave={saveAdminConfig} showToast={showToast} lang={lang} /></ErrorBoundary> : <AdminAccessHelp user={user} adminInfo={adminInfo} lang={lang} />)}
+        {view==="admin" && user && ((effectiveIsGlobalAdmin || adminInfo.role === 'delegate_admin' || adminInfo.isCommunityAdmin) ? <ErrorBoundary section="admin" fallback={(err)=><AdminFallback lang={lang} error={err}/>}><AdminSettings config={adminInfo.config || {}} user={user} listings={listings} contactProps={contactProps} onSave={saveAdminConfig} showToast={showToast} lang={lang} adminInfo={adminInfo} /></ErrorBoundary> : <AdminAccessHelp user={user} adminInfo={adminInfo} lang={lang} />)}
         {view==="my" && user && <MyListings lang={lang} listings={myListings} allListings={listings} incidents={incidents} user={user} contactProps={contactProps} isGlobalAdmin={effectiveIsGlobalAdmin} canResolveGlobal={canResolveIncidentsNow} onAdd={()=>setModal({type:"addListing"})} onEdit={l=>setModal({type:"editListing",data:l})} onDelete={deleteListing} onReport={l=>setModal({type:"incident",data:{aptId:l.id}})} onVerify={inc=>setModal({type:"verifyIncident",data:inc})} onResolve={resolveIncident} onAddResolution={inc=>setModal({type:"addResolution",data:inc})} onNavigateToIncidents={f=>{setIncidentQuickFilter({type:'floorFilter',aptIds:f.aptIds,status:f.status||'all'});setView('incidents');}} onIncidentDetail={openIncidentDetail} onAssign={inc=>setModal({type:'assignGeneral',data:inc})} onCloseGeneral={inc=>setModal({type:'closeGeneral',data:inc})} />}
         {view==="profile" && user && <ProfileView lang={lang} user={user} userProfile={userProfile} onSave={saveProfile} communities={adminInfo.communities||[]} currentCommunityId={adminInfo.communityId||_communityId} onSwitchCommunity={switchCommunity} />}
         {view==="help" && <HelpView lang={lang} effectiveRole={effectiveRole} effectiveIsGlobalAdmin={effectiveIsGlobalAdmin} delegatePerms={delegatePerms} listings={listings} incidents={incidents} user={user} setView={setView} onReport={()=>{ if(!user){login();return;} setModal({type:'incident'}); }} onAddListing={()=>{ if(!user){login();return;} setModal({type:'addListing'}); }} setIncidentQuickFilter={setIncidentQuickFilter} openMore={()=>setOpenDropdown('more')} />}
@@ -2166,16 +2166,31 @@ function ActionNeededBanner({ lang="es-CO", ownerItems=[], resolveItems=[], onOw
 
 
 function RoleOutcomeGuide({ lang="es-CO", adminInfo={}, delegatePerms={}, ownerCount=0, pendingOwner=0, pendingResolve=0, onGo=()=>{} }) {
-  const role = adminInfo.isGlobalAdmin ? 'global' : adminInfo.role === 'delegate_admin' ? 'delegate' : 'standard';
-  const titleKey = role === 'global' ? 'roles.globalTitle' : role === 'delegate' ? 'roles.delegateTitle' : 'roles.standardTitle';
-  const textKey = role === 'global' ? 'roles.globalText' : role === 'delegate' ? 'roles.delegateText' : 'roles.standardText';
+  const isEn = lang === 'en';
+  const isCommunityAdmin = !adminInfo.isGlobalAdmin && !!(adminInfo.communityAdminOf?.length);
+  const role = adminInfo.isGlobalAdmin ? 'global' : adminInfo.role === 'delegate_admin' ? 'delegate' : isCommunityAdmin ? 'community' : 'standard';
+  const icons = { global:'🌐', delegate:'🛡️', community:'🏢', standard:'🏠' };
+  const titles = {
+    global: isEn ? 'Global Admin' : 'Admin Global',
+    delegate: isEn ? 'Delegate Admin' : 'Admin Delegado',
+    community: isEn ? 'Community Admin' : 'Admin de Comunidad',
+    standard: isEn ? 'Unit Owner' : 'Propietario',
+  };
+  const texts = {
+    global: isEn ? 'Full platform control across all communities.' : 'Control total de la plataforma en todas las comunidades.',
+    delegate: isEn ? 'Delegated admin with specific platform-wide permissions.' : 'Admin delegado con permisos específicos en toda la plataforma.',
+    community: isEn ? `Community admin for ${adminInfo.communityAdminOf?.length||1} community${(adminInfo.communityAdminOf?.length||1)>1?'ies':''}. Manage members, settings, and incidents within your community.` : `Admin de ${adminInfo.communityAdminOf?.length||1} comunidad${(adminInfo.communityAdminOf?.length||1)>1?'es':''}. Gestiona miembros, configuración e incidentes de tu comunidad.`,
+    standard: isEn ? 'View and manage your own units and incidents.' : 'Ver y gestionar tus propias unidades e incidentes.',
+  };
   const actions = role === 'global'
     ? [{label:appText(lang,'roles.globalAction1'), view:'analytics'}, {label:appText(lang,'roles.globalAction2'), view:'admin'}]
     : role === 'delegate'
       ? [{label:appText(lang,'roles.delegateAction1'), view:'approvals'}, ...(delegatePerms.canResolveIncidents ? [{label:appText(lang,'roles.delegateAction2'), view:'incidents'}] : [])]
-      : [{label:appText(lang,'roles.ownerAction1'), view:'incidents'}, {label:appText(lang,'roles.ownerAction2'), view:'my'}];
+      : role === 'community'
+        ? [{label:isEn?'Manage members':'Gestionar miembros', view:'admin'}, {label:isEn?'Registrations':'Registros', view:'approvals'}]
+        : [{label:appText(lang,'roles.ownerAction1'), view:'incidents'}, {label:appText(lang,'roles.ownerAction2'), view:'my'}];
   return <div className="role-guide">
-    <div><strong>{role === 'global' ? '🌐' : role === 'delegate' ? '🛡️' : '🏠'} {appText(lang,titleKey)}</strong><span>{appText(lang,textKey)}</span></div>
+    <div><strong>{icons[role]} {titles[role]}</strong><span>{texts[role]}</span></div>
     <div className="role-actions"><span>{appText(lang,'roles.primaryActions')}:</span>{actions.map((a,i)=><button key={i} className="role-chip" onClick={()=>onGo(a.view)}>{a.label}</button>)}</div>
     <div className="role-metrics"><span>🏠 {ownerCount}</span>{pendingOwner>0&&<span>✅ {pendingOwner}</span>}{pendingResolve>0&&<span>🛠️ {pendingResolve}</span>}</div>
   </div>;
@@ -5938,7 +5953,7 @@ function AuditLogViewer({ user, lang="es-CO", isEn=false }) {
   );
 }
 
-function AdminSettings({ config={}, user, listings=[], contactProps={}, onSave, showToast=()=>{}, lang="es-CO" }) {
+function AdminSettings({ config={}, user, listings=[], contactProps={}, onSave, showToast=()=>{}, lang="es-CO", adminInfo={} }) {
   const isEn = lang === 'en';
   const tips = localizedTooltips(config || {}, lang);
   const [slaHours,setSlaHours]=useState(config?.sla_hours || '24');
@@ -5988,6 +6003,11 @@ function AdminSettings({ config={}, user, listings=[], contactProps={}, onSave, 
   const [communityMembers, setCommunityMembers] = useState({});
   const [communityMembersLoading, setCommunityMembersLoading] = useState({});
   const [memberPermsEditing, setMemberPermsEditing] = useState({});  // {cid_uid: permissions obj}
+  const [communityConfigData, setCommunityConfigData] = useState({}); // {cid: {globalValues, communityOverrides, overridesEnabled}}
+  const [communityConfigLoading, setCommunityConfigLoading] = useState({});
+  const [communityConfigOpen, setCommunityConfigOpen] = useState({});
+  const [communityConfigDraft, setCommunityConfigDraft] = useState({}); // {cid: {key: value}}
+  const [communityOverridesEnabled, setCommunityOverridesEnabled] = useState({}); // {cid: bool}
   const ADMIN_SEC_DEFAULT = {communities:false,branding:false,emailSender:false,roles:true,sla:false,mission:false,menu:false,delegate:false,users:true,tooltips:false,uiLabels:false,email:false,emailNotif:false,auditLog:false};
   const [openSections,setOpenSections] = useState(()=>{
     try{ const s=JSON.parse(localStorage.getItem('kai_admin_open')||'null'); return s&&typeof s==='object'?{...ADMIN_SEC_DEFAULT,...s}:ADMIN_SEC_DEFAULT; }catch{ return ADMIN_SEC_DEFAULT; }
@@ -6139,6 +6159,34 @@ function AdminSettings({ config={}, user, listings=[], contactProps={}, onSave, 
     if (opening && !communityMembers[cid]) loadCommunityMembers(cid);
   };
 
+  const loadCommunityConfig = async (cid) => {
+    setCommunityConfigLoading(p => ({...p,[cid]:true}));
+    try {
+      const r = await api.get(`/api/communities/${cid}/config?uid=${encodeURIComponent(user.uid)}&email=${encodeURIComponent(user.email||'')}`);
+      setCommunityConfigData(p => ({...p,[cid]:r}));
+      setCommunityOverridesEnabled(p => ({...p,[cid]:r.overridesEnabled}));
+      setCommunityConfigDraft(p => ({...p,[cid]:{...(r.communityOverrides||{})}}));
+    } catch(e) { captureAdminError('load-community-config', e); }
+    finally { setCommunityConfigLoading(p => ({...p,[cid]:false})); }
+  };
+
+  const saveCommunityConfig = async (cid) => {
+    try {
+      await api.put(`/api/communities/${cid}/config`, { actorUid:user.uid, actorEmail:user.email, overrides: communityConfigDraft[cid]||{} });
+      showToast(isEn?'✅ Community settings saved':'✅ Configuración de comunidad guardada');
+      loadCommunityConfig(cid);
+    } catch(e) { captureAdminError('save-community-config', e); showToast(e.message||String(e), true); }
+  };
+
+  const toggleCommunityOverrides = async (cid, enabled) => {
+    try {
+      await api.put(`/api/communities/${cid}/config/overrides-enabled`, { actorUid:user.uid, actorEmail:user.email, enabled });
+      showToast(isEn ? (enabled?'✅ Community overrides enabled':'✅ Community overrides disabled') : (enabled?'✅ Overrides habilitados':'✅ Overrides deshabilitados'));
+      setCommunityOverridesEnabled(p => ({...p,[cid]:enabled}));
+      loadCommunityConfig(cid);
+    } catch(e) { captureAdminError('toggle-community-overrides', e); showToast(e.message||String(e), true); }
+  };
+
   const saveCommunity = async (f) => {
     const isEdit = f.id && communities.some(c => c.id === f.id);
     try {
@@ -6198,6 +6246,90 @@ function AdminSettings({ config={}, user, listings=[], contactProps={}, onSave, 
   </div>
 
   {(adminErrors.length > 0 || lastUiError) && <div className="card" style={{marginBottom:18,borderLeft:'4px solid #d4634a'}}><div className="card-title">🧪 {lt(lang,'Diagnóstico')}</div><p className="psub">{lt(lang,'Ver consola del navegador para más detalles.')}</p>{adminErrors.map((e,i)=><pre key={i} className="codebox" style={{whiteSpace:'pre-wrap',marginTop:8}}>{JSON.stringify(e,null,2)}</pre>)}{lastUiError&&<><div className="section-label" style={{marginTop:12}}>{lt(lang,'Último error de interfaz')}</div><pre className="codebox" style={{whiteSpace:'pre-wrap'}}>{lastUiError}</pre></>}<button className="btn-ghost" onClick={clearSavedErrors}>{lt(lang,'Limpiar error guardado')}</button></div>}
+
+  {/* ── My Community Settings (community admins only) ──────────────────── */}
+  {adminInfo.isCommunityAdmin && !adminInfo.isGlobalAdmin && (adminInfo.communityAdminOf||[]).map(ca => (
+    <div key={ca.communityId} className="card" style={{marginBottom:16,border:'1px solid #cce7ee'}}>
+      <div style={{fontWeight:700,fontSize:'1rem',color:'#17313a',marginBottom:2}}>🏢 {isEn?'My Community Settings':'Configuración de mi comunidad'} <code style={{fontSize:'.78rem',background:'#eef6f8',padding:'1px 6px',borderRadius:4}}>{ca.communityId}</code></div>
+      <div style={{fontSize:'.8rem',color:'#6b9ba8',marginBottom:10}}>{isEn?'Configure settings specific to your community.':'Configura ajustes específicos para tu comunidad.'}</div>
+      <div style={{borderTop:'1px solid #e8f4f8',paddingTop:8}}>
+        <button type="button" className="btn-ghost" style={{fontSize:'.78rem',padding:'3px 10px'}}
+          onClick={()=>{
+            const opening = !communityConfigOpen[ca.communityId];
+            setCommunityConfigOpen(p=>({...p,[ca.communityId]:opening}));
+            if (opening && !communityConfigData[ca.communityId]) loadCommunityConfig(ca.communityId);
+          }}>
+          ⚙️ {isEn?'Community Settings':'Configuración de comunidad'} {communityConfigOpen[ca.communityId]?'▲':'▼'}
+        </button>
+        {communityConfigOpen[ca.communityId] && (
+          <div style={{marginTop:10}}>
+            {communityConfigLoading[ca.communityId] && <div style={{color:'#6b9ba8',fontSize:'.82rem'}}><span className="spinner-sm"/> {isEn?'Loading...':'Cargando...'}</div>}
+            {!communityConfigLoading[ca.communityId] && communityConfigData[ca.communityId] && (() => {
+              const cfg = communityConfigData[ca.communityId];
+              const draft = communityConfigDraft[ca.communityId] || {};
+              const overridesOn = communityOverridesEnabled[ca.communityId];
+              const LABELS = {
+                mission_title_es: isEn?'Mission title (ES)':'Título de misión (ES)',
+                mission_body_es: isEn?'Mission body (ES)':'Cuerpo de misión (ES)',
+                mission_title_en: 'Mission title (EN)',
+                mission_body_en: 'Mission body (EN)',
+                escalation_cc_emails: isEn?'Escalation CC emails':'Emails de escalación CC',
+                community_admin_default_permissions: isEn?'Default admin permissions (JSON)':'Permisos default admin (JSON)',
+              };
+              return (
+                <div>
+                  {Object.entries(LABELS).map(([key, label]) => {
+                    const globalVal = cfg.globalValues?.[key] || '';
+                    const overrideVal = draft[key] ?? cfg.communityOverrides?.[key] ?? '';
+                    const hasOverride = key in (cfg.communityOverrides||{}) || key in draft;
+                    const isTextarea = key.includes('body') || key.includes('sections') || key.includes('permissions');
+                    return (
+                      <div key={key} style={{marginBottom:10,paddingBottom:10,borderBottom:'1px solid #f0f8fb'}}>
+                        <div style={{fontSize:'.75rem',fontWeight:700,color:'#2F4F3A',marginBottom:4}}>
+                          {label}
+                          {hasOverride && <span style={{marginLeft:6,fontSize:'.68rem',background:'#d9b45a22',color:'#7a5a00',padding:'1px 6px',borderRadius:4,fontWeight:600}}>{isEn?'overridden':'sobreescrito'}</span>}
+                        </div>
+                        <div style={{fontSize:'.72rem',color:'#6b9ba8',marginBottom:4,background:'#f8f8f6',padding:'4px 8px',borderRadius:6}}>
+                          <span style={{fontWeight:600}}>{isEn?'Global:':'Global:'}</span> {globalVal ? (globalVal.length>80?globalVal.slice(0,80)+'…':globalVal) : <em>{isEn?'(not set)':'(sin valor)'}</em>}
+                        </div>
+                        {overridesOn && (
+                          isTextarea
+                            ? <textarea
+                                value={overrideVal}
+                                onChange={e=>setCommunityConfigDraft(p=>({...p,[ca.communityId]:{...(p[ca.communityId]||{}),[key]:e.target.value}}))}
+                                rows={3}
+                                placeholder={isEn?`Override for this community…`:`Valor específico para esta comunidad…`}
+                                style={{width:'100%',fontSize:'.78rem',padding:'5px 8px',borderRadius:6,border:'1px solid #cce7ee',resize:'vertical',boxSizing:'border-box'}}
+                              />
+                            : <input
+                                value={overrideVal}
+                                onChange={e=>setCommunityConfigDraft(p=>({...p,[ca.communityId]:{...(p[ca.communityId]||{}),[key]:e.target.value}}))}
+                                placeholder={isEn?`Override for this community…`:`Valor específico para esta comunidad…`}
+                                style={{width:'100%',fontSize:'.78rem',padding:'5px 8px',borderRadius:6,border:'1px solid #cce7ee',boxSizing:'border-box'}}
+                              />
+                        )}
+                        {!overridesOn && <div style={{fontSize:'.72rem',color:'#8a9fa5',fontStyle:'italic'}}>{isEn?'Overrides are not enabled for this community. Contact a global admin to enable them.':'Los overrides no están habilitados para esta comunidad. Contacta a un admin global para habilitarlos.'}</div>}
+                      </div>
+                    );
+                  })}
+                  {overridesOn && (
+                    <div style={{display:'flex',gap:8,marginTop:8}}>
+                      <button className="btn-p" style={{fontSize:'.78rem',padding:'5px 14px'}} onClick={()=>saveCommunityConfig(ca.communityId)}>
+                        💾 {isEn?'Save community settings':'Guardar configuración'}
+                      </button>
+                      <button className="btn-ghost" style={{fontSize:'.72rem',padding:'4px 10px'}} onClick={()=>loadCommunityConfig(ca.communityId)}>
+                        ↻ {isEn?'Refresh':'Actualizar'}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
+          </div>
+        )}
+      </div>
+    </div>
+  ))}
 
   {/* ── Communities ────────────────────────────────────────────────────── */}
   <AdminSection
@@ -6324,6 +6456,99 @@ function AdminSettings({ config={}, user, listings=[], contactProps={}, onSave, 
                   <button className="btn-ghost" style={{fontSize:'.72rem',padding:'3px 8px'}} onClick={()=>loadCommunityMembers(c.id)}>↻ {isEn?'Refresh':'Actualizar'}</button>
                 </div>
               )}
+            </div>
+          )}
+        </div>
+        {/* Community Settings toggle — visible to community admins and global admins */}
+        <div style={{marginTop:8,borderTop:'1px solid #e8f4f8',paddingTop:8}}>
+          <button type="button" className="btn-ghost" style={{fontSize:'.78rem',padding:'3px 10px'}}
+            onClick={()=>{
+              const opening = !communityConfigOpen[c.id];
+              setCommunityConfigOpen(p=>({...p,[c.id]:opening}));
+              if (opening && !communityConfigData[c.id]) loadCommunityConfig(c.id);
+            }}>
+            ⚙️ {isEn?'Community Settings':'Configuración de comunidad'} {communityConfigOpen[c.id]?'▲':'▼'}
+          </button>
+          {communityConfigOpen[c.id] && (
+            <div style={{marginTop:10}}>
+              {communityConfigLoading[c.id] && <div style={{color:'#6b9ba8',fontSize:'.82rem'}}><span className="spinner-sm"/> {isEn?'Loading...':'Cargando...'}</div>}
+              {!communityConfigLoading[c.id] && communityConfigData[c.id] && (() => {
+                const cfg = communityConfigData[c.id];
+                const draft = communityConfigDraft[c.id] || {};
+                const overridesOn = communityOverridesEnabled[c.id];
+                const LABELS = {
+                  mission_title_es: isEn?'Mission title (ES)':'Título de misión (ES)',
+                  mission_body_es: isEn?'Mission body (ES)':'Cuerpo de misión (ES)',
+                  mission_title_en: 'Mission title (EN)',
+                  mission_body_en: 'Mission body (EN)',
+                  escalation_cc_emails: isEn?'Escalation CC emails':'Emails de escalación CC',
+                  community_admin_default_permissions: isEn?'Default admin permissions (JSON)':'Permisos default admin (JSON)',
+                };
+                return (
+                  <div>
+                    {/* Global admin: toggle override feature */}
+                    {adminInfo.isGlobalAdmin && (
+                      <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:12,padding:'8px 10px',background:'#f0f8fb',borderRadius:8}}>
+                        <label style={{display:'flex',alignItems:'center',gap:6,fontSize:'.82rem',fontWeight:700,color:'#17313a',cursor:'pointer'}}>
+                          <input type="checkbox" checked={!!overridesOn}
+                            onChange={e=>toggleCommunityOverrides(c.id, e.target.checked)}
+                            style={{accentColor:'#0b7f4f',width:15,height:15}}
+                          />
+                          {isEn?'Allow community admin to override settings':'Permitir que admin comunidad sobreescriba configuración'}
+                        </label>
+                        <span style={{fontSize:'.72rem',color:'#6b9ba8'}}>{overridesOn?(isEn?'Overrides enabled':'Overrides habilitados'):(isEn?'Using global settings':'Usando config global')}</span>
+                      </div>
+                    )}
+                    {/* Settings rows */}
+                    {Object.entries(LABELS).map(([key, label]) => {
+                      const globalVal = cfg.globalValues?.[key] || '';
+                      const overrideVal = draft[key] ?? cfg.communityOverrides?.[key] ?? '';
+                      const hasOverride = key in (cfg.communityOverrides||{}) || key in draft;
+                      const isTextarea = key.includes('body') || key.includes('sections') || key.includes('permissions');
+                      return (
+                        <div key={key} style={{marginBottom:10,paddingBottom:10,borderBottom:'1px solid #f0f8fb'}}>
+                          <div style={{fontSize:'.75rem',fontWeight:700,color:'#2F4F3A',marginBottom:4}}>
+                            {label}
+                            {hasOverride && <span style={{marginLeft:6,fontSize:'.68rem',background:'#d9b45a22',color:'#7a5a00',padding:'1px 6px',borderRadius:4,fontWeight:600}}>{isEn?'overridden':'sobreescrito'}</span>}
+                          </div>
+                          {/* Global value — always read-only */}
+                          <div style={{fontSize:'.72rem',color:'#6b9ba8',marginBottom:4,background:'#f8f8f6',padding:'4px 8px',borderRadius:6}}>
+                            <span style={{fontWeight:600}}>{isEn?'Global:':'Global:'}</span> {globalVal ? (globalVal.length>80?globalVal.slice(0,80)+'…':globalVal) : <em>{isEn?'(not set)':'(sin valor)'}</em>}
+                          </div>
+                          {/* Override input — editable when overridesOn */}
+                          {overridesOn && (
+                            isTextarea
+                              ? <textarea
+                                  value={overrideVal}
+                                  onChange={e=>setCommunityConfigDraft(p=>({...p,[c.id]:{...(p[c.id]||{}),[key]:e.target.value}}))}
+                                  rows={3}
+                                  placeholder={isEn?`Override for this community…`:`Valor específico para esta comunidad…`}
+                                  style={{width:'100%',fontSize:'.78rem',padding:'5px 8px',borderRadius:6,border:'1px solid #cce7ee',resize:'vertical',boxSizing:'border-box'}}
+                                />
+                              : <input
+                                  value={overrideVal}
+                                  onChange={e=>setCommunityConfigDraft(p=>({...p,[c.id]:{...(p[c.id]||{}),[key]:e.target.value}}))}
+                                  placeholder={isEn?`Override for this community…`:`Valor específico para esta comunidad…`}
+                                  style={{width:'100%',fontSize:'.78rem',padding:'5px 8px',borderRadius:6,border:'1px solid #cce7ee',boxSizing:'border-box'}}
+                                />
+                          )}
+                          {!overridesOn && <div style={{fontSize:'.72rem',color:'#8a9fa5',fontStyle:'italic'}}>{isEn?'Enable overrides above to set a community-specific value.':'Activa overrides arriba para establecer un valor específico.'}</div>}
+                        </div>
+                      );
+                    })}
+                    {overridesOn && (
+                      <div style={{display:'flex',gap:8,marginTop:8}}>
+                        <button className="btn-p" style={{fontSize:'.78rem',padding:'5px 14px'}} onClick={()=>saveCommunityConfig(c.id)}>
+                          💾 {isEn?'Save community settings':'Guardar configuración'}
+                        </button>
+                        <button className="btn-ghost" style={{fontSize:'.72rem',padding:'4px 10px'}} onClick={()=>loadCommunityConfig(c.id)}>
+                          ↻ {isEn?'Refresh':'Actualizar'}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
             </div>
           )}
         </div>

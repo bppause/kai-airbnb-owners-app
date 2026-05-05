@@ -364,6 +364,7 @@ const isCommunityAdmin = async (uid='', email='', communityId='kai') => {
   } catch(e) { return false; }
 };
 const COMMUNITY_ADMIN_PERM_DEFAULTS = { canApproveRegistrations:true, canResolveIncidents:true, canManageListings:false };
+const OVERRIDABLE_COMMUNITY_KEYS = ['mission_title_es','mission_body_es','mission_title_en','mission_body_en','mission_sections_es','escalation_cc_emails','community_admin_default_permissions'];
 const hasCommunityAdminPerm = async (uid='', email='', communityId='kai', permKey='') => {
   if (!uid && !email) return false;
   try {
@@ -1581,9 +1582,21 @@ app.get('/api/admin/me', async (req, res) => {
   const config = await getAppConfig(communityId);
   const permissions = await getUserPermissions({ uid, email });
   const communities = await getUserCommunities(uid, email);
+  let communityAdminOf = [];
+  if (uid) {
+    try {
+      const { data: caMemberships } = await supabase.from('community_memberships')
+        .select('community_id,permissions').eq('user_uid', uid).eq('role','community_admin');
+      communityAdminOf = (caMemberships||[]).map(m => ({
+        communityId: m.community_id,
+        permissions: safeJsonObject(m.permissions, COMMUNITY_ADMIN_PERM_DEFAULTS)
+      }));
+    } catch(e) { communityAdminOf = []; }
+  }
+  const isCommunityAdminFlag = communityAdminOf.length > 0;
   const canManageRegs = role === 'global_admin' || !!permissions.delegate?.canApproveRegistrations ||
     await hasCommunityAdminPerm(uid, email, communityId, 'canApproveRegistrations');
-  res.json({ role, isGlobalAdmin: role === 'global_admin', canManageRegistrations: canManageRegs, languagePreference, config, permissions, communityId, communities });
+  res.json({ role, isGlobalAdmin: role === 'global_admin', canManageRegistrations: canManageRegs, languagePreference, config, permissions, communityId, communities, communityAdminOf, isCommunityAdmin: isCommunityAdminFlag });
 });
 
 app.put('/api/admin/config', async (req, res) => {
@@ -2173,6 +2186,58 @@ app.delete('/api/communities/:id', async (req, res) => {
   const { error } = await supabase.from('communities').delete().eq('id', req.params.id);
   if (error) return sendSupabaseError(res, error);
   await auditLog({ entity:'community', entityId:req.params.id, action:'delete', actorUid:actorUid||'', actorEmail:actorEmail||'', before });
+  res.json({ ok:true });
+});
+
+// GET /api/communities/:id/config — read community config overrides
+app.get('/api/communities/:id/config', async (req, res) => {
+  if (!requireSupabaseEnv(res)) return;
+  const { uid, email } = req.query || {};
+  if (!(await isCommunityAdmin(uid, email, req.params.id))) return res.status(403).json({ error:'Community admin access required.' });
+  const globalCfg = await getAppConfig(); // global only (no community overlay)
+  const { data: overrideRows } = await supabase.from('community_config')
+    .select('key,value').eq('community_id', req.params.id);
+  const communityOverrides = {};
+  let overridesEnabled = false;
+  (overrideRows||[]).forEach(r => {
+    if (r.key === 'config_overrides_enabled') overridesEnabled = r.value === 'true';
+    else if (OVERRIDABLE_COMMUNITY_KEYS.includes(r.key)) communityOverrides[r.key] = r.value;
+  });
+  const globalValues = {};
+  OVERRIDABLE_COMMUNITY_KEYS.forEach(k => { globalValues[k] = globalCfg[k] || ''; });
+  res.json({ globalValues, communityOverrides, overridesEnabled, overridableKeys: OVERRIDABLE_COMMUNITY_KEYS });
+});
+
+// PUT /api/communities/:id/config — write community config overrides
+app.put('/api/communities/:id/config', async (req, res) => {
+  if (!requireSupabaseEnv(res)) return;
+  const { actorUid, actorEmail, overrides } = req.body || {};
+  const isGA = await isGlobalAdmin(actorUid, actorEmail);
+  if (!isGA && !(await isCommunityAdmin(actorUid, actorEmail, req.params.id))) return res.status(403).json({ error:'Forbidden.' });
+  if (!isGA) {
+    const { data: flagRow } = await supabase.from('community_config').select('value')
+      .eq('community_id', req.params.id).eq('key','config_overrides_enabled').maybeSingle();
+    if (flagRow?.value !== 'true') return res.status(403).json({ error:'Config overrides are not enabled for this community.' });
+  }
+  const allowedKeys = new Set(OVERRIDABLE_COMMUNITY_KEYS);
+  for (const [key, value] of Object.entries(overrides || {})) {
+    if (!allowedKeys.has(key)) continue;
+    const strVal = typeof value === 'string' ? value : JSON.stringify(value);
+    await supabase.from('community_config').delete().eq('community_id', req.params.id).eq('key', key);
+    if (strVal !== '') await supabase.from('community_config').insert({ community_id: req.params.id, key, value: strVal });
+  }
+  await auditLog({ entity:'community_config', entityId:req.params.id, action:'update_overrides', actorUid:actorUid||'', actorEmail:actorEmail||'', after:overrides });
+  res.json({ ok:true });
+});
+
+// PUT /api/communities/:id/config/overrides-enabled — global admin toggle
+app.put('/api/communities/:id/config/overrides-enabled', async (req, res) => {
+  if (!requireSupabaseEnv(res)) return;
+  const { actorUid, actorEmail, enabled } = req.body || {};
+  if (!(await isGlobalAdmin(actorUid, actorEmail))) return res.status(403).json({ error:'Global admin only.' });
+  await supabase.from('community_config').delete().eq('community_id', req.params.id).eq('key','config_overrides_enabled');
+  await supabase.from('community_config').insert({ community_id: req.params.id, key:'config_overrides_enabled', value: enabled ? 'true' : 'false' });
+  await auditLog({ entity:'community_config', entityId:req.params.id, action:'set_overrides_enabled', actorUid:actorUid||'', actorEmail:actorEmail||'', after:{ enabled } });
   res.json({ ok:true });
 });
 
