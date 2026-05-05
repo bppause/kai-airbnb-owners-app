@@ -646,6 +646,7 @@ let _communityId = (() => { try { return localStorage.getItem('kai_community') |
 // Phase 3: community display name + tower, synced from adminInfo.config on load
 let _complexName = { es:'Propietarios Airbnb KAI', en:'KAI Airbnb Owners', tower:'KAI' };
 const setCustomLabels = (cfg={}) => {
+  cfg = cfg || {};
   try { _customLabels.es = JSON.parse(cfg.ui_labels_es || '{}') || {}; } catch(e) { _customLabels.es = {}; }
   try { _customLabels.en = JSON.parse(cfg.ui_labels_en || '{}') || {}; } catch(e) { _customLabels.en = {}; }
   _complexName.es = cfg.complex_name_es || 'Propietarios Airbnb KAI';
@@ -1231,6 +1232,8 @@ export default function App() {
   };
   const logout = async () => {
     if (auth) await signOut(auth);
+    try { localStorage.removeItem('kai_community'); } catch(e) {}
+    _communityId = 'kai';
     showToast("Sesión cerrada");
   };
 

@@ -978,11 +978,12 @@ app.get('/api/registrations/status', async (req, res) => {
   if (!requireSupabaseEnv(res)) return;
   const uid = String(req.query.uid || '').trim();
   if (!uid) return res.status(400).json({ error: 'uid is required.' });
-  const { data: latest, error } = await supabase.from('listings').select('*').eq('owner_uid', uid).in('status', ['pending','approved','declined']).order('created_at', { ascending:false }).limit(1).maybeSingle();
+  const communityId = getCommunityId(req);
+  const { data: latest, error } = await supabase.from('listings').select('*').eq('owner_uid', uid).eq('community_id', communityId).in('status', ['pending','approved','declined']).order('created_at', { ascending:false }).limit(1).maybeSingle();
   if (error) return sendSupabaseError(res, error);
   if (!latest) return res.json({ status:'none' });
   const regId = latest.registration_id;
-  const query = supabase.from('listings').select('*').eq('owner_uid', uid).eq('status', latest.status).order('apt', { ascending:true });
+  const query = supabase.from('listings').select('*').eq('owner_uid', uid).eq('community_id', communityId).eq('status', latest.status).order('apt', { ascending:true });
   const { data: rows, error: rowError } = regId ? await query.eq('registration_id', regId) : await query;
   if (rowError) return sendSupabaseError(res, rowError);
   res.json(registrationFromListingRows(rows || [latest]));
@@ -1001,11 +1002,11 @@ app.post('/api/registrations', async (req, res) => {
     if (conflict) return res.status(409).json({ error: conflict.message, conflict });
   } catch(e) { return sendSupabaseError(res, e); }
 
-  const { data: existingApproved, error: approvedError } = await supabase.from('listings').select('id').eq('owner_uid', userUid).eq('status','approved').limit(1).maybeSingle();
+  const { data: existingApproved, error: approvedError } = await supabase.from('listings').select('id').eq('owner_uid', userUid).eq('community_id', communityId).eq('status','approved').limit(1).maybeSingle();
   if (approvedError) return sendSupabaseError(res, approvedError);
   if (existingApproved) return res.status(400).json({ error:'Este usuario ya está aprobado.' });
 
-  const { data: existingPending, error: pendingError } = await supabase.from('listings').select('id').eq('owner_uid', userUid).eq('status','pending').limit(1).maybeSingle();
+  const { data: existingPending, error: pendingError } = await supabase.from('listings').select('id').eq('owner_uid', userUid).eq('community_id', communityId).eq('status','pending').limit(1).maybeSingle();
   if (pendingError) return sendSupabaseError(res, pendingError);
   if (existingPending) return res.status(400).json({ error:'Ya tienes un registro pendiente de aprobación.' });
 
@@ -1055,7 +1056,7 @@ app.post('/api/registrations', async (req, res) => {
     } catch(e) { warn('Registration submitted/status email failed: ' + (e?.message || e)); }
     try {
       if (result.status !== 'pending') return;
-      const { data: reviewerRows } = await supabase.from('listings').select('owner_uid,owner,user_email,email').eq('status','approved');
+      const { data: reviewerRows } = await supabase.from('listings').select('owner_uid,owner,user_email,email').eq('community_id', communityId).eq('status','approved');
       const seen = new Set();
       for (const r of reviewerRows || []) {
         if (seen.has(r.owner_uid)) continue; seen.add(r.owner_uid);
@@ -1157,7 +1158,7 @@ const reviewRegistration = async (req, res, status) => {
   const communityId = getCommunityId(req);
   try { if (!(await canManageRegistrations(reviewerUid, req.body?.reviewerEmail, communityId))) return res.status(403).json({ error:'Solo administradores globales o delegados pueden aprobar o rechazar registros.' }); } catch(e) { return sendSupabaseError(res, e); }
   const registrationId = req.params.id;
-  const { data: pendingRows, error: findErr } = await supabase.from('listings').select('*').eq('registration_id', registrationId).eq('status','pending').order('apt', { ascending:true });
+  const { data: pendingRows, error: findErr } = await supabase.from('listings').select('*').eq('registration_id', registrationId).eq('community_id', communityId).eq('status','pending').order('apt', { ascending:true });
   if (findErr) return sendSupabaseError(res, findErr);
   if (!pendingRows || !pendingRows.length) return res.status(404).json({ error:'Registro pendiente no encontrado o ya revisado.' });
 
@@ -1168,7 +1169,7 @@ const reviewRegistration = async (req, res, status) => {
     } catch(e) { return sendSupabaseError(res, e); }
   }
   const review = { status, reason:String(reason || '').trim(), reviewed_by_uid:reviewerUid, reviewed_by_name:reviewerName || '', reviewed_at:new Date().toISOString() };
-  const { data: updated, error: updErr } = await supabase.from('listings').update(review).eq('registration_id', registrationId).eq('status','pending').select('*');
+  const { data: updated, error: updErr } = await supabase.from('listings').update(review).eq('registration_id', registrationId).eq('community_id', communityId).eq('status','pending').select('*');
   if (updErr) return sendSupabaseError(res, updErr);
   for (const row of updated || []) await auditEvent({ listingId:row.id, registrationId, actorUid:reviewerUid, actorName:reviewerName, action: status === 'approved' ? 'registration_approved' : 'registration_declined', reason:review.reason, before:pendingRows.find(x => x.id === row.id), after:row });
   const result = registrationFromListingRows(updated || []);
@@ -1781,11 +1782,14 @@ app.patch('/api/incidents/:id/close-general', async (req, res) => {
   const { actorUid='', actorEmail='', action:closingAction='', resolution='', resolutionComments='' } = req.body || {};
   if (!actorUid || !actorEmail) return res.status(400).json({ error:'actorUid y actorEmail son requeridos.' });
   if (!String(closingAction||'').trim() || !String(resolution||'').trim()) return res.status(400).json({ error:'action y resolution son requeridos.' });
-  if (!(await isGlobalAdmin(actorUid, actorEmail)) && !(await hasDelegatePermission(actorUid, actorEmail, 'canResolveIncidents')))
-    return res.status(403).json({ error:'Solo administradores con permiso canResolveIncidents pueden cerrar incidentes generales.' });
   const { data: existing, error: findError } = await supabase.from('incidents').select('*').eq('id', req.params.id).single();
   if (findError || !existing) return res.status(404).json({ error:'Incident not found.' });
   if (!existing.is_general) return res.status(400).json({ error:'Este endpoint solo cierra incidentes generales.' });
+  const incCommunityId = existing.community_id || getCommunityId(req);
+  const canClose = await hasDelegatePermission(actorUid, actorEmail, 'canResolveIncidents') ||
+    await hasCommunityAdminPerm(actorUid, actorEmail, incCommunityId, 'canResolveIncidents');
+  if (!canClose)
+    return res.status(403).json({ error:'Solo administradores con permiso canResolveIncidents pueden cerrar incidentes generales.' });
   if (existing.status === 'resolved') return res.status(400).json({ error:'El incidente ya está resuelto.' });
   const nowIso = new Date().toISOString();
   const upd = { status:'resolved', owner_comments:String(closingAction).trim(), owner_resolution:String(resolution).trim(), resolution_comments:String(resolutionComments||'').trim(), resolved_at:nowIso, resolved_by:actorEmail, next_sla_reminder_at:null };
