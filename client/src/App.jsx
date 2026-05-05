@@ -1008,7 +1008,7 @@ export default function App() {
   const [previewRole, setPreviewRole] = useState(null);
   const [openDropdown, setOpenDropdown] = useState(null);
   const [showTour, setShowTour] = useState(false);
-  const initialView = new URLSearchParams(window.location.search).get('view') || 'incidents';
+  const initialView = new URLSearchParams(window.location.search).get('view') || (() => { try { return localStorage.getItem('kai_last_view') || 'incidents'; } catch(e) { return 'incidents'; } })();
   const [view,      setView]      = useState(initialView);
   // Apply role-based landing once admin config has fully loaded from server.
   // Must wait for adminLoading===false — without this guard the effect fires on the
@@ -1019,6 +1019,7 @@ export default function App() {
     if (_landingApplied.current || !user || adminLoading) return;
     _landingApplied.current = true;
     if (new URLSearchParams(window.location.search).get('view')) return;
+    try { if (localStorage.getItem('kai_last_view')) return; } catch(e) {}
     try {
       const navCfg = JSON.parse(adminInfo?.config?.nav_config || '{}');
       const roleKey = effectiveIsGlobalAdmin ? 'global' : effectiveRole === 'delegate_admin' ? 'delegate' : 'user';
@@ -1288,9 +1289,13 @@ export default function App() {
       });
     }
   };
+  useEffect(() => {
+    if (user && view) { try { localStorage.setItem('kai_last_view', view); } catch(e) {} }
+  }, [view, user]);
+
   const logout = async () => {
     if (auth) await signOut(auth);
-    try { localStorage.removeItem('kai_community'); } catch(e) {}
+    try { localStorage.removeItem('kai_community'); localStorage.removeItem('kai_last_view'); } catch(e) {}
     _communityId = 'kai';
     showToast("Sesión cerrada");
   };
