@@ -303,7 +303,7 @@ const APP_I18N = {
   "listing.operatorWhatsapp": { es:"WhatsApp operador", en:"Operator WhatsApp" },
   "listing.openLink": { es:"Abrir enlace", en:"Open link" },
 
-  "reports.title": { es:"📋 Gestión de Incidentes", en:"📋 Incident Management" },
+  "reports.title": { es:"📋 Incidentes", en:"📋 Incidents" },
   "reports.subtitle": { es:"Historial completo · {total} total · {open} activos", en:"Full history · {total} total · {open} active" },
   "reports.new": { es:"＋ Nuevo reporte", en:"＋ New report" },
   "reports.reportIncident": { es:"⚠️ Reportar incidente", en:"⚠️ File a report" },
@@ -442,9 +442,9 @@ const APP_I18N = {
   "form.cancel": { es:"Cancelar", en:"Cancel" },
   "form.registerReport": { es:"⚠️ Registrar reporte", en:"⚠️ Submit report" },
   "form.saveVerification": { es:"Guardar verificación", en:"Save verification" },
-  "modal.verify.title": { es:"✅ Confirmar y documentar acción", en:"✅ Confirm & document action" },
+  "modal.verify.title": { es:"✅ Paso 1 de 2 — Confirmar y documentar acción", en:"✅ Step 1 of 2 — Confirm & Document Action" },
   "modal.verify.sub": { es:"{apt} · Confirma los datos del huésped y documenta la acción que tomaste.", en:"{apt} · Confirm guest details and document the action you took." },
-  "modal.verify.help": { es:"Confirma los datos del huésped y describe la acción inmediata tomada (requerida). Tu respuesta es opcional al verificar, pero un administrador solo podrá cerrar el incidente una vez que la agregues.", en:"Confirm the guest details and describe the immediate action taken (required). Your proposed resolution is optional at verification, but an admin can only close the incident once you add it." },
+  "modal.verify.help": { es:"Esto es el Paso 1 de 2. Confirma los datos del huésped y describe la acción inmediata (requerida). Después del Paso 1, deberás agregar tu respuesta (Paso 2) para que el administrador pueda cerrar el incidente.", en:"This is Step 1 of 2. Confirm guest details and describe the immediate action taken (required). After Step 1, you will still need to add your resolution (Step 2) before the admin can close the incident." },
   "form.guestNames": { es:"👥 Huésped(es) confirmado(s) *", en:"👥 Confirmed guest(s) *" },
   "form.guestNamesPlaceholder": { es:"Nombre de huésped 1, huésped 2...", en:"Guest 1 name, guest 2 name..." },
 
@@ -1025,7 +1025,7 @@ export default function App() {
     }
   }, [loading, incidents]);
   const [incidentQuickFilter, setIncidentQuickFilter] = useState(null);
-  const [userProfile, setUserProfile] = useState({ whatsapp:'', country:'Colombia' });
+  const [userProfile, setUserProfile] = useState({ whatsapp:'', country:'Colombia', notificationEmail:'' });
   // Listing floor collapse state — lives here so it persists across navigation
   const [listingFloorOpen, setListingFloorOpen] = useState({});
   const toggleListingFloor = (f) => setListingFloorOpen(s=>({...s,[f]:!s[f]}));
@@ -1158,19 +1158,20 @@ export default function App() {
 
   // Load owner profile (whatsapp + country)
   useEffect(() => {
-    if (!user?.uid) { setUserProfile({ whatsapp:'', country:'Colombia' }); return; }
+    if (!user?.uid) { setUserProfile({ whatsapp:'', country:'Colombia', notificationEmail:'' }); return; }
     api.get('/api/users/profile?uid=' + encodeURIComponent(user.uid))
-      .then(p => setUserProfile({ whatsapp:p.whatsapp||'', country:p.country||'Colombia' }))
+      .then(p => setUserProfile({ whatsapp:p.whatsapp||'', country:p.country||'Colombia', notificationEmail:p.notificationEmail||'' }))
       .catch(() => {});
   }, [user?.uid]);
 
   const saveProfile = async (profileData) => {
     setSyncing(true);
     try {
-      const result = await api.put('/api/users/profile', { uid:user.uid, email:user.email, whatsapp:profileData.whatsapp, country:profileData.country||'Colombia' });
-      setUserProfile({ whatsapp:result.whatsapp||'', country:result.country||'Colombia' });
-      // Also update cached whatsapp in listings for the current user
-      setListings(ls => ls.map(l => l.ownerUid===user.uid ? {...l, contact:result.whatsapp||'', email:user.email} : l));
+      const result = await api.put('/api/users/profile', { uid:user.uid, email:user.email, whatsapp:profileData.whatsapp, country:profileData.country||'Colombia', notificationEmail:profileData.notificationEmail||'' });
+      setUserProfile({ whatsapp:result.whatsapp||'', country:result.country||'Colombia', notificationEmail:result.notificationEmail||'' });
+      // Also update cached contact info in listings for the current user
+      const effectiveEmail = result.notificationEmail || user.email;
+      setListings(ls => ls.map(l => l.ownerUid===user.uid ? {...l, contact:result.whatsapp||'', email:effectiveEmail} : l));
       showToast(lang==='en' ? '✅ Profile updated' : '✅ Perfil actualizado');
     } catch(e) {
       showToast((lang==='en' ? 'Could not save: ' : 'No se pudo guardar: ') + (e.message || ''), true);
@@ -1267,7 +1268,6 @@ export default function App() {
   const allNavItems = [
     canSeeMenu('my') && isApproved         ? { id:'my',        icon:'🔑', label:t.nav.my,        badge:myListings.length } : null,
     canSeeMenu('incidents')                 ? { id:'incidents',  icon:'⚠️', label:t.nav.incidents,  badge:openCount } : null,
-    isApproved                              ? { id:'general',    icon:'📢', label:lang==='en'?'Community':'Comunidad', badge: incidents.filter(i=>i.isGeneral&&i.status!=='resolved').length||0 } : null,
     canSeeMenu('listings')                  ? { id:'listings',   icon:'🏠', label:t.nav.listings } : null,
     canSeeMenu('dashboard')                 ? { id:'dashboard',  icon:'📊', label:t.nav.dashboard } : null,
     effectiveCanManageRegistrations && isApproved ? { id:'approvals', icon:'📝', label:t.nav.approvals, badge:pendingRegistrations.length } : null,
@@ -1578,13 +1578,12 @@ export default function App() {
         {view==="about" && <CommunityMissionView lang={lang} config={adminInfo.config} />}
         {view==="listings"  && <ListingsView lang={lang} listings={listings} incidents={incidents} user={user} contactProps={contactProps} isGlobalAdmin={effectiveIsGlobalAdmin} canEditGlobal={delegatePerms.canUpdateGlobalListings} canDeleteGlobal={delegatePerms.canDeleteGlobalListings} canResolveGlobal={canResolveIncidentsNow} floorOpenState={listingFloorOpen} onFloorToggle={toggleListingFloor} onAdd={()=>{ if(!user){login();return;} setModal({type:"addListing"}); }} onEdit={l=>setModal({type:"editListing",data:l})} onDelete={deleteListing} onReport={l=>{ if(!user){login();return;} setModal({type:"incident",data:{aptId:l.id}}); }} onVerify={inc=>setModal({type:"verifyIncident",data:inc})} onResolve={resolveIncident} onAddResolution={inc=>setModal({type:"addResolution",data:inc})} onFloorFilter={f=>{setIncidentQuickFilter({type:'floorFilter',aptIds:f.aptIds,status:f.status});setView('incidents');}} onAssign={inc=>setModal({type:'assignGeneral',data:inc})} onCloseGeneral={inc=>setModal({type:'closeGeneral',data:inc})} onIncidentDetail={openIncidentDetail} />}
 
-        {view==="incidents" && <IncidentsView lang={lang} incidents={incidents} listings={listings} user={user} quickFilter={incidentQuickFilter} onQuickFilterApplied={()=>setIncidentQuickFilter(null)} contactProps={contactProps} isGlobalAdmin={effectiveIsGlobalAdmin} canUpdateGlobal={delegatePerms.canUpdateGlobalIncidents} canDeleteGlobal={delegatePerms.canDeleteGlobalIncidents} canResolveGlobal={canResolveIncidentsNow} onAdd={()=>{ if(!user){login();return;} setModal({type:"incident"}); }} onResolve={resolveIncident} onDelete={deleteIncident} onVerify={inc=>setModal({type:"verifyIncident",data:inc})} onAddResolution={inc=>setModal({type:"addResolution",data:inc})} onUnitDetail={id=>setUnitDetailOverlay({listingId:id})} onIncidentDetail={openIncidentDetail} onAssign={inc=>setModal({type:'assignGeneral',data:inc})} onCloseGeneral={inc=>setModal({type:'closeGeneral',data:inc})} />}
-        {view==="general" && user && <GeneralIncidentsView lang={lang} incidents={incidents} listings={listings} user={user} contactProps={contactProps} isGlobalAdmin={effectiveIsGlobalAdmin} canResolveGlobal={canResolveIncidentsNow} onIncidentDetail={openIncidentDetail} onAssign={inc=>setModal({type:'assignGeneral',data:inc})} onClose={inc=>setModal({type:'closeGeneral',data:inc})} />}
+        {(view==="incidents"||view==="general") && <IncidentsView key={view} defaultTab={view==='general'?'general':'unit'} lang={lang} incidents={incidents} listings={listings} user={user} quickFilter={incidentQuickFilter} onQuickFilterApplied={()=>setIncidentQuickFilter(null)} contactProps={contactProps} isGlobalAdmin={effectiveIsGlobalAdmin} canUpdateGlobal={delegatePerms.canUpdateGlobalIncidents} canDeleteGlobal={delegatePerms.canDeleteGlobalIncidents} canResolveGlobal={canResolveIncidentsNow} onAdd={()=>{ if(!user){login();return;} setModal({type:"incident"}); }} onResolve={resolveIncident} onDelete={deleteIncident} onVerify={inc=>setModal({type:"verifyIncident",data:inc})} onAddResolution={inc=>setModal({type:"addResolution",data:inc})} onUnitDetail={id=>setUnitDetailOverlay({listingId:id})} onIncidentDetail={openIncidentDetail} onAssign={inc=>setModal({type:'assignGeneral',data:inc})} onCloseGeneral={inc=>setModal({type:'closeGeneral',data:inc})} />}
         {view==="notifications" && user && <NotificationsView lang={lang} notifications={notifications} incidents={incidents} listings={listings} contactProps={contactProps} onRead={markNotificationRead} onReadAll={markAllNotificationsRead} smartAlerts={smartAlerts} onIncidentDetail={openIncidentDetail} />}
         {view==="approvals" && user && effectiveCanManageRegistrations && <PendingApprovalsView lang={lang} pending={pendingRegistrations} onApprove={id=>reviewRegistrationAction(id,'approve')} onDecline={id=>reviewRegistrationAction(id,'decline')} active={activeRegistrations} />}
         {view==="analytics" && user && (effectiveIsGlobalAdmin || analyticsEnabledForAll) && <AnalyticsDashboard lang={lang} user={user} contactProps={contactProps} showToast={showToast} isGlobalAdmin={effectiveIsGlobalAdmin} />}
         {view==="admin" && user && (effectiveIsGlobalAdmin ? <ErrorBoundary section="admin" fallback={(err)=><AdminFallback lang={lang} error={err}/>}><AdminSettings config={adminInfo.config || {}} user={user} listings={listings} contactProps={contactProps} onSave={saveAdminConfig} showToast={showToast} lang={lang} /></ErrorBoundary> : <AdminAccessHelp user={user} adminInfo={adminInfo} lang={lang} />)}
-        {view==="my" && user && <MyListings lang={lang} listings={myListings} incidents={incidents} user={user} contactProps={contactProps} isGlobalAdmin={effectiveIsGlobalAdmin} canResolveGlobal={canResolveIncidentsNow} onAdd={()=>setModal({type:"addListing"})} onEdit={l=>setModal({type:"editListing",data:l})} onDelete={deleteListing} onReport={l=>setModal({type:"incident",data:{aptId:l.id}})} onVerify={inc=>setModal({type:"verifyIncident",data:inc})} onResolve={resolveIncident} onAddResolution={inc=>setModal({type:"addResolution",data:inc})} onNavigateToIncidents={f=>{setIncidentQuickFilter({type:'floorFilter',aptIds:f.aptIds,status:f.status||'all'});setView('incidents');}} onIncidentDetail={openIncidentDetail} onAssign={inc=>setModal({type:'assignGeneral',data:inc})} onCloseGeneral={inc=>setModal({type:'closeGeneral',data:inc})} />}
+        {view==="my" && user && <MyListings lang={lang} listings={myListings} allListings={listings} incidents={incidents} user={user} contactProps={contactProps} isGlobalAdmin={effectiveIsGlobalAdmin} canResolveGlobal={canResolveIncidentsNow} onAdd={()=>setModal({type:"addListing"})} onEdit={l=>setModal({type:"editListing",data:l})} onDelete={deleteListing} onReport={l=>setModal({type:"incident",data:{aptId:l.id}})} onVerify={inc=>setModal({type:"verifyIncident",data:inc})} onResolve={resolveIncident} onAddResolution={inc=>setModal({type:"addResolution",data:inc})} onNavigateToIncidents={f=>{setIncidentQuickFilter({type:'floorFilter',aptIds:f.aptIds,status:f.status||'all'});setView('incidents');}} onIncidentDetail={openIncidentDetail} onAssign={inc=>setModal({type:'assignGeneral',data:inc})} onCloseGeneral={inc=>setModal({type:'closeGeneral',data:inc})} />}
         {view==="profile" && user && <ProfileView lang={lang} user={user} userProfile={userProfile} onSave={saveProfile} />}
         {view==="help" && <HelpView lang={lang} effectiveRole={effectiveRole} effectiveIsGlobalAdmin={effectiveIsGlobalAdmin} delegatePerms={delegatePerms} listings={listings} incidents={incidents} user={user} setView={setView} onReport={()=>{ if(!user){login();return;} setModal({type:'incident'}); }} onAddListing={()=>{ if(!user){login();return;} setModal({type:'addListing'}); }} setIncidentQuickFilter={setIncidentQuickFilter} openMore={()=>setOpenDropdown('more')} />}
       </main>
@@ -1594,7 +1593,7 @@ export default function App() {
         <nav className="mob-bottom-nav" aria-label={lang==='en'?'Main navigation':'Navegación principal'}>
           {[
             { id:'my',            icon:'🔑', label:lang==='en'?'My Units':'Mis Unidades', badge: myListings.length>0&&(needsOwnerVerification.length+needsOwnerResolution.length)||0 },
-            { id:'incidents',     icon:'⚠️', label:lang==='en'?'Incidents':'Incidentes',  badge: openCount },
+            { id:'incidents',     icon:'⚠️', label:lang==='en'?'Unit Incidents':'Incidentes de Unidad',  badge: openCount },
             { id:'notifications', icon:'🔔', label:lang==='en'?'Alerts':'Alertas',         badge: unreadNotifications },
             { id:'my',            icon:'👤', label:lang==='en'?'Profile':'Perfil',          badge: 0, toProfile:true },
           ].map((n,i)=>(
@@ -2271,7 +2270,8 @@ function RegistrationListingForm({ user, onSubmit, submitText, lang="es-CO" }) {
         <div className="fg full"><label>{appText(lang,"form.airbnbOptional")} {optLabel}</label><input className={cls(`airbnb_${i}`)} value={f.airbnb} onChange={e=>setVal(i,'airbnb',e.target.value)} onBlur={e=>{const v=String(e.target.value||'').trim();const key=`airbnb_${i}`;if(v&&!/^https?:\/\/.+/i.test(v))setErrors(p=>({...p,[key]:appText(lang,'validation.urlInvalid')}));else setErrors(p=>({...p,[key]:undefined}));}} placeholder="https://www.airbnb.com/rooms/..."/>{errors[`airbnb_${i}`]&&<span className="err-msg">{errors[`airbnb_${i}`]}</span>}</div>
         {/* ── Operator ─────────────────────────────────────── */}
         <div className="fg full form-section-hdr">🔧 {isEn?'Operator (optional)':'Operador (opcional)'}</div>
-        <div className="fg"><label>{appText(lang,"form.operatorOptional")} <Tip text={tips.operator}/></label><input className={cls(`operator_${i}`)} value={f.operator} onChange={e=>setVal(i,'operator',e.target.value)} placeholder={appText(lang,"form.operatorPlaceholder")}/>{errors[`operator_${i}`]&&<span className="err-msg">{errors[`operator_${i}`]}</span>}</div>
+        <div className="fg full" style={{marginTop:-4,marginBottom:4}}><span className="help-msg">{isEn?'Leave blank if you self-manage. Operator receives all incident notifications for this unit.':'Déjalo en blanco si gestionas tú mismo. El operador recibe todas las notificaciones de incidentes de esta unidad.'}</span></div>
+        <div className="fg"><label>{appText(lang,"form.operatorOptional")} {optLabel} <Tip text={tips.operator}/></label><input className={cls(`operator_${i}`)} value={f.operator} onChange={e=>setVal(i,'operator',e.target.value)} placeholder={appText(lang,"form.operatorPlaceholder")}/>{errors[`operator_${i}`]&&<span className="err-msg">{errors[`operator_${i}`]}</span>}</div>
         <div className="fg"><label>{appText(lang,"form.operatorEmailOptional")} <Tip text={tips.operatorEmail}/></label><input className={cls(`operatorEmail_${i}`)} type="email" value={f.operatorEmail} onChange={e=>setVal(i,'operatorEmail',e.target.value)} onBlur={e=>{const v=String(e.target.value||'').trim();const key=`operatorEmail_${i}`;if(v&&!validateEmail(v))setErrors(p=>({...p,[key]:appText(lang,'validation.operatorEmailInvalid')}));else setErrors(p=>({...p,[key]:undefined}));}} placeholder="operador@email.com"/>{errors[`operatorEmail_${i}`]&&<span className="err-msg">{errors[`operatorEmail_${i}`]}</span>}</div>
         <div className="fg full"><label>{appText(lang,"form.operatorWhatsappOptional")} <Tip text={tips.operatorWhatsapp}/></label><input className={cls(`operatorWhatsapp_${i}`)} type="tel" value={f.operatorWhatsapp} onChange={e=>setVal(i,'operatorWhatsapp',e.target.value)} onBlur={e=>{const v=String(e.target.value||'').trim();const key=`operatorWhatsapp_${i}`;const err=validateWhatsApp(v,lang);setErrors(p=>({...p,[key]:err||undefined}));}} placeholder="+57 300 000 0000"/>{errors[`operatorWhatsapp_${i}`]?<span className="err-msg">{errors[`operatorWhatsapp_${i}`]}</span>:<span className="help-msg">{isEn?'With country code, e.g. +57':'Con código de país, ej. +57'}</span>}</div>
       </div>
@@ -2387,12 +2387,15 @@ function ProfileView({ user, lang, userProfile, onSave }) {
   const isEn = lang === 'en';
   const [country, setCountry] = useState(userProfile.country || 'Colombia');
   const [whatsapp, setWhatsapp] = useState(userProfile.whatsapp || '');
+  const [notificationEmail, setNotificationEmail] = useState(userProfile.notificationEmail || '');
   const [error, setError] = useState('');
+  const [emailError, setEmailError] = useState('');
   const [saving, setSaving] = useState(false);
 
   // Sync when profile loads from server
   useEffect(() => { setWhatsapp(userProfile.whatsapp || ''); }, [userProfile.whatsapp]);
   useEffect(() => { setCountry(userProfile.country || 'Colombia'); }, [userProfile.country]);
+  useEffect(() => { setNotificationEmail(userProfile.notificationEmail || ''); }, [userProfile.notificationEmail]);
 
   const handleCountryChange = (val) => {
     const code = OWNER_COUNTRIES.find(c=>c.name===val)?.code||'';
@@ -2406,13 +2409,19 @@ function ProfileView({ user, lang, userProfile, onSave }) {
     const err = validateWhatsApp(whatsapp, lang);
     if (err) { setError(err); return false; }
     setError('');
+    const ne = String(notificationEmail||'').trim();
+    if (ne && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(ne)) {
+      setEmailError(isEn ? 'Enter a valid email address' : 'Ingresa un email válido');
+      return false;
+    }
+    setEmailError('');
     return true;
   };
 
   const handleSave = async () => {
     if (!validate()) return;
     setSaving(true);
-    try { await onSave({ whatsapp: whatsapp.trim(), country }); }
+    try { await onSave({ whatsapp: whatsapp.trim(), country, notificationEmail: notificationEmail.trim() }); }
     finally { setSaving(false); }
   };
 
@@ -2458,6 +2467,23 @@ function ProfileView({ user, lang, userProfile, onSave }) {
               <label>WhatsApp <span style={{color:'#e53935',fontSize:'0.75rem'}}>*</span></label>
               <input className={error?'field-error':''} type="tel" value={whatsapp} onChange={e=>{setWhatsapp(e.target.value);setError('');}} onBlur={e=>{let v=String(e.target.value||'').trim();if(!v){setError(isEn?'WhatsApp is required':'WhatsApp es requerido');return;}const digits=v.replace(/[^0-9]/g,'');if(!v.startsWith('+')&&digits.length>=10){v='+'+digits;setWhatsapp(v);}const err=validateWhatsApp(v,lang);if(err)setError(err);else setError('');}} placeholder="+57 300 000 0000"/>
               {error ? <span className="err-msg">{error}</span> : <span className="help-msg">{isEn?'With country code, e.g. +57 300 000 0000':'Con código de país, ej. +57 300 000 0000'}</span>}
+            </div>
+          </div>
+        </div>
+
+        {/* ── Notification email ───────────────────── */}
+        <div className="prof-section">
+          <div className="prof-section-hdr">✉️ {isEn ? 'Notification email' : 'Email de notificaciones'}</div>
+          <p style={{fontSize:'.84rem',color:'#2a5a6a',margin:'0 0 14px',lineHeight:1.5}}>
+            {isEn
+              ? 'Optional. If set, notifications will be sent here instead of your Google email.'
+              : 'Opcional. Si lo configuras, las notificaciones llegarán aquí en lugar de a tu email de Google.'}
+          </p>
+          <div className="fg2" style={{maxWidth:360}}>
+            <div className="fg full">
+              <label>{isEn ? 'Notification email' : 'Email alternativo'} <span style={{color:'#70d6c6',fontStyle:'italic',fontSize:'0.68rem'}}>({isEn?'optional':'opcional'})</span></label>
+              <input className={emailError?'field-error':''} type="email" value={notificationEmail} onChange={e=>{setNotificationEmail(e.target.value);setEmailError('');}} onBlur={e=>{const v=String(e.target.value||'').trim();if(v&&!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v))setEmailError(isEn?'Enter a valid email address':'Ingresa un email válido');else setEmailError('');}} placeholder="otro@email.com"/>
+              {emailError ? <span className="err-msg">{emailError}</span> : <span className="help-msg">{isEn?'Leave blank to use your Google email':'Deja en blanco para usar tu email de Google'}</span>}
             </div>
           </div>
         </div>
@@ -2725,7 +2751,7 @@ function Dashboard({ listings, incidents, user, contactProps={}, setView, onRepo
   );
 }
 
-function MyListings({ listings, incidents, user, contactProps={}, isGlobalAdmin=false, canResolveGlobal=false, onAdd, onEdit, onDelete, onReport, onVerify, onResolve, onAddResolution, onNavigateToIncidents, onIncidentDetail=null, onAssign, onCloseGeneral, lang="es-CO" }) {
+function MyListings({ listings, allListings=listings, incidents, user, contactProps={}, isGlobalAdmin=false, canResolveGlobal=false, onAdd, onEdit, onDelete, onReport, onVerify, onResolve, onAddResolution, onNavigateToIncidents, onIncidentDetail=null, onAssign, onCloseGeneral, lang="es-CO" }) {
   const [selectedId, setSelectedId] = useState(null);
   const [statFilter, setStatFilter] = useState(null); // null | 'open' | 'pendingResolution' | 'awaitingAdmin' | 'resolved'
   const isEn = lang==='en';
@@ -2864,7 +2890,7 @@ function MyListings({ listings, incidents, user, contactProps={}, isGlobalAdmin=
                       <button className="bsm bs-del" onClick={()=>onDelete(l)}>🗑️</button>
                     </div>
                     <span className={`fls-chev${isSel?' fls-chev-up':''}`} style={{marginLeft:'auto',flexShrink:0}}>›</span>
-                    <AptContactPopup ownerName={l.owner} ownerEmail={l.userEmail||l.email} ownerWaRaw={l.contact} isEn={isEn}/>
+                    <AptContactPopup ownerName={l.owner} ownerEmail={l.userEmail||l.email} ownerWaRaw={l.contact} coOwners={l.coOwners||[]} isEn={isEn}/>
                   </div>
                   {isSel&&(
                     <div className="ml-listing-detail" onClick={e=>e.stopPropagation()}>
@@ -2899,7 +2925,7 @@ function MyListings({ listings, incidents, user, contactProps={}, isGlobalAdmin=
         <div className="ml-section" style={{marginTop:24}}>
           <div className="ml-section-hdr">📋 {isEn?'Incidents I reported':'Incidentes que reporté'}</div>
           {[...incIReported].sort((a,b)=>new Date(b.createdAt)-new Date(a.createdAt)).map(i=>(
-            <IRow key={i.id} inc={i} listings={listings} contactProps={contactProps} isGlobalAdmin={isGlobalAdmin} canResolveGlobal={canResolveGlobal} onResolve={onResolve} onDelete={()=>{}} onVerify={onVerify} onAddResolution={onAddResolution} onIncidentDetail={onIncidentDetail} onAssign={onAssign} onCloseGeneral={onCloseGeneral} lang={lang}/>
+            <IRow key={i.id} inc={i} user={user} listings={allListings} contactProps={contactProps} isGlobalAdmin={isGlobalAdmin} canResolveGlobal={canResolveGlobal} onResolve={onResolve} onDelete={()=>{}} onVerify={onVerify} onAddResolution={onAddResolution} onIncidentDetail={onIncidentDetail} onAssign={onAssign} onCloseGeneral={onCloseGeneral} lang={lang}/>
           ))}
         </div>
       )}
@@ -2939,7 +2965,7 @@ const IconEmail = () => (
 // card showing owner email + WhatsApp (+ operator if present) with branded icons
 // and direct mailto / wa.me external links.  Popup has pointer-events:none on
 // the shell so the underlying click target still fires; links have auto.
-function AptContactPopup({ ownerName='', ownerEmail='', ownerWaRaw='', operatorName='', operatorEmail='', opWaRaw='', isEn=false }) {
+function AptContactPopup({ ownerName='', ownerEmail='', ownerWaRaw='', operatorName='', operatorEmail='', opWaRaw='', coOwners=[], isEn=false }) {
   const ownerWaDigits = normalizePhoneForWhatsApp(ownerWaRaw);
   const opWaDigits    = normalizePhoneForWhatsApp(opWaRaw);
   const ownerWaOk     = !ownerWaRaw || ownerWaRaw.trim().startsWith('+');
@@ -2956,6 +2982,19 @@ function AptContactPopup({ ownerName='', ownerEmail='', ownerWaRaw='', operatorN
           ? <a className="apt-cpop-link" href={`https://wa.me/${ownerWaDigits}`} target="_blank" rel="noreferrer"><IconWhatsApp/><span>{ownerWaRaw}{!ownerWaOk&&<span style={{color:'#f0c040'}}> ⚠️</span>}</span></a>
           : <span className="apt-cpop-miss">{isEn?'No WhatsApp':'Sin WhatsApp'}</span>}
       </div>
+      {/* Co-owners */}
+      {coOwners.filter(co=>co.firstName||co.lastName).map((co,i)=>{
+        const coName=[co.firstName,co.middleName,co.lastName].filter(Boolean).join(' ');
+        const coWaDigits=normalizePhoneForWhatsApp(co.whatsapp);
+        return (
+          <div key={i} className="apt-cpop-section">
+            <span className="apt-cpop-lbl">👤 {isEn?'Co-owner':'Copropietario'}{coName?` · ${coName}`:''}</span>
+            {coWaDigits
+              ? <a className="apt-cpop-link" href={`https://wa.me/${coWaDigits}`} target="_blank" rel="noreferrer"><IconWhatsApp/><span>{co.whatsapp}</span></a>
+              : <span className="apt-cpop-miss">{isEn?'No WhatsApp':'Sin WhatsApp'}</span>}
+          </div>
+        );
+      })}
       {/* Operator — only if any contact info exists */}
       {hasOperator && (
         <div className="apt-cpop-section">
@@ -3067,6 +3106,21 @@ function UnitDetailCard({ l, incidents, canEdit=false, canDelete=false, onEdit, 
             </div>
           </div>
         </div>
+        {(l.coOwners||[]).filter(co=>co.firstName||co.lastName).map((co,i)=>{
+          const coName=[co.firstName,co.middleName,co.lastName].filter(Boolean).join(' ');
+          const coWa=normalizePhoneForWhatsApp(co.whatsapp);
+          return (
+            <div key={i} className="adp-party">
+              <div className="adp-party-lbl">👤 {isEn?`Co-owner ${i+1}`:`Copropietario ${i+1}`}</div>
+              <div className="adp-party-row">
+                <UserContact name={coName} email="" whatsapp={co.whatsapp} apartments={[]} {...contactProps}/>
+                <div className="adp-party-cbtns">
+                  {coWa&&<a href={`https://wa.me/${coWa}`} className="ac-cbtn ac-cbtn-wa" target="_blank" rel="noreferrer"><IconWhatsApp/></a>}
+                </div>
+              </div>
+            </div>
+          );
+        })}
         {hasOp ? (
           <div className="adp-party">
             <div className="adp-party-lbl">🔧 {isEn?'Operator':'Operador'}</div>
@@ -3212,6 +3266,32 @@ function UnitDetailCard({ l, incidents, canEdit=false, canDelete=false, onEdit, 
           </div>
         </div>
 
+        {/* ── Owner CTA — top of view so it's the first thing seen on mobile ── */}
+        {user&&isOwner&&inc.status!=='resolved'&&(inc.status==='open'||hasPendingRes)&&(
+          <div className="idd-cta-top">
+            <div className="idd-cta-top-label">
+              {inc.status==='open'
+                ? (isEn?'① Your action is needed — Step 1 of 2':'① Tu acción es requerida — Paso 1 de 2')
+                : (isEn?'② Your action is needed — Step 2 of 2':'② Tu acción es requerida — Paso 2 de 2')}
+            </div>
+            <div className="idd-cta-top-hint">
+              {inc.status==='open'
+                ? (isEn?'Confirm who your guest was and document what you did about it.':'Confirma quién fue tu huésped y documenta qué hiciste al respecto.')
+                : (isEn?'Add your resolution so the admin can officially close this incident.':'Agrega tu respuesta para que el admin pueda cerrar este incidente.')}
+            </div>
+            {inc.status==='open'&&(
+              <button className="btn-p idd-act-btn idd-cta-btn" onClick={()=>onVerify&&onVerify(inc)}>
+                ① {isEn?'Verify now — add guest info & action':'Verificar ahora — agregar info del huésped y acción'}
+              </button>
+            )}
+            {inc.status==='verified'&&hasPendingRes&&(
+              <button className="btn-p idd-act-btn idd-cta-btn" onClick={()=>onAddResolution&&onAddResolution(inc)}>
+                ② {isEn?'Add your resolution now':'Agregar tu respuesta ahora'}
+              </button>
+            )}
+          </div>
+        )}
+
         {/* ── Responsible parties ── */}
         <div className="idd-parties">
           <div className="idd-parties-hdr">👥 {isEn?'Incident Parties':'Partes del Incidente'}</div>
@@ -3254,8 +3334,9 @@ function UnitDetailCard({ l, incidents, canEdit=false, canDelete=false, onEdit, 
           <div className={`udc-action-needed${inc.status==='open'?' udc-an-step1':' udc-an-step2'}`}>
             <div className="udc-an-step-num">{inc.status==='open'?'①':'②'}</div>
             <div className="udc-an-body">
-              <strong>{inc.status==='open'?(isEn?'Your action needed — Step 1':'Tu acción — Paso 1'):(isEn?'Your action needed — Step 2':'Tu acción — Paso 2')}</strong>
+              <strong>{inc.status==='open'?(isEn?'Your action needed — Step 1 of 2':'Tu acción — Paso 1 de 2'):(isEn?'Your action needed — Step 2 of 2':'Tu acción — Paso 2 de 2')}</strong>
               <span>{inc.status==='open'?(isEn?'Confirm guest details and document your immediate action.':'Confirma datos del huésped y documenta tu acción inmediata.'):(isEn?'Add your resolution so admin can close this incident.':'Agrega tu respuesta para que el admin pueda cerrar.')}</span>
+              {inc.status==='open'&&<span className="udc-an-hint">{isEn?'Step 2 (resolution) will also be required before admin can close.':'El Paso 2 (respuesta) también será requerido para que el admin pueda cerrar.'}</span>}
               {inc.status==='verified'&&hasPendingRes&&(()=>{
                 const sla = slaResInfo(inc);
                 if (!sla) return null;
@@ -3270,12 +3351,19 @@ function UnitDetailCard({ l, incidents, canEdit=false, canDelete=false, onEdit, 
 
         {/* ── Timeline ── */}
         <div className="idd-timeline">
-          <TlStep icon="📋" title={isEn?'Filed':'Reportado'} ts={inc.createdAtFull||inc.createdAt} accent="filed">
-            <span className="idd-tl-reporter">{isEn?'Reported by':'Reportado por'}: <strong>{inc.reporterName||'—'}</strong></span>
-          </TlStep>
+          <TlStep icon="📋" title={isEn?'Filed':'Reportado'} ts={inc.createdAtFull||inc.createdAt} accent="filed"/>
 
           <TlStep icon="📝" title={isEn?'Description':'Descripción'} accent="desc">
             <p className="idd-tl-desc">{inc.desc}</p>
+            {Array.isArray(inc.photos)&&inc.photos.length>0&&(
+              <div className="inc-photo-row" style={{marginTop:8}}>
+                {inc.photos.map((p,i)=>(
+                  <img key={i} src={p.data} alt={p.name||`photo-${i+1}`} className="inc-photo-thumb"
+                    title={isEn?'Click to view full size':'Clic para ver tamaño completo'}
+                    onClick={()=>window.open(p.data,'_blank')}/>
+                ))}
+              </div>
+            )}
           </TlStep>
 
           {guests.length>0&&(
@@ -3333,21 +3421,11 @@ function UnitDetailCard({ l, incidents, canEdit=false, canDelete=false, onEdit, 
           return <div className="inc-steps">{nodes}</div>;
         })()}
 
-        {/* ── Action buttons ── */}
+        {/* ── Bottom action bar — admin actions + owner completion state ── */}
         {user&&inc.status!=='resolved'&&(
           <div className="idd-actions">
-            {inc.status==='open'&&isOwner&&(
-              <button className="btn-p idd-act-btn" onClick={()=>onVerify&&onVerify(inc)}>
-                ① {isEn?'Verify — add guest info & action':'Verificar — agregar info y acción'}
-              </button>
-            )}
-            {inc.status==='verified'&&isOwner&&hasPendingRes&&(
-              <button className="btn-p idd-act-btn" onClick={()=>onAddResolution&&onAddResolution(inc)}>
-                ② {isEn?'Add resolution':'Agregar respuesta'}
-              </button>
-            )}
-            {inc.status==='verified'&&isOwner&&!hasPendingRes&&(
-              <div className="udc-step-done" style={{textAlign:'center',width:'100%'}}>
+            {isOwner&&inc.status==='verified'&&!hasPendingRes&&(
+              <div className="udc-step-done">
                 ✓ {isEn?'Both steps complete — awaiting admin close':'Pasos completados — esperando cierre del admin'}
               </div>
             )}
@@ -3421,7 +3499,7 @@ function AptDoor({ l, incidents, onUnitDetail, onViewIncidents, onPillFilter, la
       </div>
 
       {/* Contact popup — hover only, not a click target */}
-      <AptContactPopup ownerName={l.owner} ownerEmail={ownerEmail} ownerWaRaw={ownerWaRaw} operatorName={l.operator} operatorEmail={l.operatorEmail} opWaRaw={l.operatorWhatsapp} isEn={isEn}/>
+      <AptContactPopup ownerName={l.owner} ownerEmail={ownerEmail} ownerWaRaw={ownerWaRaw} operatorName={l.operator} operatorEmail={l.operatorEmail} opWaRaw={l.operatorWhatsapp} coOwners={l.coOwners||[]} isEn={isEn}/>
 
       {/* ★ CLICKABLE: Footer → open incident popup for this unit */}
       <button
@@ -3644,6 +3722,7 @@ function AptRow({ l, incCount, user, contactProps={}, isGlobalAdmin=false, canEd
           operatorName={l.operator}
           operatorEmail={l.operatorEmail}
           opWaRaw={l.operatorWhatsapp}
+          coOwners={l.coOwners||[]}
           isEn={isEn}
         />
       </div>
@@ -3682,7 +3761,7 @@ function GeneralListingsSection({ incidents, isGlobalAdmin=false, canResolveGlob
   const canAct = isGlobalAdmin || canResolveGlobal;
   const generalOpen = incidents.filter(i => i.isGeneral && i.status !== 'resolved')
     .sort((a,b) => new Date(b.createdAt) - new Date(a.createdAt));
-  const [open, setOpen] = useState(true);
+  const [open, setOpen] = useState(false);
 
   return (
     <div className="gen-ls-section">
@@ -3760,15 +3839,81 @@ function GeneralListingsSection({ incidents, isGlobalAdmin=false, canResolveGlob
   );
 }
 
+function OwnerDirectoryView({ listings, lang }) {
+  const isEn = lang === 'en';
+  const [q, setQ] = useState('');
+  const ql = q.trim().toLowerCase();
+
+  // Build a flat list of owner entries (primary + co-owners) with their listing reference
+  const results = [];
+  for (const l of listings) {
+    // Primary owner
+    const primaryMatch = !ql ||
+      String(l.owner||'').toLowerCase().includes(ql) ||
+      String(l.email||'').toLowerCase().includes(ql) ||
+      String(l.userEmail||'').toLowerCase().includes(ql) ||
+      String(l.apt||'').includes(ql) ||
+      String(l.contact||'').replace(/\s/g,'').includes(ql.replace(/\s/g,''));
+    if (primaryMatch) {
+      results.push({ type:'primary', name:l.owner||'—', email:l.email||l.userEmail||'', whatsapp:l.contact||'', apt:l.apt, listingId:l.id });
+    }
+    // Co-owners
+    for (const co of (l.coOwners||[])) {
+      const fullName = [co.firstName,co.middleName,co.lastName].filter(Boolean).join(' ');
+      const coMatch = !ql ||
+        fullName.toLowerCase().includes(ql) ||
+        String(co.whatsapp||'').replace(/\s/g,'').includes(ql.replace(/\s/g,'')) ||
+        String(l.apt||'').includes(ql);
+      if (coMatch) {
+        results.push({ type:'co', name:fullName||'—', email:'', whatsapp:co.whatsapp||'', apt:l.apt, listingId:l.id });
+      }
+    }
+  }
+
+  return (
+    <div>
+      <div style={{position:'relative',marginBottom:14}}>
+        <input className="search" style={{paddingRight:36}} placeholder={isEn?'Search by name, email, unit or WhatsApp…':'Buscar por nombre, email, unidad o WhatsApp…'} value={q} onChange={e=>setQ(e.target.value)}/>
+        {q&&<button className="inc-search-clear" onClick={()=>setQ('')}>✕</button>}
+      </div>
+      {results.length===0
+        ? <EmptyState icon="👤" title={isEn?'No owners found':'Sin resultados'} sub={isEn?'Try a different search term.':'Intenta con otro término.'}/>
+        : <div style={{display:'flex',flexDirection:'column',gap:8}}>
+            {results.map((r,i)=>(
+              <div key={i} style={{background:'#fff',border:'1px solid #cce7ee',borderRadius:10,padding:'12px 16px',display:'flex',flexWrap:'wrap',gap:'6px 20px',alignItems:'flex-start'}}>
+                <div style={{flex:'1 1 160px'}}>
+                  <div style={{fontWeight:700,fontSize:'.93rem',color:'#1a4a5a'}}>{r.name}</div>
+                  {r.type==='co'&&<div style={{fontSize:'.72rem',color:'#70d6c6',marginTop:1}}>{isEn?'Co-owner':'Propietario adicional'}</div>}
+                </div>
+                <div style={{flex:'1 1 130px',fontSize:'.83rem',color:'#4a7a8a'}}>
+                  <span style={{fontWeight:600,marginRight:4}}>{isEn?'Unit':'Unidad'}:</span>{r.apt}
+                </div>
+                {r.email&&<div style={{flex:'1 1 180px',fontSize:'.83rem',color:'#4a7a8a',wordBreak:'break-all'}}>
+                  <span style={{fontWeight:600,marginRight:4}}>Email:</span>{r.email}
+                </div>}
+                {r.whatsapp&&<div style={{flex:'1 1 150px',fontSize:'.83rem',color:'#4a7a8a'}}>
+                  <span style={{fontWeight:600,marginRight:4}}>WhatsApp:</span>{r.whatsapp}
+                </div>}
+              </div>
+            ))}
+          </div>
+      }
+      <div style={{fontSize:'.75rem',color:'#8ab0bb',marginTop:10,textAlign:'right'}}>{results.length} {isEn?'result(s)':'resultado(s)'}</div>
+    </div>
+  );
+}
+
 function ListingsView({ listings, incidents, user, contactProps={}, isGlobalAdmin=false, canEditGlobal=false, canDeleteGlobal=false, canResolveGlobal=false, floorOpenState={}, onFloorToggle, onAdd, onEdit, onDelete, onReport, onVerify, onResolve, onAddResolution, onFloorFilter, onAssign, onCloseGeneral, onIncidentDetail, lang="es-CO" }) {
   const [search, setSearch]   = useState('');
   const [scope, setScope]     = useState('all');
+  const [mode, setMode]       = useState('building');
   const isEn = lang === 'en';
 
   const scoped   = scope==='mine'&&user ? listings.filter(l=>l.ownerUid===user.uid) : listings;
   const filtered = scoped.filter(l=>{
     const q=search.toLowerCase();
-    return !q||String(l.apt||'').includes(q)||String(l.owner||'').toLowerCase().includes(q)||String(l.operator||'').toLowerCase().includes(q);
+    const coMatch=(l.coOwners||[]).some(co=>[co.firstName,co.middleName,co.lastName].filter(Boolean).join(' ').toLowerCase().includes(q)||String(co.whatsapp||'').includes(q));
+    return !q||String(l.apt||'').includes(q)||String(l.owner||'').toLowerCase().includes(q)||String(l.operator||'').toLowerCase().includes(q)||String(l.email||'').toLowerCase().includes(q)||String(l.userEmail||'').toLowerCase().includes(q)||coMatch;
   });
   const sorted    = [...filtered].sort((a,b)=>String(a.apt||'').localeCompare(String(b.apt||'')));
   // Ascending floor order (floor 1 at top, floor 9 at bottom)
@@ -3785,23 +3930,29 @@ function ListingsView({ listings, incidents, user, contactProps={}, isGlobalAdmi
         {user&&<button className="btn-p" onClick={onAdd}>{appText(lang,'listings.add')}</button>}
       </div>
 
-      <GeneralListingsSection incidents={incidents} isGlobalAdmin={isGlobalAdmin} canResolveGlobal={canResolveGlobal} onAssign={onAssign} onCloseGeneral={onCloseGeneral} onIncidentDetail={onIncidentDetail} lang={lang} />
-
       <div className="fls-toolbar" style={{marginTop:14}}>
-        {user&&<div className="filter-row" style={{margin:0,gap:6}}>
-          <button className={`fchip ${scope==='all'?'fchip-on':''}`} onClick={()=>setScope('all')}>{appText(lang,'filters.scopeAll')}</button>
-          <button className={`fchip ${scope==='mine'?'fchip-on':''}`} onClick={()=>setScope('mine')}>🔑 {isEn?'Mine':'Mis apts'}</button>
-        </div>}
+        <div className="filter-row" style={{margin:0,gap:6,flexWrap:'wrap'}}>
+          <button className={`fchip ${mode==='building'?'fchip-on':''}`} onClick={()=>setMode('building')}>🏠 {isEn?'Building':'Edificio'}</button>
+          <button className={`fchip ${mode==='directory'?'fchip-on':''}`} onClick={()=>setMode('directory')}>👤 {isEn?'Owner directory':'Directorio'}</button>
+          {mode==='building'&&user&&<>
+            <button className={`fchip ${scope==='all'?'fchip-on':''}`} onClick={()=>setScope('all')}>{appText(lang,'filters.scopeAll')}</button>
+            <button className={`fchip ${scope==='mine'?'fchip-on':''}`} onClick={()=>setScope('mine')}>🔑 {isEn?'Mine':'Mis apts'}</button>
+          </>}
+        </div>
       </div>
 
-      <div style={{position:'relative',marginBottom:14}}>
-        <input className="search" style={{paddingRight:36}} placeholder={appText(lang,'listings.search')} value={search} onChange={e=>setSearch(e.target.value)}/>
-        {search&&<button className="inc-search-clear" onClick={()=>setSearch('')}>✕</button>}
-      </div>
-
-      {filtered.length===0
-        ? <EmptyState icon="🏠" title={appText(lang,'listings.none')} sub={appText(lang,'listings.noResults')}/>
-        : <div className="bld-building">{floorNums.map(f=><BuildingFloor key={f} floor={f} apts={byFloor(f)} incidents={incidents} user={user} contactProps={contactProps} isGlobalAdmin={isGlobalAdmin} canEditGlobal={canEditGlobal} canDeleteGlobal={canDeleteGlobal} canResolveGlobal={canResolveGlobal} onEdit={onEdit} onDelete={onDelete} onReport={onReport} onVerify={onVerify} onResolve={onResolve} onAddResolution={onAddResolution} onFloorFilter={onFloorFilter} isOpen={!!floorOpenState[f]} onToggle={()=>onFloorToggle(f)} lang={lang} isEn={isEn}/>)}</div>
+      {mode==='directory'
+        ? <OwnerDirectoryView listings={listings} lang={lang}/>
+        : <>
+            <div style={{position:'relative',marginBottom:14}}>
+              <input className="search" style={{paddingRight:36}} placeholder={isEn?'Search by unit, owner, operator, email…':appText(lang,'listings.search')} value={search} onChange={e=>setSearch(e.target.value)}/>
+              {search&&<button className="inc-search-clear" onClick={()=>setSearch('')}>✕</button>}
+            </div>
+            {filtered.length===0
+              ? <EmptyState icon="🏠" title={appText(lang,'listings.none')} sub={appText(lang,'listings.noResults')}/>
+              : <div className="bld-building">{floorNums.map(f=><BuildingFloor key={f} floor={f} apts={byFloor(f)} incidents={incidents} user={user} contactProps={contactProps} isGlobalAdmin={isGlobalAdmin} canEditGlobal={canEditGlobal} canDeleteGlobal={canDeleteGlobal} canResolveGlobal={canResolveGlobal} onEdit={onEdit} onDelete={onDelete} onReport={onReport} onVerify={onVerify} onResolve={onResolve} onAddResolution={onAddResolution} onFloorFilter={onFloorFilter} isOpen={!!floorOpenState[f]} onToggle={()=>onFloorToggle(f)} lang={lang} isEn={isEn}/>)}</div>
+            }
+          </>
       }
     </div>
   );
@@ -3826,6 +3977,7 @@ function AptCard({ l, incCount, contactProps={}, canEdit=false, canDelete=false,
           operatorName={l.operator}
           operatorEmail={l.operatorEmail}
           opWaRaw={l.operatorWhatsapp}
+          coOwners={l.coOwners||[]}
           isEn={isEn}
         />
       </div>
@@ -3933,10 +4085,13 @@ function WorkflowGroup({ statusKey, icon, label, sublabel, color, incidents, lis
   );
 }
 
-function IncidentsView({ incidents, listings, user, quickFilter=null, onQuickFilterApplied=()=>{}, contactProps={}, isGlobalAdmin=false, canUpdateGlobal=false, canDeleteGlobal=false, canResolveGlobal=false, onAdd, onResolve, onDelete, onVerify, onAddResolution, onUnitDetail, onIncidentDetail, onAssign, onCloseGeneral, lang="es-CO" }) {
+function IncidentsView({ incidents, listings, user, quickFilter=null, onQuickFilterApplied=()=>{}, contactProps={}, isGlobalAdmin=false, canUpdateGlobal=false, canDeleteGlobal=false, canResolveGlobal=false, onAdd, onResolve, onDelete, onVerify, onAddResolution, onUnitDetail, onIncidentDetail, onAssign, onCloseGeneral, lang="es-CO", defaultTab='unit' }) {
   const [sf,setSf]=useState("all"), [cf,setCf]=useState("all"), [scope,setScope]=useState("all"), [search,setSearch]=useState("");
   const [dateFrom,setDateFrom]=useState('');
   const [dateTo,setDateTo]=useState('');
+  const [tab, setTab] = useState(defaultTab || 'unit');
+  const unitOpenCount = incidents.filter(i=>!i.isGeneral&&i.status==='open').length;
+  const generalOpenCount = incidents.filter(i=>i.isGeneral&&i.status!=='resolved').length;
   // Floor filter: set when user clicks a stat pill on the Units page floor header
   const [floorFilter, setFloorFilter] = useState(null); // {aptIds:string[], status:string, label:string} | null
   useEffect(()=>{
@@ -3953,13 +4108,12 @@ function IncidentsView({ incidents, listings, user, quickFilter=null, onQuickFil
     if (quickFilter === "needsResolution")   { setScope("needsResolution");   setSf("all"); setCf("all"); setFloorFilter(null); onQuickFilterApplied(); }
     if (quickFilter === "requiresResolution") { setScope("requiresResolution"); setSf("all"); setCf("all"); setFloorFilter(null); onQuickFilterApplied(); }
     if (quickFilter === "seriousOpen") { setScope("all"); setSf("all"); setCf("serious"); setFloorFilter(null); onQuickFilterApplied(); }
-    if (quickFilter === "generalIncidents") { setScope("general"); setSf("all"); setCf("all"); setFloorFilter(null); onQuickFilterApplied(); }
+    if (quickFilter === "generalIncidents") { setTab('general'); setSf("all"); setCf("all"); setFloorFilter(null); onQuickFilterApplied(); return; }
   }, [quickFilter, onQuickFilterApplied]);
   const listingMap = Object.fromEntries(listings.map(l=>[l.id, l]));
   const myListingIds = new Set((user ? listings.filter(l=>l.ownerUid===user.uid) : []).map(l=>l.id));
   let list=[...incidents];
-  // "General" — community incidents not linked to any unit
-  if(scope==="general") list=list.filter(i=>i.isGeneral);
+  list = list.filter(i => !i.isGeneral);
   // "I reported" — incidents the current user filed (any apartment)
   if(scope==="iReported"   && user) list=list.filter(i=>i.reporterUid===user.uid);
   // "My listings" — incidents against apartments the user owns
@@ -4030,7 +4184,6 @@ function IncidentsView({ incidents, listings, user, quickFilter=null, onQuickFil
   const isEn = lang==='en';
   const anyFilter = sf!=='all'||cf!=='all'||scope!=='all'||search.trim()!==''||!!floorFilter||!!dateFrom||!!dateTo;
   const resetAll = () => { setSf('all'); setCf('all'); setScope('all'); setSearch(''); setFloorFilter(null); setDateFrom(''); setDateTo(''); };
-  const generalOpenCount = incidents.filter(i=>i.isGeneral&&i.status!=='resolved').length;
   // ── Persist group open/close to localStorage; restore on mount ──────────────
   const WFG_KEY = 'kai_wfg_state';
   const [groupOpen, setGroupOpen] = useState(() => {
@@ -4098,6 +4251,19 @@ function IncidentsView({ incidents, listings, user, quickFilter=null, onQuickFil
 
   return (
     <div className="fade">
+      <div className="inc-tab-bar">
+        <button className={`inc-tab${tab==='unit'?' inc-tab-on':''}`} onClick={()=>setTab('unit')}>
+          ⚠️ {isEn?'Unit Incidents':'Incidentes de Unidad'}
+          {unitOpenCount>0&&<span className="inc-tab-badge">{unitOpenCount}</span>}
+        </button>
+        <button className={`inc-tab${tab==='general'?' inc-tab-on':''}`} onClick={()=>setTab('general')}>
+          📢 {isEn?'General Incidents':'Incidentes Generales'}
+          {generalOpenCount>0&&<span className="inc-tab-badge">{generalOpenCount}</span>}
+        </button>
+      </div>
+      {tab==='general'
+        ? <GeneralIncidentsView incidents={incidents} listings={listings} user={user} contactProps={contactProps} isGlobalAdmin={isGlobalAdmin} canResolveGlobal={canResolveGlobal} onIncidentDetail={onIncidentDetail} onAssign={onAssign} onClose={onCloseGeneral} lang={lang} embedded={true}/>
+        : <>
       <div className="ph">
         <div>
           <h1 className="ptitle">{appText(lang,"reports.title")}</h1>
@@ -4148,9 +4314,6 @@ function IncidentsView({ incidents, listings, user, quickFilter=null, onQuickFil
               🏠 {isEn?'My listings':'Mis listings'}
             </button>
           </>}
-          <button className={`fchip fchip-sm ${scope==='general'?'fchip-on':''}`} onClick={()=>{setScope(scope==='general'?'all':'general');setSf('all');setFloorFilter(null);}}>
-            📢 {isEn?'General':'General'}{generalOpenCount>0&&scope!=='general'&&<span className="mbn-badge" style={{marginLeft:5,minWidth:15,height:15,fontSize:'.58rem',lineHeight:'15px',padding:'0 4px'}}>{generalOpenCount}</span>}
-          </button>
           {/* Pending resolution — available to all authenticated users:
               owners see their listings waiting for their resolution note;
               admins/delegates see all verified incidents missing a resolution */}
@@ -4202,6 +4365,7 @@ function IncidentsView({ incidents, listings, user, quickFilter=null, onQuickFil
           />
         ))}
       </div>
+      </>}
     </div>
   );
 }
@@ -4384,9 +4548,10 @@ function UnitMiniCard({ listing, onUnitDetail, isEn=false }) {
   if (!listing) return null;
   const ownerEmail = listing.userEmail || listing.email || '';
   const ownerWaRaw = listing.contact || '';
+  const ownerWa    = normalizePhoneForWhatsApp(ownerWaRaw);
+  const opWa       = normalizePhoneForWhatsApp(listing.operatorWhatsapp);
   return (
-    <div className="unit-mini-card apt-cpop-wrap">
-      {/* Clickable plate — opens unit detail popup */}
+    <div className="unit-mini-card">
       <UnitPlate
         apt={listing.apt}
         tower={listing.tower||'KAI'}
@@ -4395,15 +4560,29 @@ function UnitMiniCard({ listing, onUnitDetail, isEn=false }) {
         title={onUnitDetail?(isEn?'View unit details':'Ver detalles de la unidad'):undefined}
         className="umc-plate-unit"
       />
-      {/* Light body — owner + operator */}
       <div className="umc-body">
-        <div className="umc-owner" title={listing.owner||'—'}><span className="umc-role-lbl">{isEn?'Owner':'Propietario'}</span> {listing.owner||'—'}</div>
-        {listing.operator
-          ? <div className="umc-op" title={listing.operator}><span className="umc-role-lbl">{isEn?'Operator':'Operador'}</span> {listing.operator}</div>
-          : <div className="umc-op umc-no-op">{isEn?'No operator':'Sin operador'}</div>
-        }
+        <div className="umc-party">
+          <div className="umc-owner" title={listing.owner||'—'}><span className="umc-role-lbl">{isEn?'Owner':'Propietario'}</span> {listing.owner||'—'}</div>
+          {(ownerEmail||ownerWa)&&(
+            <div className="umc-contacts">
+              {ownerEmail&&<a href={`mailto:${ownerEmail}`} className="idd-pi-link" onClick={e=>e.stopPropagation()}>✉️ {ownerEmail}</a>}
+              {ownerWa&&<a href={`https://wa.me/${ownerWa}`} target="_blank" rel="noopener noreferrer" className="idd-pi-link idd-pi-wa" onClick={e=>e.stopPropagation()}>💬 WhatsApp</a>}
+            </div>
+          )}
+        </div>
+        <div className="umc-party">
+          {listing.operator
+            ? <div className="umc-op" title={listing.operator}><span className="umc-role-lbl">{isEn?'Operator':'Operador'}</span> {listing.operator}</div>
+            : <div className="umc-op umc-no-op">{isEn?'No operator':'Sin operador'}</div>
+          }
+          {(listing.operatorEmail||opWa)&&(
+            <div className="umc-contacts">
+              {listing.operatorEmail&&<a href={`mailto:${listing.operatorEmail}`} className="idd-pi-link" onClick={e=>e.stopPropagation()}>✉️ {listing.operatorEmail}</a>}
+              {opWa&&<a href={`https://wa.me/${opWa}`} target="_blank" rel="noopener noreferrer" className="idd-pi-link idd-pi-wa" onClick={e=>e.stopPropagation()}>💬 WhatsApp</a>}
+            </div>
+          )}
+        </div>
       </div>
-      <AptContactPopup ownerName={listing.owner} ownerEmail={ownerEmail} ownerWaRaw={ownerWaRaw} operatorName={listing.operator} operatorEmail={listing.operatorEmail} opWaRaw={listing.operatorWhatsapp} isEn={isEn}/>
     </div>
   );
 }
@@ -4518,66 +4697,9 @@ function IRow({ inc, user, listings=[], contactProps={}, isGlobalAdmin=false, ca
           )}
         </div>
 
-        {/* Body: description + structured sections */}
         <div className="ir-body">
           {inc.desc&&<p className="ir-body-desc">{inc.desc}</p>}
-          {/* Photo thumbnails */}
-          {Array.isArray(inc.photos)&&inc.photos.length>0&&(
-            <div className="inc-photo-row">
-              {inc.photos.map((p,i)=>(
-                <img key={i} src={p.data} alt={p.name||`photo-${i+1}`} className="inc-photo-thumb"
-                  title={isEn?'Click to view full size':'Clic para ver tamaño completo'}
-                  onClick={()=>window.open(p.data,'_blank')}/>
-              ))}
-            </div>
-          )}
-
-          {/* Guests */}
-          {!inc.isGeneral&&(guests.length>0 ? (
-            <div className="ir-body-section">
-              <span className="ir-body-lbl">👥 {isEn?'Guests':'Huéspedes'}</span>
-              <div className="ir-body-guests">
-                {guests.map((g,i)=>(
-                  <div key={i} className="ir-body-guest-row">
-                    <span className="ir-body-guest-name">{guestFullName(g)}</span>
-                    {guestLocation(g)&&<span className="ir-body-guest-loc">📍 {guestLocation(g)}</span>}
-                  </div>
-                ))}
-              </div>
-            </div>
-          ) : (
-            <div className="ir-body-section">
-              <span className="ir-body-lbl">👤 {isEn?'Guest':'Huésped'}</span>
-              <span className="ir-body-pending">{inc.guestName||(isEn?'Pending verification':'Pendiente verificación')}</span>
-              {inc.guestCity&&<span className="ir-body-guest-loc" style={{display:'block',marginTop:2}}>📍 {inc.guestCity}{inc.guestCountry?', '+inc.guestCountry:''}</span>}
-            </div>
-          ))}
-
-          {/* Action taken */}
-          {inc.ownerComments&&(
-            <div className="ir-body-section">
-              <span className="ir-body-lbl">✅ {isEn?'Action taken':'Acción tomada'}{inc.ownerVerifiedAt&&<span className="ir-body-ts"> · {fmtDateTime(inc.ownerVerifiedAt,lang)}</span>}</span>
-              <blockquote className="ir-body-quote">{inc.ownerComments}</blockquote>
-            </div>
-          )}
-
-          {/* Resolution */}
-          {inc.ownerResolution&&(
-            <div className="ir-body-section">
-              <span className="ir-body-lbl">🔍 {isEn?'Resolution':'Respuesta'}{inc.ownerResolutionAt&&<span className="ir-body-ts"> · {fmtDateTime(inc.ownerResolutionAt,lang)}</span>}</span>
-              <blockquote className="ir-body-quote ir-body-quote-res">{inc.ownerResolution}</blockquote>
-            </div>
-          )}
-
-          {/* Closed */}
-          {inc.status==='resolved'&&(inc.resolutionComments||inc.resolvedBy)&&(
-            <div className="ir-body-section">
-              <span className="ir-body-lbl">🏁 {isEn?'Closed':'Cerrado'}{inc.resolvedAt&&<span className="ir-body-ts"> · {fmtDateTime(inc.resolvedAt,lang)}</span>}{inc.resolvedBy&&<span className="ir-body-by"> · {inc.resolvedBy}</span>}</span>
-              {inc.resolutionComments&&<blockquote className="ir-body-quote">{inc.resolutionComments}</blockquote>}
-            </div>
-          )}
-
-          {/* ── Parties — always visible (compact = mini strip, full = hover cards) ── */}
+          {/* ── Parties — reporter + owner always visible ── */}
           {compact?(
             <div className="ir-bparty-compact">
               {inc.reporterName&&<span className="ir-bpc-item" title={isEn?'Reporter':'Reportado por'}>📋 {inc.reporterName}</span>}
@@ -4621,9 +4743,12 @@ function IRow({ inc, user, listings=[], contactProps={}, isGlobalAdmin=false, ca
               </>
             )}
             {inc.status==='open'&&isOwner&&(
-              <button className="btn-p ir-act-btn" onClick={()=>onVerify&&onVerify(inc)}>
-                ① {isEn?'Verify — add guest info & action':'Verificar — agregar info y acción'}
-              </button>
+              <>
+                <button className="btn-p ir-act-btn" onClick={()=>onVerify&&onVerify(inc)}>
+                  ① {isEn?'Verify — add guest info & action (Step 1 of 2)':'Verificar — agregar info y acción (Paso 1 de 2)'}
+                </button>
+                <div className="ir-act-steps-note">{isEn?'Step 2 (resolution) also required before admin can close':'El Paso 2 (respuesta) también es requerido para que el admin cierre'}</div>
+              </>
             )}
             {inc.status==='verified'&&isOwner&&hasPendingRes&&(
               <button className="btn-p ir-act-btn" onClick={()=>onAddResolution&&onAddResolution(inc)}>
@@ -4653,13 +4778,22 @@ function IRow({ inc, user, listings=[], contactProps={}, isGlobalAdmin=false, ca
 
 // LoginModal replaced by Firebase signInWithPopup — no modal needed
 
+const EMPTY_CO_OWNER = { firstName:'', middleName:'', lastName:'', whatsapp:'' };
+
 function ListingModal({ title, user, initial={}, onSave, onClose, lang="es-CO", config={} }) {
   const tips = localizedTooltips(config, lang);
   const isEn = lang === 'en';
   const [f,setF]=useState({apt:"",rooms:"2",guests:4,operator:"",operatorEmail:"",operatorWhatsapp:"",airbnb:"",...initial,tower:"KAI"});
+  const [coOwners,setCoOwners]=useState(Array.isArray(initial?.coOwners)&&initial.coOwners.length?initial.coOwners:[]);
   const [errors,setErrors]=useState({});
+  const [coErrors,setCoErrors]=useState([]);
   const [checkingApt,setCheckingApt]=useState(false);
   const s=(k,v)=>{ setF(p=>({...p,[k]:v})); setErrors(e=>({...e,[k]:undefined})); };
+
+  const setCo=(i,k,v)=>setCoOwners(prev=>prev.map((o,idx)=>idx===i?{...o,[k]:v}:o));
+  const addCoOwner=()=>{ if(coOwners.length<3) setCoOwners(p=>[...p,{...EMPTY_CO_OWNER}]); };
+  const removeCoOwner=(i)=>{ setCoOwners(p=>p.filter((_,idx)=>idx!==i)); setCoErrors(p=>p.filter((_,idx)=>idx!==i)); };
+
   const checkApt=async()=>{
     const apt=String(f.apt||'').trim();
     if(!apt || !/^[0-9]{3}$/.test(apt)) return;
@@ -4670,6 +4804,19 @@ function ListingModal({ title, user, initial={}, onSave, onClose, lang="es-CO", 
     }catch(e){ setErrors(er=>({...er,apt:appText(lang,'validation.aptCheckFailed')})); }
     finally{ setCheckingApt(false); }
   };
+
+  const validateCoOwners=()=>{
+    const errs=coOwners.map(o=>{
+      const e={};
+      if(!String(o.firstName||'').trim()) e.firstName=isEn?'First name required':'Nombre requerido';
+      if(!String(o.lastName||'').trim()) e.lastName=isEn?'Last name required':'Apellido requerido';
+      const waErr=validateWhatsApp(o.whatsapp,lang); if(waErr) e.whatsapp=waErr;
+      return e;
+    });
+    setCoErrors(errs);
+    return errs.every(e=>Object.keys(e).length===0);
+  };
+
   const validate=()=>{
     const e={};
     if(!String(f.apt||"").trim()) e.apt=appText(lang,'validation.aptRequired');
@@ -4680,8 +4827,10 @@ function ListingModal({ title, user, initial={}, onSave, onClose, lang="es-CO", 
     const waOpErr=validateWhatsApp(f.operatorWhatsapp,lang); if(waOpErr) e.operatorWhatsapp=waOpErr;
     if(f.airbnb && !/^https?:\/\/.+/i.test(String(f.airbnb).trim())) e.airbnb=appText(lang,'validation.urlInvalid');
     setErrors(e);
-    return Object.keys(e).length===0;
+    const coOk=validateCoOwners();
+    return Object.keys(e).length===0 && coOk;
   };
+
   const inputCls=(k)=>errors[k]?"field-error":"";
   const optLabel = <span style={{color:"#70d6c6",fontStyle:"italic",textTransform:"none",letterSpacing:0,fontSize:"0.68rem"}}>({appText(lang,"form.optional")})</span>;
   return (
@@ -4701,11 +4850,45 @@ function ListingModal({ title, user, initial={}, onSave, onClose, lang="es-CO", 
         <div className="fg full"><label>{appText(lang,"form.airbnbOptional")} {optLabel}</label><input className={inputCls("airbnb")} value={f.airbnb} onChange={e=>s("airbnb",e.target.value)} onBlur={e=>{const v=String(e.target.value||'').trim();if(v&&!/^https?:\/\/.+/i.test(v))setErrors(p=>({...p,airbnb:appText(lang,'validation.urlInvalid')}));else setErrors(p=>({...p,airbnb:undefined}));}} placeholder="https://www.airbnb.com/rooms/..."/>{errors.airbnb&&<span className="err-msg">{errors.airbnb}</span>}</div>
         {/* ── Operator ─────────────────────────────────────── */}
         <div className="fg full form-section-hdr">🔧 {isEn?'Operator (optional)':'Operador (opcional)'}</div>
-        <div className="fg"><label>{appText(lang,"form.operatorOptional")} <Tip text={tips.operator}/></label><input className={inputCls("operator")} value={f.operator} onChange={e=>s("operator",e.target.value)} placeholder={appText(lang,"form.operatorPlaceholder")}/>{errors.operator&&<span className="err-msg">{errors.operator}</span>}</div>
+        <div className="fg full" style={{marginTop:-4,marginBottom:4}}><span className="help-msg">{isEn?'Leave blank if you self-manage. Operator receives all incident notifications for this unit.':'Déjalo en blanco si gestionas tú mismo. El operador recibe todas las notificaciones de incidentes de esta unidad.'}</span></div>
+        <div className="fg"><label>{appText(lang,"form.operatorOptional")} {optLabel}</label><input className={inputCls("operator")} value={f.operator} onChange={e=>s("operator",e.target.value)} placeholder={appText(lang,"form.operatorPlaceholder")}/>{errors.operator&&<span className="err-msg">{errors.operator}</span>}</div>
         <div className="fg"><label>{appText(lang,"form.operatorEmailOptional")} {optLabel}</label><input className={inputCls("operatorEmail")} type="email" value={f.operatorEmail} onChange={e=>s("operatorEmail",e.target.value)} onBlur={e=>{const v=String(e.target.value||'').trim();if(v&&!validateEmail(v))setErrors(p=>({...p,operatorEmail:appText(lang,'validation.operatorEmailInvalid')}));else setErrors(p=>({...p,operatorEmail:undefined}));}} placeholder="operador@email.com"/>{errors.operatorEmail&&<span className="err-msg">{errors.operatorEmail}</span>}</div>
         <div className="fg full"><label>{appText(lang,"form.operatorWhatsappOptional")} {optLabel}</label><input className={inputCls("operatorWhatsapp")} type="tel" value={f.operatorWhatsapp} onChange={e=>s("operatorWhatsapp",e.target.value)} onBlur={e=>{const v=String(e.target.value||'').trim();const err=validateWhatsApp(v,lang);setErrors(p=>({...p,operatorWhatsapp:err||undefined}));}} placeholder="+57 300 000 0000"/>{errors.operatorWhatsapp?<span className="err-msg">{errors.operatorWhatsapp}</span>:<span className="help-msg">{isEn?'With country code, e.g. +57':'Con código de país, ej. +57'}</span>}</div>
+        {/* ── Co-owners ────────────────────────────────────── */}
+        <div className="fg full form-section-hdr">👥 {isEn?'Additional owners':'Propietarios adicionales'} {optLabel}</div>
+        {coOwners.length===0&&<div className="fg full" style={{color:'#6b9ba8',fontSize:'.83rem',margin:'-4px 0 4px'}}>{isEn?'Up to 3 additional owners can be added to this unit.':'Se pueden agregar hasta 3 propietarios adicionales a esta unidad.'}</div>}
+        {coOwners.map((co,i)=>(
+          <div key={i} className="fg full" style={{border:'1px solid #cce7ee',borderRadius:8,padding:'12px 14px',marginBottom:4,background:'#f5fbfd'}}>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:8}}>
+              <span style={{fontWeight:600,fontSize:'.85rem',color:'#1a4a5a'}}>{isEn?`Co-owner ${i+1}`:`Propietario ${i+1}`}</span>
+              <button type="button" style={{background:'none',border:'none',color:'#e53935',cursor:'pointer',fontSize:'1rem',padding:'0 2px'}} onClick={()=>removeCoOwner(i)}>✕</button>
+            </div>
+            <div className="fg2">
+              <div className="fg">
+                <label>{isEn?'First name':'Nombre'} <span style={{color:'#e53935',fontSize:'0.75rem'}}>*</span></label>
+                <input className={coErrors[i]?.firstName?'field-error':''} value={co.firstName} onChange={e=>setCo(i,'firstName',e.target.value)} placeholder={isEn?'First name':'Nombre'}/>
+                {coErrors[i]?.firstName&&<span className="err-msg">{coErrors[i].firstName}</span>}
+              </div>
+              <div className="fg">
+                <label>{isEn?'Middle name':'Segundo nombre'} {optLabel}</label>
+                <input value={co.middleName} onChange={e=>setCo(i,'middleName',e.target.value)} placeholder={isEn?'Middle name (optional)':'Segundo nombre (opcional)'}/>
+              </div>
+              <div className="fg">
+                <label>{isEn?'Last name':'Apellido'} <span style={{color:'#e53935',fontSize:'0.75rem'}}>*</span></label>
+                <input className={coErrors[i]?.lastName?'field-error':''} value={co.lastName} onChange={e=>setCo(i,'lastName',e.target.value)} placeholder={isEn?'Last name':'Apellido'}/>
+                {coErrors[i]?.lastName&&<span className="err-msg">{coErrors[i].lastName}</span>}
+              </div>
+              <div className="fg">
+                <label>WhatsApp {optLabel}</label>
+                <input className={coErrors[i]?.whatsapp?'field-error':''} type="tel" value={co.whatsapp} onChange={e=>setCo(i,'whatsapp',e.target.value)} onBlur={e=>{const err=validateWhatsApp(e.target.value,lang);setCoErrors(p=>p.map((ce,idx)=>idx===i?{...ce,whatsapp:err||undefined}:ce));}} placeholder="+57 300 000 0000"/>
+                {coErrors[i]?.whatsapp?<span className="err-msg">{coErrors[i].whatsapp}</span>:<span className="help-msg">{isEn?'With country code':'Con código de país'}</span>}
+              </div>
+            </div>
+          </div>
+        ))}
+        {coOwners.length<3&&<div className="fg full"><button type="button" className="btn-ghost" style={{fontSize:'.83rem',padding:'6px 14px'}} onClick={addCoOwner}>+ {isEn?'Add co-owner':'Agregar propietario'}</button></div>}
       </div>
-      <div className="mact"><button className="btn-ghost" onClick={onClose}>{appText(lang,"form.cancel")}</button><button className="btn-p" onClick={()=>{if(validate()) onSave({...f,apt:String(f.apt).trim(),tower:"KAI",operatorEmail:String(f.operatorEmail||"").trim().toLowerCase(),operatorWhatsapp:String(f.operatorWhatsapp||"").trim(),airbnb:String(f.airbnb||"").trim()});}}>{appText(lang,"form.save")}</button></div>
+      <div className="mact"><button className="btn-ghost" onClick={onClose}>{appText(lang,"form.cancel")}</button><button className="btn-p" onClick={()=>{if(validate()) onSave({...f,apt:String(f.apt).trim(),tower:"KAI",operatorEmail:String(f.operatorEmail||"").trim().toLowerCase(),operatorWhatsapp:String(f.operatorWhatsapp||"").trim(),airbnb:String(f.airbnb||"").trim(),coOwners:coOwners.map(o=>({...o,firstName:o.firstName.trim(),middleName:o.middleName.trim(),lastName:o.lastName.trim(),whatsapp:o.whatsapp.trim()}))});}}>{appText(lang,"form.save")}</button></div>
     </Overlay>
   );
 }
@@ -5227,9 +5410,9 @@ function AnalyticsDashboard({ user, contactProps={}, showToast=()=>{}, isGlobalA
 
 // All navigable views and their labels (bilingual)
 const NAV_CONFIG_ITEMS = [
-  { id:'my',        labelEs:'Mis Unidades',  labelEn:'My Units' },
-  { id:'incidents', labelEs:'Incidentes',    labelEn:'Incidents' },
-  { id:'general',   labelEs:'Comunidad',     labelEn:'Community' },
+  { id:'my',        labelEs:'Mis Unidades',        labelEn:'My Units' },
+  { id:'incidents', labelEs:'Incidentes', labelEn:'Incidents' },
+  { id:'general',   labelEs:'Incidentes Generales', labelEn:'General Incidents' },
   { id:'listings',  labelEs:'Inventario',    labelEn:'Inventory' },
   { id:'dashboard', labelEs:'Dashboard',     labelEn:'Dashboard' },
   { id:'notifications',labelEs:'Alertas',   labelEn:'Alerts' },
@@ -6175,22 +6358,15 @@ function CloseGeneralModal({ incident, onSave, onClose, lang='es-CO' }) {
 }
 
 // ─── GENERAL INCIDENTS VIEW ───────────────────────────────────────────────────
-function GeneralIncidentsView({ incidents=[], listings=[], user, contactProps={}, isGlobalAdmin=false, canResolveGlobal=false, onIncidentDetail=null, onAssign, onClose: onCloseGeneral, lang='es-CO' }) {
+function GeneralIncidentsView({ incidents=[], listings=[], user, contactProps={}, isGlobalAdmin=false, canResolveGlobal=false, onIncidentDetail=null, onAssign, onClose: onCloseGeneral, lang='es-CO', embedded=false }) {
   const isEn = lang==='en';
   const general = incidents.filter(i=>i.isGeneral).sort((a,b)=>new Date(b.createdAt)-new Date(a.createdAt));
   const open = general.filter(i=>i.status!=='resolved');
   const closed = general.filter(i=>i.status==='resolved');
   const [showClosed,setShowClosed] = useState(false);
   const canAct = isGlobalAdmin || canResolveGlobal;
-  return (
-    <div className="fade">
-      <div className="ph">
-        <div>
-          <h1 className="ptitle">📢 {isEn?'General Incidents':'Incidentes Generales'}</h1>
-          <p className="psub">{isEn?`Community-wide incidents not tied to a specific unit · ${open.length} open`:`Incidentes de la comunidad no asociados a una unidad · ${open.length} abiertos`}</p>
-        </div>
-      </div>
-
+  const inner = (
+    <>
       <div className="gen-info-banner">
         {isEn
           ? '📢 General incidents affect the building or community and are not specific to one unit. Anyone can report them. Admins can assign them to a unit (switching to normal workflow) or close them directly.'
@@ -6258,6 +6434,17 @@ function GeneralIncidentsView({ incidents=[], listings=[], user, contactProps={}
           </div>}
         </div>
       )}
+    </>
+  );
+  return embedded ? inner : (
+    <div className="fade">
+      <div className="ph">
+        <div>
+          <h1 className="ptitle">📢 {isEn?'General Incidents':'Incidentes Generales'}</h1>
+          <p className="psub">{isEn?`Community-wide incidents not tied to a specific unit · ${open.length} open`:`Incidentes de la comunidad no asociados a una unidad · ${open.length} abiertos`}</p>
+        </div>
+      </div>
+      {inner}
     </div>
   );
 }
@@ -7081,6 +7268,14 @@ html{font-size:clamp(14px,1.1vw,16px);-webkit-text-size-adjust:100%}body{overflo
 /* IRow parties strip (compact / dashboard) */
 .ir-bparty-compact{display:flex;flex-wrap:wrap;gap:3px 10px;margin-top:5px;padding-top:5px;border-top:1px solid rgba(47,79,58,.08)}
 .ir-bpc-item{font-size:.69rem;color:#6a8a9a;white-space:nowrap}
+
+/* Incidents tab bar */
+.inc-tab-bar{display:flex;gap:0;border-bottom:2px solid rgba(47,79,58,.12);margin-bottom:18px}
+.inc-tab{flex:1;padding:11px 14px;background:transparent;border:0;border-bottom:3px solid transparent;margin-bottom:-2px;cursor:pointer;font-size:.88rem;font-weight:700;color:#496674;display:flex;align-items:center;justify-content:center;gap:7px;transition:color .14s,border-color .14s}
+.inc-tab:hover{color:#17313a;background:rgba(47,79,58,.04)}
+.inc-tab-on{color:#0b7f8c!important;border-bottom-color:#0b7f8c!important;background:rgba(11,127,140,.05)!important}
+.inc-tab-badge{display:inline-flex;min-width:20px;height:20px;align-items:center;justify-content:center;border-radius:999px;background:#d4634a;color:#fff;font-size:.68rem;font-weight:900;padding:0 5px}
+.inc-tab-on .inc-tab-badge{background:#0b7f8c}
 
 /* GeneralListingsSection — "General" category at top of Inventory/Listings */
 .gen-ls-section{background:rgba(255,255,255,.94);border:1px solid rgba(217,112,14,.28);border-left:5px solid #d9700e;border-radius:16px;overflow:hidden;box-shadow:0 6px 18px rgba(32,46,38,.07);margin-bottom:16px}

@@ -596,10 +596,10 @@ table { width: 100%; border-collapse: collapse; }
   display: flex;
   flex-direction: column;
   border-radius: 10px;
-  overflow: visible;           /* popup must escape — no clipping here */
+  overflow: visible;
   border: 1.5px solid rgba(47,79,58,.2);
-  min-width: 134px;
-  max-width: 158px;
+  min-width: 150px;
+  max-width: 200px;
   flex-shrink: 0;
   cursor: default;
   transition: border-color .15s, box-shadow .15s, transform .12s;
@@ -643,9 +643,12 @@ table { width: 100%; border-collapse: collapse; }
   border-radius: 0 0 8px 8px;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 6px;
   flex: 1;
 }
+.umc-party { display: flex; flex-direction: column; gap: 3px; }
+.umc-contacts { display: flex; flex-direction: column; gap: 3px; margin-top: 2px; }
+.umc-contacts .idd-pi-link { font-size: .62rem !important; padding: 2px 7px !important; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 180px; }
 .umc-owner {
   font-size: .7rem;
   font-weight: 700;
@@ -653,7 +656,6 @@ table { width: 100%; border-collapse: collapse; }
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 136px;
 }
 .umc-op {
   font-size: .63rem;
@@ -661,7 +663,6 @@ table { width: 100%; border-collapse: collapse; }
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 136px;
 }
 /* Role labels inside UnitMiniCard and IRow */
 .umc-role-lbl {
@@ -1651,18 +1652,22 @@ button.unit-plate:focus-visible { outline: 2px solid rgba(200,216,160,.6) !impor
 }
 .ir-detail-pill:hover { background: rgba(11,127,140,.18) !important; color: #074f60 !important; }
 
-/* ── Body: description + structured sections ── */
+/* ── Body: truncated description + parties ── */
 .ir-body {
-  padding: 10px 14px 6px;
+  padding: 8px 14px 4px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
 }
 .ir-body-desc {
   margin: 0;
   font-size: .85rem;
   color: #17313a;
   line-height: 1.5;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
 }
 .ir-body-section {
   display: flex;
@@ -1743,6 +1748,13 @@ button.unit-plate:focus-visible { outline: 2px solid rgba(200,216,160,.6) !impor
   background: rgba(47,79,58,.05);
   border-radius: 8px;
   flex: 1;
+}
+.ir-act-steps-note {
+  font-size: .71rem;
+  color: #a05000;
+  font-style: italic;
+  opacity: .85;
+  margin-top: 2px;
 }
 
 /* Old clickable wrapper — kept for compat */
@@ -1886,6 +1898,42 @@ button.unit-plate:focus-visible { outline: 2px solid rgba(200,216,160,.6) !impor
 .udc-tl-guest { font-size: .8rem; color: #203f2b; margin-bottom: 2px; }
 .udc-tl-loc { color: #496674; }
 
+/* ── Top CTA block — owner action, shown immediately after status banner ── */
+.idd-cta-top {
+  background: linear-gradient(135deg, rgba(160,80,0,.07), rgba(160,80,0,.04));
+  border: 2px solid rgba(160,80,0,.28);
+  border-radius: 12px;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0 0 2px;
+}
+.idd-cta-top-label {
+  font-size: .82rem;
+  font-weight: 900;
+  color: #a05000;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+}
+.idd-cta-top-hint {
+  font-size: .82rem;
+  color: #5a3800;
+  line-height: 1.45;
+}
+.idd-cta-btn {
+  font-size: 1rem !important;
+  min-height: 52px !important;
+  border-radius: 12px !important;
+  box-shadow: 0 6px 20px rgba(11,127,79,.28) !important;
+}
+@media (max-width: 640px) {
+  .idd-cta-top { padding: 16px !important; gap: 10px !important; }
+  .idd-cta-top-label { font-size: .88rem !important; }
+  .idd-cta-top-hint  { font-size: .9rem !important; line-height: 1.5 !important; }
+  .idd-cta-btn { font-size: 1.05rem !important; min-height: 56px !important; }
+}
+
 /* Action needed callout in incident detail */
 .udc-action-needed {
   display: flex;
@@ -1915,6 +1963,7 @@ button.unit-plate:focus-visible { outline: 2px solid rgba(200,216,160,.6) !impor
 .udc-an-step1 .udc-an-body strong { color: #a05000; }
 .udc-an-step2 .udc-an-body strong { color: #0b5f3a; }
 .udc-an-body span { font-size: .75rem; color: #496674; line-height: 1.4; }
+.udc-an-hint { font-size: .72rem !important; color: #a05000 !important; font-style: italic; opacity: .85; }
 
 .udc-step-done {
   font-size: .78rem;
