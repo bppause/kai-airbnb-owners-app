@@ -5526,6 +5526,121 @@ function NavConfigEditor({ lang, isEn, config, onSave, showToast=()=>{}, default
   );
 }
 
+// ─── COMMUNITY CRUD MODAL ────────────────────────────────────────────────────
+function CommunityCrudModal({ mode='create', initial={}, onSave, onClose, lang='es-CO' }) {
+  const isEn = lang === 'en';
+  const isEdit = mode === 'edit';
+  const [f, setF] = useState({
+    id: initial.id || '',
+    name: initial.name || '',
+    nameEn: initial.name_en || '',
+    tower: initial.tower || '',
+    city: initial.city || '',
+    country: initial.country || 'Colombia',
+    logoUrl: initial.logo_url || '',
+    backgroundUrl: initial.background_url || '',
+    description: initial.description || '',
+    descriptionEn: initial.description_en || '',
+    isActive: initial.is_active !== false,
+  });
+  const [logoMode, setLogoMode] = useState('url');
+  const [bgMode, setBgMode] = useState('url');
+  const [saving, setSaving] = useState(false);
+  const [errors, setErrors] = useState({});
+  const s = (k, v) => setF(p => ({...p, [k]: v}));
+
+  const validate = () => {
+    const e = {};
+    if (!isEdit && !String(f.id||'').trim()) e.id = isEn ? 'ID is required' : 'ID es requerido';
+    else if (!isEdit && f.id && !/^[a-z0-9-]+$/.test(f.id)) e.id = isEn ? 'Lowercase letters, numbers, and hyphens only' : 'Solo letras minúsculas, números y guiones';
+    if (!String(f.name||'').trim()) e.name = isEn ? 'Name (Spanish) is required' : 'Nombre (Español) es requerido';
+    setErrors(e);
+    return Object.keys(e).length === 0;
+  };
+
+  const handleSave = async () => {
+    if (!validate()) return;
+    setSaving(true);
+    try { await onSave(f); } catch(e) { setSaving(false); }
+  };
+
+  const imgField = (label, urlKey, mode, setMode) => (
+    <div className="fg full">
+      <label>{label}</label>
+      <div style={{display:'flex',gap:8,marginBottom:6}}>
+        <button type="button" className={`chip ${mode==='url'?'chip-active':''}`} onClick={()=>setMode('url')}>URL</button>
+        <button type="button" className={`chip ${mode==='file'?'chip-active':''}`} onClick={()=>setMode('file')}>{isEn?'Upload':'Subir'}</button>
+      </div>
+      {mode==='url' && <input value={f[urlKey]} onChange={e=>s(urlKey,e.target.value)} placeholder="https://..." className="input" style={{marginBottom:6}}/>}
+      {mode==='file' && <input type="file" accept="image/*" style={{marginBottom:6}} onChange={e=>{const file=e.target.files?.[0];if(!file)return;const r=new FileReader();r.onload=ev=>s(urlKey,ev.target?.result||'');r.readAsDataURL(file);}}/>}
+      {f[urlKey] && <div style={{marginTop:4,padding:6,background:'#f5fbfd',borderRadius:6,display:'inline-block'}}>
+        <img src={f[urlKey]} alt="preview" style={{maxHeight:48,maxWidth:180,objectFit:'contain',display:'block'}} onError={e=>{e.target.style.display='none';}}/>
+      </div>}
+      {f[urlKey] && <button type="button" className="btn-ghost" style={{fontSize:'.72rem',padding:'2px 8px',marginTop:4}} onClick={()=>s(urlKey,'')}>{isEn?'Remove':'Quitar'}</button>}
+    </div>
+  );
+
+  return (
+    <Overlay onClose={onClose}>
+      <div className="modal-title">{isEdit?(isEn?'✏️ Edit community':'✏️ Editar comunidad'):(isEn?'＋ New community':'＋ Nueva comunidad')}</div>
+      <div className="fg2">
+        {!isEdit && (
+          <div className="fg full">
+            <label>{isEn?'Community ID (slug)':'ID de comunidad (slug)'} <span style={{color:'#e53935',fontSize:'.75rem'}}>*</span></label>
+            <input value={f.id} onChange={e=>s('id',e.target.value.toLowerCase().replace(/[^a-z0-9-]/g,''))} placeholder="my-community" className={errors.id?'field-error':''}/>
+            <span className="help-msg">{isEn?'Lowercase letters, numbers, hyphens. Cannot be changed after creation.':'Letras minúsculas, números, guiones. No se puede cambiar luego.'}</span>
+            {errors.id && <span className="err-msg">{errors.id}</span>}
+          </div>
+        )}
+        <div className="fg">
+          <label>{isEn?'Name (Spanish)':'Nombre (Español)'} <span style={{color:'#e53935',fontSize:'.75rem'}}>*</span></label>
+          <input value={f.name} onChange={e=>s('name',e.target.value)} className={errors.name?'field-error':''}/>
+          {errors.name && <span className="err-msg">{errors.name}</span>}
+        </div>
+        <div className="fg">
+          <label>{isEn?'Name (English)':'Nombre (Inglés)'}</label>
+          <input value={f.nameEn} onChange={e=>s('nameEn',e.target.value)}/>
+        </div>
+        <div className="fg">
+          <label>{isEn?'Tower label':'Etiqueta de torre'}</label>
+          <input value={f.tower} onChange={e=>s('tower',e.target.value)} placeholder="KAI"/>
+          <span className="help-msg">{isEn?'Short label shown on unit plates (e.g. KAI, OLAS, NORTE).':'Etiqueta corta en fichas de unidad (ej. KAI, OLAS, NORTE).'}</span>
+        </div>
+        <div className="fg">
+          <label>{isEn?'City':'Ciudad'}</label>
+          <input value={f.city} onChange={e=>s('city',e.target.value)} placeholder="Cartagena"/>
+        </div>
+        <div className="fg">
+          <label>{isEn?'Country':'País'}</label>
+          <input value={f.country} onChange={e=>s('country',e.target.value)} placeholder="Colombia"/>
+        </div>
+        {imgField(isEn?'Logo':'Logo', 'logoUrl', logoMode, setLogoMode)}
+        {imgField(isEn?'Background image (login / registration screens)':'Imagen de fondo (login y registro)', 'backgroundUrl', bgMode, setBgMode)}
+        <div className="fg full">
+          <label>{isEn?'Description (Spanish)':'Descripción (Español)'}</label>
+          <textarea className="admin-textarea" rows={2} value={f.description} onChange={e=>s('description',e.target.value)}/>
+        </div>
+        <div className="fg full">
+          <label>{isEn?'Description (English)':'Descripción (Inglés)'}</label>
+          <textarea className="admin-textarea" rows={2} value={f.descriptionEn} onChange={e=>s('descriptionEn',e.target.value)}/>
+        </div>
+        {isEdit && (
+          <div className="fg full">
+            <label style={{display:'flex',alignItems:'center',gap:8,cursor:'pointer',userSelect:'none'}}>
+              <input type="checkbox" checked={f.isActive} onChange={e=>s('isActive',e.target.checked)} style={{width:16,height:16}}/>
+              {isEn?'Active (visible and accessible to users)':'Activa (visible y accesible para usuarios)'}
+            </label>
+          </div>
+        )}
+      </div>
+      <div className="mact">
+        <button className="btn-ghost" onClick={onClose}>{isEn?'Cancel':'Cancelar'}</button>
+        <button className="btn-p" onClick={handleSave} disabled={saving}>{saving?(isEn?'Saving...':'Guardando...'):`💾 ${isEn?'Save':'Guardar'}`}</button>
+      </div>
+    </Overlay>
+  );
+}
+
 function AdminSection({ title, subtitle, action, open, onToggle, children }) {
   return (
     <div className="card admin-section" style={{marginBottom:18}}>
@@ -5686,7 +5801,16 @@ function AdminSettings({ config={}, user, listings=[], contactProps={}, onSave, 
   const [emailFromAddress,setEmailFromAddress]=useState(config?.email_from_address||'');
   const [emailFromNameEn,setEmailFromNameEn]=useState(config?.email_from_name_en||'KAI Airbnb Owners');
   const [emailFromAddressEn,setEmailFromAddressEn]=useState(config?.email_from_address_en||'');
-  const ADMIN_SEC_DEFAULT = {branding:false,emailSender:false,roles:true,sla:false,mission:false,menu:false,delegate:false,users:true,tooltips:false,uiLabels:false,email:false,emailNotif:false,auditLog:false};
+  // Phase 4 — community management state
+  const [communities, setCommunities] = useState([]);
+  const [communitiesLoading, setCommunitiesLoading] = useState(false);
+  const [communityModal, setCommunityModal] = useState(null); // null | {mode:'create'|'edit', data:{}}
+  const [communityMembersOpen, setCommunityMembersOpen] = useState({});
+  const [communityMembers, setCommunityMembers] = useState({});
+  const [communityMembersLoading, setCommunityMembersLoading] = useState({});
+  const [memberAddInput, setMemberAddInput] = useState({});   // {cid: email string}
+  const [memberAddRole, setMemberAddRole] = useState({});     // {cid: 'member'|'community_admin'}
+  const ADMIN_SEC_DEFAULT = {communities:false,branding:false,emailSender:false,roles:true,sla:false,mission:false,menu:false,delegate:false,users:true,tooltips:false,uiLabels:false,email:false,emailNotif:false,auditLog:false};
   const [openSections,setOpenSections] = useState(()=>{
     try{ const s=JSON.parse(localStorage.getItem('kai_admin_open')||'null'); return s&&typeof s==='object'?{...ADMIN_SEC_DEFAULT,...s}:ADMIN_SEC_DEFAULT; }catch{ return ADMIN_SEC_DEFAULT; }
   });
@@ -5807,6 +5931,88 @@ function AdminSettings({ config={}, user, listings=[], contactProps={}, onSave, 
     catch(e) { showToast((e.message || String(e)), true); }
   };
   const clearSavedErrors = () => { try { localStorage.removeItem('kai_last_ui_error'); localStorage.removeItem('kai_last_admin_error'); } catch(e) {} setLastUiError(''); setAdminErrors([]); };
+
+  // ── Community CRUD ────────────────────────────────────────────────────────
+  const loadCommunities = useCallback(() => {
+    if (!user?.uid) return;
+    setCommunitiesLoading(true);
+    api.get('/api/communities?uid=' + encodeURIComponent(user.uid) + '&email=' + encodeURIComponent(user.email||''))
+      .then(r => setCommunities(Array.isArray(r?.communities) ? r.communities : []))
+      .catch(e => captureAdminError('communities', e))
+      .finally(() => setCommunitiesLoading(false));
+  }, [user?.uid, user?.email]);
+
+  useEffect(() => { if (openSections.communities) loadCommunities(); }, [openSections.communities, loadCommunities]);
+
+  const loadCommunityMembers = async (cid) => {
+    setCommunityMembersLoading(p => ({...p,[cid]:true}));
+    try {
+      const r = await api.get(`/api/communities/${cid}/members?uid=${encodeURIComponent(user.uid)}&email=${encodeURIComponent(user.email||'')}`);
+      setCommunityMembers(p => ({...p,[cid]: Array.isArray(r?.members)?r.members:[]}));
+    } catch(e) { captureAdminError('community-members', e); }
+    finally { setCommunityMembersLoading(p => ({...p,[cid]:false})); }
+  };
+
+  const toggleCommunityMembers = (cid) => {
+    const opening = !communityMembersOpen[cid];
+    setCommunityMembersOpen(p => ({...p,[cid]:opening}));
+    if (opening && !communityMembers[cid]) loadCommunityMembers(cid);
+  };
+
+  const saveCommunity = async (f) => {
+    const isEdit = f.id && communities.some(c => c.id === f.id);
+    try {
+      if (isEdit) {
+        await api.put(`/api/communities/${f.id}`, { actorUid:user.uid, actorEmail:user.email, name:f.name, nameEn:f.nameEn, tower:f.tower, city:f.city, country:f.country, logoUrl:f.logoUrl, backgroundUrl:f.backgroundUrl, description:f.description, descriptionEn:f.descriptionEn, isActive:f.isActive });
+        showToast(isEn ? '✅ Community updated' : '✅ Comunidad actualizada');
+      } else {
+        await api.post('/api/communities', { actorUid:user.uid, actorEmail:user.email, id:f.id, name:f.name, nameEn:f.nameEn, tower:f.tower, city:f.city, country:f.country, logoUrl:f.logoUrl, backgroundUrl:f.backgroundUrl, description:f.description, descriptionEn:f.descriptionEn });
+        showToast(isEn ? '✅ Community created' : '✅ Comunidad creada');
+      }
+      setCommunityModal(null);
+      loadCommunities();
+    } catch(e) { captureAdminError('save-community', e); showToast((e.message||String(e)), true); throw e; }
+  };
+
+  const deleteCommunity = async (cid) => {
+    if (!window.confirm(isEn ? `Delete community "${cid}"? This cannot be undone.` : `¿Eliminar la comunidad "${cid}"? No se puede deshacer.`)) return;
+    try {
+      await api.del(`/api/communities/${cid}`, { actorUid:user.uid, actorEmail:user.email });
+      showToast(isEn ? '✅ Community deleted' : '✅ Comunidad eliminada');
+      loadCommunities();
+    } catch(e) { captureAdminError('delete-community', e); showToast((e.message||String(e)), true); }
+  };
+
+  const addCommunityMember = async (cid) => {
+    const email = String(memberAddInput[cid]||'').trim().toLowerCase();
+    const role = memberAddRole[cid] || 'member';
+    if (!email) return;
+    const match = users.find(u => (u.email||'').toLowerCase() === email);
+    if (!match?.uid) { showToast(isEn?'User not found — they must be a registered approved user first.':'Usuario no encontrado — debe estar registrado y aprobado primero.', true); return; }
+    try {
+      await api.post(`/api/communities/${cid}/members`, { actorUid:user.uid, actorEmail:user.email, userUid:match.uid, userEmail:email, role });
+      showToast(isEn?'✅ Member added':'✅ Miembro agregado');
+      setMemberAddInput(p => ({...p,[cid]:''}));
+      loadCommunityMembers(cid);
+    } catch(e) { captureAdminError('add-member', e); showToast((e.message||String(e)), true); }
+  };
+
+  const removeCommunityMember = async (cid, uid) => {
+    try {
+      await api.del(`/api/communities/${cid}/members/${uid}`, { actorUid:user.uid, actorEmail:user.email });
+      showToast(isEn?'✅ Member removed':'✅ Miembro eliminado');
+      loadCommunityMembers(cid);
+    } catch(e) { captureAdminError('remove-member', e); showToast((e.message||String(e)), true); }
+  };
+
+  const updateMemberRole = async (cid, m, newRole) => {
+    try {
+      await api.post(`/api/communities/${cid}/members`, { actorUid:user.uid, actorEmail:user.email, userUid:m.userUid, userEmail:m.userEmail, role:newRole });
+      showToast(isEn?'✅ Role updated':'✅ Rol actualizado');
+      loadCommunityMembers(cid);
+    } catch(e) { captureAdminError('update-member-role', e); showToast((e.message||String(e)), true); }
+  };
+
   return <div className="fade">
   <div className="ph" style={{flexWrap:'wrap',gap:12,alignItems:'flex-start'}}>
     <div><h1 className="ptitle">⚙️ {lt(lang,'Configuración global')}</h1><p className="psub">{lt(lang,'Solo administradores globales · SLA, copias, misión y plantillas de email')}</p></div>
@@ -6293,6 +6499,96 @@ function AdminSettings({ config={}, user, listings=[], contactProps={}, onSave, 
       </AdminSection>
     );
   })()}
+
+  {/* ── Communities ────────────────────────────────────────────────────── */}
+  <AdminSection
+    title={`🌐 ${isEn?'Communities':'Comunidades'}`}
+    subtitle={isEn?'Create and manage multi-tenant communities. Each community has its own branding, tower, and member list.':'Crea y administra comunidades multi-tenant. Cada comunidad tiene su propio branding, torre y lista de miembros.'}
+    action={<button className="btn-p" style={{minHeight:36,padding:'6px 14px'}} onClick={()=>setCommunityModal({mode:'create',data:{}})}>{isEn?'＋ New community':'＋ Nueva comunidad'}</button>}
+    open={openSections.communities} onToggle={()=>toggleSection('communities')}>
+    {communitiesLoading && <div style={{padding:'20px 0',textAlign:'center'}}><span className="spinner-sm"/> {isEn?'Loading...':'Cargando...'}</div>}
+    {!communitiesLoading && communities.length === 0 && (
+      <div style={{padding:'16px 0',color:'#6b9ba8',textAlign:'center',fontSize:'.9rem'}}>
+        {isEn?'No communities yet. Create the first one above.':'Sin comunidades todavía. Crea la primera arriba.'}
+      </div>
+    )}
+    {!communitiesLoading && communities.map(c => (
+      <div key={c.id} className="card" style={{marginBottom:12,padding:'12px 16px',border:'1px solid #cce7ee'}}>
+        {/* Community header row */}
+        <div style={{display:'flex',alignItems:'center',gap:12,flexWrap:'wrap'}}>
+          {c.logo_url && <img src={c.logo_url} alt="logo" style={{width:36,height:36,objectFit:'contain',borderRadius:6,background:'#f5fbfd',padding:2}}/>}
+          <div style={{flex:1,minWidth:0}}>
+            <div style={{fontWeight:700,fontSize:'.95rem',color:'#17313a'}}>{c.name}{c.name_en&&c.name_en!==c.name&&<span style={{fontWeight:400,color:'#6b9ba8',marginLeft:8,fontSize:'.82rem'}}>{c.name_en}</span>}</div>
+            <div style={{fontSize:'.77rem',color:'#8a9fa5',marginTop:2}}>
+              <code style={{background:'#eef6f8',padding:'1px 5px',borderRadius:3,fontSize:'.75rem'}}>{c.id}</code>
+              {c.tower&&<span style={{marginLeft:8}}>🏢 {c.tower}</span>}
+              {c.city&&<span style={{marginLeft:8}}>📍 {c.city}{c.country?`, ${c.country}`:''}</span>}
+              <span className={`chip ${c.is_active?'c-teal':'c-red'}`} style={{marginLeft:8,fontSize:'.68rem',padding:'1px 7px'}}>{c.is_active?(isEn?'Active':'Activa'):(isEn?'Inactive':'Inactiva')}</span>
+            </div>
+          </div>
+          <div style={{display:'flex',gap:6,flexShrink:0}}>
+            <button className="btn-ghost" style={{fontSize:'.78rem',padding:'4px 10px'}} onClick={()=>setCommunityModal({mode:'edit',data:c})}>✏️ {isEn?'Edit':'Editar'}</button>
+            {c.id !== 'kai' && <button className="btn-ghost" style={{fontSize:'.78rem',padding:'4px 10px',color:'#c62828'}} onClick={()=>deleteCommunity(c.id)}>🗑️ {isEn?'Delete':'Eliminar'}</button>}
+          </div>
+        </div>
+        {/* Members toggle */}
+        <div style={{marginTop:10,borderTop:'1px solid #e8f4f8',paddingTop:8}}>
+          <button type="button" className="btn-ghost" style={{fontSize:'.78rem',padding:'3px 10px'}}
+            onClick={()=>toggleCommunityMembers(c.id)}>
+            👥 {isEn?'Members':'Miembros'} {communityMembersOpen[c.id]?'▲':'▼'}
+          </button>
+          {communityMembersOpen[c.id] && (
+            <div style={{marginTop:10}}>
+              {communityMembersLoading[c.id] && <div style={{color:'#6b9ba8',fontSize:'.82rem'}}><span className="spinner-sm"/> {isEn?'Loading members...':'Cargando miembros...'}</div>}
+              {!communityMembersLoading[c.id] && (communityMembers[c.id]||[]).length === 0 && (
+                <div style={{color:'#6b9ba8',fontSize:'.82rem',padding:'6px 0'}}>{isEn?'No members yet.':'Sin miembros todavía.'}</div>
+              )}
+              {!communityMembersLoading[c.id] && (communityMembers[c.id]||[]).map(m => (
+                <div key={m.id} style={{display:'flex',alignItems:'center',gap:8,padding:'5px 0',borderBottom:'1px solid #f0f8fb',flexWrap:'wrap'}}>
+                  <div style={{flex:1,minWidth:160}}>
+                    <div style={{fontWeight:600,fontSize:'.82rem',color:'#17313a'}}>{m.name||m.userEmail}</div>
+                    <div style={{fontSize:'.72rem',color:'#6b9ba8'}}>{m.userEmail}</div>
+                  </div>
+                  <select value={m.role} style={{fontSize:'.78rem',padding:'2px 6px',borderRadius:6,border:'1px solid #cce7ee',background:'#fff'}}
+                    onChange={e=>updateMemberRole(c.id, m, e.target.value)}>
+                    <option value="member">{isEn?'Member':'Miembro'}</option>
+                    <option value="community_admin">{isEn?'Community Admin':'Admin comunidad'}</option>
+                  </select>
+                  <button className="btn-ghost" style={{fontSize:'.72rem',padding:'2px 8px',color:'#c62828'}} onClick={()=>removeCommunityMember(c.id, m.userUid)}>✕ {isEn?'Remove':'Quitar'}</button>
+                </div>
+              ))}
+              {/* Add member row */}
+              <div style={{display:'flex',gap:8,marginTop:10,flexWrap:'wrap',alignItems:'center'}}>
+                <input
+                  value={memberAddInput[c.id]||''}
+                  onChange={e=>setMemberAddInput(p=>({...p,[c.id]:e.target.value}))}
+                  placeholder={isEn?'Approved user email...':'Email de usuario aprobado...'}
+                  style={{flex:1,minWidth:180,fontSize:'.82rem',padding:'5px 10px',borderRadius:8,border:'1px solid #cce7ee'}}
+                  onKeyDown={e=>{if(e.key==='Enter')addCommunityMember(c.id);}}
+                />
+                <select value={memberAddRole[c.id]||'member'} onChange={e=>setMemberAddRole(p=>({...p,[c.id]:e.target.value}))}
+                  style={{fontSize:'.78rem',padding:'5px 8px',borderRadius:8,border:'1px solid #cce7ee',background:'#fff'}}>
+                  <option value="member">{isEn?'Member':'Miembro'}</option>
+                  <option value="community_admin">{isEn?'Community Admin':'Admin comunidad'}</option>
+                </select>
+                <button className="btn-p" style={{fontSize:'.78rem',padding:'5px 12px'}} onClick={()=>addCommunityMember(c.id)}>＋ {isEn?'Add':'Agregar'}</button>
+                <button className="btn-ghost" style={{fontSize:'.72rem',padding:'3px 8px'}} onClick={()=>loadCommunityMembers(c.id)}>↻ {isEn?'Refresh':'Actualizar'}</button>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    ))}
+    {communityModal && (
+      <CommunityCrudModal
+        mode={communityModal.mode}
+        initial={communityModal.data||{}}
+        onSave={saveCommunity}
+        onClose={()=>setCommunityModal(null)}
+        lang={lang}
+      />
+    )}
+  </AdminSection>
 
   {/* ── Audit Log Viewer ───────────────────��─────────────────────────── */}
   <AdminSection title={`🕵️ ${isEn?'Audit Log':'Log de auditoría'}`} subtitle={isEn?'Full activity history for listings, incidents, roles, and config changes.':'Historial completo de actividad: listings, incidentes, roles y configuración.'} open={openSections.auditLog} onToggle={()=>toggleSection('auditLog')}>
