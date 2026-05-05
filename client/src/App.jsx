@@ -5810,6 +5810,7 @@ function AdminSettings({ config={}, user, listings=[], contactProps={}, onSave, 
   const [communityMembersLoading, setCommunityMembersLoading] = useState({});
   const [memberAddInput, setMemberAddInput] = useState({});   // {cid: email string}
   const [memberAddRole, setMemberAddRole] = useState({});     // {cid: 'member'|'community_admin'}
+  const [memberPermsEditing, setMemberPermsEditing] = useState({});  // {cid_uid: permissions obj}
   const ADMIN_SEC_DEFAULT = {communities:false,branding:false,emailSender:false,roles:true,sla:false,mission:false,menu:false,delegate:false,users:true,tooltips:false,uiLabels:false,email:false,emailNotif:false,auditLog:false};
   const [openSections,setOpenSections] = useState(()=>{
     try{ const s=JSON.parse(localStorage.getItem('kai_admin_open')||'null'); return s&&typeof s==='object'?{...ADMIN_SEC_DEFAULT,...s}:ADMIN_SEC_DEFAULT; }catch{ return ADMIN_SEC_DEFAULT; }
@@ -6011,6 +6012,15 @@ function AdminSettings({ config={}, user, listings=[], contactProps={}, onSave, 
       showToast(isEn?'✅ Role updated':'✅ Rol actualizado');
       loadCommunityMembers(cid);
     } catch(e) { captureAdminError('update-member-role', e); showToast((e.message||String(e)), true); }
+  };
+
+  const updateMemberPerms = async (cid, uid, perms) => {
+    try {
+      await api.patch(`/api/communities/${cid}/members/${uid}/permissions`, { actorUid:user.uid, actorEmail:user.email, permissions:perms });
+      showToast(isEn?'✅ Permissions saved':'✅ Permisos guardados');
+      setMemberPermsEditing(p => { const n={...p}; delete n[`${cid}_${uid}`]; return n; });
+      loadCommunityMembers(cid);
+    } catch(e) { captureAdminError('update-member-perms', e); showToast((e.message||String(e)), true); }
   };
 
   return <div className="fade">
@@ -6543,20 +6553,54 @@ function AdminSettings({ config={}, user, listings=[], contactProps={}, onSave, 
               {!communityMembersLoading[c.id] && (communityMembers[c.id]||[]).length === 0 && (
                 <div style={{color:'#6b9ba8',fontSize:'.82rem',padding:'6px 0'}}>{isEn?'No members yet.':'Sin miembros todavía.'}</div>
               )}
-              {!communityMembersLoading[c.id] && (communityMembers[c.id]||[]).map(m => (
-                <div key={m.id} style={{display:'flex',alignItems:'center',gap:8,padding:'5px 0',borderBottom:'1px solid #f0f8fb',flexWrap:'wrap'}}>
-                  <div style={{flex:1,minWidth:160}}>
-                    <div style={{fontWeight:600,fontSize:'.82rem',color:'#17313a'}}>{m.name||m.userEmail}</div>
-                    <div style={{fontSize:'.72rem',color:'#6b9ba8'}}>{m.userEmail}</div>
+              {!communityMembersLoading[c.id] && (communityMembers[c.id]||[]).map(m => {
+                const pk = `${c.id}_${m.userUid}`;
+                const defaultPerms = { canApproveRegistrations:true, canResolveIncidents:true, canManageListings:false };
+                const currentPerms = memberPermsEditing[pk] || m.permissions || defaultPerms;
+                const isDirty = !!memberPermsEditing[pk];
+                return (
+                <div key={m.id} style={{padding:'6px 0',borderBottom:'1px solid #f0f8fb'}}>
+                  <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
+                    <div style={{flex:1,minWidth:160}}>
+                      <div style={{fontWeight:600,fontSize:'.82rem',color:'#17313a'}}>{m.name||m.userEmail}</div>
+                      <div style={{fontSize:'.72rem',color:'#6b9ba8'}}>{m.userEmail}</div>
+                    </div>
+                    <select value={m.role} style={{fontSize:'.78rem',padding:'2px 6px',borderRadius:6,border:'1px solid #cce7ee',background:'#fff'}}
+                      onChange={e=>updateMemberRole(c.id, m, e.target.value)}>
+                      <option value="member">{isEn?'Member':'Miembro'}</option>
+                      <option value="community_admin">{isEn?'Community Admin':'Admin comunidad'}</option>
+                    </select>
+                    <button className="btn-ghost" style={{fontSize:'.72rem',padding:'2px 8px',color:'#c62828'}} onClick={()=>removeCommunityMember(c.id, m.userUid)}>✕ {isEn?'Remove':'Quitar'}</button>
                   </div>
-                  <select value={m.role} style={{fontSize:'.78rem',padding:'2px 6px',borderRadius:6,border:'1px solid #cce7ee',background:'#fff'}}
-                    onChange={e=>updateMemberRole(c.id, m, e.target.value)}>
-                    <option value="member">{isEn?'Member':'Miembro'}</option>
-                    <option value="community_admin">{isEn?'Community Admin':'Admin comunidad'}</option>
-                  </select>
-                  <button className="btn-ghost" style={{fontSize:'.72rem',padding:'2px 8px',color:'#c62828'}} onClick={()=>removeCommunityMember(c.id, m.userUid)}>✕ {isEn?'Remove':'Quitar'}</button>
+                  {m.role === 'community_admin' && (
+                    <div style={{marginTop:6,paddingLeft:4,display:'flex',flexWrap:'wrap',gap:'6px 18px',alignItems:'center'}}>
+                      {[
+                        ['canApproveRegistrations', isEn?'Approve registrations':'Aprobar registros'],
+                        ['canResolveIncidents',     isEn?'Resolve incidents':'Resolver incidentes'],
+                        ['canManageListings',        isEn?'Manage listings':'Gestionar listings'],
+                      ].map(([key, label]) => (
+                        <label key={key} style={{display:'flex',alignItems:'center',gap:5,fontSize:'.75rem',color:'#2F4F3A',cursor:'pointer'}}>
+                          <input type="checkbox" checked={!!(currentPerms[key])}
+                            onChange={e => {
+                              const updated = { ...currentPerms, [key]: e.target.checked };
+                              setMemberPermsEditing(p => ({...p,[pk]:updated}));
+                            }}
+                            style={{accentColor:'#2F4F3A'}}
+                          />
+                          {label}
+                        </label>
+                      ))}
+                      {isDirty && (
+                        <button className="btn-p" style={{fontSize:'.72rem',padding:'2px 10px',marginLeft:4}}
+                          onClick={()=>updateMemberPerms(c.id, m.userUid, memberPermsEditing[pk])}>
+                          {isEn?'Save':'Guardar'}
+                        </button>
+                      )}
+                    </div>
+                  )}
                 </div>
-              ))}
+                );
+              })}
               {/* Add member row */}
               <div style={{display:'flex',gap:8,marginTop:10,flexWrap:'wrap',alignItems:'center'}}>
                 <input

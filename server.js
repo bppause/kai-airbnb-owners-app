@@ -324,7 +324,10 @@ const getUserRole = async ({ uid='', email='' } = {}) => {
   } catch(e) { warn('Role lookup failed: ' + (e?.message || e)); }
   return 'user';
 };
-const canManageRegistrations = async (uid, email='') => (await getUserRole({uid,email})) === 'global_admin' || await hasDelegatePermission(uid, email, 'canApproveRegistrations');
+const canManageRegistrations = async (uid, email='', communityId='kai') =>
+  (await getUserRole({uid,email})) === 'global_admin' ||
+  await hasDelegatePermission(uid, email, 'canApproveRegistrations') ||
+  await hasCommunityAdminPerm(uid, email, communityId, 'canApproveRegistrations');
 const isGlobalAdmin = async (uid, email='') => (await getUserRole({uid,email})) === 'global_admin';
 
 // ─── MULTI-COMMUNITY HELPERS (v80) ───────────────────────────────────────────
@@ -351,6 +354,19 @@ const isCommunityAdmin = async (uid='', email='', communityId='kai') => {
   try {
     const { data } = await supabase.from('community_memberships').select('role').eq('community_id', communityId).eq('user_uid', uid).maybeSingle();
     return data?.role === 'community_admin';
+  } catch(e) { return false; }
+};
+const COMMUNITY_ADMIN_PERM_DEFAULTS = { canApproveRegistrations:true, canResolveIncidents:true, canManageListings:false };
+const hasCommunityAdminPerm = async (uid='', email='', communityId='kai', permKey='') => {
+  if (!uid && !email) return false;
+  try {
+    let q = supabase.from('community_memberships').select('role,permissions').eq('community_id', communityId).eq('role','community_admin');
+    if (uid) q = q.eq('user_uid', uid);
+    else q = q.eq('user_email', String(email).trim().toLowerCase());
+    const { data } = await q.maybeSingle();
+    if (!data) return false;
+    const perms = safeJsonObject(data.permissions, {});
+    return !!(perms[permKey] ?? COMMUNITY_ADMIN_PERM_DEFAULTS[permKey] ?? false);
   } catch(e) { return false; }
 };
 const getUserCommunities = async (uid='', email='') => {
@@ -1058,7 +1074,7 @@ app.get('/api/registrations/pending', async (req, res) => {
   const reviewerUid = String(req.query.reviewerUid || '').trim();
   const communityId = getCommunityId(req);
   if (!reviewerUid) return res.status(400).json({ error:'reviewerUid is required.' });
-  try { if (!(await canManageRegistrations(reviewerUid, req.query.reviewerEmail))) return res.status(403).json({ error:'Solo administradores globales o delegados pueden revisar registros pendientes.' }); } catch(e) { return sendSupabaseError(res, e); }
+  try { if (!(await canManageRegistrations(reviewerUid, req.query.reviewerEmail, communityId))) return res.status(403).json({ error:'Solo administradores globales o delegados pueden revisar registros pendientes.' }); } catch(e) { return sendSupabaseError(res, e); }
   const { data: rows, error } = await supabase.from('listings').select('*').eq('community_id', communityId).eq('status','pending').order('created_at', { ascending:true }).order('apt', { ascending:true });
   if (error) return sendSupabaseError(res, error);
   const groups = new Map();
@@ -1077,7 +1093,7 @@ app.get('/api/registrations/active', async (req, res) => {
   const communityId = getCommunityId(req);
   if (!reviewerUid) return res.status(400).json({ error:'reviewerUid is required.' });
   try {
-    if (!(await canManageRegistrations(reviewerUid, req.query.reviewerEmail))) {
+    if (!(await canManageRegistrations(reviewerUid, req.query.reviewerEmail, communityId))) {
       return res.status(403).json({ error:'Solo administradores globales o delegados pueden ver registros activos.' });
     }
   } catch(e) { return sendSupabaseError(res, e); }
@@ -1121,7 +1137,8 @@ const reviewRegistration = async (req, res, status) => {
   if (!requireSupabaseEnv(res)) return;
   const { reviewerUid, reviewerName, reason } = req.body || {};
   if (!reviewerUid) return res.status(400).json({ error:'reviewerUid is required.' });
-  try { if (!(await canManageRegistrations(reviewerUid, req.body?.reviewerEmail))) return res.status(403).json({ error:'Solo administradores globales o delegados pueden aprobar o rechazar registros.' }); } catch(e) { return sendSupabaseError(res, e); }
+  const communityId = getCommunityId(req);
+  try { if (!(await canManageRegistrations(reviewerUid, req.body?.reviewerEmail, communityId))) return res.status(403).json({ error:'Solo administradores globales o delegados pueden aprobar o rechazar registros.' }); } catch(e) { return sendSupabaseError(res, e); }
   const registrationId = req.params.id;
   const { data: pendingRows, error: findErr } = await supabase.from('listings').select('*').eq('registration_id', registrationId).eq('status','pending').order('apt', { ascending:true });
   if (findErr) return sendSupabaseError(res, findErr);
@@ -1197,7 +1214,7 @@ app.put('/api/listings/:id', async (req, res) => {
 
   const { data: existing, error: findError } = await supabase.from('listings').select('*').eq('id', req.params.id).single();
   if (findError || !existing) return res.status(404).json({ error: 'Not found' });
-  if (existing.owner_uid !== ownerUid && !(await canUpdateGlobalListing(ownerUid, actorEmail))) return res.status(403).json({ error: 'Forbidden' });
+  if (existing.owner_uid !== ownerUid && !(await canUpdateGlobalListing(ownerUid, actorEmail)) && !(await hasCommunityAdminPerm(ownerUid, actorEmail, existing.community_id||'kai', 'canManageListings'))) return res.status(403).json({ error: 'Forbidden' });
 
   if (!apt || !rooms || !guests) return res.status(400).json({ error: 'Missing required fields: apartment, rooms, and guests are required.' });
   if (!isThreeDigitApt(apt)) return res.status(400).json({ error: 'Apartment number must be exactly 3 digits, for example 000.' });
@@ -1238,7 +1255,7 @@ app.delete('/api/listings/:id', async (req, res) => {
 
   const { data: existing, error: findError } = await supabase.from('listings').select('*').eq('id', req.params.id).single();
   if (findError || !existing) return res.status(404).json({ error: 'Not found' });
-  if (existing.owner_uid !== ownerUid && !(await canDeleteGlobalListing(ownerUid, actorEmail))) return res.status(403).json({ error: 'Forbidden' });
+  if (existing.owner_uid !== ownerUid && !(await canDeleteGlobalListing(ownerUid, actorEmail)) && !(await hasCommunityAdminPerm(ownerUid, actorEmail, existing.community_id||'kai', 'canManageListings'))) return res.status(403).json({ error: 'Forbidden' });
 
   await auditEvent({ listingId:existing.id, registrationId:existing.registration_id, actorUid:ownerUid, actorName:existing.owner, action:'listing_deleted', before:existing });
   await auditLog({ entity:'listing', entityId:existing.id, action:'delete', actorUid:ownerUid, actorEmail:actorEmail, actorName:existing.owner, before:existing });
@@ -1519,7 +1536,9 @@ app.get('/api/admin/me', async (req, res) => {
   const config = await getAppConfig(communityId);
   const permissions = await getUserPermissions({ uid, email });
   const communities = await getUserCommunities(uid, email);
-  res.json({ role, isGlobalAdmin: role === 'global_admin', canManageRegistrations: role === 'global_admin' || !!permissions.delegate?.canApproveRegistrations, languagePreference, config, permissions, communityId, communities });
+  const canManageRegs = role === 'global_admin' || !!permissions.delegate?.canApproveRegistrations ||
+    await hasCommunityAdminPerm(uid, email, communityId, 'canApproveRegistrations');
+  res.json({ role, isGlobalAdmin: role === 'global_admin', canManageRegistrations: canManageRegs, languagePreference, config, permissions, communityId, communities });
 });
 
 app.put('/api/admin/config', async (req, res) => {
@@ -1782,7 +1801,10 @@ app.patch('/api/incidents/:id/resolve', async (req, res) => {
   const { data: existing, error: findError } = await supabase.from('incidents').select('*, listings(*)').eq('id', req.params.id).single();
   if (findError || !existing) return res.status(404).json({ error: 'Not found' });
   const ownerUid = existing.listings?.owner_uid || '';
-  if (!(await hasDelegatePermission(actorUid, actorEmail, 'canResolveIncidents'))) return res.status(403).json({ error:'Only global admins or delegates with resolve permission can resolve incidents.' });
+  const communityId = existing.community_id || getCommunityId(req);
+  const canResolve = await hasDelegatePermission(actorUid, actorEmail, 'canResolveIncidents') ||
+    await hasCommunityAdminPerm(actorUid, actorEmail, communityId, 'canResolveIncidents');
+  if (!canResolve) return res.status(403).json({ error:'Only global admins or delegates with resolve permission can resolve incidents.' });
   const ownerGuests = Array.isArray(existing.owner_guests) ? existing.owner_guests : [];
   // General incidents (is_general=true) skip owner verification steps — admins close directly.
   if (!existing.is_general) {
@@ -2084,17 +2106,18 @@ app.get('/api/communities/:id/members', async (req, res) => {
   if (!(await isCommunityAdmin(uid, email, req.params.id))) return res.status(403).json({ error:'Solo un administrador puede ver los miembros de la comunidad.' });
   const { data, error } = await supabase.from('community_memberships').select('*, app_users(name,language_preference)').eq('community_id', req.params.id).order('joined_at', { ascending:true });
   if (error) return sendSupabaseError(res, error);
-  res.json({ members: (data||[]).map(m => ({ id:m.id, communityId:m.community_id, userUid:m.user_uid, userEmail:m.user_email, role:m.role, invitedByUid:m.invited_by_uid, joinedAt:m.joined_at, name:m.app_users?.name||'', languagePreference:m.app_users?.language_preference||'es-CO' })) });
+  res.json({ members: (data||[]).map(m => ({ id:m.id, communityId:m.community_id, userUid:m.user_uid, userEmail:m.user_email, role:m.role, permissions:safeJsonObject(m.permissions, COMMUNITY_ADMIN_PERM_DEFAULTS), invitedByUid:m.invited_by_uid, joinedAt:m.joined_at, name:m.app_users?.name||'', languagePreference:m.app_users?.language_preference||'es-CO' })) });
 });
 
 // POST /api/communities/:id/members — add/invite a member
 app.post('/api/communities/:id/members', async (req, res) => {
   if (!requireSupabaseEnv(res)) return;
-  const { actorUid, actorEmail, userUid, userEmail, role='member' } = req.body || {};
+  const { actorUid, actorEmail, userUid, userEmail, role='member', permissions } = req.body || {};
   if (!(await isCommunityAdmin(actorUid, actorEmail, req.params.id))) return res.status(403).json({ error:'Solo un administrador puede agregar miembros.' });
   if (!userUid || !userEmail) return res.status(400).json({ error:'userUid and userEmail are required.' });
   if (!['member','community_admin'].includes(role)) return res.status(400).json({ error:'role must be member or community_admin.' });
-  const row = { id:'mbr_'+uuidv4().slice(0,8), community_id:req.params.id, user_uid:userUid, user_email:String(userEmail).toLowerCase(), role, invited_by_uid:actorUid||'', joined_at:new Date().toISOString() };
+  const effectivePerms = role === 'community_admin' ? safeJsonObject(permissions, COMMUNITY_ADMIN_PERM_DEFAULTS) : {};
+  const row = { id:'mbr_'+uuidv4().slice(0,8), community_id:req.params.id, user_uid:userUid, user_email:String(userEmail).toLowerCase(), role, permissions:effectivePerms, invited_by_uid:actorUid||'', joined_at:new Date().toISOString() };
   const { data, error } = await supabase.from('community_memberships').upsert(row, { onConflict:'community_id,user_uid' }).select('*').single();
   if (error) return sendSupabaseError(res, error);
   await auditLog({ entity:'community_membership', entityId:req.params.id, action:'add_member', actorUid:actorUid||'', actorEmail:actorEmail||'', after:{ userUid, userEmail, role } });
@@ -2110,6 +2133,18 @@ app.delete('/api/communities/:id/members/:uid', async (req, res) => {
   if (error) return sendSupabaseError(res, error);
   await auditLog({ entity:'community_membership', entityId:req.params.id, action:'remove_member', actorUid:actorUid||'', actorEmail:actorEmail||'', after:{ removedUid:req.params.uid } });
   res.json({ ok:true });
+});
+
+// PATCH /api/communities/:id/members/:uid/permissions — update community admin permissions
+app.patch('/api/communities/:id/members/:uid/permissions', async (req, res) => {
+  if (!requireSupabaseEnv(res)) return;
+  const { actorUid, actorEmail, permissions } = req.body || {};
+  if (!(await isCommunityAdmin(actorUid, actorEmail, req.params.id))) return res.status(403).json({ error:'Solo un administrador puede cambiar permisos.' });
+  const perms = safeJsonObject(permissions, COMMUNITY_ADMIN_PERM_DEFAULTS);
+  const { data, error } = await supabase.from('community_memberships').update({ permissions:perms }).eq('community_id', req.params.id).eq('user_uid', req.params.uid).select('*').single();
+  if (error) return sendSupabaseError(res, error);
+  await auditLog({ entity:'community_membership', entityId:req.params.id, action:'update_permissions', actorUid:actorUid||'', actorEmail:actorEmail||'', after:{ uid:req.params.uid, permissions:perms } });
+  res.json({ ok:true, permissions:perms });
 });
 
 // GET /api/me/communities — communities the calling user belongs to

@@ -61,6 +61,9 @@ create table if not exists public.community_memberships (
   unique (community_id, user_uid)
 );
 
+-- Phase 5: per-community-admin permission flags (v81)
+alter table public.community_memberships add column if not exists permissions jsonb not null default '{"canApproveRegistrations":true,"canResolveIncidents":true,"canManageListings":false}'::jsonb;
+
 -- ─────────────────────────────────────────────────────────────────────────────
 -- COMMUNITY CONFIG (v80)
 -- Per-community overrides for app_config keys; server falls back to app_config
