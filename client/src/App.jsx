@@ -6095,6 +6095,12 @@ function AdminSettings({ config={}, user, listings=[], contactProps={}, onSave, 
   const [communityRoutingData, setCommunityRoutingData] = useState({});
   const [communityRoutingLoading, setCommunityRoutingLoading] = useState({});
   const [communityRoutingDraft, setCommunityRoutingDraft] = useState({});
+  const [adminTab, setAdminTab] = useState(() => adminInfo.isGlobalAdmin ? 'platform' : 'community');
+  const [activeCommId, setActiveCommId] = useState(() => {
+    if (!adminInfo.isGlobalAdmin && (adminInfo.communityAdminOf||[]).length)
+      return adminInfo.communityAdminOf[0].communityId;
+    return '';
+  });
   const ADMIN_SEC_DEFAULT = {communities:false,branding:false,emailSender:false,roles:true,sla:false,mission:false,menu:false,delegate:false,communityAdminPerms:false,users:true,tooltips:false,uiLabels:false,email:false,emailNotif:false,auditLog:false,commMission:false,commLabels:false,commTooltips:false,commTpl:false};
   const [openSections,setOpenSections] = useState(()=>{
     try{ const s=JSON.parse(localStorage.getItem('kai_admin_open')||'null'); return s&&typeof s==='object'?{...ADMIN_SEC_DEFAULT,...s}:ADMIN_SEC_DEFAULT; }catch{ return ADMIN_SEC_DEFAULT; }
