@@ -275,10 +275,10 @@ const APP_I18N = {
   "my.myApts": { es:"Mis unidades", en:"My units" },
   "my.capacityShort": { es:"Cap. total", en:"Total cap." },
   "my.noApts": { es:"Sin unidades registradas", en:"No units registered" },
-  "my.addFirst": { es:"Registra tu primera unidad en Morros KAI", en:"Register your first unit at Morros KAI" },
+  "my.addFirst": { es:"Registra tu primera unidad en {complex}", en:"Register your first unit at {complex}" },
 
   "listings.title": { es:"🏢 Inventario de Unidades", en:"🏢 Unit Inventory" },
-  "listings.subtitle": { es:"Morros KAI · {count} unidades registradas", en:"Morros KAI · {count} registered units" },
+  "listings.subtitle": { es:"{complex} · {count} unidades registradas", en:"{complex} · {count} registered units" },
   "listings.add": { es:"＋ Agregar unidad", en:"＋ Add unit" },
   "listings.search": { es:"🔍 Buscar por número de apto o propietario...", en:"🔍 Search by apartment number or owner..." },
   "incidents.search": { es:"🔍 Buscar por apto, propietario, huésped, ciudad, país, tipo...", en:"🔍 Search by apartment, owner, guest, city, country, type..." },
@@ -430,7 +430,7 @@ const APP_I18N = {
   "analytics.table.desc": { es:"Descripción", en:"Description" },
 
   "modal.report.title": { es:"📋 Registrar Incidente", en:"📋 File an Incident Report" },
-  "modal.report.sub": { es:"Por: {name} · Registro formal de incidente · Morros KAI", en:"By: {name} · Formal incident record · Morros KAI" },
+  "modal.report.sub": { es:"Por: {name} · Registro formal de incidente · {complex}", en:"By: {name} · Formal incident record · {complex}" },
   "modal.report.help": { es:"Selecciona la unidad, fecha, categoría y usa una plantilla como punto de partida. El propietario confirmará los datos del huésped en el paso de verificación.", en:"Select the unit, date, category, and use a template as a starting point. The owner will confirm guest details in the verification step." },
   "form.apartment": { es:"🏠 Apartamento *", en:"🏠 Apartment *" },
   "form.select": { es:"Seleccionar...", en:"Select..." },
@@ -499,8 +499,8 @@ const APP_I18N = {
   "modal.listing.addTitle": { es:"＋ Agregar unidad", en:"＋ Add unit" },
   "modal.listing.editTitle": { es:"✏️ Editar unidad", en:"✏️ Edit unit" },
   "modal.listing.ownerPrefix": { es:"Propietario", en:"Owner" },
-  "modal.listing.requiredHelp": { es:"Los campos marcados con * son requeridos. Torre KAI es fija y no se puede cambiar. Operador, email operador y WhatsApp operador son opcionales.", en:"Fields marked with * are required. Tower KAI is fixed and cannot be changed. Operator, operator email, and operator WhatsApp are optional." },
-  "modal.listing.registrationHelp": { es:"Debes incluir al menos un listing. Torre KAI es fija. Airbnb URL, operador, email operador y WhatsApp operador son opcionales. El email del listing se llena con tu Google email, pero puedes cambiarlo.", en:"You must include at least one listing. Tower KAI is fixed. Airbnb URL, operator, operator email, and operator WhatsApp are optional. Listing email defaults to your Google email, but you can change it." },
+  "modal.listing.requiredHelp": { es:"Los campos marcados con * son requeridos. Torre {tower} es fija y no se puede cambiar. Operador, email operador y WhatsApp operador son opcionales.", en:"Fields marked with * are required. Tower {tower} is fixed and cannot be changed. Operator, operator email, and operator WhatsApp are optional." },
+  "modal.listing.registrationHelp": { es:"Debes incluir al menos un listing. Torre {tower} es fija. Airbnb URL, operador, email operador y WhatsApp operador son opcionales. El email del listing se llena con tu Google email, pero puedes cambiarlo.", en:"You must include at least one listing. Tower {tower} is fixed. Airbnb URL, operator, operator email, and operator WhatsApp are optional. Listing email defaults to your Google email, but you can change it." },
   "form.aptNumber": { es:"🚪 Número de unidad *", en:"🚪 Unit number *" },
   "form.tower": { es:"🏢 Torre", en:"🏢 Tower" },
   "form.towerHelp": { es:"Torre fija del edificio.", en:"Fixed building tower." },
@@ -561,7 +561,7 @@ Object.assign(APP_I18N, {
   "tooltips.english": { es:"Tooltip inglés", en:"English tooltip" },
   "tooltips.save": { es:"Guardar tooltips", en:"Save tooltips" },
   "tooltip.reportIncident": { es:"Reporta un incidente visible para propietarios aprobados. Incluye datos claros y verificables.", en:"Report an incident visible to approved owners. Include clear, verifiable details." },
-  "tooltip.addListing": { es:"Registra una unidad que te pertenece en Morros KAI. El número debe ser único y quedará asociado a tu cuenta Google.", en:"Register a unit you own at Morros KAI. The number must be unique and will be linked to your Google account." },
+  "tooltip.addListing": { es:"Registra una unidad que te pertenece en {complex}. El número debe ser único y quedará asociado a tu cuenta Google.", en:"Register a unit you own at {complex}. The number must be unique and will be linked to your Google account." },
   "tooltip.aptNumber": { es:"Ingresa 3 dígitos (ej: 705). Solo un propietario puede registrar cada unidad.", en:"Enter 3 digits (e.g. 705). Each unit can only be registered to one owner." },
   "tooltip.listingEmail": { es:"Email que recibirá notificaciones del listing. Si queda igual, usa tu email de Google.", en:"Email that receives listing notifications. If unchanged, it uses your Google email." },
   "tooltip.ownerWhatsapp": { es:"WhatsApp del propietario para contacto operativo.", en:"Owner WhatsApp for operational contact." },
@@ -641,16 +641,26 @@ const Tip = ({ text }) => {
 
 // Module-level custom label overrides — populated from adminInfo.config on load
 let _customLabels = { es: {}, en: {} };
+// Phase 2: current community ID, synced from adminInfo after login
+let _communityId = (() => { try { return localStorage.getItem('kai_community') || 'kai'; } catch(e) { return 'kai'; } })();
+// Phase 3: community display name + tower, synced from adminInfo.config on load
+let _complexName = { es:'Propietarios Airbnb KAI', en:'KAI Airbnb Owners', tower:'KAI' };
 const setCustomLabels = (cfg={}) => {
   try { _customLabels.es = JSON.parse(cfg.ui_labels_es || '{}') || {}; } catch(e) { _customLabels.es = {}; }
   try { _customLabels.en = JSON.parse(cfg.ui_labels_en || '{}') || {}; } catch(e) { _customLabels.en = {}; }
+  _complexName.es = cfg.complex_name_es || 'Propietarios Airbnb KAI';
+  _complexName.en = cfg.complex_name_en || 'KAI Airbnb Owners';
+  _complexName.tower = cfg.community_tower || 'KAI';
 };
+const getDefaultTower = () => _complexName.tower || 'KAI';
 const appText = (lang, key, vars={}) => {
   const langKey = lang === 'en' ? 'en' : 'es';
   // Custom admin override takes priority over built-in defaults
   const custom = _customLabels[langKey]?.[key] ?? _customLabels['es']?.[key];
   const v = custom ?? (APP_I18N[key]?.[langKey]) ?? APP_I18N[key]?.es ?? key;
-  return String(v).replace(/\{(\w+)\}/g, (_,k)=> vars[k] ?? '');
+  // Auto-inject {complex} and {tower} from community config so i18n strings stay generic
+  const merged = { complex: _complexName[langKey] || _complexName.es, tower: _complexName.tower, ...vars };
+  return String(v).replace(/\{(\w+)\}/g, (_,k)=> merged[k] ?? '');
 };
 const aptDisplay = (apt, lang='es-CO') => `${appText(lang,'listing.apt')} ${apt || ''}`.trim();
 const incidentTypeLabel = (value, lang='es-CO') => appText(lang, `incidentType.${value || 'other'}`);
@@ -911,7 +921,8 @@ const compressImage = (file) => new Promise((resolve, reject) => {
 const fetchT = (url, opts={}, ms=35000) => {
   const ctrl = new AbortController();
   const id = setTimeout(() => ctrl.abort(), ms);
-  return fetch(url, { ...opts, signal: ctrl.signal }).finally(() => clearTimeout(id));
+  const headers = { ...(opts.headers||{}), 'X-Community-Id': _communityId };
+  return fetch(url, { ...opts, headers, signal: ctrl.signal }).finally(() => clearTimeout(id));
 };
 const parseResponse = async (r) => {
   const raw = await r.text().catch(() => '');
@@ -980,6 +991,7 @@ export default function App() {
   const complexLocation = adminInfo.config?.complex_location || 'Serena del Mar · Cartagena 🇨🇴';
   const complexLogo = adminInfo.config?.complex_logo || '';
   const complexBg = adminInfo.config?.complex_bg ?? '/morros-kai-bg.jpg';
+  const complexTower = adminInfo.config?.community_tower || 'KAI';
   const [previewRole, setPreviewRole] = useState(null);
   const [openDropdown, setOpenDropdown] = useState(null);
   const initialView = new URLSearchParams(window.location.search).get('view') || 'my';
@@ -1135,8 +1147,10 @@ export default function App() {
       .then(adminResponse => {
         const info = adminResponse || {role:'user', isGlobalAdmin:false, canManageRegistrations:false, config:{}};
         setAdminInfo(info);
-        // Apply any admin-configured UI label overrides globally
+        // Apply any admin-configured UI label overrides globally (also updates _complexName)
         if (info.config) setCustomLabels(info.config);
+        // Phase 2: sync community ID for X-Community-Id header on all subsequent requests
+        if (info.communityId) { _communityId = info.communityId; try { localStorage.setItem('kai_community', info.communityId); } catch(e) {} }
         if (info.languagePreference && info.languagePreference !== lang) {
           const pref = info.languagePreference === 'en' ? 'en' : 'es-CO';
           setLangState(pref);
@@ -1448,7 +1462,7 @@ export default function App() {
         <span className="logo-wave" style={{fontSize:"0.8rem"}}>~</span>
       </div>
       <div style={{textAlign:"center",maxWidth:320}}>
-        <div style={{fontFamily:"'Playfair Display',serif",fontSize:"1.4rem",color:"#dff0f5",marginBottom:8}}>Propietarios Airbnb KAI</div>
+        <div style={{fontFamily:"'Playfair Display',serif",fontSize:"1.4rem",color:"#dff0f5",marginBottom:8}}>{complexName}</div>
         {loading && !loadError && <>
           <div style={{fontSize:"0.82rem",color:"#2a6a7a",marginBottom:6}}>Conectando con el servidor...</div>
           <div style={{fontSize:"0.72rem",color:"#1a4a5a",marginBottom:20}}>(El servidor puede tardar ~30s en despertar)</div>
@@ -1487,8 +1501,8 @@ export default function App() {
         <div className="hdr-inner">
           <div className="logo" onClick={()=>setView("dashboard")}>
             {complexLogo
-              ? <img src={complexLogo} className="hdr-logo-img" alt={complexName} title={`KAI Owners App v${APP_VERSION} · BETA${BUILD_TIME ? '\nBuilt ' + BUILD_TIME : ''}`}/>
-              : <div className="logo-mark" title={`KAI Owners App v${APP_VERSION} · BETA${BUILD_TIME ? '\nBuilt ' + BUILD_TIME : ''}`}><span className="logo-k">K</span><span className="logo-wave">~</span></div>}
+              ? <img src={complexLogo} className="hdr-logo-img" alt={complexName} title={`${complexNameEn} v${APP_VERSION} · BETA${BUILD_TIME ? '\nBuilt ' + BUILD_TIME : ''}`}/>
+              : <div className="logo-mark" title={`${complexNameEn} v${APP_VERSION} · BETA${BUILD_TIME ? '\nBuilt ' + BUILD_TIME : ''}`}><span className="logo-k">K</span><span className="logo-wave">~</span></div>}
             <div>
               <div className="logo-title">{complexName}</div>
               <div className="logo-sub">{complexLocation} <span className="beta-badge">BETA</span></div>
@@ -1550,7 +1564,7 @@ export default function App() {
                   {(effectiveIsGlobalAdmin || analyticsEnabledForAll) && <button className="dd-item" onClick={()=>{setView('analytics');setOpenDropdown(null);}}>📈 {t.nav.analytics}</button>}
                   {adminInfo.isGlobalAdmin && <div className="profile-view-as"><span>👁 {lang==='en'?'View as:':'Ver como:'}</span><select className="view-as-select" value={previewRole||''} onChange={e=>{setPreviewRole(e.target.value||null);setOpenDropdown(null);}}><option value="">{lang==='en'?'Global Admin':'Admin global'}</option><option value="delegate_admin">{lang==='en'?'Delegate Admin':'Admin delegado'}</option><option value="user">{lang==='en'?'Owner/User':'Propietario/Usuario'}</option></select></div>}
                   <button className="dd-item danger" onClick={()=>{setOpenDropdown(null);logout();}}>{lang === "en" ? "🚪 Log out" : "🚪 Cerrar sesión"}</button>
-                  <div className="profile-version">KAI Owners · v{APP_VERSION}</div>
+                  <div className="profile-version">{complexName} · v{APP_VERSION}</div>
                 </div>
               </div>
             ) : (
@@ -2098,6 +2112,8 @@ function RoleOutcomeGuide({ lang="es-CO", adminInfo={}, delegatePerms={}, ownerC
 // ─── VIEWS ────────────────────────────────────────────────────────────────────
 function AuthGate({ onLogin, lang="es-CO", setLang=()=>{}, complexLogo='', complexNameEs='Propietarios Airbnb KAI', complexNameEn='KAI Airbnb Owners', complexLocation='Serena del Mar · Cartagena 🇨🇴', complexBg='/morros-kai-bg.jpg' }) {
   const complexName = lang === 'en' ? complexNameEn : complexNameEs;
+  const loginTitle = lang === 'en' ? `Welcome to ${complexNameEn}` : `Bienvenido a ${complexNameEs}`;
+  const loginSub = `${complexName} · ${complexLocation}`;
   const logoSrc = complexLogo || '/morros-kai.png';
   const t = getT(lang);
   const bgStyle = complexBg ? { backgroundImage:`url(${complexBg})`, backgroundSize:'cover', backgroundPosition:'center' } : {};
@@ -2109,8 +2125,8 @@ function AuthGate({ onLogin, lang="es-CO", setLang=()=>{}, complexLogo='', compl
         <div className="welcome-brand">
           <img src={logoSrc} className="welcome-logo" alt={complexName}/>
           <div>
-            <h1 className="ptitle">{t.loginTitle}</h1>
-            <p className="psub">{t.loginSub}</p>
+            <h1 className="ptitle">{loginTitle}</h1>
+            <p className="psub">{loginSub}</p>
           </div>
         </div>
         <div className="welcome-hero">
@@ -2127,7 +2143,7 @@ function AuthGate({ onLogin, lang="es-CO", setLang=()=>{}, complexLogo='', compl
         <p className="secure-copy">{t.secure}</p>
         <div className="google-switch-help"><strong>{appText(lang,"login.switchGoogleTitle")}</strong><br/>{appText(lang,"login.switchGoogleHelp")}<br/><span>{appText(lang,"login.switchGoogleSteps")}</span></div>
         <button className="btn-google gate-btn" onClick={onLogin} title={appText(lang,"login.switchGoogleHelp")}><GoogleIcon/> {t.google}</button>
-        <div style={{marginTop:16,fontSize:'.68rem',color:'rgba(47,79,58,.4)',textAlign:'center',letterSpacing:'.04em'}}>KAI Owners · v{APP_VERSION}</div>
+        <div style={{marginTop:16,fontSize:'.68rem',color:'rgba(47,79,58,.4)',textAlign:'center',letterSpacing:'.04em'}}>{complexName} · v{APP_VERSION}</div>
       </div>
     </div>
   );
@@ -2146,7 +2162,7 @@ function CommunityMissionView({ lang="es-CO", config={} }) {
       <div className="ph"><div><h1 className="ptitle">{m.title}</h1><p className="psub">{m.subtitle}</p></div></div>
       <div className="card mission-main">
         <div className="welcome-brand inline-brand">
-          <img src={config?.complex_logo || '/morros-kai.png'} className="welcome-logo small" alt={config?.complex_name_es || 'Morros KAI'}/>
+          <img src={config?.complex_logo || '/morros-kai.png'} className="welcome-logo small" alt={config?.complex_name_es || config?.complex_name_en || _complexName.es}/>
           <div><div className="section-label">{m.sectionLabel}</div><h2>{m.heading}</h2><p>{m.body}</p></div>
         </div>
         <CommunityMissionCards lang={lang} config={config} />
@@ -2169,7 +2185,7 @@ function RegistrationGate({ user, registration, onSubmit, onLogout, syncing, toa
       <div className="gate-shell-overlay"/>
       <div className="gate-card gate-wide">
         <div className="gate-top">{complexLogo ? <img src={complexLogo} className="gate-logo-img" alt={complexName}/> : <div className="logo-mark"><span className="logo-k">K</span><span className="logo-wave">~</span></div>}<LanguageSwitch lang={lang} setLang={setLang} /><button className="btn-ghost" onClick={onLogout}>Salir</button></div>
-        <h1 className="ptitle">Registro de propietario KAI</h1>
+        <h1 className="ptitle">Registro de propietario {complexName}</h1>
         <p className="psub">Hola {user.name}. Para usar la aplicación debes registrar uno o más apartamentos que son tuyos.</p>
         {status === 'pending' && <div className="status-box pending"><h3>⏳ Registro pendiente de aprobación</h3><p>Tu solicitud fue recibida. Un propietario aprobado revisará tus datos. Te enviaremos un email cuando cambie el estado.</p></div>}
         {status === 'declined' && <div className="status-box declined"><h3>🚫 Registro rechazado</h3><p><strong>Motivo:</strong> {registration.reason || 'No se indicó motivo.'}</p><p>Puedes corregir la información y enviar una nueva solicitud.</p><RegistrationListingForm user={user} onSubmit={onSubmit} submitText={lang === "en" ? "Resubmit registration" : "Reenviar registro"} lang={lang} /></div>}
@@ -2184,7 +2200,7 @@ function RegistrationGate({ user, registration, onSubmit, onLogout, syncing, toa
 function RegistrationListingForm({ user, onSubmit, submitText, lang="es-CO" }) {
   const isEn = lang === 'en';
   const tips = localizedTooltips({}, lang); // default tooltips — no admin config available at registration time
-  const makeBlank = () => ({ apt:'', tower:'KAI', rooms:'2', guests:4, operator:'', operatorEmail:'', operatorWhatsapp:'', airbnb:'' });
+  const makeBlank = () => ({ apt:'', tower:getDefaultTower(), rooms:'2', guests:4, operator:'', operatorEmail:'', operatorWhatsapp:'', airbnb:'' });
   const [items,setItems]=useState([makeBlank()]);
   const [country,setCountry]=useState('Colombia');
   const [whatsapp,setWhatsapp]=useState('+57 ');
@@ -2264,7 +2280,7 @@ function RegistrationListingForm({ user, onSubmit, submitText, lang="es-CO" }) {
         {/* ── Listing ──────────────────────────────────────── */}
         <div className="fg full form-section-hdr">🏠 {isEn?'Listing details':'Datos del listing'}</div>
         <div className="fg"><label>{appText(lang,"form.aptNumber")} <Tip text={tips.aptNumber}/></label><input className={cls(`apt_${i}`)} value={f.apt} onChange={e=>setVal(i,'apt',e.target.value)} onBlur={()=>checkApt(i)} placeholder="000"/>{checking[i]&&<span className="help-msg">{appText(lang,'validation.aptChecking')}</span>}{errors[`apt_${i}`]&&<span className="err-msg">{errors[`apt_${i}`]}</span>}</div>
-        <div className="fg"><label>{appText(lang,"form.tower")}</label><input value="KAI" readOnly disabled className="locked-field"/></div>
+        <div className="fg"><label>{appText(lang,"form.tower")}</label><input value={getDefaultTower()} readOnly disabled className="locked-field"/></div>
         <div className="fg"><label>{appText(lang,"form.rooms")}</label><select className={cls(`rooms_${i}`)} value={f.rooms} onChange={e=>setVal(i,'rooms',e.target.value)}><option>1</option><option>2</option><option>3</option><option>4</option><option>5+</option></select>{errors[`rooms_${i}`]&&<span className="err-msg">{errors[`rooms_${i}`]}</span>}</div>
         <div className="fg"><label>{appText(lang,"form.guestCapacity")}</label><input className={cls(`guests_${i}`)} type="number" value={f.guests} onChange={e=>setVal(i,'guests',parseInt(e.target.value)||'')} min={1}/>{errors[`guests_${i}`]&&<span className="err-msg">{errors[`guests_${i}`]}</span>}</div>
         <div className="fg full"><label>{appText(lang,"form.airbnbOptional")} {optLabel}</label><input className={cls(`airbnb_${i}`)} value={f.airbnb} onChange={e=>setVal(i,'airbnb',e.target.value)} onBlur={e=>{const v=String(e.target.value||'').trim();const key=`airbnb_${i}`;if(v&&!/^https?:\/\/.+/i.test(v))setErrors(p=>({...p,[key]:appText(lang,'validation.urlInvalid')}));else setErrors(p=>({...p,[key]:undefined}));}} placeholder="https://www.airbnb.com/rooms/..."/>{errors[`airbnb_${i}`]&&<span className="err-msg">{errors[`airbnb_${i}`]}</span>}</div>
@@ -2276,13 +2292,13 @@ function RegistrationListingForm({ user, onSubmit, submitText, lang="es-CO" }) {
         <div className="fg full"><label>{appText(lang,"form.operatorWhatsappOptional")} <Tip text={tips.operatorWhatsapp}/></label><input className={cls(`operatorWhatsapp_${i}`)} type="tel" value={f.operatorWhatsapp} onChange={e=>setVal(i,'operatorWhatsapp',e.target.value)} onBlur={e=>{const v=String(e.target.value||'').trim();const key=`operatorWhatsapp_${i}`;const err=validateWhatsApp(v,lang);setErrors(p=>({...p,[key]:err||undefined}));}} placeholder="+57 300 000 0000"/>{errors[`operatorWhatsapp_${i}`]?<span className="err-msg">{errors[`operatorWhatsapp_${i}`]}</span>:<span className="help-msg">{isEn?'With country code, e.g. +57':'Con código de país, ej. +57'}</span>}</div>
       </div>
     </div>)}
-    <div className="mact"><button className="btn-ghost" onClick={()=>setItems(rows=>[...rows, makeBlank()])}>{appText(lang,"form.addAnotherListing")}</button><button className="btn-p" onClick={()=>{ if(validate()) onSubmit({ listings: items.map(x=>({...x,apt:String(x.apt).trim(),tower:'KAI',operatorEmail:String(x.operatorEmail||'').trim().toLowerCase(),operatorWhatsapp:String(x.operatorWhatsapp||'').trim(),airbnb:String(x.airbnb||'').trim()})), profile:{ whatsapp:whatsapp.trim(), country } }); }}>{submitText}</button></div>
+    <div className="mact"><button className="btn-ghost" onClick={()=>setItems(rows=>[...rows, makeBlank()])}>{appText(lang,"form.addAnotherListing")}</button><button className="btn-p" onClick={()=>{ if(validate()) onSubmit({ listings: items.map(x=>({...x,apt:String(x.apt).trim(),tower:x.tower||getDefaultTower(),operatorEmail:String(x.operatorEmail||'').trim().toLowerCase(),operatorWhatsapp:String(x.operatorWhatsapp||'').trim(),airbnb:String(x.airbnb||'').trim()})), profile:{ whatsapp:whatsapp.trim(), country } }); }}>{submitText}</button></div>
   </div>;
 }
 
 function ListingDetailsBlock({ listings=[], lang="es-CO" }) {
   return <div className="listing-detail-grid">{listings.map(l=><div key={l.id} className="listing-detail-card">
-    <div className="ld-title">🏠 {appText(lang,"listing.apt")} {l.apt} · {appText(lang,"listing.tower")} KAI</div>
+    <div className="ld-title">🏠 {appText(lang,"listing.apt")} {l.apt} · {appText(lang,"listing.tower")} {l.tower||getDefaultTower()}</div>
     <div className="ld-row"><strong>{appText(lang,"listing.owner")}:</strong> {l.owner || 'N/A'}</div>
     <div className="ld-row"><strong>{appText(lang,"listing.googleEmail")}:</strong> {l.userEmail || 'N/A'}</div>
     <div className="ld-row"><strong>{appText(lang,"listing.listingEmail")}:</strong> {l.email || l.userEmail || 'N/A'}</div>
@@ -2867,7 +2883,7 @@ function MyListings({ listings, allListings=listings, incidents, user, contactPr
               return (
                 <div key={l.id} className={`ml-listing${isSel?' ml-listing-sel':''}`}>
                   <div className="ml-listing-row apt-cpop-wrap" onClick={()=>{ setSelectedId(isSel?null:l.id); }}>
-                    <UnitPlate apt={l.apt} tower={l.tower||'KAI'} size="sm"/>
+                    <UnitPlate apt={l.apt} tower={l.tower||getDefaultTower()} size="sm"/>
                     <div className="ml-listing-chips">
                       <span className="chip c-teal">🛏️ {l.rooms}</span>
                       <span className="chip c-blue">👥 {l.guests}</span>
@@ -3079,7 +3095,7 @@ function UnitDetailCard({ l, incidents, canEdit=false, canDelete=false, onEdit, 
         <span className="udc-field-lbl">{isEn?'Apt. #':'Apto. #'}</span>
         <span className="udc-field-val udc-apt-num">{l.apt}</span>
         <span className="udc-field-lbl">{isEn?'Tower':'Torre'}</span>
-        <span className="udc-field-val">{l.tower||'KAI'}</span>
+        <span className="udc-field-val">{l.tower||getDefaultTower()}</span>
         <span className="udc-field-lbl">{isEn?'Bedrooms':'Habitaciones'}</span>
         <span className="udc-field-val">🛏️ {l.rooms}</span>
         <span className="udc-field-lbl">{isEn?'Guests':'Huéspedes'}</span>
@@ -3244,7 +3260,7 @@ function UnitDetailCard({ l, incidents, canEdit=false, canDelete=false, onEdit, 
         <div className="idd-top-bar">
           <div className="idd-top-plate">
             <span className="idd-top-num">{l.apt}</span>
-            <span className="idd-top-tower">{l.tower||'KAI'}</span>
+            <span className="idd-top-tower">{l.tower||getDefaultTower()}</span>
           </div>
           <div className="idd-top-breadcrumb">
             <button type="button" className="idd-bc-btn" onClick={goToInfo}>{isEn?'Unit':'Unidad'} {l.apt}</button>
@@ -3468,7 +3484,7 @@ function AptDoor({ l, incidents, onUnitDetail, onViewIncidents, onPillFilter, la
       {/* ★ CLICKABLE: Number plate — uses UnitPlate for consistent style */}
       <UnitPlate
         apt={l.apt}
-        tower={l.tower||'KAI'}
+        tower={l.tower||getDefaultTower()}
         size="door"
         onClick={()=>onUnitDetail&&onUnitDetail(l.id)}
         title={isEn?'View unit details':'Ver detalles de la unidad'}
@@ -4526,7 +4542,7 @@ function NotificationsView({ notifications, incidents, listings=[], contactProps
 // ── UnitPlate — universal dark plate showing unit number + complex name ──────
 // Use for ALL unit number displays across the app for visual consistency.
 // Pass onClick to make it clickable (opens unit detail popup).
-function UnitPlate({ apt, tower='KAI', size='md', onClick, title, className='' }) {
+function UnitPlate({ apt, tower=getDefaultTower(), size='md', onClick, title, className='' }) {
   const Tag = onClick ? 'button' : 'div';
   return (
     <Tag
@@ -4554,7 +4570,7 @@ function UnitMiniCard({ listing, onUnitDetail, isEn=false }) {
     <div className="unit-mini-card">
       <UnitPlate
         apt={listing.apt}
-        tower={listing.tower||'KAI'}
+        tower={listing.tower||getDefaultTower()}
         size="sm"
         onClick={onUnitDetail ? ()=>onUnitDetail(listing.id) : undefined}
         title={onUnitDetail?(isEn?'View unit details':'Ver detalles de la unidad'):undefined}
@@ -4783,7 +4799,7 @@ const EMPTY_CO_OWNER = { firstName:'', middleName:'', lastName:'', whatsapp:'' }
 function ListingModal({ title, user, initial={}, onSave, onClose, lang="es-CO", config={} }) {
   const tips = localizedTooltips(config, lang);
   const isEn = lang === 'en';
-  const [f,setF]=useState({apt:"",rooms:"2",guests:4,operator:"",operatorEmail:"",operatorWhatsapp:"",airbnb:"",...initial,tower:"KAI"});
+  const [f,setF]=useState({apt:"",rooms:"2",guests:4,operator:"",operatorEmail:"",operatorWhatsapp:"",airbnb:"",...initial,tower:initial.tower||config?.community_tower||'KAI'});
   const [coOwners,setCoOwners]=useState(Array.isArray(initial?.coOwners)&&initial.coOwners.length?initial.coOwners:[]);
   const [errors,setErrors]=useState({});
   const [coErrors,setCoErrors]=useState([]);
@@ -4844,7 +4860,7 @@ function ListingModal({ title, user, initial={}, onSave, onClose, lang="es-CO", 
         {/* ── Listing ──────────────────────────────────────── */}
         <div className="fg full form-section-hdr">🏠 {isEn?'Listing details':'Datos del listing'}</div>
         <div className="fg"><label>{appText(lang,"form.aptNumber")} <Tip text={tips.aptNumber}/></label><input className={inputCls("apt")} value={f.apt} onChange={e=>s("apt",e.target.value)} onBlur={checkApt} placeholder="000"/>{checkingApt&&<span className="help-msg">{appText(lang,'validation.aptChecking')}</span>}{errors.apt&&<span className="err-msg">{errors.apt}</span>}</div>
-        <div className="fg"><label>{appText(lang,"form.tower")}</label><input value="KAI" readOnly disabled className="locked-field"/></div>
+        <div className="fg"><label>{appText(lang,"form.tower")}</label><input value={f.tower} readOnly disabled className="locked-field"/></div>
         <div className="fg"><label>{appText(lang,"form.rooms")}</label><select className={inputCls("rooms")} value={f.rooms} onChange={e=>s("rooms",e.target.value)}><option>1</option><option>2</option><option>3</option><option>4</option><option>5+</option></select>{errors.rooms&&<span className="err-msg">{errors.rooms}</span>}</div>
         <div className="fg"><label>{appText(lang,"form.guestCapacity")}</label><input className={inputCls("guests")} type="number" value={f.guests} onChange={e=>s("guests",parseInt(e.target.value)||"")} min={1} max={20}/>{errors.guests&&<span className="err-msg">{errors.guests}</span>}</div>
         <div className="fg full"><label>{appText(lang,"form.airbnbOptional")} {optLabel}</label><input className={inputCls("airbnb")} value={f.airbnb} onChange={e=>s("airbnb",e.target.value)} onBlur={e=>{const v=String(e.target.value||'').trim();if(v&&!/^https?:\/\/.+/i.test(v))setErrors(p=>({...p,airbnb:appText(lang,'validation.urlInvalid')}));else setErrors(p=>({...p,airbnb:undefined}));}} placeholder="https://www.airbnb.com/rooms/..."/>{errors.airbnb&&<span className="err-msg">{errors.airbnb}</span>}</div>
@@ -4888,7 +4904,7 @@ function ListingModal({ title, user, initial={}, onSave, onClose, lang="es-CO", 
         ))}
         {coOwners.length<3&&<div className="fg full"><button type="button" className="btn-ghost" style={{fontSize:'.83rem',padding:'6px 14px'}} onClick={addCoOwner}>+ {isEn?'Add co-owner':'Agregar propietario'}</button></div>}
       </div>
-      <div className="mact"><button className="btn-ghost" onClick={onClose}>{appText(lang,"form.cancel")}</button><button className="btn-p" onClick={()=>{if(validate()) onSave({...f,apt:String(f.apt).trim(),tower:"KAI",operatorEmail:String(f.operatorEmail||"").trim().toLowerCase(),operatorWhatsapp:String(f.operatorWhatsapp||"").trim(),airbnb:String(f.airbnb||"").trim(),coOwners:coOwners.map(o=>({...o,firstName:o.firstName.trim(),middleName:o.middleName.trim(),lastName:o.lastName.trim(),whatsapp:o.whatsapp.trim()}))});}}>{appText(lang,"form.save")}</button></div>
+      <div className="mact"><button className="btn-ghost" onClick={onClose}>{appText(lang,"form.cancel")}</button><button className="btn-p" onClick={()=>{if(validate()) onSave({...f,apt:String(f.apt).trim(),tower:f.tower||getDefaultTower(),operatorEmail:String(f.operatorEmail||"").trim().toLowerCase(),operatorWhatsapp:String(f.operatorWhatsapp||"").trim(),airbnb:String(f.airbnb||"").trim(),coOwners:coOwners.map(o=>({...o,firstName:o.firstName.trim(),middleName:o.middleName.trim(),lastName:o.lastName.trim(),whatsapp:o.whatsapp.trim()}))});}}>{appText(lang,"form.save")}</button></div>
     </Overlay>
   );
 }
