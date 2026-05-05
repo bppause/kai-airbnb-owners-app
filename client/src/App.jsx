@@ -1197,6 +1197,28 @@ export default function App() {
     } finally { setSyncing(false); }
   };
 
+  const switchCommunity = async (newCommunityId) => {
+    if (!newCommunityId || newCommunityId === adminInfo.communityId) return;
+    _communityId = newCommunityId;
+    try { localStorage.setItem('kai_community', newCommunityId); } catch(e) {}
+    setAdminLoading(true);
+    setRegistrationLoading(true);
+    setListings([]); setIncidents([]); setNotifications([]); setPendingRegistrations([]); setActiveRegistrations([]);
+    try {
+      const info = await api.get('/api/admin/me?uid=' + encodeURIComponent(user.uid) + '&email=' + encodeURIComponent(user.email || '') + '&name=' + encodeURIComponent(user.name || '') + '&lang=' + encodeURIComponent(lang));
+      const adminData = info || {role:'user', isGlobalAdmin:false, canManageRegistrations:false, config:{}};
+      setAdminInfo(adminData);
+      if (adminData.config) setCustomLabels(adminData.config);
+      const reg = await api.get('/api/registrations/status?uid=' + encodeURIComponent(user.uid));
+      setRegistration(reg || {status:'none'});
+    } catch(e) {
+      showToast((lang === 'en' ? 'Could not switch community: ' : 'Error al cambiar comunidad: ') + (e.message || ''), true);
+    } finally {
+      setAdminLoading(false);
+      setRegistrationLoading(false);
+    }
+  };
+
   const submitRegistration = async ({ listings: listingsToRegister, profile = {} }) => {
     setSyncing(true);
     try {
@@ -1615,7 +1637,7 @@ export default function App() {
         {view==="analytics" && user && (effectiveIsGlobalAdmin || analyticsEnabledForAll) && <AnalyticsDashboard lang={lang} user={user} contactProps={contactProps} showToast={showToast} isGlobalAdmin={effectiveIsGlobalAdmin} />}
         {view==="admin" && user && (effectiveIsGlobalAdmin ? <ErrorBoundary section="admin" fallback={(err)=><AdminFallback lang={lang} error={err}/>}><AdminSettings config={adminInfo.config || {}} user={user} listings={listings} contactProps={contactProps} onSave={saveAdminConfig} showToast={showToast} lang={lang} /></ErrorBoundary> : <AdminAccessHelp user={user} adminInfo={adminInfo} lang={lang} />)}
         {view==="my" && user && <MyListings lang={lang} listings={myListings} allListings={listings} incidents={incidents} user={user} contactProps={contactProps} isGlobalAdmin={effectiveIsGlobalAdmin} canResolveGlobal={canResolveIncidentsNow} onAdd={()=>setModal({type:"addListing"})} onEdit={l=>setModal({type:"editListing",data:l})} onDelete={deleteListing} onReport={l=>setModal({type:"incident",data:{aptId:l.id}})} onVerify={inc=>setModal({type:"verifyIncident",data:inc})} onResolve={resolveIncident} onAddResolution={inc=>setModal({type:"addResolution",data:inc})} onNavigateToIncidents={f=>{setIncidentQuickFilter({type:'floorFilter',aptIds:f.aptIds,status:f.status||'all'});setView('incidents');}} onIncidentDetail={openIncidentDetail} onAssign={inc=>setModal({type:'assignGeneral',data:inc})} onCloseGeneral={inc=>setModal({type:'closeGeneral',data:inc})} />}
-        {view==="profile" && user && <ProfileView lang={lang} user={user} userProfile={userProfile} onSave={saveProfile} />}
+        {view==="profile" && user && <ProfileView lang={lang} user={user} userProfile={userProfile} onSave={saveProfile} communities={adminInfo.communities||[]} currentCommunityId={adminInfo.communityId||_communityId} onSwitchCommunity={switchCommunity} />}
         {view==="help" && <HelpView lang={lang} effectiveRole={effectiveRole} effectiveIsGlobalAdmin={effectiveIsGlobalAdmin} delegatePerms={delegatePerms} listings={listings} incidents={incidents} user={user} setView={setView} onReport={()=>{ if(!user){login();return;} setModal({type:'incident'}); }} onAddListing={()=>{ if(!user){login();return;} setModal({type:'addListing'}); }} setIncidentQuickFilter={setIncidentQuickFilter} openMore={()=>setOpenDropdown('more')} />}
       </main>
 
@@ -2493,7 +2515,7 @@ function BetaCommandCenter({ lang="es-CO", alerts=[], pendingOwner=0, pendingRes
 }
 
 
-function ProfileView({ user, lang, userProfile, onSave }) {
+function ProfileView({ user, lang, userProfile, onSave, communities=[], currentCommunityId='', onSwitchCommunity }) {
   const isEn = lang === 'en';
   const [country, setCountry] = useState(userProfile.country || 'Colombia');
   const [whatsapp, setWhatsapp] = useState(userProfile.whatsapp || '');
@@ -2501,6 +2523,7 @@ function ProfileView({ user, lang, userProfile, onSave }) {
   const [error, setError] = useState('');
   const [emailError, setEmailError] = useState('');
   const [saving, setSaving] = useState(false);
+  const [switching, setSwitching] = useState(false);
 
   // Sync when profile loads from server
   useEffect(() => { setWhatsapp(userProfile.whatsapp || ''); }, [userProfile.whatsapp]);
@@ -2597,6 +2620,41 @@ function ProfileView({ user, lang, userProfile, onSave }) {
             </div>
           </div>
         </div>
+
+        {/* ── Communities ─────────────────────────── */}
+        {communities.length > 0 && (
+          <div className="prof-section">
+            <div className="prof-section-hdr">🌐 {isEn ? 'My communities' : 'Mis comunidades'}</div>
+            <p style={{fontSize:'.84rem',color:'#2a5a6a',margin:'0 0 14px',lineHeight:1.5}}>
+              {isEn ? 'Communities you belong to. Switch without logging out.' : 'Comunidades a las que perteneces. Cambia sin cerrar sesión.'}
+            </p>
+            <div style={{display:'flex',flexDirection:'column',gap:8}}>
+              {communities.map(c => {
+                const isCurrent = c.id === currentCommunityId;
+                const label = isEn ? (c.name_en || c.name) : c.name;
+                const location = [c.city, c.country].filter(Boolean).join(', ');
+                return (
+                  <div key={c.id} style={{display:'flex',alignItems:'center',gap:10,padding:'10px 14px',borderRadius:10,border:`1.5px solid ${isCurrent?'#2F4F3A':'#cce7ee'}`,background:isCurrent?'#f0f8f4':'#fafcfe',flexWrap:'wrap'}}>
+                    {c.logo_url && <img src={c.logo_url} alt="" style={{width:32,height:32,objectFit:'contain',borderRadius:6,background:'#f5fbfd',padding:2,flexShrink:0}}/>}
+                    <div style={{flex:1,minWidth:0}}>
+                      <div style={{fontWeight:700,fontSize:'.88rem',color:'#17313a'}}>{label}</div>
+                      {(location || c.tower) && <div style={{fontSize:'.73rem',color:'#6b9ba8',marginTop:1}}>{[c.tower, location].filter(Boolean).join(' · ')}</div>}
+                      {c.memberRole === 'community_admin' && <span className="chip c-teal" style={{fontSize:'.65rem',padding:'1px 7px',marginTop:3,display:'inline-block'}}>{isEn?'Admin':'Administrador'}</span>}
+                    </div>
+                    {isCurrent
+                      ? <span className="chip c-teal" style={{fontSize:'.72rem',padding:'2px 10px',flexShrink:0}}>{isEn?'Current':'Actual'}</span>
+                      : <button className="btn-ghost" style={{fontSize:'.78rem',padding:'5px 14px',flexShrink:0,minHeight:32}}
+                          disabled={switching}
+                          onClick={async()=>{setSwitching(true);try{await onSwitchCommunity?.(c.id);}finally{setSwitching(false);}}}>
+                          {switching?'…':(isEn?'Switch':'Cambiar')}
+                        </button>
+                    }
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         <div className="prof-footer">
           <button className="btn-p" onClick={handleSave} disabled={saving}>
