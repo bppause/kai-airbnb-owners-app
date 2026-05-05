@@ -2288,7 +2288,7 @@ app.get('/api/communities/:id/members', async (req, res) => {
   const { uid, email } = req.query || {};
   if (!(await isCommunityAdmin(uid, email, req.params.id))) return res.status(403).json({ error:'Solo un administrador puede ver los miembros de la comunidad.' });
   // Derive members from approved listings (listings uses owner_uid / email, not user_uid / user_email)
-  const { data: listings, error: lErr } = await supabase.from('listings').select('owner_uid,email,registration_id,approved_at,name').eq('community_id', req.params.id).eq('status','approved').order('approved_at', { ascending:true });
+  const { data: listings, error: lErr } = await supabase.from('listings').select('owner_uid,email,registration_id,created_at,name').eq('community_id', req.params.id).eq('status','approved').order('created_at', { ascending:true });
   if (lErr) return sendSupabaseError(res, lErr);
   // Collect unique users (one entry per owner_uid; a user may own multiple listings)
   const seen = new Set();
@@ -2321,7 +2321,7 @@ app.get('/api/communities/:id/members', async (req, res) => {
       name: appUser?.name || '',
       languagePreference: appUser?.language_preference || 'es-CO',
       platformRole,
-      joinedAt: u.approved_at,
+      joinedAt: u.created_at,
       isCommunityAdmin: !!communityAdminEntry,
       adminPermissions: communityAdminEntry ? safeJsonObject(communityAdminEntry.permissions, COMMUNITY_ADMIN_PERM_DEFAULTS) : COMMUNITY_ADMIN_PERM_DEFAULTS,
     };
