@@ -1050,6 +1050,40 @@ export default function App() {
       setTimeout(() => openIncidentDetail(incId), 120);
     }
   }, [loading, incidents]);
+  // ── ?action=report deep-link: opens report modal after auth + data load ──
+  const _reportLinkApplied = useRef(false);
+  useEffect(() => {
+    if (_reportLinkApplied.current || loading || !user) return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('action') === 'report') {
+      _reportLinkApplied.current = true;
+      setView('incidents');
+      setTimeout(() => setModal({type:'incident'}), 200);
+    }
+  }, [loading, user]);
+
+  // ── Reputation & Goals state ──
+  const [reputation, setReputation] = useState(null);
+  const [reputationLoading, setReputationLoading] = useState(false);
+  const [communityGoals, setCommunityGoals] = useState(null);
+  const [communityGoalsLoading, setCommunityGoalsLoading] = useState(false);
+
+  const loadReputation = async () => {
+    if (!user?.uid || reputationLoading) return;
+    setReputationLoading(true);
+    try { setReputation(await api.get(`/api/users/reputation?uid=${encodeURIComponent(user.uid)}`)); }
+    catch(e) { /* non-critical */ }
+    finally { setReputationLoading(false); }
+  };
+
+  const loadCommunityGoals = async (cid) => {
+    if (!cid || communityGoalsLoading) return;
+    setCommunityGoalsLoading(true);
+    try { setCommunityGoals(await api.get(`/api/communities/${cid}/goals?uid=${encodeURIComponent(user?.uid||'')}&email=${encodeURIComponent(user?.email||'')}`)); }
+    catch(e) { /* non-critical */ }
+    finally { setCommunityGoalsLoading(false); }
+  };
+
   const [incidentQuickFilter, setIncidentQuickFilter] = useState(null);
   const [userProfile, setUserProfile] = useState({ whatsapp:'', country:'Colombia', notificationEmail:'' });
   // Listing floor collapse state — lives here so it persists across navigation
@@ -1170,7 +1204,7 @@ export default function App() {
         setAdminInfo(info);
         if (info.config) setCustomLabels(info.config);
         // Confirm community from server before checking registration
-        if (info.communityId) { _communityId = info.communityId; try { localStorage.setItem('kai_community', info.communityId); } catch(e) {} }
+        if (info.communityId) { _communityId = info.communityId; try { localStorage.setItem('kai_community', info.communityId); } catch(e) {} loadCommunityGoals(info.communityId); }
         if (info.languagePreference && info.languagePreference !== lang) {
           const pref = info.languagePreference === 'en' ? 'en' : 'es-CO';
           setLangState(pref);
@@ -1659,7 +1693,7 @@ export default function App() {
         </div>
       )}
       <main className="main">
-        {view==="dashboard" && <Dashboard lang={lang} listings={listings} incidents={incidents} user={user} contactProps={contactProps} setView={setView} showBlacklist={false} onReport={()=>{ if(!user){login();return;} setModal({type:"incident"}); }} effectiveIsGlobalAdmin={effectiveIsGlobalAdmin} effectiveRole={effectiveRole} delegatePerms={delegatePerms} pendingOwner={needsOwnerVerification.length} pendingOwnerResolution={needsOwnerResolution.length} pendingResolve={needsAdminResolution.length} pendingRegistrations={effectiveCanManageRegistrations ? pendingRegistrations.length : 0} canResolve={canResolveIncidentsNow} canManageRegistrations={effectiveCanManageRegistrations} onOwnerClick={()=>{setIncidentQuickFilter('ownerVerification');setView('incidents');}} onResolveClick={()=>{setIncidentQuickFilter('requiresResolution');setView('incidents');}} onRegistrationsClick={()=>setView('approvals')} onAddResClick={()=>{setIncidentQuickFilter('needsResolution');setView('incidents');}} onIncidentDetail={openIncidentDetail} />}
+        {view==="dashboard" && <Dashboard lang={lang} listings={listings} incidents={incidents} user={user} contactProps={contactProps} setView={setView} showBlacklist={false} onReport={()=>{ if(!user){login();return;} setModal({type:"incident"}); }} effectiveIsGlobalAdmin={effectiveIsGlobalAdmin} effectiveRole={effectiveRole} delegatePerms={delegatePerms} pendingOwner={needsOwnerVerification.length} pendingOwnerResolution={needsOwnerResolution.length} pendingResolve={needsAdminResolution.length} pendingRegistrations={effectiveCanManageRegistrations ? pendingRegistrations.length : 0} canResolve={canResolveIncidentsNow} canManageRegistrations={effectiveCanManageRegistrations} onOwnerClick={()=>{setIncidentQuickFilter('ownerVerification');setView('incidents');}} onResolveClick={()=>{setIncidentQuickFilter('requiresResolution');setView('incidents');}} onRegistrationsClick={()=>setView('approvals')} onAddResClick={()=>{setIncidentQuickFilter('needsResolution');setView('incidents');}} onIncidentDetail={openIncidentDetail} communityGoals={communityGoals} communityGoalsLoading={communityGoalsLoading} />}
         {view==="about" && <CommunityMissionView lang={lang} config={adminInfo.config} />}
         {view==="listings"  && <ListingsView lang={lang} listings={listings} incidents={incidents} user={user} contactProps={contactProps} isGlobalAdmin={effectiveIsGlobalAdmin} canEditGlobal={delegatePerms.canUpdateGlobalListings} canDeleteGlobal={delegatePerms.canDeleteGlobalListings} canResolveGlobal={canResolveIncidentsNow} floorOpenState={listingFloorOpen} onFloorToggle={toggleListingFloor} onAdd={()=>{ if(!user){login();return;} setModal({type:"addListing"}); }} onEdit={l=>setModal({type:"editListing",data:l})} onDelete={deleteListing} onReport={l=>{ if(!user){login();return;} setModal({type:"incident",data:{aptId:l.id}}); }} onVerify={inc=>setModal({type:"verifyIncident",data:inc})} onResolve={resolveIncident} onAddResolution={inc=>setModal({type:"addResolution",data:inc})} onFloorFilter={f=>{setIncidentQuickFilter({type:'floorFilter',aptIds:f.aptIds,status:f.status});setView('incidents');}} onAssign={inc=>setModal({type:'assignGeneral',data:inc})} onCloseGeneral={inc=>setModal({type:'closeGeneral',data:inc})} onIncidentDetail={openIncidentDetail} />}
 
@@ -1669,7 +1703,7 @@ export default function App() {
         {view==="analytics" && user && (effectiveIsGlobalAdmin || analyticsEnabledForAll) && <AnalyticsDashboard lang={lang} user={user} contactProps={contactProps} showToast={showToast} isGlobalAdmin={effectiveIsGlobalAdmin} />}
         {view==="admin" && user && ((effectiveIsGlobalAdmin || adminInfo.role === 'delegate_admin' || adminInfo.isCommunityAdmin) ? <ErrorBoundary section="admin" fallback={(err)=><AdminFallback lang={lang} error={err}/>}><AdminSettings config={adminInfo.config || {}} user={user} listings={listings} contactProps={contactProps} onSave={saveAdminConfig} showToast={showToast} lang={lang} adminInfo={adminInfo} /></ErrorBoundary> : <AdminAccessHelp user={user} adminInfo={adminInfo} lang={lang} />)}
         {view==="my" && user && <MyListings lang={lang} listings={myListings} allListings={listings} incidents={incidents} user={user} contactProps={contactProps} isGlobalAdmin={effectiveIsGlobalAdmin} canResolveGlobal={canResolveIncidentsNow} onAdd={()=>setModal({type:"addListing"})} onEdit={l=>setModal({type:"editListing",data:l})} onDelete={deleteListing} onReport={l=>setModal({type:"incident",data:{aptId:l.id}})} onVerify={inc=>setModal({type:"verifyIncident",data:inc})} onResolve={resolveIncident} onAddResolution={inc=>setModal({type:"addResolution",data:inc})} onNavigateToIncidents={f=>{setIncidentQuickFilter({type:'floorFilter',aptIds:f.aptIds,status:f.status||'all'});setView('incidents');}} onIncidentDetail={openIncidentDetail} onAssign={inc=>setModal({type:'assignGeneral',data:inc})} onCloseGeneral={inc=>setModal({type:'closeGeneral',data:inc})} />}
-        {view==="profile" && user && <ProfileView lang={lang} user={user} userProfile={userProfile} onSave={saveProfile} communities={adminInfo.communities||[]} currentCommunityId={adminInfo.communityId||_communityId} onSwitchCommunity={switchCommunity} />}
+        {view==="profile" && user && <ProfileView lang={lang} user={user} userProfile={userProfile} onSave={saveProfile} communities={adminInfo.communities||[]} currentCommunityId={adminInfo.communityId||_communityId} onSwitchCommunity={switchCommunity} reputation={reputation} reputationLoading={reputationLoading} loadReputation={loadReputation} />}
         {view==="help" && <HelpView lang={lang} effectiveRole={effectiveRole} effectiveIsGlobalAdmin={effectiveIsGlobalAdmin} delegatePerms={delegatePerms} listings={listings} incidents={incidents} user={user} setView={setView} onReport={()=>{ if(!user){login();return;} setModal({type:'incident'}); }} onAddListing={()=>{ if(!user){login();return;} setModal({type:'addListing'}); }} setIncidentQuickFilter={setIncidentQuickFilter} openMore={()=>setOpenDropdown('more')} onStartTour={()=>setShowTour(true)} />}
       </main>
       {showTour && <UserTour lang={lang} onClose={()=>setShowTour(false)} onGo={v=>{setShowTour(false);setView(v);}} onReport={()=>{setShowTour(false);if(user)setModal({type:'incident'});else login();}} onAddListing={()=>{setShowTour(false);if(user)setModal({type:'addListing'});else login();}} />}
@@ -2902,7 +2936,7 @@ function BetaCommandCenter({ lang="es-CO", alerts=[], pendingOwner=0, pendingRes
 }
 
 
-function ProfileView({ user, lang, userProfile, onSave, communities=[], currentCommunityId='', onSwitchCommunity }) {
+function ProfileView({ user, lang, userProfile, onSave, communities=[], currentCommunityId='', onSwitchCommunity, reputation=null, reputationLoading=false, loadReputation=()=>{} }) {
   const isEn = lang === 'en';
   const [country, setCountry] = useState(userProfile.country || 'Colombia');
   const [whatsapp, setWhatsapp] = useState(userProfile.whatsapp || '');
@@ -3042,6 +3076,62 @@ function ProfileView({ user, lang, userProfile, onSave, communities=[], currentC
             </div>
           </div>
         )}
+
+        {/* ── Reputation / Trust Score ── */}
+        <div className="prof-section">
+          <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:8,marginBottom:10}}>
+            <div className="prof-section-hdr" style={{margin:0}}>🏅 {isEn?'Community reputation':'Reputación en la comunidad'}</div>
+            {!reputation && !reputationLoading && <button className="btn-ghost" style={{fontSize:'.75rem',padding:'4px 10px'}} onClick={loadReputation}>{isEn?'Load':'Cargar'}</button>}
+            {reputationLoading && <span className="spinner-sm"/>}
+          </div>
+          {!reputation && !reputationLoading && (
+            <p style={{fontSize:'.82rem',color:'#6b9ba8',margin:0}}>{isEn?'Your trust score based on reporting history, response time, and community engagement.':'Tu puntuación de confianza basada en tu historial de reportes, tiempo de respuesta y participación comunitaria.'}</p>
+          )}
+          {reputation && (()=>{
+            const r = reputation;
+            const tierColor = r.tier==='pillar'?'#2F4F3A':r.tier==='active'?'#d9b45a':'#6b9ba8';
+            const tierBg = r.tier==='pillar'?'#e8f5ec':r.tier==='active'?'#fef9c3':'#f0f8fb';
+            const tierLabel = isEn ? r.tierEn : r.tierEs;
+            return (
+              <div>
+                <div style={{display:'flex',alignItems:'center',gap:14,marginBottom:14,flexWrap:'wrap'}}>
+                  <div style={{textAlign:'center'}}>
+                    <div style={{fontFamily:'Playfair Display,serif',fontSize:'2rem',fontWeight:900,color:tierColor,lineHeight:1}}>{r.score}</div>
+                    <div style={{fontSize:'.68rem',color:'#6b9ba8'}}>{isEn?'/ 100 pts':'/ 100 pts'}</div>
+                  </div>
+                  <div>
+                    <span style={{background:tierBg,color:tierColor,border:`1px solid ${tierColor}44`,borderRadius:999,padding:'5px 14px',fontWeight:800,fontSize:'.85rem'}}>{tierLabel}</span>
+                    <div style={{fontSize:'.72rem',color:'#6b9ba8',marginTop:6}}>
+                      {r.tier==='resident'&&(isEn?'Keep reporting to become an Active Member':'Sigue reportando para convertirte en Miembro Activo')}
+                      {r.tier==='active'&&(isEn?'Excellent! Keep it up to reach Community Pillar':'¡Excelente! Sigue así para alcanzar Pilar de la Comunidad')}
+                      {r.tier==='pillar'&&(isEn?'Top tier — thank you for your commitment to the community':'Nivel máximo — gracias por tu compromiso con la comunidad')}
+                    </div>
+                  </div>
+                </div>
+                <div style={{background:'#f0f8fb',borderRadius:10,height:10,overflow:'hidden',marginBottom:14}}>
+                  <div style={{height:'100%',borderRadius:10,background:`linear-gradient(90deg,${tierColor},${tierColor}bb)`,width:`${r.score}%`,transition:'width .6s'}}/>
+                </div>
+                <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(110px,1fr))',gap:8}}>
+                  {[
+                    {label:isEn?'Reports submitted':'Reportes enviados', val:r.stats.reportCount, icon:'📋'},
+                    {label:isEn?'Resolved reports':'Reportes resueltos', val:r.stats.resolvedReports, icon:'✅'},
+                    {label:isEn?'Days in community':'Días en comunidad', val:r.stats.tenureDays, icon:'📅'},
+                    {label:isEn?'My listings':'Mis listings', val:r.stats.listingCount, icon:'🏠'},
+                  ].map(({label,val,icon})=>(
+                    <div key={label} style={{background:'rgba(255,255,255,.85)',border:'1px solid rgba(47,79,58,.12)',borderRadius:12,padding:'10px',textAlign:'center'}}>
+                      <div style={{fontSize:'1.1rem'}}>{icon}</div>
+                      <div style={{fontFamily:'Playfair Display,serif',fontWeight:900,fontSize:'1.1rem',color:'#17313a'}}>{val}</div>
+                      <div style={{fontSize:'.68rem',color:'#6b9ba8',lineHeight:1.3}}>{label}</div>
+                    </div>
+                  ))}
+                </div>
+                <div style={{marginTop:10,fontSize:'.72rem',color:'#8a9fa5',textAlign:'right'}}>
+                  <button className="btn-ghost" style={{fontSize:'.7rem',padding:'2px 8px'}} onClick={loadReputation}>↻ {isEn?'Refresh':'Actualizar'}</button>
+                </div>
+              </div>
+            );
+          })()}
+        </div>
 
         <div className="prof-footer">
           <button className="btn-p" onClick={handleSave} disabled={saving}>
@@ -3187,7 +3277,7 @@ function Dashboard({ listings, incidents, user, contactProps={}, setView, onRepo
   pendingOwner=0, pendingOwnerResolution=0, pendingResolve=0, pendingRegistrations=0,
   canResolve=false, canManageRegistrations=false,
   onOwnerClick=()=>{}, onResolveClick=()=>{}, onRegistrationsClick=()=>{}, onAddResClick=()=>{},
-  onIncidentDetail=null }) {
+  onIncidentDetail=null, communityGoals=null, communityGoalsLoading=false }) {
   const isEn = lang==='en';
   const open       = incidents.filter(i=>i.status==="open");
   const resolved   = incidents.filter(i=>i.status==="resolved");
@@ -3218,6 +3308,63 @@ function Dashboard({ listings, incidents, user, contactProps={}, setView, onRepo
       {user && <DashboardGreeting user={user} lang={lang} role={dashRole} pendingOwner={pendingOwner} pendingOwnerResolution={pendingOwnerResolution} pendingResolve={pendingResolve} pendingRegistrations={pendingRegistrations} myOpenCount={myOpen.length} onOwnerClick={onOwnerClick} onResolveClick={onResolveClick} onRegistrationsClick={onRegistrationsClick} setView={setView}/>}
 
       <DashboardFocus lang={lang} effectiveIsGlobalAdmin={effectiveIsGlobalAdmin} effectiveRole={effectiveRole} delegatePerms={delegatePerms} pendingOwner={pendingOwner} pendingOwnerResolution={pendingOwnerResolution} pendingResolve={pendingResolve} pendingRegistrations={pendingRegistrations} openCount={open.length} myListingCount={myListings.length} myOpenCount={myOpen.length} pendingGeneral={generalOpen.length} canResolve={canResolve} canManageRegistrations={canManageRegistrations} onOwnerClick={onOwnerClick} onResolveClick={onResolveClick} onRegistrationsClick={onRegistrationsClick} onOpenClick={()=>setView('incidents')} setView={setView} onAddResClick={onAddResClick} onGeneralClick={()=>setView('general')} />
+
+      {/* ── Collective Goals ── */}
+      {(communityGoals || communityGoalsLoading) && (()=>{
+        const g = communityGoals;
+        const rate = g?.resolutionRate;
+        const goal = g?.goalTarget ?? 90;
+        const progress = rate !== null && rate !== undefined ? Math.min(rate, 100) : null;
+        const met = g?.goalMet;
+        const color = met ? '#1eaa64' : progress !== null && progress >= 70 ? '#d9b45a' : '#d4634a';
+        const reportLink = typeof window !== 'undefined' ? window.location.origin + '/?action=report' : '/?action=report';
+        return (
+          <div className="card" style={{marginBottom:16,padding:'18px 20px'}}>
+            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',flexWrap:'wrap',gap:10,marginBottom:14}}>
+              <div>
+                <div style={{fontWeight:900,color:'#2F4F3A',fontSize:'1rem'}}>🎯 {isEn?'Community Goal — This Quarter':'Meta Comunitaria — Este Trimestre'}</div>
+                <div style={{fontSize:'.78rem',color:'#6b9ba8',marginTop:2}}>{isEn?`Target: ${goal}% of incidents resolved`:`Meta: ${goal}% de incidentes resueltos`}</div>
+              </div>
+              {met && <span style={{background:'#e8f5ec',color:'#2F4F3A',border:'1px solid #b2dfdb',borderRadius:999,padding:'4px 12px',fontSize:'.78rem',fontWeight:700}}>🏆 {isEn?'Goal met!':'¡Meta alcanzada!'}</span>}
+            </div>
+            {communityGoalsLoading && <div style={{color:'#6b9ba8',fontSize:'.82rem'}}><span className="spinner-sm"/> {isEn?'Loading…':'Cargando…'}</div>}
+            {g && <>
+              <div style={{background:'#f0f8fb',borderRadius:10,height:14,overflow:'hidden',marginBottom:10}}>
+                <div style={{height:'100%',borderRadius:10,background:`linear-gradient(90deg,${color},${color}cc)`,width:`${progress??0}%`,transition:'width .6s ease'}}/>
+              </div>
+              <div style={{display:'flex',gap:16,flexWrap:'wrap',marginBottom:14}}>
+                <div style={{textAlign:'center',flex:'1 1 80px'}}>
+                  <div style={{fontFamily:'Playfair Display,serif',fontSize:'1.4rem',fontWeight:900,color:color}}>{rate !== null ? rate+'%' : '—'}</div>
+                  <div style={{fontSize:'.72rem',color:'#6b9ba8'}}>{isEn?'Resolution rate':'Tasa de resolución'}</div>
+                </div>
+                <div style={{textAlign:'center',flex:'1 1 80px'}}>
+                  <div style={{fontFamily:'Playfair Display,serif',fontSize:'1.4rem',fontWeight:900,color:'#2F4F3A'}}>{g.resolvedQ ?? '—'}/{g.totalQ ?? '—'}</div>
+                  <div style={{fontSize:'.72rem',color:'#6b9ba8'}}>{isEn?'Resolved / Total':'Resueltos / Total'}</div>
+                </div>
+                {g.openPastSla > 0 && <div style={{textAlign:'center',flex:'1 1 80px'}}>
+                  <div style={{fontFamily:'Playfair Display,serif',fontSize:'1.4rem',fontWeight:900,color:'#d4634a'}}>{g.openPastSla}</div>
+                  <div style={{fontSize:'.72rem',color:'#6b9ba8'}}>{isEn?'Past SLA':'Fuera de SLA'}</div>
+                </div>}
+                {g.engagementRate !== null && <div style={{textAlign:'center',flex:'1 1 80px'}}>
+                  <div style={{fontFamily:'Playfair Display,serif',fontSize:'1.4rem',fontWeight:900,color:'#2a9aaa'}}>{g.engagementRate}%</div>
+                  <div style={{fontSize:'.72rem',color:'#6b9ba8'}}>{isEn?'Owners reporting':'Propietarios activos'}</div>
+                </div>}
+              </div>
+              {!met && rate !== null && <div style={{fontSize:'.8rem',color:'#7a5a00',background:'#fff8e1',border:'1px solid #ffe082',borderRadius:8,padding:'8px 12px',marginBottom:12}}>
+                {isEn ? `${goal - rate} percentage point${goal-rate===1?'':'s'} to reach the community goal. Every report resolved counts.`
+                       : `Faltan ${goal - rate} punto${goal-rate===1?'':'s'} porcentuales para la meta. Cada incidente resuelto cuenta.`}
+              </div>}
+              <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap',paddingTop:4,borderTop:'1px solid rgba(90,105,80,.10)'}}>
+                <span style={{fontSize:'.75rem',color:'#6b9ba8',flex:1}}>
+                  💬 {isEn?'Share this link to invite owners to report:':'Comparte este enlace para invitar a reportar:'}
+                </span>
+                <code style={{fontSize:'.72rem',background:'#f0f8fb',padding:'3px 8px',borderRadius:6,color:'#2a5a6a',flex:'2 1 180px',wordBreak:'break-all'}}>{reportLink}</code>
+                <button className="btn-ghost" style={{fontSize:'.72rem',padding:'4px 10px',flexShrink:0}} onClick={()=>{try{navigator.clipboard.writeText(reportLink);}catch(e){}}}>📋 {isEn?'Copy':'Copiar'}</button>
+              </div>
+            </>}
+          </div>
+        );
+      })()}
 
       {/* ── My attention needed — owner's actionable incidents ── */}
       {user && myListings.length>0 && (()=>{
