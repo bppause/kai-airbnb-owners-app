@@ -1683,9 +1683,11 @@ app.get('/api/admin/users', async (req, res) => {
   if (!(await isGlobalAdmin(uid, email))) return res.status(403).json({ error:'Solo un administrador global puede ver usuarios.' });
   const { data: rows, error } = await supabase.from('app_users').select('*').order('email', { ascending:true });
   if (error) return sendSupabaseError(res, error);
-  const { data: approvedListings, error: lerr } = await supabase.from('listings').select('owner_uid').eq('status','approved');
+  const { data: approvedListings, error: lerr } = await supabase.from('listings').select('owner_uid,community_id').eq('status','approved');
   if (lerr) return sendSupabaseError(res, lerr);
   const approved = new Set((approvedListings || []).map(x => x.owner_uid).filter(Boolean));
+  const communityByUid = {};
+  (approvedListings||[]).forEach(l => { if(l.owner_uid && l.community_id) { if(!communityByUid[l.owner_uid]) communityByUid[l.owner_uid]=[]; if(!communityByUid[l.owner_uid].includes(l.community_id)) communityByUid[l.owner_uid].push(l.community_id); } });
   const globalEmails = getGlobalAdminEmails();
   const permsCfg = await getAppPermissionsConfig();
   // Fetch all community memberships and community names in one pass
@@ -1707,7 +1709,7 @@ app.get('/api/admin/users', async (req, res) => {
       ? { ...DEFAULT_DELEGATE_PERMISSIONS, canApproveRegistrations:true, canResolveIncidents:true, canUpdateGlobalListings:true, canDeleteGlobalListings:true, canUpdateGlobalIncidents:true, canDeleteGlobalIncidents:true }
       : role === 'delegate_admin' ? { ...permsCfg.defaultDelegatePermissions, ...storedPerms } : {};
     const communityMemberships = membershipByUid[u.uid] || [];
-    return { uid:u.uid, email:u.email, name:u.name || '', role, permissions, languagePreference:u.language_preference || 'es-CO', approved: approved.has(u.uid), envGlobal, communityMemberships };
+    return { uid:u.uid, email:u.email, name:u.name || '', role, permissions, languagePreference:u.language_preference || 'es-CO', approved: approved.has(u.uid), envGlobal, communityMemberships, communityIds: communityByUid[u.uid] || [] };
   });
   res.json({ users, standardMenuPermissions: permsCfg.standardMenuPermissions, defaultDelegatePermissions: permsCfg.defaultDelegatePermissions });
 });

@@ -5921,12 +5921,12 @@ function AuditLogViewer({ user, lang="es-CO", isEn=false }) {
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [offset, setOffset] = useState(0);
-  const PAGE = 50;
-  const load = useCallback(async (off=0) => {
+  const [pageSize, setPageSize] = useState(25);
+  const load = useCallback(async (off=0, ps=pageSize) => {
     if(!user?.uid) return;
     setLoading(true);
     try {
-      const p = new URLSearchParams({ uid:user.uid, email:user.email||'', limit:PAGE, offset:off });
+      const p = new URLSearchParams({ uid:user.uid, email:user.email||'', limit:ps, offset:off });
       if(entity && entity!=='all') p.set('entity', entity);
       if(actor.trim()) p.set('actor', actor.trim());
       if(dateFrom) p.set('dateFrom', dateFrom);
@@ -5952,6 +5952,9 @@ function AuditLogViewer({ user, lang="es-CO", isEn=false }) {
         <input type="date" className="audit-input audit-date" value={dateFrom} max={dateTo||''} onChange={e=>setDateFrom(e.target.value)} title={isEn?'From date':'Desde'}/>
         <span style={{color:'#8a9fa5',flexShrink:0}}>–</span>
         <input type="date" className="audit-input audit-date" value={dateTo} min={dateFrom||''} onChange={e=>setDateTo(e.target.value)} title={isEn?'To date':'Hasta'}/>
+        <select className="audit-select" value={pageSize} onChange={e=>{setPageSize(Number(e.target.value)); load(0, Number(e.target.value));}}>
+          {[10,25,50,100].map(n=><option key={n} value={n}>{n} {isEn?'per page':'por página'}</option>)}
+        </select>
         <button className="btn-p" style={{minHeight:36,padding:'6px 14px',flexShrink:0}} onClick={()=>load(0)} disabled={loading}>
           {loading?'…':(isEn?'Search':'Buscar')}
         </button>
@@ -5961,7 +5964,7 @@ function AuditLogViewer({ user, lang="es-CO", isEn=false }) {
       {/* Stats bar */}
       <div className="audit-stats-bar">
         <span>{isEn?`${total} total entries`:`${total} entradas totales`}</span>
-        {total>PAGE&&<span style={{opacity:.6}}>{isEn?`Showing ${offset+1}–${Math.min(offset+PAGE,total)}`:`Mostrando ${offset+1}–${Math.min(offset+PAGE,total)}`}</span>}
+        {total>pageSize&&<span style={{opacity:.6}}>{isEn?`Showing ${offset+1}–${Math.min(offset+pageSize,total)}`:`Mostrando ${offset+1}–${Math.min(offset+pageSize,total)}`}</span>}
       </div>
       {/* Table */}
       {loading
@@ -6002,11 +6005,11 @@ function AuditLogViewer({ user, lang="es-CO", isEn=false }) {
             </div>
       }
       {/* Pagination */}
-      {total>PAGE&&(
+      {total>pageSize&&(
         <div className="audit-pagination">
-          <button className="btn-ghost bsm" disabled={offset===0||loading} onClick={()=>load(Math.max(0,offset-PAGE))}>← {isEn?'Prev':'Anterior'}</button>
-          <span style={{fontSize:'.78rem',color:'#496674'}}>{Math.floor(offset/PAGE)+1} / {Math.ceil(total/PAGE)}</span>
-          <button className="btn-ghost bsm" disabled={offset+PAGE>=total||loading} onClick={()=>load(offset+PAGE)}>{isEn?'Next':'Siguiente'} →</button>
+          <button className="btn-ghost bsm" disabled={offset===0||loading} onClick={()=>load(Math.max(0,offset-pageSize))}>← {isEn?'Prev':'Anterior'}</button>
+          <span style={{fontSize:'.78rem',color:'#496674'}}>{Math.floor(offset/pageSize)+1} / {Math.ceil(total/pageSize)}</span>
+          <button className="btn-ghost bsm" disabled={offset+pageSize>=total||loading} onClick={()=>load(offset+pageSize)}>{isEn?'Next':'Siguiente'} →</button>
         </div>
       )}
     </div>
@@ -6021,6 +6024,9 @@ function AdminSettings({ config={}, user, listings=[], contactProps={}, onSave, 
   const [analyticsEnabled,setAnalyticsEnabled]=useState(String(config?.analytics_enabled || 'false') === 'true');
   const [users,setUsers]=useState([]);
   const [usersLoading,setUsersLoading]=useState(false);
+  const [usersSearch, setUsersSearch] = useState('');
+  const [usersCommunityFilter, setUsersCommunityFilter] = useState('');
+  const [usersCommunityAdminEditing, setUsersCommunityAdminEditing] = useState({});
   const [standardMenuPermissions,setStandardMenuPermissions]=useState(()=>({ ...DEFAULT_STANDARD_MENU_PERMISSIONS }));
   const [defaultDelegatePermissions,setDefaultDelegatePermissions]=useState(()=>({ ...DEFAULT_DELEGATE_PERMISSIONS }));
   const [mission,setMission]=useState(() => parseMissionSections(config || {}));
@@ -6069,6 +6075,7 @@ function AdminSettings({ config={}, user, listings=[], contactProps={}, onSave, 
   const [communityConfigOpen, setCommunityConfigOpen] = useState({});
   const [communityConfigDraft, setCommunityConfigDraft] = useState({}); // {cid: {key: value}}
   const [communityOverridesEnabled, setCommunityOverridesEnabled] = useState({}); // {cid: bool}
+  const [communityConfigTab, setCommunityConfigTab] = useState({}); // {cid: tabId}
   const [communityTplOpen, setCommunityTplOpen] = useState({});
   const [communityTplData, setCommunityTplData] = useState({});
   const [communityTplLoading, setCommunityTplLoading] = useState({});
@@ -6165,6 +6172,17 @@ function AdminSettings({ config={}, user, listings=[], contactProps={}, onSave, 
       showToast(role === 'delegate_admin' ? '✅ Usuario delegado para aprobar registros' : role === 'global_admin' ? '✅ Usuario promovido a administrador global' : '✅ Delegación removida');
       loadUsers();
     } catch(e) { captureAdminError('update-user-role', e); showToast(lt(lang,'Error actualizando delegado') + ': ' + (e.message||''), true); }
+  };
+  const toggleUserCommunityAdmin = async (u, cid, makeAdmin) => {
+    try {
+      if (makeAdmin) {
+        await api.post(`/api/communities/${cid}/members/${u.uid}/promote`, { actorUid:user.uid, actorEmail:user.email, userEmail:u.email });
+      } else {
+        await api.del(`/api/communities/${cid}/members/${u.uid}/promote`, { actorUid:user.uid, actorEmail:user.email });
+      }
+      showToast(makeAdmin ? (isEn?'✅ Community admin added':'✅ Admin de comunidad asignado') : (isEn?'✅ Community admin removed':'✅ Admin de comunidad removido'));
+      loadUsers();
+    } catch(e) { showToast((e.message||String(e)), true); }
   };
   const updateTpl = (field, value) => { if(!selectedKey) return; setTemplates(t => ({...(t||{}), [selectedKey]: {...((t||{})[selectedKey]||{}), [field]:value}})); };
   const saveTemplates = async () => {
@@ -6383,51 +6401,63 @@ function AdminSettings({ config={}, user, listings=[], contactProps={}, onSave, 
               const cfg = communityConfigData[ca.communityId];
               const draft = communityConfigDraft[ca.communityId] || {};
               const overridesOn = communityOverridesEnabled[ca.communityId];
-              const LABELS = {
+              const TABS = [
+                { id:'mission',  icon:'🌊', label: isEn?'Mission':'Misión',   keys:['mission_title_es','mission_body_es','mission_title_en','mission_body_en'] },
+                { id:'ui',       icon:'🏷️', label: isEn?'UI Labels':'Etiquetas', keys:['ui_labels_es','ui_labels_en'] },
+                { id:'tooltips', icon:'💡', label: isEn?'Tooltips':'Tooltips',  keys:['tooltips_es','tooltips_en'] },
+                { id:'other',    icon:'⚙️', label: isEn?'Other':'Otro',        keys:['escalation_cc_emails','community_admin_default_permissions'] },
+              ];
+              const KEY_LABELS = {
                 mission_title_es: isEn?'Mission title (ES)':'Título de misión (ES)',
-                mission_body_es: isEn?'Mission body (ES)':'Cuerpo de misión (ES)',
+                mission_body_es:  isEn?'Mission body (ES)':'Cuerpo de misión (ES)',
                 mission_title_en: 'Mission title (EN)',
-                mission_body_en: 'Mission body (EN)',
+                mission_body_en:  'Mission body (EN)',
+                ui_labels_es:     isEn?'UI labels (ES, JSON)':'Etiquetas de UI (ES, JSON)',
+                ui_labels_en:     'UI labels (EN, JSON)',
+                tooltips_es:      isEn?'Tooltips/instructions (ES, JSON)':'Tooltips/instrucciones (ES, JSON)',
+                tooltips_en:      'Tooltips/instructions (EN, JSON)',
                 escalation_cc_emails: isEn?'Escalation CC emails':'Emails de escalación CC',
                 community_admin_default_permissions: isEn?'Default admin permissions (JSON)':'Permisos default admin (JSON)',
-                tooltips_es: isEn?'Tooltips/instructions (ES, JSON)':'Tooltips/instrucciones (ES, JSON)',
-                tooltips_en: 'Tooltips/instructions (EN, JSON)',
-                ui_labels_es: isEn?'UI labels (ES, JSON)':'Etiquetas de UI (ES, JSON)',
-                ui_labels_en: 'UI labels (EN, JSON)',
               };
+              const activeTab = communityConfigTab[ca.communityId] || 'mission';
+              const activetabKeys = TABS.find(t=>t.id===activeTab)?.keys || TABS[0].keys;
               return (
                 <div>
-                  {Object.entries(LABELS).map(([key, label]) => {
+                  {/* Tab bar */}
+                  <div style={{display:'flex',gap:4,marginBottom:12,borderBottom:'2px solid #e8f4f8',paddingBottom:0}}>
+                    {TABS.map(t=>(
+                      <button key={t.id} onClick={()=>setCommunityConfigTab(p=>({...p,[ca.communityId]:t.id}))}
+                        style={{padding:'5px 12px',fontSize:'.75rem',fontWeight:activeTab===t.id?700:500,background:'none',border:'none',borderBottom:activeTab===t.id?'2px solid #2F4F3A':'2px solid transparent',color:activeTab===t.id?'#2F4F3A':'#6b9ba8',cursor:'pointer',marginBottom:'-2px',borderRadius:'6px 6px 0 0',transition:'all .15s'}}>
+                        {t.icon} {t.label}
+                      </button>
+                    ))}
+                  </div>
+                  {/* Tab content */}
+                  {activetabKeys.map(key => {
                     const globalVal = cfg.globalValues?.[key] || '';
                     const overrideVal = draft[key] ?? cfg.communityOverrides?.[key] ?? globalVal;
                     const hasOverride = key in (cfg.communityOverrides||{}) || key in draft;
-                    const isTextarea = key.includes('body') || key.includes('sections') || key.includes('permissions');
+                    const isTextarea = key.includes('body') || key.includes('labels') || key.includes('tooltips') || key.includes('permissions');
                     return (
-                      <div key={key} style={{marginBottom:10,paddingBottom:10,borderBottom:'1px solid #f0f8fb'}}>
-                        <div style={{fontSize:'.75rem',fontWeight:700,color:'#2F4F3A',marginBottom:4}}>
-                          {label}
-                          {hasOverride && <span style={{marginLeft:6,fontSize:'.68rem',background:'#d9b45a22',color:'#7a5a00',padding:'1px 6px',borderRadius:4,fontWeight:600}}>{isEn?'community override':'valor comunidad'}</span>}
-                          {!hasOverride && overridesOn && <span style={{marginLeft:6,fontSize:'.68rem',background:'#e8f5ec',color:'#2F4F3A',padding:'1px 6px',borderRadius:4}}>{isEn?'using global':'usando global'}</span>}
+                      <div key={key} style={{marginBottom:12,paddingBottom:12,borderBottom:'1px solid #f0f8fb'}}>
+                        <div style={{fontSize:'.75rem',fontWeight:700,color:'#2F4F3A',marginBottom:4,display:'flex',alignItems:'center',gap:6}}>
+                          {KEY_LABELS[key]}
+                          {hasOverride && <span style={{fontSize:'.65rem',background:'#d9b45a22',color:'#7a5a00',padding:'1px 6px',borderRadius:4,fontWeight:600}}>{isEn?'community override':'valor comunidad'}</span>}
+                          {!hasOverride && <span style={{fontSize:'.65rem',background:'#e8f5ec',color:'#2F4F3A',padding:'1px 6px',borderRadius:4}}>🌐 {isEn?'using global':'usando global'}</span>}
                         </div>
-                        {overridesOn && (
-                          isTextarea
-                            ? <textarea
-                                value={overrideVal}
-                                onChange={e=>setCommunityConfigDraft(p=>({...p,[ca.communityId]:{...(p[ca.communityId]||{}),[key]:e.target.value}}))}
-                                rows={4}
-                                placeholder={globalVal || (isEn?`Override for this community…`:`Valor específico para esta comunidad…`)}
-                                style={{width:'100%',fontSize:'.78rem',padding:'5px 8px',borderRadius:6,border:'1px solid #cce7ee',resize:'vertical',boxSizing:'border-box'}}
-                              />
-                            : <input
-                                value={overrideVal}
-                                onChange={e=>setCommunityConfigDraft(p=>({...p,[ca.communityId]:{...(p[ca.communityId]||{}),[key]:e.target.value}}))}
-                                placeholder={globalVal || (isEn?`Override for this community…`:`Valor específico para esta comunidad…`)}
-                                style={{width:'100%',fontSize:'.78rem',padding:'5px 8px',borderRadius:6,border:'1px solid #cce7ee',boxSizing:'border-box'}}
-                              />
+                        {overridesOn && (isTextarea
+                          ? <textarea value={overrideVal} rows={key.includes('body')?4:3}
+                              onChange={e=>setCommunityConfigDraft(p=>({...p,[ca.communityId]:{...(p[ca.communityId]||{}),[key]:e.target.value}}))}
+                              placeholder={globalVal||(isEn?'Override…':'Valor comunidad…')}
+                              style={{width:'100%',fontSize:'.78rem',padding:'5px 8px',borderRadius:6,border:'1px solid #cce7ee',resize:'vertical',boxSizing:'border-box'}}/>
+                          : <input value={overrideVal}
+                              onChange={e=>setCommunityConfigDraft(p=>({...p,[ca.communityId]:{...(p[ca.communityId]||{}),[key]:e.target.value}}))}
+                              placeholder={globalVal||(isEn?'Override…':'Valor comunidad…')}
+                              style={{width:'100%',fontSize:'.78rem',padding:'5px 8px',borderRadius:6,border:'1px solid #cce7ee',boxSizing:'border-box'}}/>
                         )}
                         {!overridesOn && (
                           <div style={{fontSize:'.78rem',color:'#17313a',background:'#f8f8f6',padding:'5px 8px',borderRadius:6,border:'1px solid #eaecee'}}>
-                            {globalVal ? globalVal : <em style={{color:'#8a9fa5'}}>{isEn?'(not set)':'(sin valor)'}</em>}
+                            {globalVal||<em style={{color:'#8a9fa5'}}>{isEn?'(not set)':'(sin valor)'}</em>}
                           </div>
                         )}
                         {!overridesOn && <div style={{fontSize:'.7rem',color:'#8a9fa5',marginTop:3,fontStyle:'italic'}}>{isEn?'Overrides are not enabled for this community. Contact a global admin to enable them.':'Los overrides no están habilitados. Contacta a un admin global para habilitarlos.'}</div>}
@@ -6624,100 +6654,19 @@ function AdminSettings({ config={}, user, listings=[], contactProps={}, onSave, 
             {c.id !== 'kai' && <button className="btn-ghost" style={{fontSize:'.78rem',padding:'4px 10px',color:'#c62828'}} onClick={()=>deleteCommunity(c.id)}>🗑️ {isEn?'Delete':'Eliminar'}</button>}
           </div>
         </div>
-        {/* Members toggle */}
-        <div style={{marginTop:10,borderTop:'1px solid #e8f4f8',paddingTop:8}}>
-          <button type="button" className="btn-ghost" style={{fontSize:'.78rem',padding:'3px 10px'}}
-            onClick={()=>toggleCommunityMembers(c.id)}>
-            👥 {isEn?'Members':'Miembros'} {communityMembersOpen[c.id]?'▲':'▼'}
-          </button>
-          {communityMembersOpen[c.id] && (
-            <div style={{marginTop:10}}>
-              {communityMembersLoading[c.id] && <div style={{color:'#6b9ba8',fontSize:'.82rem'}}><span className="spinner-sm"/> {isEn?'Loading members...':'Cargando miembros...'}</div>}
-              {!communityMembersLoading[c.id] && (communityMembers[c.id]||[]).length === 0 && (
-                <div style={{color:'#6b9ba8',fontSize:'.82rem',padding:'6px 0'}}>{isEn?'No approved members yet.':'Sin miembros aprobados todavía.'}</div>
-              )}
-              {!communityMembersLoading[c.id] && (communityMembers[c.id]||[]).length > 0 && (
-                <div style={{fontSize:'.7rem',color:'#8a9fa5',marginBottom:6,display:'flex',gap:12,flexWrap:'wrap'}}>
-                  <span>🌐 {isEn?'Global Admin':'Admin global'}</span>
-                  <span>🛡️ {isEn?'Delegate Admin (platform-wide)':'Admin delegado (toda la plataforma)'}</span>
-                  <span>🏢 {isEn?'Community Admin (this community)':'Admin de comunidad (esta comunidad)'}</span>
-                  <span>🏠 {isEn?'Standard Owner':'Propietario estándar'}</span>
-                </div>
-              )}
-              {!communityMembersLoading[c.id] && (communityMembers[c.id]||[]).map(m => {
-                const pk = `${c.id}_${m.userUid}`;
-                const currentPerms = memberPermsEditing[pk] || m.adminPermissions || { canApproveRegistrations:true, canResolveIncidents:true, canManageListings:false };
-                const isDirty = !!memberPermsEditing[pk];
-                const isGlobal = m.platformRole === 'global_admin';
-                const isDelegate = m.platformRole === 'delegate_admin';
-                const roleBadge = isGlobal
-                  ? { icon:'🌐', label:isEn?'Global Admin':'Admin global', color:'#0b4f8c', bg:'#e3f0fc' }
-                  : isDelegate
-                  ? { icon:'🛡️', label:isEn?'Delegate Admin':'Admin delegado', color:'#5a2d82', bg:'#f3eafd' }
-                  : m.isCommunityAdmin
-                  ? { icon:'🏢', label:isEn?'Community Admin':'Admin comunidad', color:'#2F4F3A', bg:'#e8f5ec' }
-                  : { icon:'🏠', label:isEn?'Standard Owner':'Propietario', color:'#2a5a6a', bg:'#eef6f8' };
-                const canPromote = !isGlobal && !isDelegate;
-                return (
-                <div key={m.userUid||m.userEmail} style={{padding:'8px 0',borderBottom:'1px solid #f0f8fb'}}>
-                  <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
-                    <div style={{flex:1,minWidth:160}}>
-                      <div style={{display:'flex',alignItems:'center',gap:6,flexWrap:'wrap'}}>
-                        <span style={{fontWeight:600,fontSize:'.82rem',color:'#17313a'}}>{m.name||m.userEmail}</span>
-                        <span style={{fontSize:'.68rem',fontWeight:700,padding:'1px 7px',borderRadius:999,background:roleBadge.bg,color:roleBadge.color,whiteSpace:'nowrap'}}>{roleBadge.icon} {roleBadge.label}</span>
-                      </div>
-                      <div style={{fontSize:'.72rem',color:'#6b9ba8'}}>{m.userEmail}</div>
-                    </div>
-                    {canPromote && (
-                      <label style={{display:'flex',alignItems:'center',gap:6,fontSize:'.78rem',color:'#17313a',cursor:'pointer',userSelect:'none'}} title={isEn?'Toggle community admin role for this community only':'Cambiar rol de admin de comunidad (solo en esta comunidad)'}>
-                        <input type="checkbox" checked={!!m.isCommunityAdmin}
-                          onChange={() => m.isCommunityAdmin ? demoteCommunityAdmin(c.id, m) : promoteCommunityAdmin(c.id, m)}
-                          style={{accentColor:'#2F4F3A',width:15,height:15}}
-                        />
-                        {isEn?'Community Admin':'Admin comunidad'}
-                      </label>
-                    )}
-                    {!canPromote && (
-                      <span style={{fontSize:'.72rem',color:'#8a9fa5',fontStyle:'italic'}}>{isEn?'Role set platform-wide':'Rol global de plataforma'}</span>
-                    )}
-                  </div>
-                  {m.isCommunityAdmin && canPromote && (
-                    <div style={{marginTop:6,paddingLeft:4,display:'flex',flexWrap:'wrap',gap:'6px 18px',alignItems:'center'}}>
-                      <span style={{fontSize:'.72rem',fontWeight:700,color:'#17313a',width:'100%',marginBottom:2}}>{isEn?'Community admin permissions (this community only):':'Permisos de admin (solo esta comunidad):'}</span>
-                      {[
-                        ['canApproveRegistrations', isEn?'Approve registrations':'Aprobar registros'],
-                        ['canResolveIncidents',     isEn?'Resolve incidents':'Resolver incidentes'],
-                        ['canManageListings',        isEn?'Manage listings':'Gestionar listings'],
-                      ].map(([key, label]) => (
-                        <label key={key} style={{display:'flex',alignItems:'center',gap:5,fontSize:'.75rem',color:'#2F4F3A',cursor:'pointer'}}>
-                          <input type="checkbox" checked={!!(currentPerms[key])}
-                            onChange={e => {
-                              const updated = { ...currentPerms, [key]: e.target.checked };
-                              setMemberPermsEditing(p => ({...p,[pk]:updated}));
-                            }}
-                            style={{accentColor:'#2F4F3A'}}
-                          />
-                          {label}
-                        </label>
-                      ))}
-                      {isDirty && (
-                        <button className="btn-p" style={{fontSize:'.72rem',padding:'2px 10px',marginLeft:4}}
-                          onClick={()=>updateMemberPerms(c.id, m.userUid, memberPermsEditing[pk])}>
-                          {isEn?'Save perms':'Guardar permisos'}
-                        </button>
-                      )}
-                    </div>
-                  )}
-                </div>
-                );
-              })}
-              {!communityMembersLoading[c.id] && (
-                <div style={{marginTop:8}}>
-                  <button className="btn-ghost" style={{fontSize:'.72rem',padding:'3px 8px'}} onClick={()=>loadCommunityMembers(c.id)}>↻ {isEn?'Refresh':'Actualizar'}</button>
-                </div>
-              )}
-            </div>
+        {/* Members summary — management is in User roles panel above */}
+        <div style={{marginTop:8,borderTop:'1px solid #e8f4f8',paddingTop:8,display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
+          <span style={{fontSize:'.75rem',color:'#6b9ba8'}}>
+            👥 {isEn?'Members managed in':'Miembros se gestionan en'} <strong>{isEn?'User roles & permissions':'Roles y permisos de usuarios'}</strong> {isEn?'panel above':'arriba'}
+          </span>
+          {communityMembers[c.id] && (
+            <span style={{fontSize:'.72rem',background:'#eef6f8',padding:'2px 8px',borderRadius:999,color:'#2a5a6a'}}>
+              {(communityMembers[c.id]||[]).length} {isEn?'members':'miembros'} · {(communityMembers[c.id]||[]).filter(m=>m.isCommunityAdmin).length} {isEn?'admins':'admins'}
+            </span>
           )}
+          <button className="btn-ghost" style={{fontSize:'.7rem',padding:'2px 8px'}} onClick={()=>loadCommunityMembers(c.id)}>
+            ↻ {isEn?'Count':'Contar'}
+          </button>
         </div>
         {/* Community Settings toggle — visible to community admins and global admins */}
         <div style={{marginTop:8,borderTop:'1px solid #e8f4f8',paddingTop:8}}>
@@ -6736,68 +6685,75 @@ function AdminSettings({ config={}, user, listings=[], contactProps={}, onSave, 
                 const cfg = communityConfigData[c.id];
                 const draft = communityConfigDraft[c.id] || {};
                 const overridesOn = communityOverridesEnabled[c.id];
-                const LABELS = {
+                const TABS = [
+                  { id:'mission',  icon:'🌊', label: isEn?'Mission':'Misión',   keys:['mission_title_es','mission_body_es','mission_title_en','mission_body_en'] },
+                  { id:'ui',       icon:'🏷️', label: isEn?'UI Labels':'Etiquetas', keys:['ui_labels_es','ui_labels_en'] },
+                  { id:'tooltips', icon:'💡', label: isEn?'Tooltips':'Tooltips',  keys:['tooltips_es','tooltips_en'] },
+                  { id:'other',    icon:'⚙️', label: isEn?'Other':'Otro',        keys:['escalation_cc_emails','community_admin_default_permissions'] },
+                ];
+                const KEY_LABELS = {
                   mission_title_es: isEn?'Mission title (ES)':'Título de misión (ES)',
-                  mission_body_es: isEn?'Mission body (ES)':'Cuerpo de misión (ES)',
+                  mission_body_es:  isEn?'Mission body (ES)':'Cuerpo de misión (ES)',
                   mission_title_en: 'Mission title (EN)',
-                  mission_body_en: 'Mission body (EN)',
+                  mission_body_en:  'Mission body (EN)',
+                  ui_labels_es:     isEn?'UI labels (ES, JSON)':'Etiquetas de UI (ES, JSON)',
+                  ui_labels_en:     'UI labels (EN, JSON)',
+                  tooltips_es:      isEn?'Tooltips/instructions (ES, JSON)':'Tooltips/instrucciones (ES, JSON)',
+                  tooltips_en:      'Tooltips/instructions (EN, JSON)',
                   escalation_cc_emails: isEn?'Escalation CC emails':'Emails de escalación CC',
                   community_admin_default_permissions: isEn?'Default admin permissions (JSON)':'Permisos default admin (JSON)',
                 };
+                const activeTab = communityConfigTab[c.id] || 'mission';
+                const activetabKeys = TABS.find(t=>t.id===activeTab)?.keys || TABS[0].keys;
                 return (
                   <div>
                     {/* Global admin: toggle override feature */}
                     {adminInfo.isGlobalAdmin && (
                       <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:12,padding:'8px 10px',background:'#f0f8fb',borderRadius:8}}>
                         <label style={{display:'flex',alignItems:'center',gap:6,fontSize:'.82rem',fontWeight:700,color:'#17313a',cursor:'pointer'}}>
-                          <input type="checkbox" checked={!!overridesOn}
-                            onChange={e=>toggleCommunityOverrides(c.id, e.target.checked)}
-                            style={{accentColor:'#0b7f4f',width:15,height:15}}
-                          />
+                          <input type="checkbox" checked={!!overridesOn} onChange={e=>toggleCommunityOverrides(c.id, e.target.checked)} style={{accentColor:'#0b7f4f',width:15,height:15}}/>
                           {isEn?'Allow community admin to override settings':'Permitir que admin comunidad sobreescriba configuración'}
                         </label>
                         <span style={{fontSize:'.72rem',color:'#6b9ba8'}}>{overridesOn?(isEn?'Overrides enabled':'Overrides habilitados'):(isEn?'Using global settings':'Usando config global')}</span>
                       </div>
                     )}
-                    {/* Settings rows */}
-                    {Object.entries(LABELS).map(([key, label]) => {
+                    {/* Tab bar */}
+                    <div style={{display:'flex',gap:4,marginBottom:12,borderBottom:'2px solid #e8f4f8',paddingBottom:0}}>
+                      {TABS.map(t=>(
+                        <button key={t.id} onClick={()=>setCommunityConfigTab(p=>({...p,[c.id]:t.id}))}
+                          style={{padding:'5px 12px',fontSize:'.75rem',fontWeight:activeTab===t.id?700:500,background:'none',border:'none',borderBottom:activeTab===t.id?'2px solid #2F4F3A':'2px solid transparent',color:activeTab===t.id?'#2F4F3A':'#6b9ba8',cursor:'pointer',marginBottom:'-2px',borderRadius:'6px 6px 0 0',transition:'all .15s'}}>
+                          {t.icon} {t.label}
+                        </button>
+                      ))}
+                    </div>
+                    {/* Tab content */}
+                    {activetabKeys.map(key => {
                       const globalVal = cfg.globalValues?.[key] || '';
-                      // When overrides are on, default the edit value to the global value so the
-                      // admin sees the current setting and can adjust it — not a blank field.
                       const overrideVal = draft[key] ?? cfg.communityOverrides?.[key] ?? globalVal;
                       const hasOverride = key in (cfg.communityOverrides||{}) || key in draft;
-                      const isTextarea = key.includes('body') || key.includes('sections') || key.includes('permissions');
+                      const isTextarea = key.includes('body') || key.includes('labels') || key.includes('tooltips') || key.includes('permissions');
                       return (
-                        <div key={key} style={{marginBottom:10,paddingBottom:10,borderBottom:'1px solid #f0f8fb'}}>
-                          <div style={{fontSize:'.75rem',fontWeight:700,color:'#2F4F3A',marginBottom:4}}>
-                            {label}
-                            {hasOverride && <span style={{marginLeft:6,fontSize:'.68rem',background:'#d9b45a22',color:'#7a5a00',padding:'1px 6px',borderRadius:4,fontWeight:600}}>{isEn?'community override':'valor comunidad'}</span>}
-                            {!hasOverride && overridesOn && <span style={{marginLeft:6,fontSize:'.68rem',background:'#e8f5ec',color:'#2F4F3A',padding:'1px 6px',borderRadius:4}}>{isEn?'using global':'usando global'}</span>}
+                        <div key={key} style={{marginBottom:12,paddingBottom:12,borderBottom:'1px solid #f0f8fb'}}>
+                          <div style={{fontSize:'.75rem',fontWeight:700,color:'#2F4F3A',marginBottom:4,display:'flex',alignItems:'center',gap:6}}>
+                            {KEY_LABELS[key]}
+                            {hasOverride && <span style={{fontSize:'.65rem',background:'#d9b45a22',color:'#7a5a00',padding:'1px 6px',borderRadius:4,fontWeight:600}}>{isEn?'community override':'valor comunidad'}</span>}
+                            {!hasOverride && <span style={{fontSize:'.65rem',background:'#e8f5ec',color:'#2F4F3A',padding:'1px 6px',borderRadius:4}}>🌐 {isEn?'using global':'usando global'}</span>}
                           </div>
-                          {/* Override input — editable when overridesOn; pre-filled with global value */}
-                          {overridesOn && (
-                            isTextarea
-                              ? <textarea
-                                  value={overrideVal}
-                                  onChange={e=>setCommunityConfigDraft(p=>({...p,[c.id]:{...(p[c.id]||{}),[key]:e.target.value}}))}
-                                  rows={4}
-                                  placeholder={globalVal || (isEn?`Override for this community…`:`Valor específico para esta comunidad…`)}
-                                  style={{width:'100%',fontSize:'.78rem',padding:'5px 8px',borderRadius:6,border:'1px solid #cce7ee',resize:'vertical',boxSizing:'border-box'}}
-                                />
-                              : <input
-                                  value={overrideVal}
-                                  onChange={e=>setCommunityConfigDraft(p=>({...p,[c.id]:{...(p[c.id]||{}),[key]:e.target.value}}))}
-                                  placeholder={globalVal || (isEn?`Override for this community…`:`Valor específico para esta comunidad…`)}
-                                  style={{width:'100%',fontSize:'.78rem',padding:'5px 8px',borderRadius:6,border:'1px solid #cce7ee',boxSizing:'border-box'}}
-                                />
+                          {overridesOn && (isTextarea
+                            ? <textarea value={overrideVal} rows={key.includes('body')?4:3}
+                                onChange={e=>setCommunityConfigDraft(p=>({...p,[c.id]:{...(p[c.id]||{}),[key]:e.target.value}}))}
+                                placeholder={globalVal||(isEn?'Override…':'Valor comunidad…')}
+                                style={{width:'100%',fontSize:'.78rem',padding:'5px 8px',borderRadius:6,border:'1px solid #cce7ee',resize:'vertical',boxSizing:'border-box'}}/>
+                            : <input value={overrideVal}
+                                onChange={e=>setCommunityConfigDraft(p=>({...p,[c.id]:{...(p[c.id]||{}),[key]:e.target.value}}))}
+                                placeholder={globalVal||(isEn?'Override…':'Valor comunidad…')}
+                                style={{width:'100%',fontSize:'.78rem',padding:'5px 8px',borderRadius:6,border:'1px solid #cce7ee',boxSizing:'border-box'}}/>
                           )}
-                          {/* Read-only global value shown when overrides are off */}
                           {!overridesOn && (
                             <div style={{fontSize:'.78rem',color:'#17313a',background:'#f8f8f6',padding:'5px 8px',borderRadius:6,border:'1px solid #eaecee'}}>
-                              {globalVal ? globalVal : <em style={{color:'#8a9fa5'}}>{isEn?'(not set)':'(sin valor)'}</em>}
+                              {globalVal||<em style={{color:'#8a9fa5'}}>{isEn?'(not set)':'(sin valor)'}</em>}
                             </div>
                           )}
-                          {!overridesOn && adminInfo.isGlobalAdmin && <div style={{fontSize:'.7rem',color:'#8a9fa5',marginTop:3,fontStyle:'italic'}}>{isEn?'Enable "Allow community admin to override settings" above to edit.':'Activa "Permitir que admin comunidad sobreescriba" arriba para editar.'}</div>}
                         </div>
                       );
                     })}
@@ -7031,11 +6987,28 @@ function AdminSettings({ config={}, user, listings=[], contactProps={}, onSave, 
           <span style={{color:'#ccc'}}>·</span>
           <span>🏠 <strong>{isEn?'Standard Owner':'Propietario'}</strong> — {isEn?'own units only':'solo sus unidades'}</span>
         </div>
+        {/* Filter bar */}
+        <div style={{display:'flex',gap:8,flexWrap:'wrap',marginBottom:12}}>
+          <input placeholder={isEn?'Search by name or email…':'Buscar por nombre o email…'} value={usersSearch} onChange={e=>setUsersSearch(e.target.value)}
+            style={{flex:'1 1 200px',padding:'6px 10px',borderRadius:6,border:'1px solid #cce7ee',fontSize:'.82rem'}}/>
+          <select value={usersCommunityFilter} onChange={e=>setUsersCommunityFilter(e.target.value)}
+            style={{padding:'6px 8px',borderRadius:6,border:'1px solid #cce7ee',fontSize:'.82rem',flex:'0 1 200px'}}>
+            <option value="">{isEn?'All communities':'Todas las comunidades'}</option>
+            {communities.map(c=><option key={c.id} value={c.id}>{isEn?(c.name_en||c.name):c.name}</option>)}
+          </select>
+        </div>
+        {(()=>{
+          const filteredUsers = users.filter(u => {
+            const q = usersSearch.trim().toLowerCase();
+            if (q && ![(u.name||'').toLowerCase(),(u.email||'').toLowerCase()].some(v=>v.includes(q))) return false;
+            if (usersCommunityFilter && !(u.communityIds||[]).includes(usersCommunityFilter) && !(u.communityMemberships||[]).some(m=>m.communityId===usersCommunityFilter)) return false;
+            return true;
+          });
+          return (
         <div style={{display:'flex',flexDirection:'column',gap:10}}>
-          {users.map((u,idx)=>{
+          {filteredUsers.map((u,idx)=>{
             const isGlb = u.role==='global_admin';
             const isDel = u.role==='delegate_admin';
-            const communityAdminOf = (u.communityMemberships||[]).filter(m=>m.role==='community_admin');
             const platformBadge = isGlb
               ? { icon:'🌐', label:isEn?'Global Admin':'Admin global', color:'#0b7f4f', bg:'#e8f5ec' }
               : isDel
@@ -7087,18 +7060,31 @@ function AdminSettings({ config={}, user, listings=[], contactProps={}, onSave, 
                   {/* Community admin roles */}
                   <div style={{flex:'1 1 180px'}}>
                     <div style={{fontSize:'.7rem',fontWeight:700,color:'#496674',marginBottom:4,textTransform:'uppercase',letterSpacing:'.04em'}}>{isEn?'Community admin roles':'Roles de admin de comunidad'}</div>
-                    {communityAdminOf.length === 0
-                      ? <div style={{fontSize:'.75rem',color:'#a0b8c0',fontStyle:'italic'}}>{isEn?'None — standard owner in all communities':'Ninguno — propietario estándar en todas las comunidades'}</div>
-                      : <div style={{display:'flex',flexDirection:'column',gap:4}}>
-                          {communityAdminOf.map(m=>(
-                            <div key={m.communityId} style={{display:'flex',alignItems:'center',gap:6,flexWrap:'wrap'}}>
-                              <span style={{fontSize:'.75rem',fontWeight:700,padding:'2px 9px',borderRadius:999,background:'#e8f5ec',color:'#2F4F3A',whiteSpace:'nowrap'}}>🏢 {isEn?m.communityNameEn:m.communityName}</span>
-                              <span style={{fontSize:'.68rem',color:'#6b9ba8'}}>
-                                {[m.permissions?.canApproveRegistrations&&(isEn?'Approve':'Aprobar'),m.permissions?.canResolveIncidents&&(isEn?'Resolve':'Resolver'),m.permissions?.canManageListings&&(isEn?'Manage':'Gestionar')].filter(Boolean).join(' · ')||'—'}
-                              </span>
-                            </div>
-                          ))}
-                          <div style={{fontSize:'.68rem',color:'#8a9fa5',marginTop:2,fontStyle:'italic'}}>{isEn?'Manage in Communities panel ↓':'Gestionar en panel Comunidades ↓'}</div>
+                    {(u.communityIds||[]).length === 0
+                      ? <div style={{fontSize:'.75rem',color:'#a0b8c0',fontStyle:'italic'}}>{isEn?'No communities with listings':'Sin comunidades con listings'}</div>
+                      : <div style={{display:'flex',flexDirection:'column',gap:5}}>
+                          {(u.communityIds||[]).map(cid => {
+                            const comm = communities.find(c=>c.id===cid);
+                            const membership = (u.communityMemberships||[]).find(m=>m.communityId===cid&&m.role==='community_admin');
+                            const isCommAdmin = !!membership;
+                            const canToggle = !isGlb && !isDel;
+                            const commName = isEn ? (comm?.name_en||comm?.name||cid) : (comm?.name||cid);
+                            const perms = membership?.permissions || {};
+                            return (
+                              <div key={cid}>
+                                <label style={{display:'flex',alignItems:'center',gap:6,fontSize:'.78rem',cursor:canToggle?'pointer':'default',color:'#17313a'}}>
+                                  <input type="checkbox" checked={isCommAdmin} disabled={!canToggle}
+                                    onChange={e=>toggleUserCommunityAdmin(u, cid, e.target.checked)}
+                                    style={{accentColor:'#2F4F3A',width:14,height:14}}/>
+                                  <span style={{fontWeight:isCommAdmin?700:400}}>🏢 {commName}</span>
+                                  {isCommAdmin && <span style={{fontSize:'.68rem',color:'#6b9ba8'}}>
+                                    {[perms.canApproveRegistrations&&(isEn?'Approve':'Aprobar'),perms.canResolveIncidents&&(isEn?'Resolve':'Resolver'),perms.canManageListings&&(isEn?'Manage':'Gestionar')].filter(Boolean).join(' · ')||'—'}
+                                  </span>}
+                                </label>
+                              </div>
+                            );
+                          })}
+                          {isDel && <div style={{fontSize:'.68rem',color:'#8a9fa5',fontStyle:'italic'}}>{isEn?'Delegate admins have full access platform-wide':'Los admins delegados tienen acceso total en toda la plataforma'}</div>}
                         </div>
                     }
                   </div>
@@ -7107,6 +7093,8 @@ function AdminSettings({ config={}, user, listings=[], contactProps={}, onSave, 
             );
           })}
         </div>
+          );
+        })()}
       </div>
     )}
   </AdminSection>
