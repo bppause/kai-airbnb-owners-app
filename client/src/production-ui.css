@@ -1749,6 +1749,13 @@ button.unit-plate:focus-visible { outline: 2px solid rgba(200,216,160,.6) !impor
   border-radius: 8px;
   flex: 1;
 }
+.ir-act-steps-note {
+  font-size: .71rem;
+  color: #a05000;
+  font-style: italic;
+  opacity: .85;
+  margin-top: 2px;
+}
 
 /* Old clickable wrapper — kept for compat */
 .irow-clickable { position: relative; }
@@ -1920,6 +1927,7 @@ button.unit-plate:focus-visible { outline: 2px solid rgba(200,216,160,.6) !impor
 .udc-an-step1 .udc-an-body strong { color: #a05000; }
 .udc-an-step2 .udc-an-body strong { color: #0b5f3a; }
 .udc-an-body span { font-size: .75rem; color: #496674; line-height: 1.4; }
+.udc-an-hint { font-size: .72rem !important; color: #a05000 !important; font-style: italic; opacity: .85; }
 
 .udc-step-done {
   font-size: .78rem;

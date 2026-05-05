@@ -442,9 +442,9 @@ const APP_I18N = {
   "form.cancel": { es:"Cancelar", en:"Cancel" },
   "form.registerReport": { es:"⚠️ Registrar reporte", en:"⚠️ Submit report" },
   "form.saveVerification": { es:"Guardar verificación", en:"Save verification" },
-  "modal.verify.title": { es:"✅ Confirmar y documentar acción", en:"✅ Confirm & document action" },
+  "modal.verify.title": { es:"✅ Paso 1 de 2 — Confirmar y documentar acción", en:"✅ Step 1 of 2 — Confirm & Document Action" },
   "modal.verify.sub": { es:"{apt} · Confirma los datos del huésped y documenta la acción que tomaste.", en:"{apt} · Confirm guest details and document the action you took." },
-  "modal.verify.help": { es:"Confirma los datos del huésped y describe la acción inmediata tomada (requerida). Tu respuesta es opcional al verificar, pero un administrador solo podrá cerrar el incidente una vez que la agregues.", en:"Confirm the guest details and describe the immediate action taken (required). Your proposed resolution is optional at verification, but an admin can only close the incident once you add it." },
+  "modal.verify.help": { es:"Esto es el Paso 1 de 2. Confirma los datos del huésped y describe la acción inmediata (requerida). Después del Paso 1, deberás agregar tu respuesta (Paso 2) para que el administrador pueda cerrar el incidente.", en:"This is Step 1 of 2. Confirm guest details and describe the immediate action taken (required). After Step 1, you will still need to add your resolution (Step 2) before the admin can close the incident." },
   "form.guestNames": { es:"👥 Huésped(es) confirmado(s) *", en:"👥 Confirmed guest(s) *" },
   "form.guestNamesPlaceholder": { es:"Nombre de huésped 1, huésped 2...", en:"Guest 1 name, guest 2 name..." },
 
@@ -3308,8 +3308,9 @@ function UnitDetailCard({ l, incidents, canEdit=false, canDelete=false, onEdit, 
           <div className={`udc-action-needed${inc.status==='open'?' udc-an-step1':' udc-an-step2'}`}>
             <div className="udc-an-step-num">{inc.status==='open'?'①':'②'}</div>
             <div className="udc-an-body">
-              <strong>{inc.status==='open'?(isEn?'Your action needed — Step 1':'Tu acción — Paso 1'):(isEn?'Your action needed — Step 2':'Tu acción — Paso 2')}</strong>
+              <strong>{inc.status==='open'?(isEn?'Your action needed — Step 1 of 2':'Tu acción — Paso 1 de 2'):(isEn?'Your action needed — Step 2 of 2':'Tu acción — Paso 2 de 2')}</strong>
               <span>{inc.status==='open'?(isEn?'Confirm guest details and document your immediate action.':'Confirma datos del huésped y documenta tu acción inmediata.'):(isEn?'Add your resolution so admin can close this incident.':'Agrega tu respuesta para que el admin pueda cerrar.')}</span>
+              {inc.status==='open'&&<span className="udc-an-hint">{isEn?'Step 2 (resolution) will also be required before admin can close.':'El Paso 2 (respuesta) también será requerido para que el admin pueda cerrar.'}</span>}
               {inc.status==='verified'&&hasPendingRes&&(()=>{
                 const sla = slaResInfo(inc);
                 if (!sla) return null;
@@ -4664,9 +4665,12 @@ function IRow({ inc, user, listings=[], contactProps={}, isGlobalAdmin=false, ca
               </>
             )}
             {inc.status==='open'&&isOwner&&(
-              <button className="btn-p ir-act-btn" onClick={()=>onVerify&&onVerify(inc)}>
-                ① {isEn?'Verify — add guest info & action':'Verificar — agregar info y acción'}
-              </button>
+              <>
+                <button className="btn-p ir-act-btn" onClick={()=>onVerify&&onVerify(inc)}>
+                  ① {isEn?'Verify — add guest info & action (Step 1 of 2)':'Verificar — agregar info y acción (Paso 1 de 2)'}
+                </button>
+                <div className="ir-act-steps-note">{isEn?'Step 2 (resolution) also required before admin can close':'El Paso 2 (respuesta) también es requerido para que el admin cierre'}</div>
+              </>
             )}
             {inc.status==='verified'&&isOwner&&hasPendingRes&&(
               <button className="btn-p ir-act-btn" onClick={()=>onAddResolution&&onAddResolution(inc)}>
