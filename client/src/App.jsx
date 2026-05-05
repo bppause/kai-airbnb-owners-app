@@ -986,12 +986,15 @@ export default function App() {
   const [pendingRegistrations, setPendingRegistrations] = useState([]);
   const [activeRegistrations, setActiveRegistrations] = useState([]);
   const [adminInfo, setAdminInfo] = useState({role:'user', isGlobalAdmin:false, canManageRegistrations:false, config:{}});
-  const complexNameEs = adminInfo.config?.complex_name_es || 'Propietarios Airbnb KAI';
-  const complexNameEn = adminInfo.config?.complex_name_en || 'KAI Airbnb Owners';
+  // Holds the community config selected on the login screen so logo/branding shows
+  // immediately after login, before loadAll has fetched the full adminInfo.
+  const [preLoginConfig, setPreLoginConfig] = useState(null);
+  const complexNameEs = adminInfo.config?.complex_name_es || preLoginConfig?.name || 'Propietarios Airbnb KAI';
+  const complexNameEn = adminInfo.config?.complex_name_en || preLoginConfig?.name_en || preLoginConfig?.name || 'KAI Airbnb Owners';
   const complexName = lang === 'en' ? complexNameEn : complexNameEs;
-  const complexLocation = adminInfo.config?.complex_location || 'Serena del Mar · Cartagena 🇨🇴';
-  const complexLogo = adminInfo.config?.complex_logo || '';
-  const complexBg = adminInfo.config?.complex_bg ?? '/morros-kai-bg.jpg';
+  const complexLocation = adminInfo.config?.complex_location || (preLoginConfig?.city ? [preLoginConfig.city, preLoginConfig.country].filter(Boolean).join(' · ') : '') || 'Serena del Mar · Cartagena 🇨🇴';
+  const complexLogo = adminInfo.config?.complex_logo || preLoginConfig?.logo_url || '';
+  const complexBg = adminInfo.config?.complex_bg ?? preLoginConfig?.background_url ?? '/morros-kai-bg.jpg';
   const complexTower = adminInfo.config?.community_tower || 'KAI';
   const [previewRole, setPreviewRole] = useState(null);
   const [openDropdown, setOpenDropdown] = useState(null);
@@ -1203,7 +1206,9 @@ export default function App() {
     try { localStorage.setItem('kai_community', newCommunityId); } catch(e) {}
     setAdminLoading(true);
     setRegistrationLoading(true);
-    setListings([]); setIncidents([]); setNotifications([]); setPendingRegistrations([]); setActiveRegistrations([]);
+    // Clear secondary data but keep listings/incidents visible until new data arrives
+    // (avoids the "community is empty" flash while data is loading)
+    setNotifications([]); setPendingRegistrations([]); setActiveRegistrations([]);
     try {
       const info = await api.get('/api/admin/me?uid=' + encodeURIComponent(user.uid) + '&email=' + encodeURIComponent(user.email || '') + '&name=' + encodeURIComponent(user.name || '') + '&lang=' + encodeURIComponent(lang));
       const adminData = info || {role:'user', isGlobalAdmin:false, canManageRegistrations:false, config:{}};
@@ -1211,6 +1216,10 @@ export default function App() {
       if (adminData.config) setCustomLabels(adminData.config);
       const reg = await api.get('/api/registrations/status?uid=' + encodeURIComponent(user.uid));
       setRegistration(reg || {status:'none'});
+      // Explicitly reload listings/incidents for the new community.
+      // loadAll's useCallback only re-fires when canManageRegistrations changes,
+      // which often doesn't change between communities, so we must call it directly.
+      await loadAll(false);
     } catch(e) {
       showToast((lang === 'en' ? 'Could not switch community: ' : 'Error al cambiar comunidad: ') + (e.message || ''), true);
     } finally {
@@ -1260,11 +1269,14 @@ export default function App() {
     if (!communityId) return;
     _communityId = communityId;
     try { localStorage.setItem('kai_community', communityId); } catch(e) {}
-    if (cfg) setCustomLabels({
-      complex_name_es: cfg.name, complex_name_en: cfg.name_en || cfg.name,
-      complex_logo: cfg.logo_url, complex_bg: cfg.background_url,
-      community_tower: cfg.tower,
-    });
+    if (cfg) {
+      setPreLoginConfig(cfg);
+      setCustomLabels({
+        complex_name_es: cfg.name, complex_name_en: cfg.name_en || cfg.name,
+        complex_logo: cfg.logo_url, complex_bg: cfg.background_url,
+        community_tower: cfg.tower,
+      });
+    }
   };
   const logout = async () => {
     if (auth) await signOut(auth);
