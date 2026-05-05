@@ -995,12 +995,12 @@ export default function App() {
   const complexTower = adminInfo.config?.community_tower || 'KAI';
   const [previewRole, setPreviewRole] = useState(null);
   const [openDropdown, setOpenDropdown] = useState(null);
-  const initialView = new URLSearchParams(window.location.search).get('view') || 'my';
+  const initialView = new URLSearchParams(window.location.search).get('view') || 'incidents';
   const [view,      setView]      = useState(initialView);
   // Apply role-based landing once admin config has fully loaded from server.
   // Must wait for adminLoading===false — without this guard the effect fires on the
   // initial render (config:{}) before the real config arrives, sets the ref, and the
-  // actual nav_config landing is never applied.  Default is always 'my'.
+  // actual nav_config landing is never applied.  Default is 'incidents'.
   const _landingApplied = useRef(false);
   useEffect(() => {
     if (_landingApplied.current || !user || adminLoading) return;
@@ -1009,10 +1009,10 @@ export default function App() {
     try {
       const navCfg = JSON.parse(adminInfo?.config?.nav_config || '{}');
       const roleKey = effectiveIsGlobalAdmin ? 'global' : effectiveRole === 'delegate_admin' ? 'delegate' : 'user';
-      // Explicit default of 'my' — admin can override per role via NavConfigEditor
-      const landing = navCfg[roleKey]?.landing || 'my';
+      // Incidents is the primary workflow; 'my' (units) is secondary
+      const landing = navCfg[roleKey]?.landing || 'incidents';
       setView(landing);
-    } catch(e) { setView('my'); }
+    } catch(e) { setView('incidents'); }
   }, [adminInfo, user, adminLoading]);
   const [loading,   setLoading]   = useState(true);
   const [syncing,   setSyncing]   = useState(false);
@@ -1331,7 +1331,7 @@ export default function App() {
   // Role-based nav config (from app_config.nav_config JSON)
   const _roleNavKey = effectiveIsGlobalAdmin ? 'global' : effectiveRole==='delegate_admin' ? 'delegate' : 'user';
   const _navRoleCfg = (() => { try { return JSON.parse(adminInfo?.config?.nav_config||'{}')[_roleNavKey]||{}; } catch(e){return{};} })();
-  const _configuredPrimary = _navRoleCfg.primary || ['my','incidents','listings','dashboard'];
+  const _configuredPrimary = _navRoleCfg.primary || ['incidents','my','listings','dashboard'];
 
   // Build NAV: primary items first (in config order), then remaining items
   const _navById = Object.fromEntries(allNavItems.map(n=>[n.id,n]));
@@ -1654,10 +1654,10 @@ export default function App() {
       {user && isApproved && (
         <nav className="mob-bottom-nav" aria-label={lang==='en'?'Main navigation':'Navegación principal'}>
           {[
-            { id:'my',            icon:'🔑', label:lang==='en'?'My Units':'Mis Unidades', badge: myListings.length>0&&(needsOwnerVerification.length+needsOwnerResolution.length)||0 },
-            { id:'incidents',     icon:'⚠️', label:lang==='en'?'Unit Incidents':'Incidentes de Unidad',  badge: openCount },
-            { id:'notifications', icon:'🔔', label:lang==='en'?'Alerts':'Alertas',         badge: unreadNotifications },
-            { id:'my',            icon:'👤', label:lang==='en'?'Profile':'Perfil',          badge: 0, toProfile:true },
+            { id:'incidents',     icon:'⚠️', label:lang==='en'?'Incidents':'Incidentes',    badge: openCount },
+            { id:'my',            icon:'🔑', label:lang==='en'?'My Units':'Mis Unidades',   badge: myListings.length>0&&(needsOwnerVerification.length+needsOwnerResolution.length)||0 },
+            { id:'notifications', icon:'🔔', label:lang==='en'?'Alerts':'Alertas',          badge: unreadNotifications },
+            { id:'my',            icon:'👤', label:lang==='en'?'Profile':'Perfil',           badge: 0, toProfile:true },
           ].map((n,i)=>(
             <button key={i} type="button"
               className={`mbn-bottom${view===(n.toProfile?'profile':n.id)?' mbn-bottom-active':''}`}
@@ -1928,7 +1928,7 @@ const HELP_TOPICS = [
       { h:HL('Configurar orden de navegación','Configure navigation order'),
         b:HL('En Admin → Navegación y página de inicio, selecciona el rol (Propietario, Admin Delegado, Admin Global) y marca qué secciones aparecen en la barra superior. Usa las flechas ↑↓ para reordenar. Las secciones no marcadas van al menú "Más ▾".','In Admin → Navigation & Landing, select the role (Owner, Delegate Admin, Global Admin) and check which sections appear in the top bar. Use ↑↓ arrows to reorder. Unchecked sections go to "More ▾" menu.')},
       { h:HL('Página de inicio por rol','Default landing page per role'),
-        b:HL('Para cada rol, selecciona la página de inicio predeterminada. El valor predeterminado de fábrica es "Mis Unidades" para todos los roles. Este valor se aplica al ingresar a la app sin URL específica, después de que la configuración del servidor se carga completamente.','For each role, select the default landing page. The factory default is "My Units" for all roles. This applies when signing in without a specific URL, after the server configuration loads completely.')},
+        b:HL('Para cada rol, selecciona la página de inicio predeterminada. El valor predeterminado de fábrica es "Incidentes" para todos los roles. Este valor se aplica al ingresar a la app sin URL específica, después de que la configuración del servidor se carga completamente.','For each role, select the default landing page. The factory default is "Incidents" for all roles. This applies when signing in without a specific URL, after the server configuration loads completely.')},
       { h:HL('Enrutamiento de emails','Email routing'),
         b:HL('En Admin → Enrutamiento de emails puedes activar/desactivar cada tipo de email y elegir quién lo recibe (propietario, operador, quien reportó, admin global, admin delegado). Los admins de comunidad registrados en la base de datos reciben automáticamente las notificaciones de su comunidad. Los cambios aplican de inmediato.','In Admin → Email Routing you can enable/disable each email type and choose who receives it (owner, operator, reporter, global admin, delegate admin). Community admins registered in the database automatically receive notifications for their community. Changes apply immediately.')},
       { h:HL('Panel de Comunidades (🌐)','Communities panel (🌐)'),
@@ -5666,9 +5666,9 @@ const NAV_ROLES = [
   { key:'global',   labelEs:'Admin Global',  labelEn:'Global Admin' },
 ];
 const DEFAULT_NAV_CONFIG = {
-  user:     { landing:'my', primary:['my','incidents','listings','dashboard'] },
-  delegate: { landing:'my', primary:['my','incidents','listings','dashboard'] },
-  global:   { landing:'my', primary:['my','incidents','listings','dashboard'] },
+  user:     { landing:'incidents', primary:['incidents','my','listings','dashboard'] },
+  delegate: { landing:'incidents', primary:['incidents','my','listings','dashboard'] },
+  global:   { landing:'incidents', primary:['incidents','my','listings','dashboard'] },
 };
 
 function NavConfigEditor({ lang, isEn, config, onSave, showToast=()=>{}, defaultRole='global' }) {
