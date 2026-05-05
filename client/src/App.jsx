@@ -6381,7 +6381,6 @@ function AdminSettings({ config={}, user, listings=[], contactProps={}, onSave, 
   const [communityOverridesEnabled, setCommunityOverridesEnabled] = useState({}); // {cid: bool}
   const [communityConfigTab, setCommunityConfigTab] = useState({}); // {cid: tabId}
   const [commMissionLang, setCommMissionLang] = useState('es');
-  const [commMemberSearch, setCommMemberSearch] = useState({});
   const [communityTplOpen, setCommunityTplOpen] = useState({});
   const [communityTplData, setCommunityTplData] = useState({});
   const [communityTplLoading, setCommunityTplLoading] = useState({});
