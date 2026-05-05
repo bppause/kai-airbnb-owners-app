@@ -2149,9 +2149,15 @@ app.get('/api/communities/:id/members', async (req, res) => {
   if (!requireSupabaseEnv(res)) return;
   const { uid, email } = req.query || {};
   if (!(await isCommunityAdmin(uid, email, req.params.id))) return res.status(403).json({ error:'Solo un administrador puede ver los miembros de la comunidad.' });
-  const { data, error } = await supabase.from('community_memberships').select('*, app_users(name,language_preference)').eq('community_id', req.params.id).order('joined_at', { ascending:true });
+  const { data, error } = await supabase.from('community_memberships').select('*').eq('community_id', req.params.id).order('joined_at', { ascending:true });
   if (error) return sendSupabaseError(res, error);
-  res.json({ members: (data||[]).map(m => ({ id:m.id, communityId:m.community_id, userUid:m.user_uid, userEmail:m.user_email, role:m.role, permissions:safeJsonObject(m.permissions, COMMUNITY_ADMIN_PERM_DEFAULTS), invitedByUid:m.invited_by_uid, joinedAt:m.joined_at, name:m.app_users?.name||'', languagePreference:m.app_users?.language_preference||'es-CO' })) });
+  const uids = (data||[]).map(m => m.user_uid).filter(Boolean);
+  let userMap = {};
+  if (uids.length) {
+    const { data: users } = await supabase.from('app_users').select('uid,name,language_preference').in('uid', uids);
+    (users||[]).forEach(u => { userMap[u.uid] = u; });
+  }
+  res.json({ members: (data||[]).map(m => ({ id:m.id, communityId:m.community_id, userUid:m.user_uid, userEmail:m.user_email, role:m.role, permissions:safeJsonObject(m.permissions, COMMUNITY_ADMIN_PERM_DEFAULTS), invitedByUid:m.invited_by_uid, joinedAt:m.joined_at, name:userMap[m.user_uid]?.name||'', languagePreference:userMap[m.user_uid]?.language_preference||'es-CO' })) });
 });
 
 // POST /api/communities/:id/members — add/invite a member
