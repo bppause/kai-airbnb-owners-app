@@ -7183,9 +7183,16 @@ function AdminSettings({ config={}, user, listings=[], contactProps={}, onSave, 
               <span className={`chip ${c.is_active?'c-teal':'c-red'}`} style={{marginLeft:8,fontSize:'.68rem',padding:'1px 7px'}}>{c.is_active?(isEn?'Active':'Activa'):(isEn?'Inactive':'Inactiva')}</span>
             </div>
           </div>
-          <div style={{display:'flex',gap:6,flexShrink:0}}>
+          <div style={{display:'flex',gap:6,alignItems:'center',flexShrink:0}}>
             <button className="btn-ghost" style={{fontSize:'.78rem',padding:'4px 10px'}} onClick={()=>setCommunityModal({mode:'edit',data:c})}>✏️ {isEn?'Edit':'Editar'}</button>
-            <button className="btn-ghost" style={{fontSize:'.78rem',padding:'4px 10px'}} onClick={()=>api.put(`/api/communities/${c.id}`,{actorUid:user.uid,actorEmail:user.email,isActive:!c.is_active}).then(()=>loadCommunities()).catch(e=>showToast(e.message,true))}>{c.is_active?'⏸ '+(isEn?'Disable':'Deshabilitar'):'▶ '+(isEn?'Enable':'Habilitar')}</button>
+            <label style={{display:'flex',alignItems:'center',gap:6,cursor:'pointer',userSelect:'none',fontSize:'.78rem',color:'#17313a',fontWeight:600}} title={c.is_active?(isEn?'Disable community':'Deshabilitar comunidad'):(isEn?'Enable community':'Habilitar comunidad')}>
+              <span style={{color:c.is_active?'#0b7f4f':'#9aa5a8'}}>{c.is_active?(isEn?'Active':'Activa'):(isEn?'Inactive':'Inactiva')}</span>
+              <div style={{position:'relative',width:38,height:22,flexShrink:0}}>
+                <input type="checkbox" checked={!!c.is_active} onChange={()=>api.put(`/api/communities/${c.id}`,{actorUid:user.uid,actorEmail:user.email,isActive:!c.is_active}).then(()=>loadCommunities()).catch(e=>showToast(e.message,true))} style={{opacity:0,width:0,height:0,position:'absolute'}}/>
+                <span style={{position:'absolute',inset:0,borderRadius:22,background:c.is_active?'#0b7f4f':'#cdd8db',transition:'background .2s',cursor:'pointer'}}/>
+                <span style={{position:'absolute',top:3,left:c.is_active?18:3,width:16,height:16,borderRadius:'50%',background:'#fff',boxShadow:'0 1px 3px rgba(0,0,0,.25)',transition:'left .2s',pointerEvents:'none'}}/>
+              </div>
+            </label>
             {c.id !== 'kai' && <button className="btn-ghost" style={{fontSize:'.78rem',padding:'4px 10px',color:'#c62828'}} onClick={()=>deleteCommunity(c.id)}>🗑️ {isEn?'Delete':'Eliminar'}</button>}
           </div>
         </div>
