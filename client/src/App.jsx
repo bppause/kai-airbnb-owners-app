@@ -5194,15 +5194,15 @@ function UnitPicker({ listings=[], value='', onChange=()=>{}, lang='es-CO', erro
                 return (
                   <button key={l.id} type="button" className="upk-item" onMouseDown={e=>{e.preventDefault();select(l);}}>
                     <div className="upk-item-row">
-                      <strong className="upk-item-apt">{aptDisplay(l.apt, lang)}</strong>
+                      <strong className="upk-item-apt">{l.apt}</strong>
                       <span className="upk-item-owner">{l.owner}</span>
+                      {(ownerEmail || ownerWa) && (
+                        <span className="upk-item-contact">
+                          {ownerEmail && <span className="upk-item-email" title={ownerEmail}>✉</span>}
+                          {ownerWa && <span className="upk-item-wa" title={ownerWa}>📱</span>}
+                        </span>
+                      )}
                     </div>
-                    {(ownerEmail || ownerWa) && (
-                      <div className="upk-item-contact">
-                        {ownerEmail && <span className="upk-item-email">✉ {ownerEmail}</span>}
-                        {ownerWa && <span className="upk-item-wa">📱 {ownerWa}</span>}
-                      </div>
-                    )}
                   </button>
                 );
               })}
@@ -5215,10 +5215,19 @@ function UnitPicker({ listings=[], value='', onChange=()=>{}, lang='es-CO', erro
 }
 
 function IncidentModal({ listings, user, presetApt, onSave, onClose, lang="es-CO", config={} }) {
-  // Exclude units the current user owns — incidents are filed against other units
-  const reportableListings = React.useMemo(() =>
-    user?.uid ? listings.filter(l => l.ownerUid !== user.uid) : listings,
-  [listings, user?.uid]);
+  // Exclude units the current user owns — incidents are filed against other units.
+  // Check both ownerUid (camelCase from API) and userEmail (Google email) to cover
+  // legacy listings that may have been created before owner_uid was reliably stored.
+  const reportableListings = React.useMemo(() => {
+    if (!user?.uid && !user?.email) return listings;
+    return listings.filter(l => {
+      const uid = l.ownerUid || l.owner_uid;
+      if (uid && user.uid) return uid !== user.uid;
+      // Fallback: match by Google account email for listings without a stored uid
+      const gEmail = (l.userEmail || '').toLowerCase();
+      return !gEmail || !user.email || gEmail !== user.email.toLowerCase();
+    });
+  }, [listings, user?.uid, user?.email]);
   const tips = localizedTooltips(config, lang);
   const isEn = lang === 'en';
   const DRAFT_KEY = 'kai_incident_draft';
@@ -5340,12 +5349,12 @@ function IncidentModal({ listings, user, presetApt, onSave, onClose, lang="es-CO
       <div className="fg2 inc-form-grid">
         {/* Row 1: Unit + Date */}
         {!isGeneral&&<div className="fg"><label>{appText(lang,"form.apartment")} <Tip text={tips.incidentApartment}/></label>
-          <UnitPicker listings={reportableListings} value={f.aptId} onChange={v=>s("aptId",v)} lang={lang} error={!!errors.aptId} disabled={!!presetApt}/>
-          {errors.aptId&&<span className="err-msg">{errors.aptId}</span>}
-          {!presetApt && <div style={{fontSize:'.72rem',color:'#8a9fa5',marginTop:4,display:'flex',alignItems:'center',gap:4}}>
-            <span style={{color:'#d9b45a'}}>ⓘ</span>
+          {!presetApt && <div className="upk-own-hint">
+            <span>ⓘ</span>
             {isEn ? 'Incidents are filed against another unit. Your own units are excluded.' : 'Los incidentes se reportan contra otra unidad. Tus propias unidades no aparecen.'}
           </div>}
+          <UnitPicker listings={reportableListings} value={f.aptId} onChange={v=>s("aptId",v)} lang={lang} error={!!errors.aptId} disabled={!!presetApt}/>
+          {errors.aptId&&<span className="err-msg">{errors.aptId}</span>}
         </div>}
         <div className="fg"><label>{appText(lang,"form.date")}</label>
           <input className={inputCls("date")} type="date" value={f.date} onChange={e=>s("date",e.target.value)}/>
