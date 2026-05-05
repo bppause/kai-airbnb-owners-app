@@ -2841,3 +2841,57 @@ p { line-height: 1.45; }
     font-size: 1rem !important;
   }
 }
+
+/* ── Action-required IRow priority visual treatment ── */
+.irow-action-needed {
+  border-color: rgba(180,90,0,.4) !important;
+  box-shadow: 0 4px 20px rgba(160,80,0,.18), 0 0 0 1.5px rgba(180,90,0,.25) !important;
+}
+.irow-action-needed .ir-status-strip {
+  background: rgba(255,245,230,.55) !important;
+}
+
+/* "⚡ Your action" pill in status strip */
+.ir-ss-action-mine {
+  display: inline-flex;
+  align-items: center;
+  font-size: .72rem;
+  font-weight: 700;
+  letter-spacing: .01em;
+  color: #92400e;
+  background: #fef3c7;
+  border: 1px solid #fbbf24;
+  border-radius: 20px;
+  padding: 2px 9px;
+  margin-left: auto;
+  white-space: nowrap;
+}
+
+/* Resolved group: subtle muted treatment */
+.wfg-section-resolved {
+  opacity: .82;
+}
+.wfg-section-resolved .irow-card {
+  filter: saturate(.8);
+}
+
+/* Workflow group header — urgent state (user has pending items) */
+.wfg-hdr-urgent {
+  background: rgba(254,243,199,.5) !important;
+  border-bottom-color: #fbbf24 !important;
+}
+
+/* "N need your action" badge in workflow group header */
+.wfg-my-badge {
+  display: inline-flex;
+  align-items: center;
+  font-size: .72rem;
+  font-weight: 700;
+  color: #92400e;
+  background: #fef3c7;
+  border: 1px solid #fbbf24;
+  border-radius: 20px;
+  padding: 2px 10px;
+  margin-left: 8px;
+  white-space: nowrap;
+}

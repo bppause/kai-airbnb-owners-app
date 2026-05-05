@@ -1,6 +1,10 @@
 -- Supabase schema for Propietarios Airbnb KAI
--- v74: notification_email on app_users; co_owners JSONB on listings; owner directory search.
---      Previous: v73: owner_resolution_at on incidents; SLA continues through verified-without-resolution;
+-- v80: multi-community foundation — adds communities, community_memberships, community_config tables;
+--      adds community_id column to listings, incidents, notifications, audit_logs, email_delivery_logs;
+--      adds community_id to email_templates with updated composite PK (community_id, key, language);
+--      per-community unique index on listings(community_id, apt).
+--      Previous: v74: notification_email on app_users; co_owners JSONB on listings; owner directory search.
+--      v73: owner_resolution_at on incidents; SLA continues through verified-without-resolution;
 --      ui_labels_es / ui_labels_en in app_config for admin-editable UI text; guest_state field.
 --      Older: v45 owner WhatsApp, v43 role/permission controls, v42 multi-guest jsonb,
 --      v37 guest city/country, v34 email delivery logs, v27 audit_logs, v26 analytics indexes.
@@ -9,11 +13,77 @@
 -- No demo/test data is inserted.
 
 -- ─────────────────────────────────────────────────────────────────────────────
+-- COMMUNITIES (v80)
+-- ─────────────────────────────────────────────────────────────────────────────
+
+create table if not exists public.communities (
+  id text primary key,                     -- slug, e.g. 'kai', 'sol-caribe'
+  name text not null,                      -- display name
+  name_en text not null default '',
+  tower text not null default '',          -- building identifier (e.g. 'KAI')
+  city text not null default '',
+  country text not null default 'Colombia',
+  logo_url text not null default '',
+  background_url text not null default '/morros-kai-bg.jpg',
+  description text not null default '',
+  description_en text not null default '',
+  is_active boolean not null default true,
+  created_by_uid text not null default '',
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+-- Seed the default KAI community
+insert into public.communities (id, name, name_en, tower, city, country, background_url, description, description_en) values (
+  'kai',
+  'Propietarios Airbnb KAI',
+  'KAI Airbnb Owners',
+  'KAI',
+  'Cartagena',
+  'Colombia',
+  '/morros-kai-bg.jpg',
+  'Crear una comunidad organizada, informada y proactiva que proteja el valor de nuestras propiedades y eleve la experiencia en Morros KAI.',
+  'Create an organized, informed, and proactive community that protects property value and improves the Morros KAI guest experience.'
+) on conflict (id) do nothing;
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- COMMUNITY MEMBERSHIPS (v80)
+-- ─────────────────────────────────────────────────────────────────────────────
+
+create table if not exists public.community_memberships (
+  id text primary key,
+  community_id text not null references public.communities(id) on delete cascade,
+  user_uid text not null,
+  user_email text not null default '',
+  role text not null default 'member' check (role in ('member', 'community_admin')),
+  invited_by_uid text not null default '',
+  joined_at timestamptz not null default now(),
+  unique (community_id, user_uid)
+);
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- COMMUNITY CONFIG (v80)
+-- Per-community overrides for app_config keys; server falls back to app_config
+-- for any missing community_config keys.
+-- ─────────────────────────────────────────────────────────────────────────────
+
+create table if not exists public.community_config (
+  community_id text not null references public.communities(id) on delete cascade,
+  key text not null,
+  value text not null default '',
+  updated_at timestamptz not null default now(),
+  primary key (community_id, key)
+);
+
+-- No initial rows needed; server falls back to app_config for missing community_config keys.
+
+-- ─────────────────────────────────────────────────────────────────────────────
 -- LISTINGS
 -- ─────────────────────────────────────────────────────────────────────────────
 
 create table if not exists public.listings (
   id text primary key,
+  community_id text not null default 'kai' references public.communities(id),
   owner_uid text not null,
   owner text,
   user_email text not null default '',
@@ -37,6 +107,7 @@ create table if not exists public.listings (
   created_at timestamptz not null default now()
 );
 
+alter table public.listings add column if not exists community_id text not null default 'kai' references public.communities(id);
 alter table public.listings add column if not exists user_email text not null default '';
 alter table public.listings add column if not exists registration_id text;
 alter table public.listings add column if not exists status text not null default 'approved';
@@ -113,6 +184,7 @@ end $$;
 
 create table if not exists public.incidents (
   id text primary key,
+  community_id text not null default 'kai' references public.communities(id),
   reporter_uid text not null,
   reporter_name text,
   apt_id text references public.listings(id) on delete cascade,
@@ -148,6 +220,7 @@ create table if not exists public.incidents (
 );
 
 -- Backfill columns for existing databases (all idempotent)
+alter table public.incidents add column if not exists community_id text not null default 'kai' references public.communities(id);
 alter table public.incidents add column if not exists guest_state text default '';
 alter table public.incidents add column if not exists owner_resolution_at timestamptz;
 alter table public.incidents add column if not exists owner_guest_names text not null default '';
@@ -262,6 +335,7 @@ alter table public.app_users add column if not exists notification_email text no
 
 create table if not exists public.notifications (
   id text primary key,
+  community_id text not null default 'kai' references public.communities(id),
   owner_uid text not null,
   listing_id text references public.listings(id) on delete cascade,
   incident_id text references public.incidents(id) on delete cascade,
@@ -275,6 +349,7 @@ create table if not exists public.notifications (
   created_at timestamptz not null default now()
 );
 
+alter table public.notifications add column if not exists community_id text not null default 'kai' references public.communities(id);
 alter table public.notifications add column if not exists kind text not null default 'incident';
 alter table public.notifications add column if not exists registration_id text;
 alter table public.notifications drop constraint if exists notifications_registration_id_fkey;
@@ -304,6 +379,7 @@ create table if not exists public.listing_audit_events (
 
 create table if not exists public.audit_logs (
   id text primary key,
+  community_id text not null default 'kai' references public.communities(id),
   entity text not null,
   entity_id text not null default '',
   action text not null,
@@ -316,11 +392,16 @@ create table if not exists public.audit_logs (
   created_at timestamptz not null default now()
 );
 
+alter table public.audit_logs add column if not exists community_id text not null default 'kai' references public.communities(id);
+
 -- ─────────────────────────────────────────────────────────────────────────────
 -- EMAIL TEMPLATES
+-- v80: community_id added as sentinel-value column (not FK; '__global__' = applies to all communities).
+--      PK is now (community_id, key, language).
 -- ─────────────────────────────────────────────────────────────────────────────
 
 create table if not exists public.email_templates (
+  community_id text not null default '__global__',
   key text not null,
   label text not null default '',
   subject text not null default '',
@@ -329,16 +410,20 @@ create table if not exists public.email_templates (
   updated_at timestamptz not null default now(),
   updated_by_email text not null default '',
   language text not null default 'es-CO' check (language in ('es-CO','en')),
-  primary key (key, language)
+  primary key (community_id, key, language)
 );
 
+-- Backfill community_id column and migrate PK for existing databases
+alter table public.email_templates add column if not exists community_id text not null default '__global__';
 alter table public.email_templates add column if not exists language text not null default 'es-CO';
+-- Drop old PKs and recreate with community_id included
 alter table public.email_templates drop constraint if exists email_templates_pkey;
-alter table public.email_templates add constraint email_templates_pkey primary key (key, language);
+alter table public.email_templates add constraint email_templates_pkey primary key (community_id, key, language);
 
 -- Default Spanish template for incident_verified event
-insert into public.email_templates(key, language, label, subject, text, html)
+insert into public.email_templates(community_id, key, language, label, subject, text, html)
 values (
+  '__global__',
   'incident_verified',
   'es-CO',
   'Incidente verificado',
@@ -346,7 +431,7 @@ values (
   'Hola,\n\nEl propietario verificó el incidente.\n\nApartamento: {{apt}} - Torre KAI\nPropietario: {{owner}}\nOperador: {{operator}}\nHuésped(es): {{ownerGuestNames}}\nComentarios del propietario: {{ownerComments}}\n\nVer incidente: {{incidentLink}}\n',
   '<div style="font-family:Arial,sans-serif;line-height:1.5;color:#17313a"><h2 style="color:#2F4F3A">Incidente verificado</h2><p>El propietario verificó el incidente y completó la información requerida.</p><p><strong>Apartamento:</strong> {{apt}} · Torre KAI<br/><strong>Propietario:</strong> {{owner}}<br/><strong>Operador:</strong> {{operator}}<br/><strong>Huésped(es):</strong> {{ownerGuestNames}}</p><p><strong>Comentarios del propietario:</strong></p><p style="background:#f6f1e7;border-left:4px solid #d9b45a;padding:12px">{{ownerComments}}</p><p style="margin:18px 0"><a href="{{incidentLink}}" style="background:#2F4F3A;color:#fff;text-decoration:none;padding:10px 16px;border-radius:10px;display:inline-block;font-weight:700">Ver incidente</a></p></div>'
 )
-on conflict (key, language) do nothing;
+on conflict (community_id, key, language) do nothing;
 
 -- ─────────────────────────────────────────────────────────────────────────────
 -- EMAIL DELIVERY LOGS (v34)
@@ -354,6 +439,7 @@ on conflict (key, language) do nothing;
 
 create table if not exists public.email_delivery_logs (
   id text primary key,
+  community_id text not null default 'kai' references public.communities(id),
   event_type text not null default '',
   recipients text[] not null default '{}',
   subject text not null default '',
@@ -364,22 +450,27 @@ create table if not exists public.email_delivery_logs (
   created_at timestamptz not null default now()
 );
 
+alter table public.email_delivery_logs add column if not exists community_id text not null default 'kai' references public.communities(id);
+
 -- ─────────────────────────────────────────────────────────────────────────────
 -- INDEXES
 -- ─────────────────────────────────────────────────────────────────────────────
 
--- Listings: enforce one active record per apartment
+-- Listings: enforce one active record per apartment, now scoped per community (v80)
+drop index if exists public.idx_listings_unique_active_kai_apt;
 drop index if exists public.idx_listings_unique_kai_apt;
 drop index if exists public.unique_apartment;
 drop index if exists public.unique_apartment_active;
-create unique index if not exists idx_listings_unique_active_kai_apt
-  on public.listings(apt)
+create unique index if not exists idx_listings_unique_active_community_apt
+  on public.listings(community_id, apt)
   where status in ('pending','approved');
 
+create index if not exists idx_listings_community_id on public.listings(community_id);
 create index if not exists idx_listings_owner_uid on public.listings(owner_uid);
 create index if not exists idx_listings_status_created on public.listings(status, created_at desc);
 create index if not exists idx_listings_registration_id on public.listings(registration_id);
 
+create index if not exists idx_incidents_community_id on public.incidents(community_id);
 create index if not exists idx_incidents_reporter_uid on public.incidents(reporter_uid);
 create index if not exists idx_incidents_apt_id on public.incidents(apt_id);
 
@@ -400,6 +491,7 @@ create index if not exists idx_incidents_pending_resolution
   on public.incidents(owner_resolution_at)
   where status = 'verified' and owner_resolution_at is null;
 
+create index if not exists idx_notifications_community_id on public.notifications(community_id);
 create index if not exists idx_notifications_owner_uid on public.notifications(owner_uid);
 create index if not exists idx_notifications_read on public.notifications(owner_uid, is_read);
 create index if not exists idx_notifications_created_at on public.notifications(created_at desc);
@@ -415,6 +507,10 @@ create index if not exists idx_audit_logs_actor on public.audit_logs(actor_email
 create index if not exists idx_email_delivery_logs_created_at on public.email_delivery_logs(created_at desc);
 create index if not exists idx_email_delivery_logs_status on public.email_delivery_logs(status);
 
+-- v80: community membership indexes
+create index if not exists idx_community_memberships_user on public.community_memberships(user_uid);
+create index if not exists idx_community_memberships_community on public.community_memberships(community_id);
+
 -- ─────────────────────────────────────────────────────────────────────────────
 -- ROW LEVEL SECURITY — disabled (server uses service role key)
 -- ─────────────────────────────────────────────────────────────────────────────
@@ -428,6 +524,9 @@ alter table public.app_users disable row level security;
 alter table public.audit_logs disable row level security;
 alter table public.email_templates disable row level security;
 alter table public.email_delivery_logs disable row level security;
+alter table public.communities disable row level security;
+alter table public.community_memberships disable row level security;
+alter table public.community_config disable row level security;
 
 -- Deprecated old registration tables are intentionally not used by the app anymore.
 -- Keep them as historical backups unless you have verified the migration and want to drop them manually.

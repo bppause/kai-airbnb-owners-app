@@ -251,7 +251,7 @@ const sendTemplatedEmail = async ({ key, to, vars={}, language='auto', relatedEn
   return { sent: results.some(r=>r.sent), skipped: results.every(r=>r.skipped), grouped:true };
 };
 
-const getAppConfig = async () => {
+const getAppConfig = async (communityId='kai') => {
   const cfg = {
     sla_hours:String(DEFAULT_SLA_HOURS||24),
     escalation_cc_emails:DEFAULT_ESCALATION_CC_EMAILS.join(','),
@@ -270,8 +270,28 @@ const getAppConfig = async () => {
     mission_body_en:'Create an organized, informed, and proactive community that protects property value and improves the Morros KAI guest experience.',
     mission_sections_es:'{"title": "Misión y normas de la comunidad", "subtitle": "Referencia para propietarios aprobados · Propietarios Airbnb KAI", "sectionLabel": "Nuestra misión", "heading": "Crear una comunidad organizada, informada y proactiva.", "body": "La aplicación ayuda a proteger el valor de nuestras propiedades, mejorar la coordinación entre propietarios y elevar la experiencia de los huéspedes en Morros KAI.", "cards": [{"icon": "🏡", "title": "Gestión centralizada", "text": "Organizar apartamentos, contactos, emails de notificación y enlaces importantes en un solo lugar."}, {"icon": "⚠️", "title": "Reportes transparentes", "text": "Documentar incidentes de manera rápida para que el propietario correcto reciba aviso y pueda tomar acción."}, {"icon": "🤝", "title": "Colaboración comunitaria", "text": "Compartir información útil entre propietarios aprobados para operar mejor y prevenir problemas repetidos."}, {"icon": "📊", "title": "Mejora continua", "text": "Usar datos y tendencias para elevar la calidad del servicio, la comunicación y la experiencia del huésped."}], "participationTitle": "📌 Reglas de participación", "participationRules": ["Reportar incidentes con información clara, objetiva y verificable.", "Incluir detalles útiles: apartamento, huésped, fecha, tipo de incidente y descripción.", "Mantener respeto y confidencialidad en los comentarios.", "No publicar contenido ofensivo, especulativo o no relacionado con la operación.", "Usar los reportes para prevenir, corregir y mejorar; no para conflictos personales."], "accessTitle": "🔐 Acceso y responsabilidad", "accessRules": ["El acceso requiere Google Sign-In.", "Cada apartamento solo puede pertenecer a una cuenta aprobada.", "Los nuevos registros quedan pendientes hasta revisión.", "Los propietarios aprobados pueden revisar solicitudes pendientes y aprobar o rechazar con motivo.", "Las notificaciones se envían al email de Google y al email del listing cuando son diferentes."]}'
   };
+  // Layer 1: global app_config overrides
   try { const { data, error } = await supabase.from('app_config').select('key,value'); if (!error) (data||[]).forEach(r=>cfg[r.key]=r.value); }
   catch(e) { warn('App config read failed: ' + (e?.message || e)); }
+  // Layer 2: per-community config overrides (community_config table)
+  if (communityId) {
+    try {
+      const { data } = await supabase.from('community_config').select('key,value').eq('community_id', communityId);
+      (data||[]).forEach(r=>cfg[r.key]=r.value);
+    } catch(e) { warn('Community config read failed: ' + (e?.message || e)); }
+    // Layer 3: community table branding fields override matching config keys
+    try {
+      const community = await getCommunity(communityId);
+      if (community) {
+        if (community.name) cfg.complex_name_es = community.name;
+        if (community.name_en) cfg.complex_name_en = community.name_en;
+        if (community.logo_url) cfg.complex_logo = community.logo_url;
+        if (community.background_url) cfg.complex_bg = community.background_url;
+        if (community.city && community.country) cfg.complex_location = `${community.city} · ${community.country}`;
+        if (community.tower) cfg.community_tower = community.tower;
+      }
+    } catch(e) { warn('Community branding override failed: ' + (e?.message || e)); }
+  }
   cfg.mission_title = cfg.mission_title_es;
   cfg.mission_body = cfg.mission_body_es;
   return cfg;
@@ -306,6 +326,47 @@ const getUserRole = async ({ uid='', email='' } = {}) => {
 };
 const canManageRegistrations = async (uid, email='') => (await getUserRole({uid,email})) === 'global_admin' || await hasDelegatePermission(uid, email, 'canApproveRegistrations');
 const isGlobalAdmin = async (uid, email='') => (await getUserRole({uid,email})) === 'global_admin';
+
+// ─── MULTI-COMMUNITY HELPERS (v80) ───────────────────────────────────────────
+const getCommunityId = (req) => {
+  const val = String(req?.headers?.['x-community-id'] || req?.query?.communityId || '').trim().toLowerCase();
+  return val || 'kai';
+};
+const getCommunity = async (communityId='kai') => {
+  try {
+    const { data } = await supabase.from('communities').select('*').eq('id', communityId).maybeSingle();
+    return data || null;
+  } catch(e) { warn('getCommunity failed: ' + (e?.message || e)); return null; }
+};
+const getCommunityAdminEmails = async (communityId='kai') => {
+  try {
+    const { data } = await supabase.from('community_memberships').select('user_email').eq('community_id', communityId).eq('role','community_admin');
+    return normalizeRecipients((data||[]).map(r=>r.user_email));
+  } catch(e) { return []; }
+};
+const isCommunityAdmin = async (uid='', email='', communityId='kai') => {
+  const role = await getUserRole({ uid, email });
+  if (role === 'global_admin') return true;
+  if (!uid) return false;
+  try {
+    const { data } = await supabase.from('community_memberships').select('role').eq('community_id', communityId).eq('user_uid', uid).maybeSingle();
+    return data?.role === 'community_admin';
+  } catch(e) { return false; }
+};
+const getUserCommunities = async (uid='', email='') => {
+  const role = await getUserRole({ uid, email });
+  if (role === 'global_admin') {
+    try {
+      const { data } = await supabase.from('communities').select('*').eq('is_active', true).order('name');
+      return data || [];
+    } catch(e) { return []; }
+  }
+  if (!uid) return [];
+  try {
+    const { data } = await supabase.from('community_memberships').select('community_id, role, joined_at, communities(*)').eq('user_uid', uid);
+    return (data||[]).map(m => ({ ...m.communities, memberRole: m.role, joinedAt: m.joined_at })).filter(Boolean);
+  } catch(e) { return []; }
+};
 const addHoursIso = (iso, hours) => new Date(new Date(iso).getTime() + Number(hours || 24)*3600000).toISOString();
 const getIncidentRecipients = async (listing, { includeEscalationCc=false } = {}) => {
   const base = [listing?.email, listing?.user_email, listing?.userEmail, listing?.operator_email, listing?.operatorEmail];
@@ -324,7 +385,7 @@ const getReporterEmail = async (reporterUid='') => {
 // Returns two separate lists so individual recipients (reporter, owner, operator)
 // each receive a private email addressed only to them, while admin groups receive
 // a single combined email.  This prevents any recipient from seeing another's address.
-const buildSplitRecipients = async (typeCfg, listing, reporterEmail='') => {
+const buildSplitRecipients = async (typeCfg, listing, reporterEmail='', communityId='kai') => {
   // Individual recipients — specific people involved in this incident/listing
   const individual = normalizeRecipients([
     typeCfg.reporter !== false && reporterEmail ? reporterEmail : '',
@@ -335,7 +396,10 @@ const buildSplitRecipients = async (typeCfg, listing, reporterEmail='') => {
   // Group recipients — admin roles receive together as a coordinating team
   const groupList = [];
   if (typeCfg.globalAdmin)   groupList.push(...getGlobalAdminEmails(), ...await getEscalationCcEmails());
-  if (typeCfg.delegateAdmin) groupList.push(...await getDelegateAdminsWithPermission('canResolveIncidents'));
+  if (typeCfg.delegateAdmin) {
+    groupList.push(...await getDelegateAdminsWithPermission('canResolveIncidents'));
+    groupList.push(...await getCommunityAdminEmails(communityId));
+  }
   const group = normalizeRecipients(groupList);
 
   return { individual, group };
@@ -481,6 +545,7 @@ const parseCoOwners = (raw) => {
 // ─── FIELD MAPPERS ───────────────────────────────────────────────────────────
 const listingFromDb = (r) => ({
   id: r.id,
+  communityId: r.community_id || 'kai',
   ownerUid: r.owner_uid,
   owner: r.owner,
   userEmail: r.user_email || '',
@@ -504,8 +569,9 @@ const listingFromDb = (r) => ({
   createdAt: (r.created_at || '').slice(0, 10),
 });
 
-const listingToDb = (l) => ({
+const listingToDb = (l, communityId='kai') => ({
   id: l.id,
+  community_id: l.communityId || communityId || 'kai',
   owner_uid: l.ownerUid,
   owner: l.owner,
   user_email: String(l.userEmail || l.email || '').trim(),
@@ -564,10 +630,12 @@ const incidentFromDb = (r) => ({
   createdAtFull: r.created_at || '',
   isGeneral: Boolean(r.is_general),
   photos: Array.isArray(r.photos) ? r.photos : [],
+  communityId: r.community_id || 'kai',
 });
 
-const incidentToDb = (i) => ({
+const incidentToDb = (i, communityId='kai') => ({
   id: i.id,
+  community_id: i.communityId || communityId || 'kai',
   reporter_uid: i.reporterUid,
   reporter_name: i.reporterName,
   apt_id: i.aptId,
@@ -603,6 +671,7 @@ const incidentToDb = (i) => ({
 
 const notificationFromDb = (r) => ({
   id: r.id,
+  communityId: r.community_id || 'kai',
   ownerUid: r.owner_uid,
   listingId: r.listing_id,
   incidentId: r.incident_id,
@@ -616,8 +685,9 @@ const notificationFromDb = (r) => ({
   registrationId: r.registration_id || '',
 });
 
-const notificationToDb = (n) => ({
+const notificationToDb = (n, communityId='kai') => ({
   id: n.id,
+  community_id: n.communityId || communityId || 'kai',
   owner_uid: n.ownerUid,
   listing_id: n.listingId || null,
   incident_id: n.incidentId || null,
@@ -687,13 +757,14 @@ const auditLog = async ({ entity, entityId='', action, actorUid='', actorEmail='
 
 const normalizeApt = (apt) => String(apt || '').trim();
 
-const findApartmentConflict = async (apt, { excludeListingId = '', allowedOwnerUid = '', includePending = true } = {}) => {
+const findApartmentConflict = async (apt, { excludeListingId = '', allowedOwnerUid = '', includePending = true, communityId = 'kai' } = {}) => {
   const normalized = normalizeApt(apt);
   if (!normalized) return null;
   const activeStatuses = includePending ? ['approved', 'pending'] : ['approved'];
   const { data: rows, error: qError } = await supabase
     .from('listings')
     .select('id, apt, tower, owner_uid, owner, email, user_email, status')
+    .eq('community_id', communityId)
     .eq('apt', normalized)
     .in('status', activeStatuses)
     .limit(5);
@@ -701,26 +772,27 @@ const findApartmentConflict = async (apt, { excludeListingId = '', allowedOwnerU
   const conflict = (rows || []).find(r => r.id !== excludeListingId && (!allowedOwnerUid || r.owner_uid !== allowedOwnerUid || r.status === 'approved'));
   if (!conflict) return null;
   const isPending = conflict.status === 'pending';
+  const towerLabel = conflict.tower || 'KAI';
   return {
     type: isPending ? 'pending' : 'approved',
     message: isPending
-      ? `El apartamento KAI ${normalized} ya está en una solicitud pendiente de aprobación. No se puede registrar el mismo apartamento con otra cuenta de Google.`
-      : `El apartamento KAI ${normalized} ya está registrado. Cada apartamento solo puede estar asociado a una cuenta de Google.`,
+      ? `El apartamento ${towerLabel} ${normalized} ya está en una solicitud pendiente de aprobación. No se puede registrar el mismo apartamento con otra cuenta de Google.`
+      : `El apartamento ${towerLabel} ${normalized} ya está registrado. Cada apartamento solo puede estar asociado a una cuenta de Google.`,
     apt: normalized,
     owner: conflict.owner || '',
     email: conflict.email || conflict.user_email || '',
   };
 };
 
-const validateApartmentUniqueness = async (listings, { ownerUid = '', excludeListingId = '', includePending = true } = {}) => {
+const validateApartmentUniqueness = async (listings, { ownerUid = '', excludeListingId = '', includePending = true, communityId = 'kai' } = {}) => {
   const seen = new Set();
   for (const l of listings || []) {
     const apt = normalizeApt(l.apt);
     if (seen.has(apt)) {
-      return { type: 'duplicate_in_request', message: `El apartamento KAI ${apt} está repetido en la solicitud. Cada apartamento solo puede registrarse una vez.` };
+      return { type: 'duplicate_in_request', message: `El apartamento ${apt} está repetido en la solicitud. Cada apartamento solo puede registrarse una vez.` };
     }
     seen.add(apt);
-    const conflict = await findApartmentConflict(apt, { excludeListingId, allowedOwnerUid: ownerUid, includePending });
+    const conflict = await findApartmentConflict(apt, { excludeListingId, allowedOwnerUid: ownerUid, includePending, communityId });
     if (conflict) return conflict;
   }
   return null;
@@ -842,15 +914,17 @@ app.get('/api/version', (req, res) => {
 
 app.get('/api/branding', async (req, res) => {
   try {
-    const cfg = await getAppConfig();
+    const communityId = getCommunityId(req);
+    const cfg = await getAppConfig(communityId);
     res.json({
+      communityId,
       complexNameEs: cfg.complex_name_es || 'Propietarios Airbnb KAI',
       complexNameEn: cfg.complex_name_en || 'KAI Airbnb Owners',
       complexLocation: cfg.complex_location || 'Serena del Mar · Cartagena 🇨🇴',
       complexLogo: cfg.complex_logo || '',
       complexBg: cfg.complex_bg || '/morros-kai-bg.jpg',
     });
-  } catch(e) { res.json({ complexNameEs:'Propietarios Airbnb KAI', complexNameEn:'KAI Airbnb Owners', complexLocation:'Serena del Mar · Cartagena 🇨🇴', complexLogo:'', complexBg:'/morros-kai-bg.jpg' }); }
+  } catch(e) { res.json({ communityId:'kai', complexNameEs:'Propietarios Airbnb KAI', complexNameEn:'KAI Airbnb Owners', complexLocation:'Serena del Mar · Cartagena 🇨🇴', complexLogo:'', complexBg:'/morros-kai-bg.jpg' }); }
 });
 
 // ─── API: REGISTRATION / APPROVAL WORKFLOW ──────────────────────────────────
@@ -860,10 +934,11 @@ app.get('/api/apartments/check', async (req, res) => {
   const apt = String(req.query.apt || '').trim();
   const ownerUid = String(req.query.ownerUid || '').trim();
   const excludeListingId = String(req.query.excludeListingId || '').trim();
+  const communityId = getCommunityId(req);
   if (!apt) return res.status(400).json({ error:'apt is required.' });
   if (!isThreeDigitApt(apt)) return res.json({ available:false, valid:false, message:'El apartamento debe tener exactamente 3 dígitos. Ejemplo: 000.' });
   try {
-    const conflict = await findApartmentConflict(apt, { allowedOwnerUid: ownerUid, excludeListingId, includePending: true });
+    const conflict = await findApartmentConflict(apt, { allowedOwnerUid: ownerUid, excludeListingId, includePending: true, communityId });
     if (conflict) return res.json({ available:false, valid:true, conflict, message: conflict.message });
     res.json({ available:true, valid:true, message:'Apartamento disponible.' });
   } catch(e) { return sendSupabaseError(res, e); }
@@ -886,12 +961,13 @@ app.get('/api/registrations/status', async (req, res) => {
 app.post('/api/registrations', async (req, res) => {
   if (!requireSupabaseEnv(res)) return;
   const { userUid, userName, userEmail, listings, profileWhatsapp, profileCountry, language } = req.body || {};
+  const communityId = getCommunityId(req);
   if (!userUid || !userName || !userEmail || !isValidEmail(userEmail)) return res.status(400).json({ error:'Google login name and email are required.' });
   if (!profileWhatsapp || String(profileWhatsapp).replace(/[^0-9]/g,'').length < 10) return res.status(400).json({ error:'WhatsApp del propietario es requerido con código de país (mín. 10 dígitos).' });
   if (!Array.isArray(listings) || listings.length < 1) return res.status(400).json({ error:'Debe registrar al menos un listing propio.' });
   for (const l of listings) { const msg = validateListingInput(l); if (msg) return res.status(400).json({ error: msg }); }
   try {
-    const conflict = await validateApartmentUniqueness(listings, { ownerUid: userUid, includePending: true });
+    const conflict = await validateApartmentUniqueness(listings, { ownerUid: userUid, includePending: true, communityId });
     if (conflict) return res.status(409).json({ error: conflict.message, conflict });
   } catch(e) { return sendSupabaseError(res, e); }
 
@@ -906,12 +982,14 @@ app.post('/api/registrations', async (req, res) => {
   const registrationId = 'reg_' + uuidv4().slice(0,8);
   const ownerContact = String(profileWhatsapp || '').trim();
   const ownerEmail   = String(userEmail || '').trim().toLowerCase();
+  const community = await getCommunity(communityId);
+  const towerLabel = community?.tower || 'KAI';
   const rows = listings.map(l => listingToDb({
-    id:'lst_' + uuidv4().slice(0,8), registrationId, ownerUid:userUid, owner:String(userName||'').trim(), userEmail:ownerEmail,
-    apt:l.apt, tower:'KAI', rooms:l.rooms, guests:l.guests, operator:l.operator, operatorEmail:l.operatorEmail || l.operator_email, operatorWhatsapp:l.operatorWhatsapp || l.operator_whatsapp,
+    id:'lst_' + uuidv4().slice(0,8), communityId, registrationId, ownerUid:userUid, owner:String(userName||'').trim(), userEmail:ownerEmail,
+    apt:l.apt, tower:towerLabel, rooms:l.rooms, guests:l.guests, operator:l.operator, operatorEmail:l.operatorEmail || l.operator_email, operatorWhatsapp:l.operatorWhatsapp || l.operator_whatsapp,
     contact:ownerContact, email:ownerEmail, airbnb:l.airbnb,
     status:'pending', reason:'', createdAt:new Date().toISOString()
-  }));
+  }, communityId));
   let { data: savedRows, error: rowsError } = await supabase.from('listings').insert(rows).select('*');
   if (rowsError) return sendSupabaseError(res, rowsError);
 
@@ -952,7 +1030,7 @@ app.post('/api/registrations', async (req, res) => {
       for (const r of reviewerRows || []) {
         if (seen.has(r.owner_uid)) continue; seen.add(r.owner_uid);
         const reviewer = { user_uid:r.owner_uid, user_name:r.owner, user_email:r.user_email || r.email };
-        const note = { id:'not_' + uuidv4().slice(0,8), ownerUid: reviewer.user_uid, listingId:null, incidentId:null, title:'Nuevo registro pendiente', message:`${result.userName} solicita acceso con ${(savedRows||[]).length} listing(s).`, isRead:false, emailSent:false, emailError:'', createdAt:new Date().toISOString(), kind:'registration', registrationId: result.id };
+        const note = { id:'not_' + uuidv4().slice(0,8), communityId, ownerUid: reviewer.user_uid, listingId:null, incidentId:null, title:'Nuevo registro pendiente', message:`${result.userName} solicita acceso con ${(savedRows||[]).length} listing(s).`, isRead:false, emailSent:false, emailError:'', createdAt:new Date().toISOString(), kind:'registration', registrationId: result.id };
         await supabase.from('notifications').insert(notificationToDb(note));
         try { await sendRegistrationReviewerEmail({ reviewer, registration: result, appUrl }); } catch(mailErr) { warn('Reviewer registration email failed: ' + (mailErr?.message || mailErr)); }
       }
@@ -978,9 +1056,10 @@ app.post('/api/registrations', async (req, res) => {
 app.get('/api/registrations/pending', async (req, res) => {
   if (!requireSupabaseEnv(res)) return;
   const reviewerUid = String(req.query.reviewerUid || '').trim();
+  const communityId = getCommunityId(req);
   if (!reviewerUid) return res.status(400).json({ error:'reviewerUid is required.' });
   try { if (!(await canManageRegistrations(reviewerUid, req.query.reviewerEmail))) return res.status(403).json({ error:'Solo administradores globales o delegados pueden revisar registros pendientes.' }); } catch(e) { return sendSupabaseError(res, e); }
-  const { data: rows, error } = await supabase.from('listings').select('*').eq('status','pending').order('created_at', { ascending:true }).order('apt', { ascending:true });
+  const { data: rows, error } = await supabase.from('listings').select('*').eq('community_id', communityId).eq('status','pending').order('created_at', { ascending:true }).order('apt', { ascending:true });
   if (error) return sendSupabaseError(res, error);
   const groups = new Map();
   for (const row of rows || []) {
@@ -995,6 +1074,7 @@ app.get('/api/registrations/pending', async (req, res) => {
 app.get('/api/registrations/active', async (req, res) => {
   if (!requireSupabaseEnv(res)) return;
   const reviewerUid = String(req.query.reviewerUid || '').trim();
+  const communityId = getCommunityId(req);
   if (!reviewerUid) return res.status(400).json({ error:'reviewerUid is required.' });
   try {
     if (!(await canManageRegistrations(reviewerUid, req.query.reviewerEmail))) {
@@ -1005,6 +1085,7 @@ app.get('/api/registrations/active', async (req, res) => {
   const { data: rows, error } = await supabase
     .from('listings')
     .select('*')
+    .eq('community_id', communityId)
     .in('status',['approved','declined'])
     .order('owner', { ascending:true })
     .order('apt', { ascending:true });
@@ -1066,7 +1147,8 @@ app.post('/api/registrations/:id/decline', (req, res) => reviewRegistration(req,
 // ─── API: LISTINGS ────────────────────────────────────────────────────────────
 app.get('/api/listings', async (req, res) => {
   if (!requireSupabaseEnv(res)) return;
-  const { data, error } = await supabase.from('listings').select('*').eq('status','approved').order('apt', { ascending: true });
+  const communityId = getCommunityId(req);
+  const { data, error } = await supabase.from('listings').select('*').eq('community_id', communityId).eq('status','approved').order('apt', { ascending: true });
   if (error) return sendSupabaseError(res, error);
   res.json((data || []).map(listingFromDb));
 });
@@ -1074,6 +1156,7 @@ app.get('/api/listings', async (req, res) => {
 app.post('/api/listings', async (req, res) => {
   if (!requireSupabaseEnv(res)) return;
   const { ownerUid, owner, userEmail, apt, rooms, guests, operator, operatorEmail, operatorWhatsapp, airbnb, coOwners: coOwnersRaw } = req.body;
+  const communityId = getCommunityId(req);
   if (!ownerUid || !owner || !apt || !rooms || !guests) return res.status(400).json({ error: 'Missing required fields: owner, apartment, rooms, and guests are required.' });
   if (!isThreeDigitApt(apt)) return res.status(400).json({ error: 'Apartment number must be exactly 3 digits, for example 000.' });
   if (operatorEmail && !isValidEmail(operatorEmail)) return res.status(400).json({ error: 'A valid operator email is required.' });
@@ -1081,7 +1164,7 @@ app.post('/api/listings', async (req, res) => {
   const coOwnersParsed = parseCoOwners(coOwnersRaw || []);
   if (!coOwnersParsed.ok) return res.status(400).json({ error: coOwnersParsed.error });
   try {
-    const conflict = await validateApartmentUniqueness([{ apt }], { ownerUid, includePending: true });
+    const conflict = await validateApartmentUniqueness([{ apt }], { ownerUid, includePending: true, communityId });
     if (conflict) return res.status(409).json({ error: conflict.message, conflict });
   } catch(e) { return sendSupabaseError(res, e); }
 
@@ -1091,8 +1174,10 @@ app.post('/api/listings', async (req, res) => {
   const googleEmail  = String(userEmail || '').trim().toLowerCase();
   const ownerEmail   = (profileRow?.notification_email || googleEmail);
 
-  const item = { id:'lst_'+uuidv4().slice(0,8), ownerUid, owner:String(owner||'').trim(), userEmail:googleEmail, apt:String(apt).trim(), tower:'KAI', rooms, guests:Number(guests), operator:operator||'', operatorEmail:operatorEmail||'', operatorWhatsapp:operatorWhatsapp||'', contact:ownerContact, email:ownerEmail, airbnb:String(airbnb||'').trim(), coOwners:[], status:'approved', reviewedByUid:ownerUid, reviewedByName:owner, reviewedAt:new Date().toISOString(), createdAt:new Date().toISOString() };
-  const { data, error } = await supabase.from('listings').insert(listingToDb(item)).select('*').single();
+  const community = await getCommunity(communityId);
+  const towerLabel = community?.tower || 'KAI';
+  const item = { id:'lst_'+uuidv4().slice(0,8), communityId, ownerUid, owner:String(owner||'').trim(), userEmail:googleEmail, apt:String(apt).trim(), tower:towerLabel, rooms, guests:Number(guests), operator:operator||'', operatorEmail:operatorEmail||'', operatorWhatsapp:operatorWhatsapp||'', contact:ownerContact, email:ownerEmail, airbnb:String(airbnb||'').trim(), coOwners:[], status:'approved', reviewedByUid:ownerUid, reviewedByName:owner, reviewedAt:new Date().toISOString(), createdAt:new Date().toISOString() };
+  const { data, error } = await supabase.from('listings').insert(listingToDb(item, communityId)).select('*').single();
   if (error) return sendSupabaseError(res, error);
   // Save co_owners separately so a missing column (schema cache not yet refreshed) never breaks the main save
   if (coOwnersParsed.coOwners.length > 0) {
@@ -1121,7 +1206,7 @@ app.put('/api/listings/:id', async (req, res) => {
   const coOwnersParsed = parseCoOwners(coOwnersRaw || []);
   if (!coOwnersParsed.ok) return res.status(400).json({ error: coOwnersParsed.error });
   try {
-    const conflict = await validateApartmentUniqueness([{ apt }], { ownerUid, excludeListingId: req.params.id, includePending: true });
+    const conflict = await validateApartmentUniqueness([{ apt }], { ownerUid, excludeListingId: req.params.id, includePending: true, communityId: existing.community_id || 'kai' });
     if (conflict) return res.status(409).json({ error: conflict.message, conflict });
   } catch(e) { return sendSupabaseError(res, e); }
 
@@ -1131,7 +1216,10 @@ app.put('/api/listings/:id', async (req, res) => {
   const googleEmail  = String(existing.user_email || profileRow?.email || '').trim().toLowerCase();
   const ownerEmail   = profileRow?.notification_email || googleEmail;
 
-  const update = { apt:String(apt).trim(), tower:'KAI', rooms:String(rooms||''), guests:Number(guests||0), operator:operator||'', operator_email:String(operatorEmail||'').trim(), operator_whatsapp:String(operatorWhatsapp||'').trim(), contact:ownerContact, email:ownerEmail, airbnb:String(airbnb||'').trim() };
+  const existingCommunityId = existing.community_id || 'kai';
+  const communityForUpdate = await getCommunity(existingCommunityId);
+  const towerForUpdate = communityForUpdate?.tower || existing.tower || 'KAI';
+  const update = { apt:String(apt).trim(), tower:towerForUpdate, rooms:String(rooms||''), guests:Number(guests||0), operator:operator||'', operator_email:String(operatorEmail||'').trim(), operator_whatsapp:String(operatorWhatsapp||'').trim(), contact:ownerContact, email:ownerEmail, airbnb:String(airbnb||'').trim() };
   const { data, error } = await supabase.from('listings').update(update).eq('id', req.params.id).select('*').single();
   if (error) return sendSupabaseError(res, error);
   // Save co_owners separately so a missing column (schema cache not yet refreshed) never breaks the main save
@@ -1164,13 +1252,15 @@ app.delete('/api/listings/:id', async (req, res) => {
 // ─── API: INCIDENTS ───────────────────────────────────────────────────────────
 app.get('/api/incidents', async (req, res) => {
   if (!requireSupabaseEnv(res)) return;
-  const { data, error } = await supabase.from('incidents').select('*').order('created_at', { ascending: false });
+  const communityId = getCommunityId(req);
+  const { data, error } = await supabase.from('incidents').select('*').eq('community_id', communityId).order('created_at', { ascending: false });
   if (error) return sendSupabaseError(res, error);
   res.json((data || []).map(incidentFromDb));
 });
 
 app.post('/api/incidents', async (req, res) => {
   if (!requireSupabaseEnv(res)) return;
+  const communityId = getCommunityId(req);
   const { reporterUid, reporterName, aptId, aptLabel, date, type, category, desc, isGeneral=false, photos=[] } = req.body;
   if (!reporterUid || !date || !type || !category || !String(desc || '').trim())
     return res.status(400).json({ error: 'Fecha, tipo, categoría y descripción son requeridos.' });
@@ -1189,14 +1279,14 @@ app.post('/api/incidents', async (req, res) => {
 
   // ── General incident (not tied to a specific unit) ────────────────────────
   if (isGeneral) {
-    const item = { id:'inc_'+uuidv4().slice(0,8), reporterUid, reporterName, aptId:null, aptLabel:'', guestName:'', guestCity:'', guestState:'', guestCountry:'', date, type, category, desc, status:'open', isGeneral:true, photos, slaHours, nextSlaReminderAt:addHoursIso(nowIso, slaHours), slaCycleCount:0, createdAt:nowIso };
-    const { data, error } = await supabase.from('incidents').insert(incidentToDb(item)).select('*').single();
+    const item = { id:'inc_'+uuidv4().slice(0,8), communityId, reporterUid, reporterName, aptId:null, aptLabel:'', guestName:'', guestCity:'', guestState:'', guestCountry:'', date, type, category, desc, status:'open', isGeneral:true, photos, slaHours, nextSlaReminderAt:addHoursIso(nowIso, slaHours), slaCycleCount:0, createdAt:nowIso };
+    const { data, error } = await supabase.from('incidents').insert(incidentToDb(item, communityId)).select('*').single();
     if (error) return sendSupabaseError(res, error);
     const savedIncident = incidentFromDb(data);
     await auditLog({ entity:'incident', entityId:data.id, action:'create', actorUid:reporterUid, actorName:reporterName, after:data });
     // Notify admins in-app
     const adminEmails = getGlobalAdminEmails();
-    const generalNote = adminEmails.length ? { id:'not_'+uuidv4().slice(0,8), ownerUid:null, listingId:null, incidentId:savedIncident.id, title:'Nuevo incidente general reportado', message:String(savedIncident.desc||'').slice(0,160), isRead:false, emailSent:false, emailError:'', createdAt:nowIso } : null;
+    const generalNote = adminEmails.length ? { id:'not_'+uuidv4().slice(0,8), communityId, ownerUid:null, listingId:null, incidentId:savedIncident.id, title:'Nuevo incidente general reportado', message:String(savedIncident.desc||'').slice(0,160), isRead:false, emailSent:false, emailError:'', createdAt:nowIso } : null;
     let generalNoteError = null;
     if (generalNote) {
       const { error: ne } = await supabase.from('notifications').insert(notificationToDb(generalNote));
@@ -1232,12 +1322,13 @@ app.post('/api/incidents', async (req, res) => {
   const { data: listing, error: listingError } = await supabase.from('listings').select('*').eq('id', aptId).eq('status','approved').single();
   if (listingError || !listing) return res.status(404).json({ error: 'Listing not found for selected apartment.' });
 
-  const item = { id:'inc_'+uuidv4().slice(0,8), reporterUid, reporterName, aptId, aptLabel: aptLabel || ('Apto ' + listing.apt), guestName:'', guestCity:'', guestState:'', guestCountry:'', date, type, category, desc, status:'open', isGeneral:false, photos, slaHours, nextSlaReminderAt:addHoursIso(nowIso, slaHours), slaCycleCount:0, createdAt:nowIso };
-  const { data, error } = await supabase.from('incidents').insert(incidentToDb(item)).select('*').single();
+  const incCommunityId = listing.community_id || communityId;
+  const item = { id:'inc_'+uuidv4().slice(0,8), communityId:incCommunityId, reporterUid, reporterName, aptId, aptLabel: aptLabel || ('Apto ' + listing.apt), guestName:'', guestCity:'', guestState:'', guestCountry:'', date, type, category, desc, status:'open', isGeneral:false, photos, slaHours, nextSlaReminderAt:addHoursIso(nowIso, slaHours), slaCycleCount:0, createdAt:nowIso };
+  const { data, error } = await supabase.from('incidents').insert(incidentToDb(item, incCommunityId)).select('*').single();
   if (error) return sendSupabaseError(res, error);
   const savedIncident = incidentFromDb(data);
   await auditLog({ entity:'incident', entityId:data.id, action:'create', actorUid:reporterUid, actorName:reporterName, after:data });
-  const notification = { id:'not_'+uuidv4().slice(0,8), ownerUid:listing.owner_uid, listingId:listing.id, incidentId:savedIncident.id, title:'Nuevo incidente abierto - Apto '+listing.apt, message:String(savedIncident.desc||'').slice(0,160), isRead:false, emailSent:false, emailError:'', createdAt:new Date().toISOString() };
+  const notification = { id:'not_'+uuidv4().slice(0,8), communityId:incCommunityId, ownerUid:listing.owner_uid, listingId:listing.id, incidentId:savedIncident.id, title:'Nuevo incidente abierto - Apto '+listing.apt, message:String(savedIncident.desc||'').slice(0,160), isRead:false, emailSent:false, emailError:'', createdAt:new Date().toISOString() };
   const { error: notificationError } = await supabase.from('notifications').insert(notificationToDb(notification));
   if (notificationError) warn('Notification save failed: ' + notificationError.message);
   res.json({ ...savedIncident, notificationSaved:!notificationError, emailQueued:Boolean(emailConfigured), emailSent:false, emailError:emailConfigured?'':'Resend email is not configured in Render.' });
@@ -1296,8 +1387,8 @@ app.put('/api/admin/email-templates', async (req, res) => {
   if (!templates || typeof templates !== 'object') return res.status(400).json({ error:'templates is required.' });
   for (const [key, t] of Object.entries(templates)) {
     if (!DEFAULT_EMAIL_TEMPLATES[key]) continue;
-    const row = { key, language:String(language || 'es-CO'), label:String(t.label || DEFAULT_EMAIL_TEMPLATES[key].label || key), subject:String(t.subject || DEFAULT_EMAIL_TEMPLATES[key].subject || ''), text:String(t.text || DEFAULT_EMAIL_TEMPLATES[key].text || ''), html:String(t.html || DEFAULT_EMAIL_TEMPLATES[key].html || ''), updated_at:new Date().toISOString(), updated_by_email:String(actorEmail || '').toLowerCase() };
-    const { error } = await supabase.from('email_templates').upsert(row, { onConflict:'key,language' });
+    const row = { community_id:'__global__', key, language:String(language || 'es-CO'), label:String(t.label || DEFAULT_EMAIL_TEMPLATES[key].label || key), subject:String(t.subject || DEFAULT_EMAIL_TEMPLATES[key].subject || ''), text:String(t.text || DEFAULT_EMAIL_TEMPLATES[key].text || ''), html:String(t.html || DEFAULT_EMAIL_TEMPLATES[key].html || ''), updated_at:new Date().toISOString(), updated_by_email:String(actorEmail || '').toLowerCase() };
+    const { error } = await supabase.from('email_templates').upsert(row, { onConflict:'community_id,key,language' });
     if (error) return sendSupabaseError(res, error);
   }
   await auditLog({ entity:'email_templates', entityId:String(language || 'es-CO'), action:'update', actorUid:actorUid, actorEmail:actorEmail, after:templates });
@@ -1424,9 +1515,11 @@ app.get('/api/admin/me', async (req, res) => {
       }
     }
   } catch(e) { warn('app_users upsert in /api/admin/me failed: ' + (e?.message || e)); }
-  const config = await getAppConfig();
+  const communityId = getCommunityId(req);
+  const config = await getAppConfig(communityId);
   const permissions = await getUserPermissions({ uid, email });
-  res.json({ role, isGlobalAdmin: role === 'global_admin', canManageRegistrations: role === 'global_admin' || !!permissions.delegate?.canApproveRegistrations, languagePreference, config, permissions });
+  const communities = await getUserCommunities(uid, email);
+  res.json({ role, isGlobalAdmin: role === 'global_admin', canManageRegistrations: role === 'global_admin' || !!permissions.delegate?.canApproveRegistrations, languagePreference, config, permissions, communityId, communities });
 });
 
 app.put('/api/admin/config', async (req, res) => {
@@ -1740,8 +1833,9 @@ app.delete('/api/incidents/:id', async (req, res) => {
 app.get('/api/notifications', async (req, res) => {
   if (!requireSupabaseEnv(res)) return;
   const ownerUid = String(req.query.ownerUid || '').trim();
+  const communityId = getCommunityId(req);
   if (!ownerUid) return res.status(400).json({ error: 'ownerUid is required.' });
-  const { data, error } = await supabase.from('notifications').select('*').eq('owner_uid', ownerUid).order('created_at', { ascending: false });
+  const { data, error } = await supabase.from('notifications').select('*').eq('community_id', communityId).eq('owner_uid', ownerUid).order('created_at', { ascending: false });
   if (error) return sendSupabaseError(res, error);
   res.json((data || []).map(notificationFromDb));
 });
@@ -1853,7 +1947,8 @@ setTimeout(runSlaEscalations, 15000);
 const analyticsHandler = async (req, res) => {
   if (!requireSupabaseEnv(res)) return;
   const { uid, email } = req.query || {};
-  const cfg = await getAppConfig();
+  const communityId = getCommunityId(req);
+  const cfg = await getAppConfig(communityId);
   const global = await isGlobalAdmin(uid, email);
   const enabledForAll = String(cfg.analytics_enabled || 'false') === 'true';
   if (!global && !enabledForAll) return res.status(403).json({ error:'Las analíticas están disponibles solo para administrador global.' });
@@ -1881,7 +1976,7 @@ const analyticsHandler = async (req, res) => {
     windowLabel = `${days} days`;
   }
 
-  let q = supabase.from('incidents').select('*, listings(*)').order('created_at', { ascending:false });
+  let q = supabase.from('incidents').select('*, listings(*)').eq('community_id', communityId).order('created_at', { ascending:false });
   if (since) q = q.gte('created_at', since);
   if (until) q = q.lte('created_at', until);
   const { data: incidentsRaw, error: incErr } = await q;
@@ -1907,6 +2002,127 @@ const analyticsHandler = async (req, res) => {
 };
 app.get('/api/analytics', analyticsHandler);
 app.get('/api/admin/analytics', analyticsHandler);
+
+// ─── API: COMMUNITIES (v80) ──────────────────────────────────────────────────
+
+// GET /api/communities — global admin sees all; user sees their own
+app.get('/api/communities', async (req, res) => {
+  if (!requireSupabaseEnv(res)) return;
+  const { uid, email } = req.query || {};
+  try {
+    const communities = await getUserCommunities(uid, email);
+    res.json({ communities });
+  } catch(e) { sendSupabaseError(res, e); }
+});
+
+// POST /api/communities — global admin only
+app.post('/api/communities', async (req, res) => {
+  if (!requireSupabaseEnv(res)) return;
+  const { actorUid, actorEmail, id, name, nameEn='', tower='', city='', country='Colombia', logoUrl='', backgroundUrl='/morros-kai-bg.jpg', description='', descriptionEn='' } = req.body || {};
+  if (!(await isGlobalAdmin(actorUid, actorEmail))) return res.status(403).json({ error:'Solo un administrador global puede crear comunidades.' });
+  if (!id || !name) return res.status(400).json({ error:'id and name are required.' });
+  if (!/^[a-z0-9-]+$/.test(id)) return res.status(400).json({ error:'Community id must be lowercase letters, numbers, and hyphens only.' });
+  const row = { id, name, name_en:nameEn, tower, city, country, logo_url:logoUrl, background_url:backgroundUrl, description, description_en:descriptionEn, is_active:true, created_by_uid:actorUid||'', created_at:new Date().toISOString(), updated_at:new Date().toISOString() };
+  const { data, error } = await supabase.from('communities').insert(row).select('*').single();
+  if (error) return sendSupabaseError(res, error);
+  await auditLog({ entity:'community', entityId:id, action:'create', actorUid:actorUid||'', actorEmail:actorEmail||'', after:data });
+  res.json(data);
+});
+
+// GET /api/communities/:id
+app.get('/api/communities/:id', async (req, res) => {
+  if (!requireSupabaseEnv(res)) return;
+  const { data, error } = await supabase.from('communities').select('*').eq('id', req.params.id).maybeSingle();
+  if (error) return sendSupabaseError(res, error);
+  if (!data) return res.status(404).json({ error:'Community not found.' });
+  res.json(data);
+});
+
+// PUT /api/communities/:id — global admin or community admin
+app.put('/api/communities/:id', async (req, res) => {
+  if (!requireSupabaseEnv(res)) return;
+  const { actorUid, actorEmail, name, nameEn, tower, city, country, logoUrl, backgroundUrl, description, descriptionEn, isActive } = req.body || {};
+  if (!(await isCommunityAdmin(actorUid, actorEmail, req.params.id))) return res.status(403).json({ error:'Solo un administrador global o admin de esta comunidad puede actualizar la comunidad.' });
+  const before = await getCommunity(req.params.id);
+  if (!before) return res.status(404).json({ error:'Community not found.' });
+  const update = {};
+  if (name !== undefined) update.name = String(name);
+  if (nameEn !== undefined) update.name_en = String(nameEn);
+  if (tower !== undefined) update.tower = String(tower);
+  if (city !== undefined) update.city = String(city);
+  if (country !== undefined) update.country = String(country);
+  if (logoUrl !== undefined) update.logo_url = String(logoUrl);
+  if (backgroundUrl !== undefined) update.background_url = String(backgroundUrl);
+  if (description !== undefined) update.description = String(description);
+  if (descriptionEn !== undefined) update.description_en = String(descriptionEn);
+  if (isActive !== undefined) update.is_active = Boolean(isActive);
+  update.updated_at = new Date().toISOString();
+  const { data, error } = await supabase.from('communities').update(update).eq('id', req.params.id).select('*').single();
+  if (error) return sendSupabaseError(res, error);
+  await auditLog({ entity:'community', entityId:req.params.id, action:'update', actorUid:actorUid||'', actorEmail:actorEmail||'', before, after:data });
+  res.json(data);
+});
+
+// DELETE /api/communities/:id — global admin only
+app.delete('/api/communities/:id', async (req, res) => {
+  if (!requireSupabaseEnv(res)) return;
+  const { actorUid, actorEmail } = req.body || {};
+  if (!(await isGlobalAdmin(actorUid, actorEmail))) return res.status(403).json({ error:'Solo un administrador global puede eliminar comunidades.' });
+  if (req.params.id === 'kai') return res.status(400).json({ error:'No se puede eliminar la comunidad predeterminada.' });
+  const before = await getCommunity(req.params.id);
+  if (!before) return res.status(404).json({ error:'Community not found.' });
+  const { error } = await supabase.from('communities').delete().eq('id', req.params.id);
+  if (error) return sendSupabaseError(res, error);
+  await auditLog({ entity:'community', entityId:req.params.id, action:'delete', actorUid:actorUid||'', actorEmail:actorEmail||'', before });
+  res.json({ ok:true });
+});
+
+// GET /api/communities/:id/members
+app.get('/api/communities/:id/members', async (req, res) => {
+  if (!requireSupabaseEnv(res)) return;
+  const { uid, email } = req.query || {};
+  if (!(await isCommunityAdmin(uid, email, req.params.id))) return res.status(403).json({ error:'Solo un administrador puede ver los miembros de la comunidad.' });
+  const { data, error } = await supabase.from('community_memberships').select('*, app_users(name,language_preference)').eq('community_id', req.params.id).order('joined_at', { ascending:true });
+  if (error) return sendSupabaseError(res, error);
+  res.json({ members: (data||[]).map(m => ({ id:m.id, communityId:m.community_id, userUid:m.user_uid, userEmail:m.user_email, role:m.role, invitedByUid:m.invited_by_uid, joinedAt:m.joined_at, name:m.app_users?.name||'', languagePreference:m.app_users?.language_preference||'es-CO' })) });
+});
+
+// POST /api/communities/:id/members — add/invite a member
+app.post('/api/communities/:id/members', async (req, res) => {
+  if (!requireSupabaseEnv(res)) return;
+  const { actorUid, actorEmail, userUid, userEmail, role='member' } = req.body || {};
+  if (!(await isCommunityAdmin(actorUid, actorEmail, req.params.id))) return res.status(403).json({ error:'Solo un administrador puede agregar miembros.' });
+  if (!userUid || !userEmail) return res.status(400).json({ error:'userUid and userEmail are required.' });
+  if (!['member','community_admin'].includes(role)) return res.status(400).json({ error:'role must be member or community_admin.' });
+  const row = { id:'mbr_'+uuidv4().slice(0,8), community_id:req.params.id, user_uid:userUid, user_email:String(userEmail).toLowerCase(), role, invited_by_uid:actorUid||'', joined_at:new Date().toISOString() };
+  const { data, error } = await supabase.from('community_memberships').upsert(row, { onConflict:'community_id,user_uid' }).select('*').single();
+  if (error) return sendSupabaseError(res, error);
+  await auditLog({ entity:'community_membership', entityId:req.params.id, action:'add_member', actorUid:actorUid||'', actorEmail:actorEmail||'', after:{ userUid, userEmail, role } });
+  res.json(data);
+});
+
+// DELETE /api/communities/:id/members/:uid — remove a member
+app.delete('/api/communities/:id/members/:uid', async (req, res) => {
+  if (!requireSupabaseEnv(res)) return;
+  const { actorUid, actorEmail } = req.body || {};
+  if (!(await isCommunityAdmin(actorUid, actorEmail, req.params.id))) return res.status(403).json({ error:'Solo un administrador puede eliminar miembros.' });
+  const { error } = await supabase.from('community_memberships').delete().eq('community_id', req.params.id).eq('user_uid', req.params.uid);
+  if (error) return sendSupabaseError(res, error);
+  await auditLog({ entity:'community_membership', entityId:req.params.id, action:'remove_member', actorUid:actorUid||'', actorEmail:actorEmail||'', after:{ removedUid:req.params.uid } });
+  res.json({ ok:true });
+});
+
+// GET /api/me/communities — communities the calling user belongs to
+app.get('/api/me/communities', async (req, res) => {
+  if (!requireSupabaseEnv(res)) return;
+  const uid = String(req.query.uid || '').trim();
+  const email = String(req.query.email || '').trim();
+  if (!uid && !email) return res.status(400).json({ error:'uid or email is required.' });
+  try {
+    const communities = await getUserCommunities(uid, email);
+    res.json({ communities });
+  } catch(e) { sendSupabaseError(res, e); }
+});
 
 // ─── CATCH-ALL → React ────────────────────────────────────────────────────────
 app.get('*', (req, res) => {
