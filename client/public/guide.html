@@ -95,17 +95,53 @@ a:hover{text-decoration:underline}
 .callout.warn{background:#fff8e1;border-left:4px solid var(--yellow);color:#7a5a00}
 .callout.tip{background:#e3f2fd;border-left:4px solid #1565c0;color:#0d3c6e}
 
+/* ─── Mobile TOC toggle (hidden on desktop) ─── */
+.toc-toggle{display:none;width:100%;align-items:center;justify-content:space-between;gap:10px;padding:11px 14px;border:1px solid var(--border);border-radius:12px;background:#fff;font-size:.88rem;font-weight:800;color:#203f2b;cursor:pointer;box-shadow:0 4px 14px rgba(32,46,38,.06);margin-bottom:14px}
+.toc-toggle:hover{border-color:var(--teal)}
+.toc-toggle .chev{transition:transform .2s}
+.toc-toggle.open .chev{transform:rotate(180deg)}
+
+/* Permission table scrolls horizontally on small screens */
+.perm-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch;margin:0 -2px}
+.perm-scroll .perm-table{min-width:520px}
+
+/* Flow diagram horizontal scroll fallback when too long */
+.flow{overflow-x:auto;-webkit-overflow-scrolling:touch}
+
 /* ─── Responsive ─── */
 @media(max-width:720px){
-  .layout{flex-direction:column}
-  .toc{position:static;max-height:none;width:100%}
-  .hdr{padding:10px 14px}
-  .hero{margin:20px auto 18px;padding:0 14px}
+  body{font-size:14.5px}
+  .layout{flex-direction:column;padding:0 12px 60px;gap:10px}
+  .toc-toggle{display:flex}
+  .toc{position:static;max-height:0;overflow:hidden;width:100%;padding:0 14px;border:0;background:transparent;transition:max-height .25s ease,padding .25s ease,border-color .25s ease;box-shadow:none}
+  .toc.open{max-height:70vh;overflow-y:auto;padding:14px;border:1px solid var(--border);background:rgba(255,255,255,.96);box-shadow:0 8px 22px rgba(32,46,38,.1)}
+  .toc a{padding:9px 10px;font-size:.9rem}
+  .hdr{padding:10px 14px;gap:10px}
+  .hdr-right{margin-left:auto;gap:6px}
+  .hero{margin:18px auto 16px;padding:0 12px}
+  .hero h1{font-size:1.4rem}
+  .hero p{font-size:.9rem}
+  .audience-bar{gap:8px}
+  .section{padding:18px 16px;border-radius:14px}
+  .section-hdr{gap:8px}
+  .section-icon{font-size:1.3rem}
+  .section-hdr h2{font-size:.98rem}
+  .step{padding:11px 12px;gap:11px}
+  .step-num{width:26px;height:26px;font-size:.78rem}
+  .feature-grid{grid-template-columns:1fr}
+  .toc-toggle:focus{outline:2px solid var(--teal);outline-offset:2px}
 }
 @media(max-width:480px){
-  .section{padding:16px}
-  .aud-btn{padding:8px 16px;font-size:.82rem}
+  .section{padding:16px 14px}
+  .aud-btn{padding:9px 14px;font-size:.82rem;width:100%;justify-content:center}
+  .audience-bar{flex-direction:column;align-items:stretch}
+  .logo-text strong{font-size:.92rem}
+  .logo-text span{font-size:.68rem}
+  .hero h1{font-size:1.25rem}
 }
+
+/* Show toggle label/icon based on body class */
+.toc-toggle .toc-count{font-size:.72rem;background:var(--grad);color:#fff;padding:2px 9px;border-radius:99px;font-weight:800}
 
 /* ─── Language / Role visibility ─── */
 .es-text,.en-text{display:none}
@@ -174,8 +210,17 @@ body.role-admin .toc-admin{display:block}
 <!-- ═══════════════════════ LAYOUT ═══════════════════════ -->
 <div class="layout">
 
+  <!-- Mobile-only TOC toggle -->
+  <button class="toc-toggle" id="tocToggle" aria-expanded="false" aria-controls="tocNav" onclick="toggleToc()">
+    <span style="display:flex;align-items:center;gap:8px">
+      📑
+      <span class="es-text">Contenido</span><span class="en-text">Contents</span>
+    </span>
+    <span class="chev">▾</span>
+  </button>
+
   <!-- ─── Table of Contents ─── -->
-  <nav class="toc">
+  <nav class="toc" id="tocNav">
     <h3><span class="es-text">Contenido</span><span class="en-text">Contents</span></h3>
 
     <!-- Standard -->
@@ -410,6 +455,7 @@ body.role-admin .toc-admin{display:block}
         <span class="toggle">▼</span>
       </div>
       <div class="section-body">
+        <div class="perm-scroll">
         <table class="perm-table">
           <thead>
             <tr>
@@ -430,6 +476,7 @@ body.role-admin .toc-admin{display:block}
             <tr><td><span class="es-text">Configuración de plataforma</span><span class="en-text">Platform configuration</span></td><td class="no">—</td><td class="no">—</td><td class="yes">✅</td></tr>
           </tbody>
         </table>
+        </div>
         <div class="callout tip" style="margin-top:12px">
           <span class="es-text">⚡ Los permisos de Admin de comunidad son configurables por el Admin global. Los valores por defecto dependen de la configuración de la plataforma.</span>
           <span class="en-text">⚡ Community Admin permissions are configurable by the Global Admin. Defaults depend on platform configuration.</span>
@@ -695,6 +742,7 @@ body.role-admin .toc-admin{display:block}
           <span class="es-text">Los permisos que tienes como Admin de comunidad son configurados por el Admin global. Estos son los posibles permisos y qué habilitan:</span>
           <span class="en-text">The permissions you have as Community Admin are configured by the Global Admin. These are the possible permissions and what they enable:</span>
         </p>
+        <div class="perm-scroll">
         <table class="perm-table">
           <thead>
             <tr>
@@ -729,6 +777,7 @@ body.role-admin .toc-admin{display:block}
             </tr>
           </tbody>
         </table>
+        </div>
         <div class="callout tip" style="margin-top:12px">
           <span class="es-text">💡 Si un permiso no aparece habilitado en tu panel, contacta al Admin global de tu plataforma.</span>
           <span class="en-text">💡 If a permission is not enabled in your panel, contact the Global Admin of your platform.</span>
@@ -746,6 +795,10 @@ body.role-admin .toc-admin{display:block}
 </footer>
 
 <script>
+// Detect mobile via matchMedia (kept live so rotation/resize updates behavior)
+const mqMobile = window.matchMedia('(max-width: 720px)');
+const isMobile = () => mqMobile.matches;
+
 function setLang(l){
   document.body.className = document.body.className.replace(/lang-\w+/,'lang-'+l);
   document.getElementById('btnEs').classList.toggle('active',l==='es');
@@ -756,9 +809,45 @@ function setRole(r){
   document.body.className = document.body.className.replace(/role-\w+/,'role-'+r);
   document.getElementById('btnStd').classList.toggle('active',r==='standard');
   document.getElementById('btnAdm').classList.toggle('active',r==='admin');
+  // After role change, re-apply per-device defaults (collapse on mobile, expand on desktop)
+  applyDeviceDefaults();
 }
 function toggleSection(hdr){
   hdr.closest('.section').classList.toggle('collapsed');
+}
+
+/* Mobile TOC drawer */
+function toggleToc(){
+  const nav = document.getElementById('tocNav');
+  const btn = document.getElementById('tocToggle');
+  const open = nav.classList.toggle('open');
+  btn.classList.toggle('open', open);
+  btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+}
+function closeToc(){
+  const nav = document.getElementById('tocNav');
+  const btn = document.getElementById('tocToggle');
+  nav.classList.remove('open');
+  btn.classList.remove('open');
+  btn.setAttribute('aria-expanded','false');
+}
+// Tap a TOC link on mobile → close drawer; on desktop it stays put
+document.getElementById('tocNav').addEventListener('click', e => {
+  if (e.target.closest('a') && isMobile()) closeToc();
+});
+// Reset TOC state when leaving mobile (so desktop sidebar always shows)
+mqMobile.addEventListener('change', () => { closeToc(); applyDeviceDefaults(); });
+
+/* Per-device defaults: collapse all sections on mobile, expand on desktop.
+   Run on load and whenever role/device changes so both Standard Owner and
+   Community Admin get the same behavior. */
+function applyDeviceDefaults(){
+  const sections = document.querySelectorAll('section.section');
+  if (isMobile()){
+    sections.forEach(s => s.classList.add('collapsed'));
+  } else {
+    sections.forEach(s => s.classList.remove('collapsed'));
+  }
 }
 
 // Highlight TOC on scroll
@@ -775,10 +864,32 @@ const obs = new IntersectionObserver(entries=>{
 },{threshold:0.3,rootMargin:'-60px 0px -60% 0px'});
 sections.forEach(s=>obs.observe(s));
 
+// On hash navigation (TOC click) on mobile, ensure target section is expanded
+window.addEventListener('hashchange', () => {
+  const id = location.hash.slice(1);
+  if (!id) return;
+  const target = document.getElementById(id);
+  if (target && target.classList.contains('section')) {
+    target.classList.remove('collapsed');
+  }
+});
+
 // Read URL params: ?role=admin&lang=en
 const p = new URLSearchParams(location.search);
 if(p.get('role')==='admin') setRole('admin');
 if(p.get('lang')==='en') setLang('en');
+
+// Apply device-specific defaults after initial render
+applyDeviceDefaults();
+
+// Honor initial #hash deep-link by expanding that section
+if (location.hash) {
+  const target = document.getElementById(location.hash.slice(1));
+  if (target && target.classList.contains('section')) {
+    target.classList.remove('collapsed');
+    setTimeout(() => target.scrollIntoView({block:'start'}), 0);
+  }
+}
 </script>
 </body>
 </html>
