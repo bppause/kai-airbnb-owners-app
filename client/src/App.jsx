@@ -2186,6 +2186,7 @@ function AuthGate({ onLogin, lang="es-CO", setLang=()=>{}, complexLogo='', compl
   const isEn = lang === 'en';
   const [communities, setCommunities] = useState([]);
   const [selectedId, setSelectedId] = useState(() => { try { return localStorage.getItem('kai_community') || ''; } catch(e) { return ''; } });
+  const [search, setSearch] = useState('');
   const [displayLogo, setDisplayLogo] = useState(complexLogo);
   const [displayNameEs, setDisplayNameEs] = useState(complexNameEs);
   const [displayNameEn, setDisplayNameEn] = useState(complexNameEn);
@@ -2194,13 +2195,24 @@ function AuthGate({ onLogin, lang="es-CO", setLang=()=>{}, complexLogo='', compl
 
   useEffect(() => {
     fetch('/api/communities/public').then(r => r.ok ? r.json() : null).then(d => {
-      if (d?.communities?.length) {
+      if (!d) return;
+      if (!d.communitiesEnabled) {
+        // feature disabled — auto-select the default
+        const defId = d.defaultCommunityId || 'kai';
+        if (!selectedId) {
+          setSelectedId(defId);
+          onCommunitySelect?.(defId, null);
+        }
+        return;
+      }
+      if (d.communities?.length) {
         setCommunities(d.communities);
-        if (d.communities.length === 1 && !selectedId) {
+        const saved = selectedId || '';
+        const match = d.communities.find(c => c.id === saved);
+        if (match) { applyCommunityCfg(match); onCommunitySelect?.(match.id, match); }
+        else if (d.communities.length === 1) {
           const c = d.communities[0];
-          setSelectedId(c.id);
-          applyCommunityCfg(c);
-          onCommunitySelect?.(c.id, c);
+          setSelectedId(c.id); applyCommunityCfg(c); onCommunitySelect?.(c.id, c);
         }
       }
     }).catch(() => {});
@@ -2243,10 +2255,30 @@ function AuthGate({ onLogin, lang="es-CO", setLang=()=>{}, complexLogo='', compl
         {communities.length > 1 && (
           <div style={{marginBottom:12}}>
             <label style={{display:'block',fontSize:'.75rem',fontWeight:600,color:'rgba(47,79,58,.7)',marginBottom:4}}>{isEn ? 'Select your community' : 'Selecciona tu comunidad'}</label>
-            <select value={selectedId} onChange={e=>handleCommunityChange(e.target.value)} style={{width:'100%',padding:'8px 10px',borderRadius:8,border:'1.5px solid rgba(47,79,58,.25)',fontSize:'.9rem',background:'rgba(255,255,255,.85)',color:'#1a3c2a',cursor:'pointer'}}>
-              <option value="">{isEn ? '— choose community —' : '— elige comunidad —'}</option>
-              {communities.map(c => <option key={c.id} value={c.id}>{isEn ? (c.name_en || c.name) : c.name}{c.city ? ` · ${c.city}` : ''}</option>)}
-            </select>
+            <input
+              type="text"
+              value={search}
+              onChange={e=>setSearch(e.target.value)}
+              placeholder={isEn ? 'Search communities...' : 'Buscar comunidad...'}
+              style={{width:'100%',padding:'8px 10px',borderRadius:8,border:'1.5px solid rgba(47,79,58,.25)',fontSize:'.9rem',background:'rgba(255,255,255,.85)',color:'#1a3c2a',boxSizing:'border-box',marginBottom:6}}
+            />
+            <div style={{maxHeight:180,overflowY:'auto',borderRadius:8,border:'1px solid rgba(47,79,58,.15)',background:'rgba(255,255,255,.9)'}}>
+              {communities.filter(c=>{
+                if(!search.trim()) return true;
+                const q=search.trim().toLowerCase();
+                return [c.name,c.name_en,c.city,c.country,c.tower].filter(Boolean).some(v=>v.toLowerCase().includes(q));
+              }).map(c=>(
+                <div key={c.id}
+                  onClick={()=>handleCommunityChange(c.id)}
+                  style={{padding:'8px 12px',cursor:'pointer',display:'flex',alignItems:'center',gap:8,borderBottom:'1px solid rgba(47,79,58,.08)',background:selectedId===c.id?'rgba(47,79,58,.1)':'transparent'}}>
+                  <div style={{flex:1,minWidth:0}}>
+                    <div style={{fontWeight:600,fontSize:'.85rem',color:'#1a3c2a'}}>{isEn?(c.name_en||c.name):c.name}</div>
+                    {(c.city||c.country)&&<div style={{fontSize:'.73rem',color:'rgba(47,79,58,.6)'}}>{[c.city,c.country].filter(Boolean).join(' · ')}</div>}
+                  </div>
+                  {selectedId===c.id&&<span style={{color:'#2F4F3A',fontSize:'1rem'}}>✓</span>}
+                </div>
+              ))}
+            </div>
           </div>
         )}
         <div className="welcome-brand">
@@ -5947,6 +5979,8 @@ function AdminSettings({ config={}, user, listings=[], contactProps={}, onSave, 
   const [emailFromNameEn,setEmailFromNameEn]=useState(config?.email_from_name_en||'KAI Airbnb Owners');
   const [emailFromAddressEn,setEmailFromAddressEn]=useState(config?.email_from_address_en||'');
   // Phase 4 — community management state
+  const [communityFeatureEnabled, setCommunityFeatureEnabled] = useState(String(config?.community_feature_enabled ?? 'true') !== 'false');
+  const [defaultCommunityId, setDefaultCommunityId] = useState(config?.default_community_id || 'kai');
   const [communities, setCommunities] = useState([]);
   const [communitiesLoading, setCommunitiesLoading] = useState(false);
   const [communityModal, setCommunityModal] = useState(null); // null | {mode:'create'|'edit', data:{}}
@@ -6169,6 +6203,33 @@ function AdminSettings({ config={}, user, listings=[], contactProps={}, onSave, 
     subtitle={isEn?'Create and manage multi-tenant communities. Approved registered owners are automatically members. Promote any member to Community Admin here.':'Crea y administra comunidades multi-tenant. Los propietarios con registro aprobado son miembros automáticamente. Promueve a cualquier miembro a Admin de comunidad aquí.'}
     action={<button className="btn-p" style={{minHeight:36,padding:'6px 14px'}} onClick={()=>setCommunityModal({mode:'create',data:{}})}>{isEn?'＋ New community':'＋ Nueva comunidad'}</button>}
     open={openSections.communities} onToggle={()=>toggleSection('communities')}>
+    {/* Community feature flag settings */}
+    <div className="card" style={{marginBottom:16,padding:'12px 16px',background:'#f5fbfd',border:'1px solid #cce7ee'}}>
+      <div style={{display:'flex',alignItems:'center',gap:16,flexWrap:'wrap'}}>
+        <label style={{display:'flex',alignItems:'center',gap:8,fontSize:'.88rem',fontWeight:600,color:'#17313a',cursor:'pointer',userSelect:'none'}}>
+          <input type="checkbox" checked={communityFeatureEnabled} onChange={e=>setCommunityFeatureEnabled(e.target.checked)} style={{accentColor:'#2F4F3A',width:16,height:16}}/>
+          {isEn?'Community picker enabled':'Selector de comunidad habilitado'}
+        </label>
+        {!communityFeatureEnabled && (
+          <label style={{display:'flex',alignItems:'center',gap:8,fontSize:'.85rem',color:'#17313a'}}>
+            <span style={{fontWeight:600}}>{isEn?'Default community:':'Comunidad predeterminada:'}</span>
+            <select value={defaultCommunityId} onChange={e=>setDefaultCommunityId(e.target.value)} style={{padding:'4px 8px',borderRadius:6,border:'1.5px solid rgba(47,79,58,.25)',fontSize:'.85rem',background:'#fff',color:'#17313a'}}>
+              {communities.map(c=><option key={c.id} value={c.id}>{isEn?(c.name_en||c.name):c.name}</option>)}
+              {!communities.some(c=>c.id===defaultCommunityId)&&<option value={defaultCommunityId}>{defaultCommunityId}</option>}
+            </select>
+          </label>
+        )}
+        <button className="btn-p" style={{minHeight:32,padding:'4px 14px',fontSize:'.82rem'}}
+          onClick={async()=>{
+            try{
+              await api.put('/api/admin/config',{actorUid:user.uid,actorEmail:user.email,communityFeatureEnabled,defaultCommunityId});
+              showToast('✅ '+(isEn?'Community settings saved':'Configuración de comunidad guardada'));
+            }catch(e){showToast((e.message||String(e)),true);}
+          }}>
+          💾 {isEn?'Save':'Guardar'}
+        </button>
+      </div>
+    </div>
     {communitiesLoading && <div style={{padding:'20px 0',textAlign:'center'}}><span className="spinner-sm"/> {isEn?'Loading...':'Cargando...'}</div>}
     {!communitiesLoading && communities.length === 0 && (
       <div style={{padding:'16px 0',color:'#6b9ba8',textAlign:'center',fontSize:'.9rem'}}>
@@ -6191,6 +6252,7 @@ function AdminSettings({ config={}, user, listings=[], contactProps={}, onSave, 
           </div>
           <div style={{display:'flex',gap:6,flexShrink:0}}>
             <button className="btn-ghost" style={{fontSize:'.78rem',padding:'4px 10px'}} onClick={()=>setCommunityModal({mode:'edit',data:c})}>✏️ {isEn?'Edit':'Editar'}</button>
+            <button className="btn-ghost" style={{fontSize:'.78rem',padding:'4px 10px'}} onClick={()=>api.put(`/api/communities/${c.id}`,{actorUid:user.uid,actorEmail:user.email,isActive:!c.is_active}).then(()=>loadCommunities()).catch(e=>showToast(e.message,true))}>{c.is_active?'⏸ '+(isEn?'Disable':'Deshabilitar'):'▶ '+(isEn?'Enable':'Habilitar')}</button>
             {c.id !== 'kai' && <button className="btn-ghost" style={{fontSize:'.78rem',padding:'4px 10px',color:'#c62828'}} onClick={()=>deleteCommunity(c.id)}>🗑️ {isEn?'Delete':'Eliminar'}</button>}
           </div>
         </div>
@@ -6227,6 +6289,7 @@ function AdminSettings({ config={}, user, listings=[], contactProps={}, onSave, 
                   </div>
                   {m.isAdmin && (
                     <div style={{marginTop:6,paddingLeft:4,display:'flex',flexWrap:'wrap',gap:'6px 18px',alignItems:'center'}}>
+                      <span style={{fontSize:'.72rem',fontWeight:700,color:'#17313a',width:'100%',marginBottom:2}}>{isEn?'Admin permissions:':'Permisos de admin:'}</span>
                       {[
                         ['canApproveRegistrations', isEn?'Approve registrations':'Aprobar registros'],
                         ['canResolveIncidents',     isEn?'Resolve incidents':'Resolver incidentes'],
