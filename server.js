@@ -2287,37 +2287,43 @@ app.get('/api/communities/:id/members', async (req, res) => {
   if (!requireSupabaseEnv(res)) return;
   const { uid, email } = req.query || {};
   if (!(await isCommunityAdmin(uid, email, req.params.id))) return res.status(403).json({ error:'Solo un administrador puede ver los miembros de la comunidad.' });
-  // Derive members from approved listings
-  const { data: listings, error: lErr } = await supabase.from('listings').select('user_uid,user_email,registration_id,approved_at,name').eq('community_id', req.params.id).eq('status','approved').order('approved_at', { ascending:true });
+  // Derive members from approved listings (listings uses owner_uid / email, not user_uid / user_email)
+  const { data: listings, error: lErr } = await supabase.from('listings').select('owner_uid,email,registration_id,approved_at,name').eq('community_id', req.params.id).eq('status','approved').order('approved_at', { ascending:true });
   if (lErr) return sendSupabaseError(res, lErr);
-  // Collect unique users (one listing per user_uid; a user may have multiple listings)
+  // Collect unique users (one entry per owner_uid; a user may own multiple listings)
   const seen = new Set();
   const uniqueUsers = [];
   for (const l of (listings||[])) {
-    const key = l.user_uid || l.user_email;
+    const key = l.owner_uid || l.email;
     if (key && !seen.has(key)) { seen.add(key); uniqueUsers.push(l); }
   }
-  // Overlay community_memberships to get admin status
+  // Overlay community_memberships to get community_admin status
   const { data: admins } = await supabase.from('community_memberships').select('*').eq('community_id', req.params.id);
   const adminMap = {};
   (admins||[]).forEach(a => { adminMap[a.user_uid] = a; });
-  // Enrich with app_users for display name
-  const uids = uniqueUsers.map(u => u.user_uid).filter(Boolean);
+  // Enrich with app_users for display name and platform role (delegate_admin etc.)
+  const uids = uniqueUsers.map(u => u.owner_uid).filter(Boolean);
   let userMap = {};
   if (uids.length) {
-    const { data: appUsers } = await supabase.from('app_users').select('uid,name,language_preference').in('uid', uids);
+    const { data: appUsers } = await supabase.from('app_users').select('uid,name,language_preference,role').in('uid', uids);
     (appUsers||[]).forEach(u => { userMap[u.uid] = u; });
   }
+  const globalAdminSet = new Set(getGlobalAdminEmails());
   const members = uniqueUsers.map(u => {
-    const admin = u.user_uid ? adminMap[u.user_uid] : null;
+    const communityAdminEntry = u.owner_uid ? adminMap[u.owner_uid] : null;
+    const appUser = u.owner_uid ? userMap[u.owner_uid] : null;
+    const memberEmail = (u.email || appUser?.email || '').toLowerCase();
+    const isGlobalAdmin = !!(memberEmail && globalAdminSet.has(memberEmail));
+    const platformRole = isGlobalAdmin ? 'global_admin' : (appUser?.role || 'user');
     return {
-      userUid: u.user_uid,
-      userEmail: u.user_email,
-      name: userMap[u.user_uid]?.name || '',
-      languagePreference: userMap[u.user_uid]?.language_preference || 'es-CO',
+      userUid: u.owner_uid,
+      userEmail: u.email,
+      name: appUser?.name || '',
+      languagePreference: appUser?.language_preference || 'es-CO',
+      platformRole,
       joinedAt: u.approved_at,
-      isAdmin: !!admin,
-      adminPermissions: admin ? safeJsonObject(admin.permissions, COMMUNITY_ADMIN_PERM_DEFAULTS) : COMMUNITY_ADMIN_PERM_DEFAULTS,
+      isCommunityAdmin: !!communityAdminEntry,
+      adminPermissions: communityAdminEntry ? safeJsonObject(communityAdminEntry.permissions, COMMUNITY_ADMIN_PERM_DEFAULTS) : COMMUNITY_ADMIN_PERM_DEFAULTS,
     };
   });
   res.json({ members });

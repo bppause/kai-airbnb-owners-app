@@ -1933,6 +1933,23 @@ const HELP_TOPICS = [
   },
   // ── ADMIN ─────────────────────────────────────────────────────────────────
   {
+    id:'roles_reference', icon:'👤', category:'admin', roles:['global_admin','delegate_admin'],
+    title:HL('Referencia de roles y permisos','Roles & permissions reference'),
+    summary:HL('Los 4 roles de la plataforma, su alcance y capacidades en un entorno multi-comunidad.','The 4 platform roles, their scope, and capabilities in a multi-community environment.'),
+    sections:[
+      { h:HL('🏠 Propietario (usuario estándar)','🏠 Standard Owner (default user)'),
+        b:HL('Alcance: una o más unidades en una comunidad específica. Capacidades: registrar y gestionar sus propias unidades, reportar incidentes en unidades de otras personas, ver el estado de sus propios incidentes (Paso 1 y Paso 2), recibir notificaciones automáticas. No puede ver incidentes de otras unidades ni datos de otros propietarios. No puede aprobar registros ni gestionar la comunidad. Este es el rol predeterminado cuando un usuario se registra.','Scope: one or more units in a specific community. Capabilities: register and manage their own units, report incidents on other units, view the status of their own incidents (Step 1 and Step 2), receive automatic notifications. Cannot see incidents on other units or other owners\' data. Cannot approve registrations or manage the community. This is the default role when a user registers.')},
+      { h:HL('🏢 Admin de comunidad','🏢 Community Admin'),
+        b:HL('Alcance: una o más comunidades específicas (no todas). Asignado desde Admin → Comunidades → Miembros. Capacidades configurables individualmente por comunidad: ✅ Aprobar registros: ver y aprobar/rechazar solicitudes pendientes en su comunidad, ✅ Resolver incidentes: cerrar incidentes en su comunidad con comentario final, ✅ Gestionar listings: editar y eliminar unidades de otros propietarios en su comunidad. Los admins de comunidad reciben automáticamente los emails de notificación de su comunidad. No tienen acceso al panel Admin completo — solo ven la sección de configuración de su comunidad.','Scope: one or more specific communities (not all). Assigned from Admin → Communities → Members. Configurable permissions per community: ✅ Approve registrations: view and approve/decline pending registrations in their community, ✅ Resolve incidents: close incidents in their community with final comment, ✅ Manage listings: edit and delete other owners\' units in their community. Community admins automatically receive email notifications for their community. They do not have access to the full Admin panel — they only see their community\'s settings section.')},
+      { h:HL('🛡️ Admin delegado','🛡️ Delegate Admin'),
+        b:HL('Alcance: toda la plataforma (todas las comunidades). Asignado en la base de datos (campo role en app_users). Capacidades: definidas por permisos individuales configurables por el admin global desde Admin → Permisos. Los permisos disponibles son: Aprobar registros, Resolver incidentes, Actualizar listings de otros, Eliminar listings de otros, Actualizar incidentes de otros, Eliminar incidentes de otros. Los admins delegados tienen acceso a todas las comunidades y aparecen en los emails de escalación. Útil para staff de soporte que gestiona múltiples comunidades.','Scope: entire platform (all communities). Assigned in the database (role field in app_users). Capabilities: defined by individual permissions configured by the global admin from Admin → Permissions. Available permissions: Approve registrations, Resolve incidents, Update others\' listings, Delete others\' listings, Update others\' incidents, Delete others\' incidents. Delegate admins have access to all communities and appear in escalation emails. Useful for support staff managing multiple communities.')},
+      { h:HL('🌐 Admin global','🌐 Global Admin'),
+        b:HL('Alcance: toda la plataforma sin restricciones. Asignado mediante la variable de entorno GLOBAL_ADMIN_EMAILS en el servidor (no se puede cambiar desde la UI). Capacidades: acceso completo a todas las comunidades, todos los datos, y todas las secciones del panel Admin. Puede: crear/editar/eliminar comunidades, aprobar o rechazar registros en cualquier comunidad, promover admins de comunidad, configurar permisos de admins delegados, editar plantillas de email, configurar branding por comunidad, y más. El rol de admin global tiene precedencia sobre cualquier otro rol.','Scope: entire platform with no restrictions. Assigned via the GLOBAL_ADMIN_EMAILS environment variable on the server (cannot be changed from the UI). Capabilities: full access to all communities, all data, and all Admin panel sections. Can: create/edit/delete communities, approve or reject registrations in any community, promote community admins, configure delegate admin permissions, edit email templates, configure per-community branding, and more. The global admin role takes precedence over any other role.')},
+      { h:HL('Comparación de alcance en multi-comunidad','Scope comparison in multi-community setup'),
+        b:HL('Propietario → solo su comunidad, solo sus unidades. Admin de comunidad → su(s) comunidad(es) asignada(s), todos los propietarios de esa comunidad. Admin delegado → todas las comunidades, según permisos. Admin global → todas las comunidades, sin restricciones. Un usuario puede ser Propietario estándar en una comunidad y Admin de comunidad en otra simultáneamente.','Owner → their community only, their units only. Community admin → their assigned community/communities, all owners in that community. Delegate admin → all communities, per their permissions. Global admin → all communities, no restrictions. A user can be a Standard Owner in one community and Community Admin in another at the same time.')},
+    ]
+  },
+  {
     id:'admin_nav', icon:'⚙️', category:'admin', roles:['global_admin'],
     title:HL('Admin — Navegación y roles','Admin — Navigation & roles'),
     summary:HL('Personalizar el orden del menú, la página de inicio y los permisos por rol.','Customize menu order, default landing page, and permissions per role.'),
@@ -6382,35 +6399,38 @@ function AdminSettings({ config={}, user, listings=[], contactProps={}, onSave, 
                 <div>
                   {Object.entries(LABELS).map(([key, label]) => {
                     const globalVal = cfg.globalValues?.[key] || '';
-                    const overrideVal = draft[key] ?? cfg.communityOverrides?.[key] ?? '';
+                    const overrideVal = draft[key] ?? cfg.communityOverrides?.[key] ?? globalVal;
                     const hasOverride = key in (cfg.communityOverrides||{}) || key in draft;
                     const isTextarea = key.includes('body') || key.includes('sections') || key.includes('permissions');
                     return (
                       <div key={key} style={{marginBottom:10,paddingBottom:10,borderBottom:'1px solid #f0f8fb'}}>
                         <div style={{fontSize:'.75rem',fontWeight:700,color:'#2F4F3A',marginBottom:4}}>
                           {label}
-                          {hasOverride && <span style={{marginLeft:6,fontSize:'.68rem',background:'#d9b45a22',color:'#7a5a00',padding:'1px 6px',borderRadius:4,fontWeight:600}}>{isEn?'overridden':'sobreescrito'}</span>}
-                        </div>
-                        <div style={{fontSize:'.72rem',color:'#6b9ba8',marginBottom:4,background:'#f8f8f6',padding:'4px 8px',borderRadius:6}}>
-                          <span style={{fontWeight:600}}>{isEn?'Global:':'Global:'}</span> {globalVal ? (globalVal.length>80?globalVal.slice(0,80)+'…':globalVal) : <em>{isEn?'(not set)':'(sin valor)'}</em>}
+                          {hasOverride && <span style={{marginLeft:6,fontSize:'.68rem',background:'#d9b45a22',color:'#7a5a00',padding:'1px 6px',borderRadius:4,fontWeight:600}}>{isEn?'community override':'valor comunidad'}</span>}
+                          {!hasOverride && overridesOn && <span style={{marginLeft:6,fontSize:'.68rem',background:'#e8f5ec',color:'#2F4F3A',padding:'1px 6px',borderRadius:4}}>{isEn?'using global':'usando global'}</span>}
                         </div>
                         {overridesOn && (
                           isTextarea
                             ? <textarea
                                 value={overrideVal}
                                 onChange={e=>setCommunityConfigDraft(p=>({...p,[ca.communityId]:{...(p[ca.communityId]||{}),[key]:e.target.value}}))}
-                                rows={3}
-                                placeholder={isEn?`Override for this community…`:`Valor específico para esta comunidad…`}
+                                rows={4}
+                                placeholder={globalVal || (isEn?`Override for this community…`:`Valor específico para esta comunidad…`)}
                                 style={{width:'100%',fontSize:'.78rem',padding:'5px 8px',borderRadius:6,border:'1px solid #cce7ee',resize:'vertical',boxSizing:'border-box'}}
                               />
                             : <input
                                 value={overrideVal}
                                 onChange={e=>setCommunityConfigDraft(p=>({...p,[ca.communityId]:{...(p[ca.communityId]||{}),[key]:e.target.value}}))}
-                                placeholder={isEn?`Override for this community…`:`Valor específico para esta comunidad…`}
+                                placeholder={globalVal || (isEn?`Override for this community…`:`Valor específico para esta comunidad…`)}
                                 style={{width:'100%',fontSize:'.78rem',padding:'5px 8px',borderRadius:6,border:'1px solid #cce7ee',boxSizing:'border-box'}}
                               />
                         )}
-                        {!overridesOn && <div style={{fontSize:'.72rem',color:'#8a9fa5',fontStyle:'italic'}}>{isEn?'Overrides are not enabled for this community. Contact a global admin to enable them.':'Los overrides no están habilitados para esta comunidad. Contacta a un admin global para habilitarlos.'}</div>}
+                        {!overridesOn && (
+                          <div style={{fontSize:'.78rem',color:'#17313a',background:'#f8f8f6',padding:'5px 8px',borderRadius:6,border:'1px solid #eaecee'}}>
+                            {globalVal ? globalVal : <em style={{color:'#8a9fa5'}}>{isEn?'(not set)':'(sin valor)'}</em>}
+                          </div>
+                        )}
+                        {!overridesOn && <div style={{fontSize:'.7rem',color:'#8a9fa5',marginTop:3,fontStyle:'italic'}}>{isEn?'Overrides are not enabled for this community. Contact a global admin to enable them.':'Los overrides no están habilitados. Contacta a un admin global para habilitarlos.'}</div>}
                       </div>
                     );
                   })}
@@ -6616,28 +6636,54 @@ function AdminSettings({ config={}, user, listings=[], contactProps={}, onSave, 
               {!communityMembersLoading[c.id] && (communityMembers[c.id]||[]).length === 0 && (
                 <div style={{color:'#6b9ba8',fontSize:'.82rem',padding:'6px 0'}}>{isEn?'No approved members yet.':'Sin miembros aprobados todavía.'}</div>
               )}
+              {!communityMembersLoading[c.id] && (communityMembers[c.id]||[]).length > 0 && (
+                <div style={{fontSize:'.7rem',color:'#8a9fa5',marginBottom:6,display:'flex',gap:12,flexWrap:'wrap'}}>
+                  <span>🌐 {isEn?'Global Admin':'Admin global'}</span>
+                  <span>🛡️ {isEn?'Delegate Admin (platform-wide)':'Admin delegado (toda la plataforma)'}</span>
+                  <span>🏢 {isEn?'Community Admin (this community)':'Admin de comunidad (esta comunidad)'}</span>
+                  <span>🏠 {isEn?'Standard Owner':'Propietario estándar'}</span>
+                </div>
+              )}
               {!communityMembersLoading[c.id] && (communityMembers[c.id]||[]).map(m => {
                 const pk = `${c.id}_${m.userUid}`;
                 const currentPerms = memberPermsEditing[pk] || m.adminPermissions || { canApproveRegistrations:true, canResolveIncidents:true, canManageListings:false };
                 const isDirty = !!memberPermsEditing[pk];
+                const isGlobal = m.platformRole === 'global_admin';
+                const isDelegate = m.platformRole === 'delegate_admin';
+                const roleBadge = isGlobal
+                  ? { icon:'🌐', label:isEn?'Global Admin':'Admin global', color:'#0b4f8c', bg:'#e3f0fc' }
+                  : isDelegate
+                  ? { icon:'🛡️', label:isEn?'Delegate Admin':'Admin delegado', color:'#5a2d82', bg:'#f3eafd' }
+                  : m.isCommunityAdmin
+                  ? { icon:'🏢', label:isEn?'Community Admin':'Admin comunidad', color:'#2F4F3A', bg:'#e8f5ec' }
+                  : { icon:'🏠', label:isEn?'Standard Owner':'Propietario', color:'#2a5a6a', bg:'#eef6f8' };
+                const canPromote = !isGlobal && !isDelegate;
                 return (
-                <div key={m.userUid} style={{padding:'8px 0',borderBottom:'1px solid #f0f8fb'}}>
+                <div key={m.userUid||m.userEmail} style={{padding:'8px 0',borderBottom:'1px solid #f0f8fb'}}>
                   <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
                     <div style={{flex:1,minWidth:160}}>
-                      <div style={{fontWeight:600,fontSize:'.82rem',color:'#17313a'}}>{m.name||m.userEmail}</div>
+                      <div style={{display:'flex',alignItems:'center',gap:6,flexWrap:'wrap'}}>
+                        <span style={{fontWeight:600,fontSize:'.82rem',color:'#17313a'}}>{m.name||m.userEmail}</span>
+                        <span style={{fontSize:'.68rem',fontWeight:700,padding:'1px 7px',borderRadius:999,background:roleBadge.bg,color:roleBadge.color,whiteSpace:'nowrap'}}>{roleBadge.icon} {roleBadge.label}</span>
+                      </div>
                       <div style={{fontSize:'.72rem',color:'#6b9ba8'}}>{m.userEmail}</div>
                     </div>
-                    <label style={{display:'flex',alignItems:'center',gap:6,fontSize:'.8rem',color:'#17313a',cursor:'pointer',userSelect:'none'}}>
-                      <input type="checkbox" checked={!!m.isAdmin}
-                        onChange={() => m.isAdmin ? demoteCommunityAdmin(c.id, m) : promoteCommunityAdmin(c.id, m)}
-                        style={{accentColor:'#2F4F3A',width:15,height:15}}
-                      />
-                      {isEn?'Community Admin':'Admin comunidad'}
-                    </label>
+                    {canPromote && (
+                      <label style={{display:'flex',alignItems:'center',gap:6,fontSize:'.78rem',color:'#17313a',cursor:'pointer',userSelect:'none'}} title={isEn?'Toggle community admin role for this community only':'Cambiar rol de admin de comunidad (solo en esta comunidad)'}>
+                        <input type="checkbox" checked={!!m.isCommunityAdmin}
+                          onChange={() => m.isCommunityAdmin ? demoteCommunityAdmin(c.id, m) : promoteCommunityAdmin(c.id, m)}
+                          style={{accentColor:'#2F4F3A',width:15,height:15}}
+                        />
+                        {isEn?'Community Admin':'Admin comunidad'}
+                      </label>
+                    )}
+                    {!canPromote && (
+                      <span style={{fontSize:'.72rem',color:'#8a9fa5',fontStyle:'italic'}}>{isEn?'Role set platform-wide':'Rol global de plataforma'}</span>
+                    )}
                   </div>
-                  {m.isAdmin && (
+                  {m.isCommunityAdmin && canPromote && (
                     <div style={{marginTop:6,paddingLeft:4,display:'flex',flexWrap:'wrap',gap:'6px 18px',alignItems:'center'}}>
-                      <span style={{fontSize:'.72rem',fontWeight:700,color:'#17313a',width:'100%',marginBottom:2}}>{isEn?'Admin permissions:':'Permisos de admin:'}</span>
+                      <span style={{fontSize:'.72rem',fontWeight:700,color:'#17313a',width:'100%',marginBottom:2}}>{isEn?'Community admin permissions (this community only):':'Permisos de admin (solo esta comunidad):'}</span>
                       {[
                         ['canApproveRegistrations', isEn?'Approve registrations':'Aprobar registros'],
                         ['canResolveIncidents',     isEn?'Resolve incidents':'Resolver incidentes'],
@@ -6716,37 +6762,42 @@ function AdminSettings({ config={}, user, listings=[], contactProps={}, onSave, 
                     {/* Settings rows */}
                     {Object.entries(LABELS).map(([key, label]) => {
                       const globalVal = cfg.globalValues?.[key] || '';
-                      const overrideVal = draft[key] ?? cfg.communityOverrides?.[key] ?? '';
+                      // When overrides are on, default the edit value to the global value so the
+                      // admin sees the current setting and can adjust it — not a blank field.
+                      const overrideVal = draft[key] ?? cfg.communityOverrides?.[key] ?? globalVal;
                       const hasOverride = key in (cfg.communityOverrides||{}) || key in draft;
                       const isTextarea = key.includes('body') || key.includes('sections') || key.includes('permissions');
                       return (
                         <div key={key} style={{marginBottom:10,paddingBottom:10,borderBottom:'1px solid #f0f8fb'}}>
                           <div style={{fontSize:'.75rem',fontWeight:700,color:'#2F4F3A',marginBottom:4}}>
                             {label}
-                            {hasOverride && <span style={{marginLeft:6,fontSize:'.68rem',background:'#d9b45a22',color:'#7a5a00',padding:'1px 6px',borderRadius:4,fontWeight:600}}>{isEn?'overridden':'sobreescrito'}</span>}
+                            {hasOverride && <span style={{marginLeft:6,fontSize:'.68rem',background:'#d9b45a22',color:'#7a5a00',padding:'1px 6px',borderRadius:4,fontWeight:600}}>{isEn?'community override':'valor comunidad'}</span>}
+                            {!hasOverride && overridesOn && <span style={{marginLeft:6,fontSize:'.68rem',background:'#e8f5ec',color:'#2F4F3A',padding:'1px 6px',borderRadius:4}}>{isEn?'using global':'usando global'}</span>}
                           </div>
-                          {/* Global value — always read-only */}
-                          <div style={{fontSize:'.72rem',color:'#6b9ba8',marginBottom:4,background:'#f8f8f6',padding:'4px 8px',borderRadius:6}}>
-                            <span style={{fontWeight:600}}>{isEn?'Global:':'Global:'}</span> {globalVal ? (globalVal.length>80?globalVal.slice(0,80)+'…':globalVal) : <em>{isEn?'(not set)':'(sin valor)'}</em>}
-                          </div>
-                          {/* Override input — editable when overridesOn */}
+                          {/* Override input — editable when overridesOn; pre-filled with global value */}
                           {overridesOn && (
                             isTextarea
                               ? <textarea
                                   value={overrideVal}
                                   onChange={e=>setCommunityConfigDraft(p=>({...p,[c.id]:{...(p[c.id]||{}),[key]:e.target.value}}))}
-                                  rows={3}
-                                  placeholder={isEn?`Override for this community…`:`Valor específico para esta comunidad…`}
+                                  rows={4}
+                                  placeholder={globalVal || (isEn?`Override for this community…`:`Valor específico para esta comunidad…`)}
                                   style={{width:'100%',fontSize:'.78rem',padding:'5px 8px',borderRadius:6,border:'1px solid #cce7ee',resize:'vertical',boxSizing:'border-box'}}
                                 />
                               : <input
                                   value={overrideVal}
                                   onChange={e=>setCommunityConfigDraft(p=>({...p,[c.id]:{...(p[c.id]||{}),[key]:e.target.value}}))}
-                                  placeholder={isEn?`Override for this community…`:`Valor específico para esta comunidad…`}
+                                  placeholder={globalVal || (isEn?`Override for this community…`:`Valor específico para esta comunidad…`)}
                                   style={{width:'100%',fontSize:'.78rem',padding:'5px 8px',borderRadius:6,border:'1px solid #cce7ee',boxSizing:'border-box'}}
                                 />
                           )}
-                          {!overridesOn && <div style={{fontSize:'.72rem',color:'#8a9fa5',fontStyle:'italic'}}>{isEn?'Enable overrides above to set a community-specific value.':'Activa overrides arriba para establecer un valor específico.'}</div>}
+                          {/* Read-only global value shown when overrides are off */}
+                          {!overridesOn && (
+                            <div style={{fontSize:'.78rem',color:'#17313a',background:'#f8f8f6',padding:'5px 8px',borderRadius:6,border:'1px solid #eaecee'}}>
+                              {globalVal ? globalVal : <em style={{color:'#8a9fa5'}}>{isEn?'(not set)':'(sin valor)'}</em>}
+                            </div>
+                          )}
+                          {!overridesOn && adminInfo.isGlobalAdmin && <div style={{fontSize:'.7rem',color:'#8a9fa5',marginTop:3,fontStyle:'italic'}}>{isEn?'Enable "Allow community admin to override settings" above to edit.':'Activa "Permitir que admin comunidad sobreescriba" arriba para editar.'}</div>}
                         </div>
                       );
                     })}
