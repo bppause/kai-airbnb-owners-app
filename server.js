@@ -347,6 +347,13 @@ const getCommunityAdminEmails = async (communityId='kai') => {
     return normalizeRecipients((data||[]).map(r=>r.user_email));
   } catch(e) { return []; }
 };
+// Returns community admin emails from the DB, falling back to app_config escalation_cc_emails
+// when no community admins have been registered yet (backwards-compatible).
+const getCommunityEscalationEmails = async (communityId='kai') => {
+  const admins = await getCommunityAdminEmails(communityId);
+  if (admins.length) return admins;
+  return getEscalationCcEmails();
+};
 const isCommunityAdmin = async (uid='', email='', communityId='kai') => {
   const role = await getUserRole({ uid, email });
   if (role === 'global_admin') return true;
@@ -411,7 +418,7 @@ const buildSplitRecipients = async (typeCfg, listing, reporterEmail='', communit
 
   // Group recipients — admin roles receive together as a coordinating team
   const groupList = [];
-  if (typeCfg.globalAdmin)   groupList.push(...getGlobalAdminEmails(), ...await getEscalationCcEmails());
+  if (typeCfg.globalAdmin)   groupList.push(...getGlobalAdminEmails(), ...await getCommunityEscalationEmails(communityId));
   if (typeCfg.delegateAdmin) {
     groupList.push(...await getDelegateAdminsWithPermission('canResolveIncidents'));
     groupList.push(...await getCommunityAdminEmails(communityId));
@@ -525,9 +532,13 @@ const sendListingChangeEmail = async ({ listing, action, appUrl }) => {
     typeCfg.operator ? getListingOperatorEmails(listing) : [],
   ].flat());
   // Group: admin roles
+  const listingCommunityId = listing.communityId || 'kai';
   const groupList = [];
-  if (typeCfg.globalAdmin)   groupList.push(...getGlobalAdminEmails());
-  if (typeCfg.delegateAdmin) groupList.push(...await getDelegateAdminsWithPermission('canUpdateGlobalListings'));
+  if (typeCfg.globalAdmin)   groupList.push(...getGlobalAdminEmails(), ...await getCommunityEscalationEmails(listingCommunityId));
+  if (typeCfg.delegateAdmin) {
+    groupList.push(...await getDelegateAdminsWithPermission('canUpdateGlobalListings'));
+    groupList.push(...await getCommunityAdminEmails(listingCommunityId));
+  }
   const group = normalizeRecipients(groupList);
   if (!individual.length && !group.length) return { sent:false, skipped:true, reason:'No recipients for listing change email.' };
   const vars = { apt:listing.apt||'', owner:listing.owner||'', listingEmail:listing.email||listing.user_email||'', listingLink:appUrl+'/?view=listings' };
@@ -832,7 +843,7 @@ const sendRegistrationSubmittedEmail = async ({ registration, appUrl }) => {
   if (!typeCfg.enabled || !typeCfg.owner) return { sent:false, skipped:true, reason:'Registration submitted email is disabled.' };
   return sendTemplatedEmail({ key:'registration_submitted', to: registration.userEmail, vars: { userName:registration.userName || '', userEmail:registration.userEmail || '', registrationLink: appUrl + '/?view=registration' } });
 };
-const sendRegistrationStatusEmail = async ({ registration, appUrl }) => {
+const sendRegistrationStatusEmail = async ({ registration, appUrl, communityId='kai' }) => {
   const approved = registration.status === 'approved';
   const key = approved ? 'registration_approved' : 'registration_declined';
   const notifCfg = await getEmailNotificationConfig();
@@ -845,7 +856,10 @@ const sendRegistrationStatusEmail = async ({ registration, appUrl }) => {
   const admCfg = notifCfg['registration_status_admin'];
   if (admCfg?.enabled) {
     if (admCfg.globalAdmin) recips.push(...getGlobalAdminEmails());
-    if (admCfg.delegateAdmin) recips.push(...await getDelegateAdminsWithPermission('canApproveRegistrations'));
+    if (admCfg.delegateAdmin) {
+      recips.push(...await getDelegateAdminsWithPermission('canApproveRegistrations'));
+      recips.push(...await getCommunityAdminEmails(communityId));
+    }
   }
   return sendTemplatedEmail({ key, to: normalizeRecipients(recips), vars: { userName:registration.userName || '', userEmail:registration.userEmail || '', reason, reasonLine: reason ? 'Motivo/nota: ' + reason : '', reasonHtml: reason ? '<p><strong>Motivo/nota:</strong> ' + reason + '</p>' : '', reasonLineEn: reason ? 'Reason/note: ' + reason : '', reasonHtmlEn: reason ? '<p><strong>Reason/note:</strong> ' + reason + '</p>' : '', dashboardLink:link, registrationLink:link } });
 };
@@ -1036,7 +1050,7 @@ app.post('/api/registrations', async (req, res) => {
 
   setImmediate(async () => {
     try {
-      if (result.status === 'approved') await sendRegistrationStatusEmail({ registration: result, appUrl });
+      if (result.status === 'approved') await sendRegistrationStatusEmail({ registration: result, appUrl, communityId });
       else await sendRegistrationSubmittedEmail({ registration: result, appUrl });
     } catch(e) { warn('Registration submitted/status email failed: ' + (e?.message || e)); }
     try {
@@ -1058,7 +1072,10 @@ app.post('/api/registrations', async (req, res) => {
         if (revCfg?.enabled) {
           const adminRecips = [];
           if (revCfg.globalAdmin) adminRecips.push(...getGlobalAdminEmails());
-          if (revCfg.delegateAdmin) adminRecips.push(...await getDelegateAdminsWithPermission('canApproveRegistrations'));
+          if (revCfg.delegateAdmin) {
+            adminRecips.push(...await getDelegateAdminsWithPermission('canApproveRegistrations'));
+            adminRecips.push(...await getCommunityAdminEmails(communityId));
+          }
           const normalized = normalizeRecipients(adminRecips);
           if (normalized.length) {
             await sendTemplatedEmail({ key:'registration_reviewer', to: normalized, vars: { reviewerName:'Admin', userName:result.userName||'', userEmail:result.userEmail||'', approvalsLink: appUrl+'/?view=approvals' } });
@@ -1156,7 +1173,7 @@ const reviewRegistration = async (req, res, status) => {
   for (const row of updated || []) await auditEvent({ listingId:row.id, registrationId, actorUid:reviewerUid, actorName:reviewerName, action: status === 'approved' ? 'registration_approved' : 'registration_declined', reason:review.reason, before:pendingRows.find(x => x.id === row.id), after:row });
   const result = registrationFromListingRows(updated || []);
   res.json(result);
-  setImmediate(async () => { try { await sendRegistrationStatusEmail({ registration: result, appUrl: publicAppUrl(req) }); } catch(e) { warn('Registration status email failed: ' + (e?.message || e)); } });
+  setImmediate(async () => { try { await sendRegistrationStatusEmail({ registration: result, appUrl: publicAppUrl(req), communityId }); } catch(e) { warn('Registration status email failed: ' + (e?.message || e)); } });
 };
 app.post('/api/registrations/:id/approve', (req, res) => reviewRegistration(req, res, 'approved'));
 app.post('/api/registrations/:id/decline', (req, res) => reviewRegistration(req, res, 'declined'));
@@ -1317,8 +1334,11 @@ app.post('/api/incidents', async (req, res) => {
         const typeCfg = notifCfg['incident_new'] || {};
         const reporterEmail = await getReporterEmail(reporterUid);
         const recips = [];
-        if (typeCfg.globalAdmin  !== false) recips.push(...getGlobalAdminEmails(), ...await getEscalationCcEmails());
-        if (typeCfg.delegateAdmin !== false) recips.push(...await getDelegateAdminsWithPermission('canResolveIncidents'));
+        if (typeCfg.globalAdmin  !== false) recips.push(...getGlobalAdminEmails(), ...await getCommunityEscalationEmails(communityId));
+        if (typeCfg.delegateAdmin !== false) {
+          recips.push(...await getDelegateAdminsWithPermission('canResolveIncidents'));
+          recips.push(...await getCommunityAdminEmails(communityId));
+        }
         if (typeCfg.reporter !== false && reporterEmail) recips.push(reporterEmail);
         const recipients = normalizeRecipients(recips);
         if (recipients.length) {
@@ -1776,12 +1796,16 @@ app.patch('/api/incidents/:id/close-general', async (req, res) => {
   setImmediate(async () => {
     if (!emailConfigured) return;
     try {
+      const closeCommunityId = existing.community_id || 'kai';
       const notifCfg = await getEmailNotificationConfig();
       const typeCfg = notifCfg['incident_resolved'] || {};
       const reporterEmail = await getReporterEmail(existing.reporter_uid);
       const recips = [];
-      if (typeCfg.globalAdmin  !== false) recips.push(...getGlobalAdminEmails(), ...await getEscalationCcEmails());
-      if (typeCfg.delegateAdmin !== false) recips.push(...await getDelegateAdminsWithPermission('canResolveIncidents'));
+      if (typeCfg.globalAdmin  !== false) recips.push(...getGlobalAdminEmails(), ...await getCommunityEscalationEmails(closeCommunityId));
+      if (typeCfg.delegateAdmin !== false) {
+        recips.push(...await getDelegateAdminsWithPermission('canResolveIncidents'));
+        recips.push(...await getCommunityAdminEmails(closeCommunityId));
+      }
       if (typeCfg.reporter !== false && reporterEmail) recips.push(reporterEmail);
       const recipients = normalizeRecipients(recips);
       if (recipients.length) {
@@ -1881,14 +1905,17 @@ app.patch('/api/notifications/read-all', async (req, res) => {
 });
 
 
-const sendGeneralIncidentSlaEmail = async (inc, slaHours, appUrl) => {
+const sendGeneralIncidentSlaEmail = async (inc, slaHours, appUrl, communityId='kai') => {
   if (!emailConfigured) return;
   const notifCfg = await getEmailNotificationConfig();
   const typeCfg = notifCfg['incident_general_sla'] || { enabled:true, globalAdmin:true, delegateAdmin:true };
   if (!typeCfg.enabled) return;
   const recips = [];
-  if (typeCfg.globalAdmin  !== false) recips.push(...getGlobalAdminEmails(), ...await getEscalationCcEmails());
-  if (typeCfg.delegateAdmin !== false) recips.push(...await getDelegateAdminsWithPermission('canResolveIncidents'));
+  if (typeCfg.globalAdmin  !== false) recips.push(...getGlobalAdminEmails(), ...await getCommunityEscalationEmails(communityId));
+  if (typeCfg.delegateAdmin !== false) {
+    recips.push(...await getDelegateAdminsWithPermission('canResolveIncidents'));
+    recips.push(...await getCommunityAdminEmails(communityId));
+  }
   const recipients = normalizeRecipients(recips);
   if (!recipients.length) return;
   const incidentLink = appUrl + '/?view=incidents&incident=' + inc.id;
@@ -1925,7 +1952,7 @@ const runSlaEscalations = async () => {
           try {
             const inc = incidentFromDb(row);
             const slaHours = Number(row.sla_hours || await getSlaHours() || 24);
-            await sendGeneralIncidentSlaEmail(inc, slaHours, publicAppUrl());
+            await sendGeneralIncidentSlaEmail(inc, slaHours, publicAppUrl(), row.community_id || 'kai');
             await supabase.from('incidents').update({ sla_cycle_count: Number(row.sla_cycle_count||0)+1, next_sla_reminder_at: addHoursIso(now, slaHours) }).eq('id', row.id);
           } catch(e) {
             warn('General incident SLA email failed for ' + row.id + ': ' + (e?.message || e));
