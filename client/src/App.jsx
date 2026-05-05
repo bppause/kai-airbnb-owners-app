@@ -3266,6 +3266,32 @@ function UnitDetailCard({ l, incidents, canEdit=false, canDelete=false, onEdit, 
           </div>
         </div>
 
+        {/* ── Owner CTA — top of view so it's the first thing seen on mobile ── */}
+        {user&&isOwner&&inc.status!=='resolved'&&(inc.status==='open'||hasPendingRes)&&(
+          <div className="idd-cta-top">
+            <div className="idd-cta-top-label">
+              {inc.status==='open'
+                ? (isEn?'① Your action is needed — Step 1 of 2':'① Tu acción es requerida — Paso 1 de 2')
+                : (isEn?'② Your action is needed — Step 2 of 2':'② Tu acción es requerida — Paso 2 de 2')}
+            </div>
+            <div className="idd-cta-top-hint">
+              {inc.status==='open'
+                ? (isEn?'Confirm who your guest was and document what you did about it.':'Confirma quién fue tu huésped y documenta qué hiciste al respecto.')
+                : (isEn?'Add your resolution so the admin can officially close this incident.':'Agrega tu respuesta para que el admin pueda cerrar este incidente.')}
+            </div>
+            {inc.status==='open'&&(
+              <button className="btn-p idd-act-btn idd-cta-btn" onClick={()=>onVerify&&onVerify(inc)}>
+                ① {isEn?'Verify now — add guest info & action':'Verificar ahora — agregar info del huésped y acción'}
+              </button>
+            )}
+            {inc.status==='verified'&&hasPendingRes&&(
+              <button className="btn-p idd-act-btn idd-cta-btn" onClick={()=>onAddResolution&&onAddResolution(inc)}>
+                ② {isEn?'Add your resolution now':'Agregar tu respuesta ahora'}
+              </button>
+            )}
+          </div>
+        )}
+
         {/* ── Responsible parties ── */}
         <div className="idd-parties">
           <div className="idd-parties-hdr">👥 {isEn?'Incident Parties':'Partes del Incidente'}</div>
@@ -3395,21 +3421,11 @@ function UnitDetailCard({ l, incidents, canEdit=false, canDelete=false, onEdit, 
           return <div className="inc-steps">{nodes}</div>;
         })()}
 
-        {/* ── Action buttons ── */}
+        {/* ── Bottom action bar — admin actions + owner completion state ── */}
         {user&&inc.status!=='resolved'&&(
           <div className="idd-actions">
-            {inc.status==='open'&&isOwner&&(
-              <button className="btn-p idd-act-btn" onClick={()=>onVerify&&onVerify(inc)}>
-                ① {isEn?'Verify — add guest info & action':'Verificar — agregar info y acción'}
-              </button>
-            )}
-            {inc.status==='verified'&&isOwner&&hasPendingRes&&(
-              <button className="btn-p idd-act-btn" onClick={()=>onAddResolution&&onAddResolution(inc)}>
-                ② {isEn?'Add resolution':'Agregar respuesta'}
-              </button>
-            )}
-            {inc.status==='verified'&&isOwner&&!hasPendingRes&&(
-              <div className="udc-step-done" style={{textAlign:'center',width:'100%'}}>
+            {isOwner&&inc.status==='verified'&&!hasPendingRes&&(
+              <div className="udc-step-done">
                 ✓ {isEn?'Both steps complete — awaiting admin close':'Pasos completados — esperando cierre del admin'}
               </div>
             )}

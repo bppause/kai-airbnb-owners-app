@@ -1898,6 +1898,42 @@ button.unit-plate:focus-visible { outline: 2px solid rgba(200,216,160,.6) !impor
 .udc-tl-guest { font-size: .8rem; color: #203f2b; margin-bottom: 2px; }
 .udc-tl-loc { color: #496674; }
 
+/* ── Top CTA block — owner action, shown immediately after status banner ── */
+.idd-cta-top {
+  background: linear-gradient(135deg, rgba(160,80,0,.07), rgba(160,80,0,.04));
+  border: 2px solid rgba(160,80,0,.28);
+  border-radius: 12px;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0 0 2px;
+}
+.idd-cta-top-label {
+  font-size: .82rem;
+  font-weight: 900;
+  color: #a05000;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+}
+.idd-cta-top-hint {
+  font-size: .82rem;
+  color: #5a3800;
+  line-height: 1.45;
+}
+.idd-cta-btn {
+  font-size: 1rem !important;
+  min-height: 52px !important;
+  border-radius: 12px !important;
+  box-shadow: 0 6px 20px rgba(11,127,79,.28) !important;
+}
+@media (max-width: 640px) {
+  .idd-cta-top { padding: 16px !important; gap: 10px !important; }
+  .idd-cta-top-label { font-size: .88rem !important; }
+  .idd-cta-top-hint  { font-size: .9rem !important; line-height: 1.5 !important; }
+  .idd-cta-btn { font-size: 1.05rem !important; min-height: 56px !important; }
+}
+
 /* Action needed callout in incident detail */
 .udc-action-needed {
   display: flex;
