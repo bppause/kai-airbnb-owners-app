@@ -6013,8 +6013,10 @@ function AdminSettings({ config={}, user, listings=[], contactProps={}, onSave, 
     setTooltipsEn({...Object.fromEntries(Object.entries(DEFAULT_TOOLTIPS).map(([k,v])=>[k,v.en])), ...parseJsonObject(config?.tooltips_en,{})});
     setUiLabelsEs(parseJsonObject(config?.ui_labels_es,{}));
     setUiLabelsEn(parseJsonObject(config?.ui_labels_en,{}));
+    setCommunityFeatureEnabled(String(config?.community_feature_enabled ?? 'true') !== 'false');
+    setDefaultCommunityId(config?.default_community_id || 'kai');
     try { setLastUiError(localStorage.getItem('kai_last_ui_error') || localStorage.getItem('kai_last_admin_error') || ''); } catch(e) {}
-  }, [config?.mission_sections_es, config?.sla_hours, config?.escalation_cc_emails, config?.analytics_enabled, lang, user?.email]);
+  }, [config?.mission_sections_es, config?.sla_hours, config?.escalation_cc_emails, config?.analytics_enabled, config?.community_feature_enabled, config?.default_community_id, lang, user?.email]);
   const templateEntries = Object.entries((templates && typeof templates==='object') ? templates : {}).filter(([k,v])=>k && v && typeof v==='object');
   const selectedKey = (templates && templates[selectedTemplate]) ? selectedTemplate : (templateEntries[0]?.[0] || '');
   const selected = selectedKey ? (templates[selectedKey] || {}) : {};
