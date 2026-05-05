@@ -1,0 +1,1339 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Kai · Operator Portal — Clickable Demo</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  :root { color-scheme: light; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; }
+  .nav-item.active { background:#0f172a; color:#fff; }
+  .pill { display:inline-flex; align-items:center; gap:.35rem; padding:.15rem .55rem; border-radius:9999px; font-size:.7rem; font-weight:600; }
+  .pill-green { background:#dcfce7; color:#166534; }
+  .pill-amber { background:#fef3c7; color:#92400e; }
+  .pill-red { background:#fee2e2; color:#991b1b; }
+  .pill-blue { background:#dbeafe; color:#1e40af; }
+  .pill-gray { background:#e5e7eb; color:#374151; }
+  .pill-violet { background:#ede9fe; color:#5b21b6; }
+  .step-dot { width:1.5rem; height:1.5rem; border-radius:9999px; display:inline-flex; align-items:center; justify-content:center; font-size:.75rem; font-weight:700; }
+  .fade-in { animation: fade .25s ease-out; }
+  @keyframes fade { from { opacity:0; transform: translateY(4px);} to { opacity:1; transform:none;} }
+  .demo-banner { background: linear-gradient(90deg, #6366f1, #8b5cf6); }
+  details>summary { cursor:pointer; list-style:none; }
+  details>summary::-webkit-details-marker { display:none; }
+  .clickable-hint { box-shadow: 0 0 0 0 rgba(99,102,241,.6); animation: pulse 2s infinite; }
+  @keyframes pulse {
+    0% { box-shadow: 0 0 0 0 rgba(99,102,241,.5); }
+    70% { box-shadow: 0 0 0 8px rgba(99,102,241,0); }
+    100% { box-shadow: 0 0 0 0 rgba(99,102,241,0); }
+  }
+</style>
+</head>
+<body class="bg-slate-50 text-slate-900">
+
+<!-- Demo banner -->
+<div class="demo-banner text-white text-center text-xs py-1.5 px-3">
+  <span data-i18n="banner"></span>
+</div>
+
+<!-- Top bar -->
+<header class="bg-white border-b border-slate-200 px-6 py-3 flex items-center justify-between sticky top-0 z-30">
+  <div class="flex items-center gap-3">
+    <div class="w-8 h-8 rounded-lg bg-slate-900 text-white grid place-items-center font-bold">K</div>
+    <div>
+      <div class="font-semibold text-sm">Kai · <span data-i18n="appName"></span></div>
+      <div class="text-[11px] text-slate-500" data-i18n="tagline"></div>
+    </div>
+  </div>
+  <div class="flex items-center gap-2">
+    <!-- Role switcher -->
+    <div class="hidden md:flex items-center bg-slate-100 rounded-lg p-1 text-xs font-medium">
+      <button data-role="operator" class="role-btn px-3 py-1.5 rounded-md" data-i18n="role.operator"></button>
+      <button data-role="owner" class="role-btn px-3 py-1.5 rounded-md" data-i18n="role.owner"></button>
+      <button data-role="admin" class="role-btn px-3 py-1.5 rounded-md" data-i18n="role.admin"></button>
+    </div>
+    <!-- Lang switcher -->
+    <div class="flex items-center bg-slate-100 rounded-lg p-1 text-xs font-semibold">
+      <button data-lang="es" class="lang-btn px-2.5 py-1 rounded-md">ES</button>
+      <button data-lang="en" class="lang-btn px-2.5 py-1 rounded-md">EN</button>
+    </div>
+  </div>
+</header>
+
+<div class="flex">
+  <!-- Sidebar -->
+  <aside class="w-56 shrink-0 hidden md:block bg-white border-r border-slate-200 min-h-[calc(100vh-89px)] p-3">
+    <div class="text-[10px] uppercase tracking-wider text-slate-500 px-2 mb-2" data-i18n="nav.operator"></div>
+    <nav id="nav-operator" class="space-y-0.5 text-sm">
+      <button data-view="op-dashboard" class="nav-item w-full text-left px-3 py-2 rounded-md hover:bg-slate-100 flex items-center gap-2"><span>🏠</span><span data-i18n="nav.dashboard"></span></button>
+      <button data-view="op-units" class="nav-item w-full text-left px-3 py-2 rounded-md hover:bg-slate-100 flex items-center gap-2"><span>🏢</span><span data-i18n="nav.units"></span></button>
+      <button data-view="op-unit-detail" class="nav-item w-full text-left px-3 py-2 rounded-md hover:bg-slate-100 flex items-center gap-2"><span>📋</span><span data-i18n="nav.unitDetail"></span></button>
+      <button data-view="op-service-requests" class="nav-item w-full text-left px-3 py-2 rounded-md hover:bg-slate-100 flex items-center gap-2"><span>🔧</span><span data-i18n="nav.serviceRequests"></span></button>
+      <button data-view="op-service-detail" class="nav-item w-full text-left px-3 py-2 rounded-md hover:bg-slate-100 flex items-center gap-2"><span>📝</span><span data-i18n="nav.serviceDetail"></span></button>
+      <button data-view="op-pricing" class="nav-item w-full text-left px-3 py-2 rounded-md hover:bg-slate-100 flex items-center gap-2"><span>💰</span><span data-i18n="nav.pricing"></span></button>
+      <button data-view="op-staff" class="nav-item w-full text-left px-3 py-2 rounded-md hover:bg-slate-100 flex items-center gap-2"><span>👷</span><span data-i18n="nav.staff"></span></button>
+      <button data-view="op-propose" class="nav-item w-full text-left px-3 py-2 rounded-md hover:bg-slate-100 flex items-center gap-2"><span>➕</span><span data-i18n="nav.propose"></span></button>
+    </nav>
+    <div class="text-[10px] uppercase tracking-wider text-slate-500 px-2 mt-5 mb-2" data-i18n="nav.owner"></div>
+    <nav id="nav-owner" class="space-y-0.5 text-sm">
+      <button data-view="own-listing" class="nav-item w-full text-left px-3 py-2 rounded-md hover:bg-slate-100 flex items-center gap-2"><span>🏡</span><span data-i18n="nav.myListing"></span></button>
+      <button data-view="own-approval" class="nav-item w-full text-left px-3 py-2 rounded-md hover:bg-slate-100 flex items-center gap-2"><span>✅</span><span data-i18n="nav.approval"></span></button>
+      <button data-view="own-block" class="nav-item w-full text-left px-3 py-2 rounded-md hover:bg-slate-100 flex items-center gap-2"><span>📅</span><span data-i18n="nav.ownerBlock"></span></button>
+    </nav>
+    <div class="text-[10px] uppercase tracking-wider text-slate-500 px-2 mt-5 mb-2" data-i18n="nav.admin"></div>
+    <nav id="nav-admin" class="space-y-0.5 text-sm">
+      <button data-view="adm-operators" class="nav-item w-full text-left px-3 py-2 rounded-md hover:bg-slate-100 flex items-center gap-2"><span>🛡️</span><span data-i18n="nav.opMgmt"></span></button>
+    </nav>
+    <div class="mt-6 p-3 rounded-lg bg-indigo-50 border border-indigo-100 text-xs text-indigo-900">
+      <div class="font-semibold mb-1" data-i18n="hint.title"></div>
+      <div data-i18n="hint.body"></div>
+    </div>
+  </aside>
+
+  <!-- Main view container -->
+  <main class="flex-1 p-6 max-w-[1200px] mx-auto w-full" id="view-container"></main>
+</div>
+
+<!-- Toast -->
+<div id="toast" class="fixed bottom-6 right-6 bg-slate-900 text-white text-sm px-4 py-2.5 rounded-lg shadow-xl opacity-0 pointer-events-none transition-opacity z-50"></div>
+
+<!-- Modal -->
+<div id="modal" class="fixed inset-0 bg-slate-900/50 hidden items-center justify-center z-40 p-4">
+  <div class="bg-white rounded-xl shadow-2xl max-w-lg w-full p-6 fade-in" id="modal-content"></div>
+</div>
+
+<script>
+/* ============================================================
+   i18n dictionary
+   ============================================================ */
+const I18N = {
+  es: {
+    banner: "Demo navegable — Portal de Operadores · Datos ficticios · No es un entorno real",
+    appName: "Portal de Operadores",
+    tagline: "Reemplazo estructurado de los grupos de WhatsApp",
+    "role.operator": "Operador",
+    "role.owner": "Propietario",
+    "role.admin": "Administrador",
+    "nav.operator": "Operador",
+    "nav.owner": "Propietario",
+    "nav.admin": "Administrador",
+    "nav.dashboard": "Panel general",
+    "nav.units": "Mis unidades",
+    "nav.unitDetail": "Detalle de unidad",
+    "nav.serviceRequests": "Solicitudes",
+    "nav.serviceDetail": "Detalle de solicitud",
+    "nav.pricing": "Tarifas",
+    "nav.staff": "Personal",
+    "nav.propose": "Vincular unidad",
+    "nav.myListing": "Mi propiedad",
+    "nav.approval": "Aprobar costo",
+    "nav.ownerBlock": "Bloquear fechas",
+    "nav.opMgmt": "Gestión de operadores",
+    "hint.title": "💡 Cómo usar la demo",
+    "hint.body": "Cambia rol e idioma arriba. Los botones de la barra lateral abren cada vista. Los elementos resaltados son interactivos.",
+
+    /* Dashboard */
+    "dash.title": "Panel del operador",
+    "dash.subtitle": "Vista global — todas las unidades, todas las comunidades",
+    "dash.kpi.units": "Unidades activas",
+    "dash.kpi.pending": "Aprobaciones pendientes",
+    "dash.kpi.openSR": "Solicitudes abiertas",
+    "dash.kpi.todayTasks": "Tareas hoy",
+    "dash.attention": "Requiere atención",
+    "dash.attention.sub": "Ordenado por urgencia",
+    "dash.upcoming": "Próximas tareas",
+    "dash.communities": "Por comunidad",
+
+    /* Units list */
+    "units.title": "Mis unidades",
+    "units.subtitle": "8 unidades · 3 comunidades",
+    "units.filter.all": "Todas",
+    "units.filter.attn": "Necesitan atención",
+    "units.filter.unmanaged": "No gestionadas",
+    "units.col.unit": "Unidad",
+    "units.col.community": "Comunidad",
+    "units.col.status": "Estado",
+    "units.col.next": "Próximo evento",
+    "units.col.actions": "Acciones",
+
+    /* Unit detail */
+    "unit.back": "← Volver",
+    "unit.title": "Apto 1204 · Torre Reserva",
+    "unit.subtitle": "Gestionado por: Tu operadora — desde 12 mar 2026",
+    "unit.tab.profile": "Perfil",
+    "unit.tab.requests": "Solicitudes",
+    "unit.tab.schedule": "Calendario",
+    "unit.tab.pricing": "Tarifas",
+    "unit.tab.documents": "Documentos",
+    "unit.profile.amenities": "Amenidades",
+    "unit.profile.beds": "Configuración de camas",
+    "unit.profile.access": "Notas de acceso",
+    "unit.profile.airbnb": "Enlace Airbnb",
+    "unit.profile.edit": "Editar perfil",
+    "unit.profile.hotwater": "Agua caliente",
+    "unit.profile.ac": "Aires acondicionados",
+    "unit.profile.sofa": "Sofá-cama",
+    "unit.profile.lock": "Cerradura inteligente",
+    "unit.profile.bedConfig": "Habitación 1: Queen · Habitación 2: 2 individuales · Sofá-cama: 1 · Total: 5 personas",
+    "unit.profile.accessText": "Código del lobby: 4421 · Cerradura inteligente con PIN rotativo · Llave de respaldo en conserjería bajo nombre del huésped.",
+
+    /* Service request list */
+    "sr.title": "Solicitudes de servicio",
+    "sr.subtitle": "Todas las unidades · todos los estados",
+    "sr.new": "Nueva solicitud",
+    "sr.filter.open": "Abiertas",
+    "sr.filter.pending": "Esperando aprobación",
+    "sr.filter.done": "Cerradas",
+    "sr.col.title": "Título",
+    "sr.col.unit": "Unidad",
+    "sr.col.type": "Tipo",
+    "sr.col.urgency": "Urgencia",
+    "sr.col.status": "Estado",
+    "sr.col.cost": "Costo",
+
+    /* Service detail */
+    "srd.title": "Reparación calentador a gas",
+    "srd.unit": "Apto 1204 · Torre Reserva",
+    "srd.created": "Creada por María Vélez (operadora) · 4 may 2026",
+    "srd.linked": "Vinculada al incidente #INC-2841",
+    "srd.summary": "Resumen",
+    "srd.summaryText": "Huésped reportó falta de agua caliente. Se verificó válvula de gas y termostato. Se requiere cambio de termocupla y prueba de presión.",
+    "srd.cost": "Costo estimado",
+    "srd.staff": "Personal asignado",
+    "srd.urgency": "Urgencia",
+    "srd.timeline": "Línea de tiempo",
+    "srd.t1": "Solicitud creada por la operadora",
+    "srd.t2": "Enviada al propietario para aprobación",
+    "srd.t3": "Esperando aprobación de costo",
+    "srd.t4": "Asignación a personal",
+    "srd.t5": "En progreso",
+    "srd.t6": "Completada con foto y factura",
+    "srd.attach": "Archivos adjuntos",
+    "srd.attach.before": "Antes",
+    "srd.attach.after": "Después",
+    "srd.attach.invoice": "Factura",
+    "srd.btn.approve": "Aprobar costo",
+    "srd.btn.counter": "Contrapropuesta",
+    "srd.btn.message": "Mensaje al propietario",
+    "srd.audit": "Acciones de la operadora se registran como: \"María Vélez actuando en nombre de Carlos Ramírez — Apto 1204\"",
+
+    /* Pricing */
+    "price.title": "Bitácora de tarifas",
+    "price.subtitle": "Apto 1204 · Torre Reserva",
+    "price.current": "Tarifa vigente",
+    "price.base": "Tarifa base",
+    "price.weekend": "Fin de semana",
+    "price.cleaning": "Limpieza",
+    "price.discounts": "Descuentos",
+    "price.discounts.text": "Última hora 10% · Anticipado 5% · Semanal 12% · Mensual 25%",
+    "price.propose": "Proponer cambio",
+    "price.history": "Historial inmutable",
+
+    /* Staff */
+    "staff.title": "Personal",
+    "staff.subtitle": "Equipo asignado a múltiples unidades",
+    "staff.add": "Añadir miembro",
+    "staff.col.name": "Nombre",
+    "staff.col.role": "Rol",
+    "staff.col.contact": "Contacto",
+    "staff.col.units": "Unidades asignadas",
+    "staff.col.status": "Estado",
+
+    /* Propose */
+    "prop.title": "Vincular nueva unidad",
+    "prop.subtitle": "Busca por comunidad y número de apartamento",
+    "prop.community": "Comunidad",
+    "prop.apt": "Apartamento",
+    "prop.search": "Buscar",
+    "prop.found": "Unidad encontrada",
+    "prop.owner": "Propietario:",
+    "prop.status": "Estado actual: No gestionada",
+    "prop.send": "Enviar propuesta de gestión",
+    "prop.cancel": "Cancelar",
+
+    /* Owner views */
+    "own.title": "Mi propiedad",
+    "own.subtitle": "Apto 1204 · Torre Reserva",
+    "own.operator": "Operadora actual",
+    "own.operatorName": "María Vélez · Bogotá Stay Co.",
+    "own.since": "Activa desde el 12 mar 2026",
+    "own.delegation": "Nivel de delegación",
+    "own.delegation.level": "La operadora atiende en mi nombre (predeterminado)",
+    "own.actions": "Acciones",
+    "own.actions.block": "Solicitar bloqueo de fechas",
+    "own.actions.docs": "Ver documentos",
+    "own.actions.terminate": "Terminar relación",
+    "own.pending": "Pendientes de aprobación",
+    "own.pending.cost": "Costo de servicio: $180.000 COP",
+    "own.pending.viewSR": "Ver solicitud",
+
+    "appr.title": "Aprobar costo de servicio",
+    "appr.unit": "Apto 1204 · Torre Reserva",
+    "appr.what": "Reparación de calentador a gas — cambio de termocupla y prueba de presión",
+    "appr.who": "Propuesto por María Vélez · 4 may 2026",
+    "appr.cost": "Costo estimado",
+    "appr.notes": "Notas para la operadora (opcional)",
+    "appr.notes.ph": "Ej. Procedan con la reparación, prefiero que se haga mañana.",
+    "appr.btn.approve": "Aprobar y autorizar trabajo",
+    "appr.btn.counter": "Solicitar otra cotización",
+    "appr.btn.decline": "Rechazar",
+
+    "block.title": "Solicitar bloqueo de fechas",
+    "block.unit": "Apto 1204 · Torre Reserva",
+    "block.from": "Desde",
+    "block.to": "Hasta",
+    "block.reason": "Motivo",
+    "block.reason.personal": "Uso personal",
+    "block.reason.family": "Familiar",
+    "block.reason.maintenance": "Mantenimiento mayor",
+    "block.reason.other": "Otro",
+    "block.notes": "Notas",
+    "block.notes.ph": "Ej. Visita familiar de fin de semana.",
+    "block.send": "Enviar solicitud",
+
+    /* Admin */
+    "adm.title": "Gestión de operadores",
+    "adm.subtitle": "Aprobar registros, supervisar relaciones y resolver disputas",
+    "adm.tab.pending": "Pendientes",
+    "adm.tab.active": "Activos",
+    "adm.tab.disputes": "Disputas",
+    "adm.col.business": "Empresa / Persona",
+    "adm.col.contact": "Contacto",
+    "adm.col.communities": "Comunidades",
+    "adm.col.units": "Unidades",
+    "adm.col.actions": "Acciones",
+
+    /* Common */
+    "status.unmanaged": "No gestionada",
+    "status.pendingOp": "Esperando operador",
+    "status.pendingOwner": "Esperando propietario",
+    "status.active": "Activa",
+    "status.terminated": "Terminada",
+    "status.draft": "Borrador",
+    "status.submitted": "Enviada",
+    "status.awaiting": "Esperando aprobación",
+    "status.assigned": "Asignada",
+    "status.inProgress": "En progreso",
+    "status.completed": "Completada",
+    "status.closed": "Cerrada",
+
+    "urg.routine": "Rutinaria",
+    "urg.urgent": "Urgente",
+    "urg.emergency": "Emergencia",
+
+    "type.maintenance": "Mantenimiento",
+    "type.repair": "Reparación",
+    "type.cleaning": "Limpieza",
+    "type.inspection": "Inspección",
+    "type.regulatory": "Regulatorio",
+    "type.other": "Otro",
+
+    "btn.approve": "Aprobar",
+    "btn.cancel": "Cancelar",
+    "btn.send": "Enviar",
+    "btn.close": "Cerrar",
+    "btn.viewAll": "Ver todo",
+
+    "toast.proposalSent": "Propuesta enviada al propietario",
+    "toast.approved": "Costo aprobado · operadora notificada",
+    "toast.blockSent": "Solicitud de bloqueo enviada",
+    "toast.staffAdded": "Miembro añadido al equipo",
+    "toast.priceProposed": "Cambio de tarifa propuesto",
+    "toast.role": "Cambiando a vista de:",
+
+    "modal.proposal.title": "Propuesta enviada",
+    "modal.proposal.body": "Carlos Ramírez recibirá una notificación en la app y un correo. Verás esta unidad en estado \"Esperando propietario\" hasta que acepte o decline.",
+    "modal.approve.title": "Costo aprobado",
+    "modal.approve.body": "La operadora puede asignar personal y comenzar el trabajo. Recibirás notificaciones en cada cambio de estado.",
+  },
+  en: {
+    banner: "Clickable demo — Operator Portal · Mock data · Not a live environment",
+    appName: "Operator Portal",
+    tagline: "A structured replacement for WhatsApp groups",
+    "role.operator": "Operator",
+    "role.owner": "Owner",
+    "role.admin": "Admin",
+    "nav.operator": "Operator",
+    "nav.owner": "Owner",
+    "nav.admin": "Admin",
+    "nav.dashboard": "Dashboard",
+    "nav.units": "My units",
+    "nav.unitDetail": "Unit detail",
+    "nav.serviceRequests": "Service requests",
+    "nav.serviceDetail": "Request detail",
+    "nav.pricing": "Pricing",
+    "nav.staff": "Staff",
+    "nav.propose": "Link a unit",
+    "nav.myListing": "My listing",
+    "nav.approval": "Approve cost",
+    "nav.ownerBlock": "Block dates",
+    "nav.opMgmt": "Operator management",
+    "hint.title": "💡 How to use this demo",
+    "hint.body": "Switch role and language above. Sidebar buttons open each view. Highlighted items are interactive.",
+
+    "dash.title": "Operator dashboard",
+    "dash.subtitle": "Cross-community view — all units in one place",
+    "dash.kpi.units": "Active units",
+    "dash.kpi.pending": "Pending approvals",
+    "dash.kpi.openSR": "Open requests",
+    "dash.kpi.todayTasks": "Today's tasks",
+    "dash.attention": "Needs attention",
+    "dash.attention.sub": "Sorted by urgency",
+    "dash.upcoming": "Upcoming tasks",
+    "dash.communities": "By community",
+
+    "units.title": "My units",
+    "units.subtitle": "8 units · 3 communities",
+    "units.filter.all": "All",
+    "units.filter.attn": "Needs attention",
+    "units.filter.unmanaged": "Unmanaged",
+    "units.col.unit": "Unit",
+    "units.col.community": "Community",
+    "units.col.status": "Status",
+    "units.col.next": "Next event",
+    "units.col.actions": "Actions",
+
+    "unit.back": "← Back",
+    "unit.title": "Apt 1204 · Torre Reserva",
+    "unit.subtitle": "Managed by: Your operator — since Mar 12, 2026",
+    "unit.tab.profile": "Profile",
+    "unit.tab.requests": "Requests",
+    "unit.tab.schedule": "Schedule",
+    "unit.tab.pricing": "Pricing",
+    "unit.tab.documents": "Documents",
+    "unit.profile.amenities": "Amenities",
+    "unit.profile.beds": "Bed configuration",
+    "unit.profile.access": "Access notes",
+    "unit.profile.airbnb": "Airbnb link",
+    "unit.profile.edit": "Edit profile",
+    "unit.profile.hotwater": "Hot water",
+    "unit.profile.ac": "AC units",
+    "unit.profile.sofa": "Sofa bed",
+    "unit.profile.lock": "Smart lock",
+    "unit.profile.bedConfig": "Room 1: Queen · Room 2: 2 singles · Sofa bed: 1 · Sleeps 5",
+    "unit.profile.accessText": "Lobby code: 4421 · Smart lock with rotating PIN · Backup key with concierge under guest's name.",
+
+    "sr.title": "Service requests",
+    "sr.subtitle": "All units · all statuses",
+    "sr.new": "New request",
+    "sr.filter.open": "Open",
+    "sr.filter.pending": "Awaiting approval",
+    "sr.filter.done": "Closed",
+    "sr.col.title": "Title",
+    "sr.col.unit": "Unit",
+    "sr.col.type": "Type",
+    "sr.col.urgency": "Urgency",
+    "sr.col.status": "Status",
+    "sr.col.cost": "Cost",
+
+    "srd.title": "Gas water heater repair",
+    "srd.unit": "Apt 1204 · Torre Reserva",
+    "srd.created": "Created by María Vélez (operator) · May 4, 2026",
+    "srd.linked": "Linked to incident #INC-2841",
+    "srd.summary": "Summary",
+    "srd.summaryText": "Guest reported no hot water. Gas valve and thermostat checked. Thermocouple replacement and pressure test required.",
+    "srd.cost": "Estimated cost",
+    "srd.staff": "Assigned staff",
+    "srd.urgency": "Urgency",
+    "srd.timeline": "Timeline",
+    "srd.t1": "Request created by operator",
+    "srd.t2": "Sent to owner for approval",
+    "srd.t3": "Awaiting cost approval",
+    "srd.t4": "Staff assignment",
+    "srd.t5": "In progress",
+    "srd.t6": "Completed with photo and invoice",
+    "srd.attach": "Attachments",
+    "srd.attach.before": "Before",
+    "srd.attach.after": "After",
+    "srd.attach.invoice": "Invoice",
+    "srd.btn.approve": "Approve cost",
+    "srd.btn.counter": "Counter-propose",
+    "srd.btn.message": "Message owner",
+    "srd.audit": "Operator actions are recorded as: \"María Vélez acting on behalf of Carlos Ramírez — Apt 1204\"",
+
+    "price.title": "Pricing log",
+    "price.subtitle": "Apt 1204 · Torre Reserva",
+    "price.current": "Current rate",
+    "price.base": "Base rate",
+    "price.weekend": "Weekend",
+    "price.cleaning": "Cleaning fee",
+    "price.discounts": "Discounts",
+    "price.discounts.text": "Last-minute 10% · Early-bird 5% · Weekly 12% · Monthly 25%",
+    "price.propose": "Propose change",
+    "price.history": "Immutable history",
+
+    "staff.title": "Staff",
+    "staff.subtitle": "Team assigned across multiple units",
+    "staff.add": "Add member",
+    "staff.col.name": "Name",
+    "staff.col.role": "Role",
+    "staff.col.contact": "Contact",
+    "staff.col.units": "Assigned units",
+    "staff.col.status": "Status",
+
+    "prop.title": "Link a new unit",
+    "prop.subtitle": "Search by community and apartment number",
+    "prop.community": "Community",
+    "prop.apt": "Apartment",
+    "prop.search": "Search",
+    "prop.found": "Unit found",
+    "prop.owner": "Owner:",
+    "prop.status": "Current status: Unmanaged",
+    "prop.send": "Send management proposal",
+    "prop.cancel": "Cancel",
+
+    "own.title": "My listing",
+    "own.subtitle": "Apt 1204 · Torre Reserva",
+    "own.operator": "Current operator",
+    "own.operatorName": "María Vélez · Bogotá Stay Co.",
+    "own.since": "Active since Mar 12, 2026",
+    "own.delegation": "Delegation level",
+    "own.delegation.level": "Operator handles on my behalf (default)",
+    "own.actions": "Actions",
+    "own.actions.block": "Request date block",
+    "own.actions.docs": "View documents",
+    "own.actions.terminate": "End relationship",
+    "own.pending": "Pending approvals",
+    "own.pending.cost": "Service cost: $180,000 COP",
+    "own.pending.viewSR": "View request",
+
+    "appr.title": "Approve service cost",
+    "appr.unit": "Apt 1204 · Torre Reserva",
+    "appr.what": "Gas water heater repair — thermocouple replacement and pressure test",
+    "appr.who": "Proposed by María Vélez · May 4, 2026",
+    "appr.cost": "Estimated cost",
+    "appr.notes": "Notes for the operator (optional)",
+    "appr.notes.ph": "E.g. Go ahead, prefer it done tomorrow.",
+    "appr.btn.approve": "Approve and authorize work",
+    "appr.btn.counter": "Request another quote",
+    "appr.btn.decline": "Decline",
+
+    "block.title": "Request date block",
+    "block.unit": "Apt 1204 · Torre Reserva",
+    "block.from": "From",
+    "block.to": "To",
+    "block.reason": "Reason",
+    "block.reason.personal": "Personal use",
+    "block.reason.family": "Family",
+    "block.reason.maintenance": "Major maintenance",
+    "block.reason.other": "Other",
+    "block.notes": "Notes",
+    "block.notes.ph": "E.g. Family weekend stay.",
+    "block.send": "Submit request",
+
+    "adm.title": "Operator management",
+    "adm.subtitle": "Approve registrations, monitor relationships, and resolve disputes",
+    "adm.tab.pending": "Pending",
+    "adm.tab.active": "Active",
+    "adm.tab.disputes": "Disputes",
+    "adm.col.business": "Business / Person",
+    "adm.col.contact": "Contact",
+    "adm.col.communities": "Communities",
+    "adm.col.units": "Units",
+    "adm.col.actions": "Actions",
+
+    "status.unmanaged": "Unmanaged",
+    "status.pendingOp": "Awaiting operator",
+    "status.pendingOwner": "Awaiting owner",
+    "status.active": "Active",
+    "status.terminated": "Terminated",
+    "status.draft": "Draft",
+    "status.submitted": "Submitted",
+    "status.awaiting": "Awaiting approval",
+    "status.assigned": "Assigned",
+    "status.inProgress": "In progress",
+    "status.completed": "Completed",
+    "status.closed": "Closed",
+
+    "urg.routine": "Routine",
+    "urg.urgent": "Urgent",
+    "urg.emergency": "Emergency",
+
+    "type.maintenance": "Maintenance",
+    "type.repair": "Repair",
+    "type.cleaning": "Cleaning",
+    "type.inspection": "Inspection",
+    "type.regulatory": "Regulatory",
+    "type.other": "Other",
+
+    "btn.approve": "Approve",
+    "btn.cancel": "Cancel",
+    "btn.send": "Send",
+    "btn.close": "Close",
+    "btn.viewAll": "View all",
+
+    "toast.proposalSent": "Proposal sent to the owner",
+    "toast.approved": "Cost approved · operator notified",
+    "toast.blockSent": "Block request submitted",
+    "toast.staffAdded": "Staff member added",
+    "toast.priceProposed": "Pricing change proposed",
+    "toast.role": "Switching to view of:",
+
+    "modal.proposal.title": "Proposal sent",
+    "modal.proposal.body": "Carlos Ramírez will receive an in-app notification and an email. The unit will appear as \"Awaiting owner\" until they accept or decline.",
+    "modal.approve.title": "Cost approved",
+    "modal.approve.body": "The operator can now assign staff and begin the work. You will receive notifications on every status change.",
+  }
+};
+
+/* ============================================================
+   State
+   ============================================================ */
+const state = {
+  lang: localStorage.getItem('demoLang') || 'es',
+  role: 'operator',
+  view: 'op-dashboard',
+};
+
+/* ============================================================
+   View renderers — return HTML string
+   ============================================================ */
+const t = (k) => I18N[state.lang][k] ?? k;
+
+function pill(textKey, kind) {
+  return `<span class="pill pill-${kind}">${t(textKey)}</span>`;
+}
+
+const views = {
+  /* ---------------- Operator dashboard ---------------- */
+  'op-dashboard': () => `
+    <div class="fade-in">
+      <div class="flex items-end justify-between mb-5">
+        <div>
+          <h1 class="text-2xl font-bold">${t('dash.title')}</h1>
+          <p class="text-sm text-slate-500">${t('dash.subtitle')}</p>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+        ${kpi('🏢', '8', t('dash.kpi.units'), 'bg-blue-50 text-blue-700')}
+        ${kpi('⏳', '3', t('dash.kpi.pending'), 'bg-amber-50 text-amber-700')}
+        ${kpi('🔧', '5', t('dash.kpi.openSR'), 'bg-violet-50 text-violet-700')}
+        ${kpi('📅', '7', t('dash.kpi.todayTasks'), 'bg-emerald-50 text-emerald-700')}
+      </div>
+
+      <div class="grid md:grid-cols-3 gap-4">
+        <div class="md:col-span-2 bg-white border border-slate-200 rounded-xl p-5">
+          <div class="flex items-center justify-between mb-3">
+            <div>
+              <h2 class="font-semibold">${t('dash.attention')}</h2>
+              <p class="text-xs text-slate-500">${t('dash.attention.sub')}</p>
+            </div>
+            <button class="text-xs text-indigo-600 font-medium" data-go="op-service-requests">${t('btn.viewAll')} →</button>
+          </div>
+          <div class="space-y-2">
+            ${attentionRow('🔥','#SR-1042','Apt 1204 · Torre Reserva', t('srd.title'), 'red', 'urg.emergency', 'op-service-detail')}
+            ${attentionRow('💸','#SR-1039','Apt 802 · Pinares', state.lang==='es'?'Limpieza profunda':'Deep cleaning', 'amber', 'status.awaiting', 'op-service-requests')}
+            ${attentionRow('📄','RNT','Apt 304 · El Bosque', state.lang==='es'?'RNT vence en 14 días':'RNT expires in 14 days', 'amber', 'urg.urgent', 'op-units')}
+            ${attentionRow('💰','PRC-22','Apt 1204 · Torre Reserva', state.lang==='es'?'Cambio de tarifa pendiente':'Pricing change pending', 'blue', 'status.awaiting', 'op-pricing')}
+          </div>
+        </div>
+
+        <div class="bg-white border border-slate-200 rounded-xl p-5">
+          <h2 class="font-semibold mb-3">${t('dash.communities')}</h2>
+          <div class="space-y-3 text-sm">
+            ${communityBar('Torre Reserva', 4, 8)}
+            ${communityBar('Pinares del Norte', 3, 8)}
+            ${communityBar('El Bosque', 1, 8)}
+          </div>
+          <hr class="my-4 border-slate-100"/>
+          <h3 class="font-semibold text-sm mb-2">${t('dash.upcoming')}</h3>
+          <ul class="text-xs space-y-1.5 text-slate-600">
+            <li>🧹 09:00 — Apt 802 · ${state.lang==='es'?'Limpieza salida':'Checkout cleaning'}</li>
+            <li>🔧 11:30 — Apt 1204 · ${t('srd.title')}</li>
+            <li>📋 15:00 — Apt 304 · ${state.lang==='es'?'Inspección trimestral':'Quarterly inspection'}</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  `,
+
+  /* ---------------- Units list ---------------- */
+  'op-units': () => `
+    <div class="fade-in">
+      <div class="flex items-end justify-between mb-5">
+        <div>
+          <h1 class="text-2xl font-bold">${t('units.title')}</h1>
+          <p class="text-sm text-slate-500">${t('units.subtitle')}</p>
+        </div>
+        <button data-go="op-propose" class="bg-slate-900 text-white text-sm px-4 py-2 rounded-lg hover:bg-slate-800">+ ${t('nav.propose')}</button>
+      </div>
+
+      <div class="flex gap-2 mb-3 text-xs">
+        <button class="px-3 py-1.5 rounded-full bg-slate-900 text-white">${t('units.filter.all')}</button>
+        <button class="px-3 py-1.5 rounded-full bg-white border border-slate-200">${t('units.filter.attn')}</button>
+        <button class="px-3 py-1.5 rounded-full bg-white border border-slate-200">${t('units.filter.unmanaged')}</button>
+      </div>
+
+      <div class="bg-white border border-slate-200 rounded-xl overflow-hidden">
+        <table class="w-full text-sm">
+          <thead class="bg-slate-50 text-xs text-slate-500 uppercase">
+            <tr>
+              <th class="text-left px-4 py-2.5">${t('units.col.unit')}</th>
+              <th class="text-left px-4 py-2.5">${t('units.col.community')}</th>
+              <th class="text-left px-4 py-2.5">${t('units.col.status')}</th>
+              <th class="text-left px-4 py-2.5">${t('units.col.next')}</th>
+              <th class="text-right px-4 py-2.5">${t('units.col.actions')}</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-100">
+            ${unitRow('Apt 1204', 'Torre Reserva', pill('status.active','green'), state.lang==='es'?'Reparación 11:30':'Repair 11:30', true)}
+            ${unitRow('Apt 802', 'Pinares del Norte', pill('status.active','green'), state.lang==='es'?'Limpieza 09:00':'Cleaning 09:00')}
+            ${unitRow('Apt 304', 'El Bosque', pill('status.active','green'), state.lang==='es'?'Inspección 15:00':'Inspection 15:00')}
+            ${unitRow('Apt 905', 'Torre Reserva', pill('status.active','green'), '—')}
+            ${unitRow('Apt 1101', 'Torre Reserva', pill('status.pendingOwner','amber'), state.lang==='es'?'Esperando aceptación':'Awaiting acceptance')}
+            ${unitRow('Apt 502', 'Pinares del Norte', pill('status.active','green'), '—')}
+            ${unitRow('Apt 706', 'Pinares del Norte', pill('status.terminated','gray'), state.lang==='es'?'Solo lectura':'Read-only')}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  `,
+
+  /* ---------------- Unit detail ---------------- */
+  'op-unit-detail': () => `
+    <div class="fade-in">
+      <button data-go="op-units" class="text-sm text-indigo-600 mb-3">${t('unit.back')}</button>
+      <div class="flex items-start justify-between mb-4">
+        <div>
+          <h1 class="text-2xl font-bold">${t('unit.title')}</h1>
+          <p class="text-sm text-slate-500">${t('unit.subtitle')}</p>
+        </div>
+        <div class="flex gap-2">
+          ${pill('status.active','green')}
+          ${pill('urg.routine','blue')}
+        </div>
+      </div>
+
+      <div class="border-b border-slate-200 mb-4 flex gap-1 text-sm">
+        <button class="px-4 py-2 border-b-2 border-slate-900 font-semibold">${t('unit.tab.profile')}</button>
+        <button class="px-4 py-2 text-slate-500 hover:text-slate-900" data-go="op-service-requests">${t('unit.tab.requests')} <span class="ml-1 text-[10px] bg-red-100 text-red-700 px-1.5 rounded-full">2</span></button>
+        <button class="px-4 py-2 text-slate-500 hover:text-slate-900">${t('unit.tab.schedule')}</button>
+        <button class="px-4 py-2 text-slate-500 hover:text-slate-900" data-go="op-pricing">${t('unit.tab.pricing')}</button>
+        <button class="px-4 py-2 text-slate-500 hover:text-slate-900">${t('unit.tab.documents')}</button>
+      </div>
+
+      <div class="grid md:grid-cols-3 gap-4">
+        <div class="md:col-span-2 bg-white border border-slate-200 rounded-xl p-5">
+          <div class="flex items-center justify-between mb-4">
+            <h2 class="font-semibold">${t('unit.profile.amenities')}</h2>
+            <button class="text-xs text-indigo-600 font-medium">${t('unit.profile.edit')}</button>
+          </div>
+          <div class="grid grid-cols-2 gap-3 text-sm mb-5">
+            <div class="flex items-center gap-2"><span>♨️</span> ${t('unit.profile.hotwater')}: <span class="text-slate-500">${state.lang==='es'?'Gas natural':'Natural gas'}</span></div>
+            <div class="flex items-center gap-2"><span>❄️</span> ${t('unit.profile.ac')}: <span class="text-slate-500">2</span></div>
+            <div class="flex items-center gap-2"><span>🛋️</span> ${t('unit.profile.sofa')}: <span class="text-slate-500">${state.lang==='es'?'Sí':'Yes'}</span></div>
+            <div class="flex items-center gap-2"><span>🔐</span> ${t('unit.profile.lock')}: <span class="text-slate-500">August Pro</span></div>
+          </div>
+          <h3 class="font-semibold text-sm mb-2">${t('unit.profile.beds')}</h3>
+          <p class="text-sm text-slate-600 mb-4">${t('unit.profile.bedConfig')}</p>
+          <h3 class="font-semibold text-sm mb-2">${t('unit.profile.access')}</h3>
+          <p class="text-sm text-slate-600 mb-4">${t('unit.profile.accessText')}</p>
+          <h3 class="font-semibold text-sm mb-2">${t('unit.profile.airbnb')}</h3>
+          <a href="#" class="text-sm text-indigo-600 underline">airbnb.com/rooms/12345678</a>
+        </div>
+        <div class="bg-white border border-slate-200 rounded-xl p-5 text-sm">
+          <h3 class="font-semibold mb-3">${state.lang==='es'?'Resumen del mes':'Month at a glance'}</h3>
+          <div class="space-y-2">
+            <div class="flex justify-between"><span class="text-slate-500">${state.lang==='es'?'Ocupación':'Occupancy'}</span><span class="font-semibold">82%</span></div>
+            <div class="flex justify-between"><span class="text-slate-500">${state.lang==='es'?'Ingresos':'Revenue'}</span><span class="font-semibold">$4.2M COP</span></div>
+            <div class="flex justify-between"><span class="text-slate-500">${state.lang==='es'?'Solicitudes':'Requests'}</span><span class="font-semibold">3</span></div>
+            <div class="flex justify-between"><span class="text-slate-500">${state.lang==='es'?'Costo de servicios':'Service costs'}</span><span class="font-semibold">$320k COP</span></div>
+          </div>
+          <hr class="my-3 border-slate-100"/>
+          <h3 class="font-semibold mb-2">${state.lang==='es'?'Próximas reservas':'Upcoming bookings'}</h3>
+          <ul class="text-xs text-slate-600 space-y-1">
+            <li>📥 ${state.lang==='es'?'Check-in 6 may':'Check-in May 6'} — Anna K.</li>
+            <li>📤 ${state.lang==='es'?'Check-out 9 may':'Check-out May 9'}</li>
+            <li>📥 ${state.lang==='es'?'Check-in 12 may':'Check-in May 12'} — Diego R.</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  `,
+
+  /* ---------------- Service requests list ---------------- */
+  'op-service-requests': () => `
+    <div class="fade-in">
+      <div class="flex items-end justify-between mb-5">
+        <div>
+          <h1 class="text-2xl font-bold">${t('sr.title')}</h1>
+          <p class="text-sm text-slate-500">${t('sr.subtitle')}</p>
+        </div>
+        <button class="bg-slate-900 text-white text-sm px-4 py-2 rounded-lg hover:bg-slate-800">+ ${t('sr.new')}</button>
+      </div>
+
+      <div class="flex gap-2 mb-3 text-xs">
+        <button class="px-3 py-1.5 rounded-full bg-slate-900 text-white">${t('sr.filter.open')} (5)</button>
+        <button class="px-3 py-1.5 rounded-full bg-white border border-slate-200">${t('sr.filter.pending')} (1)</button>
+        <button class="px-3 py-1.5 rounded-full bg-white border border-slate-200">${t('sr.filter.done')} (12)</button>
+      </div>
+
+      <div class="bg-white border border-slate-200 rounded-xl overflow-hidden">
+        <table class="w-full text-sm">
+          <thead class="bg-slate-50 text-xs text-slate-500 uppercase">
+            <tr>
+              <th class="text-left px-4 py-2.5">${t('sr.col.title')}</th>
+              <th class="text-left px-4 py-2.5">${t('sr.col.unit')}</th>
+              <th class="text-left px-4 py-2.5">${t('sr.col.type')}</th>
+              <th class="text-left px-4 py-2.5">${t('sr.col.urgency')}</th>
+              <th class="text-left px-4 py-2.5">${t('sr.col.status')}</th>
+              <th class="text-right px-4 py-2.5">${t('sr.col.cost')}</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-100">
+            ${srRow('SR-1042', t('srd.title'), 'Apt 1204', 'type.repair', 'urg.emergency', 'status.awaiting', '$180.000', true)}
+            ${srRow('SR-1039', state.lang==='es'?'Limpieza profunda':'Deep cleaning', 'Apt 802', 'type.cleaning', 'urg.urgent', 'status.assigned', '$95.000')}
+            ${srRow('SR-1037', state.lang==='es'?'Cambio de bombillas':'Bulb replacement', 'Apt 905', 'type.maintenance', 'urg.routine', 'status.inProgress', '$25.000')}
+            ${srRow('SR-1035', state.lang==='es'?'Inspección trimestral':'Quarterly inspection', 'Apt 304', 'type.inspection', 'urg.routine', 'status.assigned', '$0')}
+            ${srRow('SR-1033', state.lang==='es'?'Renovación RNT':'RNT renewal', 'Apt 304', 'type.regulatory', 'urg.urgent', 'status.submitted', '$120.000')}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  `,
+
+  /* ---------------- Service request detail ---------------- */
+  'op-service-detail': () => `
+    <div class="fade-in">
+      <button data-go="op-service-requests" class="text-sm text-indigo-600 mb-3">${t('unit.back')}</button>
+      <div class="flex items-start justify-between mb-3">
+        <div>
+          <div class="flex items-center gap-2 mb-1">
+            <span class="text-xs font-mono text-slate-500">#SR-1042</span>
+            ${pill('status.awaiting','amber')}
+            ${pill('urg.emergency','red')}
+            ${pill('type.repair','blue')}
+          </div>
+          <h1 class="text-2xl font-bold">${t('srd.title')}</h1>
+          <p class="text-sm text-slate-500">${t('srd.unit')} · ${t('srd.created')}</p>
+          <p class="text-xs mt-1"><span class="text-slate-400">🔗</span> <a href="#" class="text-indigo-600 underline">${t('srd.linked')}</a></p>
+        </div>
+      </div>
+
+      <div class="bg-violet-50 border border-violet-200 rounded-lg p-3 text-xs text-violet-900 mb-4">
+        🛡️ ${t('srd.audit')}
+      </div>
+
+      <div class="grid md:grid-cols-3 gap-4">
+        <div class="md:col-span-2 space-y-4">
+          <div class="bg-white border border-slate-200 rounded-xl p-5">
+            <h2 class="font-semibold mb-2">${t('srd.summary')}</h2>
+            <p class="text-sm text-slate-600">${t('srd.summaryText')}</p>
+          </div>
+
+          <div class="bg-white border border-slate-200 rounded-xl p-5">
+            <h2 class="font-semibold mb-3">${t('srd.timeline')}</h2>
+            <ol class="relative border-l-2 border-slate-200 ml-2 pl-5 space-y-3 text-sm">
+              ${tl('1','green', t('srd.t1'), '4 may, 14:02', true)}
+              ${tl('2','green', t('srd.t2'), '4 may, 14:05', true)}
+              ${tl('3','amber', t('srd.t3'), state.lang==='es'?'Pendiente':'Pending', false, true)}
+              ${tl('4','gray', t('srd.t4'), '—')}
+              ${tl('5','gray', t('srd.t5'), '—')}
+              ${tl('6','gray', t('srd.t6'), '—')}
+            </ol>
+          </div>
+
+          <div class="bg-white border border-slate-200 rounded-xl p-5">
+            <h2 class="font-semibold mb-3">${t('srd.attach')}</h2>
+            <div class="grid grid-cols-3 gap-3">
+              ${attachThumb('📷', t('srd.attach.before'))}
+              ${attachThumb('📷', t('srd.attach.after'), true)}
+              ${attachThumb('🧾', t('srd.attach.invoice'), true)}
+            </div>
+          </div>
+        </div>
+
+        <div class="space-y-4">
+          <div class="bg-white border border-slate-200 rounded-xl p-5 text-sm">
+            <div class="mb-3">
+              <div class="text-xs text-slate-500">${t('srd.cost')}</div>
+              <div class="text-xl font-bold">$180.000 COP</div>
+            </div>
+            <div class="mb-3">
+              <div class="text-xs text-slate-500">${t('srd.staff')}</div>
+              <div class="font-medium">Juan Pérez · ${state.lang==='es'?'Técnico':'Technician'}</div>
+            </div>
+            <div>
+              <div class="text-xs text-slate-500">${t('srd.urgency')}</div>
+              <div>${pill('urg.emergency','red')}</div>
+            </div>
+          </div>
+          <div class="bg-white border border-slate-200 rounded-xl p-5 space-y-2">
+            <button data-action="approve-cost" class="w-full bg-emerald-600 text-white text-sm py-2 rounded-lg hover:bg-emerald-700">${t('srd.btn.approve')}</button>
+            <button class="w-full bg-white border border-slate-300 text-sm py-2 rounded-lg hover:bg-slate-50">${t('srd.btn.counter')}</button>
+            <button class="w-full bg-white border border-slate-300 text-sm py-2 rounded-lg hover:bg-slate-50">${t('srd.btn.message')}</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  `,
+
+  /* ---------------- Pricing ---------------- */
+  'op-pricing': () => `
+    <div class="fade-in">
+      <div class="flex items-end justify-between mb-5">
+        <div>
+          <h1 class="text-2xl font-bold">${t('price.title')}</h1>
+          <p class="text-sm text-slate-500">${t('price.subtitle')}</p>
+        </div>
+        <button data-action="propose-price" class="bg-slate-900 text-white text-sm px-4 py-2 rounded-lg hover:bg-slate-800">+ ${t('price.propose')}</button>
+      </div>
+
+      <div class="grid md:grid-cols-3 gap-4 mb-5">
+        <div class="bg-white border border-slate-200 rounded-xl p-5 md:col-span-2">
+          <div class="flex items-center justify-between mb-3">
+            <h2 class="font-semibold">${t('price.current')}</h2>
+            ${pill('status.active','green')}
+          </div>
+          <div class="grid grid-cols-3 gap-3 text-sm">
+            <div><div class="text-xs text-slate-500">${t('price.base')}</div><div class="font-bold text-lg">$240k</div></div>
+            <div><div class="text-xs text-slate-500">${t('price.weekend')}</div><div class="font-bold text-lg">$310k</div></div>
+            <div><div class="text-xs text-slate-500">${t('price.cleaning')}</div><div class="font-bold text-lg">$60k</div></div>
+          </div>
+          <hr class="my-4 border-slate-100"/>
+          <div class="text-xs text-slate-500 mb-1">${t('price.discounts')}</div>
+          <div class="text-sm">${t('price.discounts.text')}</div>
+        </div>
+        <div class="bg-amber-50 border border-amber-200 rounded-xl p-5 text-sm">
+          <div class="text-xs uppercase tracking-wider text-amber-700 mb-1">${state.lang==='es'?'Propuesta pendiente':'Pending proposal'}</div>
+          <div class="font-bold mb-1">$240k → $265k ${state.lang==='es'?'(Temporada alta)':'(Peak season)'}</div>
+          <div class="text-xs text-slate-600 mb-3">${state.lang==='es'?'Propuesto por María Vélez · 3 may 2026':'Proposed by María Vélez · May 3, 2026'}</div>
+          <button class="w-full bg-emerald-600 text-white text-xs py-1.5 rounded-md mb-1">${t('btn.approve')}</button>
+          <button class="w-full bg-white border border-slate-300 text-xs py-1.5 rounded-md">${t('srd.btn.counter')}</button>
+        </div>
+      </div>
+
+      <div class="bg-white border border-slate-200 rounded-xl p-5">
+        <h2 class="font-semibold mb-3">${t('price.history')}</h2>
+        <ol class="relative border-l-2 border-slate-200 ml-2 pl-5 space-y-3 text-sm">
+          ${priceLog('PRC-21', '$220k → $240k', state.lang==='es'?'Aprobado por Carlos Ramírez':'Approved by Carlos Ramírez', '15 mar 2026')}
+          ${priceLog('PRC-20', '$200k → $220k', state.lang==='es'?'Aprobado por Carlos Ramírez':'Approved by Carlos Ramírez', '12 ene 2026')}
+          ${priceLog('PRC-19', state.lang==='es'?'Tarifa inicial $200k':'Initial rate $200k', state.lang==='es'?'Acuerdo inicial':'Initial agreement', '12 mar 2026')}
+        </ol>
+      </div>
+    </div>
+  `,
+
+  /* ---------------- Staff ---------------- */
+  'op-staff': () => `
+    <div class="fade-in">
+      <div class="flex items-end justify-between mb-5">
+        <div>
+          <h1 class="text-2xl font-bold">${t('staff.title')}</h1>
+          <p class="text-sm text-slate-500">${t('staff.subtitle')}</p>
+        </div>
+        <button data-action="add-staff" class="bg-slate-900 text-white text-sm px-4 py-2 rounded-lg hover:bg-slate-800">+ ${t('staff.add')}</button>
+      </div>
+
+      <div class="bg-white border border-slate-200 rounded-xl overflow-hidden">
+        <table class="w-full text-sm">
+          <thead class="bg-slate-50 text-xs text-slate-500 uppercase">
+            <tr>
+              <th class="text-left px-4 py-2.5">${t('staff.col.name')}</th>
+              <th class="text-left px-4 py-2.5">${t('staff.col.role')}</th>
+              <th class="text-left px-4 py-2.5">${t('staff.col.contact')}</th>
+              <th class="text-left px-4 py-2.5">${t('staff.col.units')}</th>
+              <th class="text-left px-4 py-2.5">${t('staff.col.status')}</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-100">
+            ${staffRow('Juan Pérez', state.lang==='es'?'Técnico':'Technician', 'juan@stay.co · +57 300 111 2233', 4, pill('status.active','green'))}
+            ${staffRow('Diana Ruiz', state.lang==='es'?'Limpieza':'Cleaning', 'diana@stay.co · +57 301 444 5566', 6, pill('status.active','green'))}
+            ${staffRow('Andrés Gómez', state.lang==='es'?'Inspector':'Inspector', 'andres@stay.co · +57 302 777 8899', 8, pill('status.active','green'))}
+            ${staffRow('Laura Méndez', state.lang==='es'?'Limpieza':'Cleaning', 'laura@stay.co · +57 303 222 3344', 0, pill('status.pendingOp','amber'))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  `,
+
+  /* ---------------- Propose unit (link new unit) ---------------- */
+  'op-propose': () => `
+    <div class="fade-in max-w-2xl">
+      <h1 class="text-2xl font-bold mb-1">${t('prop.title')}</h1>
+      <p class="text-sm text-slate-500 mb-5">${t('prop.subtitle')}</p>
+
+      <div class="bg-white border border-slate-200 rounded-xl p-5 space-y-4">
+        <div>
+          <label class="block text-xs text-slate-500 mb-1">${t('prop.community')}</label>
+          <select class="w-full border border-slate-300 rounded-md px-3 py-2 text-sm">
+            <option>Torre Reserva</option>
+            <option>Pinares del Norte</option>
+            <option>El Bosque</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-xs text-slate-500 mb-1">${t('prop.apt')}</label>
+          <input value="1408" class="w-full border border-slate-300 rounded-md px-3 py-2 text-sm" />
+        </div>
+
+        <div class="border border-emerald-200 bg-emerald-50 rounded-lg p-4 text-sm">
+          <div class="font-semibold text-emerald-900 mb-1">✅ ${t('prop.found')}</div>
+          <div class="text-emerald-900">${t('prop.owner')} <span class="font-medium">Lucía Fernández</span></div>
+          <div class="text-emerald-700 text-xs mt-1">${t('prop.status')}</div>
+        </div>
+
+        <div class="flex gap-2 pt-2">
+          <button data-action="send-proposal" class="bg-slate-900 text-white text-sm px-4 py-2 rounded-lg hover:bg-slate-800">${t('prop.send')}</button>
+          <button class="bg-white border border-slate-300 text-sm px-4 py-2 rounded-lg">${t('prop.cancel')}</button>
+        </div>
+      </div>
+    </div>
+  `,
+
+  /* ---------------- Owner: my listing ---------------- */
+  'own-listing': () => `
+    <div class="fade-in">
+      <h1 class="text-2xl font-bold mb-1">${t('own.title')}</h1>
+      <p class="text-sm text-slate-500 mb-5">${t('own.subtitle')}</p>
+
+      <div class="grid md:grid-cols-3 gap-4">
+        <div class="md:col-span-2 space-y-4">
+          <div class="bg-white border border-slate-200 rounded-xl p-5">
+            <div class="flex items-center justify-between mb-3">
+              <h2 class="font-semibold">${t('own.operator')}</h2>
+              ${pill('status.active','green')}
+            </div>
+            <div class="flex items-center gap-3">
+              <div class="w-12 h-12 rounded-full bg-indigo-100 grid place-items-center text-xl">👤</div>
+              <div>
+                <div class="font-semibold">${t('own.operatorName')}</div>
+                <div class="text-xs text-slate-500">${t('own.since')}</div>
+              </div>
+            </div>
+            <hr class="my-4 border-slate-100"/>
+            <div class="text-xs text-slate-500 mb-1">${t('own.delegation')}</div>
+            <div class="text-sm">⚖️ ${t('own.delegation.level')}</div>
+          </div>
+
+          <div class="bg-amber-50 border border-amber-200 rounded-xl p-5">
+            <h2 class="font-semibold mb-2">⏳ ${t('own.pending')}</h2>
+            <div class="bg-white rounded-lg p-3 flex items-center justify-between">
+              <div>
+                <div class="font-medium text-sm">${t('srd.title')}</div>
+                <div class="text-xs text-slate-500">${t('own.pending.cost')}</div>
+              </div>
+              <button data-go="own-approval" class="bg-slate-900 text-white text-xs px-3 py-1.5 rounded-md">${t('own.pending.viewSR')} →</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="bg-white border border-slate-200 rounded-xl p-5">
+          <h2 class="font-semibold mb-3">${t('own.actions')}</h2>
+          <div class="space-y-2 text-sm">
+            <button data-go="own-block" class="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-50 flex items-center gap-2">📅 ${t('own.actions.block')}</button>
+            <button class="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-50 flex items-center gap-2">📁 ${t('own.actions.docs')}</button>
+            <button class="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-50 flex items-center gap-2 text-red-600">⛔ ${t('own.actions.terminate')}</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  `,
+
+  /* ---------------- Owner: approval ---------------- */
+  'own-approval': () => `
+    <div class="fade-in max-w-2xl">
+      <button data-go="own-listing" class="text-sm text-indigo-600 mb-3">${t('unit.back')}</button>
+      <h1 class="text-2xl font-bold mb-1">${t('appr.title')}</h1>
+      <p class="text-sm text-slate-500 mb-5">${t('appr.unit')}</p>
+
+      <div class="bg-white border border-slate-200 rounded-xl p-5 space-y-4">
+        <div>
+          <div class="text-xs text-slate-500 mb-1">${t('sr.col.title')}</div>
+          <div class="font-semibold">${t('appr.what')}</div>
+          <div class="text-xs text-slate-500 mt-1">${t('appr.who')}</div>
+        </div>
+
+        <div class="bg-slate-50 rounded-lg p-4 grid grid-cols-3 text-sm">
+          <div><div class="text-xs text-slate-500">${t('appr.cost')}</div><div class="font-bold text-lg">$180.000</div></div>
+          <div><div class="text-xs text-slate-500">${t('srd.staff')}</div><div class="font-medium">Juan Pérez</div></div>
+          <div><div class="text-xs text-slate-500">${t('srd.urgency')}</div><div>${pill('urg.emergency','red')}</div></div>
+        </div>
+
+        <div>
+          <label class="block text-xs text-slate-500 mb-1">${t('appr.notes')}</label>
+          <textarea placeholder="${t('appr.notes.ph')}" class="w-full border border-slate-300 rounded-md px-3 py-2 text-sm h-20"></textarea>
+        </div>
+
+        <div class="flex flex-wrap gap-2 pt-2">
+          <button data-action="owner-approve" class="bg-emerald-600 text-white text-sm px-4 py-2 rounded-lg hover:bg-emerald-700">✅ ${t('appr.btn.approve')}</button>
+          <button class="bg-white border border-slate-300 text-sm px-4 py-2 rounded-lg">${t('appr.btn.counter')}</button>
+          <button class="bg-white border border-red-300 text-red-600 text-sm px-4 py-2 rounded-lg">${t('appr.btn.decline')}</button>
+        </div>
+      </div>
+    </div>
+  `,
+
+  /* ---------------- Owner: block dates ---------------- */
+  'own-block': () => `
+    <div class="fade-in max-w-2xl">
+      <button data-go="own-listing" class="text-sm text-indigo-600 mb-3">${t('unit.back')}</button>
+      <h1 class="text-2xl font-bold mb-1">${t('block.title')}</h1>
+      <p class="text-sm text-slate-500 mb-5">${t('block.unit')}</p>
+
+      <div class="bg-white border border-slate-200 rounded-xl p-5 space-y-4">
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs text-slate-500 mb-1">${t('block.from')}</label>
+            <input type="date" value="2026-06-12" class="w-full border border-slate-300 rounded-md px-3 py-2 text-sm" />
+          </div>
+          <div>
+            <label class="block text-xs text-slate-500 mb-1">${t('block.to')}</label>
+            <input type="date" value="2026-06-14" class="w-full border border-slate-300 rounded-md px-3 py-2 text-sm" />
+          </div>
+        </div>
+        <div>
+          <label class="block text-xs text-slate-500 mb-1">${t('block.reason')}</label>
+          <select class="w-full border border-slate-300 rounded-md px-3 py-2 text-sm">
+            <option>${t('block.reason.personal')}</option>
+            <option>${t('block.reason.family')}</option>
+            <option>${t('block.reason.maintenance')}</option>
+            <option>${t('block.reason.other')}</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-xs text-slate-500 mb-1">${t('block.notes')}</label>
+          <textarea placeholder="${t('block.notes.ph')}" class="w-full border border-slate-300 rounded-md px-3 py-2 text-sm h-20"></textarea>
+        </div>
+        <button data-action="send-block" class="bg-slate-900 text-white text-sm px-4 py-2 rounded-lg hover:bg-slate-800">${t('block.send')}</button>
+      </div>
+    </div>
+  `,
+
+  /* ---------------- Admin: operator management ---------------- */
+  'adm-operators': () => `
+    <div class="fade-in">
+      <h1 class="text-2xl font-bold mb-1">${t('adm.title')}</h1>
+      <p class="text-sm text-slate-500 mb-5">${t('adm.subtitle')}</p>
+
+      <div class="border-b border-slate-200 mb-4 flex gap-1 text-sm">
+        <button class="px-4 py-2 border-b-2 border-slate-900 font-semibold">${t('adm.tab.pending')} <span class="ml-1 text-[10px] bg-amber-100 text-amber-700 px-1.5 rounded-full">2</span></button>
+        <button class="px-4 py-2 text-slate-500 hover:text-slate-900">${t('adm.tab.active')} <span class="ml-1 text-[10px] bg-slate-100 text-slate-700 px-1.5 rounded-full">14</span></button>
+        <button class="px-4 py-2 text-slate-500 hover:text-slate-900">${t('adm.tab.disputes')} <span class="ml-1 text-[10px] bg-red-100 text-red-700 px-1.5 rounded-full">1</span></button>
+      </div>
+
+      <div class="bg-white border border-slate-200 rounded-xl overflow-hidden">
+        <table class="w-full text-sm">
+          <thead class="bg-slate-50 text-xs text-slate-500 uppercase">
+            <tr>
+              <th class="text-left px-4 py-2.5">${t('adm.col.business')}</th>
+              <th class="text-left px-4 py-2.5">${t('adm.col.contact')}</th>
+              <th class="text-left px-4 py-2.5">${t('adm.col.communities')}</th>
+              <th class="text-left px-4 py-2.5">${t('adm.col.units')}</th>
+              <th class="text-right px-4 py-2.5">${t('adm.col.actions')}</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-100">
+            <tr class="hover:bg-slate-50">
+              <td class="px-4 py-3"><div class="font-medium">Bogotá Stay Co.</div><div class="text-xs text-slate-500">María Vélez</div></td>
+              <td class="px-4 py-3 text-xs">maria@bogotastay.co<br/>+57 310 555 4422</td>
+              <td class="px-4 py-3 text-xs">Torre Reserva, Pinares</td>
+              <td class="px-4 py-3">8</td>
+              <td class="px-4 py-3 text-right">
+                <button class="text-xs bg-emerald-600 text-white px-2 py-1 rounded">${t('btn.approve')}</button>
+                <button class="text-xs bg-white border border-slate-300 px-2 py-1 rounded ml-1">${state.lang==='es'?'Rechazar':'Reject'}</button>
+              </td>
+            </tr>
+            <tr class="hover:bg-slate-50">
+              <td class="px-4 py-3"><div class="font-medium">Andean Hosts</div><div class="text-xs text-slate-500">Roberto Silva</div></td>
+              <td class="px-4 py-3 text-xs">r.silva@andean.host<br/>+57 320 999 1100</td>
+              <td class="px-4 py-3 text-xs">El Bosque</td>
+              <td class="px-4 py-3">3</td>
+              <td class="px-4 py-3 text-right">
+                <button class="text-xs bg-emerald-600 text-white px-2 py-1 rounded">${t('btn.approve')}</button>
+                <button class="text-xs bg-white border border-slate-300 px-2 py-1 rounded ml-1">${state.lang==='es'?'Rechazar':'Reject'}</button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  `,
+};
+
+/* ============================================================
+   Small render helpers
+   ============================================================ */
+function kpi(icon, num, label, accent) {
+  return `<div class="bg-white border border-slate-200 rounded-xl p-4">
+    <div class="w-9 h-9 rounded-lg ${accent} grid place-items-center text-lg mb-2">${icon}</div>
+    <div class="text-2xl font-bold leading-none">${num}</div>
+    <div class="text-xs text-slate-500 mt-1">${label}</div>
+  </div>`;
+}
+function attentionRow(emoji, ref, sub, title, kind, badgeKey, target) {
+  return `<div data-go="${target}" class="cursor-pointer flex items-center justify-between gap-3 p-3 rounded-lg border border-slate-100 hover:border-indigo-300 hover:bg-indigo-50/40">
+    <div class="flex items-center gap-3 min-w-0">
+      <span class="text-xl">${emoji}</span>
+      <div class="min-w-0">
+        <div class="font-medium text-sm truncate">${title}</div>
+        <div class="text-xs text-slate-500 truncate">${ref} · ${sub}</div>
+      </div>
+    </div>
+    ${pill(badgeKey, kind)}
+  </div>`;
+}
+function communityBar(name, occupied, totalBars) {
+  const dots = Array.from({length: totalBars}, (_,i) =>
+    `<div class="h-2 rounded-sm ${i<occupied?'bg-indigo-500':'bg-slate-200'}"></div>`).join('');
+  return `<div>
+    <div class="flex justify-between text-xs mb-1"><span>${name}</span><span class="text-slate-400">${occupied} / ${totalBars}</span></div>
+    <div class="grid grid-cols-8 gap-1">${dots}</div>
+  </div>`;
+}
+function unitRow(apt, community, statusHtml, next, isHot=false) {
+  return `<tr class="hover:bg-slate-50 cursor-pointer ${isHot?'bg-red-50/40':''}" data-go="op-unit-detail">
+    <td class="px-4 py-3 font-medium">${apt}</td>
+    <td class="px-4 py-3 text-slate-600">${community}</td>
+    <td class="px-4 py-3">${statusHtml}</td>
+    <td class="px-4 py-3 text-slate-600">${next}</td>
+    <td class="px-4 py-3 text-right text-xs text-indigo-600">${state.lang==='es'?'Abrir':'Open'} →</td>
+  </tr>`;
+}
+function srRow(id, title, unit, typeKey, urgKey, statusKey, cost, isHot=false) {
+  const urgKind = urgKey==='urg.emergency' ? 'red' : urgKey==='urg.urgent' ? 'amber' : 'blue';
+  const statKind = statusKey==='status.awaiting' ? 'amber' : statusKey==='status.inProgress' ? 'violet' : statusKey==='status.assigned' ? 'blue' : 'gray';
+  return `<tr class="hover:bg-slate-50 cursor-pointer ${isHot?'bg-red-50/40':''}" data-go="op-service-detail">
+    <td class="px-4 py-3"><div class="font-medium">${title}</div><div class="text-xs text-slate-500 font-mono">#${id}</div></td>
+    <td class="px-4 py-3 text-slate-600">${unit}</td>
+    <td class="px-4 py-3">${pill(typeKey,'gray')}</td>
+    <td class="px-4 py-3">${pill(urgKey, urgKind)}</td>
+    <td class="px-4 py-3">${pill(statusKey, statKind)}</td>
+    <td class="px-4 py-3 text-right font-medium">${cost}</td>
+  </tr>`;
+}
+function tl(num, color, text, when, done=false, current=false) {
+  const colorMap = { green:'bg-emerald-500 text-white', amber:'bg-amber-500 text-white', gray:'bg-slate-200 text-slate-500' };
+  return `<li class="relative">
+    <span class="absolute -left-[31px] top-0 step-dot ${colorMap[color]} ${current?'clickable-hint':''}">${done?'✓':num}</span>
+    <div class="font-medium ${color==='gray'?'text-slate-400':''}">${text}</div>
+    <div class="text-xs text-slate-500">${when}</div>
+  </li>`;
+}
+function attachThumb(emoji, label, present=true) {
+  if (!present) return `<div class="aspect-square rounded-lg border-2 border-dashed border-slate-200 grid place-items-center text-slate-400 text-xs">+ ${label}</div>`;
+  return `<div class="aspect-square rounded-lg bg-slate-100 grid place-items-center">
+    <div class="text-center">
+      <div class="text-3xl">${emoji}</div>
+      <div class="text-[10px] text-slate-500 mt-1">${label}</div>
+    </div>
+  </div>`;
+}
+function priceLog(id, change, who, when) {
+  return `<li class="relative">
+    <span class="absolute -left-[31px] top-0 step-dot bg-slate-200 text-slate-700 text-[10px] font-mono">${id.slice(-2)}</span>
+    <div class="font-medium">${change}</div>
+    <div class="text-xs text-slate-500">${who} · ${when}</div>
+  </li>`;
+}
+function staffRow(name, role, contact, units, statusHtml) {
+  return `<tr class="hover:bg-slate-50">
+    <td class="px-4 py-3 font-medium">${name}</td>
+    <td class="px-4 py-3 text-slate-600">${role}</td>
+    <td class="px-4 py-3 text-xs text-slate-600">${contact}</td>
+    <td class="px-4 py-3">${units}</td>
+    <td class="px-4 py-3">${statusHtml}</td>
+  </tr>`;
+}
+
+/* ============================================================
+   Render & wiring
+   ============================================================ */
+function applyI18n() {
+  document.documentElement.lang = state.lang;
+  document.querySelectorAll('[data-i18n]').forEach(el => {
+    el.textContent = t(el.getAttribute('data-i18n'));
+  });
+  document.querySelectorAll('.lang-btn').forEach(b => {
+    b.classList.toggle('bg-white', b.dataset.lang === state.lang);
+    b.classList.toggle('shadow-sm', b.dataset.lang === state.lang);
+  });
+  document.querySelectorAll('.role-btn').forEach(b => {
+    b.classList.toggle('bg-white', b.dataset.role === state.role);
+    b.classList.toggle('shadow-sm', b.dataset.role === state.role);
+  });
+}
+
+function render() {
+  document.querySelectorAll('.nav-item').forEach(b => {
+    b.classList.toggle('active', b.dataset.view === state.view);
+  });
+  // Show nav section relevant to current role; keep all visible but highlight role
+  document.getElementById('nav-operator').style.opacity = state.role==='operator' ? '1' : '.55';
+  document.getElementById('nav-owner').style.opacity = state.role==='owner' ? '1' : '.55';
+  document.getElementById('nav-admin').style.opacity = state.role==='admin' ? '1' : '.55';
+
+  const fn = views[state.view] || views['op-dashboard'];
+  document.getElementById('view-container').innerHTML = fn();
+  applyI18n();
+}
+
+function setView(v) { state.view = v; render(); }
+function setLang(l) { state.lang = l; localStorage.setItem('demoLang', l); render(); }
+function setRole(r) {
+  state.role = r;
+  if (r === 'operator') state.view = 'op-dashboard';
+  if (r === 'owner') state.view = 'own-listing';
+  if (r === 'admin') state.view = 'adm-operators';
+  showToast(t('toast.role') + ' ' + t('role.'+r));
+  render();
+}
+
+function showToast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.remove('opacity-0');
+  el.classList.add('opacity-100');
+  setTimeout(() => { el.classList.remove('opacity-100'); el.classList.add('opacity-0'); }, 2400);
+}
+
+function showModal(titleKey, bodyKey, onClose) {
+  const m = document.getElementById('modal');
+  document.getElementById('modal-content').innerHTML = `
+    <h3 class="text-lg font-bold mb-2">${t(titleKey)}</h3>
+    <p class="text-sm text-slate-600 mb-4">${t(bodyKey)}</p>
+    <div class="text-right"><button id="modal-close" class="bg-slate-900 text-white text-sm px-4 py-2 rounded-lg">${t('btn.close')}</button></div>
+  `;
+  m.classList.remove('hidden'); m.classList.add('flex');
+  document.getElementById('modal-close').onclick = () => {
+    m.classList.add('hidden'); m.classList.remove('flex');
+    if (onClose) onClose();
+  };
+}
+
+document.addEventListener('click', (e) => {
+  const langBtn = e.target.closest('.lang-btn');
+  if (langBtn) { setLang(langBtn.dataset.lang); return; }
+
+  const roleBtn = e.target.closest('.role-btn');
+  if (roleBtn) { setRole(roleBtn.dataset.role); return; }
+
+  const navBtn = e.target.closest('.nav-item');
+  if (navBtn && navBtn.dataset.view) { setView(navBtn.dataset.view); return; }
+
+  const goBtn = e.target.closest('[data-go]');
+  if (goBtn) { setView(goBtn.dataset.go); return; }
+
+  const action = e.target.closest('[data-action]');
+  if (action) {
+    const a = action.dataset.action;
+    if (a === 'send-proposal') showModal('modal.proposal.title', 'modal.proposal.body', () => setView('op-units'));
+    else if (a === 'approve-cost' || a === 'owner-approve') {
+      showToast(t('toast.approved'));
+      showModal('modal.approve.title', 'modal.approve.body', () => {
+        if (state.role === 'owner') setView('own-listing'); else setView('op-service-requests');
+      });
+    }
+    else if (a === 'send-block') { showToast(t('toast.blockSent')); setView('own-listing'); }
+    else if (a === 'add-staff') showToast(t('toast.staffAdded'));
+    else if (a === 'propose-price') showToast(t('toast.priceProposed'));
+  }
+});
+
+/* boot */
+render();
+</script>
+</body>
+</html>
