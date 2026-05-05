@@ -54,25 +54,26 @@ const DEFAULT_DELEGATE_PERMISSIONS = {
   canDeleteGlobalIncidents: false
 };
 // Per email-type routing defaults — matches current workflow behaviour exactly.
-// owner   = listing owner / registrant   operator    = listing operator
-// globalAdmin = env GLOBAL_ADMIN_EMAILS + escalation CC   delegateAdmin = role-gated per type
+// owner   = listing owner / registrant   operator       = listing operator
+// globalAdmin = env GLOBAL_ADMIN_EMAILS + escalation CC   delegateAdmin  = role-gated platform-wide
+// communityAdmin = community_memberships admins for this community (community-scoped group)
 const DEFAULT_EMAIL_NOTIFICATION_CONFIG = {
-  incident_new:              { enabled:true,  reporter:true,  owner:true,  operator:true,  globalAdmin:true,  delegateAdmin:true  },
-  incident_sla_notification: { enabled:true,  reporter:true,  owner:true,  operator:true,  globalAdmin:true,  delegateAdmin:true  },
-  incident_sla_reminder:     { enabled:true,  reporter:true,  owner:true,  operator:true,  globalAdmin:true,  delegateAdmin:true  },
-  incident_sla:              { enabled:true,  reporter:true,  owner:true,  operator:true,  globalAdmin:true,  delegateAdmin:true  },
-  incident_verified:         { enabled:true,  reporter:true,  owner:true,  operator:true,  globalAdmin:true,  delegateAdmin:true  },
-  incident_resolution_added: { enabled:true,  reporter:true,  owner:true,  operator:true,  globalAdmin:true,  delegateAdmin:true  },
-  incident_resolved:         { enabled:true,  reporter:true,  owner:true,  operator:true,  globalAdmin:true,  delegateAdmin:true  },
-  incident_general_sla:      { enabled:true,  reporter:false, owner:false, operator:false, globalAdmin:true,  delegateAdmin:true  },
-  registration_submitted:    { enabled:true,  owner:true,  operator:false, globalAdmin:true,  delegateAdmin:true  },
-  registration_approved:     { enabled:true,  owner:true,  operator:false, globalAdmin:true,  delegateAdmin:true  },
-  registration_declined:     { enabled:true,  owner:true,  operator:false, globalAdmin:true,  delegateAdmin:true  },
-  registration_status_admin: { enabled:true,  owner:false, operator:false, globalAdmin:true,  delegateAdmin:true  },
-  registration_reviewer:     { enabled:true,  owner:true,  operator:false, globalAdmin:true,  delegateAdmin:true  },
-  listing_created:           { enabled:true,  owner:true,  operator:false, globalAdmin:true,  delegateAdmin:true  },
-  listing_updated:           { enabled:true,  owner:true,  operator:false, globalAdmin:true,  delegateAdmin:true  },
-  listing_deleted:           { enabled:true,  owner:true,  operator:false, globalAdmin:true,  delegateAdmin:true  },
+  incident_new:              { enabled:true,  reporter:true,  owner:true,  operator:true,  globalAdmin:true,  delegateAdmin:true,  communityAdmin:true  },
+  incident_sla_notification: { enabled:true,  reporter:true,  owner:true,  operator:true,  globalAdmin:true,  delegateAdmin:true,  communityAdmin:true  },
+  incident_sla_reminder:     { enabled:true,  reporter:true,  owner:true,  operator:true,  globalAdmin:true,  delegateAdmin:true,  communityAdmin:true  },
+  incident_sla:              { enabled:true,  reporter:true,  owner:true,  operator:true,  globalAdmin:true,  delegateAdmin:true,  communityAdmin:true  },
+  incident_verified:         { enabled:true,  reporter:true,  owner:true,  operator:true,  globalAdmin:true,  delegateAdmin:true,  communityAdmin:true  },
+  incident_resolution_added: { enabled:true,  reporter:true,  owner:true,  operator:true,  globalAdmin:true,  delegateAdmin:true,  communityAdmin:true  },
+  incident_resolved:         { enabled:true,  reporter:true,  owner:true,  operator:true,  globalAdmin:true,  delegateAdmin:true,  communityAdmin:true  },
+  incident_general_sla:      { enabled:true,  reporter:false, owner:false, operator:false, globalAdmin:true,  delegateAdmin:true,  communityAdmin:true  },
+  registration_submitted:    { enabled:true,  owner:true,  operator:false, globalAdmin:true,  delegateAdmin:true,  communityAdmin:true  },
+  registration_approved:     { enabled:true,  owner:true,  operator:false, globalAdmin:true,  delegateAdmin:true,  communityAdmin:true  },
+  registration_declined:     { enabled:true,  owner:true,  operator:false, globalAdmin:true,  delegateAdmin:true,  communityAdmin:true  },
+  registration_status_admin: { enabled:true,  owner:false, operator:false, globalAdmin:true,  delegateAdmin:true,  communityAdmin:true  },
+  registration_reviewer:     { enabled:true,  owner:true,  operator:false, globalAdmin:true,  delegateAdmin:true,  communityAdmin:true  },
+  listing_created:           { enabled:true,  owner:true,  operator:false, globalAdmin:true,  delegateAdmin:true,  communityAdmin:true  },
+  listing_updated:           { enabled:true,  owner:true,  operator:false, globalAdmin:true,  delegateAdmin:true,  communityAdmin:true  },
+  listing_deleted:           { enabled:true,  owner:true,  operator:false, globalAdmin:true,  delegateAdmin:true,  communityAdmin:true  },
 };
 const DEFAULT_STANDARD_MENU_PERMISSIONS = {
   dashboard: true,
@@ -451,10 +452,10 @@ const buildSplitRecipients = async (typeCfg, listing, reporterEmail='', communit
   // Group recipients — admin roles receive together as a coordinating team
   const groupList = [];
   if (typeCfg.globalAdmin)   groupList.push(...getGlobalAdminEmails(), ...await getCommunityEscalationEmails(communityId));
-  if (typeCfg.delegateAdmin) {
-    groupList.push(...await getDelegateAdminsWithPermission('canResolveIncidents'));
-    groupList.push(...await getCommunityAdminEmails(communityId));
-  }
+  if (typeCfg.delegateAdmin) groupList.push(...await getDelegateAdminsWithPermission('canResolveIncidents'));
+  // communityAdmin: community-scoped admins for this specific community.
+  // Default true when key is absent (backwards compat with saved configs that predate this field).
+  if (typeCfg.communityAdmin ?? true) groupList.push(...await getCommunityAdminEmails(communityId));
   const group = normalizeRecipients(groupList);
 
   return { individual, group };
@@ -571,10 +572,8 @@ const sendListingChangeEmail = async ({ listing, action, appUrl }) => {
   const listingCommunityId = listing.communityId || 'kai';
   const groupList = [];
   if (typeCfg.globalAdmin)   groupList.push(...getGlobalAdminEmails(), ...await getCommunityEscalationEmails(listingCommunityId));
-  if (typeCfg.delegateAdmin) {
-    groupList.push(...await getDelegateAdminsWithPermission('canUpdateGlobalListings'));
-    groupList.push(...await getCommunityAdminEmails(listingCommunityId));
-  }
+  if (typeCfg.delegateAdmin) groupList.push(...await getDelegateAdminsWithPermission('canUpdateGlobalListings'));
+  if (typeCfg.communityAdmin ?? true) groupList.push(...await getCommunityAdminEmails(listingCommunityId));
   const group = normalizeRecipients(groupList);
   if (!individual.length && !group.length) return { sent:false, skipped:true, reason:'No recipients for listing change email.' };
   const vars = { apt:listing.apt||'', owner:listing.owner||'', listingEmail:listing.email||listing.user_email||'', listingLink:appUrl+'/?view=listings' };
@@ -898,10 +897,8 @@ const sendRegistrationStatusEmail = async ({ registration, appUrl, communityId='
   const admCfg = notifCfg['registration_status_admin'];
   if (admCfg?.enabled) {
     if (admCfg.globalAdmin) recips.push(...getGlobalAdminEmails());
-    if (admCfg.delegateAdmin) {
-      recips.push(...await getDelegateAdminsWithPermission('canApproveRegistrations'));
-      recips.push(...await getCommunityAdminEmails(communityId));
-    }
+    if (admCfg.delegateAdmin) recips.push(...await getDelegateAdminsWithPermission('canApproveRegistrations'));
+    if (admCfg.communityAdmin ?? true) recips.push(...await getCommunityAdminEmails(communityId));
   }
   return sendTemplatedEmail({ key, to: normalizeRecipients(recips), vars: { userName:registration.userName || '', userEmail:registration.userEmail || '', reason, reasonLine: reason ? 'Motivo/nota: ' + reason : '', reasonHtml: reason ? '<p><strong>Motivo/nota:</strong> ' + reason + '</p>' : '', reasonLineEn: reason ? 'Reason/note: ' + reason : '', reasonHtmlEn: reason ? '<p><strong>Reason/note:</strong> ' + reason + '</p>' : '', dashboardLink:link, registrationLink:link, communityName }, communityId });
 };
@@ -1118,10 +1115,8 @@ app.post('/api/registrations', async (req, res) => {
         if (revCfg?.enabled) {
           const adminRecips = [];
           if (revCfg.globalAdmin) adminRecips.push(...getGlobalAdminEmails());
-          if (revCfg.delegateAdmin) {
-            adminRecips.push(...await getDelegateAdminsWithPermission('canApproveRegistrations'));
-            adminRecips.push(...await getCommunityAdminEmails(communityId));
-          }
+          if (revCfg.delegateAdmin) adminRecips.push(...await getDelegateAdminsWithPermission('canApproveRegistrations'));
+          if (revCfg.communityAdmin ?? true) adminRecips.push(...await getCommunityAdminEmails(communityId));
           const normalized = normalizeRecipients(adminRecips);
           if (normalized.length) {
             const comm = await getCommunity(communityId);
@@ -1385,10 +1380,8 @@ app.post('/api/incidents', async (req, res) => {
         const reporterEmail = await getReporterEmail(reporterUid);
         const recips = [];
         if (typeCfg.globalAdmin  !== false) recips.push(...getGlobalAdminEmails(), ...await getCommunityEscalationEmails(communityId));
-        if (typeCfg.delegateAdmin !== false) {
-          recips.push(...await getDelegateAdminsWithPermission('canResolveIncidents'));
-          recips.push(...await getCommunityAdminEmails(communityId));
-        }
+        if (typeCfg.delegateAdmin !== false) recips.push(...await getDelegateAdminsWithPermission('canResolveIncidents'));
+        if (typeCfg.communityAdmin ?? true) recips.push(...await getCommunityAdminEmails(communityId));
         if (typeCfg.reporter !== false && reporterEmail) recips.push(reporterEmail);
         const recipients = normalizeRecipients(recips);
         if (recipients.length) {
@@ -1886,10 +1879,8 @@ app.patch('/api/incidents/:id/close-general', async (req, res) => {
       const reporterEmail = await getReporterEmail(existing.reporter_uid);
       const recips = [];
       if (typeCfg.globalAdmin  !== false) recips.push(...getGlobalAdminEmails(), ...await getCommunityEscalationEmails(closeCommunityId));
-      if (typeCfg.delegateAdmin !== false) {
-        recips.push(...await getDelegateAdminsWithPermission('canResolveIncidents'));
-        recips.push(...await getCommunityAdminEmails(closeCommunityId));
-      }
+      if (typeCfg.delegateAdmin !== false) recips.push(...await getDelegateAdminsWithPermission('canResolveIncidents'));
+      if (typeCfg.communityAdmin ?? true) recips.push(...await getCommunityAdminEmails(closeCommunityId));
       if (typeCfg.reporter !== false && reporterEmail) recips.push(reporterEmail);
       const recipients = normalizeRecipients(recips);
       if (recipients.length) {
@@ -1996,10 +1987,8 @@ const sendGeneralIncidentSlaEmail = async (inc, slaHours, appUrl, communityId='k
   if (!typeCfg.enabled) return;
   const recips = [];
   if (typeCfg.globalAdmin  !== false) recips.push(...getGlobalAdminEmails(), ...await getCommunityEscalationEmails(communityId));
-  if (typeCfg.delegateAdmin !== false) {
-    recips.push(...await getDelegateAdminsWithPermission('canResolveIncidents'));
-    recips.push(...await getCommunityAdminEmails(communityId));
-  }
+  if (typeCfg.delegateAdmin !== false) recips.push(...await getDelegateAdminsWithPermission('canResolveIncidents'));
+  if (typeCfg.communityAdmin ?? true) recips.push(...await getCommunityAdminEmails(communityId));
   const recipients = normalizeRecipients(recips);
   if (!recipients.length) return;
   const incidentLink = appUrl + '/?view=incidents&incident=' + inc.id;

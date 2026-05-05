@@ -7220,31 +7220,32 @@ function AdminSettings({ config={}, user, listings=[], contactProps={}, onSave, 
     const tog = (key,field,val) => setEmailNotifConfig(c=>({...c,[key]:{...c[key],[field]:val}}));
     const GROUPS = [
       { id:'incident', label: isEn?'⚠️ Incidents':'⚠️ Incidentes', types:[
-        { key:'incident_new',                label:isEn?'New incident filed':'Incidente nuevo reportado',               cols:['reporter','owner','operator','globalAdmin','delegateAdmin'] },
-        { key:'incident_sla',                label:isEn?'SLA escalation':'Escalación SLA',                             cols:['reporter','owner','operator','globalAdmin'] },
-        { key:'incident_sla_notification',   label:isEn?'SLA notification (initial)':'SLA — notificación inicial',     cols:['reporter','owner','operator','globalAdmin'] },
-        { key:'incident_sla_reminder',       label:isEn?'SLA reminder (cycle)':'SLA — recordatorio (ciclo)',           cols:['reporter','owner','operator','globalAdmin'] },
-        { key:'incident_verified',           label:isEn?'Step 1 verified by owner':'Paso 1 verificado por propietario', cols:['reporter','owner','operator','globalAdmin','delegateAdmin'] },
-        { key:'incident_resolution_added',   label:isEn?'Step 2 resolution added (ready to close)':'Paso 2 respuesta agregada (listo para cerrar)', cols:['reporter','owner','operator','globalAdmin','delegateAdmin'] },
-        { key:'incident_resolved',           label:isEn?'Incident closed':'Incidente cerrado',                         cols:['reporter','owner','operator','globalAdmin','delegateAdmin'] },
+        { key:'incident_new',                label:isEn?'New incident filed':'Incidente nuevo reportado',               cols:['reporter','owner','operator','communityAdmin','delegateAdmin','globalAdmin'] },
+        { key:'incident_sla',                label:isEn?'SLA escalation':'Escalación SLA',                             cols:['reporter','owner','operator','communityAdmin','delegateAdmin','globalAdmin'] },
+        { key:'incident_sla_notification',   label:isEn?'SLA notification (initial)':'SLA — notificación inicial',     cols:['reporter','owner','operator','communityAdmin','delegateAdmin','globalAdmin'] },
+        { key:'incident_sla_reminder',       label:isEn?'SLA reminder (cycle)':'SLA — recordatorio (ciclo)',           cols:['reporter','owner','operator','communityAdmin','delegateAdmin','globalAdmin'] },
+        { key:'incident_verified',           label:isEn?'Step 1 verified by owner':'Paso 1 verificado por propietario', cols:['reporter','owner','operator','communityAdmin','delegateAdmin','globalAdmin'] },
+        { key:'incident_resolution_added',   label:isEn?'Step 2 resolution added (ready to close)':'Paso 2 respuesta agregada (listo para cerrar)', cols:['reporter','owner','operator','communityAdmin','delegateAdmin','globalAdmin'] },
+        { key:'incident_resolved',           label:isEn?'Incident closed':'Incidente cerrado',                         cols:['reporter','owner','operator','communityAdmin','delegateAdmin','globalAdmin'] },
       ]},
       { id:'registration', label: isEn?'📝 Registrations':'📝 Registros', types:[
         { key:'registration_submitted',    label:isEn?'Received (to registrant)':'Recibido (al registrante)',     cols:['owner'] },
-        { key:'registration_approved',     label:isEn?'Approved (to registrant)':'Aprobado (al registrante)',     cols:['owner','globalAdmin','delegateAdmin'] },
-        { key:'registration_declined',     label:isEn?'Declined (to registrant)':'Rechazado (al registrante)',    cols:['owner','globalAdmin','delegateAdmin'] },
-        { key:'registration_reviewer',     label:isEn?'Pending — notify reviewers':'Pendiente — avisar revisores', cols:['owner','globalAdmin','delegateAdmin'] },
+        { key:'registration_approved',     label:isEn?'Approved (to registrant)':'Aprobado (al registrante)',     cols:['owner','communityAdmin','delegateAdmin','globalAdmin'] },
+        { key:'registration_declined',     label:isEn?'Declined (to registrant)':'Rechazado (al registrante)',    cols:['owner','communityAdmin','delegateAdmin','globalAdmin'] },
+        { key:'registration_reviewer',     label:isEn?'Pending — notify reviewers':'Pendiente — avisar revisores', cols:['owner','communityAdmin','delegateAdmin','globalAdmin'] },
       ]},
       { id:'listing', label: isEn?'🏠 Listings':'🏠 Listings', types:[
-        { key:'listing_created',           label:isEn?'Listing created':'Listing creado',   cols:['owner','operator','globalAdmin','delegateAdmin'] },
-        { key:'listing_updated',           label:isEn?'Listing updated':'Listing actualizado', cols:['owner','operator','globalAdmin','delegateAdmin'] },
-        { key:'listing_deleted',           label:isEn?'Listing deleted':'Listing eliminado', cols:['owner','operator','globalAdmin','delegateAdmin'] },
+        { key:'listing_created',           label:isEn?'Listing created':'Listing creado',   cols:['owner','operator','communityAdmin','delegateAdmin','globalAdmin'] },
+        { key:'listing_updated',           label:isEn?'Listing updated':'Listing actualizado', cols:['owner','operator','communityAdmin','delegateAdmin','globalAdmin'] },
+        { key:'listing_deleted',           label:isEn?'Listing deleted':'Listing eliminado', cols:['owner','operator','communityAdmin','delegateAdmin','globalAdmin'] },
       ]},
     ];
     const COL_INFO = [
       { key:'reporter',      icon:'📋', label: isEn?'Reporter — individual person who filed this incident or request':'Reportador — persona específica que reportó el incidente', short: isEn?'Rep.':'Rep.', tag: isEn?'individual':'individual' },
       { key:'owner',         icon:'🏠', label: isEn?'Owner — individual listing owner / registrant':'Propietario — dueño específico del listing o registro', short: isEn?'Owner':'Prop.', tag: isEn?'individual':'individual' },
       { key:'operator',      icon:'🔧', label: isEn?'Operator — individual listing operator (if set)':'Operador — operador específico del listing (si está configurado)', short: isEn?'Oper.':'Oper.', tag: isEn?'individual':'individual' },
-      { key:'delegateAdmin', icon:'👥', label: isEn?'Delegate Admins — all delegates with incident permission (group)':'Admins Delegados — todos los delegados con permiso de incidentes (grupo)', short: isEn?'Deleg.':'Deleg.', tag: isEn?'group':'grupo' },
+      { key:'communityAdmin',icon:'🏢', label: isEn?'Community Admins — admins of this community only (group)':'Admins de comunidad — admins de esta comunidad específica (grupo)', short: isEn?'Comm.':'Com.', tag: isEn?'group':'grupo' },
+      { key:'delegateAdmin', icon:'👥', label: isEn?'Delegate Admins — all delegates with incident permission, platform-wide (group)':'Admins Delegados — todos los delegados con permiso de incidentes, en toda la plataforma (grupo)', short: isEn?'Deleg.':'Deleg.', tag: isEn?'group':'grupo' },
       { key:'globalAdmin',   icon:'🌐', label: isEn?'Global Admins — all configured global admins (group)':'Admins Globales — todos los admins globales configurados (grupo)', short: isEn?'Global':'Global', tag: isEn?'group':'grupo' },
     ];
     return (
