@@ -6040,6 +6040,8 @@ function AdminSettings({ config={}, user, listings=[], contactProps={}, onSave, 
   const [defaultDelegatePermissions,setDefaultDelegatePermissions]=useState(()=>({ ...DEFAULT_DELEGATE_PERMISSIONS }));
   const [defaultCommunityAdminPermissions,setDefaultCommunityAdminPermissions]=useState(()=>({ ...DEFAULT_COMMUNITY_ADMIN_PERMISSIONS }));
   const [mission,setMission]=useState(() => parseMissionSections(config || {}));
+  const [missionEn,setMissionEn]=useState(()=>{ try{ const v=JSON.parse(config?.mission_sections_en||'{}'); return {...MISSION_EN_DEFAULTS,...(v&&typeof v==='object'?v:{})}; }catch{ return {...MISSION_EN_DEFAULTS}; }});
+  const [missionLang,setMissionLang]=useState('es');
   const [tooltipsEs,setTooltipsEs]=useState(() => ({...Object.fromEntries(Object.entries(DEFAULT_TOOLTIPS).map(([k,v])=>[k,v.es])), ...parseJsonObject(config?.tooltips_es,{})}));
   const [tooltipsEn,setTooltipsEn]=useState(() => ({...Object.fromEntries(Object.entries(DEFAULT_TOOLTIPS).map(([k,v])=>[k,v.en])), ...parseJsonObject(config?.tooltips_en,{})}));
   const [uiLabelsEs,setUiLabelsEs]=useState(()=>parseJsonObject(config?.ui_labels_es,{}));
@@ -6086,6 +6088,8 @@ function AdminSettings({ config={}, user, listings=[], contactProps={}, onSave, 
   const [communityConfigDraft, setCommunityConfigDraft] = useState({}); // {cid: {key: value}}
   const [communityOverridesEnabled, setCommunityOverridesEnabled] = useState({}); // {cid: bool}
   const [communityConfigTab, setCommunityConfigTab] = useState({}); // {cid: tabId}
+  const [commMissionLang, setCommMissionLang] = useState('es');
+  const [commMemberSearch, setCommMemberSearch] = useState({});
   const [communityTplOpen, setCommunityTplOpen] = useState({});
   const [communityTplData, setCommunityTplData] = useState({});
   const [communityTplLoading, setCommunityTplLoading] = useState({});
@@ -6095,7 +6099,13 @@ function AdminSettings({ config={}, user, listings=[], contactProps={}, onSave, 
   const [communityRoutingData, setCommunityRoutingData] = useState({});
   const [communityRoutingLoading, setCommunityRoutingLoading] = useState({});
   const [communityRoutingDraft, setCommunityRoutingDraft] = useState({});
-  const ADMIN_SEC_DEFAULT = {communities:false,branding:false,emailSender:false,roles:true,sla:false,mission:false,menu:false,delegate:false,communityAdminPerms:false,users:true,tooltips:false,uiLabels:false,email:false,emailNotif:false,auditLog:false,commMission:false,commLabels:false,commTooltips:false,commTpl:false};
+  const [adminTab, setAdminTab] = useState(() => adminInfo.isGlobalAdmin ? 'platform' : 'community');
+  const [activeCommId, setActiveCommId] = useState(() => {
+    if (!adminInfo.isGlobalAdmin && (adminInfo.communityAdminOf||[]).length)
+      return adminInfo.communityAdminOf[0].communityId;
+    return '';
+  });
+  const ADMIN_SEC_DEFAULT = {communities:false,branding:false,emailSender:false,roles:true,sla:false,mission:false,menu:false,delegate:false,communityAdminPerms:false,users:true,tooltips:false,uiLabels:false,email:false,emailNotif:false,auditLog:false,commMembers:false,commMission:false,commLabels:false,commTooltips:false,commTpl:false};
   const [openSections,setOpenSections] = useState(()=>{
     try{ const s=JSON.parse(localStorage.getItem('kai_admin_open')||'null'); return s&&typeof s==='object'?{...ADMIN_SEC_DEFAULT,...s}:ADMIN_SEC_DEFAULT; }catch{ return ADMIN_SEC_DEFAULT; }
   });
@@ -6113,6 +6123,7 @@ function AdminSettings({ config={}, user, listings=[], contactProps={}, onSave, 
   useEffect(()=>{
     trace('mount/update config', { user:user?.email, lang, config });
     setMission(parseMissionSections(config || {}));
+    try{ const v=JSON.parse(config?.mission_sections_en||'{}'); setMissionEn({...MISSION_EN_DEFAULTS,...(v&&typeof v==='object'?v:{})}); }catch{ setMissionEn({...MISSION_EN_DEFAULTS}); }
     setSlaHours(config?.sla_hours || '24');
     setEscalationCcEmails(config?.escalation_cc_emails || '');
     setAnalyticsEnabled(String(config?.analytics_enabled || 'false') === 'true');
@@ -6123,7 +6134,7 @@ function AdminSettings({ config={}, user, listings=[], contactProps={}, onSave, 
     setCommunityFeatureEnabled(String(config?.community_feature_enabled ?? 'true') !== 'false');
     setDefaultCommunityId(config?.default_community_id || 'kai');
     try { setLastUiError(localStorage.getItem('kai_last_ui_error') || localStorage.getItem('kai_last_admin_error') || ''); } catch(e) {}
-  }, [config?.mission_sections_es, config?.sla_hours, config?.escalation_cc_emails, config?.analytics_enabled, config?.community_feature_enabled, config?.default_community_id, lang, user?.email]);
+  }, [config?.mission_sections_es, config?.mission_sections_en, config?.sla_hours, config?.escalation_cc_emails, config?.analytics_enabled, config?.community_feature_enabled, config?.default_community_id, lang, user?.email]);
   const templateEntries = Object.entries((templates && typeof templates==='object') ? templates : {}).filter(([k,v])=>k && v && typeof v==='object');
   const selectedKey = (templates && templates[selectedTemplate]) ? selectedTemplate : (templateEntries[0]?.[0] || '');
   const selected = selectedKey ? (templates[selectedKey] || {}) : {};
@@ -6208,7 +6219,12 @@ function AdminSettings({ config={}, user, listings=[], contactProps={}, onSave, 
   const setMissionRule = (group, idx, value) => setMission(m => ({...(m||{}), [group]:((m||{})[group]||[]).map((r,i)=>i===idx?value:r)}));
   const addRule = (group) => setMission(m => ({...(m||{}), [group]:[...(((m||{})[group])||[]), '']}));
   const removeRule = (group, idx) => setMission(m => ({...(m||{}), [group]:(((m||{})[group])||[]).filter((_,i)=>i!==idx)}));
-  const saveConfig = () => onSave({slaHours, escalationCcEmails, analyticsEnabled, missionSectionsEs:mission, defaultDelegatePermissions, tooltipsEs, tooltipsEn});
+  const setMissionEnField = (field, value) => setMissionEn(m => ({...(m||{}), [field]:value}));
+  const setMissionEnCard = (idx, field, value) => setMissionEn(m => ({...(m||{}), cards:((m||{}).cards||[]).map((c,i)=>i===idx?{...c,[field]:value}:c)}));
+  const setMissionEnRule = (group, idx, value) => setMissionEn(m => ({...(m||{}), [group]:((m||{})[group]||[]).map((r,i)=>i===idx?value:r)}));
+  const addEnRule = (group) => setMissionEn(m => ({...(m||{}), [group]:[...(((m||{})[group])||[]), '']}));
+  const removeEnRule = (group, idx) => setMissionEn(m => ({...(m||{}), [group]:(((m||{})[group])||[]).filter((_,i)=>i!==idx)}));
+  const saveConfig = () => onSave({slaHours, escalationCcEmails, analyticsEnabled, missionSectionsEs:mission, missionSectionsEn:missionEn, defaultDelegatePermissions, tooltipsEs, tooltipsEn});
   const saveTooltips = () => onSave({ tooltipsEs, tooltipsEn });
   const saveUiLabels = () => onSave({ uiLabelsEs, uiLabelsEn });
   const saveCommunitySection = async (cid, keys) => {
@@ -6499,30 +6515,119 @@ function AdminSettings({ config={}, user, listings=[], contactProps={}, onSave, 
 
         {activeCommId && !commLoading && (
           <div>
-            {/* ── Mission ── */}
-            <AdminSection title={`🌊 ${isEn?'Mission':'Misión'}`} subtitle={isEn?'Override the community mission title and body shown on the Mission page.':'Sobreescribe el título y cuerpo de misión mostrado en la página de Misión.'} action={<button className="btn-p" style={{minHeight:36,padding:'6px 14px'}} onClick={()=>saveCommunitySection(activeCommId,['mission_title_es','mission_body_es','mission_title_en','mission_body_en'])} disabled={!canEditMissionContent}>💾 {isEn?'Save':'Guardar'}</button>} open={openSections.commMission} onToggle={()=>toggleSection('commMission')}>
-              {!canEditMissionContent && <div style={{marginBottom:12,padding:'8px 12px',background:'#fff3e0',borderRadius:8,fontSize:'.78rem',color:'#7a5a00',border:'1px solid #f5c97a'}}>{isEn?(!commOverridesOn?'Content editing is not enabled for this community. Contact your global admin to enable it.':'You do not have permission to edit the mission for this community.'):(!commOverridesOn?'La edición de contenido no está habilitada para esta comunidad. Contacta al administrador global para habilitarla.':'No tienes permiso para editar la misión de esta comunidad.')}</div>}
-              <div className="fg2">
-                {[
-                  {key:'mission_title_es',label:isEn?'Mission title (ES)':'Título de misión (ES)',rows:2},
-                  {key:'mission_body_es', label:isEn?'Mission body (ES)': 'Cuerpo de misión (ES)', rows:4},
-                  {key:'mission_title_en',label:'Mission title (EN)',rows:2},
-                  {key:'mission_body_en', label:'Mission body (EN)', rows:4},
-                ].map(({key,label,rows})=>(
-                  <div key={key} className="fg full">
-                    <label style={{display:'flex',alignItems:'center',gap:6}}>
-                      {label}
-                      {hasOverride(key)
-                        ? <span style={{fontSize:'.65rem',background:'#d9b45a22',color:'#7a5a00',padding:'1px 6px',borderRadius:4,fontWeight:600}}>{isEn?'community override':'override comunidad'}</span>
-                        : <span style={{fontSize:'.65rem',background:'#e8f5ec',color:'#2F4F3A',padding:'1px 6px',borderRadius:4}}>🌐 {isEn?'using global':'usando global'}</span>}
-                    </label>
-                    <textarea className="admin-textarea" rows={rows} value={getCommVal(key)}
-                      onChange={e=>setCommVal(key,e.target.value)}
-                      placeholder={commData?.globalValues?.[key]||(isEn?'Override…':'Valor comunidad…')}
-                      style={{width:'100%',boxSizing:'border-box'}}/>
-                  </div>
-                ))}
+            {/* ── Override status bar ── */}
+            {commData && (
+              <div style={{marginBottom:12,padding:'6px 14px',borderRadius:8,background:commOverridesOn?'#e8f5ec':'#fff8e1',border:'1px solid',borderColor:commOverridesOn?'#b2dfdb':'#ffe082',fontSize:'.76rem',color:commOverridesOn?'#2F4F3A':'#7a5a00',display:'flex',alignItems:'center',gap:8}}>
+                {commOverridesOn ? (isEn?'✅ Community overrides active — changes here override global defaults for this community only.':'✅ Overrides activos — los cambios aquí sobreescriben los valores globales solo para esta comunidad.') : (isEn?'⏸ Community overrides disabled — changes saved here are stored but not shown to users until overrides are enabled.':'⏸ Overrides deshabilitados — los cambios guardados aquí se almacenan pero no se muestran a los usuarios hasta que se habiliten los overrides.')}
+                {adminInfo.isGlobalAdmin && <button className="btn-ghost" style={{fontSize:'.7rem',padding:'2px 8px',marginLeft:'auto'}} onClick={()=>toggleCommunityOverrides(activeCommId,!commOverridesOn)}>{commOverridesOn?(isEn?'Disable':'Deshabilitar'):(isEn?'Enable':'Habilitar')}</button>}
               </div>
+            )}
+            {/* ── Members ── */}
+            <AdminSection title={`👥 ${isEn?'Members':'Miembros'}`} subtitle={isEn?'Search and manage all members of this community. View roles and contact details.':'Busca y gestiona todos los miembros de esta comunidad. Ve roles y datos de contacto.'} action={<button className="btn-ghost" style={{fontSize:'.78rem',padding:'4px 10px'}} onClick={()=>loadCommunityMembers(activeCommId)}>{communityMembersLoading[activeCommId]?<span className="spinner-sm"/>:'↻'} {isEn?'Refresh':'Actualizar'}</button>} open={openSections.commMembers} onToggle={()=>{ toggleSection('commMembers'); if(!communityMembers[activeCommId])loadCommunityMembers(activeCommId); }}>
+              {communityMembersLoading[activeCommId] && <div style={{padding:'12px 0',color:'#6b9ba8',textAlign:'center'}}><span className="spinner-sm"/> {isEn?'Loading…':'Cargando…'}</div>}
+              {!communityMembersLoading[activeCommId] && !communityMembers[activeCommId] && (
+                <div style={{padding:'12px 0',textAlign:'center'}}><button className="btn-ghost" onClick={()=>loadCommunityMembers(activeCommId)}>{isEn?'Load members':'Cargar miembros'}</button></div>
+              )}
+              {communityMembers[activeCommId] && (()=>{
+                const allM = communityMembers[activeCommId];
+                const mq = (commMemberSearch[activeCommId]||'').trim().toLowerCase();
+                const filtered = mq ? allM.filter(m=>[
+                  (m.name||'').toLowerCase(),(m.userEmail||m.email||'').toLowerCase(),
+                  (m.whatsapp||'').toLowerCase(),
+                  ...(m.apts||[]).map(a=>String(a).toLowerCase())
+                ].some(v=>v.includes(mq))) : allM;
+                return (
+                  <div>
+                    <div style={{display:'flex',gap:8,alignItems:'center',marginBottom:10,flexWrap:'wrap'}}>
+                      <span style={{fontSize:'.78rem',color:'#6b9ba8',fontWeight:600}}>{allM.length} {isEn?'members':'miembros'} · {allM.filter(m=>m.isCommunityAdmin).length} {isEn?'admins':'admins'}</span>
+                      <div style={{flex:1,position:'relative',minWidth:200}}>
+                        <input placeholder={isEn?'Search by name, unit, email, WhatsApp…':'Buscar por nombre, unidad, email, WhatsApp…'}
+                          value={commMemberSearch[activeCommId]||''}
+                          onChange={e=>setCommMemberSearch(p=>({...p,[activeCommId]:e.target.value}))}
+                          style={{width:'100%',boxSizing:'border-box',padding:'6px 10px',borderRadius:6,border:'1px solid #cce7ee',fontSize:'.8rem'}}/>
+                        {(commMemberSearch[activeCommId]||'')&&<button style={{position:'absolute',right:6,top:'50%',transform:'translateY(-50%)',border:'none',background:'none',cursor:'pointer',color:'#6b9ba8',fontSize:'.8rem'}} onClick={()=>setCommMemberSearch(p=>({...p,[activeCommId]:''}))}>✕</button>}
+                      </div>
+                    </div>
+                    <div style={{fontSize:'.7rem',color:'#8a9fa5',marginBottom:8,padding:'4px 8px',background:'#f0f8fb',borderRadius:6}}>
+                      {isEn?'Roles: 🌐 Global Admin · 🛡️ Delegate Admin · 🏢 Community Admin · 🏠 Standard Owner':'Roles: 🌐 Admin global · 🛡️ Admin delegado · 🏢 Admin comunidad · 🏠 Propietario'}
+                    </div>
+                    {filtered.length===0&&<div style={{color:'#8a9fa5',fontSize:'.82rem',textAlign:'center',padding:'10px 0'}}>{isEn?'No results':'Sin resultados'}</div>}
+                    <div style={{maxHeight:360,overflowY:'auto',display:'flex',flexDirection:'column',gap:6}}>
+                      {filtered.map(m=>{
+                        const uid=m.userUid||m.uid; const email=m.userEmail||m.email||'';
+                        const pRole=m.platformRole||'user';
+                        const rb=pRole==='global_admin'?{icon:'🌐',label:isEn?'Global Admin':'Admin global',color:'#0b7f4f',bg:'#e8f5ec'}:pRole==='delegate_admin'?{icon:'🛡️',label:isEn?'Delegate Admin':'Admin delegado',color:'#5a2d82',bg:'#f3eafd'}:m.isCommunityAdmin?{icon:'🏢',label:isEn?'Community Admin':'Admin comunidad',color:'#1565c0',bg:'#e3f2fd'}:{icon:'🏠',label:isEn?'Standard Owner':'Propietario',color:'#2a5a6a',bg:'#eef6f8'};
+                        return (
+                          <div key={uid||email} style={{display:'flex',alignItems:'flex-start',gap:10,padding:'8px 10px',borderRadius:8,background:'#fff',border:'1px solid #e0eef2',flexWrap:'wrap'}}>
+                            <div style={{flex:'1 1 160px',minWidth:0}}>
+                              <div style={{display:'flex',alignItems:'center',gap:6,flexWrap:'wrap',marginBottom:2}}>
+                                <span style={{fontWeight:700,fontSize:'.82rem',color:'#17313a'}}>{m.name||email}</span>
+                                <span style={{fontSize:'.65rem',fontWeight:700,padding:'1px 7px',borderRadius:999,background:rb.bg,color:rb.color,whiteSpace:'nowrap'}}>{rb.icon} {rb.label}</span>
+                              </div>
+                              <div style={{fontSize:'.72rem',color:'#6b9ba8',display:'flex',gap:10,flexWrap:'wrap'}}>
+                                {email&&<span>{email}</span>}
+                                {m.whatsapp&&<span>📱 {m.whatsapp}</span>}
+                                {(m.apts||[]).length>0&&<span>🏠 {m.apts.join(', ')}</span>}
+                              </div>
+                            </div>
+                            {adminInfo.isGlobalAdmin && pRole!=='global_admin' && (
+                              <div style={{flexShrink:0}}>
+                                {m.isCommunityAdmin
+                                  ? <button className="bsm" style={{fontSize:'.68rem',padding:'2px 8px',color:'#c62828'}} onClick={()=>demoteCommunityAdmin(activeCommId,m)}>{isEn?'Remove admin':'Quitar admin'}</button>
+                                  : <button className="bsm" style={{fontSize:'.68rem',padding:'2px 8px'}} onClick={()=>promoteCommunityAdmin(activeCommId,m)}>{isEn?'Make admin':'Hacer admin'}</button>
+                                }
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })()}
+            </AdminSection>
+            {/* ── Mission ── */}
+            <AdminSection title={`🌊 ${isEn?'Mission':'Misión'}`} subtitle={isEn?'Override the community mission shown on the Mission page. Edit Spanish and English versions independently.':'Sobreescribe la misión de la comunidad. Edita las versiones en español e inglés de forma independiente.'} action={<button className="btn-p" style={{minHeight:36,padding:'6px 14px'}} onClick={()=>saveCommunitySection(activeCommId,['mission_sections_es','mission_sections_en'])} disabled={!canEditMissionContent}>💾 {isEn?'Save':'Guardar'}</button>} open={openSections.commMission} onToggle={()=>toggleSection('commMission')}>
+              {!canEditMissionContent && <div style={{marginBottom:12,padding:'8px 12px',background:'#fff3e0',borderRadius:8,fontSize:'.78rem',color:'#7a5a00',border:'1px solid #f5c97a'}}>{isEn?(!commOverridesOn?'Content editing is not enabled for this community. Contact your global admin to enable it.':'You do not have permission to edit the mission for this community.'):(!commOverridesOn?'La edición de contenido no está habilitada para esta comunidad. Contacta al administrador global para habilitarla.':'No tienes permiso para editar la misión de esta comunidad.')}</div>}
+              {(()=>{
+                const getCommMission = () => { const str=commDraft['mission_sections_es']??commData?.communityOverrides?.['mission_sections_es']??''; try{return normalizeMissionSections(JSON.parse(str||'{}'));}catch{return normalizeMissionSections({});} };
+                const getCommMissionEn = () => { const str=commDraft['mission_sections_en']??commData?.communityOverrides?.['mission_sections_en']??''; try{const v=JSON.parse(str||'{}');return{...MISSION_EN_DEFAULTS,...(v&&typeof v==='object'?v:{})};}catch{return{...MISSION_EN_DEFAULTS};} };
+                const setCommMF=(f,v)=>{const m=getCommMission();setCommVal('mission_sections_es',JSON.stringify({...m,[f]:v}));};
+                const setCommMC=(i,f,v)=>{const m=getCommMission();setCommVal('mission_sections_es',JSON.stringify({...m,cards:m.cards.map((c,j)=>j===i?{...c,[f]:v}:c)}));};
+                const setCommMR=(g,i,v)=>{const m=getCommMission();setCommVal('mission_sections_es',JSON.stringify({...m,[g]:m[g].map((r,j)=>j===i?v:r)}));};
+                const addCommMR=(g)=>{const m=getCommMission();setCommVal('mission_sections_es',JSON.stringify({...m,[g]:[...m[g],'']}))} ;
+                const remCommMR=(g,i)=>{const m=getCommMission();setCommVal('mission_sections_es',JSON.stringify({...m,[g]:m[g].filter((_,j)=>j!==i)}));};
+                const setCommMEF=(f,v)=>{const m=getCommMissionEn();setCommVal('mission_sections_en',JSON.stringify({...m,[f]:v}));};
+                const setCommMEC=(i,f,v)=>{const m=getCommMissionEn();setCommVal('mission_sections_en',JSON.stringify({...m,cards:m.cards.map((c,j)=>j===i?{...c,[f]:v}:c)}));};
+                const setCommMER=(g,i,v)=>{const m=getCommMissionEn();setCommVal('mission_sections_en',JSON.stringify({...m,[g]:m[g].map((r,j)=>j===i?v:r)}));};
+                const addCommMER=(g)=>{const m=getCommMissionEn();setCommVal('mission_sections_en',JSON.stringify({...m,[g]:[...m[g],'']}))} ;
+                const remCommMER=(g,i)=>{const m=getCommMissionEn();setCommVal('mission_sections_en',JSON.stringify({...m,[g]:m[g].filter((_,j)=>j!==i)}));};
+                const cm=getCommMission(); const cmen=getCommMissionEn();
+                const oBadge=(key)=>hasOverride(key)?<span style={{fontSize:'.65rem',background:'#d9b45a22',color:'#7a5a00',padding:'1px 6px',borderRadius:4,fontWeight:600}}>🏷️ override</span>:<span style={{fontSize:'.65rem',background:'#e8f5ec',color:'#2F4F3A',padding:'1px 6px',borderRadius:4}}>🌐 global</span>;
+                return (
+                  <div>
+                    <div style={{marginBottom:10,padding:'6px 12px',background:'#f0f8fb',borderRadius:8,fontSize:'.76rem',color:'#2a5a6a',border:'1px solid #cce7ee'}}>
+                      🌐 = {isEn?'using global value':'usando valor global'} &nbsp;·&nbsp; 🏷️ = {isEn?'community override':'override de comunidad'}
+                    </div>
+                    <div style={{display:'flex',gap:6,marginBottom:14}}>
+                      <button className={`fchip${commMissionLang==='es'?' fchip-on':''}`} onClick={()=>setCommMissionLang('es')}>🇨🇴 Español</button>
+                      <button className={`fchip${commMissionLang==='en'?' fchip-on':''}`} onClick={()=>setCommMissionLang('en')}>🇺🇸 English</button>
+                    </div>
+                    {commMissionLang==='es' && <>
+                      <div className="fg2">{[{f:'title',l:isEn?'Title':'Título',r:2},{f:'subtitle',l:isEn?'Subtitle':'Subtítulo',r:2},{f:'heading',l:isEn?'Heading':'Encabezado',r:2},{f:'body',l:isEn?'Body':'Cuerpo',r:3}].map(({f,l,r})=><div key={f} className="fg full"><label style={{display:'flex',alignItems:'center',gap:6}}>{l} {oBadge('mission_sections_es')}</label><textarea className="admin-textarea" rows={r} value={cm[f]||''} onChange={e=>setCommMF(f,e.target.value)} style={{width:'100%',boxSizing:'border-box'}}/></div>)}</div>
+                      <div className="card-title" style={{margin:'16px 0 10px'}}>{isEn?'Purpose cards':'Tarjetas de propósito'}</div>
+                      {(cm.cards||[]).map((c,i)=><div className="fg2" key={i} style={{borderTop:'1px solid rgba(90,105,80,.12)',paddingTop:12,marginTop:8}}><div className="fg"><label>{isEn?'Icon':'Icono'}</label><input value={c?.icon||''} onChange={e=>setCommMC(i,'icon',e.target.value)}/></div><div className="fg"><label>{isEn?'Card title':'Título tarjeta'} {i+1}</label><textarea className="admin-textarea" rows={2} value={c?.title||''} onChange={e=>setCommMC(i,'title',e.target.value)}/></div><div className="fg full"><label>{isEn?'Card text':'Texto tarjeta'} {i+1}</label><textarea rows={2} value={c?.text||''} onChange={e=>setCommMC(i,'text',e.target.value)}/></div></div>)}
+                      <div className="two-col" style={{marginTop:16}}><div><div className="fg"><label>{isEn?'Participation title':'Título reglas de participación'}</label><textarea className="admin-textarea" rows={2} value={cm.participationTitle||''} onChange={e=>setCommMF('participationTitle',e.target.value)}/></div>{(cm.participationRules||[]).map((r,i)=><div className="fg" key={i}><label>{isEn?'Rule':'Regla'} {i+1}</label><div style={{display:'flex',gap:8}}><textarea className="admin-textarea flex-grow" rows={2} value={r||''} onChange={e=>setCommMR('participationRules',i,e.target.value)}/><button className="btn-ghost" onClick={()=>remCommMR('participationRules',i)}>🗑️</button></div></div>)}<button className="btn-ghost" onClick={()=>addCommMR('participationRules')}>+ {isEn?'Add rule':'Agregar regla'}</button></div><div><div className="fg"><label>{isEn?'Access title':'Título acceso'}</label><textarea className="admin-textarea" rows={2} value={cm.accessTitle||''} onChange={e=>setCommMF('accessTitle',e.target.value)}/></div>{(cm.accessRules||[]).map((r,i)=><div className="fg" key={i}><label>{isEn?'Rule':'Regla'} {i+1}</label><div style={{display:'flex',gap:8}}><textarea className="admin-textarea flex-grow" rows={2} value={r||''} onChange={e=>setCommMR('accessRules',i,e.target.value)}/><button className="btn-ghost" onClick={()=>remCommMR('accessRules',i)}>🗑️</button></div></div>)}<button className="btn-ghost" onClick={()=>addCommMR('accessRules')}>+ {isEn?'Add rule':'Agregar regla'}</button></div></div>
+                    </>}
+                    {commMissionLang==='en' && <>
+                      <div className="fg2">{[{f:'title',l:'Title (EN)',r:2},{f:'subtitle',l:'Subtitle (EN)',r:2},{f:'heading',l:'Heading (EN)',r:2},{f:'body',l:'Body (EN)',r:3}].map(({f,l,r})=><div key={f} className="fg full"><label style={{display:'flex',alignItems:'center',gap:6}}>{l} {oBadge('mission_sections_en')}</label><textarea className="admin-textarea" rows={r} value={cmen[f]||''} onChange={e=>setCommMEF(f,e.target.value)} style={{width:'100%',boxSizing:'border-box'}}/></div>)}</div>
+                      <div className="card-title" style={{margin:'16px 0 10px'}}>Purpose cards (EN)</div>
+                      {(cmen.cards||[]).map((c,i)=><div className="fg2" key={i} style={{borderTop:'1px solid rgba(90,105,80,.12)',paddingTop:12,marginTop:8}}><div className="fg"><label>Icon</label><input value={c?.icon||''} onChange={e=>setCommMEC(i,'icon',e.target.value)}/></div><div className="fg"><label>Card title {i+1}</label><textarea className="admin-textarea" rows={2} value={c?.title||''} onChange={e=>setCommMEC(i,'title',e.target.value)}/></div><div className="fg full"><label>Card text {i+1}</label><textarea rows={2} value={c?.text||''} onChange={e=>setCommMEC(i,'text',e.target.value)}/></div></div>)}
+                      <div className="two-col" style={{marginTop:16}}><div><div className="fg"><label>Participation title (EN)</label><textarea className="admin-textarea" rows={2} value={cmen.participationTitle||''} onChange={e=>setCommMEF('participationTitle',e.target.value)}/></div>{(cmen.participationRules||[]).map((r,i)=><div className="fg" key={i}><label>Rule {i+1}</label><div style={{display:'flex',gap:8}}><textarea className="admin-textarea flex-grow" rows={2} value={r||''} onChange={e=>setCommMER('participationRules',i,e.target.value)}/><button className="btn-ghost" onClick={()=>remCommMER('participationRules',i)}>🗑️</button></div></div>)}<button className="btn-ghost" onClick={()=>addCommMER('participationRules')}>+ Add rule</button></div><div><div className="fg"><label>Access title (EN)</label><textarea className="admin-textarea" rows={2} value={cmen.accessTitle||''} onChange={e=>setCommMEF('accessTitle',e.target.value)}/></div>{(cmen.accessRules||[]).map((r,i)=><div className="fg" key={i}><label>Rule {i+1}</label><div style={{display:'flex',gap:8}}><textarea className="admin-textarea flex-grow" rows={2} value={r||''} onChange={e=>setCommMER('accessRules',i,e.target.value)}/><button className="btn-ghost" onClick={()=>remCommMER('accessRules',i)}>🗑️</button></div></div>)}<button className="btn-ghost" onClick={()=>addCommMER('accessRules')}>+ Add rule</button></div></div>
+                    </>}
+                  </div>
+                );
+              })()}
             </AdminSection>
 
             {/* ── UI Labels ── */}
@@ -7011,10 +7116,21 @@ function AdminSettings({ config={}, user, listings=[], contactProps={}, onSave, 
     <div className="fg2"><div className="fg"><label>⏱️ {lt(lang,'SLA en horas')}</label><input type="number" min="1" value={slaHours} onChange={e=>setSlaHours(e.target.value)}/><span className="help-msg">{lt(lang,'Default: 24 horas.')}</span></div><div className="fg full"><label>✉️ {lt(lang,'Emails en copia para escalaciones')}</label><input value={escalationCcEmails} onChange={e=>setEscalationCcEmails(e.target.value)} placeholder="admin1@email.com, admin2@email.com"/><span className="help-msg">{lt(lang,'Se copian en cada recordatorio SLA, además del propietario y operador.')}</span></div><div className="fg full"><label>📈 {lt(lang,'Visibilidad de analíticas')}</label><select value={analyticsEnabled?"true":"false"} onChange={e=>setAnalyticsEnabled(e.target.value==="true")}><option value="false">{lt(lang,'Solo administrador global')}</option><option value="true">{lt(lang,'Todos los usuarios aprobados')}</option></select><span className="help-msg">{lt(lang,'El administrador global puede activar o desactivar las analíticas para toda la comunidad.')}</span></div></div>
   </AdminSection>
 
-  <AdminSection title={`🌊 ${lt(lang,'Misión y reglas de participación')}`} subtitle={lt(lang,'Mantén Español Colombia como base. También puedes editar textos visibles en inglés cuando aplique.')} action={<button className="btn-p" style={{minHeight:36,padding:'6px 14px'}} onClick={saveConfig}>💾 {lt(lang,'Guardar')}</button>} open={openSections.mission} onToggle={()=>toggleSection('mission')}>
-    <div className="fg2"><div className="fg full"><label>{lt(lang,'Título')}</label><textarea className="admin-textarea" rows={2} value={mission?.title||''} onChange={e=>setMissionField('title',e.target.value)}/></div><div className="fg full"><label>{lt(lang,'Subtítulo')}</label><textarea className="admin-textarea" rows={2} value={mission?.subtitle||''} onChange={e=>setMissionField('subtitle',e.target.value)}/></div><div className="fg"><label>{lt(lang,'Etiqueta de sección')}</label><input value={mission?.sectionLabel||''} onChange={e=>setMissionField('sectionLabel',e.target.value)}/></div><div className="fg full"><label>{lt(lang,'Encabezado principal')}</label><textarea className="admin-textarea" rows={2} value={mission?.heading||''} onChange={e=>setMissionField('heading',e.target.value)}/></div><div className="fg full"><label>{lt(lang,'Texto principal')}</label><textarea rows={3} value={mission?.body||''} onChange={e=>setMissionField('body',e.target.value)}/></div></div>
-    <div className="card-title" style={{margin:'16px 0 10px'}}>{lt(lang,'Tarjetas de propósito')}</div>{((mission&&mission.cards)||[]).map((c,i)=><div className="fg2" key={i} style={{borderTop:'1px solid rgba(90,105,80,.12)',paddingTop:12,marginTop:8}}><div className="fg"><label>{lt(lang,'Icono')}</label><input value={c?.icon||''} onChange={e=>setMissionCard(i,'icon',e.target.value)}/></div><div className="fg"><label>{lt(lang,'Título tarjeta')} {i+1}</label><textarea className="admin-textarea" rows={2} value={c?.title||''} onChange={e=>setMissionCard(i,'title',e.target.value)}/></div><div className="fg full"><label>{lt(lang,'Texto tarjeta')} {i+1}</label><textarea rows={2} value={c?.text||''} onChange={e=>setMissionCard(i,'text',e.target.value)}/></div></div>)}
-    <div className="two-col" style={{marginTop:16}}><div><div className="fg"><label>{lt(lang,'Título reglas de participación')}</label><textarea className="admin-textarea" rows={2} value={mission?.participationTitle||''} onChange={e=>setMissionField('participationTitle',e.target.value)}/></div>{((mission&&mission.participationRules)||[]).map((r,i)=><div className="fg" key={i}><label>{lt(lang,'Regla')} {i+1}</label><div style={{display:'flex',gap:8}}><textarea className="admin-textarea flex-grow" rows={2} value={r||''} onChange={e=>setMissionRule('participationRules',i,e.target.value)}/><button className="btn-ghost" onClick={()=>removeRule('participationRules',i)}>🗑️</button></div></div>)}<button className="btn-ghost" onClick={()=>addRule('participationRules')}>+ {lt(lang,'Agregar regla')}</button></div><div><div className="fg"><label>{lt(lang,'Título acceso y responsabilidad')}</label><textarea className="admin-textarea" rows={2} value={mission?.accessTitle||''} onChange={e=>setMissionField('accessTitle',e.target.value)}/></div>{((mission&&mission.accessRules)||[]).map((r,i)=><div className="fg" key={i}><label>{lt(lang,'Regla')} {i+1}</label><div style={{display:'flex',gap:8}}><textarea className="admin-textarea flex-grow" rows={2} value={r||''} onChange={e=>setMissionRule('accessRules',i,e.target.value)}/><button className="btn-ghost" onClick={()=>removeRule('accessRules',i)}>🗑️</button></div></div>)}<button className="btn-ghost" onClick={()=>addRule('accessRules')}>+ {lt(lang,'Agregar regla')}</button></div></div>
+  <AdminSection title={`🌊 ${lt(lang,'Misión y reglas de participación')}`} subtitle={lt(lang,'Edita la misión en Español e Inglés de forma independiente.')} action={<button className="btn-p" style={{minHeight:36,padding:'6px 14px'}} onClick={saveConfig}>💾 {lt(lang,'Guardar')}</button>} open={openSections.mission} onToggle={()=>toggleSection('mission')}>
+    <div style={{display:'flex',gap:6,marginBottom:14}}>
+      <button className={`fchip${missionLang==='es'?' fchip-on':''}`} onClick={()=>setMissionLang('es')}>🇨🇴 Español</button>
+      <button className={`fchip${missionLang==='en'?' fchip-on':''}`} onClick={()=>setMissionLang('en')}>🇺🇸 English</button>
+    </div>
+    {missionLang==='es' && <>
+      <div className="fg2"><div className="fg full"><label>{lt(lang,'Título')}</label><textarea className="admin-textarea" rows={2} value={mission?.title||''} onChange={e=>setMissionField('title',e.target.value)}/></div><div className="fg full"><label>{lt(lang,'Subtítulo')}</label><textarea className="admin-textarea" rows={2} value={mission?.subtitle||''} onChange={e=>setMissionField('subtitle',e.target.value)}/></div><div className="fg"><label>{lt(lang,'Etiqueta de sección')}</label><input value={mission?.sectionLabel||''} onChange={e=>setMissionField('sectionLabel',e.target.value)}/></div><div className="fg full"><label>{lt(lang,'Encabezado principal')}</label><textarea className="admin-textarea" rows={2} value={mission?.heading||''} onChange={e=>setMissionField('heading',e.target.value)}/></div><div className="fg full"><label>{lt(lang,'Texto principal')}</label><textarea rows={3} value={mission?.body||''} onChange={e=>setMissionField('body',e.target.value)}/></div></div>
+      <div className="card-title" style={{margin:'16px 0 10px'}}>{lt(lang,'Tarjetas de propósito')}</div>{((mission&&mission.cards)||[]).map((c,i)=><div className="fg2" key={i} style={{borderTop:'1px solid rgba(90,105,80,.12)',paddingTop:12,marginTop:8}}><div className="fg"><label>{lt(lang,'Icono')}</label><input value={c?.icon||''} onChange={e=>setMissionCard(i,'icon',e.target.value)}/></div><div className="fg"><label>{lt(lang,'Título tarjeta')} {i+1}</label><textarea className="admin-textarea" rows={2} value={c?.title||''} onChange={e=>setMissionCard(i,'title',e.target.value)}/></div><div className="fg full"><label>{lt(lang,'Texto tarjeta')} {i+1}</label><textarea rows={2} value={c?.text||''} onChange={e=>setMissionCard(i,'text',e.target.value)}/></div></div>)}
+      <div className="two-col" style={{marginTop:16}}><div><div className="fg"><label>{lt(lang,'Título reglas de participación')}</label><textarea className="admin-textarea" rows={2} value={mission?.participationTitle||''} onChange={e=>setMissionField('participationTitle',e.target.value)}/></div>{((mission&&mission.participationRules)||[]).map((r,i)=><div className="fg" key={i}><label>{lt(lang,'Regla')} {i+1}</label><div style={{display:'flex',gap:8}}><textarea className="admin-textarea flex-grow" rows={2} value={r||''} onChange={e=>setMissionRule('participationRules',i,e.target.value)}/><button className="btn-ghost" onClick={()=>removeRule('participationRules',i)}>🗑️</button></div></div>)}<button className="btn-ghost" onClick={()=>addRule('participationRules')}>+ {lt(lang,'Agregar regla')}</button></div><div><div className="fg"><label>{lt(lang,'Título acceso y responsabilidad')}</label><textarea className="admin-textarea" rows={2} value={mission?.accessTitle||''} onChange={e=>setMissionField('accessTitle',e.target.value)}/></div>{((mission&&mission.accessRules)||[]).map((r,i)=><div className="fg" key={i}><label>{lt(lang,'Regla')} {i+1}</label><div style={{display:'flex',gap:8}}><textarea className="admin-textarea flex-grow" rows={2} value={r||''} onChange={e=>setMissionRule('accessRules',i,e.target.value)}/><button className="btn-ghost" onClick={()=>removeRule('accessRules',i)}>🗑️</button></div></div>)}<button className="btn-ghost" onClick={()=>addRule('accessRules')}>+ {lt(lang,'Agregar regla')}</button></div></div>
+    </>}
+    {missionLang==='en' && <>
+      <div className="fg2"><div className="fg full"><label>Title (EN)</label><textarea className="admin-textarea" rows={2} value={missionEn?.title||''} onChange={e=>setMissionEnField('title',e.target.value)}/></div><div className="fg full"><label>Subtitle (EN)</label><textarea className="admin-textarea" rows={2} value={missionEn?.subtitle||''} onChange={e=>setMissionEnField('subtitle',e.target.value)}/></div><div className="fg"><label>Section label (EN)</label><input value={missionEn?.sectionLabel||''} onChange={e=>setMissionEnField('sectionLabel',e.target.value)}/></div><div className="fg full"><label>Main heading (EN)</label><textarea className="admin-textarea" rows={2} value={missionEn?.heading||''} onChange={e=>setMissionEnField('heading',e.target.value)}/></div><div className="fg full"><label>Main body (EN)</label><textarea rows={3} value={missionEn?.body||''} onChange={e=>setMissionEnField('body',e.target.value)}/></div></div>
+      <div className="card-title" style={{margin:'16px 0 10px'}}>Purpose cards (EN)</div>{((missionEn&&missionEn.cards)||[]).map((c,i)=><div className="fg2" key={i} style={{borderTop:'1px solid rgba(90,105,80,.12)',paddingTop:12,marginTop:8}}><div className="fg"><label>Icon</label><input value={c?.icon||''} onChange={e=>setMissionEnCard(i,'icon',e.target.value)}/></div><div className="fg"><label>Card title {i+1}</label><textarea className="admin-textarea" rows={2} value={c?.title||''} onChange={e=>setMissionEnCard(i,'title',e.target.value)}/></div><div className="fg full"><label>Card text {i+1}</label><textarea rows={2} value={c?.text||''} onChange={e=>setMissionEnCard(i,'text',e.target.value)}/></div></div>)}
+      <div className="two-col" style={{marginTop:16}}><div><div className="fg"><label>Participation title (EN)</label><textarea className="admin-textarea" rows={2} value={missionEn?.participationTitle||''} onChange={e=>setMissionEnField('participationTitle',e.target.value)}/></div>{((missionEn&&missionEn.participationRules)||[]).map((r,i)=><div className="fg" key={i}><label>Rule {i+1}</label><div style={{display:'flex',gap:8}}><textarea className="admin-textarea flex-grow" rows={2} value={r||''} onChange={e=>setMissionEnRule('participationRules',i,e.target.value)}/><button className="btn-ghost" onClick={()=>removeEnRule('participationRules',i)}>🗑️</button></div></div>)}<button className="btn-ghost" onClick={()=>addEnRule('participationRules')}>+ Add rule</button></div><div><div className="fg"><label>Access title (EN)</label><textarea className="admin-textarea" rows={2} value={missionEn?.accessTitle||''} onChange={e=>setMissionEnField('accessTitle',e.target.value)}/></div>{((missionEn&&missionEn.accessRules)||[]).map((r,i)=><div className="fg" key={i}><label>Rule {i+1}</label><div style={{display:'flex',gap:8}}><textarea className="admin-textarea flex-grow" rows={2} value={r||''} onChange={e=>setMissionEnRule('accessRules',i,e.target.value)}/><button className="btn-ghost" onClick={()=>removeEnRule('accessRules',i)}>🗑️</button></div></div>)}<button className="btn-ghost" onClick={()=>addEnRule('accessRules')}>+ Add rule</button></div></div>
+    </>}
   </AdminSection>
 
   <AdminSection title={`🧭 ${lt(lang,'Permisos estándar de menú')}`} subtitle={lt(lang,'Activa o desactiva qué menús ven los usuarios estándar. Dashboard siempre queda disponible.')} action={<button className="btn-ghost" onClick={saveStandardMenuPermissions}>💾 {lt(lang,'Guardar permisos de menú')}</button>} open={openSections.menu} onToggle={()=>toggleSection('menu')}>
