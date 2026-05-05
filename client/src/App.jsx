@@ -4741,18 +4741,6 @@ function UnitMiniCard({ listing, onUnitDetail, isEn=false }) {
             </div>
           )}
         </div>
-        <div className="umc-party">
-          {listing.operator
-            ? <div className="umc-op" title={listing.operator}><span className="umc-role-lbl">{isEn?'Operator':'Operador'}</span> {listing.operator}</div>
-            : <div className="umc-op umc-no-op">{isEn?'No operator':'Sin operador'}</div>
-          }
-          {(listing.operatorEmail||opWa)&&(
-            <div className="umc-contacts">
-              {listing.operatorEmail&&<a href={`mailto:${listing.operatorEmail}`} className="idd-pi-link" onClick={e=>e.stopPropagation()}>✉️ {listing.operatorEmail}</a>}
-              {opWa&&<a href={`https://wa.me/${opWa}`} target="_blank" rel="noopener noreferrer" className="idd-pi-link idd-pi-wa" onClick={e=>e.stopPropagation()}>💬 WhatsApp</a>}
-            </div>
-          )}
-        </div>
       </div>
     </div>
   );
@@ -4875,7 +4863,6 @@ function IRow({ inc, user, listings=[], contactProps={}, isGlobalAdmin=false, ca
             <div className="ir-bparty-compact">
               {inc.reporterName&&<span className="ir-bpc-item" title={isEn?'Reporter':'Reportado por'}>📋 {inc.reporterName}</span>}
               {listing&&<span className="ir-bpc-item" title={isEn?'Owner':'Propietario'}>🏠 {listing.owner||listing.userEmail||'—'}</span>}
-              {listing&&(listing.operator||listing.operatorEmail)&&<span className="ir-bpc-item" title={isEn?'Operator':'Operador'}>🔧 {listing.operator||listing.operatorEmail}</span>}
             </div>
           ):(
             <div className="ir-body-parties">
@@ -4887,12 +4874,6 @@ function IRow({ inc, user, listings=[], contactProps={}, isGlobalAdmin=false, ca
                 <span className="ir-bparty">
                   <span className="ir-bparty-lbl">🏠 {isEn?'Owner':'Propietario'}</span>
                   <UserContact name={listing.owner||listing.userEmail||'—'} uid={listing.ownerUid||''} email={listing.userEmail||listing.email||''} whatsapp={listing.contact||''} {...contactProps}/>
-                </span>
-              )}
-              {listing&&(listing.operator||listing.operatorEmail)&&(
-                <span className="ir-bparty">
-                  <span className="ir-bparty-lbl">🔧 {isEn?'Operator':'Operador'}</span>
-                  <UserContact name={listing.operator||listing.operatorEmail} uid='' email={listing.operatorEmail||''} whatsapp={listing.operatorWhatsapp||''} {...contactProps}/>
                 </span>
               )}
             </div>
