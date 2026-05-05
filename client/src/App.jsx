@@ -6495,6 +6495,17 @@ function AdminSettings({ config={}, user, listings=[], contactProps={}, onSave, 
           </span>}
         </div>
 
+        {!adminInfo.isGlobalAdmin && (
+          <div style={{marginBottom:16,padding:'10px 14px',background:'#f0f8fb',borderRadius:10,fontSize:'.78rem',color:'#2a5a6a',border:'1px solid #cce7ee'}}>
+            <div style={{fontWeight:700,marginBottom:4}}>ℹ️ {isEn?'About community settings':'Acerca de la configuración de comunidad'}</div>
+            <ul style={{margin:0,paddingLeft:18,lineHeight:1.7}}>
+              <li>{isEn?'When community overrides are enabled, members of this community see community-specific mission, labels, and tooltips instead of platform defaults.':'Cuando los overrides de comunidad están habilitados, los miembros de esta comunidad ven la misión, etiquetas y tooltips específicos de la comunidad en lugar de los valores globales.'}</li>
+              <li>{isEn?'When disabled, all content falls back to the platform-wide global settings.':'Cuando están deshabilitados, todo el contenido usa la configuración global de la plataforma.'}</li>
+              <li>{isEn?'Your permissions determine which sections you can edit.':'Tus permisos determinan qué secciones puedes editar.'}</li>
+            </ul>
+          </div>
+        )}
+
         {!activeCommId && (
           <div style={{textAlign:'center',padding:'40px 20px',color:'#8a9fa5',fontSize:'.9rem'}}>
             {isEn?'Select a community above to edit its settings.':'Selecciona una comunidad arriba para editar su configuración.'}
@@ -6507,30 +6518,125 @@ function AdminSettings({ config={}, user, listings=[], contactProps={}, onSave, 
 
         {activeCommId && !commLoading && (
           <div>
-            {/* ── Mission ── */}
-            <AdminSection title={`🌊 ${isEn?'Mission':'Misión'}`} subtitle={isEn?'Override the community mission title and body shown on the Mission page.':'Sobreescribe el título y cuerpo de misión mostrado en la página de Misión.'} action={<button className="btn-p" style={{minHeight:36,padding:'6px 14px'}} onClick={()=>saveCommunitySection(activeCommId,['mission_title_es','mission_body_es','mission_title_en','mission_body_en'])} disabled={!canEditMissionContent}>💾 {isEn?'Save':'Guardar'}</button>} open={openSections.commMission} onToggle={()=>toggleSection('commMission')}>
-              {!canEditMissionContent && <div style={{marginBottom:12,padding:'8px 12px',background:'#fff3e0',borderRadius:8,fontSize:'.78rem',color:'#7a5a00',border:'1px solid #f5c97a'}}>{isEn?(!commOverridesOn?'Content editing is not enabled for this community. Contact your global admin to enable it.':'You do not have permission to edit the mission for this community.'):(!commOverridesOn?'La edición de contenido no está habilitada para esta comunidad. Contacta al administrador global para habilitarla.':'No tienes permiso para editar la misión de esta comunidad.')}</div>}
-              <div className="fg2">
-                {[
-                  {key:'mission_title_es',label:isEn?'Mission title (ES)':'Título de misión (ES)',rows:2},
-                  {key:'mission_body_es', label:isEn?'Mission body (ES)': 'Cuerpo de misión (ES)', rows:4},
-                  {key:'mission_title_en',label:'Mission title (EN)',rows:2},
-                  {key:'mission_body_en', label:'Mission body (EN)', rows:4},
-                ].map(({key,label,rows})=>(
-                  <div key={key} className="fg full">
-                    <label style={{display:'flex',alignItems:'center',gap:6}}>
-                      {label}
-                      {hasOverride(key)
-                        ? <span style={{fontSize:'.65rem',background:'#d9b45a22',color:'#7a5a00',padding:'1px 6px',borderRadius:4,fontWeight:600}}>{isEn?'community override':'override comunidad'}</span>
-                        : <span style={{fontSize:'.65rem',background:'#e8f5ec',color:'#2F4F3A',padding:'1px 6px',borderRadius:4}}>🌐 {isEn?'using global':'usando global'}</span>}
-                    </label>
-                    <textarea className="admin-textarea" rows={rows} value={getCommVal(key)}
-                      onChange={e=>setCommVal(key,e.target.value)}
-                      placeholder={commData?.globalValues?.[key]||(isEn?'Override…':'Valor comunidad…')}
-                      style={{width:'100%',boxSizing:'border-box'}}/>
-                  </div>
-                ))}
+            {activeCommId && !commLoading && commData && (
+              <div style={{marginBottom:12,padding:'6px 14px',borderRadius:8,background:commOverridesOn?'#e8f5ec':'#fff8e1',border:'1px solid',borderColor:commOverridesOn?'#b2dfdb':'#ffe082',fontSize:'.76rem',color:commOverridesOn?'#2F4F3A':'#7a5a00',display:'flex',alignItems:'center',gap:8}}>
+                {commOverridesOn ? (isEn?'✅ Community overrides active — changes here override global defaults for this community only.':'✅ Overrides activos — los cambios aquí sobreescriben los valores globales solo para esta comunidad.') : (isEn?'⏸ Community overrides disabled — changes saved here are stored but not shown to users until overrides are enabled.':'⏸ Overrides deshabilitados — los cambios guardados aquí se almacenan pero no se muestran a los usuarios hasta que se habiliten los overrides.')}
+                {adminInfo.isGlobalAdmin && <button className="btn-ghost" style={{fontSize:'.7rem',padding:'2px 8px',marginLeft:'auto'}} onClick={async()=>{
+                  try{
+                    await api.put(`/api/communities/${activeCommId}/config`,{actorUid:user.uid,actorEmail:user.email,overrides:{config_overrides_enabled:String(!commOverridesOn)}});
+                    showToast(isEn?'✅ Override status updated':'✅ Estado de overrides actualizado');
+                    loadCommunityConfig(activeCommId);
+                  }catch(e){showToast(e.message||String(e),true);}
+                }}>{commOverridesOn?(isEn?'Disable':'Deshabilitar'):(isEn?'Enable':'Habilitar')}</button>}
               </div>
+            )}
+            {/* ── Mission ── */}
+            <AdminSection title={`🌊 ${isEn?'Mission':'Misión'}`} subtitle={isEn?'Override the community mission title and body shown on the Mission page.':'Sobreescribe el título y cuerpo de misión mostrado en la página de Misión.'} action={<button className="btn-p" style={{minHeight:36,padding:'6px 14px'}} onClick={()=>saveCommunitySection(activeCommId,['mission_sections_es','mission_title_en','mission_body_en'])} disabled={!canEditMissionContent}>💾 {isEn?'Save':'Guardar'}</button>} open={openSections.commMission} onToggle={()=>toggleSection('commMission')}>
+              {!canEditMissionContent && <div style={{marginBottom:12,padding:'8px 12px',background:'#fff3e0',borderRadius:8,fontSize:'.78rem',color:'#7a5a00',border:'1px solid #f5c97a'}}>{isEn?(!commOverridesOn?'Content editing is not enabled for this community. Contact your global admin to enable it.':'You do not have permission to edit the mission for this community.'):(!commOverridesOn?'La edición de contenido no está habilitada para esta comunidad. Contacta al administrador global para habilitarla.':'No tienes permiso para editar la misión de esta comunidad.')}</div>}
+              {(()=>{
+                const getCommMission = () => {
+                  const str = commDraft['mission_sections_es'] ?? commData?.communityOverrides?.['mission_sections_es'] ?? '';
+                  try { return normalizeMissionSections(JSON.parse(str || '{}')); } catch { return normalizeMissionSections({}); }
+                };
+                const setCommMissionField = (field, val) => {
+                  const m = getCommMission();
+                  setCommVal('mission_sections_es', JSON.stringify({...m, [field]: val}));
+                };
+                const setCommMissionCard = (idx, field, val) => {
+                  const m = getCommMission();
+                  const cards = m.cards.map((c,i) => i===idx ? {...c, [field]:val} : c);
+                  setCommVal('mission_sections_es', JSON.stringify({...m, cards}));
+                };
+                const setCommMissionRule = (group, idx, val) => {
+                  const m = getCommMission();
+                  setCommVal('mission_sections_es', JSON.stringify({...m, [group]: m[group].map((r,i) => i===idx ? val : r)}));
+                };
+                const addCommMissionRule = (group) => {
+                  const m = getCommMission();
+                  setCommVal('mission_sections_es', JSON.stringify({...m, [group]: [...m[group], '']}));
+                };
+                const removeCommMissionRule = (group, idx) => {
+                  const m = getCommMission();
+                  setCommVal('mission_sections_es', JSON.stringify({...m, [group]: m[group].filter((_,i) => i !== idx)}));
+                };
+                const cm = getCommMission();
+                return (
+                  <div>
+                    <div style={{marginBottom:10,padding:'6px 12px',background:'#f0f8fb',borderRadius:8,fontSize:'.76rem',color:'#2a5a6a',border:'1px solid #cce7ee'}}>
+                      🌐 = {isEn?'using global value':'usando valor global'} &nbsp;·&nbsp; 🏷️ = {isEn?'community override':'override de comunidad'}
+                    </div>
+                    <div className="card-title" style={{margin:'12px 0 8px'}}>🇨🇴 Español</div>
+                    <div className="fg2">
+                      {[
+                        {field:'title',label:isEn?'Title':'Título',rows:2},
+                        {field:'subtitle',label:isEn?'Subtitle':'Subtítulo',rows:2},
+                        {field:'heading',label:isEn?'Heading':'Encabezado',rows:2},
+                        {field:'body',label:isEn?'Body':'Cuerpo',rows:3},
+                      ].map(({field,label,rows})=>(
+                        <div key={field} className="fg full">
+                          <label style={{display:'flex',alignItems:'center',gap:6}}>
+                            {label}
+                            {hasOverride('mission_sections_es')
+                              ? <span style={{fontSize:'.65rem',background:'#d9b45a22',color:'#7a5a00',padding:'1px 6px',borderRadius:4,fontWeight:600}}>🏷️ {isEn?'community override':'override comunidad'}</span>
+                              : <span style={{fontSize:'.65rem',background:'#e8f5ec',color:'#2F4F3A',padding:'1px 6px',borderRadius:4}}>🌐 {isEn?'using global':'usando global'}</span>}
+                          </label>
+                          <textarea className="admin-textarea" rows={rows} value={cm[field]||''}
+                            onChange={e=>setCommMissionField(field,e.target.value)}
+                            style={{width:'100%',boxSizing:'border-box'}}/>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="card-title" style={{margin:'16px 0 10px'}}>{isEn?'Purpose cards':'Tarjetas de propósito'}</div>
+                    {(cm.cards||[]).map((card,i)=>(
+                      <div className="fg2" key={i} style={{borderTop:'1px solid rgba(90,105,80,.12)',paddingTop:12,marginTop:8}}>
+                        <div className="fg"><label>{isEn?'Icon':'Icono'}</label><input value={card?.icon||''} onChange={e=>setCommMissionCard(i,'icon',e.target.value)}/></div>
+                        <div className="fg"><label>{isEn?'Card title':'Título tarjeta'} {i+1}</label><textarea className="admin-textarea" rows={2} value={card?.title||''} onChange={e=>setCommMissionCard(i,'title',e.target.value)}/></div>
+                        <div className="fg full"><label>{isEn?'Card text':'Texto tarjeta'} {i+1}</label><textarea rows={2} value={card?.text||''} onChange={e=>setCommMissionCard(i,'text',e.target.value)}/></div>
+                      </div>
+                    ))}
+                    <div className="two-col" style={{marginTop:16}}>
+                      <div>
+                        <div className="fg"><label>{isEn?'Participation title':'Título reglas de participación'}</label><textarea className="admin-textarea" rows={2} value={cm.participationTitle||''} onChange={e=>setCommMissionField('participationTitle',e.target.value)}/></div>
+                        {(cm.participationRules||[]).map((r,i)=>(
+                          <div className="fg" key={i}><label>{isEn?'Rule':'Regla'} {i+1}</label>
+                            <div style={{display:'flex',gap:8}}><textarea className="admin-textarea flex-grow" rows={2} value={r||''} onChange={e=>setCommMissionRule('participationRules',i,e.target.value)}/><button className="btn-ghost" onClick={()=>removeCommMissionRule('participationRules',i)}>🗑️</button></div>
+                          </div>
+                        ))}
+                        <button className="btn-ghost" onClick={()=>addCommMissionRule('participationRules')}>+ {isEn?'Add rule':'Agregar regla'}</button>
+                      </div>
+                      <div>
+                        <div className="fg"><label>{isEn?'Access title':'Título acceso y responsabilidad'}</label><textarea className="admin-textarea" rows={2} value={cm.accessTitle||''} onChange={e=>setCommMissionField('accessTitle',e.target.value)}/></div>
+                        {(cm.accessRules||[]).map((r,i)=>(
+                          <div className="fg" key={i}><label>{isEn?'Rule':'Regla'} {i+1}</label>
+                            <div style={{display:'flex',gap:8}}><textarea className="admin-textarea flex-grow" rows={2} value={r||''} onChange={e=>setCommMissionRule('accessRules',i,e.target.value)}/><button className="btn-ghost" onClick={()=>removeCommMissionRule('accessRules',i)}>🗑️</button></div>
+                          </div>
+                        ))}
+                        <button className="btn-ghost" onClick={()=>addCommMissionRule('accessRules')}>+ {isEn?'Add rule':'Agregar regla'}</button>
+                      </div>
+                    </div>
+                    <div className="card-title" style={{margin:'12px 0 8px'}}>🇺🇸 English</div>
+                    <div className="fg2">
+                      {[
+                        {key:'mission_title_en',label:'Mission title (EN)',rows:2},
+                        {key:'mission_body_en',label:'Mission body (EN)',rows:4},
+                      ].map(({key,label,rows})=>(
+                        <div key={key} className="fg full">
+                          <label style={{display:'flex',alignItems:'center',gap:6}}>
+                            {label}
+                            {hasOverride(key)
+                              ? <span style={{fontSize:'.65rem',background:'#d9b45a22',color:'#7a5a00',padding:'1px 6px',borderRadius:4,fontWeight:600}}>🏷️ {isEn?'community override':'override comunidad'}</span>
+                              : <span style={{fontSize:'.65rem',background:'#e8f5ec',color:'#2F4F3A',padding:'1px 6px',borderRadius:4}}>🌐 {isEn?'using global':'usando global'}</span>}
+                          </label>
+                          <textarea className="admin-textarea" rows={rows} value={getCommVal(key)}
+                            onChange={e=>setCommVal(key,e.target.value)}
+                            placeholder={commData?.globalValues?.[key]||(isEn?'Override…':'Valor comunidad…')}
+                            style={{width:'100%',boxSizing:'border-box'}}/>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })()}
             </AdminSection>
 
             {/* ── UI Labels ── */}
@@ -6539,39 +6645,114 @@ function AdminSettings({ config={}, user, listings=[], contactProps={}, onSave, 
               {(()=>{
                 const lang2 = uiLabelLang;
                 const jsonKey = lang2==='en' ? 'ui_labels_en' : 'ui_labels_es';
-                const commLabels = getCommJsonObj(jsonKey);
-                const globalLabels = lang2==='en' ? uiLabelsEn : uiLabelsEs;
-                const allKeys = Object.keys(APP_I18N).sort();
-                return (
-                  <div>
-                    <div style={{display:'flex',gap:6,marginBottom:12}}>
-                      <button className={`fchip${lang2==='es'?' fchip-on':''}`} onClick={()=>setUiLabelLang('es')}>🇨🇴 Español</button>
-                      <button className={`fchip${lang2==='en'?' fchip-on':''}`} onClick={()=>setUiLabelLang('en')}>🇺🇸 English</button>
-                      {Object.keys(commLabels).length>0&&<span className="ula-modified-badge">{Object.keys(commLabels).length} {isEn?'overridden':'con override'}</span>}
+                const commLabels2 = getCommJsonObj(jsonKey);
+                const getDefVal2 = (key) => APP_I18N[key]?.[lang2==='en'?'en':'es'] || APP_I18N[key]?.es || '';
+                const labelGroups2 = [
+                  { id:'nav',    icon:'🧭', label:isEn?'Navigation & menu':'Navegación y menú',          prefixes:['nav.'] },
+                  { id:'dash',   icon:'📊', label:isEn?'Dashboard':'Dashboard',                           prefixes:['dashboard.','actions.','smart.'] },
+                  { id:'inc',    icon:'⚠️', label:isEn?'Incidents & Reports':'Incidentes y Reportes',     prefixes:['reports.','workflow.','incidents.'] },
+                  { id:'form',   icon:'📝', label:isEn?'Forms & Validation':'Formularios y validación',   prefixes:['form.','validation.','modal.'] },
+                  { id:'my',     icon:'🔑', label:isEn?'My Units':'Mis Unidades',                         prefixes:['my.'] },
+                  { id:'listing',icon:'🏠', label:isEn?'Inventory':'Inventario',                          prefixes:['listings.'] },
+                  { id:'notif',  icon:'🔔', label:isEn?'Notifications & Alerts':'Notificaciones y Alertas', prefixes:['notifications.'] },
+                  { id:'roles',  icon:'👥', label:isEn?'Roles & Permissions':'Roles y permisos',          prefixes:['roles.'] },
+                  { id:'common', icon:'🔤', label:isEn?'Common & Other':'Común y otros',                  prefixes:['common.','tooltips.',null] },
+                ];
+                const CommunityLabelRow = ({rkey, shortKey, defVal}) => {
+                  const custom = commLabels2[rkey];
+                  const isChanged = custom !== undefined;
+                  return (
+                    <div className={`ula-row${isChanged?' ula-row-changed':''}`}>
+                      <div className="ula-row-key">
+                        <code className="ula-key" title={rkey}>{shortKey}</code>
+                        {isChanged&&<span className="ula-changed-dot">●</span>}
+                      </div>
+                      <div className="ula-row-content">
+                        <div className="ula-default">{defVal||<span style={{color:'#aaa',fontStyle:'italic'}}>{isEn?'(empty)':'(vacío)'}</span>}</div>
+                        <div className="ula-input-wrap">
+                          <input className="ula-input" value={isChanged?custom:defVal}
+                            onChange={e=>setCommJsonKey(jsonKey,rkey,e.target.value)}
+                            onFocus={e=>{if(!isChanged){setCommJsonKey(jsonKey,rkey,defVal);setTimeout(()=>e.target.select(),0);}}}
+                            placeholder={defVal}/>
+                          {isChanged&&<button type="button" className="ula-reset" title={isEn?'Reset to global':'Resetear a global'} onClick={()=>setCommJsonKey(jsonKey,rkey,'')}>↩</button>}
+                        </div>
+                      </div>
                     </div>
-                    <div style={{maxHeight:400,overflowY:'auto'}}>
-                      {allKeys.slice(0,50).map(key=>{
-                        const defVal = globalLabels[key] || APP_I18N[key]?.[lang2==='en'?'en':'es'] || APP_I18N[key]?.es || '';
-                        const communityVal = commLabels[key];
-                        const isChanged = communityVal !== undefined;
+                  );
+                };
+                const q2 = uiLabelSearch.trim().toLowerCase();
+                const allKeys2 = Object.keys(APP_I18N).sort();
+                const filteredKeys2 = q2
+                  ? allKeys2.filter(k=>{
+                      const dEn=String(APP_I18N[k]?.en||'').toLowerCase();
+                      const dEs=String(APP_I18N[k]?.es||'').toLowerCase();
+                      const cust=String(commLabels2[k]||'').toLowerCase();
+                      return k.toLowerCase().includes(q2)||dEn.includes(q2)||dEs.includes(q2)||cust.includes(q2);
+                    })
+                  : allKeys2;
+                const totalModified2 = Object.keys(commLabels2).length;
+                return (
+                  <div className="ula-wrap">
+                    <div className="ula-toolbar">
+                      <div className="ula-lang-toggle">
+                        <button className={`fchip${lang2==='es'?' fchip-on':''}`} onClick={()=>setUiLabelLang('es')}>🇨🇴 Español</button>
+                        <button className={`fchip${lang2==='en'?' fchip-on':''}`} onClick={()=>setUiLabelLang('en')}>🇺🇸 English</button>
+                      </div>
+                      <div style={{position:'relative',flex:1,maxWidth:340}}>
+                        <input className="search" style={{paddingRight:32}} placeholder={isEn?'Search all labels…':'Buscar en todas las etiquetas…'} value={uiLabelSearch} onChange={e=>setUiLabelSearch(e.target.value)}/>
+                        {uiLabelSearch&&<button className="inc-search-clear" onClick={()=>setUiLabelSearch('')}>✕</button>}
+                      </div>
+                      <div style={{display:'flex',gap:6,alignItems:'center',flexShrink:0}}>
+                        {totalModified2>0&&<span className="ula-modified-badge">{totalModified2} {isEn?'overridden':'con override'}</span>}
+                        {!q2&&<button type="button" className="bsm" style={{fontSize:'.72rem'}}
+                          onClick={()=>setUiLabelOpenGroups(s=>{const allOpen=labelGroups2.every(g=>s[g.id]);return Object.fromEntries(labelGroups2.map(g=>[g.id,!allOpen]));})}>
+                          {labelGroups2.every(g=>uiLabelOpenGroups[g.id])?(isEn?'Collapse all':'Colapsar todo'):(isEn?'Expand all':'Expandir todo')}
+                        </button>}
+                      </div>
+                    </div>
+                    {q2 ? (
+                      <div className="ula-group ula-group-open">
+                        <div className="ula-group-hdr ula-group-hdr-plain">
+                          🔍 {filteredKeys2.length} {isEn?`result${filteredKeys2.length!==1?'s':''}`:`resultado${filteredKeys2.length!==1?'s':''}`}
+                        </div>
+                        <div className="ula-rows">
+                          {filteredKeys2.map(key=>{
+                            const defVal=getDefVal2(key);
+                            return <CommunityLabelRow key={key} rkey={key} shortKey={key} defVal={defVal}/>;
+                          })}
+                        </div>
+                      </div>
+                    ) : (
+                      labelGroups2.map(g=>{
+                        const gKeys = g.prefixes.includes(null)
+                          ? filteredKeys2.filter(k=>!labelGroups2.slice(0,-1).some(lg=>lg.prefixes.filter(Boolean).some(p=>k.startsWith(p))))
+                          : filteredKeys2.filter(k=>g.prefixes.some(p=>k.startsWith(p)));
+                        if(!gKeys.length) return null;
+                        const isOpen = !!uiLabelOpenGroups[g.id];
+                        const groupModified = gKeys.filter(k=>commLabels2[k]!==undefined).length;
                         return (
-                          <div key={key} className={`ula-row${isChanged?' ula-row-changed':''}`}>
-                            <div className="ula-row-key"><code className="ula-key">{key}</code>{isChanged&&<span className="ula-changed-dot">●</span>}</div>
-                            <div className="ula-row-content">
-                              <div className="ula-default">{defVal||<span style={{color:'#aaa',fontStyle:'italic'}}>{isEn?'(empty)':'(vacío)'}</span>}</div>
-                              <div className="ula-input-wrap">
-                                <input className="ula-input" value={isChanged?communityVal:defVal}
-                                  onChange={e=>setCommJsonKey(jsonKey,key,e.target.value)}
-                                  onFocus={e=>{if(!isChanged){setCommJsonKey(jsonKey,key,defVal);setTimeout(()=>e.target.select(),0);}}}
-                                  placeholder={defVal}/>
-                                {isChanged&&<button type="button" className="ula-reset" title={isEn?'Reset to global':'Resetear a global'} onClick={()=>setCommJsonKey(jsonKey,key,'')}>↩</button>}
+                          <div key={g.id} className={`ula-group${isOpen?' ula-group-open':''}`}>
+                            <button type="button" className="ula-group-toggle" onClick={()=>toggleUlaGroup(g.id)}>
+                              <span className="ula-group-icon">{g.icon}</span>
+                              <span className="ula-group-label">{g.label}</span>
+                              <span className="ula-group-count">{gKeys.length} {isEn?'labels':'etiquetas'}</span>
+                              {groupModified>0&&<span className="ula-modified-badge" style={{fontSize:'.65rem',padding:'1px 7px'}}>{groupModified} {isEn?'edited':'editadas'}</span>}
+                              <span className={`ula-group-chev${isOpen?' ula-group-chev-open':''}`}>›</span>
+                            </button>
+                            {isOpen&&(
+                              <div className="ula-rows">
+                                {gKeys.map(key=>{
+                                  const shortKey = g.prefixes.filter(Boolean).reduce((s,p)=>s.startsWith(p)?s.slice(p.length):s, key);
+                                  const defVal=getDefVal2(key);
+                                  return <CommunityLabelRow key={key} rkey={key} shortKey={shortKey} defVal={defVal}/>;
+                                })}
                               </div>
-                            </div>
+                            )}
                           </div>
                         );
-                      })}
-                    </div>
-                    <div className="mact" style={{marginTop:12}}>
+                      })
+                    )}
+                    <div className="mact" style={{marginTop:16}}>
                       <button className="btn-ghost" onClick={()=>setCommunityConfigDraft(p=>({...p,[activeCommId]:{...(p[activeCommId]||{}),[jsonKey]:'{}'}}))}>↩ {isEn?'Clear all overrides':'Limpiar todos los overrides'}</button>
                       <button className="btn-p" onClick={()=>saveCommunitySection(activeCommId,['ui_labels_es','ui_labels_en'])}>💾 {isEn?'Save community labels':'Guardar etiquetas de comunidad'}</button>
                     </div>
@@ -6716,19 +6897,63 @@ function AdminSettings({ config={}, user, listings=[], contactProps={}, onSave, 
             {c.id !== 'kai' && <button className="btn-ghost" style={{fontSize:'.78rem',padding:'4px 10px',color:'#c62828'}} onClick={()=>deleteCommunity(c.id)}>🗑️ {isEn?'Delete':'Eliminar'}</button>}
           </div>
         </div>
-        {/* Members summary — management is in User roles panel above */}
-        <div style={{marginTop:8,borderTop:'1px solid #e8f4f8',paddingTop:8,display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
-          <span style={{fontSize:'.75rem',color:'#6b9ba8'}}>
-            👥 {isEn?'Members managed in':'Miembros se gestionan en'} <strong>{isEn?'User roles & permissions':'Roles y permisos de usuarios'}</strong> {isEn?'panel above':'arriba'}
+        {/* Config overrides toggle */}
+        <div style={{marginTop:8,padding:'6px 12px',background: communityConfigData[c.id]?.overridesEnabled ? '#e8f5ec' : '#fff3e0', borderRadius:8,display:'flex',alignItems:'center',gap:10,flexWrap:'wrap',border:'1px solid',borderColor:communityConfigData[c.id]?.overridesEnabled?'#b2dfdb':'#f5c97a'}}>
+          <span style={{fontSize:'.75rem',fontWeight:600,color:communityConfigData[c.id]?.overridesEnabled?'#2F4F3A':'#7a5a00'}}>
+            {communityConfigData[c.id]?.overridesEnabled ? (isEn?'✅ Community overrides ENABLED — mission, labels & tooltips use community values':'✅ Overrides de comunidad HABILITADOS — misión, etiquetas y tooltips usan valores de comunidad') : (isEn?'⏸ Community overrides DISABLED — all settings fall back to global defaults':'⏸ Overrides de comunidad DESHABILITADOS — todos los ajustes usan los valores globales')}
           </span>
-          {communityMembers[c.id] && (
-            <span style={{fontSize:'.72rem',background:'#eef6f8',padding:'2px 8px',borderRadius:999,color:'#2a5a6a'}}>
-              {(communityMembers[c.id]||[]).length} {isEn?'members':'miembros'} · {(communityMembers[c.id]||[]).filter(m=>m.isCommunityAdmin).length} {isEn?'admins':'admins'}
-            </span>
-          )}
-          <button className="btn-ghost" style={{fontSize:'.7rem',padding:'2px 8px'}} onClick={()=>loadCommunityMembers(c.id)}>
-            ↻ {isEn?'Count':'Contar'}
+          <button className="btn-ghost" style={{fontSize:'.72rem',padding:'2px 10px',marginLeft:'auto'}}
+            onClick={async()=>{
+              if(!communityConfigData[c.id])await loadCommunityConfig(c.id);
+              const cur=!!communityConfigData[c.id]?.overridesEnabled;
+              try{
+                await api.put(`/api/communities/${c.id}/config`,{actorUid:user.uid,actorEmail:user.email,overrides:{config_overrides_enabled:String(!cur)}});
+                showToast(isEn?(!cur?'✅ Community overrides enabled':'✅ Community overrides disabled'):(!cur?'✅ Overrides de comunidad habilitados':'✅ Overrides de comunidad deshabilitados'));
+                loadCommunityConfig(c.id);
+              }catch(e){showToast(e.message||String(e),true);}
+            }}>
+            {communityConfigData[c.id]?.overridesEnabled?(isEn?'⏸ Disable overrides':'⏸ Deshabilitar overrides'):(isEn?'▶ Enable overrides':'▶ Habilitar overrides')}
           </button>
+          {!communityConfigData[c.id] && <button className="btn-ghost" style={{fontSize:'.72rem',padding:'2px 10px'}} onClick={()=>loadCommunityConfig(c.id)}>↻ {isEn?'Load status':'Cargar estado'}</button>}
+        </div>
+        {/* Members — expandable list with search */}
+        <div style={{marginTop:8,borderTop:'1px solid #e8f4f8',paddingTop:8}}>
+          <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
+            <button className="btn-ghost" style={{fontSize:'.75rem',padding:'3px 10px'}}
+              onClick={()=>{
+                setCommMemberOpen(p=>({...p,[c.id]:!p[c.id]}));
+                if(!communityMembers[c.id])loadCommunityMembers(c.id);
+              }}>
+              👥 {communityMembers[c.id]?`${communityMembers[c.id].length} ${isEn?'members':'miembros'}`:(isEn?'Show members':'Ver miembros')} {commMemberOpen[c.id]?'▲':'▼'}
+            </button>
+            {communityMembers[c.id] && <span style={{fontSize:'.72rem',color:'#6b9ba8'}}>{communityMembers[c.id].filter(m=>m.isCommunityAdmin).length} {isEn?'admins':'admins'}</span>}
+            {communityMembersLoading[c.id] && <span className="spinner-sm"/>}
+          </div>
+          {commMemberOpen[c.id] && communityMembers[c.id] && (
+            <div style={{marginTop:8}}>
+              <input placeholder={isEn?'Search by name, unit, email, WhatsApp…':'Buscar por nombre, unidad, email, WhatsApp…'}
+                value={commMemberSearch[c.id]||''}
+                onChange={e=>setCommMemberSearch(p=>({...p,[c.id]:e.target.value}))}
+                style={{width:'100%',boxSizing:'border-box',padding:'6px 10px',borderRadius:6,border:'1px solid #cce7ee',fontSize:'.8rem',marginBottom:8}}/>
+              <div style={{maxHeight:220,overflowY:'auto',display:'flex',flexDirection:'column',gap:4}}>
+                {communityMembers[c.id]
+                  .filter(m=>{
+                    const q=(commMemberSearch[c.id]||'').trim().toLowerCase();
+                    if(!q)return true;
+                    return [(m.name||'').toLowerCase(),(m.email||'').toLowerCase(),(m.aptNumber||m.unit||'').toLowerCase(),(m.whatsapp||'').toLowerCase()].some(v=>v.includes(q));
+                  })
+                  .map(m=>(
+                    <div key={m.uid||m.user_uid} style={{display:'flex',alignItems:'center',gap:8,padding:'4px 8px',borderRadius:6,background:'#f5fbfd',fontSize:'.78rem'}}>
+                      <span style={{flex:1,fontWeight:600,color:'#17313a'}}>{m.name||m.email}</span>
+                      {m.isCommunityAdmin&&<span className="chip c-teal" style={{fontSize:'.65rem',padding:'1px 6px'}}>admin</span>}
+                      {m.aptNumber&&<span style={{color:'#6b9ba8'}}>🏠 {m.aptNumber}</span>}
+                      {m.email&&<span style={{color:'#8a9fa5',fontSize:'.72rem'}}>{m.email}</span>}
+                      {m.whatsapp&&<span style={{color:'#8a9fa5',fontSize:'.72rem'}}>📱 {m.whatsapp}</span>}
+                    </div>
+                  ))}
+              </div>
+            </div>
+          )}
         </div>
         {/* Community settings are edited inline in Mission / UI Labels / Tooltips sections above */}
         {false && <div style={{marginTop:8,borderTop:'1px solid #e8f4f8',paddingTop:8}}>
