@@ -1937,10 +1937,12 @@ const HELP_TOPICS = [
         b:HL('Una comunidad es una instancia aislada de la app: sus propios listings, incidentes, registros, configuración de branding y equipo de administración. Un mismo servidor y base de datos puede alojar varias comunidades simultáneamente. Los usuarios son asignados a una comunidad mediante membresía en la tabla community_memberships.','A community is an isolated instance of the app: its own listings, incidents, registrations, branding configuration, and admin team. A single server and database can host multiple communities simultaneously. Users are assigned to a community via membership in the community_memberships table.')},
       { h:HL('Crear una nueva comunidad','Creating a new community'),
         b:HL('Ve a Admin → Comunidades → "+ Nueva comunidad". Define el ID (slug corto, ej. "playa-01"), nombre en español e inglés, torre o nombre del edificio, ciudad y país. Opcionalmente agrega URL de logo y fondo. Activa la comunidad para que los usuarios puedan ser asignados a ella. El ID no se puede cambiar después de crear.','Go to Admin → Communities → "+ New community". Define the ID (short slug, e.g. "beach-01"), name in Spanish and English, tower or building name, city, and country. Optionally add logo and background URLs. Activate the community so users can be assigned to it. The ID cannot be changed after creation.')},
-      { h:HL('Agregar miembros a una comunidad','Adding members to a community'),
-        b:HL('Expande el panel 👥 Miembros de la comunidad. Escribe el email de un usuario ya aprobado en la app, elige su rol (Miembro o Admin comunidad) y haz clic en "+ Agregar". El usuario debe estar registrado y aprobado en la app antes de poder agregarse como miembro. Un mismo usuario puede ser miembro de varias comunidades.','Expand the 👥 Members panel of the community. Type the email of a user already approved in the app, choose their role (Member or Community Admin), and click "+ Add". The user must be registered and approved in the app before being added as a member. A user can be a member of multiple communities.')},
+      { h:HL('Ver miembros de una comunidad','Viewing community members'),
+        b:HL('Expande el panel 👥 Miembros en la comunidad. Se muestran automáticamente todos los propietarios con registro aprobado en esa comunidad. No es necesario agregar miembros manualmente — los registros aprobados son la membresía.','Expand the 👥 Members panel on the community. All owners with an approved registration in that community are shown automatically. No need to add members manually — approved registrations are the membership.')},
+      { h:HL('Promover a admin de comunidad','Promoting a community admin'),
+        b:HL('En el panel de miembros, activa el checkbox "Admin comunidad" junto al nombre del propietario para darle permisos de administración. Desactívalo para quitarle el rol. Los propietarios aprobados pueden ser admins de múltiples comunidades.','In the members panel, check the "Community Admin" checkbox next to an owner\'s name to grant admin rights. Uncheck it to remove the role. Approved owners can be admins of multiple communities.')},
       { h:HL('Permisos del admin de comunidad','Community admin permissions'),
-        b:HL('Cuando un miembro tiene rol "Admin comunidad", aparecen 3 checkboxes de permisos debajo del selector de rol: Aprobar registros, Resolver incidentes, Gestionar listings. Marca los permisos necesarios y haz clic en "Guardar". Los permisos defecto al crear un admin son: Aprobar ✓, Resolver ✓, Gestionar ✗. Los cambios aplican de inmediato sin reiniciar.','When a member has the "Community Admin" role, 3 permission checkboxes appear below the role selector: Approve registrations, Resolve incidents, Manage listings. Check the required permissions and click "Save". Default permissions when creating an admin are: Approve ✓, Resolve ✓, Manage ✗. Changes apply immediately without restarting.')},
+        b:HL('Cuando un miembro tiene "Admin comunidad" activado, aparecen 3 checkboxes de permisos: Aprobar registros, Resolver incidentes, Gestionar listings. Marca los permisos necesarios y haz clic en "Guardar permisos". Los permisos defecto son: Aprobar ✓, Resolver ✓, Gestionar ✗. Los cambios aplican de inmediato.','When a member has "Community Admin" checked, 3 permission checkboxes appear: Approve registrations, Resolve incidents, Manage listings. Check the required permissions and click "Save perms". Default permissions are: Approve ✓, Resolve ✓, Manage ✗. Changes apply immediately.')},
       { h:HL('Enrutamiento de emails por comunidad','Community-scoped email routing'),
         b:HL('Los admins de comunidad reciben automáticamente los emails de notificación de su comunidad (incidentes, registros, SLA) sin configuración manual. El sistema consulta la tabla community_memberships en cada envío. Si una comunidad no tiene admins registrados en la DB, el sistema usa la lista de escalación de app_config como respaldo.','Community admins automatically receive notification emails for their community (incidents, registrations, SLA) without manual configuration. The system queries community_memberships on each send. If a community has no admins registered in the DB, the system falls back to the app_config escalation list.')},
     ]
@@ -5961,8 +5963,6 @@ function AdminSettings({ config={}, user, listings=[], contactProps={}, onSave, 
   const [communityMembersOpen, setCommunityMembersOpen] = useState({});
   const [communityMembers, setCommunityMembers] = useState({});
   const [communityMembersLoading, setCommunityMembersLoading] = useState({});
-  const [memberAddInput, setMemberAddInput] = useState({});   // {cid: email string}
-  const [memberAddRole, setMemberAddRole] = useState({});     // {cid: 'member'|'community_admin'}
   const [memberPermsEditing, setMemberPermsEditing] = useState({});  // {cid_uid: permissions obj}
   const ADMIN_SEC_DEFAULT = {communities:false,branding:false,emailSender:false,roles:true,sla:false,mission:false,menu:false,delegate:false,users:true,tooltips:false,uiLabels:false,email:false,emailNotif:false,auditLog:false};
   const [openSections,setOpenSections] = useState(()=>{
@@ -6137,34 +6137,20 @@ function AdminSettings({ config={}, user, listings=[], contactProps={}, onSave, 
     } catch(e) { captureAdminError('delete-community', e); showToast((e.message||String(e)), true); }
   };
 
-  const addCommunityMember = async (cid) => {
-    const email = String(memberAddInput[cid]||'').trim().toLowerCase();
-    const role = memberAddRole[cid] || 'member';
-    if (!email) return;
-    const match = users.find(u => (u.email||'').toLowerCase() === email);
-    if (!match?.uid) { showToast(isEn?'User not found — they must be a registered approved user first.':'Usuario no encontrado — debe estar registrado y aprobado primero.', true); return; }
+  const promoteCommunityAdmin = async (cid, m) => {
     try {
-      await api.post(`/api/communities/${cid}/members`, { actorUid:user.uid, actorEmail:user.email, userUid:match.uid, userEmail:email, role });
-      showToast(isEn?'✅ Member added':'✅ Miembro agregado');
-      setMemberAddInput(p => ({...p,[cid]:''}));
+      await api.post(`/api/communities/${cid}/members/${m.userUid}/promote`, { actorUid:user.uid, actorEmail:user.email, userEmail:m.userEmail });
+      showToast(isEn?'✅ Promoted to community admin':'✅ Promovido a admin de comunidad');
       loadCommunityMembers(cid);
-    } catch(e) { captureAdminError('add-member', e); showToast((e.message||String(e)), true); }
+    } catch(e) { captureAdminError('promote-admin', e); showToast((e.message||String(e)), true); }
   };
 
-  const removeCommunityMember = async (cid, uid) => {
+  const demoteCommunityAdmin = async (cid, m) => {
     try {
-      await api.del(`/api/communities/${cid}/members/${uid}`, { actorUid:user.uid, actorEmail:user.email });
-      showToast(isEn?'✅ Member removed':'✅ Miembro eliminado');
+      await api.del(`/api/communities/${cid}/members/${m.userUid}/promote`, { actorUid:user.uid, actorEmail:user.email });
+      showToast(isEn?'✅ Admin role removed':'✅ Rol de admin removido');
       loadCommunityMembers(cid);
-    } catch(e) { captureAdminError('remove-member', e); showToast((e.message||String(e)), true); }
-  };
-
-  const updateMemberRole = async (cid, m, newRole) => {
-    try {
-      await api.post(`/api/communities/${cid}/members`, { actorUid:user.uid, actorEmail:user.email, userUid:m.userUid, userEmail:m.userEmail, role:newRole });
-      showToast(isEn?'✅ Role updated':'✅ Rol actualizado');
-      loadCommunityMembers(cid);
-    } catch(e) { captureAdminError('update-member-role', e); showToast((e.message||String(e)), true); }
+    } catch(e) { captureAdminError('demote-admin', e); showToast((e.message||String(e)), true); }
   };
 
   const updateMemberPerms = async (cid, uid, perms) => {
@@ -6190,7 +6176,7 @@ function AdminSettings({ config={}, user, listings=[], contactProps={}, onSave, 
   {/* ── Communities ────────────────────────────────────────────────────── */}
   <AdminSection
     title={`🌐 ${isEn?'Communities':'Comunidades'}`}
-    subtitle={isEn?'Create and manage multi-tenant communities. Each community has its own branding, tower, and member list.':'Crea y administra comunidades multi-tenant. Cada comunidad tiene su propio branding, torre y lista de miembros.'}
+    subtitle={isEn?'Create and manage multi-tenant communities. Approved registered owners are automatically members. Promote any member to Community Admin here.':'Crea y administra comunidades multi-tenant. Los propietarios con registro aprobado son miembros automáticamente. Promueve a cualquier miembro a Admin de comunidad aquí.'}
     action={<button className="btn-p" style={{minHeight:36,padding:'6px 14px'}} onClick={()=>setCommunityModal({mode:'create',data:{}})}>{isEn?'＋ New community':'＋ Nueva comunidad'}</button>}
     open={openSections.communities} onToggle={()=>toggleSection('communities')}>
     {communitiesLoading && <div style={{padding:'20px 0',textAlign:'center'}}><span className="spinner-sm"/> {isEn?'Loading...':'Cargando...'}</div>}
@@ -6228,28 +6214,28 @@ function AdminSettings({ config={}, user, listings=[], contactProps={}, onSave, 
             <div style={{marginTop:10}}>
               {communityMembersLoading[c.id] && <div style={{color:'#6b9ba8',fontSize:'.82rem'}}><span className="spinner-sm"/> {isEn?'Loading members...':'Cargando miembros...'}</div>}
               {!communityMembersLoading[c.id] && (communityMembers[c.id]||[]).length === 0 && (
-                <div style={{color:'#6b9ba8',fontSize:'.82rem',padding:'6px 0'}}>{isEn?'No members yet.':'Sin miembros todavía.'}</div>
+                <div style={{color:'#6b9ba8',fontSize:'.82rem',padding:'6px 0'}}>{isEn?'No approved members yet.':'Sin miembros aprobados todavía.'}</div>
               )}
               {!communityMembersLoading[c.id] && (communityMembers[c.id]||[]).map(m => {
                 const pk = `${c.id}_${m.userUid}`;
-                const defaultPerms = { canApproveRegistrations:true, canResolveIncidents:true, canManageListings:false };
-                const currentPerms = memberPermsEditing[pk] || m.permissions || defaultPerms;
+                const currentPerms = memberPermsEditing[pk] || m.adminPermissions || { canApproveRegistrations:true, canResolveIncidents:true, canManageListings:false };
                 const isDirty = !!memberPermsEditing[pk];
                 return (
-                <div key={m.id} style={{padding:'6px 0',borderBottom:'1px solid #f0f8fb'}}>
+                <div key={m.userUid} style={{padding:'8px 0',borderBottom:'1px solid #f0f8fb'}}>
                   <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
                     <div style={{flex:1,minWidth:160}}>
                       <div style={{fontWeight:600,fontSize:'.82rem',color:'#17313a'}}>{m.name||m.userEmail}</div>
                       <div style={{fontSize:'.72rem',color:'#6b9ba8'}}>{m.userEmail}</div>
                     </div>
-                    <select value={m.role} style={{fontSize:'.78rem',padding:'2px 6px',borderRadius:6,border:'1px solid #cce7ee',background:'#fff'}}
-                      onChange={e=>updateMemberRole(c.id, m, e.target.value)}>
-                      <option value="member">{isEn?'Member':'Miembro'}</option>
-                      <option value="community_admin">{isEn?'Community Admin':'Admin comunidad'}</option>
-                    </select>
-                    <button className="btn-ghost" style={{fontSize:'.72rem',padding:'2px 8px',color:'#c62828'}} onClick={()=>removeCommunityMember(c.id, m.userUid)}>✕ {isEn?'Remove':'Quitar'}</button>
+                    <label style={{display:'flex',alignItems:'center',gap:6,fontSize:'.8rem',color:'#17313a',cursor:'pointer',userSelect:'none'}}>
+                      <input type="checkbox" checked={!!m.isAdmin}
+                        onChange={() => m.isAdmin ? demoteCommunityAdmin(c.id, m) : promoteCommunityAdmin(c.id, m)}
+                        style={{accentColor:'#2F4F3A',width:15,height:15}}
+                      />
+                      {isEn?'Community Admin':'Admin comunidad'}
+                    </label>
                   </div>
-                  {m.role === 'community_admin' && (
+                  {m.isAdmin && (
                     <div style={{marginTop:6,paddingLeft:4,display:'flex',flexWrap:'wrap',gap:'6px 18px',alignItems:'center'}}>
                       {[
                         ['canApproveRegistrations', isEn?'Approve registrations':'Aprobar registros'],
@@ -6270,7 +6256,7 @@ function AdminSettings({ config={}, user, listings=[], contactProps={}, onSave, 
                       {isDirty && (
                         <button className="btn-p" style={{fontSize:'.72rem',padding:'2px 10px',marginLeft:4}}
                           onClick={()=>updateMemberPerms(c.id, m.userUid, memberPermsEditing[pk])}>
-                          {isEn?'Save':'Guardar'}
+                          {isEn?'Save perms':'Guardar permisos'}
                         </button>
                       )}
                     </div>
@@ -6278,23 +6264,11 @@ function AdminSettings({ config={}, user, listings=[], contactProps={}, onSave, 
                 </div>
                 );
               })}
-              {/* Add member row */}
-              <div style={{display:'flex',gap:8,marginTop:10,flexWrap:'wrap',alignItems:'center'}}>
-                <input
-                  value={memberAddInput[c.id]||''}
-                  onChange={e=>setMemberAddInput(p=>({...p,[c.id]:e.target.value}))}
-                  placeholder={isEn?'Approved user email...':'Email de usuario aprobado...'}
-                  style={{flex:1,minWidth:180,fontSize:'.82rem',padding:'5px 10px',borderRadius:8,border:'1px solid #cce7ee'}}
-                  onKeyDown={e=>{if(e.key==='Enter')addCommunityMember(c.id);}}
-                />
-                <select value={memberAddRole[c.id]||'member'} onChange={e=>setMemberAddRole(p=>({...p,[c.id]:e.target.value}))}
-                  style={{fontSize:'.78rem',padding:'5px 8px',borderRadius:8,border:'1px solid #cce7ee',background:'#fff'}}>
-                  <option value="member">{isEn?'Member':'Miembro'}</option>
-                  <option value="community_admin">{isEn?'Community Admin':'Admin comunidad'}</option>
-                </select>
-                <button className="btn-p" style={{fontSize:'.78rem',padding:'5px 12px'}} onClick={()=>addCommunityMember(c.id)}>＋ {isEn?'Add':'Agregar'}</button>
-                <button className="btn-ghost" style={{fontSize:'.72rem',padding:'3px 8px'}} onClick={()=>loadCommunityMembers(c.id)}>↻ {isEn?'Refresh':'Actualizar'}</button>
-              </div>
+              {!communityMembersLoading[c.id] && (
+                <div style={{marginTop:8}}>
+                  <button className="btn-ghost" style={{fontSize:'.72rem',padding:'3px 8px'}} onClick={()=>loadCommunityMembers(c.id)}>↻ {isEn?'Refresh':'Actualizar'}</button>
+                </div>
+              )}
             </div>
           )}
         </div>

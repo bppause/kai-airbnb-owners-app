@@ -386,8 +386,19 @@ const getUserCommunities = async (uid='', email='') => {
   }
   if (!uid) return [];
   try {
-    const { data } = await supabase.from('community_memberships').select('community_id, role, joined_at, communities(*)').eq('user_uid', uid);
-    return (data||[]).map(m => ({ ...m.communities, memberRole: m.role, joinedAt: m.joined_at })).filter(Boolean);
+    // Communities where user has approved listings (primary membership)
+    const { data: listings } = await supabase.from('listings').select('community_id').eq('user_uid', uid).eq('status', 'approved');
+    const approvedCommunityIds = [...new Set((listings||[]).map(l => l.community_id).filter(Boolean))];
+    // Communities where user is a community admin (may not have approved listing, e.g. global-delegated)
+    const { data: memberships } = await supabase.from('community_memberships').select('community_id, role').eq('user_uid', uid);
+    const adminCommunityIds = (memberships||[]).map(m => m.community_id).filter(Boolean);
+    const allCommunityIds = [...new Set([...approvedCommunityIds, ...adminCommunityIds])];
+    if (!allCommunityIds.length) return [];
+    const { data: communities } = await supabase.from('communities').select('*').in('id', allCommunityIds).eq('is_active', true).order('name');
+    return (communities||[]).map(c => {
+      const membership = (memberships||[]).find(m => m.community_id === c.id);
+      return { ...c, memberRole: membership?.role || 'member' };
+    });
   } catch(e) { return []; }
 };
 const addHoursIso = (iso, hours) => new Date(new Date(iso).getTime() + Number(hours || 24)*3600000).toISOString();
@@ -733,6 +744,7 @@ const registrationFromListingRows = (rows=[]) => {
   const first = rows[0];
   return {
     id: first.registration_id || first.id,
+    communityId: first.community_id || 'kai',
     userUid: first.owner_uid,
     userName: first.owner,
     userEmail: first.user_email || first.email || '',
@@ -841,7 +853,10 @@ const sendRegistrationSubmittedEmail = async ({ registration, appUrl }) => {
   const notifCfg = await getEmailNotificationConfig();
   const typeCfg = notifCfg['registration_submitted'];
   if (!typeCfg.enabled || !typeCfg.owner) return { sent:false, skipped:true, reason:'Registration submitted email is disabled.' };
-  return sendTemplatedEmail({ key:'registration_submitted', to: registration.userEmail, vars: { userName:registration.userName || '', userEmail:registration.userEmail || '', registrationLink: appUrl + '/?view=registration' } });
+  const communityId = registration.communityId || 'kai';
+  const community = await getCommunity(communityId);
+  const communityName = community?.name || communityId;
+  return sendTemplatedEmail({ key:'registration_submitted', to: registration.userEmail, vars: { userName:registration.userName || '', userEmail:registration.userEmail || '', registrationLink: appUrl + '/?view=registration', communityName } });
 };
 const sendRegistrationStatusEmail = async ({ registration, appUrl, communityId='kai' }) => {
   const approved = registration.status === 'approved';
@@ -851,6 +866,8 @@ const sendRegistrationStatusEmail = async ({ registration, appUrl, communityId='
   if (!typeCfg.enabled || !typeCfg.owner) return { sent:false, skipped:true, reason:`Registration ${key} email is disabled.` };
   const link = appUrl + (approved ? '/?view=dashboard' : '/?view=registration');
   const reason = String(registration.reason || '').trim();
+  const community = await getCommunity(communityId);
+  const communityName = community?.name || communityId;
   // Also notify admins if configured
   const recips = [registration.userEmail];
   const admCfg = notifCfg['registration_status_admin'];
@@ -861,13 +878,16 @@ const sendRegistrationStatusEmail = async ({ registration, appUrl, communityId='
       recips.push(...await getCommunityAdminEmails(communityId));
     }
   }
-  return sendTemplatedEmail({ key, to: normalizeRecipients(recips), vars: { userName:registration.userName || '', userEmail:registration.userEmail || '', reason, reasonLine: reason ? 'Motivo/nota: ' + reason : '', reasonHtml: reason ? '<p><strong>Motivo/nota:</strong> ' + reason + '</p>' : '', reasonLineEn: reason ? 'Reason/note: ' + reason : '', reasonHtmlEn: reason ? '<p><strong>Reason/note:</strong> ' + reason + '</p>' : '', dashboardLink:link, registrationLink:link } });
+  return sendTemplatedEmail({ key, to: normalizeRecipients(recips), vars: { userName:registration.userName || '', userEmail:registration.userEmail || '', reason, reasonLine: reason ? 'Motivo/nota: ' + reason : '', reasonHtml: reason ? '<p><strong>Motivo/nota:</strong> ' + reason + '</p>' : '', reasonLineEn: reason ? 'Reason/note: ' + reason : '', reasonHtmlEn: reason ? '<p><strong>Reason/note:</strong> ' + reason + '</p>' : '', dashboardLink:link, registrationLink:link, communityName } });
 };
 const sendRegistrationReviewerEmail = async ({ reviewer, registration, appUrl }) => {
   const notifCfg = await getEmailNotificationConfig();
   const typeCfg = notifCfg['registration_reviewer'];
   if (!typeCfg.enabled || !typeCfg.owner) return { sent:false, skipped:true, reason:'Registration reviewer email is disabled.' };
-  return sendTemplatedEmail({ key:'registration_reviewer', to: reviewer.user_email, vars: { reviewerName: reviewer.user_name || 'propietario', userName:registration.userName || '', userEmail:registration.userEmail || '', approvalsLink: appUrl + '/?view=approvals' } });
+  const communityId = registration.communityId || 'kai';
+  const community = await getCommunity(communityId);
+  const communityName = community?.name || communityId;
+  return sendTemplatedEmail({ key:'registration_reviewer', to: reviewer.user_email, vars: { reviewerName: reviewer.user_name || 'propietario', userName:registration.userName || '', userEmail:registration.userEmail || '', approvalsLink: appUrl + '/?view=approvals', communityName } });
 };
 
 const sendSupabaseError = (res, error, status = 500) => {
@@ -1079,7 +1099,9 @@ app.post('/api/registrations', async (req, res) => {
           }
           const normalized = normalizeRecipients(adminRecips);
           if (normalized.length) {
-            await sendTemplatedEmail({ key:'registration_reviewer', to: normalized, vars: { reviewerName:'Admin', userName:result.userName||'', userEmail:result.userEmail||'', approvalsLink: appUrl+'/?view=approvals' } });
+            const comm = await getCommunity(communityId);
+            const communityName = comm?.name || communityId;
+            await sendTemplatedEmail({ key:'registration_reviewer', to: normalized, vars: { reviewerName:'Admin', userName:result.userName||'', userEmail:result.userEmail||'', approvalsLink: appUrl+'/?view=approvals', communityName } });
           }
         }
       } catch(e) { warn('Admin registration reviewer email failed: ' + (e?.message || e)); }
@@ -1093,7 +1115,10 @@ app.get('/api/registrations/pending', async (req, res) => {
   const communityId = getCommunityId(req);
   if (!reviewerUid) return res.status(400).json({ error:'reviewerUid is required.' });
   try { if (!(await canManageRegistrations(reviewerUid, req.query.reviewerEmail, communityId))) return res.status(403).json({ error:'Solo administradores globales o delegados pueden revisar registros pendientes.' }); } catch(e) { return sendSupabaseError(res, e); }
-  const { data: rows, error } = await supabase.from('listings').select('*').eq('community_id', communityId).eq('status','pending').order('created_at', { ascending:true }).order('apt', { ascending:true });
+  const isGlobal = (await getUserRole({ uid:reviewerUid, email:req.query.reviewerEmail||'' })) === 'global_admin';
+  let pendingQuery = supabase.from('listings').select('*').eq('status','pending').order('created_at', { ascending:true }).order('apt', { ascending:true });
+  if (!isGlobal) pendingQuery = pendingQuery.eq('community_id', communityId);
+  const { data: rows, error } = await pendingQuery;
   if (error) return sendSupabaseError(res, error);
   const groups = new Map();
   for (const row of rows || []) {
@@ -1116,13 +1141,10 @@ app.get('/api/registrations/active', async (req, res) => {
     }
   } catch(e) { return sendSupabaseError(res, e); }
 
-  const { data: rows, error } = await supabase
-    .from('listings')
-    .select('*')
-    .eq('community_id', communityId)
-    .in('status',['approved','declined'])
-    .order('owner', { ascending:true })
-    .order('apt', { ascending:true });
+  const isGlobalA = (await getUserRole({ uid:reviewerUid, email:req.query.reviewerEmail||'' })) === 'global_admin';
+  let activeQuery = supabase.from('listings').select('*').in('status',['approved','declined']).order('owner', { ascending:true }).order('apt', { ascending:true });
+  if (!isGlobalA) activeQuery = activeQuery.eq('community_id', communityId);
+  const { data: rows, error } = await activeQuery;
   if (error) return sendSupabaseError(res, error);
 
   const groups = new Map();
@@ -1155,12 +1177,14 @@ const reviewRegistration = async (req, res, status) => {
   if (!requireSupabaseEnv(res)) return;
   const { reviewerUid, reviewerName, reason } = req.body || {};
   if (!reviewerUid) return res.status(400).json({ error:'reviewerUid is required.' });
-  const communityId = getCommunityId(req);
-  try { if (!(await canManageRegistrations(reviewerUid, req.body?.reviewerEmail, communityId))) return res.status(403).json({ error:'Solo administradores globales o delegados pueden aprobar o rechazar registros.' }); } catch(e) { return sendSupabaseError(res, e); }
   const registrationId = req.params.id;
-  const { data: pendingRows, error: findErr } = await supabase.from('listings').select('*').eq('registration_id', registrationId).eq('community_id', communityId).eq('status','pending').order('apt', { ascending:true });
+  // Look up the registration's own community — don't rely on the request header
+  // so global admins can approve across communities regardless of their current context
+  const { data: pendingRows, error: findErr } = await supabase.from('listings').select('*').eq('registration_id', registrationId).eq('status','pending').order('apt', { ascending:true });
   if (findErr) return sendSupabaseError(res, findErr);
   if (!pendingRows || !pendingRows.length) return res.status(404).json({ error:'Registro pendiente no encontrado o ya revisado.' });
+  const communityId = pendingRows[0].community_id || getCommunityId(req);
+  try { if (!(await canManageRegistrations(reviewerUid, req.body?.reviewerEmail, communityId))) return res.status(403).json({ error:'Solo administradores globales o delegados pueden aprobar o rechazar registros.' }); } catch(e) { return sendSupabaseError(res, e); }
 
   if (status === 'approved') {
     try {
@@ -2144,45 +2168,69 @@ app.delete('/api/communities/:id', async (req, res) => {
   res.json({ ok:true });
 });
 
-// GET /api/communities/:id/members
+// GET /api/communities/:id/members — approved listing owners are members; community_memberships tracks admin status
 app.get('/api/communities/:id/members', async (req, res) => {
   if (!requireSupabaseEnv(res)) return;
   const { uid, email } = req.query || {};
   if (!(await isCommunityAdmin(uid, email, req.params.id))) return res.status(403).json({ error:'Solo un administrador puede ver los miembros de la comunidad.' });
-  const { data, error } = await supabase.from('community_memberships').select('*').eq('community_id', req.params.id).order('joined_at', { ascending:true });
-  if (error) return sendSupabaseError(res, error);
-  const uids = (data||[]).map(m => m.user_uid).filter(Boolean);
+  // Derive members from approved listings
+  const { data: listings, error: lErr } = await supabase.from('listings').select('user_uid,user_email,registration_id,approved_at,name').eq('community_id', req.params.id).eq('status','approved').order('approved_at', { ascending:true });
+  if (lErr) return sendSupabaseError(res, lErr);
+  // Collect unique users (one listing per user_uid; a user may have multiple listings)
+  const seen = new Set();
+  const uniqueUsers = [];
+  for (const l of (listings||[])) {
+    const key = l.user_uid || l.user_email;
+    if (key && !seen.has(key)) { seen.add(key); uniqueUsers.push(l); }
+  }
+  // Overlay community_memberships to get admin status
+  const { data: admins } = await supabase.from('community_memberships').select('*').eq('community_id', req.params.id);
+  const adminMap = {};
+  (admins||[]).forEach(a => { adminMap[a.user_uid] = a; });
+  // Enrich with app_users for display name
+  const uids = uniqueUsers.map(u => u.user_uid).filter(Boolean);
   let userMap = {};
   if (uids.length) {
-    const { data: users } = await supabase.from('app_users').select('uid,name,language_preference').in('uid', uids);
-    (users||[]).forEach(u => { userMap[u.uid] = u; });
+    const { data: appUsers } = await supabase.from('app_users').select('uid,name,language_preference').in('uid', uids);
+    (appUsers||[]).forEach(u => { userMap[u.uid] = u; });
   }
-  res.json({ members: (data||[]).map(m => ({ id:m.id, communityId:m.community_id, userUid:m.user_uid, userEmail:m.user_email, role:m.role, permissions:safeJsonObject(m.permissions, COMMUNITY_ADMIN_PERM_DEFAULTS), invitedByUid:m.invited_by_uid, joinedAt:m.joined_at, name:userMap[m.user_uid]?.name||'', languagePreference:userMap[m.user_uid]?.language_preference||'es-CO' })) });
+  const members = uniqueUsers.map(u => {
+    const admin = u.user_uid ? adminMap[u.user_uid] : null;
+    return {
+      userUid: u.user_uid,
+      userEmail: u.user_email,
+      name: userMap[u.user_uid]?.name || '',
+      languagePreference: userMap[u.user_uid]?.language_preference || 'es-CO',
+      joinedAt: u.approved_at,
+      isAdmin: !!admin,
+      adminPermissions: admin ? safeJsonObject(admin.permissions, COMMUNITY_ADMIN_PERM_DEFAULTS) : COMMUNITY_ADMIN_PERM_DEFAULTS,
+    };
+  });
+  res.json({ members });
 });
 
-// POST /api/communities/:id/members — add/invite a member
-app.post('/api/communities/:id/members', async (req, res) => {
+// POST /api/communities/:id/members/:uid/promote — promote an approved member to community admin
+app.post('/api/communities/:id/members/:uid/promote', async (req, res) => {
   if (!requireSupabaseEnv(res)) return;
-  const { actorUid, actorEmail, userUid, userEmail, role='member', permissions } = req.body || {};
-  if (!(await isCommunityAdmin(actorUid, actorEmail, req.params.id))) return res.status(403).json({ error:'Solo un administrador puede agregar miembros.' });
-  if (!userUid || !userEmail) return res.status(400).json({ error:'userUid and userEmail are required.' });
-  if (!['member','community_admin'].includes(role)) return res.status(400).json({ error:'role must be member or community_admin.' });
-  const effectivePerms = role === 'community_admin' ? safeJsonObject(permissions, COMMUNITY_ADMIN_PERM_DEFAULTS) : {};
-  const row = { id:'mbr_'+uuidv4().slice(0,8), community_id:req.params.id, user_uid:userUid, user_email:String(userEmail).toLowerCase(), role, permissions:effectivePerms, invited_by_uid:actorUid||'', joined_at:new Date().toISOString() };
+  const { actorUid, actorEmail, userEmail, permissions } = req.body || {};
+  if (!(await isCommunityAdmin(actorUid, actorEmail, req.params.id))) return res.status(403).json({ error:'Solo un administrador puede promover miembros.' });
+  if (!req.params.uid) return res.status(400).json({ error:'uid is required.' });
+  const effectivePerms = safeJsonObject(permissions, COMMUNITY_ADMIN_PERM_DEFAULTS);
+  const row = { id:'mbr_'+uuidv4().slice(0,8), community_id:req.params.id, user_uid:req.params.uid, user_email:String(userEmail||'').toLowerCase(), role:'community_admin', permissions:effectivePerms, invited_by_uid:actorUid||'', joined_at:new Date().toISOString() };
   const { data, error } = await supabase.from('community_memberships').upsert(row, { onConflict:'community_id,user_uid' }).select('*').single();
   if (error) return sendSupabaseError(res, error);
-  await auditLog({ entity:'community_membership', entityId:req.params.id, action:'add_member', actorUid:actorUid||'', actorEmail:actorEmail||'', after:{ userUid, userEmail, role } });
-  res.json(data);
+  await auditLog({ entity:'community_membership', entityId:req.params.id, action:'promote_admin', actorUid:actorUid||'', actorEmail:actorEmail||'', after:{ userUid:req.params.uid, userEmail } });
+  res.json({ ok:true });
 });
 
-// DELETE /api/communities/:id/members/:uid — remove a member
-app.delete('/api/communities/:id/members/:uid', async (req, res) => {
+// DELETE /api/communities/:id/members/:uid/promote — demote community admin back to regular member
+app.delete('/api/communities/:id/members/:uid/promote', async (req, res) => {
   if (!requireSupabaseEnv(res)) return;
   const { actorUid, actorEmail } = req.body || {};
-  if (!(await isCommunityAdmin(actorUid, actorEmail, req.params.id))) return res.status(403).json({ error:'Solo un administrador puede eliminar miembros.' });
+  if (!(await isCommunityAdmin(actorUid, actorEmail, req.params.id))) return res.status(403).json({ error:'Solo un administrador puede cambiar roles.' });
   const { error } = await supabase.from('community_memberships').delete().eq('community_id', req.params.id).eq('user_uid', req.params.uid);
   if (error) return sendSupabaseError(res, error);
-  await auditLog({ entity:'community_membership', entityId:req.params.id, action:'remove_member', actorUid:actorUid||'', actorEmail:actorEmail||'', after:{ removedUid:req.params.uid } });
+  await auditLog({ entity:'community_membership', entityId:req.params.id, action:'demote_admin', actorUid:actorUid||'', actorEmail:actorEmail||'', after:{ demotedUid:req.params.uid } });
   res.json({ ok:true });
 });
 
