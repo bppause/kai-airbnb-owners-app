@@ -1230,6 +1230,16 @@ export default function App() {
       if (e.code !== "auth/popup-closed-by-user") showToast("Error al iniciar sesión: " + e.message, true);
     }
   };
+  const handleLoginCommunitySelect = (communityId, cfg) => {
+    if (!communityId) return;
+    _communityId = communityId;
+    try { localStorage.setItem('kai_community', communityId); } catch(e) {}
+    if (cfg) setCustomLabels({
+      complex_name_es: cfg.name, complex_name_en: cfg.name_en || cfg.name,
+      complex_logo: cfg.logo_url, complex_bg: cfg.background_url,
+      community_tower: cfg.tower,
+    });
+  };
   const logout = async () => {
     if (auth) await signOut(auth);
     try { localStorage.removeItem('kai_community'); } catch(e) {}
@@ -1484,7 +1494,7 @@ export default function App() {
     </div>
   );
 
-  if (!user) return <AuthGate onLogin={login} lang={lang} setLang={setLang} complexLogo={complexLogo} complexNameEs={complexNameEs} complexNameEn={complexNameEn} complexLocation={complexLocation} complexBg={complexBg} />;
+  if (!user) return <AuthGate onLogin={login} lang={lang} setLang={setLang} complexLogo={complexLogo} complexNameEs={complexNameEs} complexNameEn={complexNameEn} complexLocation={complexLocation} complexBg={complexBg} onCommunitySelect={handleLoginCommunitySelect} />;
   if (!isApproved) return <RegistrationGate user={user} registration={registration} onSubmit={submitRegistration} onLogout={logout} syncing={syncing} toast={toast} lang={lang} setLang={setLang} complexLogo={complexLogo} complexName={complexName} complexLocation={complexLocation} complexBg={complexBg} />;
 
   return (
@@ -2135,18 +2145,73 @@ function RoleOutcomeGuide({ lang="es-CO", adminInfo={}, delegatePerms={}, ownerC
 }
 
 // ─── VIEWS ────────────────────────────────────────────────────────────────────
-function AuthGate({ onLogin, lang="es-CO", setLang=()=>{}, complexLogo='', complexNameEs='Propietarios Airbnb KAI', complexNameEn='KAI Airbnb Owners', complexLocation='Serena del Mar · Cartagena 🇨🇴', complexBg='/morros-kai-bg.jpg' }) {
-  const complexName = lang === 'en' ? complexNameEn : complexNameEs;
-  const loginTitle = lang === 'en' ? `Welcome to ${complexNameEn}` : `Bienvenido a ${complexNameEs}`;
-  const loginSub = `${complexName} · ${complexLocation}`;
-  const logoSrc = complexLogo || '/morros-kai.png';
+function AuthGate({ onLogin, lang="es-CO", setLang=()=>{}, complexLogo='', complexNameEs='Propietarios Airbnb KAI', complexNameEn='KAI Airbnb Owners', complexLocation='Serena del Mar · Cartagena 🇨🇴', complexBg='/morros-kai-bg.jpg', onCommunitySelect }) {
+  const isEn = lang === 'en';
+  const [communities, setCommunities] = useState([]);
+  const [selectedId, setSelectedId] = useState(() => { try { return localStorage.getItem('kai_community') || ''; } catch(e) { return ''; } });
+  const [displayLogo, setDisplayLogo] = useState(complexLogo);
+  const [displayNameEs, setDisplayNameEs] = useState(complexNameEs);
+  const [displayNameEn, setDisplayNameEn] = useState(complexNameEn);
+  const [displayLocation, setDisplayLocation] = useState(complexLocation);
+  const [displayBg, setDisplayBg] = useState(complexBg);
+
+  useEffect(() => {
+    fetch('/api/communities/public').then(r => r.ok ? r.json() : null).then(d => {
+      if (d?.communities?.length) {
+        setCommunities(d.communities);
+        if (d.communities.length === 1 && !selectedId) {
+          const c = d.communities[0];
+          setSelectedId(c.id);
+          applyCommunityCfg(c);
+          onCommunitySelect?.(c.id, c);
+        }
+      }
+    }).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    if (!selectedId) return;
+    fetch(`/api/communities/${selectedId}`).then(r => r.ok ? r.json() : null).then(d => {
+      if (d) { applyCommunityCfg(d); onCommunitySelect?.(selectedId, d); }
+    }).catch(() => {});
+  }, [selectedId]);
+
+  const applyCommunityCfg = (cfg) => {
+    if (!cfg) return;
+    if (cfg.name) setDisplayNameEs(cfg.name);
+    if (cfg.name_en || cfg.name) setDisplayNameEn(cfg.name_en || cfg.name);
+    if (cfg.city || cfg.country) setDisplayLocation([cfg.city, cfg.country].filter(Boolean).join(' · '));
+    if (cfg.logo_url) setDisplayLogo(cfg.logo_url);
+    if (cfg.background_url) setDisplayBg(cfg.background_url);
+  };
+
+  const handleCommunityChange = (id) => {
+    setSelectedId(id);
+    try { localStorage.setItem('kai_community', id); } catch(e) {}
+    const c = communities.find(x => x.id === id);
+    if (c) { applyCommunityCfg(c); onCommunitySelect?.(id, c); }
+  };
+
+  const complexName = isEn ? displayNameEn : displayNameEs;
+  const loginTitle = isEn ? `Welcome to ${displayNameEn}` : `Bienvenido a ${displayNameEs}`;
+  const loginSub = `${complexName} · ${displayLocation}`;
+  const logoSrc = displayLogo || '/morros-kai.png';
   const t = getT(lang);
-  const bgStyle = complexBg ? { backgroundImage:`url(${complexBg})`, backgroundSize:'cover', backgroundPosition:'center' } : {};
+  const bgStyle = displayBg ? { backgroundImage:`url(${displayBg})`, backgroundSize:'cover', backgroundPosition:'center' } : {};
   return (
     <div className="app-shell gate-shell gate-shell-bg" style={bgStyle}><style>{CSS}</style>
       <div className="gate-shell-overlay"/>
       <div className="gate-card welcome-card">
         <div className="gate-lang"><LanguageSwitch lang={lang} setLang={setLang} /></div>
+        {communities.length > 1 && (
+          <div style={{marginBottom:12}}>
+            <label style={{display:'block',fontSize:'.75rem',fontWeight:600,color:'rgba(47,79,58,.7)',marginBottom:4}}>{isEn ? 'Select your community' : 'Selecciona tu comunidad'}</label>
+            <select value={selectedId} onChange={e=>handleCommunityChange(e.target.value)} style={{width:'100%',padding:'8px 10px',borderRadius:8,border:'1.5px solid rgba(47,79,58,.25)',fontSize:'.9rem',background:'rgba(255,255,255,.85)',color:'#1a3c2a',cursor:'pointer'}}>
+              <option value="">{isEn ? '— choose community —' : '— elige comunidad —'}</option>
+              {communities.map(c => <option key={c.id} value={c.id}>{isEn ? (c.name_en || c.name) : c.name}{c.city ? ` · ${c.city}` : ''}</option>)}
+            </select>
+          </div>
+        )}
         <div className="welcome-brand">
           <img src={logoSrc} className="welcome-logo" alt={complexName}/>
           <div>
@@ -5675,7 +5740,7 @@ function AdminSection({ title, subtitle, action, open, onToggle, children }) {
           <span className="card-title">{title}</span>
           {subtitle && <div className="psub" style={{margin:'3px 0 0',fontWeight:400}}>{subtitle}</div>}
         </div>
-        {open && action && <div className="admin-sec-action" onClick={e=>e.stopPropagation()}>{action}</div>}
+        {action && <div className="admin-sec-action" onClick={e=>e.stopPropagation()}>{action}</div>}
         <span className={`admin-sec-chevron${open?' asc-up':''}`}>{open?'▲':'▼'}</span>
       </div>
       {open && <div className="admin-sec-body">{children}</div>}

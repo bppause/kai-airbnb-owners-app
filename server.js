@@ -2082,6 +2082,20 @@ app.post('/api/communities', async (req, res) => {
   res.json(data);
 });
 
+// GET /api/communities/public — unauthenticated; returns active communities for login picker
+app.get('/api/communities/public', async (req, res) => {
+  if (!requireSupabaseEnv(res)) return;
+  try {
+    const { data, error } = await supabase
+      .from('communities')
+      .select('id,name,name_en,logo_url,background_url,city,country,tower')
+      .eq('is_active', true)
+      .order('name');
+    if (error) return sendSupabaseError(res, error);
+    res.json({ communities: data || [] });
+  } catch(e) { sendSupabaseError(res, e); }
+});
+
 // GET /api/communities/:id
 app.get('/api/communities/:id', async (req, res) => {
   if (!requireSupabaseEnv(res)) return;
