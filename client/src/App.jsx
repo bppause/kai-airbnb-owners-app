@@ -3899,14 +3899,20 @@ const guestLocation = (g={}) => [g.city, g.state, g.country].map(x=>String(x||''
 
 function WorkflowGroup({ statusKey, icon, label, sublabel, color, incidents, listings, isOpen, onToggle, user, contactProps, isGlobalAdmin, canUpdateGlobal, canDeleteGlobal, canResolveGlobal, onResolve, onDelete, onVerify, onAddResolution, onUnitDetail, onIncidentDetail, onAssign, onCloseGeneral, hideUnit=false, lang, isEn }) {
   const count = incidents.length;
+  const myActionCount = !user?.uid ? 0 : incidents.filter(inc => {
+    const isMyListing = listings.find(l=>l.id===inc.aptId)?.ownerUid === user.uid;
+    const hasPendingRes = inc.status==='verified' && !String(inc.ownerResolution||'').trim();
+    return (inc.status==='open' || hasPendingRes) && isMyListing;
+  }).length;
   return (
-    <div className="wfg-section">
-      <button className="wfg-hdr" style={{borderLeftColor:color}} onClick={onToggle}>
+    <div className={`wfg-section${statusKey==='resolved'?' wfg-section-resolved':''}`}>
+      <button className={`wfg-hdr${myActionCount>0?' wfg-hdr-urgent':''}`} style={{borderLeftColor:color}} onClick={onToggle}>
         <span className="wfg-icon">{icon}</span>
         <div className="wfg-hdr-body">
           <span className="wfg-label">{label}</span>
           {sublabel&&<span className="wfg-sublabel">{sublabel}</span>}
         </div>
+        {myActionCount>0&&<span className="wfg-my-badge">{myActionCount} {isEn?'need your action':'necesitan tu acción'}</span>}
         <span className="wfg-badge" style={{background:color+'22',color}}>{count}</span>
         <span className={`fls-chev${isOpen?' fls-chev-up':''}`}>›</span>
       </button>
@@ -3914,7 +3920,12 @@ function WorkflowGroup({ statusKey, icon, label, sublabel, color, incidents, lis
         <div className="wfg-body">
           {count===0
             ? <div className="wfg-empty">✓ {isEn?'None here':'Nada aquí'}</div>
-            : incidents.map(inc=><IRow key={inc.id} inc={inc} user={user} listings={listings} contactProps={contactProps} isGlobalAdmin={isGlobalAdmin} canUpdateGlobal={canUpdateGlobal} canDeleteGlobal={canDeleteGlobal} canResolveGlobal={canResolveGlobal} onResolve={onResolve} onDelete={onDelete} onVerify={onVerify} onAddResolution={onAddResolution} onUnitDetail={onUnitDetail} onIncidentDetail={onIncidentDetail} onAssign={onAssign} onCloseGeneral={onCloseGeneral} hideUnit={hideUnit} lang={lang}/>)
+            : incidents.map(inc => {
+                const isMyListing = !!(user?.uid && listings.find(l=>l.id===inc.aptId)?.ownerUid === user.uid);
+                const hasPendingRes = inc.status==='verified' && !String(inc.ownerResolution||'').trim();
+                const actionNeeded = (inc.status==='open' || hasPendingRes) && isMyListing;
+                return <IRow key={inc.id} inc={inc} user={user} listings={listings} contactProps={contactProps} isGlobalAdmin={isGlobalAdmin} canUpdateGlobal={canUpdateGlobal} canDeleteGlobal={canDeleteGlobal} canResolveGlobal={canResolveGlobal} onResolve={onResolve} onDelete={onDelete} onVerify={onVerify} onAddResolution={onAddResolution} onUnitDetail={onUnitDetail} onIncidentDetail={onIncidentDetail} onAssign={onAssign} onCloseGeneral={onCloseGeneral} hideUnit={hideUnit} lang={lang} actionNeeded={actionNeeded}/>;
+              })
           }
         </div>
       )}
@@ -4003,7 +4014,19 @@ function IncidentsView({ incidents, listings, user, quickFilter=null, onQuickFil
   // Date range filter — filter by incident date (i.date is YYYY-MM-DD)
   if(dateFrom) list=list.filter(i=>String(i.date||i.createdAt||'').slice(0,10)>=dateFrom);
   if(dateTo)   list=list.filter(i=>String(i.date||i.createdAt||'').slice(0,10)<=dateTo);
-  list.sort((a,b)=>new Date(b.createdAt)-new Date(a.createdAt));
+  const actionWeight = (inc) => {
+    if (!user?.uid) return 2;
+    const isMyListing = listings.find(l=>l.id===inc.aptId)?.ownerUid === user.uid;
+    const hasPendingRes = inc.status==='verified' && !String(inc.ownerResolution||'').trim();
+    if ((inc.status==='open' || hasPendingRes) && isMyListing) return 0;
+    if ((isGlobalAdmin||canResolveGlobal) && inc.status==='verified' && String(inc.ownerResolution||'').trim()) return 1;
+    return 2;
+  };
+  list.sort((a,b) => {
+    const wa = actionWeight(a), wb = actionWeight(b);
+    if (wa !== wb) return wa - wb;
+    return new Date(b.createdAt) - new Date(a.createdAt);
+  });
   const isEn = lang==='en';
   const anyFilter = sf!=='all'||cf!=='all'||scope!=='all'||search.trim()!==''||!!floorFilter||!!dateFrom||!!dateTo;
   const resetAll = () => { setSf('all'); setCf('all'); setScope('all'); setSearch(''); setFloorFilter(null); setDateFrom(''); setDateTo(''); };
@@ -4385,7 +4408,7 @@ function UnitMiniCard({ listing, onUnitDetail, isEn=false }) {
   );
 }
 
-function IRow({ inc, user, listings=[], contactProps={}, isGlobalAdmin=false, canUpdateGlobal=false, canDeleteGlobal=false, canResolveGlobal=false, onResolve, onDelete, onVerify, onAddResolution, onUnitDetail, onIncidentDetail, onAssign, onCloseGeneral, compact, naughtyMode, hideUnit=false, lang="es-CO" }) {
+function IRow({ inc, user, listings=[], contactProps={}, isGlobalAdmin=false, canUpdateGlobal=false, canDeleteGlobal=false, canResolveGlobal=false, onResolve, onDelete, onVerify, onAddResolution, onUnitDetail, onIncidentDetail, onAssign, onCloseGeneral, compact, naughtyMode, hideUnit=false, lang="es-CO", actionNeeded=false }) {
   const listing    = listings.find(l=>l.id===inc.aptId);
   const isOwner    = Boolean(user?.uid && listing?.ownerUid === user.uid);
   const isReporter = Boolean(user?.uid && inc.reporterUid === user.uid);
@@ -4408,7 +4431,7 @@ function IRow({ inc, user, listings=[], contactProps={}, isGlobalAdmin=false, ca
     : { cls:'ir-ss-wait',     icon:'⏳', label: isEn?'Awaiting admin close':'En espera del admin' };
 
   return (
-    <div className={`irow irow-card${naughtyMode?' irow-naughty':''}`}>
+    <div className={`irow irow-card${naughtyMode?' irow-naughty':''}${actionNeeded?' irow-action-needed':''}`}>
       {/* ── Left sidebar: unit card + reporter context ── */}
       <div className="ir-l">
         {!hideUnit && (inc.isGeneral
@@ -4449,6 +4472,11 @@ function IRow({ inc, user, listings=[], contactProps={}, isGlobalAdmin=false, ca
             })()}
             <span className="ir-ss-date">📅 {fmtDate(inc.date)}</span>
           </div>
+          {actionNeeded&&(
+            <span className="ir-ss-action-mine">
+              {isEn?'⚡ Your action':'⚡ Tu acción'}
+            </span>
+          )}
           {/* General incident quick actions — admin only */}
           {inc.isGeneral && (isGlobalAdmin||canResolveGlobal) && inc.status!=='resolved' && (
             <>

@@ -2652,3 +2652,197 @@ p { line-height: 1.45; }
   font-size: .84rem;
 }
 .upk-disabled { opacity: .65; pointer-events: none; }
+
+/* ══════════════════════════════════════════════════════════════
+   Mobile-first optimisations — primary audience: 55+ on phones
+   ══════════════════════════════════════════════════════════════ */
+
+/* Baseline: readable contact links on all screen sizes */
+.umc-contacts .idd-pi-link {
+  font-size: .7rem !important;
+  padding: 4px 10px !important;
+  min-height: 30px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+}
+.umc-contacts { gap: 4px !important; }
+
+@media (max-width: 640px) {
+
+  /* ── IRow: single-column — no cramped 130px sidebar ── */
+  .irow.irow-card {
+    flex-direction: column !important;
+  }
+  .irow.irow-card .ir-l {
+    max-width: none !important;
+    min-width: 0 !important;
+    width: 100% !important;
+    border-right: none !important;
+    border-bottom: 1px solid rgba(18,50,53,.09) !important;
+    padding: 10px 12px !important;
+    align-self: auto !important;
+  }
+  /* UnitMiniCard: full-width in the top strip */
+  .irow.irow-card .unit-mini-card {
+    max-width: none !important;
+    min-width: 0 !important;
+    width: 100% !important;
+  }
+  .irow.irow-card .umc-contacts .idd-pi-link {
+    font-size: .82rem !important;
+    padding: 6px 13px !important;
+    min-height: 38px !important;
+    max-width: none !important;
+  }
+  .irow.irow-card .umc-owner    { font-size: .86rem !important; }
+  .irow.irow-card .umc-op       { font-size: .78rem !important; }
+  .irow.irow-card .umc-no-op    { font-size: .76rem !important; }
+  .irow.irow-card .umc-role-lbl { font-size: .64rem !important; }
+  .irow.irow-card .inc-ctx-tag  { font-size: .74rem !important; padding: 3px 10px !important; }
+
+  /* ── Status strip: bigger text, chips wrap cleanly ── */
+  .ir-status-strip {
+    padding: 10px 14px !important;
+    gap: 8px !important;
+    flex-wrap: wrap !important;
+  }
+  .ir-ss-icon  { font-size: 1.15rem !important; }
+  .ir-ss-label { font-size: .93rem !important; }
+  .ir-ss-date  { font-size: .8rem  !important; padding: 3px 9px !important; }
+  .ir-ss-chips { gap: 6px !important; }
+  /* Override inline fontSize on type/category chips */
+  .ir-type, .ir-cat { font-size: .76rem !important; padding: 3px 10px !important; }
+  .ir-sla-chip      { font-size: .74rem !important; }
+
+  /* ── "Details" pill → full-width tap bar ── */
+  .ir-detail-pill {
+    width: 100%  !important;
+    margin-left: 0  !important;
+    margin-top: 4px !important;
+    font-size: .92rem !important;
+    padding: 11px 16px !important;
+    min-height: 44px !important;
+    border-radius: 8px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+  }
+
+  /* ── Body text ── */
+  .ir-body { padding: 10px 14px 8px !important; gap: 8px !important; }
+  .ir-body-desc {
+    font-size: .97rem !important;
+    -webkit-line-clamp: 3 !important;
+    line-height: 1.55 !important;
+  }
+  .ir-bparty     { font-size: .87rem !important; }
+  .ir-bparty-lbl { font-size: .74rem !important; }
+  .ir-bpc-item   { font-size: .82rem !important; }
+
+  /* ── Footer: stacked, 52px tap targets ── */
+  .ir-footer-acts {
+    padding: 12px 14px 16px !important;
+    gap: 10px !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+  }
+  .ir-act-btn {
+    min-height: 52px !important;
+    font-size: 1rem !important;
+    padding: 14px 18px !important;
+    width: 100% !important;
+  }
+  .ir-act-done, .ir-act-waiting {
+    font-size: .88rem !important;
+    padding: 10px 14px !important;
+  }
+  .ir-act-steps-note { font-size: .82rem !important; margin-top: 0 !important; }
+
+  /* ── Incidents tab bar: 50px tap targets ── */
+  .inc-tab       { font-size: .95rem !important; padding: 14px 10px !important; min-height: 50px !important; }
+  .inc-tab-badge { min-width: 22px !important; height: 22px !important; font-size: .74rem !important; }
+
+  /* ── Owner action callout in detail view ── */
+  .udc-action-needed {
+    padding: 14px 16px !important;
+    gap: 14px !important;
+    border-radius: 12px !important;
+    margin-top: 16px !important;
+  }
+  .udc-an-step-num {
+    width: 38px !important;
+    height: 38px !important;
+    font-size: 1.4rem !important;
+  }
+  .udc-an-body strong { font-size: .96rem !important; }
+  .udc-an-body span   { font-size: .88rem !important; line-height: 1.5 !important; }
+  .udc-an-hint        { font-size: .82rem !important; }
+
+  /* ── Detail timeline: larger labels and timestamps ── */
+  .idd-tl-title { font-size: .8rem !important; }
+  .idd-tl-ts    { font-size: .76rem !important; padding: 3px 8px !important; }
+  .idd-tl-desc  { font-size: .95rem !important; }
+  .idd-tl-guest-name { font-size: .92rem !important; }
+  .idd-tl-guest-loc  { font-size: .82rem !important; }
+  .idd-tl-reporter   { font-size: .86rem !important; }
+
+  /* ── Detail view action button ── */
+  .idd-act-btn {
+    min-height: 52px !important;
+    font-size: 1rem !important;
+  }
+}
+
+/* ── Action-required IRow priority visual treatment ── */
+.irow-action-needed {
+  border-color: rgba(180,90,0,.4) !important;
+  box-shadow: 0 4px 20px rgba(160,80,0,.18), 0 0 0 1.5px rgba(180,90,0,.25) !important;
+}
+.irow-action-needed .ir-status-strip {
+  background: rgba(255,245,230,.55) !important;
+}
+
+/* "⚡ Your action" pill in status strip */
+.ir-ss-action-mine {
+  display: inline-flex;
+  align-items: center;
+  font-size: .72rem;
+  font-weight: 700;
+  letter-spacing: .01em;
+  color: #92400e;
+  background: #fef3c7;
+  border: 1px solid #fbbf24;
+  border-radius: 20px;
+  padding: 2px 9px;
+  margin-left: auto;
+  white-space: nowrap;
+}
+
+/* Resolved group: subtle muted treatment */
+.wfg-section-resolved {
+  opacity: .82;
+}
+.wfg-section-resolved .irow-card {
+  filter: saturate(.8);
+}
+
+/* Workflow group header — urgent state (user has pending items) */
+.wfg-hdr-urgent {
+  background: rgba(254,243,199,.5) !important;
+  border-bottom-color: #fbbf24 !important;
+}
+
+/* "N need your action" badge in workflow group header */
+.wfg-my-badge {
+  display: inline-flex;
+  align-items: center;
+  font-size: .72rem;
+  font-weight: 700;
+  color: #92400e;
+  background: #fef3c7;
+  border: 1px solid #fbbf24;
+  border-radius: 20px;
+  padding: 2px 10px;
+  margin-left: 8px;
+  white-space: nowrap;
+}
