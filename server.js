@@ -1688,6 +1688,17 @@ app.get('/api/admin/users', async (req, res) => {
   const approved = new Set((approvedListings || []).map(x => x.owner_uid).filter(Boolean));
   const globalEmails = getGlobalAdminEmails();
   const permsCfg = await getAppPermissionsConfig();
+  // Fetch all community memberships and community names in one pass
+  const { data: memberships } = await supabase.from('community_memberships').select('user_uid,community_id,role,permissions');
+  const { data: communityRows } = await supabase.from('communities').select('id,name,name_en');
+  const communityNameMap = {};
+  (communityRows||[]).forEach(c => { communityNameMap[c.id] = { name:c.name, nameEn:c.name_en||c.name }; });
+  // Group memberships by user_uid
+  const membershipByUid = {};
+  (memberships||[]).forEach(m => {
+    if (!membershipByUid[m.user_uid]) membershipByUid[m.user_uid] = [];
+    membershipByUid[m.user_uid].push({ communityId:m.community_id, role:m.role, permissions:safeJsonObject(m.permissions, COMMUNITY_ADMIN_PERM_DEFAULTS), communityName:communityNameMap[m.community_id]?.name||m.community_id, communityNameEn:communityNameMap[m.community_id]?.nameEn||m.community_id });
+  });
   const users = (rows || []).filter(u => approved.has(u.uid) || globalEmails.includes(String(u.email || '').trim().toLowerCase())).map(u => {
     const envGlobal = globalEmails.includes(String(u.email || '').trim().toLowerCase());
     const role = envGlobal ? 'global_admin' : normalizeRole(u.role || 'user');
@@ -1695,7 +1706,8 @@ app.get('/api/admin/users', async (req, res) => {
     const permissions = role === 'global_admin'
       ? { ...DEFAULT_DELEGATE_PERMISSIONS, canApproveRegistrations:true, canResolveIncidents:true, canUpdateGlobalListings:true, canDeleteGlobalListings:true, canUpdateGlobalIncidents:true, canDeleteGlobalIncidents:true }
       : role === 'delegate_admin' ? { ...permsCfg.defaultDelegatePermissions, ...storedPerms } : {};
-    return { uid:u.uid, email:u.email, name:u.name || '', role, permissions, languagePreference:u.language_preference || 'es-CO', approved: approved.has(u.uid), envGlobal };
+    const communityMemberships = membershipByUid[u.uid] || [];
+    return { uid:u.uid, email:u.email, name:u.name || '', role, permissions, languagePreference:u.language_preference || 'es-CO', approved: approved.has(u.uid), envGlobal, communityMemberships };
   });
   res.json({ users, standardMenuPermissions: permsCfg.standardMenuPermissions, defaultDelegatePermissions: permsCfg.defaultDelegatePermissions });
 });

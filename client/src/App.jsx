@@ -7015,8 +7015,100 @@ function AdminSettings({ config={}, user, listings=[], contactProps={}, onSave, 
     <div style={{display:'flex',gap:10,flexWrap:'wrap'}}>{Object.keys(DEFAULT_DELEGATE_PERMISSIONS).map(k=><label key={k} className="chip c-gray" style={{cursor:'pointer'}}><input type="checkbox" checked={!!defaultDelegatePermissions[k]} onChange={()=>toggleDefaultDelegatePermission(k)} style={{marginRight:6}}/>{PERMISSION_LABELS[k]?.[lang==='en'?'en':'es']||k}</label>)}</div>
   </AdminSection>
 
-  <AdminSection title={`👥 ${lt(lang,'Roles y permisos de usuarios')}`} subtitle={lt(lang,'Define global admins, delegates and standard users. Delegate admins inherit the global delegate permissions configured above.')} action={<button className="btn-ghost" onClick={loadUsers}>{usersLoading?lt(lang,'Cargando...'):lt(lang,'Actualizar')}</button>} open={openSections.users} onToggle={()=>toggleSection('users')}>
-    {users.length===0?<Empty icon="👥" msg={lt(lang,'No hay usuarios aprobados todavía.')}/>:<div className="table-wrap"><table className="admin-table"><thead><tr><th>{lt(lang,'Usuario')}</th><th>{lt(lang,'Email')}</th><th>{lt(lang,'Rol')}</th><th>{lt(lang,'Permisos del delegado')}</th><th>{lt(lang,'Acción')}</th></tr></thead><tbody>{users.map((u,idx)=><tr key={u.uid||u.email}><td><UserContact name={u.name||lt(lang,'Sin nombre')} email={u.email} uid={u.uid} {...contactProps}/></td><td><span className="copy-inline">{u.email}<button type="button" onClick={()=>copyText(u.email,showToast,lang)}>📋</button><button type="button" onClick={()=>contactProps.onEmail({name:u.name,email:u.email,apartments:(lookupContact(contactProps.directory,{uid:u.uid,email:u.email,name:u.name}).apartments||[])})}>✉️</button></span></td><td><select value={u.role||'user'} disabled={u.envGlobal} onChange={e=>setUsers(prev=>prev.map((x,i)=>i===idx?{...x,role:e.target.value}:x))}><option value="user">{lt(lang,'Usuario estándar')}</option><option value="delegate_admin">{lt(lang,'Administrador delegado')}</option><option value="global_admin">{lt(lang,'Administrador global')}</option></select>{u.envGlobal&&<div className="help-msg">GLOBAL_ADMIN_EMAILS</div>}</td><td>{u.role==='delegate_admin'?<div style={{display:'flex',flexDirection:'column',gap:5}}><small style={{color:'#496674',fontSize:'.69rem',fontStyle:'italic',marginBottom:2}}>{lang==='en'?'Global delegate permissions:':'Permisos globales del delegado:'}</small>{Object.keys(DEFAULT_DELEGATE_PERMISSIONS).map(k=>(<span key={k} style={{display:'flex',alignItems:'center',gap:6,fontSize:'.77rem',color:defaultDelegatePermissions[k]?'#087346':'#aabcb8'}}>{defaultDelegatePermissions[k]?'✅':'—'} {PERMISSION_LABELS[k]?.[lang==='en'?'en':'es']||k}</span>))}</div>:<span className="help-msg">{u.role==='global_admin'?lt(lang,'Administrador global'):lt(lang,'Usuario estándar')}</span>}</td><td><button className="bsm bs-edit" onClick={()=>saveUserPermissions(u)}>{lt(lang,'Actualizar rol/permisos')}</button></td></tr>)}</tbody></table></div>}
+  <AdminSection title={`👥 ${isEn?'User roles & permissions':'Roles y permisos de usuarios'}`}
+    subtitle={isEn?'Platform roles (Global Admin, Delegate Admin) apply across all communities. Community Admin roles are per-community and managed in the Communities panel below.':'Los roles de plataforma (Admin global, Admin delegado) aplican a todas las comunidades. El rol de Admin de comunidad es por comunidad y se gestiona en el panel de Comunidades.'}
+    action={<button className="btn-ghost" onClick={loadUsers}>{usersLoading?lt(lang,'Cargando...'):lt(lang,'Actualizar')}</button>}
+    open={openSections.users} onToggle={()=>toggleSection('users')}>
+    {users.length===0?<Empty icon="👥" msg={lt(lang,'No hay usuarios aprobados todavía.')}/>:(
+      <div>
+        {/* Role scope legend */}
+        <div style={{display:'flex',gap:10,flexWrap:'wrap',marginBottom:14,padding:'8px 12px',background:'#f0f8fb',borderRadius:8,fontSize:'.75rem',color:'#2a5a6a'}}>
+          <span>🌐 <strong>{isEn?'Global Admin':'Admin global'}</strong> — {isEn?'all communities, set via GLOBAL_ADMIN_EMAILS env var':'todas las comunidades, configurado por variable de entorno'}</span>
+          <span style={{color:'#ccc'}}>·</span>
+          <span>🛡️ <strong>{isEn?'Delegate Admin':'Admin delegado'}</strong> — {isEn?'all communities, configurable permissions':'todas las comunidades, permisos configurables'}</span>
+          <span style={{color:'#ccc'}}>·</span>
+          <span>🏢 <strong>{isEn?'Community Admin':'Admin comunidad'}</strong> — {isEn?'per community, managed in Communities panel':'por comunidad, se gestiona en el panel de Comunidades'}</span>
+          <span style={{color:'#ccc'}}>·</span>
+          <span>🏠 <strong>{isEn?'Standard Owner':'Propietario'}</strong> — {isEn?'own units only':'solo sus unidades'}</span>
+        </div>
+        <div style={{display:'flex',flexDirection:'column',gap:10}}>
+          {users.map((u,idx)=>{
+            const isGlb = u.role==='global_admin';
+            const isDel = u.role==='delegate_admin';
+            const communityAdminOf = (u.communityMemberships||[]).filter(m=>m.role==='community_admin');
+            const platformBadge = isGlb
+              ? { icon:'🌐', label:isEn?'Global Admin':'Admin global', color:'#0b7f4f', bg:'#e8f5ec' }
+              : isDel
+              ? { icon:'🛡️', label:isEn?'Delegate Admin':'Admin delegado', color:'#5a2d82', bg:'#f3eafd' }
+              : { icon:'🏠', label:isEn?'Standard Owner':'Propietario', color:'#2a5a6a', bg:'#eef6f8' };
+            return (
+              <div key={u.uid||u.email} style={{border:'1px solid #e0eef2',borderRadius:12,padding:'12px 14px',background:'#fff'}}>
+                <div style={{display:'flex',alignItems:'flex-start',gap:12,flexWrap:'wrap'}}>
+                  {/* Identity */}
+                  <div style={{flex:'1 1 200px',minWidth:160}}>
+                    <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap',marginBottom:2}}>
+                      <span style={{fontWeight:700,fontSize:'.85rem',color:'#17313a'}}>{u.name||u.email}</span>
+                      <span style={{fontSize:'.68rem',fontWeight:700,padding:'1px 8px',borderRadius:999,background:platformBadge.bg,color:platformBadge.color,whiteSpace:'nowrap'}}>{platformBadge.icon} {platformBadge.label}</span>
+                      {u.envGlobal && <span style={{fontSize:'.65rem',background:'#fff3cd',color:'#856404',padding:'1px 7px',borderRadius:999,border:'1px solid #ffc107'}} title="Set via GLOBAL_ADMIN_EMAILS environment variable">env</span>}
+                    </div>
+                    <div style={{fontSize:'.72rem',color:'#6b9ba8'}}>
+                      <span className="copy-inline">{u.email}
+                        <button type="button" onClick={()=>copyText(u.email,showToast,lang)}>📋</button>
+                        <button type="button" onClick={()=>contactProps.onEmail({name:u.name,email:u.email,apartments:(lookupContact(contactProps.directory,{uid:u.uid,email:u.email,name:u.name}).apartments||[])})}>✉️</button>
+                      </span>
+                    </div>
+                  </div>
+                  {/* Platform role selector */}
+                  <div style={{flex:'0 0 auto',minWidth:160}}>
+                    <div style={{fontSize:'.7rem',fontWeight:700,color:'#496674',marginBottom:4,textTransform:'uppercase',letterSpacing:'.04em'}}>{isEn?'Platform role (all communities)':'Rol de plataforma (todas las comunidades)'}</div>
+                    <select value={u.role||'user'} disabled={u.envGlobal}
+                      onChange={e=>setUsers(prev=>prev.map((x,i)=>i===idx?{...x,role:e.target.value}:x))}
+                      style={{fontSize:'.8rem',padding:'4px 8px',borderRadius:6,border:'1px solid #cce7ee',background:u.envGlobal?'#f8f8f6':'#fff',maxWidth:200}}>
+                      <option value="user">{isEn?'Standard Owner':'Propietario estándar'}</option>
+                      <option value="delegate_admin">{isEn?'Delegate Admin':'Admin delegado'}</option>
+                      <option value="global_admin">{isEn?'Global Admin':'Admin global'}</option>
+                    </select>
+                    {u.envGlobal && <div style={{fontSize:'.68rem',color:'#856404',marginTop:2}}>GLOBAL_ADMIN_EMAILS</div>}
+                    {!u.envGlobal && <button className="bsm bs-edit" style={{marginTop:6,fontSize:'.72rem',padding:'3px 10px'}} onClick={()=>saveUserPermissions(u)}>{isEn?'Save platform role':'Guardar rol'}</button>}
+                  </div>
+                  {/* Delegate permissions (only when delegate_admin) */}
+                  {isDel && (
+                    <div style={{flex:'1 1 180px'}}>
+                      <div style={{fontSize:'.7rem',fontWeight:700,color:'#496674',marginBottom:4,textTransform:'uppercase',letterSpacing:'.04em'}}>{isEn?'Delegate permissions (platform-wide)':'Permisos delegado (toda la plataforma)'}</div>
+                      <div style={{display:'flex',flexDirection:'column',gap:3}}>
+                        {Object.keys(DEFAULT_DELEGATE_PERMISSIONS).map(k=>(
+                          <span key={k} style={{display:'flex',alignItems:'center',gap:6,fontSize:'.75rem',color:defaultDelegatePermissions[k]?'#087346':'#aabcb8'}}>
+                            {defaultDelegatePermissions[k]?'✅':'—'} {PERMISSION_LABELS[k]?.[isEn?'en':'es']||k}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {/* Community admin roles */}
+                  <div style={{flex:'1 1 180px'}}>
+                    <div style={{fontSize:'.7rem',fontWeight:700,color:'#496674',marginBottom:4,textTransform:'uppercase',letterSpacing:'.04em'}}>{isEn?'Community admin roles':'Roles de admin de comunidad'}</div>
+                    {communityAdminOf.length === 0
+                      ? <div style={{fontSize:'.75rem',color:'#a0b8c0',fontStyle:'italic'}}>{isEn?'None — standard owner in all communities':'Ninguno — propietario estándar en todas las comunidades'}</div>
+                      : <div style={{display:'flex',flexDirection:'column',gap:4}}>
+                          {communityAdminOf.map(m=>(
+                            <div key={m.communityId} style={{display:'flex',alignItems:'center',gap:6,flexWrap:'wrap'}}>
+                              <span style={{fontSize:'.75rem',fontWeight:700,padding:'2px 9px',borderRadius:999,background:'#e8f5ec',color:'#2F4F3A',whiteSpace:'nowrap'}}>🏢 {isEn?m.communityNameEn:m.communityName}</span>
+                              <span style={{fontSize:'.68rem',color:'#6b9ba8'}}>
+                                {[m.permissions?.canApproveRegistrations&&(isEn?'Approve':'Aprobar'),m.permissions?.canResolveIncidents&&(isEn?'Resolve':'Resolver'),m.permissions?.canManageListings&&(isEn?'Manage':'Gestionar')].filter(Boolean).join(' · ')||'—'}
+                              </span>
+                            </div>
+                          ))}
+                          <div style={{fontSize:'.68rem',color:'#8a9fa5',marginTop:2,fontStyle:'italic'}}>{isEn?'Manage in Communities panel ↓':'Gestionar en panel Comunidades ↓'}</div>
+                        </div>
+                    }
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    )}
   </AdminSection>
 
         {/* ── Navigation order & landing ── */}
