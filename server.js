@@ -403,7 +403,7 @@ const getUserCommunities = async (uid='', email='') => {
   const role = await getUserRole({ uid, email });
   if (role === 'global_admin') {
     try {
-      const { data } = await supabase.from('communities').select('*').eq('is_active', true).order('name');
+      const { data } = await supabase.from('communities').select('*').order('name');
       return data || [];
     } catch(e) { return []; }
   }
@@ -2160,6 +2160,18 @@ app.get('/api/communities', async (req, res) => {
   try {
     const communities = await getUserCommunities(uid, email);
     res.json({ communities });
+  } catch(e) { sendSupabaseError(res, e); }
+});
+
+// GET /api/admin/communities — returns all communities including inactive; used by global admin panel
+app.get('/api/admin/communities', async (req, res) => {
+  if (!requireSupabaseEnv(res)) return;
+  const { uid, email } = req.query || {};
+  if (!(await isGlobalAdmin(uid, email))) return res.json({ communities: [] });
+  try {
+    const { data, error } = await supabase.from('communities').select('*').order('name');
+    if (error) return sendSupabaseError(res, error);
+    res.json({ communities: data || [] });
   } catch(e) { sendSupabaseError(res, e); }
 });
 

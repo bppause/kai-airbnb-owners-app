@@ -1008,7 +1008,7 @@ export default function App() {
   const [previewRole, setPreviewRole] = useState(null);
   const [openDropdown, setOpenDropdown] = useState(null);
   const [showTour, setShowTour] = useState(false);
-  const initialView = new URLSearchParams(window.location.search).get('view') || 'incidents';
+  const initialView = new URLSearchParams(window.location.search).get('view') || (() => { try { return localStorage.getItem('kai_last_view') || 'incidents'; } catch(e) { return 'incidents'; } })();
   const [view,      setView]      = useState(initialView);
   // Apply role-based landing once admin config has fully loaded from server.
   // Must wait for adminLoading===false — without this guard the effect fires on the
@@ -1019,6 +1019,7 @@ export default function App() {
     if (_landingApplied.current || !user || adminLoading) return;
     _landingApplied.current = true;
     if (new URLSearchParams(window.location.search).get('view')) return;
+    try { if (localStorage.getItem('kai_last_view')) return; } catch(e) {}
     try {
       const navCfg = JSON.parse(adminInfo?.config?.nav_config || '{}');
       const roleKey = effectiveIsGlobalAdmin ? 'global' : effectiveRole === 'delegate_admin' ? 'delegate' : 'user';
@@ -1322,9 +1323,13 @@ export default function App() {
       });
     }
   };
+  useEffect(() => {
+    if (user && view) { try { localStorage.setItem('kai_last_view', view); } catch(e) {} }
+  }, [view, user]);
+
   const logout = async () => {
     if (auth) await signOut(auth);
-    try { localStorage.removeItem('kai_community'); } catch(e) {}
+    try { localStorage.removeItem('kai_community'); localStorage.removeItem('kai_last_view'); } catch(e) {}
     _communityId = 'kai';
     showToast("Sesión cerrada");
   };
@@ -6704,7 +6709,8 @@ function AdminSettings({ config={}, user, listings=[], contactProps={}, onSave, 
   const loadCommunities = useCallback(() => {
     if (!user?.uid) return;
     setCommunitiesLoading(true);
-    api.get('/api/communities?uid=' + encodeURIComponent(user.uid) + '&email=' + encodeURIComponent(user.email||''))
+    const qs = '?uid=' + encodeURIComponent(user.uid) + '&email=' + encodeURIComponent(user.email||'');
+    api.get('/api/admin/communities' + qs)
       .then(r => setCommunities(Array.isArray(r?.communities) ? r.communities : []))
       .catch(e => captureAdminError('communities', e))
       .finally(() => setCommunitiesLoading(false));
@@ -7031,10 +7037,16 @@ function AdminSettings({ config={}, user, listings=[], contactProps={}, onSave, 
                 const cme = getCommMissionEn();
                 return (
                   <div style={!commOverridesOn?{pointerEvents:'none',opacity:0.5,userSelect:'none'}:{}}>
-                    <div style={{marginBottom:10,padding:'6px 12px',background:'#f0f8fb',borderRadius:8,fontSize:'.76rem',color:'#2a5a6a',border:'1px solid #cce7ee'}}>
-                      🌐 = {isEn?'using global value':'usando valor global'} &nbsp;·&nbsp; 🏷️ = {isEn?'community override':'override de comunidad'}
+                    <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:10,flexWrap:'wrap'}}>
+                      <div style={{flex:1,padding:'6px 12px',background:'#f0f8fb',borderRadius:8,fontSize:'.76rem',color:'#2a5a6a',border:'1px solid #cce7ee'}}>
+                        🌐 = {isEn?'using global value':'usando valor global'} &nbsp;·&nbsp; 🏷️ = {isEn?'community override':'override de comunidad'}
+                      </div>
+                      <div style={{display:'flex',gap:6}}>
+                        <button className={`fchip${commMissionLang==='es'?' fchip-on':''}`} onClick={()=>setCommMissionLang('es')}>🇨🇴 Español</button>
+                        <button className={`fchip${commMissionLang==='en'?' fchip-on':''}`} onClick={()=>setCommMissionLang('en')}>🇺🇸 English</button>
+                      </div>
                     </div>
-                    <div className="card-title" style={{margin:'12px 0 8px'}}>🇨🇴 Español</div>
+                    {commMissionLang==='es' && <>
                     <div className="fg2">
                       {[
                         {field:'title',label:isEn?'Title':'Título',rows:2},
@@ -7083,47 +7095,49 @@ function AdminSettings({ config={}, user, listings=[], contactProps={}, onSave, 
                         <button className="btn-ghost" onClick={()=>addCommMissionRule('accessRules')}>+ {isEn?'Add rule':'Agregar regla'}</button>
                       </div>
                     </div>
-                    <div className="card-title" style={{margin:'20px 0 8px'}}>🇺🇸 English</div>
-                    <div style={{marginBottom:8,fontSize:'.73rem',color:'#6b9ba8'}}>
-                      {hasOverride('mission_sections_en')
-                        ? <span style={{background:'#d9b45a22',color:'#7a5a00',padding:'2px 8px',borderRadius:4,fontWeight:600}}>🏷️ {isEn?'community override active':'override de comunidad activo'}</span>
-                        : <span style={{background:'#e8f5ec',color:'#2F4F3A',padding:'2px 8px',borderRadius:4}}>🌐 {isEn?'using global values':'usando valores globales'}</span>}
-                    </div>
-                    <div className="fg2">
-                      <div className="fg full"><label>Title (EN)</label><textarea className="admin-textarea" rows={2} value={cme.title||''} onChange={e=>setCommMissionEnField('title',e.target.value)}/></div>
-                      <div className="fg full"><label>Subtitle (EN)</label><textarea className="admin-textarea" rows={2} value={cme.subtitle||''} onChange={e=>setCommMissionEnField('subtitle',e.target.value)}/></div>
-                      <div className="fg"><label>Section label (EN)</label><input value={cme.sectionLabel||''} onChange={e=>setCommMissionEnField('sectionLabel',e.target.value)}/></div>
-                      <div className="fg full"><label>Main heading (EN)</label><textarea className="admin-textarea" rows={2} value={cme.heading||''} onChange={e=>setCommMissionEnField('heading',e.target.value)}/></div>
-                      <div className="fg full"><label>Main body (EN)</label><textarea rows={3} value={cme.body||''} onChange={e=>setCommMissionEnField('body',e.target.value)}/></div>
-                    </div>
-                    <div className="card-title" style={{margin:'16px 0 10px'}}>Purpose cards (EN)</div>
-                    {(cme.cards||[]).map((c,i)=>(
-                      <div className="fg2" key={i} style={{borderTop:'1px solid rgba(90,105,80,.12)',paddingTop:12,marginTop:8}}>
-                        <div className="fg"><label>Icon</label><input value={c?.icon||''} onChange={e=>setCommMissionEnCard(i,'icon',e.target.value)}/></div>
-                        <div className="fg"><label>Card title {i+1}</label><textarea className="admin-textarea" rows={2} value={c?.title||''} onChange={e=>setCommMissionEnCard(i,'title',e.target.value)}/></div>
-                        <div className="fg full"><label>Card text {i+1}</label><textarea rows={2} value={c?.text||''} onChange={e=>setCommMissionEnCard(i,'text',e.target.value)}/></div>
+                    </>}
+                    {commMissionLang==='en' && <>
+                      <div style={{marginBottom:8,fontSize:'.73rem',color:'#6b9ba8'}}>
+                        {hasOverride('mission_sections_en')
+                          ? <span style={{background:'#d9b45a22',color:'#7a5a00',padding:'2px 8px',borderRadius:4,fontWeight:600}}>🏷️ {isEn?'community override active':'override de comunidad activo'}</span>
+                          : <span style={{background:'#e8f5ec',color:'#2F4F3A',padding:'2px 8px',borderRadius:4}}>🌐 {isEn?'using global values':'usando valores globales'}</span>}
                       </div>
-                    ))}
-                    <div className="two-col" style={{marginTop:16}}>
-                      <div>
-                        <div className="fg"><label>Participation title (EN)</label><textarea className="admin-textarea" rows={2} value={cme.participationTitle||''} onChange={e=>setCommMissionEnField('participationTitle',e.target.value)}/></div>
-                        {(cme.participationRules||[]).map((r,i)=>(
-                          <div className="fg" key={i}><label>Rule {i+1}</label>
-                            <div style={{display:'flex',gap:8}}><textarea className="admin-textarea flex-grow" rows={2} value={r||''} onChange={e=>setCommMissionEnRule('participationRules',i,e.target.value)}/><button className="btn-ghost" onClick={()=>removeCommMissionEnRule('participationRules',i)}>🗑️</button></div>
-                          </div>
-                        ))}
-                        <button className="btn-ghost" onClick={()=>addCommMissionEnRule('participationRules')}>+ Add rule</button>
+                      <div className="fg2">
+                        <div className="fg full"><label>Title (EN)</label><textarea className="admin-textarea" rows={2} value={cme.title||''} onChange={e=>setCommMissionEnField('title',e.target.value)}/></div>
+                        <div className="fg full"><label>Subtitle (EN)</label><textarea className="admin-textarea" rows={2} value={cme.subtitle||''} onChange={e=>setCommMissionEnField('subtitle',e.target.value)}/></div>
+                        <div className="fg"><label>Section label (EN)</label><input value={cme.sectionLabel||''} onChange={e=>setCommMissionEnField('sectionLabel',e.target.value)}/></div>
+                        <div className="fg full"><label>Main heading (EN)</label><textarea className="admin-textarea" rows={2} value={cme.heading||''} onChange={e=>setCommMissionEnField('heading',e.target.value)}/></div>
+                        <div className="fg full"><label>Main body (EN)</label><textarea rows={3} value={cme.body||''} onChange={e=>setCommMissionEnField('body',e.target.value)}/></div>
                       </div>
-                      <div>
-                        <div className="fg"><label>Access title (EN)</label><textarea className="admin-textarea" rows={2} value={cme.accessTitle||''} onChange={e=>setCommMissionEnField('accessTitle',e.target.value)}/></div>
-                        {(cme.accessRules||[]).map((r,i)=>(
-                          <div className="fg" key={i}><label>Rule {i+1}</label>
-                            <div style={{display:'flex',gap:8}}><textarea className="admin-textarea flex-grow" rows={2} value={r||''} onChange={e=>setCommMissionEnRule('accessRules',i,e.target.value)}/><button className="btn-ghost" onClick={()=>removeCommMissionEnRule('accessRules',i)}>🗑️</button></div>
-                          </div>
-                        ))}
-                        <button className="btn-ghost" onClick={()=>addCommMissionEnRule('accessRules')}>+ Add rule</button>
+                      <div className="card-title" style={{margin:'16px 0 10px'}}>Purpose cards (EN)</div>
+                      {(cme.cards||[]).map((c,i)=>(
+                        <div className="fg2" key={i} style={{borderTop:'1px solid rgba(90,105,80,.12)',paddingTop:12,marginTop:8}}>
+                          <div className="fg"><label>Icon</label><input value={c?.icon||''} onChange={e=>setCommMissionEnCard(i,'icon',e.target.value)}/></div>
+                          <div className="fg"><label>Card title {i+1}</label><textarea className="admin-textarea" rows={2} value={c?.title||''} onChange={e=>setCommMissionEnCard(i,'title',e.target.value)}/></div>
+                          <div className="fg full"><label>Card text {i+1}</label><textarea rows={2} value={c?.text||''} onChange={e=>setCommMissionEnCard(i,'text',e.target.value)}/></div>
+                        </div>
+                      ))}
+                      <div className="two-col" style={{marginTop:16}}>
+                        <div>
+                          <div className="fg"><label>Participation title (EN)</label><textarea className="admin-textarea" rows={2} value={cme.participationTitle||''} onChange={e=>setCommMissionEnField('participationTitle',e.target.value)}/></div>
+                          {(cme.participationRules||[]).map((r,i)=>(
+                            <div className="fg" key={i}><label>Rule {i+1}</label>
+                              <div style={{display:'flex',gap:8}}><textarea className="admin-textarea flex-grow" rows={2} value={r||''} onChange={e=>setCommMissionEnRule('participationRules',i,e.target.value)}/><button className="btn-ghost" onClick={()=>removeCommMissionEnRule('participationRules',i)}>🗑️</button></div>
+                            </div>
+                          ))}
+                          <button className="btn-ghost" onClick={()=>addCommMissionEnRule('participationRules')}>+ Add rule</button>
+                        </div>
+                        <div>
+                          <div className="fg"><label>Access title (EN)</label><textarea className="admin-textarea" rows={2} value={cme.accessTitle||''} onChange={e=>setCommMissionEnField('accessTitle',e.target.value)}/></div>
+                          {(cme.accessRules||[]).map((r,i)=>(
+                            <div className="fg" key={i}><label>Rule {i+1}</label>
+                              <div style={{display:'flex',gap:8}}><textarea className="admin-textarea flex-grow" rows={2} value={r||''} onChange={e=>setCommMissionEnRule('accessRules',i,e.target.value)}/><button className="btn-ghost" onClick={()=>removeCommMissionEnRule('accessRules',i)}>🗑️</button></div>
+                            </div>
+                          ))}
+                          <button className="btn-ghost" onClick={()=>addCommMissionEnRule('accessRules')}>+ Add rule</button>
+                        </div>
                       </div>
-                    </div>
+                    </>}
                   </div>
                 );
               })()}
@@ -7337,8 +7351,20 @@ function AdminSettings({ config={}, user, listings=[], contactProps={}, onSave, 
     {/* Community feature flag settings */}
     <div className="card" style={{marginBottom:16,padding:'12px 16px',background:'#f5fbfd',border:'1px solid #cce7ee'}}>
       <div style={{display:'flex',alignItems:'center',gap:16,flexWrap:'wrap'}}>
-        <label style={{display:'flex',alignItems:'center',gap:8,fontSize:'.88rem',fontWeight:600,color:'#17313a',cursor:'pointer',userSelect:'none'}}>
-          <input type="checkbox" checked={communityFeatureEnabled} onChange={e=>setCommunityFeatureEnabled(e.target.checked)} style={{accentColor:'#2F4F3A',width:16,height:16}}/>
+        <label style={{display:'flex',alignItems:'center',gap:10,fontSize:'.88rem',fontWeight:600,color:'#17313a',cursor:'pointer',userSelect:'none'}}>
+          <button
+            role="switch" aria-checked={communityFeatureEnabled}
+            onClick={async()=>{
+              const next=!communityFeatureEnabled;
+              setCommunityFeatureEnabled(next);
+              try{
+                await api.put('/api/admin/config',{actorUid:user.uid,actorEmail:user.email,communityFeatureEnabled:next,defaultCommunityId});
+                showToast('✅ '+(isEn?'Community settings saved':'Configuración de comunidad guardada'));
+              }catch(e){setCommunityFeatureEnabled(!next);showToast((e.message||String(e)),true);}
+            }}
+            style={{position:'relative',display:'inline-flex',width:38,height:22,borderRadius:22,background:communityFeatureEnabled?'#0b7f4f':'#cdd8db',border:'none',cursor:'pointer',padding:0,flexShrink:0,transition:'background .2s'}}>
+            <span style={{position:'absolute',top:3,left:communityFeatureEnabled?18:3,width:16,height:16,borderRadius:'50%',background:'#fff',boxShadow:'0 1px 3px rgba(0,0,0,.25)',transition:'left .2s',pointerEvents:'none'}}/>
+          </button>
           {isEn?'Community picker enabled':'Selector de comunidad habilitado'}
         </label>
         {!communityFeatureEnabled && (
@@ -7350,15 +7376,6 @@ function AdminSettings({ config={}, user, listings=[], contactProps={}, onSave, 
             </select>
           </label>
         )}
-        <button className="btn-p" style={{minHeight:32,padding:'4px 14px',fontSize:'.82rem'}}
-          onClick={async()=>{
-            try{
-              await api.put('/api/admin/config',{actorUid:user.uid,actorEmail:user.email,communityFeatureEnabled,defaultCommunityId});
-              showToast('✅ '+(isEn?'Community settings saved':'Configuración de comunidad guardada'));
-            }catch(e){showToast((e.message||String(e)),true);}
-          }}>
-          💾 {isEn?'Save':'Guardar'}
-        </button>
       </div>
     </div>
     {communitiesLoading && <div style={{padding:'20px 0',textAlign:'center'}}><span className="spinner-sm"/> {isEn?'Loading...':'Cargando...'}</div>}
@@ -7378,12 +7395,20 @@ function AdminSettings({ config={}, user, listings=[], contactProps={}, onSave, 
               <code style={{background:'#eef6f8',padding:'1px 5px',borderRadius:3,fontSize:'.75rem'}}>{c.id}</code>
               {c.tower&&<span style={{marginLeft:8}}>🏢 {c.tower}</span>}
               {c.city&&<span style={{marginLeft:8}}>📍 {c.city}{c.country?`, ${c.country}`:''}</span>}
-              <span className={`chip ${c.is_active?'c-teal':'c-red'}`} style={{marginLeft:8,fontSize:'.68rem',padding:'1px 7px'}}>{c.is_active?(isEn?'Active':'Activa'):(isEn?'Inactive':'Inactiva')}</span>
             </div>
           </div>
-          <div style={{display:'flex',gap:6,flexShrink:0}}>
+          <div style={{display:'flex',gap:6,alignItems:'center',flexShrink:0}}>
             <button className="btn-ghost" style={{fontSize:'.78rem',padding:'4px 10px'}} onClick={()=>setCommunityModal({mode:'edit',data:c})}>✏️ {isEn?'Edit':'Editar'}</button>
-            <button className="btn-ghost" style={{fontSize:'.78rem',padding:'4px 10px'}} onClick={()=>api.put(`/api/communities/${c.id}`,{actorUid:user.uid,actorEmail:user.email,isActive:!c.is_active}).then(()=>loadCommunities()).catch(e=>showToast(e.message,true))}>{c.is_active?'⏸ '+(isEn?'Disable':'Deshabilitar'):'▶ '+(isEn?'Enable':'Habilitar')}</button>
+            <label style={{display:'flex',alignItems:'center',gap:6,userSelect:'none',fontSize:'.78rem',color:'#17313a',fontWeight:600}}>
+              <span style={{color:c.is_active?'#0b7f4f':'#9aa5a8',minWidth:44}}>{c.is_active?(isEn?'Active':'Activa'):(isEn?'Inactive':'Inactiva')}</span>
+              <button
+                role="switch" aria-checked={!!c.is_active}
+                title={c.is_active?(isEn?'Disable community':'Deshabilitar comunidad'):(isEn?'Enable community':'Habilitar comunidad')}
+                onClick={()=>api.put(`/api/communities/${c.id}`,{actorUid:user.uid,actorEmail:user.email,isActive:!c.is_active}).then(()=>loadCommunities()).catch(e=>showToast(e.message,true))}
+                style={{position:'relative',display:'inline-flex',width:38,height:22,borderRadius:22,background:c.is_active?'#0b7f4f':'#cdd8db',border:'none',cursor:'pointer',padding:0,flexShrink:0,transition:'background .2s'}}>
+                <span style={{position:'absolute',top:3,left:c.is_active?18:3,width:16,height:16,borderRadius:'50%',background:'#fff',boxShadow:'0 1px 3px rgba(0,0,0,.25)',transition:'left .2s',pointerEvents:'none'}}/>
+              </button>
+            </label>
             {c.id !== 'kai' && <button className="btn-ghost" style={{fontSize:'.78rem',padding:'4px 10px',color:'#c62828'}} onClick={()=>deleteCommunity(c.id)}>🗑️ {isEn?'Delete':'Eliminar'}</button>}
           </div>
         </div>
@@ -7786,9 +7811,11 @@ function AdminSettings({ config={}, user, listings=[], contactProps={}, onSave, 
   </AdminSection>
 
   <AdminSection title={`🌊 ${lt(lang,'Misión y reglas de participación')}`} subtitle={lt(lang,'Edita la misión en Español e Inglés de forma independiente.')} action={<button className="btn-p" style={{minHeight:36,padding:'6px 14px'}} onClick={saveConfig}>💾 {isEn?'Save':'Guardar'}</button>} open={openSections.mission} onToggle={()=>toggleSection('mission')}>
-    <div style={{display:'flex',gap:6,marginBottom:14}}>
-      <button className={`fchip${missionLang==='es'?' fchip-on':''}`} onClick={()=>setMissionLang('es')}>🇨🇴 Español</button>
-      <button className={`fchip${missionLang==='en'?' fchip-on':''}`} onClick={()=>setMissionLang('en')}>🇺🇸 English</button>
+    <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:10,flexWrap:'wrap'}}>
+      <div style={{display:'flex',gap:6}}>
+        <button className={`fchip${missionLang==='es'?' fchip-on':''}`} onClick={()=>setMissionLang('es')}>🇨🇴 Español</button>
+        <button className={`fchip${missionLang==='en'?' fchip-on':''}`} onClick={()=>setMissionLang('en')}>🇺🇸 English</button>
+      </div>
     </div>
     {missionLang==='es' && <>
       <div className="fg2"><div className="fg full"><label>{lt(lang,'Título')}</label><textarea className="admin-textarea" rows={2} value={mission?.title||''} onChange={e=>setMissionField('title',e.target.value)}/></div><div className="fg full"><label>{lt(lang,'Subtítulo')}</label><textarea className="admin-textarea" rows={2} value={mission?.subtitle||''} onChange={e=>setMissionField('subtitle',e.target.value)}/></div><div className="fg"><label>{lt(lang,'Etiqueta de sección')}</label><input value={mission?.sectionLabel||''} onChange={e=>setMissionField('sectionLabel',e.target.value)}/></div><div className="fg full"><label>{lt(lang,'Encabezado principal')}</label><textarea className="admin-textarea" rows={2} value={mission?.heading||''} onChange={e=>setMissionField('heading',e.target.value)}/></div><div className="fg full"><label>{lt(lang,'Texto principal')}</label><textarea rows={3} value={mission?.body||''} onChange={e=>setMissionField('body',e.target.value)}/></div></div>
