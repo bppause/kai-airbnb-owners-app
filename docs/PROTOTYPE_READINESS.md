@@ -91,6 +91,7 @@ A `global_admin` who is also acting as an operator uses the role switch in their
 - Unit profile fields maintained by operator: amenities, bed config, Airbnb URL, platforms listed on, access notes
 - Status badges per unit: No operator / Pending / Actively managed
 - Platform registration per unit: Airbnb primary + optional others (VRBO, Booking.com, direct)
+- **Listing management contract per unit:** bidirectional propose/confirm flow; terms stored in KAI and used to drive repair threshold, SLA config, and termination notice; amendment follows same pattern; immutable decision log
 
 ### Claude implementation breakdown
 
@@ -99,6 +100,7 @@ A `global_admin` who is also acting as an operator uses the role switch in their
 | `operators` table + `operator_staff` table + migration | `schema.sql` | Low |
 | `unit_operator_links` table (status: pending/active/declined) | `schema.sql` | Trivial |
 | `unit_owner_links` table (uid, unit_id, role: payout/calendar, status) | `schema.sql` | Low |
+| `unit_contracts` table + `contract_events` append-only log | `schema.sql` | Low |
 | Operator profile CRUD API endpoints | `server.js` | Low |
 | Staff roster CRUD API endpoints | `server.js` | Low |
 | Operator profile + staff roster UI | `App.jsx` | Medium |
@@ -107,10 +109,12 @@ A `global_admin` who is also acting as an operator uses the role switch in their
 | Payout Owner invite flow (owner → operator) | `server.js`, `App.jsx` | Medium |
 | Payout Owner: add/remove Calendar Owners for their unit | `server.js`, `App.jsx` | Medium |
 | Permission resolver: payout vs. calendar owner data scoping | `server.js` | Medium |
+| Contract propose/counter/confirm/amend/terminate flow | `server.js`, `App.jsx` | High |
+| Contract terms read by repair threshold and SLA config | `server.js` | Low |
 | Extend `listings` table with operator-maintained fields + platform list | `schema.sql`, `server.js`, `App.jsx` | Low |
 | Status badges on unit cards (all owner views + operator view) | `App.jsx` | Low |
-| Email notifications for link/invite events | `server.js` | Low |
-| **Phase 1 total** | | **High–Very High (6–9 sessions)** |
+| Email notifications for link/invite and contract events | `server.js` | Low |
+| **Phase 1 total** | | **Very High (8–11 sessions)** |
 
 ---
 
@@ -274,16 +278,16 @@ Draft → Proposed → [Counter-proposed →] Confirmed | Rejected | Expired | W
 | Phase | Core feature | Claude effort | Est. sessions |
 |---|---|---|---|
 | 0 | Login split, role switch, operator role, owner opt-out | Medium | 3–5 |
-| 1 | Operator identity + unit linking | High | 5–8 |
+| 1 | Operator identity, unit linking, management contract | Very High | 8–11 |
 | 2 | Operator multi-community dashboard | Medium–High | 4–6 |
 | 3 | Service requests + work orders | Very High | 8–12 |
 | 4 | Scheduling + owner blocks | High | 5–7 |
 | 5 | Pricing log + bidirectional confirmation | High | 6–8 |
 | 6 | Documents + compliance | Medium | 3–4 |
 | 7 | Staff task management | Medium | 3–5 |
-| **Total** | | | **37–55 sessions** |
+| **Total** | | | **40–60 sessions** |
 
-**Prototype (Phases 0–2):** ~12–19 sessions — enough to validate both user paths, the linking flow, and the operator dashboard before investing in Phases 3–7.
+**Prototype (Phases 0–2):** ~15–22 sessions — enough to validate both user paths, the linking flow, the management contract, and the operator dashboard before investing in Phases 3–7.
 
 ---
 
@@ -299,6 +303,11 @@ Draft → Proposed → [Counter-proposed →] Confirmed | Rejected | Expired | W
 | 8 | **Supabase Storage** — already provisioned with bucket policies, or needs setup? | Blocks Phase 3 and 6 file uploads |
 | 9 | **Staff individual logins** — staff log in with their own Google account, or operator shares a PIN-per-person system? | Changes Phase 7 auth architecture significantly |
 | 10 | **Pilot community/operator** — who is the first real user? | Every Phase 0–2 design decision should be validated against their specific setup |
+| CONTRACT-1 | **Contract scope** — one contract per unit, or one per operator-owner pair covering all their units? | Schema design for `unit_contracts` table |
+| CONTRACT-2 | **Contract signatories** — all owners (Payout + Calendar) see and confirm the contract, or Payout Owner only? | Phase 1 contract confirmation flow |
+| CONTRACT-3 | **Contract template** — KAI provides a default template the operator customizes, or blank form? | Onboarding UX and Phase 1 scope |
+| CONTRACT-4 | **Management fee visibility** — management fee % visible to Calendar Owners, or Payout Owner only? | Permission scoping in Phase 1 |
+| CONTRACT-5 | **Threshold change retroactivity** — if a contract amendment changes the repair threshold, does it apply to open requests or new ones only? | Phase 3 repair approval logic |
 
 ---
 

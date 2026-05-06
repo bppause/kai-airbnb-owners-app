@@ -216,7 +216,96 @@ A single unit can have **multiple owners (co-hosts)**, each with a different acc
 
 ---
 
-## Claude Max Plan — Token Usage Estimates Per Phase
+## Listing Management Contract
+
+The contract defines the terms under which the operator manages the unit on behalf of the owner. Today this is verbal or buried in WhatsApp messages — which is the root cause of "consult me first" disputes, unclear approval thresholds, and undefined notice periods.
+
+KAI stores the active contract for each operator-unit-owner relationship and enforces its terms (repair threshold, response commitments, included services). Contract amendments follow the same bidirectional proposal/confirmation pattern as pricing.
+
+### What the contract covers
+
+| Term | Why it matters in KAI |
+|---|---|
+| **Management fee** (e.g. 15%) | Reference for what the operator charges; not used for payout tracking (that's on Airbnb) |
+| **Fee basis** (net after Airbnb host fee, or gross) | Defines what the management fee applies to |
+| **Services included** | Defines what "managing the listing" means — see checklist below |
+| **Repair approval threshold** | The amount above which the operator must get owner approval before proceeding (drives Phase 3 gate) |
+| **Response time commitments** | Operator's SLA obligations per issue type — the basis for KAI SLA tiers |
+| **Contract start date** | When the operator relationship became active |
+| **Contract term** | Rolling month-to-month vs. fixed term (e.g. 12 months) |
+| **Renewal terms** | Auto-renews unless either party gives notice; or requires explicit renewal |
+| **Termination notice period** | How many days notice either party must give (typically 30–60 days) |
+| **What happens to active bookings** | If the contract ends, operator continues managing existing confirmed bookings through checkout, or handoff immediately |
+| **Platforms covered** | Which listing platforms are included in the management fee |
+| **Exclusivity** | Can the owner engage a second operator, or is this an exclusive arrangement? |
+| **Cleaning arrangement** | Operator provides cleaning (included in fee), operator coordinates external cleaner (separate cost), or owner arranges cleaning independently |
+
+### Services included checklist (operator scope of work)
+
+A KAI contract template includes a standard checklist that both parties confirm:
+
+**Guest management:**
+- [ ] Respond to guest inquiries on listing platform
+- [ ] Send check-in instructions and welcome messages
+- [ ] Be available 24/7 for guest emergencies during stay
+- [ ] Handle guest special requests (early check-in, late check-out, extras)
+- [ ] Manage guest reviews and post host responses
+
+**Property maintenance:**
+- [ ] Coordinate cleaning between every guest stay
+- [ ] Inspect unit after each guest stay and document condition
+- [ ] Handle routine maintenance up to the agreed threshold (no prior approval needed)
+- [ ] Get owner approval before any work above the threshold
+- [ ] Deliver invoices within [X] days of each repair
+
+**Listing management:**
+- [ ] Keep listing content (title, description, photos, amenities) current
+- [ ] Propose pricing changes for owner confirmation before applying
+- [ ] Manage calendar and block dates as requested
+- [ ] File AirCover claims within the 14-day window when guest damage occurs
+
+**Compliance:**
+- [ ] Maintain current RNT and platform registrations
+- [ ] Relay building/community notices to the operator team within [X] hours
+- [ ] Escalate any regulatory notice to the owner within 24 hours
+
+### Contract lifecycle
+
+```
+Draft → Proposed → [Counter-proposed →] Active → [Amendment proposed →] Active
+                                                         ↓
+                                                 Termination notice given
+                                                         ↓
+                                               Termination date reached → Closed
+```
+
+- **Proposal:** Either party (operator or Payout Owner) can draft and propose the initial contract terms
+- **Counter-proposal:** The other party can revise and return — unlimited rounds until both agree
+- **Active:** Contract takes effect on the agreed start date
+- **Amendment:** Any change to an active contract (new threshold, new fee basis, added platform) follows the same propose/confirm flow — no unilateral edits
+- **Termination:** Either party gives notice. KAI records the notice date, the termination date, and whether active bookings carry through
+
+### How contract terms drive other KAI features
+
+| Contract term | Where it's used |
+|---|---|
+| Repair approval threshold | Phase 3: auto-approve below, gate above — operator cannot start work until owner confirms |
+| Services included (cleaning arrangement) | Phase 3: who to assign cleaning tasks to |
+| Response time commitments | Phase 3: SLA timer configuration per request type |
+| Termination notice period | Phase 1: unit link termination flow, notification timing |
+| Platforms covered | Phase 1: which platforms show on the unit profile |
+
+### Contract questions to answer before building
+
+- **CONTRACT-1** — Is there one contract per unit, or one contract per operator-owner pair that covers all their units together?
+- **CONTRACT-2** — If a unit has multiple owners (Payout + Calendar), do all owners see and sign the contract, or only the Payout Owner?
+- **CONTRACT-3** — Should KAI provide a default contract template that the operator customizes, or is it a blank form?
+- **CONTRACT-4** — Should the management fee % stored in the contract be visible to Calendar Owners, or Payout Owner only?
+- **CONTRACT-5** — If a contract amendment changes the repair threshold, does it apply retroactively to open requests, or only new ones?
+
+---
+
+
 
 ### How to read these estimates
 
