@@ -6,6 +6,47 @@
 
 ---
 
+## Primary Objective
+
+**KAI replaces the WhatsApp group that today connects the operator (host), owner (co-host), and team members for a unit.**
+
+### The Current Reality
+
+Every unit managed by an operator has a WhatsApp group. In that group: the operator posts guest issues, repair requests, pricing questions, booking updates, team photos, utility bills, and general updates. The owner responds when they see it. Team members post check-in/out confirmations and repair photos. The result:
+
+- Requests get buried under new messages and are never followed up
+- No clear owner for each item — "is this resolved or are we still waiting?"
+- No SLA — urgent issues sit unacknowledged for hours
+- No next-action clarity — "is the ball in my court or yours?"
+- No audit trail — "wait, did we agree to that price?"
+- No separation by unit — multi-unit operators and owners mix all units in one or multiple groups
+- Team members see owner/operator financial discussions they shouldn't
+- Owner has no visibility into response times or patterns
+
+### What KAI Replaces
+
+Every WhatsApp message that requires action becomes a **typed, trackable request** with:
+
+| Field | What it replaces |
+|---|---|
+| **Type** | The topic buried in the message (repair / guest issue / pricing / task / FYI) |
+| **Owner** | Who is responsible right now ("ball in your court" clarity) |
+| **Status** | Open → In Progress → Awaiting Response → Resolved |
+| **SLA timer** | How long since last action, and when it becomes overdue |
+| **Thread** | Follow-up messages stay attached to the original request, not lost in the group |
+| **Visibility** | Only the right people see it (owner ↔ operator, team only sees their assignments) |
+
+### The Unified Attention Inbox
+
+Both the operator and the owner see the same concept: **"What needs me right now?"**
+
+- Items where the ball is in your court are surfaced first
+- SLA timers show aging — yellow at 50% of SLA, red when overdue
+- Items awaiting the other party are visible but deprioritized
+- Completed items are archived and searchable, not lost
+
+---
+
 ## Platform & Revenue Model (Locked)
 
 ### Airbnb as Primary Platform
@@ -72,6 +113,83 @@ plus schema and config files loaded per session).
 - Phase 3 alone may consume a full month's allowance if sessions are exploratory.
 - Breaking each session into a single discrete task (one endpoint, one UI component) keeps token use predictable.
 - Compacting long conversations before switching tasks saves significant context tokens.
+
+---
+
+## Request Type Taxonomy
+
+Every item that flows through KAI maps to one of these types. These are the structured replacements for WhatsApp messages. Each type has a defined initiator, recipient, SLA, and resolution path.
+
+### Operator → Owner (owner must respond or be informed)
+
+| Type | WhatsApp equivalent | SLA | Owner action required |
+|---|---|---|---|
+| **Repair approval** | "AC broken, $150 to fix, ok?" | 4h urgent / 24h standard | Approve / Reject / Ask for quote |
+| **Repair FYI** (below threshold) | "Fixed the door hinge, $8" | None | Acknowledge (optional) |
+| **Guest issue — urgent** | "Guest locked out at 11pm" | 1h | Aware / Authorize if needed |
+| **Guest issue — standard** | "Guest says Wi-Fi slow, I reset router, fixed" | 4h | Acknowledge |
+| **Booking notification** | "New booking — 4 guests Jan 15–18, $480 net" | None | Aware |
+| **Booking special request** | "Guest asks to bring a dog, ok?" | 2h | Approve / Decline |
+| **Pricing proposal** | "I think we should raise Dec rate to $200, up from $170" | 48h | Confirm / Counter / Reject |
+| **Peak period proposal** | "Adding Carnaval Feb 28–Mar 4 at +25%" | 48h | Confirm / Counter / Reject |
+| **AirCover / damage alert** | "Guest left damage, filing AirCover claim" | 24h | Aware / Co-authorize |
+| **Payout statement** | "Here's February — 3 bookings, your share is $1,240" | None | Acknowledge / Dispute |
+| **Utility bill** | [photo of electricity bill] | 5 days | Acknowledge / Dispute |
+| **General update** | "Unit is ready for next guest" | None | Aware |
+
+---
+
+### Owner → Operator (operator must act or respond)
+
+| Type | WhatsApp equivalent | SLA | Operator action required |
+|---|---|---|---|
+| **Task request** | "Can you check the unit and send photos?" | 24h | Acknowledge → Complete → Photo proof |
+| **Calendar block** | "Block Dec 22–28 for my family visit" | 24h | Confirm → Apply on Airbnb |
+| **Pricing proposal** | "I want to raise the base rate to $160" | 48h | Confirm / Counter / Reject |
+| **Peak period proposal** | "Add Semana Santa at +30%" | 48h | Confirm / Counter / Reject |
+| **Listing change request** | "Update the house rules to add pool hours" | 48h | Confirm → Apply → Mark done |
+| **Document request** | "Send me last month's electricity bill" | 24h | Upload document |
+| **General question** | "How was the last checkout?" | 4h | Reply |
+
+---
+
+### Operator → Team (internal, owner does not see by default)
+
+| Type | SLA | Team action |
+|---|---|---|
+| **Cleaning assignment** | Per-stay schedule | Arrive → In progress → Done + photos |
+| **Repair assignment** | Per repair SLA | Acknowledge → In progress → Done + invoice photo |
+| **Inspection request** | 24h | Complete → Report + photos |
+| **Access code change** | Immediate | Confirm received |
+| **Building notice relay** | 2h | Acknowledge |
+
+---
+
+### System-generated (from Airbnb or platform)
+
+| Type | Trigger | Who sees it |
+|---|---|---|
+| **New booking** | Booking confirmed on Airbnb | Operator + Owner |
+| **Booking cancelled** | Guest or host cancellation | Operator + Owner |
+| **Review posted** | Guest submits review | Operator + Owner |
+| **Payout processed** | Airbnb pays out | Operator (owner sees via payout statement) |
+| **AirCover window expiring** | 12 days after checkout, no claim filed | Operator |
+| **Superhost at risk** | Response rate / cancellation threshold approaching | Operator |
+
+---
+
+## SLA Reference
+
+Default SLAs — configurable per unit or community by the global admin.
+
+| Urgency tier | Applies to | Response SLA | Overdue action |
+|---|---|---|---|
+| **Critical** | Guest locked out, guest safety issue | 1 hour | Alert owner if operator hasn't responded |
+| **Urgent** | AC/hot water failure, damage claim window, booking special request | 2–4 hours | Email reminder at 50% elapsed, badge turns red |
+| **Standard** | Repair approval, task request, general question | 24 hours | Email reminder at 12h, badge turns yellow then red |
+| **Async** | Pricing proposal, peak period proposal, listing change | 48 hours | Reminder at 24h, proposal expires at 48h |
+| **Monthly** | Utility bill, payout statement | 5 days | Reminder at 3 days |
+| **FYI** | Booking notification, FYI updates | No SLA | No reminder; auto-archived after 7 days |
 
 ---
 
@@ -455,24 +573,57 @@ Organized by topic. All scenarios are grounded in the Airbnb host (operator) / c
 
 ---
 
-## Priority Matrix (Updated for Airbnb Model)
+## Priority Matrix — Ordered by WhatsApp Pain
 
-| Use case | Frequency | Pain without system | Build in phase |
-|---|---|---|---|
-| New booking notification to owner (amount, dates, guests) | Per booking | High — owner blind until operator tells them | Phase 3 |
-| Guest issue during stay → operator logs → owner notified | Per stay | High — no audit trail, no threshold control | Phase 3 |
-| Repair request + owner approval gate | Weekly | High — surprise costs, no pre-approval | Phase 3 |
-| Pricing proposal (either party) + confirmation | Monthly | High — disputes, no immutable record | Phase 5 |
-| Monthly payout statement (15/85 split per booking) | Monthly | High — manual calc, no locked record | Phase 6 |
-| Building admin notices → operator acknowledgment | Weekly | Medium — operator misses notices | Phase 3 |
-| AirCover damage claim tracking | Occasional | High when it happens — short filing window | Phase 3 extension |
-| Calendar block (owner personal use) | Monthly | Medium — operator surprised by block | Phase 4 |
-| Listing content change → owner notification/approval | Quarterly | Medium — owner unaware of changes | Phase 6 |
-| Utility bill upload + anomaly flag | Monthly | Medium — photos lost in chat | Phase 6 |
-| Owner general request → acknowledgment → done + photo | Weekly | Medium — forgotten tasks | Phase 3 (general type) |
-| Review score tracking + host response coordination | Per stay | Medium — no history, no handoff | Phase 3 extension |
-| Remittance tracking (operator pays owner their 85%) | Monthly | High if disputed — no record | Phase 6 |
+Ranked by how often it breaks down in a WhatsApp group and the cost of that failure.
+
+| Request type (WhatsApp replacement) | Frequency | What goes wrong today | SLA tier | Build phase |
+|---|---|---|---|---|
+| Guest issue (urgent — lockout, AC, water) | Per stay | Lost in chat, no escalation if operator slow | Critical / Urgent | Phase 3 |
+| Repair approval request | Weekly | Owner approves verbally, no record, invoice surprise later | Standard | Phase 3 |
+| Booking notification to owner | Per booking | Owner learns days late or only if they ask | FYI | Phase 3 |
+| Booking special request (pets, early check-in) | Per booking | Operator decides without telling owner | Urgent | Phase 3 |
+| Owner task request → operator acknowledges → done + photo | Weekly | Request buried, never followed up, owner gives up | Standard | Phase 3 |
+| Building admin notice → operator acknowledge | Weekly | Operator misses notice, guest affected | Urgent / Standard | Phase 3 |
+| Pricing proposal (either party) + bidirectional confirm | Monthly | "We agreed to $170" — "No, $180" — no record | Async | Phase 5 |
+| Peak period proposal + bidirectional confirm | Seasonally | Same as above, larger stakes | Async | Phase 5 |
+| Calendar block (owner personal use) | Monthly | Operator books a guest over owner's family visit | Standard | Phase 4 |
+| Payout statement (15/85 per booking, locked) | Monthly | Manual WhatsApp calculation, disputed amounts | Monthly | Phase 6 |
+| Remittance tracking (operator sends owner's 85%) | Monthly | No record of whether it was sent or received | Monthly | Phase 6 |
+| AirCover damage claim (14-day window) | Occasional | Window missed because no one flagged the deadline | Urgent | Phase 3 ext |
+| Utility bill upload + month-over-month comparison | Monthly | Photos lost in chat, disputes with no baseline | Monthly | Phase 6 |
+| Listing content change → owner confirm | Quarterly | Owner unaware listing was changed | Async | Phase 6 |
+| Review posted → host response coordination | Per stay | Operator responds without owner input on bad reviews | Standard | Phase 3 ext |
+| Cleaning / repair assignment to team member | Per stay / per repair | Team assigned via WhatsApp, status unknown until asked | Per assignment | Phase 7 |
 
 ---
 
-*Resolve open questions A, B, and C before building any financial tracking in Phase 6. Resolve D before building booking notifications in Phase 3. All other questions can be answered during build.*
+## Questions That Must Be Answered Before Building
+
+### Block Phase 3 (service requests / inbox core)
+- **D** — Does Instant Book require owner notification, or is it fully silent?
+- **SLA-1** — For guest urgent issues, if the operator hasn't responded in 1 hour, does KAI alert the owner directly?
+- **SLA-2** — Who configures SLA thresholds — the global admin only, or can each owner/operator pair customize their own?
+- **TEAM-1** — Do team members log in with their own Google account, or does the operator assign tasks without team members having KAI accounts?
+
+### Block Phase 5 (pricing)
+- **G** — Is Airbnb Smart Pricing on/off subject to bidirectional confirmation, or operator's call?
+- **I** — Are minimum stay rule changes subject to bidirectional confirmation or operator discretion?
+- **PRICE-1** — If a pricing proposal expires with no response after 48 hours, does it expire (safer) or auto-approve?
+
+### Block Phase 6 (financial)
+- **A** — Is cleaning fee in the 15/85 split, or does operator keep it to cover cleaning costs?
+- **B** — Split on gross Airbnb payout or net (after Airbnb ~3% host fee)?
+- **C** — Who holds the Airbnb payout account? Who remits to whom?
+- **E** — If a guest cancels and partial payout is received, how is the split applied?
+- **J** — Do AirCover claim payouts affect the monthly revenue split?
+
+### Inform design (not blocking)
+- **F** — Who has final say on the host response to a negative Airbnb review?
+- **H** — If operator-owner relationship ends, what happens to the Airbnb listing?
+- **NOTIFY-1** — Should owners receive a daily digest of FYI items, or only real-time notifications for items requiring action?
+- **NOTIFY-2** — Should team members ever see financial information (payout amounts, repair costs), or is that always filtered out?
+
+---
+
+*Start with the inbox core (Phase 3 request types, SLA timers, attention feed). That is the WhatsApp replacement. Everything else — pricing, financials, scheduling — layers on top of it.*
