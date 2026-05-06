@@ -651,7 +651,7 @@ const Tip = ({ text }) => {
 // Module-level custom label overrides — populated from adminInfo.config on load
 let _customLabels = { es: {}, en: {} };
 // Phase 2: current community ID, synced from adminInfo after login
-let _communityId = (() => { try { return localStorage.getItem('kai_community') || 'kai'; } catch(e) { return 'kai'; } })();
+let _communityId = (() => { try { const urlCid = new URLSearchParams(window.location.search).get('community'); if (urlCid) { localStorage.setItem('kai_community', urlCid); return urlCid; } return localStorage.getItem('kai_community') || 'kai'; } catch(e) { return 'kai'; } })();
 // Phase 3: community display name + tower, synced from adminInfo.config on load
 let _complexName = { es:'Propietarios Airbnb KAI', en:'KAI Airbnb Owners', tower:'KAI' };
 const setCustomLabels = (cfg={}) => {
@@ -1061,6 +1061,16 @@ export default function App() {
       setView('incidents');
       setTimeout(() => setModal({type:'incident'}), 200);
     }
+  }, [loading, user]);
+
+  // ── ?community=COMMUNITY_ID invite deep-link: switches to community and opens registration ──
+  const _communityInviteApplied = useRef(false);
+  useEffect(() => {
+    if (_communityInviteApplied.current || loading || !user) return;
+    const inviteCid = new URLSearchParams(window.location.search).get('community');
+    if (!inviteCid) return;
+    _communityInviteApplied.current = true;
+    setTimeout(() => setModal({type:'addListing'}), 250);
   }, [loading, user]);
 
   // ── Reputation & Goals state ──
@@ -7398,6 +7408,7 @@ function AdminSettings({ config={}, user, listings=[], contactProps={}, onSave, 
             </div>
           </div>
           <div style={{display:'flex',gap:6,alignItems:'center',flexShrink:0}}>
+            <button className="btn-ghost" style={{fontSize:'.78rem',padding:'4px 10px'}} title={isEn?'Copy invite link':'Copiar enlace de invitación'} onClick={()=>{ const url=`${window.location.origin}/?community=${c.id}`; navigator.clipboard?.writeText(url).then(()=>showToast(isEn?`✅ Invite link copied:\n${url}`:`✅ Enlace copiado:\n${url}`)).catch(()=>showToast(url)); }}>🔗 {isEn?'Invite link':'Enlace invitación'}</button>
             <button className="btn-ghost" style={{fontSize:'.78rem',padding:'4px 10px'}} onClick={()=>setCommunityModal({mode:'edit',data:c})}>✏️ {isEn?'Edit':'Editar'}</button>
             <label style={{display:'flex',alignItems:'center',gap:6,userSelect:'none',fontSize:'.78rem',color:'#17313a',fontWeight:600}}>
               <span style={{color:c.is_active?'#0b7f4f':'#9aa5a8',minWidth:44}}>{c.is_active?(isEn?'Active':'Activa'):(isEn?'Inactive':'Inactiva')}</span>
@@ -7413,24 +7424,28 @@ function AdminSettings({ config={}, user, listings=[], contactProps={}, onSave, 
           </div>
         </div>
         {/* Config overrides toggle */}
-        <div style={{marginTop:8,padding:'6px 12px',background: communityConfigData[c.id]?.overridesEnabled ? '#e8f5ec' : '#fff3e0', borderRadius:8,display:'flex',alignItems:'center',gap:10,flexWrap:'wrap',border:'1px solid',borderColor:communityConfigData[c.id]?.overridesEnabled?'#b2dfdb':'#f5c97a'}}>
-          <span style={{fontSize:'.75rem',fontWeight:600,color:communityConfigData[c.id]?.overridesEnabled?'#2F4F3A':'#7a5a00'}}>
-            {communityConfigData[c.id]?.overridesEnabled ? (isEn?'✅ Community overrides ENABLED — mission, labels & tooltips use community values':'✅ Overrides de comunidad HABILITADOS — misión, etiquetas y tooltips usan valores de comunidad') : (isEn?'⏸ Community overrides DISABLED — all settings fall back to global defaults':'⏸ Overrides de comunidad DESHABILITADOS — todos los ajustes usan los valores globales')}
-          </span>
-          <button className="btn-ghost" style={{fontSize:'.72rem',padding:'2px 10px',marginLeft:'auto'}}
-            onClick={async()=>{
-              if(!communityConfigData[c.id])await loadCommunityConfig(c.id);
-              const cur=!!communityConfigData[c.id]?.overridesEnabled;
-              try{
-                await api.put(`/api/communities/${c.id}/config`,{actorUid:user.uid,actorEmail:user.email,overrides:{config_overrides_enabled:String(!cur)}});
-                showToast(isEn?(!cur?'✅ Community overrides enabled':'✅ Community overrides disabled'):(!cur?'✅ Overrides de comunidad habilitados':'✅ Overrides de comunidad deshabilitados'));
-                loadCommunityConfig(c.id);
-              }catch(e){showToast(e.message||String(e),true);}
-            }}>
-            {communityConfigData[c.id]?.overridesEnabled?(isEn?'⏸ Disable overrides':'⏸ Deshabilitar overrides'):(isEn?'▶ Enable overrides':'▶ Habilitar overrides')}
-          </button>
-          {!communityConfigData[c.id] && <button className="btn-ghost" style={{fontSize:'.72rem',padding:'2px 10px'}} onClick={()=>loadCommunityConfig(c.id)}>↻ {isEn?'Load status':'Cargar estado'}</button>}
-        </div>
+        {(() => {
+          const ovOn = !!communityConfigData[c.id]?.overridesEnabled;
+          return (
+            <div style={{marginTop:8,padding:'6px 12px',background:ovOn?'#e8f5ec':'#fff3e0',borderRadius:8,display:'flex',alignItems:'center',gap:10,flexWrap:'wrap',border:'1px solid',borderColor:ovOn?'#b2dfdb':'#f5c97a'}}>
+              <label style={{display:'flex',alignItems:'center',gap:8,cursor:'pointer',userSelect:'none'}}>
+                <span style={{position:'relative',display:'inline-block',width:38,height:22,flexShrink:0}}>
+                  <input type="checkbox" checked={ovOn} style={{opacity:0,width:0,height:0,position:'absolute'}}
+                    onChange={e=>{ if(!communityConfigData[c.id]) loadCommunityConfig(c.id).then(()=>toggleCommunityOverrides(c.id,e.target.checked)); else toggleCommunityOverrides(c.id,e.target.checked); }}/>
+                  <span style={{position:'absolute',inset:0,borderRadius:999,background:ovOn?'#0b7f4f':'#ccc',transition:'.2s'}}/>
+                  <span style={{position:'absolute',top:3,left:ovOn?18:3,width:16,height:16,borderRadius:'50%',background:'#fff',boxShadow:'0 1px 3px rgba(0,0,0,.25)',transition:'.2s'}}/>
+                </span>
+                <span style={{fontSize:'.75rem',fontWeight:600,color:ovOn?'#2F4F3A':'#7a5a00'}}>
+                  {ovOn?(isEn?'Community overrides ON':'Overrides de comunidad ACTIVADOS'):(isEn?'Community overrides OFF':'Overrides de comunidad DESACTIVADOS')}
+                </span>
+              </label>
+              <span style={{fontSize:'.72rem',color:ovOn?'#2F4F3A':'#7a5a00',marginLeft:'auto'}}>
+                {ovOn?(isEn?'Mission, labels & tooltips use community values':'Misión, etiquetas y tooltips usan valores de comunidad'):(isEn?'All settings fall back to global defaults':'Todos los ajustes usan los valores globales')}
+              </span>
+              {!communityConfigData[c.id] && <button className="btn-ghost" style={{fontSize:'.72rem',padding:'2px 10px'}} onClick={()=>loadCommunityConfig(c.id)}>↻ {isEn?'Load status':'Cargar estado'}</button>}
+            </div>
+          );
+        })()}
         {/* Members — expandable table with search */}
         <div style={{marginTop:8,borderTop:'1px solid #e8f4f8',paddingTop:8}}>
           <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
