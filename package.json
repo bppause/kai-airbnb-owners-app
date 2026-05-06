@@ -7,6 +7,7 @@
     "dev": "node_modules/.bin/vite --root client"
   },
   "dependencies": {
+    "ws": "^8.18.0",
     "express": "^4.18.2",
     "uuid": "^9.0.0",
     "@supabase/supabase-js": "^2.45.4",

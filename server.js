@@ -5,6 +5,7 @@ const fs = require('fs');
 const { log, warn, error } = require('./logger');
 const { v4: uuidv4 } = require('uuid');
 const { createClient } = require('@supabase/supabase-js');
+const ws = require('ws');
 const { Resend } = require('resend');
 
 const app = express();
@@ -23,7 +24,7 @@ if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
 const supabase = createClient(
   SUPABASE_URL || 'http://localhost:54321',
   SUPABASE_SERVICE_ROLE_KEY || 'missing-service-role-key',
-  { auth: { persistSession: false, autoRefreshToken: false } }
+  { auth: { persistSession: false, autoRefreshToken: false }, realtime: { transport: ws } }
 );
 
 const requireSupabaseEnv = (res) => {
