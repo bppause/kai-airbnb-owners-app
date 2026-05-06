@@ -182,26 +182,42 @@ A `global_admin` who is also acting as an operator uses the role switch in their
 
 ---
 
-## Phase 5 — Pricing Log & Approval Workflow
+## Phase 5 — Pricing Log & Bidirectional Confirmation Workflow
 
 ### What gets built
 - Structured pricing record per unit: base rate, weekend rate, active discounts
-- Change proposal workflow: either party proposes, other approves or counter-proposes
-- Immutable decision log: who proposed, who approved, when, before/after amounts
-- Named season rules with date ranges and price multipliers
+- **Either party (owner or operator) can propose** base rate or peak period/schedule changes
+- **The other party must confirm before any change takes effect** — no unilateral updates
+- Counter-proposal support: recipient can propose an alternative instead of accept/reject
+- Proposal expiry: proposal expires (or optionally auto-approves) after a configurable timeout
+- Proposal withdrawal: proposer can cancel before the other party responds
+- Named season rules: peak periods with date range, multiplier, min-stay — require same bidirectional confirmation
+- Immutable decision log: every proposal, counter, confirmation, rejection, and withdrawal recorded with timestamp and actor
+- "Applied to Airbnb" confirmation step after a change is confirmed (manual checkbox until API sync is built)
+
+### States a pricing proposal moves through
+```
+Draft → Proposed → [Counter-proposed →] Confirmed | Rejected | Expired | Withdrawn
+                                                         ↓
+                                               Applied to platform ✓
+```
 
 ### Claude implementation breakdown
 
 | Task | Files touched | Claude effort |
 |---|---|---|
-| `unit_pricing` + `pricing_decisions` (append-only) tables | `schema.sql` | Low |
-| Pricing record CRUD + proposal API | `server.js` | Medium |
-| Counter-proposal + approval/reject endpoints | `server.js` | Medium |
-| Immutable decision log (append-only insert, no updates/deletes) | `server.js` | Low |
-| Season rules CRUD | `server.js`, `App.jsx` | Low |
-| Pricing UI: current rates + proposal form + decision history | `App.jsx` | Medium |
-| Owner notification on pricing proposal | `server.js` | Trivial |
-| **Phase 5 total** | | **Medium–High (4–6 sessions)** |
+| `unit_pricing` (current live rates) + `pricing_proposals` + `pricing_decisions` (append-only) tables | `schema.sql` | Low |
+| Current pricing record CRUD API | `server.js` | Low |
+| Proposal creation endpoint (owner or operator, base rate or peak period) | `server.js` | Medium |
+| Counter-proposal endpoint | `server.js` | Low |
+| Confirm / reject / withdraw / expire endpoints | `server.js` | Medium |
+| Proposal apply-to-platform confirmation step | `server.js`, `App.jsx` | Low |
+| Immutable decision log (append-only, no deletes) | `server.js` | Low |
+| Season / peak period CRUD with same proposal flow | `server.js`, `App.jsx` | Medium |
+| Pricing UI: current rates + open proposals + history timeline | `App.jsx` | High |
+| Email notification to other party on proposal / counter / confirm / reject | `server.js` | Low |
+| In-app badge on pending proposals (owner view + operator view) | `App.jsx` | Low |
+| **Phase 5 total** | | **High (6–8 sessions)** |
 
 ---
 
@@ -255,10 +271,10 @@ A `global_admin` who is also acting as an operator uses the role switch in their
 | 2 | Operator multi-community dashboard | Medium–High | 4–6 |
 | 3 | Service requests + work orders | Very High | 8–12 |
 | 4 | Scheduling + owner blocks | High | 5–7 |
-| 5 | Pricing log + approval workflow | Medium–High | 4–6 |
+| 5 | Pricing log + bidirectional confirmation | High | 6–8 |
 | 6 | Documents + compliance | Medium | 3–4 |
 | 7 | Staff task management | Medium | 3–5 |
-| **Total** | | | **35–53 sessions** |
+| **Total** | | | **37–55 sessions** |
 
 **Prototype (Phases 0–2):** ~12–19 sessions — enough to validate both user paths, the linking flow, and the operator dashboard before investing in Phases 3–7.
 

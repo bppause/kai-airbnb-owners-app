@@ -146,33 +146,50 @@ Answer these before or during prototype build. Each answer directly informs a fe
 
 ### 4. Pricing — Base Rate, Peak Schedules & Markup
 
-*Owner-initiated price changes, seasonal rules, and the approval/communication workflow.*
+*Either party (owner or operator) can propose base pricing or peak period/schedule changes. The other party must confirm before any change is implemented. This is a locked design decision.*
+
+**Confirmed workflow:**
+- Owner proposes → operator must confirm before it takes effect
+- Operator proposes → owner must confirm before it takes effect
+- Neither party can unilaterally apply a pricing change
+- All proposals, counter-proposals, confirmations, and rejections are logged immutably with timestamp and actor
 
 **Current process:**
-- How do pricing change conversations happen today? You message the operator? They message you?
-- How often do you request price changes? (weekly dynamic, monthly, seasonally)
-- Do you use percentage markup (e.g. "+20% for Carnaval") or absolute amounts?
+- How do pricing change conversations happen today? (owner messages operator, operator messages owner, or both?)
+- How often does each party initiate changes? (weekly dynamic, monthly, seasonally)
+- Do you use percentage markup (e.g. "+20% for Carnaval"), absolute amounts, or both?
+- Has the operator ever proposed a price change you disagreed with? What happened?
 
 **Pricing structure:**
 - What is your current pricing model? (base nightly rate + weekday/weekend split + seasonal peaks?)
-- Which peak periods apply to your unit? (Carnaval, Semana Santa, December, long weekends)
-- Do you set a price floor (minimum below which you never want the operator to price)?
-- Is cleaning fee included in the per-night rate or listed separately?
+- Which peak periods apply to your unit? (Carnaval, Semana Santa, December, long weekends, local holidays)
+- Is the peak period defined by a fixed calendar (same dates every year) or does it shift annually?
+- Do you set a price floor (minimum below which you never want to price regardless of who proposes)?
+- Is cleaning fee included in the per-night rate or listed separately? Does it change with season?
 
-**Approval workflow:**
-- Who proposes changes — you as owner, the operator based on market, or both?
-- When the operator proposes a price change, do you want to approve before it goes live on Airbnb?
-- How quickly does a price change need to take effect after approval? (same day, 48h, next booking period)
-- Should there be an auto-approval if the owner doesn't respond within X hours?
+**Proposal workflow detail:**
+- When either party proposes, should the other party receive both an email notification and an in-app badge?
+- Should the proposing party be able to include a note/reason with their proposal? (e.g. "Carnaval demand up 30% vs last year")
+- Is counter-proposal needed? (e.g. operator proposes $180/night → owner counter-proposes $165/night → operator confirms)
+- How quickly must the receiving party confirm? Is there a timeout after which the proposal expires or auto-approves?
+- If no response within 48 hours, should the proposal expire (safer) or auto-approve (faster)?
+- Can a proposal be withdrawn by the proposer before the other party responds?
+
+**Peak period / schedule specifics:**
+- Is a "peak period" just a date range + multiplier, or does it have more fields? (name, minimum stay, different rates for weekday vs. weekend within peak)
+- Who owns the peak calendar — owner defines the periods, operator applies rates? Or fully shared?
+- If an operator wants to add a new peak period (e.g. a new local festival), does that require owner confirmation the same as a rate change?
+- Can the same unit have multiple overlapping peak rules? How are conflicts resolved?
 
 **Platform updates:**
-- After a price change is agreed, who actually updates Airbnb/VRBO? Operator, owner, or shared?
-- If the operator updates the listing, should they be required to confirm in KAI that it's done?
-- Would an iCal or Airbnb API connection to sync prices automatically be valuable?
+- After a change is confirmed, who actually updates Airbnb/VRBO? Operator, owner, or shared?
+- Should the confirming party be required to log "Updated on Airbnb: ✓" inside KAI to close the loop?
+- Would an iCal or Airbnb API sync (automatic price push) be valuable, or is manual update acceptable for now?
 
 **History and disputes:**
 - Have you ever had a disagreement with your operator about what price was agreed?
-- How far back do you need pricing history to be queryable?
+- How far back do you need pricing history to be queryable? (1 year? full history?)
+- Should the pricing history be exportable (CSV, PDF) for tax or accounting purposes?
 
 ---
 
