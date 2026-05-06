@@ -7557,9 +7557,11 @@ function AdminSettings({ config={}, user, listings=[], contactProps={}, onSave, 
   </AdminSection>
 
   <AdminSection title={`🌊 ${lt(lang,'Misión y reglas de participación')}`} subtitle={lt(lang,'Mantén Español Colombia como base. También puedes editar textos visibles en inglés cuando aplique.')} action={<button className="btn-p" style={{minHeight:36,padding:'6px 14px'}} onClick={saveConfig}>💾 {lt(lang,'Guardar')}</button>} open={openSections.mission} onToggle={()=>toggleSection('mission')}>
-    <div style={{display:'flex',gap:6,marginBottom:14}}>
-      <button className={`fchip${globalMissionLang==='es'?' fchip-on':''}`} onClick={()=>setGlobalMissionLang('es')}>🇨🇴 Español</button>
-      <button className={`fchip${globalMissionLang==='en'?' fchip-on':''}`} onClick={()=>setGlobalMissionLang('en')}>🇺🇸 English</button>
+    <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:10,flexWrap:'wrap'}}>
+      <div style={{display:'flex',gap:6}}>
+        <button className={`fchip${globalMissionLang==='es'?' fchip-on':''}`} onClick={()=>setGlobalMissionLang('es')}>🇨🇴 Español</button>
+        <button className={`fchip${globalMissionLang==='en'?' fchip-on':''}`} onClick={()=>setGlobalMissionLang('en')}>🇺🇸 English</button>
+      </div>
     </div>
     {globalMissionLang==='es' && <>
       <div className="fg2"><div className="fg full"><label>{lt(lang,'Título')}</label><textarea className="admin-textarea" rows={2} value={mission?.title||''} onChange={e=>setMissionField('title',e.target.value)}/></div><div className="fg full"><label>{lt(lang,'Subtítulo')}</label><textarea className="admin-textarea" rows={2} value={mission?.subtitle||''} onChange={e=>setMissionField('subtitle',e.target.value)}/></div><div className="fg"><label>{lt(lang,'Etiqueta de sección')}</label><input value={mission?.sectionLabel||''} onChange={e=>setMissionField('sectionLabel',e.target.value)}/></div><div className="fg full"><label>{lt(lang,'Encabezado principal')}</label><textarea className="admin-textarea" rows={2} value={mission?.heading||''} onChange={e=>setMissionField('heading',e.target.value)}/></div><div className="fg full"><label>{lt(lang,'Texto principal')}</label><textarea rows={3} value={mission?.body||''} onChange={e=>setMissionField('body',e.target.value)}/></div></div>
