@@ -18,6 +18,129 @@ Every unit managed by an operator has a WhatsApp group. In that group: the opera
 - No clear owner for each item — "is this resolved or are we still waiting?"
 - No SLA — urgent issues sit unacknowledged for hours
 - No next-action clarity — "is the ball in my court or yours?"
+
+---
+
+## Real WhatsApp Patterns — Morros KAI 317
+
+*Observed from a real 7-month chat (Oct 2025 – May 2026) between Brian and Martha Pause (co-hosts) and Luxury Rentals / Oscar Lindo (operator) plus team members Paula Ramirez, Samira Ferrer, Andrea, Camila del Valle, ACTB, CDVR.*
+
+### Interaction Frequency (Actual)
+
+| Type | Occurrences | Follow-ups required | Resolved in chat? |
+|---|---|---|---|
+| Pricing change request | 8 | High (multiple rounds) | Partially — no audit trail |
+| Photo / listing update | 6 | Medium | Yes but slow |
+| Scheduling coordination | 5 | High (owner initiates all) | Mostly |
+| Maintenance request / approval | 4 | High (invoices never arrived) | Partially |
+| Role / responsibility confusion | 4 | Medium | Rarely |
+| Platform policy question | 4 | Low | Yes |
+| Regulatory / compliance (RNT, TRA) | 3 | High (credentials shared twice) | Poorly |
+| Guest rule / policy clarification | 3 | Low | Yes |
+| Review management | 3 | Low | Yes |
+| Urgent building / utility notice | 3 | High (35-min response gap) | Yes |
+| Receipts / invoices follow-up | 3 | Very high (asked 3× over 3 weeks) | No |
+| Co-host / platform access | 3 | High (always denied or unexplained) | No |
+| Damage claim / AirCover | 2 | High (double-billing confusion) | Partially |
+| Personal use / owner block | 2 | Medium | Yes |
+| Smart lock / device issue | 1 | Critical (6+ follow-ups, 10 days) | Barely |
+| Financial transaction in chat | 3 | N/A | Yes — but dangerously |
+
+### Critical Behavioral Findings
+
+**1. Owners are highly engaged and capable — not passive.**
+Brian built an AI pricing tool, runs market research, creates Instagram accounts, monitors competitor listings. Martha tracks compliance, coordinates vendors, follows up on building issues. The operator treats them as passive clients; they are not. KAI must give them appropriate visibility and lightweight control.
+
+**2. The follow-up burden falls entirely on owners.**
+In every multi-step task — receipts, lock batteries, photo updates, listing corrections — owners initiated all follow-ups. The operator never proactively closed the loop. **KAI should make the open-loop visible and require operator closure confirmation.**
+
+**3. Operator acts first, informs later.**
+The 2027 10% rate increase was communicated at 1am as a near-done deal. The AC repair was started before owner approval was fully obtained. Owners said "consult me first" but the group format doesn't enforce it. **KAI enforces the approval gate before action, not as a courtesy.**
+
+**4. Financial and credential hygiene is nonexistent.**
+Bank account numbers (Bancolombia), Nequi handles, RNT login credentials, and payment confirmations all appear in the WhatsApp group in plain text. No access control. No audit log. No recovery path. **Zero financial transactions or credentials should pass through KAI chat — all routed through structured, encrypted flows.**
+
+**5. Owners want visibility, not total control.**
+The recurring ask is not "let me run everything" — it is "let me see what's happening." Guest profiles, listing changes, pricing, damage status, cleaning confirmation. A read-only owner dashboard would resolve ~60% of the follow-up volume. The specific ask: "Can I update the price myself?" and "Can I edit the listing?" were both repeatedly denied.
+
+**6. Trust erodes through small repeated failures.**
+The Yale smart lock battery: a trivial task, 6+ follow-ups over 10 days, still not confirmed resolved. Receipts requested 3× over 3 weeks, never received. These accumulate. By late April, Brian's tone is visibly skeptical in every message. **KAI prevents this by making every open item visible to both parties with aging timers.**
+
+**7. Team roster is opaque to owners.**
+Martha and Brian don't know who ACTB, CDVR, or the unnamed phone numbers are. When a team member adds another to the group, there's no introduction. Responsibilities are unclear (who handles reviews? who does logistics? who does RNT?). **KAI shows owners a named team directory with roles.**
+
+### Pain Points by Interaction Type (From Real Chat)
+
+#### Maintenance & Repairs
+- Operator brought a technician without pre-authorization → owner said "consult me first"
+- Payment (150k COP) requested via Nequi in group chat → no invoice, no platform record
+- Invoices requested 3× over 3 weeks, never delivered
+- Two separate end table damage incidents conflated → owner: "We just paid to have this fixed, why are we paying again?"
+- **KAI fix:** Approval threshold (auto-approve below X, gate above X). Invoices required to close ticket. Payment via platform ledger. Per-incident photo log prevents conflation.
+
+#### Pricing
+- Rate changes communicated at 1am as near-final
+- Owner repeatedly denied ability to update prices directly
+- Algorithm ranking impact (price → position) only surfaced after 10 days of no bookings at new rate
+- Confusion between base rate / weekend rate / 2026 rate / 2027 rate all at once
+- **KAI fix:** Bidirectional proposal with confirmation. Owner sees proposed rate, ranking impact preview, and competitor range before confirming. Full rate schedule visible (base, weekend, seasonal, per-year).
+
+#### Photo & Listing Updates
+- Operator downloaded Dropbox photos one by one — manual friction
+- Owner had to screenshot specific photos to communicate which to delete
+- Title character limit (50 chars on Airbnb) discovered mid-execution
+- Owner asked multiple times to get direct listing edit access — always denied
+- **KAI fix:** Listing update module where owner uploads assets in bulk, sets order, annotates. Operator reviews and publishes. Platform constraints surfaced in UI before submission.
+
+#### Smart Lock / Device Management
+- Yale battery critical warning: 10+ days and 6+ owner messages to resolve
+- Team didn't know how to open the lock cover → owner sent YouTube tutorial
+- Cleaning staff couldn't change batteries during active guest stay
+- Brian had to send same video twice, @mention 4 different team members
+- **KAI fix:** Device/maintenance ticket with owner, operator, and assigned staff. Step-by-step instructions stored per device model. Escalation auto-triggers if unresolved within SLA. Closure requires photo proof.
+
+#### Co-host Access & Platform Visibility
+- Martha's co-host status existed but she couldn't see guest profile details after an Airbnb app update
+- Brian asked 5+ times across different dates whether he could update prices or ranking data himself
+- Platform answers: always no or redirect — with no explanation
+- **KAI fix:** Owner dashboard with: guest summary per booking, current listing state, pricing schedule, review history, ranking context — independent of Airbnb co-host permission level.
+
+#### Financial Transactions
+- Bancolombia account (Oscar Lindo, Cedula 1050951054) posted in group chat
+- Nequi 3004232674 for AC advance payment, Nequi 3052166010 for owner block
+- RNT credentials shared in group chat twice
+- **KAI fix:** Expenses submitted through platform. Owner approves and payment acknowledged through ledger. Zero bank details in any chat field. Document vault for credentials.
+
+#### Building / Community Notices
+- Martha acts as the bridge between building administration and the operator group
+- Urgent water utility notice at 8pm — 35-minute wait for operator response while guests potentially affected
+- Road protest at 7:54am — owner relaying, operator never confirmed awareness
+- **KAI fix:** Building notice type with urgency flag. Operator must acknowledge within SLA. If guest-impacting, system prompts operator to message guest on Airbnb.
+
+#### Damage Claims
+- Two separate incidents on same piece of furniture over 5 weeks caused billing confusion
+- No per-stay photo record to prove which guests caused which damage
+- AirCover 14-day window nearly missed; process opaque to owners
+- Damage claim strategy discussed in group (charge guests vs. warranty vs. absorb)
+- **KAI fix:** Per-stay check-in / check-out photo log with timestamp. Each damage incident gets a unique case linked to a specific stay. AirCover claim package (photos, description, invoice) compiled from within KAI.
+
+### New Use Cases Identified from Real Chat
+
+| Use case | Source in chat | Priority |
+|---|---|---|
+| **Device/IoT management** (smart locks, AC, appliances with status and fix instructions) | Yale lock battery 10-day saga | High |
+| **Credential vault** (RNT, TRA, warranties, appliance manuals — per unit, access-controlled) | RNT credentials shared in plain text twice | High |
+| **Pre/post stay photo log** (timestamped, linked to booking, basis for damage claims) | End table double-billing confusion | High |
+| **Owner read-only dashboard** (guest summary, current listing state, pricing, ranking) | Brian asked 5+ times for visibility | High |
+| **Team directory visible to owners** (name, role, responsibilities, who to contact for what) | ACTB/CDVR unknown to owners | Medium |
+| **Pricing with ranking impact preview** (show estimated Airbnb position before confirming rate change) | Paula's ranking chart surfaced 10 days late | Medium |
+| **Annual / scheduled rate change** (set future date, rate takes effect automatically) | 2027 pricing discussion spanning weeks | Medium |
+| **Discount structure management** (last-minute, early-bird, weekly, monthly — per unit) | Four discount types discussed, applied manually | Medium |
+| **Review dashboard with draft approval** (owner sees draft response, approves or edits before publishing) | ACTB manages reviews; owners unaware | Medium |
+| **Guest block list** (owner can request operator block a specific guest from their unit) | Martha: "block her from my apartment" | Low |
+| **Building notice ingestion** (owner uploads notice, operator must acknowledge, if guest-impacting prompts action) | Martha relays all building comms | Medium |
+| **Personal use booking flow** (distinct from guest booking — no guest rate, includes cleaning scheduling) | Feb 20 personal visit — quoted guest rate | Medium |
+| **Platform policy reference** (Airbnb rules: character limits, what links are allowed, bed counting rules) | Title limit, Instagram link prohibition, sofa bed counting discovered mid-task | Low |
 - No audit trail — "wait, did we agree to that price?"
 - No separation by unit — multi-unit operators and owners mix all units in one or multiple groups
 - Team members see owner/operator financial discussions they shouldn't
@@ -595,28 +718,32 @@ Organized by topic. All scenarios are grounded in the Airbnb host (operator) / c
 
 ---
 
-## Priority Matrix — Ordered by WhatsApp Pain
+## Priority Matrix — Grounded in Real Chat Data
 
-Ranked by how often it breaks down in a WhatsApp group and the cost of that failure.
+Ranked by actual frequency and cost of failure observed in the Morros KAI 317 chat.
 
-| Request type (WhatsApp replacement) | Frequency | What goes wrong today | SLA tier | Build phase |
+| Request type | Observed freq | Real failure mode | SLA tier | Build phase |
 |---|---|---|---|---|
-| Guest issue (urgent — lockout, AC, water) | Per stay | Lost in chat, no escalation if operator slow | Critical / Urgent | Phase 3 |
-| Repair approval request | Weekly | Owner approves verbally, no record, invoice surprise later | Standard | Phase 3 |
-| Booking notification to owner | Per booking | Owner learns days late or only if they ask | FYI | Phase 3 |
-| Booking special request (pets, early check-in) | Per booking | Operator decides without telling owner | Urgent | Phase 3 |
-| Owner task request → operator acknowledges → done + photo | Weekly | Request buried, never followed up, owner gives up | Standard | Phase 3 |
-| Building admin notice → operator acknowledge | Weekly | Operator misses notice, guest affected | Urgent / Standard | Phase 3 |
-| Pricing proposal (either party) + bidirectional confirm | Monthly | "We agreed to $170" — "No, $180" — no record | Async | Phase 5 |
-| Peak period proposal + bidirectional confirm | Seasonally | Same as above, larger stakes | Async | Phase 5 |
-| Calendar block (owner personal use) | Monthly | Operator books a guest over owner's family visit | Standard | Phase 4 |
-| Payout statement (15/85 per booking, locked) | Monthly | Manual WhatsApp calculation, disputed amounts | Monthly | Phase 6 |
-| Remittance tracking (operator sends owner's 85%) | Monthly | No record of whether it was sent or received | Monthly | Phase 6 |
-| AirCover damage claim (14-day window) | Occasional | Window missed because no one flagged the deadline | Urgent | Phase 3 ext |
-| Utility bill upload + month-over-month comparison | Monthly | Photos lost in chat, disputes with no baseline | Monthly | Phase 6 |
-| Listing content change → owner confirm | Quarterly | Owner unaware listing was changed | Async | Phase 6 |
-| Review posted → host response coordination | Per stay | Operator responds without owner input on bad reviews | Standard | Phase 3 ext |
-| Cleaning / repair assignment to team member | Per stay / per repair | Team assigned via WhatsApp, status unknown until asked | Per assignment | Phase 7 |
+| **Pricing change** (either party, bidirectional confirm) | 8× in 7 months | No audit trail; rate changed at 1am before owner confirms; ranking impact only known after 10 days no bookings | Async 48h | Phase 5 |
+| **Listing photo / content update** (bulk upload, ordering, owner review) | 6× | One-by-one Dropbox download; owner screenshots to communicate deletions; title limit discovered mid-task | Async 48h | Phase 5 / Phase 6 |
+| **Scheduling coordination** (maintenance, cleaning, vendor, personal visit) | 5× | Operator never proactively confirms; owner initiates all follow-ups | Standard 24h | Phase 3 |
+| **Repair approval + invoice** (threshold gate, invoice required to close) | 4× | Paid without pre-approval; invoices requested 3× over 3 weeks, never delivered | Standard / Urgent | Phase 3 |
+| **Smart lock / device management** (per-device instructions, escalation) | 1× but 6+ follow-ups | Yale battery took 10 days, 6 owner messages, 2 video tutorials, still not confirmed resolved | Urgent 4h | Phase 3 (device type) |
+| **Building / community notice** (urgency flag, operator acknowledge) | 3× | 35-min gap on urgent water notice; owner acts as relay bridge | Urgent / Standard | Phase 3 |
+| **Receipts / invoice delivery** | 3× | Never proactively sent; owner must ask; asked 3× with no resolution | Standard 24h | Phase 3 (close gate) |
+| **Owner read-only visibility** (guest summary, listing state, pricing, ranking) | 5+ asks denied | Brian asked 5+ times across months for pricing control or ranking visibility — always redirected | Always-on | Phase 2 (dashboard) |
+| **Co-host / platform access** (track permissions, surface changes) | 3× | Martha lost guest profile visibility after Airbnb app update; team couldn't explain | Always-on | Phase 1 |
+| **Damage claim / AirCover** (per-stay photo log, case per incident, 14-day window) | 2× | Two incidents conflated → double-billing dispute ("why are we paying again?") | Urgent 24h | Phase 3 ext |
+| **Credential vault** (RNT, TRA, warranties, appliance manuals — no chat) | 3× | RNT credentials in group chat plain text; shared twice because first share lost | Secure / no SLA | Phase 6 |
+| **Calendar block — personal use** (distinct from guest, cleaning auto-scheduled) | 2× | Operator quoted guest rate for personal use; 1-night minimum policy conflict not surfaced | Standard 24h | Phase 4 |
+| **Financial transactions** (zero in chat — platform ledger only) | 3× | Bancolombia + Nequi account numbers in group chat; no receipt; no audit | Zero tolerance | Phase 6 |
+| **Review management** (draft approval, guest block, positive response policy) | 3× | Operator responds without owner awareness; owner had to request specific response strategy | Standard 24h | Phase 3 ext |
+| **Team directory** (name, role, contact, responsibilities — visible to owners) | 4× role confusion | Owners don't know who ACTB, CDVR are; new team members added with no intro | Always-on | Phase 1 |
+| **Pricing with ranking preview** (show Airbnb position impact before confirming) | 1× surfaced late | Paula's ranking data only surfaced 10 days after a rate increase killed bookings | Pre-confirm | Phase 5 |
+| **Payout statement** (15/85 per booking, locked after owner sees) | Monthly | Manual; no structured record | Monthly | Phase 6 |
+| **Annual / scheduled rate change** (future-dated, auto-applies) | 3× pricing sessions | 2027 pricing negotiated over multiple weeks; no scheduled activation | Async | Phase 5 |
+| **Discount structure** (last-minute, early-bird, weekly, monthly — per unit) | 1× applied | Four discount types discussed and applied manually with no owner visibility | Async | Phase 5 |
+| **Building notice → listing update trigger** (pool closed? prompt listing update) | 1× water issue | No connection between building outage and listing accuracy | Manual prompt | Phase 3 ext |
 
 ---
 
