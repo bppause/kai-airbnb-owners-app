@@ -23,6 +23,10 @@ export default defineConfig({
   optimizeDeps: {
     exclude: []
   },
+  build: {
+    minify: false,
+    reportCompressedSize: false,
+  },
   server: {
     proxy: { '/api': 'http://localhost:3001' }
   }
