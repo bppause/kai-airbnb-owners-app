@@ -130,7 +130,7 @@ Martha and Brian don't know who ACTB, CDVR, or the unnamed phone numbers are. Wh
 |---|---|---|
 | **Device/IoT management** (smart locks, AC, appliances with status and fix instructions) | Yale lock battery 10-day saga | High |
 | **Credential vault** (RNT, TRA, warranties, appliance manuals — per unit, access-controlled) | RNT credentials shared in plain text twice | High |
-| **Pre/post stay photo log** (timestamped, linked to booking, basis for damage claims) | End table double-billing confusion | High |
+| **Per-stay inspection photo log** (timestamped, linked to stay period — required baseline for AirCover guest damage claims and to distinguish from non-guest damage for owner insurance) | End table double-billing confusion | High |
 | **Owner read-only dashboard** (guest summary, current listing state, pricing, ranking) | Brian asked 5+ times for visibility | High |
 | **Team directory visible to owners** (name, role, responsibilities, who to contact for what) | ACTB/CDVR unknown to owners | Medium |
 | **Pricing with ranking impact preview** (show estimated Airbnb position before confirming rate change) | Paula's ranking chart surfaced 10 days late | Medium |
@@ -182,6 +182,8 @@ Both the operator and the owner see the same concept: **"What needs me right now
 | Review responses on Airbnb | Review visibility and draft approval workflow |
 | Calendar sync and booking confirmation | Owner-initiated date blocks (personal use, maintenance) |
 | Airbnb messaging with guests | Operator → Owner notifications when guest action is needed |
+| **Cleaning fee charged to guest** (Airbnb line item) | **Non-guest cleaning costs** (deep clean, owner visit prep, post-renovation) requiring owner approval |
+| **AirCover claim filing** (done on Airbnb) | **Damage case tracking** in KAI: photos, incident log, which stay, which insurance path, claim status |
 
 KAI is the **relationship management layer** between operator and owner. The listing platform (Airbnb, VRBO, etc.) remains the source of truth for bookings, guest data, and money.
 
@@ -371,7 +373,9 @@ Every item that flows through KAI maps to one of these types. These are the stru
 | **Booking special request** | "Guest asks to bring a dog, ok?" | 2h | Payout Owner approves; others can comment | Yes |
 | **Pricing proposal** | "Raise Dec rate to $200, up from $170" | 48h | Payout Owner confirms/counters/rejects | Yes, can comment |
 | **Peak period proposal** | "Adding Carnaval Feb 28–Mar 4 at +25%" | 48h | Payout Owner confirms/counters/rejects | Yes, can comment |
-| **AirCover / damage alert** | "Guest left damage, filing AirCover claim" | 24h | All owners notified; Payout Owner co-authorizes | Yes |
+| **Guest damage — AirCover path** | "Guest left damage, filing AirCover on Airbnb" | 24h | All owners notified; Payout Owner co-authorizes; claim filed on Airbnb | Yes |
+| **Non-guest damage — owner insurance path** | "AC unit leaked and damaged the wall — between stays" | 24h | Payout Owner notified; owner files claim with their unit insurer | Yes, cost hidden |
+| **Non-guest cleaning** | "Deep clean needed before owner's personal visit" | 24h | Payout Owner approves cost; operator assigns to team | Yes, cost hidden |
 | **Utility bill** | [photo of electricity bill] | 5 days | Payout Owner acknowledges/disputes | No (financial) |
 | **General update** | "Unit is ready for next guest" | None | All owners informed | Yes |
 
@@ -410,7 +414,7 @@ Booking and payout data lives on Airbnb — KAI does not replicate it. The follo
 | Type | Trigger | Who sees it | Note |
 |---|---|---|---|
 | **Booking relay** | Operator manually enters or future iCal/API sync | Operator + all owners | Dates only; no guest PII or revenue figures in KAI |
-| **AirCover window prompt** | Configurable: 12 days after checkout, no claim filed | Operator | Prompts operator to inspect and file; claim details tracked in KAI |
+| **AirCover window prompt** | 12 days after checkout (or before next check-in), open guest damage case with no claim reference | Operator | Urges operator to file on Airbnb before 14-day window closes |
 | **Superhost risk prompt** | Operator-flagged or future API | Operator | Informational only |
 
 ---
@@ -584,9 +588,11 @@ Organized by topic. All scenarios are grounded in the Airbnb host (operator) / c
 - Monthly discount (% off for 28+ night stays) — same confirmation flow
 - Custom date pricing (override for specific dates, e.g. New Year's Eve)
 - Seasonal / peak period pricing (date range + multiplier or absolute amount)
-- Cleaning fee (flat per booking — see split question below)
+- Cleaning fee (Airbnb line item charged to guest — proposals follow same bidirectional flow since it affects listing competitiveness)
 - Extra guest fee (per person above base occupancy)
 - Smart Pricing on/off (Airbnb dynamic pricing — does owner want to allow or always use manual?)
+
+> The cleaning fee on Airbnb is paid by the guest and collected by Airbnb. KAI treats it as a pricing line item subject to bidirectional confirmation (same as nightly rate), not as a cost to track. Cleaning costs outside of guest stays are a separate expense — see Section 7.
 
 **Pricing structure questions:**
 - What is the current weekday base rate and weekend premium?
@@ -594,12 +600,8 @@ Organized by topic. All scenarios are grounded in the Airbnb host (operator) / c
 - Are peak period dates fixed annually or adjusted each year?
 - Do you use Airbnb Smart Pricing currently? If yes, do you set a floor and ceiling?
 - Do you apply weekly or monthly discounts for long stays?
-- What is the current cleaning fee? Does it change by season or stay length?
+- What is the current cleaning fee set on the listing? Does it change by season or stay length?
 - Is there an extra guest fee? At what occupancy threshold?
-
-**Cleaning fee split question (open):**
-- Does the 15% operator cut include cleaning services rendered (operator keeps cleaning fee to cover their cost), or is the cleaning fee passed through to the owner and cleaning cost paid separately?
-- This directly affects how KAI calculates owner payout per booking.
 
 **Proposal workflow:**
 - When either party proposes, should the other receive an email + in-app badge?
@@ -643,25 +645,73 @@ Organized by topic. All scenarios are grounded in the Airbnb host (operator) / c
 
 ---
 
-### 7. Repairs & Maintenance
+### 7. Repairs, Cleaning & Damage
 
-*Maintenance and repair requests tied to unit condition and guest stays.*
+*Service requests tied to unit condition. Every request is tagged by context (during-stay, between-stays, owner-use period) and by cost responsibility (AirCover, owner's unit insurance, routine ops).*
+
+#### Cleaning
+
+**Guest-stay cleaning (Airbnb cleaning fee covers this):**
+- Between-stay cleaning is funded by the cleaning fee charged to the guest on Airbnb — out of scope for KAI cost tracking
+- KAI tracks it as a **team assignment** (operator assigns to cleaning staff, staff marks done + photos)
+- The operator and owner may want to confirm the cleaning fee rate via the pricing proposal flow (it affects listing competitiveness)
+
+**Non-guest cleaning (requires owner approval as an expense):**
+- Deep clean (seasonal, post-renovation, after owner personal use)
+- Pre-owner-visit preparation (owner blocks dates → operator schedules cleaning → cost billed to owner)
+- Post-damage remediation cleaning (cost may be covered by insurance — see below)
+- These go through the **repair approval flow** with a cost estimate; Payout Owner approves before work starts
+
+**Cleaning questions:**
+- Is the arrangement that the operator coordinates cleaning (included in management fee) or does the operator bill cleaning separately?
+- For non-guest cleaning, does the operator provide a quote, or is it a fixed rate per clean?
+- Should KAI auto-create a non-guest cleaning request when the owner sets a personal use block?
+
+---
+
+#### Damage — Two Insurance Paths
+
+Every damage incident in KAI is tagged to one of two paths at creation. The path determines who is responsible for filing the claim and what documentation KAI needs to collect.
+
+| | **Guest-caused damage** | **Non-guest damage** |
+|---|---|---|
+| **When it occurs** | During a guest stay | Between stays, during owner use, or from building/external cause |
+| **Insurance** | Airbnb AirCover (host guarantee) | Owner's unit insurance policy |
+| **Who files** | Operator files on Airbnb within 14-day window | Owner files with their insurer (KAI supports documentation) |
+| **KAI role** | Case tracking, photo log, check-out inspection, AirCover window prompt | Incident record, photo evidence, damage description, cost estimate for claim |
+| **Cost if not covered** | Operator may advance and recover from AirCover; if denied, owner decides whether to pursue | Owner's deductible or out-of-pocket; goes through normal repair approval if paying out of pocket |
+
+**Damage workflow in KAI:**
+
+1. Operator creates a damage incident — tags it as **guest-caused** or **non-guest**
+2. Operator selects the affected stay (for guest-caused) or the time period (for non-guest)
+3. Operator uploads pre-stay and post-stay inspection photos (or a single incident photo set)
+4. For **guest-caused**: KAI prompts operator before AirCover window closes (14 days from checkout or before next check-in). Claim is filed on Airbnb — KAI records the claim reference and outcome.
+5. For **non-guest**: KAI notifies all owners with photos and cost estimate. Owner files with their insurer (or authorizes out-of-pocket repair through normal approval flow).
+6. Case is closed when: claim outcome is recorded, or repair is approved and completed with invoice.
+
+**Key rule:** Per-stay check-in and check-out inspection photos (with timestamps) are required to support any AirCover claim. Without them, "the damage was pre-existing" cannot be disproved.
+
+**Damage questions:**
+- Does your operator do a formal check-out inspection after every guest, or only when there's visible damage?
+- If AirCover denies a claim (partial or full), who absorbs the cost — operator's responsibility to claim successfully, or owner pays for the repair?
+- Does the owner currently have an insurance policy on the unit that covers non-guest damage? (Required for the non-guest path to be meaningful)
+- Should KAI store the owner's insurance policy details (insurer name, policy number, contact) in the document vault?
+- If a damage incident straddles two consecutive stays (damage found at check-in, could be previous guest or current guest), how is responsibility determined?
+
+---
+
+#### Repairs & Maintenance (non-damage)
 
 **Initiation:**
 - Who most often identifies a repair need — operator (after guest departure), owner (remote observation), or guest (during stay)?
-- Can a guest-reported issue during a stay auto-create a service request in KAI?
 - Are repairs always linked to a specific stay, or are many proactive/routine?
 
 **Approval and cost:**
-- What cost threshold requires owner approval before work starts? (e.g. anything over $50,000 COP / ~$12 USD)
+- What cost threshold requires owner approval before work starts? (set in the management contract)
 - Below that threshold, can the operator proceed and log it in KAI after?
 - Hard gate (work cannot start until owner approves) vs. soft gate (operator proceeds, owner notified)?
 - Does the owner want to see quotes before approving larger repairs?
-
-**Repair cost and the split:**
-- Are repair costs deducted from the owner's 85% payout, or billed separately to the owner?
-- If a repair is caused by guest damage, is the cost recovered from AirCover before billing the owner?
-- If the operator advances the repair cost, how is reimbursement tracked against future payouts?
 
 **Vendors:**
 - Does your operator have a regular set of vendors (plumber, electrician, locksmith, AC tech)?
@@ -776,7 +826,9 @@ Ranked by actual frequency and cost of failure observed in the Morros KAI 317 ch
 | **Receipts / invoice delivery** | 3× | Never proactively sent; owner must ask; asked 3× with no resolution | Standard 24h | Phase 3 (close gate) |
 | **Owner read-only visibility** (guest summary, listing state, pricing, ranking) | 5+ asks denied | Brian asked 5+ times across months for pricing control or ranking visibility — always redirected | Always-on | Phase 2 (dashboard) |
 | **Co-host / platform access** (track permissions, surface changes) | 3× | Martha lost guest profile visibility after Airbnb app update; team couldn't explain | Always-on | Phase 1 |
-| **Damage claim / AirCover** (per-stay photo log, case per incident, 14-day window) | 2× | Two incidents conflated → double-billing dispute ("why are we paying again?") | Urgent 24h | Phase 3 ext |
+| **Damage — guest/AirCover path** (per-stay photo log, 14-day window prompt, claim reference) | 2× | Two incidents on same furniture conflated → double-billing dispute; no per-stay photos to distinguish | Urgent 24h | Phase 3 |
+| **Damage — non-guest/owner insurance path** (incident record, photos, cost estimate for insurer) | Not observed in chat but structurally required | No per-stay inspection baseline → insurer disputes pre-existence | Standard 24h | Phase 3 |
+| **Non-guest cleaning** (deep clean, owner visit prep — expense approval) | Implied by personal use blocks | Operator quoted guest rate for owner personal visit | Standard 24h | Phase 3 |
 | **Credential vault** (RNT, TRA, warranties, appliance manuals — no chat) | 3× | RNT credentials in group chat plain text; shared twice because first share lost | Secure / no SLA | Phase 6 |
 | **Calendar block — personal use** (distinct from guest, cleaning auto-scheduled) | 2× | Operator quoted guest rate for personal use; 1-night minimum policy conflict not surfaced | Standard 24h | Phase 4 |
 | **Expense submission** (repair invoices, utility bills — zero bank details in KAI) | 3× | Bancolombia + Nequi account numbers in group chat; no receipt; no audit trail | Zero tolerance | Phase 3 / 6 |
