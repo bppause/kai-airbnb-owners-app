@@ -2292,8 +2292,15 @@ app.put('/api/communities/:id/config', async (req, res) => {
   for (const [key, value] of Object.entries(overrides || {})) {
     if (!allowedKeys.has(key)) continue;
     const strVal = typeof value === 'string' ? value : JSON.stringify(value);
-    await supabase.from('community_config').delete().eq('community_id', req.params.id).eq('key', key);
-    if (strVal !== '') await supabase.from('community_config').insert({ community_id: req.params.id, key, value: strVal });
+    if (strVal === '') {
+      await supabase.from('community_config').delete().eq('community_id', req.params.id).eq('key', key);
+    } else {
+      const { error: uErr } = await supabase.from('community_config').upsert(
+        { community_id: req.params.id, key, value: strVal, updated_at: new Date().toISOString() },
+        { onConflict: 'community_id,key' }
+      );
+      if (uErr) return sendSupabaseError(res, uErr);
+    }
   }
   await auditLog({ entity:'community_config', entityId:req.params.id, action:'update_overrides', actorUid:actorUid||'', actorEmail:actorEmail||'', after:overrides });
   res.json({ ok:true });
@@ -2304,8 +2311,11 @@ app.put('/api/communities/:id/config/overrides-enabled', async (req, res) => {
   if (!requireSupabaseEnv(res)) return;
   const { actorUid, actorEmail, enabled } = req.body || {};
   if (!(await isGlobalAdmin(actorUid, actorEmail))) return res.status(403).json({ error:'Global admin only.' });
-  await supabase.from('community_config').delete().eq('community_id', req.params.id).eq('key','config_overrides_enabled');
-  await supabase.from('community_config').insert({ community_id: req.params.id, key:'config_overrides_enabled', value: enabled ? 'true' : 'false' });
+  const { error: upsertErr } = await supabase.from('community_config').upsert(
+    { community_id: req.params.id, key: 'config_overrides_enabled', value: enabled ? 'true' : 'false', updated_at: new Date().toISOString() },
+    { onConflict: 'community_id,key' }
+  );
+  if (upsertErr) return sendSupabaseError(res, upsertErr);
   await auditLog({ entity:'community_config', entityId:req.params.id, action:'set_overrides_enabled', actorUid:actorUid||'', actorEmail:actorEmail||'', after:{ enabled } });
   res.json({ ok:true });
 });
