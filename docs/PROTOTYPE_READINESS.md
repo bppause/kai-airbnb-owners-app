@@ -76,17 +76,21 @@ A `global_admin` who is also acting as an operator uses the role switch in their
 
 ---
 
-## Phase 1 — Operator Identity & Unit Linking
+## Phase 1 — Operator Identity & Unit Linking (Multi-Owner)
 
 ### What gets built
 - Operator registers a business profile: name, logo, contact info, communities they work in
 - Operator staff roster: name, role (cleaning / supervision / logistics / guest relations), email, WhatsApp
-- Unit linking — two paths:
-  - Operator proposes → owner accepts/declines (notification sent)
-  - Owner invites → operator accepts/declines
-- Unit can only have one active operator; system blocks duplicate links
-- Unit profile fields maintained by operator: amenities, bed config, Airbnb URL, access notes
+- Unit linking — one active operator per unit, multiple owners per unit:
+  - Operator proposes → Payout Owner accepts/declines
+  - Payout Owner invites → operator accepts/declines
+- **Multiple owner types per unit:**
+  - **Payout Owner** — exactly one; receives 85% payout; financial approval rights; full thread access
+  - **Calendar Owner** — one or more; sees calendar and threads; financial amounts hidden; no approval rights (pending MO-2 answer)
+  - Payout Owner manages the owner roster (add/remove Calendar Owners)
+- Unit profile fields maintained by operator: amenities, bed config, Airbnb URL, platforms listed on, access notes
 - Status badges per unit: No operator / Pending / Actively managed
+- Platform registration per unit: Airbnb primary + optional others (VRBO, Booking.com, direct)
 
 ### Claude implementation breakdown
 
@@ -94,16 +98,19 @@ A `global_admin` who is also acting as an operator uses the role switch in their
 |---|---|---|
 | `operators` table + `operator_staff` table + migration | `schema.sql` | Low |
 | `unit_operator_links` table (status: pending/active/declined) | `schema.sql` | Trivial |
+| `unit_owner_links` table (uid, unit_id, role: payout/calendar, share_pct, status) | `schema.sql` | Low |
 | Operator profile CRUD API endpoints | `server.js` | Low |
 | Staff roster CRUD API endpoints | `server.js` | Low |
 | Operator profile + staff roster UI | `App.jsx` | Medium |
 | Unit link propose flow (operator side) + duplicate guard | `server.js`, `App.jsx` | Medium |
-| Unit link accept/decline flow (owner side) + notifications | `server.js`, `App.jsx` | Medium |
-| Owner invite flow (owner → operator) | `server.js`, `App.jsx` | Medium |
-| Extend `listings` table with operator-maintained fields | `schema.sql`, `server.js`, `App.jsx` | Low |
-| Status badges on unit cards (owner + operator view) | `App.jsx` | Low |
+| Unit link accept/decline flow (Payout Owner side) + notifications | `server.js`, `App.jsx` | Medium |
+| Payout Owner invite flow (owner → operator) | `server.js`, `App.jsx` | Medium |
+| Payout Owner: add/remove Calendar Owners for their unit | `server.js`, `App.jsx` | Medium |
+| Permission resolver: payout vs. calendar owner data scoping | `server.js` | Medium |
+| Extend `listings` table with operator-maintained fields + platform list | `schema.sql`, `server.js`, `App.jsx` | Low |
+| Status badges on unit cards (all owner views + operator view) | `App.jsx` | Low |
 | Email notifications for link/invite events | `server.js` | Low |
-| **Phase 1 total** | | **High (5–8 sessions)** |
+| **Phase 1 total** | | **High–Very High (6–9 sessions)** |
 
 ---
 

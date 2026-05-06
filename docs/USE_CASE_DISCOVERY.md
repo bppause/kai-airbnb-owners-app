@@ -58,18 +58,33 @@ The operator manages listings primarily on **Airbnb**. Other platforms (VRBO, Bo
 | Airbnb Role | KAI Role | Responsibilities |
 |---|---|---|
 | **Host** (primary) | **Operator** | Owns the listing, manages calendar and pricing, responds to guests, arranges cleaning, handles Airbnb relationship and AirCover claims |
-| **Co-Host** | **Owner** | Can view listing, calendar, and bookings; receives payout; approves significant changes; has limited Airbnb platform actions |
+| **Co-Host — Payout** | **Payout Owner** | Receives the owner's 85% payout; approves financial decisions (repairs, pricing); full thread participation on all request types |
+| **Co-Host — Calendar** | **Calendar Owner** | Views calendar and bookings only; no financial visibility; full thread participation on all request types |
+
+### Multiple Owners Per Unit (Updated Model)
+
+A single unit can have **multiple owners (co-hosts)**, each with a different access level:
+
+- **Payout Owner** — exactly one per unit. Receives the 85% payout. Has approval rights on financial requests (repairs above threshold, pricing proposals). Participates in all request threads.
+- **Calendar Owner** — one or more per unit. Can see the booking calendar, upcoming stays, and date blocks. Cannot see payout amounts, repair costs, or financial statements. Participates in all request threads.
+- **All owners** can read and reply in KAI request threads — mirroring their current WhatsApp group participation.
+
+**Open questions this raises (see section below):**
+- For requests requiring owner approval (repair, pricing), does only the Payout Owner approve, or can any owner approve?
+- If a Calendar Owner posts in a request thread, does the operator see them as a co-owner or as a separate contact?
+- Can a Calendar Owner initiate requests (e.g. task request to the operator), or is that Payout Owner only?
+- Can the 85% payout itself be split between multiple Payout Owners? (e.g. two siblings who co-own a unit)
 
 ### Revenue Split (Estimated Defaults — Editable Per Unit)
 
 | Party | Share | Covers |
 |---|---|---|
 | Operator (host) | ~15% of net payout | Listing management, guest communication, cleaning coordination, Airbnb relationship, issue resolution |
-| Owner (co-host) | ~85% of net payout | Unit ownership, capital expenditures |
+| Payout Owner(s) (co-host) | ~85% of net payout | Unit ownership, capital expenditures |
 
 **Net payout** = Guest total − Airbnb host service fee (~3%) − cleaning fee (pass-through or operator-retained — see open question below)
 
-KAI must track gross booking revenue, Airbnb fees, cleaning fees, and the 15/85 split per booking and per month, with the split percentage configurable per unit.
+KAI tracks gross booking revenue, Airbnb fees, cleaning fees, and the 15/85 split per booking. If the 85% is further split among multiple Payout Owners, KAI tracks each owner's sub-share. Split percentages are configurable per unit.
 
 ---
 
@@ -118,38 +133,45 @@ plus schema and config files loaded per session).
 
 ## Request Type Taxonomy
 
-Every item that flows through KAI maps to one of these types. These are the structured replacements for WhatsApp messages. Each type has a defined initiator, recipient, SLA, and resolution path.
+Every item that flows through KAI maps to one of these types. These are the structured replacements for WhatsApp messages. Each type has a defined initiator, recipients, SLA, and resolution path.
 
-### Operator → Owner (owner must respond or be informed)
-
-| Type | WhatsApp equivalent | SLA | Owner action required |
-|---|---|---|---|
-| **Repair approval** | "AC broken, $150 to fix, ok?" | 4h urgent / 24h standard | Approve / Reject / Ask for quote |
-| **Repair FYI** (below threshold) | "Fixed the door hinge, $8" | None | Acknowledge (optional) |
-| **Guest issue — urgent** | "Guest locked out at 11pm" | 1h | Aware / Authorize if needed |
-| **Guest issue — standard** | "Guest says Wi-Fi slow, I reset router, fixed" | 4h | Acknowledge |
-| **Booking notification** | "New booking — 4 guests Jan 15–18, $480 net" | None | Aware |
-| **Booking special request** | "Guest asks to bring a dog, ok?" | 2h | Approve / Decline |
-| **Pricing proposal** | "I think we should raise Dec rate to $200, up from $170" | 48h | Confirm / Counter / Reject |
-| **Peak period proposal** | "Adding Carnaval Feb 28–Mar 4 at +25%" | 48h | Confirm / Counter / Reject |
-| **AirCover / damage alert** | "Guest left damage, filing AirCover claim" | 24h | Aware / Co-authorize |
-| **Payout statement** | "Here's February — 3 bookings, your share is $1,240" | None | Acknowledge / Dispute |
-| **Utility bill** | [photo of electricity bill] | 5 days | Acknowledge / Dispute |
-| **General update** | "Unit is ready for next guest" | None | Aware |
+**Owner visibility rules per type:**
+- **Payout Owner** — sees everything, has approval rights on financial items
+- **Calendar Owner** — sees calendar-related items and all request threads; financial amounts are hidden (repair cost, payout amounts shown as "—")
+- **All owners** — can post replies in any request thread for their unit, mirroring WhatsApp group participation
 
 ---
 
-### Owner → Operator (operator must act or respond)
+### Operator → Owners (owners respond or are informed)
 
-| Type | WhatsApp equivalent | SLA | Operator action required |
-|---|---|---|---|
-| **Task request** | "Can you check the unit and send photos?" | 24h | Acknowledge → Complete → Photo proof |
-| **Calendar block** | "Block Dec 22–28 for my family visit" | 24h | Confirm → Apply on Airbnb |
-| **Pricing proposal** | "I want to raise the base rate to $160" | 48h | Confirm / Counter / Reject |
-| **Peak period proposal** | "Add Semana Santa at +30%" | 48h | Confirm / Counter / Reject |
-| **Listing change request** | "Update the house rules to add pool hours" | 48h | Confirm → Apply → Mark done |
-| **Document request** | "Send me last month's electricity bill" | 24h | Upload document |
-| **General question** | "How was the last checkout?" | 4h | Reply |
+| Type | WhatsApp equivalent | SLA | Who must act | Calendar Owner sees? |
+|---|---|---|---|---|
+| **Repair approval** | "AC broken, $150 to fix, ok?" | 4h urgent / 24h standard | Payout Owner approves; others see thread | Yes, cost hidden |
+| **Repair FYI** (below threshold) | "Fixed the door hinge, $8" | None | Optional acknowledge | Yes, cost hidden |
+| **Guest issue — urgent** | "Guest locked out at 11pm" | 1h | All owners notified; Payout Owner authorizes if needed | Yes |
+| **Guest issue — standard** | "Guest says Wi-Fi slow, I reset router, fixed" | 4h | All owners informed | Yes |
+| **Booking notification** | "New booking — 4 guests Jan 15–18, $480 net" | None | All owners see dates/guests; payout amount to Payout Owner only | Yes, amount hidden |
+| **Booking special request** | "Guest asks to bring a dog, ok?" | 2h | Payout Owner approves; others can comment | Yes |
+| **Pricing proposal** | "Raise Dec rate to $200, up from $170" | 48h | Payout Owner confirms/counters/rejects | Yes, can comment |
+| **Peak period proposal** | "Adding Carnaval Feb 28–Mar 4 at +25%" | 48h | Payout Owner confirms/counters/rejects | Yes, can comment |
+| **AirCover / damage alert** | "Guest left damage, filing AirCover claim" | 24h | All owners notified; Payout Owner co-authorizes | Yes |
+| **Payout statement** | "Here's February — 3 bookings, your share is $1,240" | None | Payout Owner acknowledges/disputes | No (financial) |
+| **Utility bill** | [photo of electricity bill] | 5 days | Payout Owner acknowledges/disputes | No (financial) |
+| **General update** | "Unit is ready for next guest" | None | All owners informed | Yes |
+
+---
+
+### Owner → Operator (any owner can initiate; operator acts)
+
+| Type | WhatsApp equivalent | SLA | Operator action | Who can initiate |
+|---|---|---|---|---|
+| **Task request** | "Can you check the unit and send photos?" | 24h | Acknowledge → Complete → Photo proof | Any owner |
+| **Calendar block** | "Block Dec 22–28 for my family visit" | 24h | Confirm → Apply on Airbnb | Any owner |
+| **Pricing proposal** | "I want to raise the base rate to $160" | 48h | Confirm / Counter / Reject | Payout Owner only |
+| **Peak period proposal** | "Add Semana Santa at +30%" | 48h | Confirm / Counter / Reject | Payout Owner only |
+| **Listing change request** | "Update the house rules to add pool hours" | 48h | Confirm → Apply → Mark done | Any owner |
+| **Document request** | "Send me last month's electricity bill" | 24h | Upload document | Payout Owner only |
+| **General question** | "How was the last checkout?" | 4h | Reply | Any owner |
 
 ---
 
@@ -600,11 +622,19 @@ Ranked by how often it breaks down in a WhatsApp group and the cost of that fail
 
 ## Questions That Must Be Answered Before Building
 
+### Block Phase 1 (unit linking — multi-owner model)
+- **MO-1** — Can the 85% owner payout be split among multiple Payout Owners? (e.g. two siblings co-own, each gets 42.5%) If yes, KAI needs a per-owner share field.
+- **MO-2** — When a Payout Owner must approve a request (repair, pricing), can a Calendar Owner also approve on their behalf, or is approval strictly the Payout Owner?
+- **MO-3** — Can a Calendar Owner add other Calendar Owners, or can only the Payout Owner manage the owner roster for a unit?
+- **MO-4** — If a Payout Owner removes a Calendar Owner, do they lose access immediately? Are they notified?
+- **MO-5** — Should the operator see which owners are Payout vs. Calendar in the thread, or do all owners appear identically?
+
 ### Block Phase 3 (service requests / inbox core)
 - **D** — Does Instant Book require owner notification, or is it fully silent?
-- **SLA-1** — For guest urgent issues, if the operator hasn't responded in 1 hour, does KAI alert the owner directly?
-- **SLA-2** — Who configures SLA thresholds — the global admin only, or can each owner/operator pair customize their own?
+- **SLA-1** — For guest urgent issues, if the operator hasn't responded in 1 hour, does KAI alert all owners or only the Payout Owner?
+- **SLA-2** — Who configures SLA thresholds — the global admin only, or can each owner/operator group customize their own?
 - **TEAM-1** — Do team members log in with their own Google account, or does the operator assign tasks without team members having KAI accounts?
+- **THREAD-1** — When a Calendar Owner replies in a request thread (e.g. repair approval), is their reply informational only, or can it count as the approval action?
 
 ### Block Phase 5 (pricing)
 - **G** — Is Airbnb Smart Pricing on/off subject to bidirectional confirmation, or operator's call?
