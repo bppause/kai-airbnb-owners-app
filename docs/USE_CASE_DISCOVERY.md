@@ -6,6 +6,32 @@
 
 ---
 
+## Platform & Revenue Model (Locked)
+
+### Airbnb as Primary Platform
+
+The operator manages listings primarily on **Airbnb**. Other platforms (VRBO, Booking.com, direct booking) are supported by allowing the owner to register which platforms their unit is listed on — but Airbnb is the reference model for all host/co-host workflows.
+
+### Host / Co-Host Role Mapping
+
+| Airbnb Role | KAI Role | Responsibilities |
+|---|---|---|
+| **Host** (primary) | **Operator** | Owns the listing, manages calendar and pricing, responds to guests, arranges cleaning, handles Airbnb relationship and AirCover claims |
+| **Co-Host** | **Owner** | Can view listing, calendar, and bookings; receives payout; approves significant changes; has limited Airbnb platform actions |
+
+### Revenue Split (Estimated Defaults — Editable Per Unit)
+
+| Party | Share | Covers |
+|---|---|---|
+| Operator (host) | ~15% of net payout | Listing management, guest communication, cleaning coordination, Airbnb relationship, issue resolution |
+| Owner (co-host) | ~85% of net payout | Unit ownership, capital expenditures |
+
+**Net payout** = Guest total − Airbnb host service fee (~3%) − cleaning fee (pass-through or operator-retained — see open question below)
+
+KAI must track gross booking revenue, Airbnb fees, cleaning fees, and the 15/85 split per booking and per month, with the split percentage configurable per unit.
+
+---
+
 ## Claude Max Plan — Token Usage Estimates Per Phase
 
 ### How to read these estimates
@@ -34,10 +60,10 @@ plus schema and config files loaded per session).
 | 2 — Operator dashboard | 4–6 | 130K | 570K | 4–19% |
 | 3 — Service requests + work orders | 8–12 | 265K | 1,140K | 9–38% |
 | 4 — Scheduling + owner blocks | 5–7 | 165K | 665K | 5–22% |
-| 5 — Pricing log + approvals | 4–6 | 130K | 570K | 4–19% |
+| 5 — Pricing log + bidirectional confirmation | 6–8 | 200K | 760K | 6–25% |
 | 6 — Documents + compliance | 3–4 | 100K | 380K | 3–13% |
 | 7 — Staff task management | 3–5 | 100K | 475K | 3–15% |
-| **Full build total** | **35–53** | **~1.2M** | **~5.0M** | **40–165%** |
+| **Full build total** | **37–55** | **~1.2M** | **~5.2M** | **40–170%** |
 
 **Prototype only (Phases 0–2):** ~400K–1.8M tokens — fits comfortably within one $100/month cycle if sessions are focused and well-scoped.
 
@@ -51,271 +77,402 @@ plus schema and config files loaded per session).
 
 ## Use Case Discovery — Comprehensive Question Set
 
-Organized by the topic categories drawn from real owner-operator WhatsApp experience.
-Answer these before or during prototype build. Each answer directly informs a feature scope decision.
+Organized by topic. All scenarios are grounded in the Airbnb host (operator) / co-host (owner) relationship. Answer these before or during prototype build.
 
 ---
 
-### 1. Building Administration
+### 1. Platform & Listing Setup
 
-*Info the building/community pushes to owners and operators — rule changes, maintenance windows, notices.*
+*Which platforms the unit is listed on, and how the host/co-host relationship is established on each.*
 
-**What gets shared:**
-- What types of building notices arrive today via WhatsApp? (scheduled maintenance, water shutoffs, elevator repairs, security updates, parking rules, HOA meeting minutes, fee changes)
-- Are building notices the same for all unit owners, or are some targeted (e.g. only units on floor 5)?
-- Does the operator need to see building notices, or only the owner? If both, do they need separate acknowledgment?
+**Platform registration (per unit):**
+- Is Airbnb the only active platform, or does your operator also list on VRBO, Booking.com, or a direct booking site?
+- For each platform beyond Airbnb, does the same 15/85 split apply, or is it negotiated separately?
+- Should KAI track bookings from non-Airbnb platforms manually (operator enters the booking), or is automation expected later?
 
-**Who creates and sends:**
-- Does the building/HOA send notices directly, or does the KAI admin relay them?
-- Can operators ever create building-scoped notices, or is that admin-only?
+**Airbnb co-host setup:**
+- Is the owner already added as a co-host on Airbnb today, or does the operator manage the listing exclusively?
+- What co-host permissions does the owner currently have on Airbnb? (full access, calendar only, view only)
+- Should KAI mirror the Airbnb co-host permission model, or define its own visibility rules independently?
 
-**Urgency and acknowledgment:**
-- Are some notices urgent (24h water shutoff) vs. informational (quarterly report)?
-- Does the owner or operator need to confirm they've read it?
-- If the operator doesn't acknowledge within X hours, should the owner be alerted?
+**Listing ownership:**
+- Is the Airbnb account in the operator's name, the owner's name, or a shared business account?
+- If the operator relationship ends, what happens to the Airbnb listing? (transferred to owner, deactivated, re-listed under new operator)
+- Does this transition need to be tracked inside KAI?
 
-**Operator sharing:**
-- When the operator shares building info with their cleaning/maintenance team, does that happen inside KAI or via WhatsApp still?
-- Should the operator be able to forward a KAI notice to a staff member with a single tap?
-
----
-
-### 2. Repairs
-
-*Maintenance and repair requests, cost approval, vendor coordination, invoice archiving.*
-
-**Initiation:**
-- Who most often identifies a repair need — the operator (after a guest leaves), the owner (remote inspection), or the community building (common area adjacent)?
-- Can a guest report a repair need, or only operator/owner?
-- Are repairs always linked to a specific incident, or are many proactive/routine?
-
-**Approval:**
-- What cost threshold today triggers an owner approval request? (e.g. anything over $50,000 COP)
-- Is there a threshold below which the operator can proceed without asking?
-- Do you want a hard approval gate (work cannot start until owner taps "Approve") or a soft one (operator proceeds and owner is notified)?
-- Does the owner ever want to get multiple quotes before approving?
-
-**Vendors:**
-- Does your operator use a regular set of vendors (plumber, electrician, locksmith)?
-- Should KAI maintain a vendor list per community with contact info?
-- Should the owner be able to specify preferred vendors, or does the operator choose?
-
-**Invoices and payment:**
-- How are invoices shared today? WhatsApp photo? Email?
-- Who pays the vendor — operator pays and charges back to owner, or owner pays directly?
-- If operator advances the cost, how is reimbursement tracked?
-- Are utility-linked repairs (e.g. water leak → high water bill) connected in your current process?
-
-**Recurring repairs:**
-- Are there repairs that repeat (AC filter every 3 months, deep clean annually)?
-- Should these be schedulable as recurring service requests?
+**Superhost status:**
+- Is your operator a Superhost on Airbnb?
+- Does Superhost status affect the agreed split (operator earns it through performance)?
+- Should KAI surface a warning if actions (late responses, cancellations) put Superhost status at risk?
 
 ---
 
-### 3. Guest Issues, Requests & Feedback
+### 2. Bookings — Visibility & Notification
 
-*Anything a guest raises during a stay that reaches the operator and may reach the owner.*
+*How bookings flow from Airbnb to both parties, and what each needs to see.*
 
-**Issue types (rank which are most common for you):**
-- Access/key problems (lockout, lost key, keypad failure)
-- AC/heating not working
+**Booking visibility:**
+- Does the owner currently see new bookings on Airbnb as a co-host, or only when the operator tells them?
+- Should every new confirmed booking generate a KAI notification to the owner with: guest name (or first name only), check-in/check-out dates, number of guests, payout amount?
+- For Instant Book listings, is the owner comfortable not approving individual bookings, or should they see a notification within X hours of each new booking?
+
+**Booking types and handling:**
+- Does your listing use **Instant Book** (auto-confirm) or **Request to Book** (operator manually accepts)?
+- For Request to Book: does the operator discuss with the owner before accepting, or does the operator decide independently?
+- Are there guest profiles the owner wants the operator to decline (e.g. first-time Airbnb users, no reviews, large groups)?
+
+**Special requests from guests:**
+- Early check-in (before standard 3pm): who approves — operator independently, or does it need owner awareness?
+- Late check-out (past standard 11am): same question
+- Long-stay discount request: who handles (see Pricing section)
+- Bringing pets (not in listing): operator decision, or owner must approve?
+- Additional guests beyond listing capacity: operator or owner decides?
+- "Can I have a birthday party?": how is this typically handled?
+
+**Booking modifications:**
+- If a guest wants to change their dates after booking, who handles the modification on Airbnb?
+- Should the owner be notified of booking modifications, or only the initial booking and final payout?
+
+**Cancellations:**
+- What is your current cancellation policy on Airbnb? (Flexible, Moderate, Firm, Strict)
+- If a guest cancels, does the owner want to be notified immediately? What data (refund amount, dates freed)?
+- Has the operator ever needed to cancel a booking on the host side? What happened? (Airbnb penalizes host cancellations — loss of payout, calendar block, possible listing suppression)
+- Should KAI log host-initiated cancellations with a required reason, since they carry consequences?
+
+---
+
+### 3. Guest Communication & Issues
+
+*Anything a guest raises during inquiry, before arrival, during stay, or after checkout.*
+
+**Pre-arrival messaging (on Airbnb):**
+- Who currently sends the welcome/check-in instructions message to guests — operator, or automated Airbnb message?
+- Does the owner ever want to send a personal message to guests (as co-host)?
+- Are check-in instructions stored somewhere structured today, or embedded in Airbnb messages?
+
+**During-stay issue types (rank by frequency):**
+- Access/entry problems (lockout, keypad failure, lost key)
+- AC not cooling or broken
 - Hot water failure
-- Wi-Fi down
-- Noise complaint (from or about the unit)
-- Missing amenity (no towels, broken appliance)
-- Early check-in / late check-out request
-- Guest damage report (pre or post stay)
-- Guest complaint about building/community (pool, elevator, parking)
+- Wi-Fi down or slow
+- Noise complaint against the unit (building or neighbor reports)
+- Noise complaint from the unit about building (guest complains)
+- Missing or broken amenity (no towels, broken appliance, TV not working)
+- Cleanliness issue on arrival (previous guest left mess, cleaning not completed)
+- Pest (cockroach, ant, mosquito)
+- Guest requests additional items (extra towels, pillows, kitchen supplies)
+- Guest locked out after losing key or changing code
+- Guest reports damage they caused (proactive disclosure)
+- Guest reports pre-existing damage on arrival (protecting themselves)
+- Power/utilities outage (building-wide vs. unit-only)
 
-**Notification threshold:**
-- For which issue types does the owner want to be notified immediately vs. after resolution?
-- Are there issues the operator should always handle silently (minor, routine)?
-- Should the owner receive a daily or weekly summary of guest issues even if none required immediate action?
+**Notification threshold (per issue type):**
+- Which issue types should always alert the owner immediately (within minutes)?
+- Which should the operator resolve silently and just log in KAI?
+- Which should be summarized in a daily or per-stay digest?
+- Should the owner be able to configure their own threshold per issue type?
 
-**Feedback:**
-- Does the operator currently share guest feedback (positive/negative) with you after a stay?
-- Is feedback tied to a specific stay date?
-- Would you want feedback captured in KAI to track patterns over time (e.g. "AC complaints in July every year")?
-- Should 5-star / 4-star / negative review outcomes be logged against the unit?
+**Issue response on Airbnb:**
+- When the operator responds to a guest complaint through Airbnb's resolution center, should that be logged in KAI?
+- If a guest contacts Airbnb support directly (bypassing the host), does the operator know? Should KAI have a way to log this?
 
-**Operator response:**
-- When the operator resolves a guest issue, do you want to see what action they took?
-- Is there a case where you (the owner) need to be the one to resolve something directly with the guest?
+**AirCover & Damage Claims:**
+- Has your operator ever filed an AirCover damage claim?
+- Who initiates the claim on Airbnb — operator always, or could the owner file it?
+- The AirCover claim window is 14 days after checkout (or before next guest check-in). Should KAI prompt the operator to inspect and file within this window?
+- If a damage claim payout is received, how does it factor into the 15/85 split? (Full payout to owner? Split? Operator absorbs repair cost then claims?)
+- Should damage photos taken at check-out be linked directly to an AirCover claim record in KAI?
+
+**Guest feedback & reviews:**
+- Does the operator currently share Airbnb review text with you after each stay?
+- Should KAI capture the star rating (overall, cleanliness, accuracy, communication, location, value) per stay?
+- If a guest leaves a negative review, does the owner want to draft the host response, or does the operator handle it?
+- Should KAI track review score trends over time to surface patterns (e.g. cleanliness score dropping, linked to cleaning staff change)?
+- Airbnb allows one host response per review — if both operator and owner have opinions, who has final say?
 
 ---
 
-### 4. Pricing — Base Rate, Peak Schedules & Markup
+### 4. Calendar Management
 
-*Either party (owner or operator) can propose base pricing or peak period/schedule changes. The other party must confirm before any change is implemented. This is a locked design decision.*
+*Blocking dates, minimum stays, advance notice, and coordination between Airbnb availability and real-world events.*
+
+**Owner personal use:**
+- How often do you block dates for personal use? (monthly, seasonally, ad hoc)
+- Does the owner block dates directly on Airbnb as co-host, or request the operator to do it?
+- How far in advance do personal-use blocks typically get set?
+- Does the owner want the unit prepared differently for personal use vs. guest stays (welcome bag, specific amenities)?
+- If an owner block conflicts with an existing booking, who resolves it and how?
+
+**Operator-initiated blocks:**
+- Does the operator ever block dates for maintenance, deep cleaning, or renovation?
+- Should operator-initiated blocks require owner awareness (notification) or approval (confirmation)?
+- How much advance notice is typical for a maintenance block?
+
+**Minimum stay rules:**
+- Does your listing have different minimum stays by season? (e.g. 2 nights standard, 3 nights peak, 7 nights December)
+- Who proposes minimum stay changes — owner, operator, or either with bidirectional confirmation (same as pricing)?
+
+**Advance notice:**
+- What is the current advance notice setting on Airbnb? (how far in advance guests can book)
+- Has there ever been a booking that came in with too little lead time for the operator to prepare? What happened?
+
+**Preparation time:**
+- What preparation/turnaround time is set between bookings?
+- Is this always the same, or does it vary (e.g. longer after long stays)?
+
+---
+
+### 5. Pricing — Bidirectional Confirmation Required
+
+*Either party (owner or operator) can propose. The other must confirm before any change is implemented. Locked design decision.*
 
 **Confirmed workflow:**
-- Owner proposes → operator must confirm before it takes effect
-- Operator proposes → owner must confirm before it takes effect
-- Neither party can unilaterally apply a pricing change
-- All proposals, counter-proposals, confirmations, and rejections are logged immutably with timestamp and actor
+- Owner proposes → operator must confirm before it takes effect on Airbnb
+- Operator proposes → owner must confirm before it takes effect on Airbnb
+- All proposals, counter-proposals, confirmations, and rejections are logged immutably
 
-**Current process:**
-- How do pricing change conversations happen today? (owner messages operator, operator messages owner, or both?)
-- How often does each party initiate changes? (weekly dynamic, monthly, seasonally)
-- Do you use percentage markup (e.g. "+20% for Carnaval"), absolute amounts, or both?
-- Has the operator ever proposed a price change you disagreed with? What happened?
+**Airbnb pricing tools in scope:**
+- Base nightly rate (weekday)
+- Weekend pricing (Friday and Saturday nights)
+- Weekly discount (% off for 7+ night stays) — owner or operator proposes, other confirms
+- Monthly discount (% off for 28+ night stays) — same confirmation flow
+- Custom date pricing (override for specific dates, e.g. New Year's Eve)
+- Seasonal / peak period pricing (date range + multiplier or absolute amount)
+- Cleaning fee (flat per booking — see split question below)
+- Extra guest fee (per person above base occupancy)
+- Smart Pricing on/off (Airbnb dynamic pricing — does owner want to allow or always use manual?)
 
-**Pricing structure:**
-- What is your current pricing model? (base nightly rate + weekday/weekend split + seasonal peaks?)
-- Which peak periods apply to your unit? (Carnaval, Semana Santa, December, long weekends, local holidays)
-- Is the peak period defined by a fixed calendar (same dates every year) or does it shift annually?
-- Do you set a price floor (minimum below which you never want to price regardless of who proposes)?
-- Is cleaning fee included in the per-night rate or listed separately? Does it change with season?
+**Pricing structure questions:**
+- What is the current weekday base rate and weekend premium?
+- Which peak periods are active? (Carnaval, Semana Santa, December, local long weekends)
+- Are peak period dates fixed annually or adjusted each year?
+- Do you use Airbnb Smart Pricing currently? If yes, do you set a floor and ceiling?
+- Do you apply weekly or monthly discounts for long stays?
+- What is the current cleaning fee? Does it change by season or stay length?
+- Is there an extra guest fee? At what occupancy threshold?
 
-**Proposal workflow detail:**
-- When either party proposes, should the other party receive both an email notification and an in-app badge?
-- Should the proposing party be able to include a note/reason with their proposal? (e.g. "Carnaval demand up 30% vs last year")
-- Is counter-proposal needed? (e.g. operator proposes $180/night → owner counter-proposes $165/night → operator confirms)
-- How quickly must the receiving party confirm? Is there a timeout after which the proposal expires or auto-approves?
-- If no response within 48 hours, should the proposal expire (safer) or auto-approve (faster)?
-- Can a proposal be withdrawn by the proposer before the other party responds?
+**Cleaning fee split question (open):**
+- Does the 15% operator cut include cleaning services rendered (operator keeps cleaning fee to cover their cost), or is the cleaning fee passed through to the owner and cleaning cost paid separately?
+- This directly affects how KAI calculates owner payout per booking.
 
-**Peak period / schedule specifics:**
-- Is a "peak period" just a date range + multiplier, or does it have more fields? (name, minimum stay, different rates for weekday vs. weekend within peak)
-- Who owns the peak calendar — owner defines the periods, operator applies rates? Or fully shared?
-- If an operator wants to add a new peak period (e.g. a new local festival), does that require owner confirmation the same as a rate change?
-- Can the same unit have multiple overlapping peak rules? How are conflicts resolved?
+**Proposal workflow:**
+- When either party proposes, should the other receive an email + in-app badge?
+- Should proposals include a required note/reason? (e.g. "Carnaval demand up vs. last year")
+- Counter-proposal supported: recipient can propose an alternative amount instead of accept/reject
+- Timeout: if no response in 48 hours, proposal expires (or auto-approves — which do you prefer?)
+- Proposer can withdraw before the other party responds
 
-**Platform updates:**
-- After a change is confirmed, who actually updates Airbnb/VRBO? Operator, owner, or shared?
-- Should the confirming party be required to log "Updated on Airbnb: ✓" inside KAI to close the loop?
-- Would an iCal or Airbnb API sync (automatic price push) be valuable, or is manual update acceptable for now?
-
-**History and disputes:**
-- Have you ever had a disagreement with your operator about what price was agreed?
-- How far back do you need pricing history to be queryable? (1 year? full history?)
-- Should the pricing history be exportable (CSV, PDF) for tax or accounting purposes?
+**After confirmation:**
+- Who updates Airbnb after a change is confirmed? Operator always? Either party?
+- Should KAI require an "Applied on Airbnb ✓" confirmation to close the loop?
+- Future: Airbnb API direct push (no manual step needed)
 
 ---
 
-### 5. Owner General Requests
+### 6. Financial Tracking & Payouts
 
-*Ad hoc requests from owner to operator that don't fit a specific category.*
+*How Airbnb payouts flow, how the split is calculated, and what reporting each party needs.*
 
-**Common types (from WhatsApp experience):**
-- "Can you check on the unit this week?"
-- "Please make sure the balcony furniture is put away before the storm"
-- "A friend is arriving Thursday — can you leave a welcome bag?"
-- "Can you coordinate with the building about the parking sticker renewal?"
-- "Send me the current photo of the unit"
+**Airbnb payout mechanics:**
+- Airbnb pays out to the host (operator) approximately 24 hours after guest check-in
+- Payout = (nightly rate × nights) + cleaning fee − Airbnb host service fee (~3%)
+- Who is the Airbnb payout account — operator's bank account? Owner's? Business account?
+- If operator receives the full payout: how does the 85% remittance to the owner currently happen? (bank transfer, cash, third-party)
+- Is there a regular cadence for remittance? (monthly, after each booking, on the 1st of each month)
 
-**Workflow questions:**
-- Should general requests have a status (sent → acknowledged → done)?
-- Do you want photo confirmation when a task is complete?
-- Should these be categorized, or free-form text with optional photo?
-- What's the typical response time you expect from your operator?
-- Should overdue requests (no acknowledgment in X hours) send you a nudge?
+**Split calculation questions:**
+- Does the 15/85 split apply to the gross Airbnb payout (before Airbnb fee) or net (after Airbnb fee)?
+- Is the cleaning fee included in the split, or does the operator keep it fully to cover cleaning cost?
+- If a guest cancels and receives a partial refund, is the operator's 15% calculated on the amount actually paid out?
+- Are long-stay discounts factored into the split as a reduction, or does the operator absorb them from their 15%?
+
+**Per-booking record KAI should track:**
+- Guest first name (or anonymized)
+- Check-in and check-out dates
+- Number of nights
+- Number of guests
+- Gross nightly revenue
+- Cleaning fee
+- Airbnb host service fee (deducted)
+- Net payout from Airbnb
+- Operator share (15% × net or configured %)
+- Owner share (85% × net or configured %)
+- Platform (Airbnb / VRBO / other)
+- Booking source (Instant Book / Request / direct)
+- Status (upcoming / active / completed / cancelled)
+
+**Monthly summary:**
+- Should KAI generate a monthly statement per unit showing: bookings, gross revenue, fees, net payout, operator share, owner share?
+- Should the statement be locked (owner sees it, operator cannot edit after the close period)?
+- Does the owner need a year-to-date view for tax purposes?
+- Should statements be exportable as PDF or CSV?
+
+**Remittance tracking:**
+- Should KAI track when the operator has remitted the owner's 85%? (operator marks "Sent", owner marks "Received")
+- Should there be a dispute mechanism if the owner believes the remittance amount is wrong?
 
 ---
 
-### 6. Listing Information & Photos
+### 7. Repairs & Maintenance
 
-*Managing the Airbnb/VRBO listing content — description, amenities, photos.*
+*Maintenance and repair requests tied to unit condition and guest stays.*
 
-**Current ownership:**
-- Who currently manages the Airbnb listing — you, the operator, or both?
-- Do you log in to Airbnb directly, or do you have the operator update it?
+**Initiation:**
+- Who most often identifies a repair need — operator (after guest departure), owner (remote observation), or guest (during stay)?
+- Can a guest-reported issue during a stay auto-create a service request in KAI?
+- Are repairs always linked to a specific stay, or are many proactive/routine?
 
-**Change requests:**
-- What listing fields do you most commonly need to update? (title, description, house rules, amenities checklist, check-in instructions, photos)
-- How often are photos refreshed? (seasonally, after renovation, after damage repair)
-- Is the operator responsible for taking new photos, or do you hire a photographer?
+**Approval and cost:**
+- What cost threshold requires owner approval before work starts? (e.g. anything over $50,000 COP / ~$12 USD)
+- Below that threshold, can the operator proceed and log it in KAI after?
+- Hard gate (work cannot start until owner approves) vs. soft gate (operator proceeds, owner notified)?
+- Does the owner want to see quotes before approving larger repairs?
 
-**Approval workflow:**
-- If the operator proposes a listing change (new house rule, updated description), do you want to approve it before it goes live?
-- Should there be a version history of listing changes so you can roll back?
+**Repair cost and the split:**
+- Are repair costs deducted from the owner's 85% payout, or billed separately to the owner?
+- If a repair is caused by guest damage, is the cost recovered from AirCover before billing the owner?
+- If the operator advances the repair cost, how is reimbursement tracked against future payouts?
 
-**Compliance:**
-- Are there specific house rules required by your community (HOA rules, noise curfews, pool hours) that must always appear in the listing?
-- Does the building or HOA have any listing restrictions (e.g. max occupancy limits)?
+**Vendors:**
+- Does your operator have a regular set of vendors (plumber, electrician, locksmith, AC tech)?
+- Should KAI maintain a vendor list per unit or community with contact info and typical rates?
+- Should the owner be able to specify preferred vendors, or does the operator choose?
+
+**Recurring maintenance:**
+- Are there recurring scheduled tasks? (AC filter every 3 months, deep clean annually, water heater flush)
+- Should these be schedulable in KAI as recurring service requests with reminders?
 
 ---
 
-### 7. Unit Bills & Utilities
+### 8. Listing Content & Photos
 
-*Electricity, water, gas, internet, building fees — tracking, sharing, and dispute resolution.*
+*Managing the Airbnb listing — what each party can propose and what requires the other's confirmation.*
+
+**Airbnb listing fields in scope:**
+- Listing title
+- Description (short and long)
+- Space details (bedrooms, bathrooms, beds, max guests)
+- Amenities checklist (pool access, parking, hot water, AC units, washer/dryer, etc.)
+- House rules (noise curfew, no smoking, no parties, pet policy, check-in window)
+- Check-in instructions (access code, key location, building entry)
+- Check-out instructions
+- Photos (add, remove, reorder, set cover photo)
+- Cancellation policy
+- Instant Book on/off
+
+**Change workflow:**
+- Should listing content changes follow the same bidirectional proposal/confirmation flow as pricing, or is it more permissive (operator can update most fields, owner notified)?
+- Are there specific fields the owner always wants to approve? (house rules, max guests, cancellation policy, Instant Book toggle)
+- Should there be a version history of listing changes so either party can see what changed and when?
+
+**Community compliance:**
+- Are there HOA-mandated house rules (pool hours, noise curfew, parking limits) that must always appear in the listing?
+- Should KAI flag if a proposed listing update would remove a required community rule?
+- Does the building have a maximum occupancy per unit that the listing must not exceed?
+
+**Photos:**
+- Who is responsible for photography — operator takes photos, owner hires a photographer, or shared?
+- How often are photos refreshed? (after renovation, after damage repair, seasonally)
+- Should KAI store approved photo sets per unit, separate from what's live on Airbnb?
+
+---
+
+### 9. Building Administration & Community Notices
+
+*Info from the building/HOA that affects the unit and operator's day-to-day.*
+
+**What gets shared:**
+- What types of building notices arrive via WhatsApp today? (water shutoffs, elevator maintenance, pool closures, security updates, parking rules, HOA fees, meeting minutes)
+- Are some notices unit-specific (floor 5 only) vs. building-wide?
+- Do building notices affect Airbnb listing accuracy? (e.g. pool closed for 2 weeks → should listing reflect this?)
+
+**Who creates and sends:**
+- Does the building/HOA notify directly, or does the KAI admin relay?
+- Should operators be able to create a "building notice" to share with their own team?
+
+**Urgency and acknowledgment:**
+- Are some notices urgent (same-day water shutoff) vs. informational (quarterly report)?
+- Should the operator be required to acknowledge urgent notices? Should the owner be alerted if they don't?
+- If a building notice affects an active guest stay (e.g. pool closed during their booking), should KAI prompt the operator to message the guest on Airbnb?
+
+---
+
+### 10. Unit Bills & Utilities
+
+*Electricity, water, gas, internet, cuota de administración — tracking and dispute prevention.*
 
 **Which bills:**
-- Which utilities does the owner pay? Which does the operator advance?
-- Is electricity billed separately to the unit, or shared/averaged across the building?
+- Which utilities are in the owner's name vs. the operator's?
+- Is electricity billed per unit (sub-meter) or averaged across the building?
 - Does internet have a separate bill or is it included in building fees?
-- Are there platform/service fees (Airbnb host fee, OTA commission) tracked here or separately?
+- What is the monthly cuota de administración? Is it fixed or variable?
 
-**Current process:**
-- How does the operator share utility bills today? Photo on WhatsApp? Email?
-- Are there months where you've questioned a bill amount (unusually high electricity, etc.)?
-- Is there a process for comparing bill amounts month-over-month?
+**Bill sharing and tracking:**
+- How does the operator share bills today? WhatsApp photo? Email forward?
+- Should the operator be required to upload bill photos or PDFs to KAI monthly?
+- Are bills deducted from the owner's payout, or billed separately?
 
-**Linking bills to events:**
-- When a guest causes abnormally high usage (e.g. left AC on constantly), do you want that linked to the stay in KAI?
-- Should the operator be required to note a reason for any bill that is more than X% above the prior month?
-
-**Payment tracking:**
-- Do you want to track which bills have been paid vs. outstanding?
-- Should the system alert you when a bill is due or overdue?
-- Is there a building administration fee (cuota de administración) that is monthly and recurring?
+**Anomaly detection:**
+- Has an unusually high electricity bill ever been a source of dispute?
+- Should KAI flag any utility bill more than X% above the rolling 3-month average?
+- If a bill spike correlates with a guest stay, should KAI surface that connection?
 
 ---
 
-### 8. Other Topics Observed in WhatsApp (Confirm/Expand)
+### 11. Owner General Requests
 
-*Topics that commonly appear in owner-operator chats but may not fit the above categories.*
+*Ad hoc tasks the owner asks of the operator that don't fit a category.*
 
-**Key handoffs and access:**
-- Does your operator manage physical keys, smart locks, or a combination?
-- Are there key/access code changes needed between guests? Is this logged?
-- Do you want the owner to be notified every time an access code is changed?
+**Common types from WhatsApp:**
+- "Can you check on the unit this week and send photos?"
+- "Please secure the balcony furniture before the storm"
+- "A friend arrives Thursday — please leave a welcome bag"
+- "Coordinate with the building about renewing the parking sticker"
+- "The building sent a notice about the elevator — please acknowledge it"
 
-**Guest check-in and check-out:**
-- Does the operator or a staff member physically attend check-in?
-- Is there a check-in report (condition, missing items, initial photos)?
-- Is there a check-out report? Who does it? How quickly after guest departure?
-
-**Damage and disputes:**
-- If a guest causes damage, what is the current process? (Airbnb resolution center, direct charge, absorbed by operator)
-- Should damage reports link to a service request for repair, to a listing incident, and to the guest stay record, all at once?
-- Have you had a case where the operator and owner disagreed about whether damage was pre-existing?
-
-**Owner visits (personal use):**
-- How often do you visit your own unit?
-- Do you notify the operator in advance via WhatsApp today?
-- Do you need the unit prepared differently for personal use vs. guest arrival?
-
-**Financial reporting:**
-- Do you currently receive a monthly revenue/expense summary from your operator?
-- What format — WhatsApp message, PDF, spreadsheet?
-- What line items matter most: gross revenue, net after fees, operating costs, net to owner?
-- Would you want a KAI-generated monthly statement the operator cannot edit after you've seen it?
-
-**Operator communication style:**
-- Are most of your operator messages time-sensitive (need reply within hours) or async (next day is fine)?
-- Are there things your operator currently over-communicates (you don't need to know) vs. under-communicates (you wish they'd told you)?
-- Is there a language preference between you and your operator?
+**Workflow:**
+- Should general requests have a status (sent → acknowledged → in progress → done)?
+- Do you want photo confirmation when a task is complete?
+- What is the expected response time for non-urgent requests?
+- Should overdue requests (no acknowledgment in X hours) nudge the owner?
 
 ---
 
-## Priority Matrix — Which Use Cases to Build First
+## Open Questions — Airbnb-Specific
 
-Based on frequency and pain level from a typical owner-operator WhatsApp relationship:
+| # | Question | Affects |
+|---|---|---|
+| A | Is the cleaning fee part of the 15/85 split, or does the operator keep it fully to cover cleaning costs? | Every payout calculation |
+| B | Is the split calculated on gross Airbnb payout or net (after Airbnb host fee)? | Every payout calculation |
+| C | Who holds the Airbnb payout account — operator or owner? Who remits to whom? | Phase 6 financial tracking |
+| D | Does Instant Book require owner notification within X hours, or is it fully silent? | Phase 3 booking notifications |
+| E | If a guest cancels and partial payout is received, how is the split applied? | Phase 6 cancellation handling |
+| F | Who has final say on the Airbnb host response to a negative review — operator or owner? | Phase 3 review workflow |
+| G | Should Smart Pricing (Airbnb dynamic pricing) on/off be subject to bidirectional confirmation, or operator's call? | Phase 5 pricing scope |
+| H | If the operator-owner relationship ends, what happens to the Airbnb listing? Who is responsible for transition? | Phase 1 link termination |
+| I | Are minimum stay rule changes subject to bidirectional confirmation (same as pricing) or operator discretion? | Phase 4 / Phase 5 boundary |
+| J | Should AirCover claim payouts affect the monthly revenue split calculation? | Phase 6 financial edge cases |
+
+---
+
+## Priority Matrix (Updated for Airbnb Model)
 
 | Use case | Frequency | Pain without system | Build in phase |
 |---|---|---|---|
-| Repair request + owner approval | Weekly | High (lost approvals, surprise costs) | Phase 3 |
-| Building admin notices to operator | Weekly | Medium (operator misses notice) | Phase 1 (unit profile) / Phase 3 |
-| Guest issue notification to owner | Per stay | High (owner out of loop) | Phase 3 |
-| Pricing change request + approval | Monthly | High (disputes, no audit trail) | Phase 5 |
-| Owner general requests to operator | Weekly | Medium (no acknowledgment, forgotten) | Phase 3 (general request type) |
-| Utility bill sharing | Monthly | Medium (photos lost in chat) | Phase 6 |
-| Listing info/photo updates | Quarterly | Low (infrequent, manageable by DM) | Phase 6 |
-| Check-in / check-out reports | Per stay | Medium (no structured record) | Phase 3 extension |
-| Financial summary | Monthly | High (manual, inconsistent) | Phase 6 |
-| Access / key management | Per stay | Medium | Phase 1 (unit profile notes) |
+| New booking notification to owner (amount, dates, guests) | Per booking | High — owner blind until operator tells them | Phase 3 |
+| Guest issue during stay → operator logs → owner notified | Per stay | High — no audit trail, no threshold control | Phase 3 |
+| Repair request + owner approval gate | Weekly | High — surprise costs, no pre-approval | Phase 3 |
+| Pricing proposal (either party) + confirmation | Monthly | High — disputes, no immutable record | Phase 5 |
+| Monthly payout statement (15/85 split per booking) | Monthly | High — manual calc, no locked record | Phase 6 |
+| Building admin notices → operator acknowledgment | Weekly | Medium — operator misses notices | Phase 3 |
+| AirCover damage claim tracking | Occasional | High when it happens — short filing window | Phase 3 extension |
+| Calendar block (owner personal use) | Monthly | Medium — operator surprised by block | Phase 4 |
+| Listing content change → owner notification/approval | Quarterly | Medium — owner unaware of changes | Phase 6 |
+| Utility bill upload + anomaly flag | Monthly | Medium — photos lost in chat | Phase 6 |
+| Owner general request → acknowledgment → done + photo | Weekly | Medium — forgotten tasks | Phase 3 (general type) |
+| Review score tracking + host response coordination | Per stay | Medium — no history, no handoff | Phase 3 extension |
+| Remittance tracking (operator pays owner their 85%) | Monthly | High if disputed — no record | Phase 6 |
 
 ---
 
-*Complete the questions in sections 3, 4, and 7 first — guest issues, pricing, and utilities are where WhatsApp breaks down hardest and where KAI creates the most immediate value.*
+*Resolve open questions A, B, and C before building any financial tracking in Phase 6. Resolve D before building booking notifications in Phase 3. All other questions can be answered during build.*
