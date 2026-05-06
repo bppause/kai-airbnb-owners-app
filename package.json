@@ -2,15 +2,23 @@
   "name": "airbnb-property-issue-management",
   "version": "1.0.0",
   "scripts": {
-    "build": "cd client && npm install && npm run build",
-    "start": "node server.js"
+    "build": "node_modules/.bin/vite build --root client",
+    "start": "node server.js",
+    "dev": "node_modules/.bin/vite --root client"
   },
   "dependencies": {
     "express": "^4.18.2",
     "uuid": "^9.0.0",
     "@supabase/supabase-js": "^2.45.4",
     "cors": "^2.8.5",
-    "resend": "^4.0.0"
+    "resend": "^4.0.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "firebase": "^10.11.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.2.1",
+    "vite": "^5.1.4"
   },
   "engines": {
     "node": "20.x"
