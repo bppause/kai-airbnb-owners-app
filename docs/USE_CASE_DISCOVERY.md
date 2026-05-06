@@ -170,7 +170,24 @@ Both the operator and the owner see the same concept: **"What needs me right now
 
 ---
 
-## Platform & Revenue Model (Locked)
+## Scope Boundary — What KAI Does Not Own
+
+**Guest tracking and payouts are out of scope.** These are handled entirely by Airbnb and other listing platforms:
+
+| Out of scope — handled by Airbnb | In scope — handled by KAI |
+|---|---|
+| Guest profiles, booking details, stay dates | Request threads tied to a stay (repair, guest issue, block) |
+| Payout calculations and remittances | Repair approval threshold, invoice delivery |
+| Revenue splits and statements | Pricing change proposals (bidirectional confirmation) |
+| Review responses on Airbnb | Review visibility and draft approval workflow |
+| Calendar sync and booking confirmation | Owner-initiated date blocks (personal use, maintenance) |
+| Airbnb messaging with guests | Operator → Owner notifications when guest action is needed |
+
+KAI is the **relationship management layer** between operator and owner. The listing platform (Airbnb, VRBO, etc.) remains the source of truth for bookings, guest data, and money.
+
+---
+
+## Platform & Role Model (Locked)
 
 ### Airbnb as Primary Platform
 
@@ -181,33 +198,21 @@ The operator manages listings primarily on **Airbnb**. Other platforms (VRBO, Bo
 | Airbnb Role | KAI Role | Responsibilities |
 |---|---|---|
 | **Host** (primary) | **Operator** | Owns the listing, manages calendar and pricing, responds to guests, arranges cleaning, handles Airbnb relationship and AirCover claims |
-| **Co-Host — Payout** | **Payout Owner** | Receives the owner's 85% payout; approves financial decisions (repairs, pricing); full thread participation on all request types |
-| **Co-Host — Calendar** | **Calendar Owner** | Views calendar and bookings only; no financial visibility; full thread participation on all request types |
+| **Co-Host — Payout** | **Payout Owner** | Financial approval rights (repairs, pricing); full thread participation; receives payout on Airbnb directly |
+| **Co-Host — Calendar** | **Calendar Owner** | Views calendar and date blocks; no financial visibility in KAI; full thread participation |
 
-### Multiple Owners Per Unit (Updated Model)
+### Multiple Owners Per Unit
 
-A single unit can have **multiple owners (co-hosts)**, each with a different access level:
+A single unit can have **multiple owners (co-hosts)**, each with a different access level in KAI:
 
-- **Payout Owner** — exactly one per unit. Receives the 85% payout. Has approval rights on financial requests (repairs above threshold, pricing proposals). Participates in all request threads.
-- **Calendar Owner** — one or more per unit. Can see the booking calendar, upcoming stays, and date blocks. Cannot see payout amounts, repair costs, or financial statements. Participates in all request threads.
+- **Payout Owner** — exactly one per unit. Has approval rights on financial requests (repairs above threshold, pricing proposals). Participates in all request threads. Payout happens on Airbnb, not tracked in KAI.
+- **Calendar Owner** — one or more per unit. Can see booking calendar context (dates, blocks) and participate in request threads. Repair costs and financial figures are hidden.
 - **All owners** can read and reply in KAI request threads — mirroring their current WhatsApp group participation.
 
 **Open questions this raises (see section below):**
 - For requests requiring owner approval (repair, pricing), does only the Payout Owner approve, or can any owner approve?
 - If a Calendar Owner posts in a request thread, does the operator see them as a co-owner or as a separate contact?
 - Can a Calendar Owner initiate requests (e.g. task request to the operator), or is that Payout Owner only?
-- Can the 85% payout itself be split between multiple Payout Owners? (e.g. two siblings who co-own a unit)
-
-### Revenue Split (Estimated Defaults — Editable Per Unit)
-
-| Party | Share | Covers |
-|---|---|---|
-| Operator (host) | ~15% of net payout | Listing management, guest communication, cleaning coordination, Airbnb relationship, issue resolution |
-| Payout Owner(s) (co-host) | ~85% of net payout | Unit ownership, capital expenditures |
-
-**Net payout** = Guest total − Airbnb host service fee (~3%) − cleaning fee (pass-through or operator-retained — see open question below)
-
-KAI tracks gross booking revenue, Airbnb fees, cleaning fees, and the 15/85 split per booking. If the 85% is further split among multiple Payout Owners, KAI tracks each owner's sub-share. Split percentages are configurable per unit.
 
 ---
 
@@ -273,12 +278,11 @@ Every item that flows through KAI maps to one of these types. These are the stru
 | **Repair FYI** (below threshold) | "Fixed the door hinge, $8" | None | Optional acknowledge | Yes, cost hidden |
 | **Guest issue — urgent** | "Guest locked out at 11pm" | 1h | All owners notified; Payout Owner authorizes if needed | Yes |
 | **Guest issue — standard** | "Guest says Wi-Fi slow, I reset router, fixed" | 4h | All owners informed | Yes |
-| **Booking notification** | "New booking — 4 guests Jan 15–18, $480 net" | None | All owners see dates/guests; payout amount to Payout Owner only | Yes, amount hidden |
+| **Booking relay** | "New booking Jan 15–18, 4 guests" | None | All owners see dates; payout/revenue handled on Airbnb | Yes |
 | **Booking special request** | "Guest asks to bring a dog, ok?" | 2h | Payout Owner approves; others can comment | Yes |
 | **Pricing proposal** | "Raise Dec rate to $200, up from $170" | 48h | Payout Owner confirms/counters/rejects | Yes, can comment |
 | **Peak period proposal** | "Adding Carnaval Feb 28–Mar 4 at +25%" | 48h | Payout Owner confirms/counters/rejects | Yes, can comment |
 | **AirCover / damage alert** | "Guest left damage, filing AirCover claim" | 24h | All owners notified; Payout Owner co-authorizes | Yes |
-| **Payout statement** | "Here's February — 3 bookings, your share is $1,240" | None | Payout Owner acknowledges/disputes | No (financial) |
 | **Utility bill** | [photo of electricity bill] | 5 days | Payout Owner acknowledges/disputes | No (financial) |
 | **General update** | "Unit is ready for next guest" | None | All owners informed | Yes |
 
@@ -310,16 +314,15 @@ Every item that flows through KAI maps to one of these types. These are the stru
 
 ---
 
-### System-generated (from Airbnb or platform)
+### System-generated (operator-entered or future platform integration)
 
-| Type | Trigger | Who sees it |
-|---|---|---|
-| **New booking** | Booking confirmed on Airbnb | Operator + Owner |
-| **Booking cancelled** | Guest or host cancellation | Operator + Owner |
-| **Review posted** | Guest submits review | Operator + Owner |
-| **Payout processed** | Airbnb pays out | Operator (owner sees via payout statement) |
-| **AirCover window expiring** | 12 days after checkout, no claim filed | Operator |
-| **Superhost at risk** | Response rate / cancellation threshold approaching | Operator |
+Booking and payout data lives on Airbnb — KAI does not replicate it. The following are operator-entered relays or prompts derived from platform events:
+
+| Type | Trigger | Who sees it | Note |
+|---|---|---|---|
+| **Booking relay** | Operator manually enters or future iCal/API sync | Operator + all owners | Dates only; no guest PII or revenue figures in KAI |
+| **AirCover window prompt** | Configurable: 12 days after checkout, no claim filed | Operator | Prompts operator to inspect and file; claim details tracked in KAI |
+| **Superhost risk prompt** | Operator-flagged or future API | Operator | Informational only |
 
 ---
 
@@ -370,37 +373,28 @@ Organized by topic. All scenarios are grounded in the Airbnb host (operator) / c
 
 ---
 
-### 2. Bookings — Visibility & Notification
+### 2. Bookings — Operational Coordination
 
-*How bookings flow from Airbnb to both parties, and what each needs to see.*
+*Booking and payout data lives on Airbnb. KAI's role is: (1) relaying operational context to owners, (2) surfacing requests that require owner action, and (3) providing date context for requests (repairs, blocks).*
 
-**Booking visibility:**
-- Does the owner currently see new bookings on Airbnb as a co-host, or only when the operator tells them?
-- Should every new confirmed booking generate a KAI notification to the owner with: guest name (or first name only), check-in/check-out dates, number of guests, payout amount?
-- For Instant Book listings, is the owner comfortable not approving individual bookings, or should they see a notification within X hours of each new booking?
+**Booking relay (informational only):**
+- Does the owner want a KAI notification when a new booking is confirmed? If yes: check-in/check-out dates and number of guests only — no payout amounts (those are on Airbnb).
+- For Instant Book listings, is a date-only notification sufficient, or does the owner want to see every booking?
+- Should cancellations that free up dates be relayed in KAI so the owner knows the calendar changed?
 
-**Booking types and handling:**
-- Does your listing use **Instant Book** (auto-confirm) or **Request to Book** (operator manually accepts)?
-- For Request to Book: does the operator discuss with the owner before accepting, or does the operator decide independently?
-- Are there guest profiles the owner wants the operator to decline (e.g. first-time Airbnb users, no reviews, large groups)?
+**Guest special requests that need owner input:**
+- Bringing pets (not in listing): operator decision, or should the owner be asked in KAI?
+- Additional guests beyond listing capacity: operator decides or owner approves?
+- Long-stay discount requests (see Pricing section for bidirectional confirmation flow)
+- "Can I have a birthday party?" — how is this typically handled?
 
-**Special requests from guests:**
-- Early check-in (before standard 3pm): who approves — operator independently, or does it need owner awareness?
-- Late check-out (past standard 11am): same question
-- Long-stay discount request: who handles (see Pricing section)
-- Bringing pets (not in listing): operator decision, or owner must approve?
-- Additional guests beyond listing capacity: operator or owner decides?
-- "Can I have a birthday party?": how is this typically handled?
+**Host-initiated cancellations:**
+- Has the operator ever cancelled a booking on the host side? (Airbnb penalizes: loss of payout, calendar block, listing suppression)
+- Should KAI require the operator to document the reason for a host-initiated cancellation, since the owner is affected?
 
-**Booking modifications:**
-- If a guest wants to change their dates after booking, who handles the modification on Airbnb?
-- Should the owner be notified of booking modifications, or only the initial booking and final payout?
-
-**Cancellations:**
-- What is your current cancellation policy on Airbnb? (Flexible, Moderate, Firm, Strict)
-- If a guest cancels, does the owner want to be notified immediately? What data (refund amount, dates freed)?
-- Has the operator ever needed to cancel a booking on the host side? What happened? (Airbnb penalizes host cancellations — loss of payout, calendar block, possible listing suppression)
-- Should KAI log host-initiated cancellations with a required reason, since they carry consequences?
+**Operational context for requests:**
+- When the operator creates a repair or maintenance request, should they be able to tag it to a specific stay (e.g. "check-in Jan 15 — AC issue on arrival")?
+- This links the request to a period without duplicating guest or financial data in KAI.
 
 ---
 
@@ -532,47 +526,31 @@ Organized by topic. All scenarios are grounded in the Airbnb host (operator) / c
 
 ---
 
-### 6. Financial Tracking & Payouts
+### 6. Utility Bills & Expenses
 
-*How Airbnb payouts flow, how the split is calculated, and what reporting each party needs.*
+*Expenses tied to the unit that the operator shares with the owner: electricity, water, internet, building fees.*
 
-**Airbnb payout mechanics:**
-- Airbnb pays out to the host (operator) approximately 24 hours after guest check-in
-- Payout = (nightly rate × nights) + cleaning fee − Airbnb host service fee (~3%)
-- Who is the Airbnb payout account — operator's bank account? Owner's? Business account?
-- If operator receives the full payout: how does the 85% remittance to the owner currently happen? (bank transfer, cash, third-party)
-- Is there a regular cadence for remittance? (monthly, after each booking, on the 1st of each month)
+> **Note:** Revenue, payouts, and booking financials are handled by Airbnb and other listing platforms — they are out of scope for KAI. KAI tracks *expenses* (bills, repair invoices) and the *approval workflow* around them, not revenue or remittances.
 
-**Split calculation questions:**
-- Does the 15/85 split apply to the gross Airbnb payout (before Airbnb fee) or net (after Airbnb fee)?
-- Is the cleaning fee included in the split, or does the operator keep it fully to cover cleaning cost?
-- If a guest cancels and receives a partial refund, is the operator's 15% calculated on the amount actually paid out?
-- Are long-stay discounts factored into the split as a reduction, or does the operator absorb them from their 15%?
+**Which bills:**
+- Which utilities are in the owner's name vs. the operator's?
+- Is electricity billed per unit (sub-meter) or averaged across the building?
+- Does internet have a separate bill or is it included in building fees?
+- What is the monthly cuota de administración? Is it fixed or variable?
 
-**Per-booking record KAI should track:**
-- Guest first name (or anonymized)
-- Check-in and check-out dates
-- Number of nights
-- Number of guests
-- Gross nightly revenue
-- Cleaning fee
-- Airbnb host service fee (deducted)
-- Net payout from Airbnb
-- Operator share (15% × net or configured %)
-- Owner share (85% × net or configured %)
-- Platform (Airbnb / VRBO / other)
-- Booking source (Instant Book / Request / direct)
-- Status (upcoming / active / completed / cancelled)
+**Bill sharing and tracking:**
+- How does the operator share bills today? (WhatsApp photo, email forward)
+- Should the operator be required to upload bill photos or PDFs to KAI monthly?
+- How does the owner pay utility bills — deducted from payout on Airbnb, or billed separately by operator?
 
-**Monthly summary:**
-- Should KAI generate a monthly statement per unit showing: bookings, gross revenue, fees, net payout, operator share, owner share?
-- Should the statement be locked (owner sees it, operator cannot edit after the close period)?
-- Does the owner need a year-to-date view for tax purposes?
-- Should statements be exportable as PDF or CSV?
+**Repair costs:**
+- Are repair costs deducted from the owner's payout, or billed separately?
+- If a repair is caused by guest damage, is the cost recovered from AirCover before billing the owner?
+- If the operator advances the repair cost, how is reimbursement tracked?
 
-**Remittance tracking:**
-- Should KAI track when the operator has remitted the owner's 85%? (operator marks "Sent", owner marks "Received")
-- Should there be a dispute mechanism if the owner believes the remittance amount is wrong?
+**Anomaly detection:**
+- Has an unusually high electricity bill ever been a source of dispute?
+- Should KAI flag any utility bill more than X% above the rolling 3-month average?
 
 ---
 
@@ -660,27 +638,6 @@ Organized by topic. All scenarios are grounded in the Airbnb host (operator) / c
 
 ---
 
-### 10. Unit Bills & Utilities
-
-*Electricity, water, gas, internet, cuota de administración — tracking and dispute prevention.*
-
-**Which bills:**
-- Which utilities are in the owner's name vs. the operator's?
-- Is electricity billed per unit (sub-meter) or averaged across the building?
-- Does internet have a separate bill or is it included in building fees?
-- What is the monthly cuota de administración? Is it fixed or variable?
-
-**Bill sharing and tracking:**
-- How does the operator share bills today? WhatsApp photo? Email forward?
-- Should the operator be required to upload bill photos or PDFs to KAI monthly?
-- Are bills deducted from the owner's payout, or billed separately?
-
-**Anomaly detection:**
-- Has an unusually high electricity bill ever been a source of dispute?
-- Should KAI flag any utility bill more than X% above the rolling 3-month average?
-- If a bill spike correlates with a guest stay, should KAI surface that connection?
-
----
 
 ### 11. Owner General Requests
 
@@ -703,18 +660,15 @@ Organized by topic. All scenarios are grounded in the Airbnb host (operator) / c
 
 ## Open Questions — Airbnb-Specific
 
+> Payout calculations, revenue splits, and remittance tracking are handled by Airbnb — not in scope for KAI.
+
 | # | Question | Affects |
 |---|---|---|
-| A | Is the cleaning fee part of the 15/85 split, or does the operator keep it fully to cover cleaning costs? | Every payout calculation |
-| B | Is the split calculated on gross Airbnb payout or net (after Airbnb host fee)? | Every payout calculation |
-| C | Who holds the Airbnb payout account — operator or owner? Who remits to whom? | Phase 6 financial tracking |
-| D | Does Instant Book require owner notification within X hours, or is it fully silent? | Phase 3 booking notifications |
-| E | If a guest cancels and partial payout is received, how is the split applied? | Phase 6 cancellation handling |
+| D | Does Instant Book require owner notification in KAI within X hours, or is a date-only relay sufficient? | Section 2, booking relay |
 | F | Who has final say on the Airbnb host response to a negative review — operator or owner? | Phase 3 review workflow |
 | G | Should Smart Pricing (Airbnb dynamic pricing) on/off be subject to bidirectional confirmation, or operator's call? | Phase 5 pricing scope |
 | H | If the operator-owner relationship ends, what happens to the Airbnb listing? Who is responsible for transition? | Phase 1 link termination |
 | I | Are minimum stay rule changes subject to bidirectional confirmation (same as pricing) or operator discretion? | Phase 4 / Phase 5 boundary |
-| J | Should AirCover claim payouts affect the monthly revenue split calculation? | Phase 6 financial edge cases |
 
 ---
 
@@ -736,11 +690,11 @@ Ranked by actual frequency and cost of failure observed in the Morros KAI 317 ch
 | **Damage claim / AirCover** (per-stay photo log, case per incident, 14-day window) | 2× | Two incidents conflated → double-billing dispute ("why are we paying again?") | Urgent 24h | Phase 3 ext |
 | **Credential vault** (RNT, TRA, warranties, appliance manuals — no chat) | 3× | RNT credentials in group chat plain text; shared twice because first share lost | Secure / no SLA | Phase 6 |
 | **Calendar block — personal use** (distinct from guest, cleaning auto-scheduled) | 2× | Operator quoted guest rate for personal use; 1-night minimum policy conflict not surfaced | Standard 24h | Phase 4 |
-| **Financial transactions** (zero in chat — platform ledger only) | 3× | Bancolombia + Nequi account numbers in group chat; no receipt; no audit | Zero tolerance | Phase 6 |
+| **Expense submission** (repair invoices, utility bills — zero bank details in KAI) | 3× | Bancolombia + Nequi account numbers in group chat; no receipt; no audit trail | Zero tolerance | Phase 3 / 6 |
 | **Review management** (draft approval, guest block, positive response policy) | 3× | Operator responds without owner awareness; owner had to request specific response strategy | Standard 24h | Phase 3 ext |
 | **Team directory** (name, role, contact, responsibilities — visible to owners) | 4× role confusion | Owners don't know who ACTB, CDVR are; new team members added with no intro | Always-on | Phase 1 |
 | **Pricing with ranking preview** (show Airbnb position impact before confirming) | 1× surfaced late | Paula's ranking data only surfaced 10 days after a rate increase killed bookings | Pre-confirm | Phase 5 |
-| **Payout statement** (15/85 per booking, locked after owner sees) | Monthly | Manual; no structured record | Monthly | Phase 6 |
+| **Utility bill delivery** (operator uploads, owner acknowledges, anomaly flagging) | Monthly | Manual WhatsApp photo; no structured record or anomaly detection | Monthly | Phase 6 |
 | **Annual / scheduled rate change** (future-dated, auto-applies) | 3× pricing sessions | 2027 pricing negotiated over multiple weeks; no scheduled activation | Async | Phase 5 |
 | **Discount structure** (last-minute, early-bird, weekly, monthly — per unit) | 1× applied | Four discount types discussed and applied manually with no owner visibility | Async | Phase 5 |
 | **Building notice → listing update trigger** (pool closed? prompt listing update) | 1× water issue | No connection between building outage and listing accuracy | Manual prompt | Phase 3 ext |
@@ -768,18 +722,14 @@ Ranked by actual frequency and cost of failure observed in the Morros KAI 317 ch
 - **I** — Are minimum stay rule changes subject to bidirectional confirmation or operator discretion?
 - **PRICE-1** — If a pricing proposal expires with no response after 48 hours, does it expire (safer) or auto-approve?
 
-### Block Phase 6 (financial)
-- **A** — Is cleaning fee in the 15/85 split, or does operator keep it to cover cleaning costs?
-- **B** — Split on gross Airbnb payout or net (after Airbnb ~3% host fee)?
-- **C** — Who holds the Airbnb payout account? Who remits to whom?
-- **E** — If a guest cancels and partial payout is received, how is the split applied?
-- **J** — Do AirCover claim payouts affect the monthly revenue split?
+### Block Phase 6 (documents & compliance)
+- Supabase Storage — is a bucket already provisioned, or does it need setup before Phase 6 file uploads?
 
 ### Inform design (not blocking)
 - **F** — Who has final say on the host response to a negative Airbnb review?
 - **H** — If operator-owner relationship ends, what happens to the Airbnb listing?
 - **NOTIFY-1** — Should owners receive a daily digest of FYI items, or only real-time notifications for items requiring action?
-- **NOTIFY-2** — Should team members ever see financial information (payout amounts, repair costs), or is that always filtered out?
+- **NOTIFY-2** — Should team members ever see repair cost amounts, or is that always filtered out?
 
 ---
 

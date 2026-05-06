@@ -85,8 +85,8 @@ A `global_admin` who is also acting as an operator uses the role switch in their
   - Operator proposes → Payout Owner accepts/declines
   - Payout Owner invites → operator accepts/declines
 - **Multiple owner types per unit:**
-  - **Payout Owner** — exactly one; receives 85% payout; financial approval rights; full thread access
-  - **Calendar Owner** — one or more; sees calendar and threads; financial amounts hidden; no approval rights (pending MO-2 answer)
+  - **Payout Owner** — exactly one; financial approval rights (repairs, pricing); full thread access; payout received directly on Airbnb (not tracked in KAI)
+  - **Calendar Owner** — one or more; sees calendar and threads; repair cost amounts hidden; no approval rights (pending MO-2 answer)
   - Payout Owner manages the owner roster (add/remove Calendar Owners)
 - Unit profile fields maintained by operator: amenities, bed config, Airbnb URL, platforms listed on, access notes
 - Status badges per unit: No operator / Pending / Actively managed
@@ -98,7 +98,7 @@ A `global_admin` who is also acting as an operator uses the role switch in their
 |---|---|---|
 | `operators` table + `operator_staff` table + migration | `schema.sql` | Low |
 | `unit_operator_links` table (status: pending/active/declined) | `schema.sql` | Trivial |
-| `unit_owner_links` table (uid, unit_id, role: payout/calendar, share_pct, status) | `schema.sql` | Low |
+| `unit_owner_links` table (uid, unit_id, role: payout/calendar, status) | `schema.sql` | Low |
 | Operator profile CRUD API endpoints | `server.js` | Low |
 | Staff roster CRUD API endpoints | `server.js` | Low |
 | Operator profile + staff roster UI | `App.jsx` | Medium |
