@@ -2,7 +2,7 @@
   "name": "airbnb-property-issue-management",
   "version": "1.0.0",
   "scripts": {
-    "build": "cd client && npm install && npm run build",
+    "build": "cd client && npm install && NODE_OPTIONS=--max-old-space-size=4096 npm run build",
     "start": "node server.js"
   },
   "dependencies": {
