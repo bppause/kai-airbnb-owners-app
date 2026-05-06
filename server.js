@@ -2153,11 +2153,11 @@ app.get('/api/communities', async (req, res) => {
   } catch(e) { sendSupabaseError(res, e); }
 });
 
-// GET /api/admin/communities — global admin: all communities including inactive, direct query
+// GET /api/admin/communities — returns all communities including inactive; used by global admin panel
 app.get('/api/admin/communities', async (req, res) => {
   if (!requireSupabaseEnv(res)) return;
   const { uid, email } = req.query || {};
-  if (!(await isGlobalAdmin(uid, email))) return res.status(403).json({ error: 'Global admin only.' });
+  if (!(await isGlobalAdmin(uid, email))) return res.json({ communities: [] });
   try {
     const { data, error } = await supabase.from('communities').select('*').order('name');
     if (error) return sendSupabaseError(res, error);

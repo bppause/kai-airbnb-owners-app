@@ -6550,12 +6550,11 @@ function AdminSettings({ config={}, user, listings=[], contactProps={}, onSave, 
     if (!user?.uid) return;
     setCommunitiesLoading(true);
     const qs = '?uid=' + encodeURIComponent(user.uid) + '&email=' + encodeURIComponent(user.email||'');
-    const endpoint = effectiveIsGlobalAdmin ? '/api/admin/communities' + qs : '/api/communities' + qs;
-    api.get(endpoint)
+    api.get('/api/admin/communities' + qs)
       .then(r => setCommunities(Array.isArray(r?.communities) ? r.communities : []))
       .catch(e => captureAdminError('communities', e))
       .finally(() => setCommunitiesLoading(false));
-  }, [user?.uid, user?.email, effectiveIsGlobalAdmin]);
+  }, [user?.uid, user?.email]);
 
   useEffect(() => { if (openSections.communities) loadCommunities(); }, [openSections.communities, loadCommunities]);
 
