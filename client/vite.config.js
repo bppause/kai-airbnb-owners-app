@@ -23,11 +23,6 @@ export default defineConfig({
   optimizeDeps: {
     exclude: []
   },
-  build: {
-    chunkSizeWarningLimit: 4000,
-    reportCompressedSize: false,
-    minify: false,
-  },
   server: {
     proxy: { '/api': 'http://localhost:3001' }
   }

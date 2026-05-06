@@ -3,7 +3,7 @@ services:
     name: airbnb-property-issue-management
     env: node
     plan: free
-    buildCommand: npm install --no-audit && cd client && npm install --no-audit && node --max-old-space-size=1536 node_modules/vite/bin/vite.js build
+    buildCommand: npm install && cd client && npm install && npm run build
     startCommand: node server.js
     envVars:
       - key: NODE_VERSION
