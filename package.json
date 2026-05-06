@@ -2,7 +2,7 @@
   "name": "airbnb-property-issue-management",
   "version": "1.0.0",
   "scripts": {
-    "build": "node_modules/.bin/vite build --root client",
+    "build": "node_modules/.bin/vite build client",
     "start": "node server.js",
     "dev": "node_modules/.bin/vite --root client"
   },

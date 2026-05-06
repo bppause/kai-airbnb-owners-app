@@ -3,7 +3,7 @@ services:
     name: airbnb-property-issue-management
     env: node
     plan: free
-    buildCommand: npm install && node_modules/.bin/vite build --root client
+    buildCommand: npm install && node_modules/.bin/vite build client
     startCommand: node server.js
     envVars:
       - key: NODE_VERSION
