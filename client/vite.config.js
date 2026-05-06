@@ -1,8 +1,11 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { writeFileSync } from 'fs'
+import { fileURLToPath } from 'url'
+import { dirname, join } from 'path'
 
 const BUILD_TIME = new Date().toISOString();
+const __dirname = dirname(fileURLToPath(import.meta.url));
 
 export default defineConfig({
   plugins: [
@@ -10,7 +13,7 @@ export default defineConfig({
     {
       name: 'write-build-meta',
       closeBundle() {
-        writeFileSync('./dist/build-meta.json', JSON.stringify({ buildTime: BUILD_TIME }));
+        writeFileSync(join(__dirname, 'dist/build-meta.json'), JSON.stringify({ buildTime: BUILD_TIME }));
       },
     },
   ],
