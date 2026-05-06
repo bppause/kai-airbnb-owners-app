@@ -7145,8 +7145,20 @@ function AdminSettings({ config={}, user, listings=[], contactProps={}, onSave, 
     {/* Community feature flag settings */}
     <div className="card" style={{marginBottom:16,padding:'12px 16px',background:'#f5fbfd',border:'1px solid #cce7ee'}}>
       <div style={{display:'flex',alignItems:'center',gap:16,flexWrap:'wrap'}}>
-        <label style={{display:'flex',alignItems:'center',gap:8,fontSize:'.88rem',fontWeight:600,color:'#17313a',cursor:'pointer',userSelect:'none'}}>
-          <input type="checkbox" checked={communityFeatureEnabled} onChange={e=>setCommunityFeatureEnabled(e.target.checked)} style={{accentColor:'#2F4F3A',width:16,height:16}}/>
+        <label style={{display:'flex',alignItems:'center',gap:10,fontSize:'.88rem',fontWeight:600,color:'#17313a',cursor:'pointer',userSelect:'none'}}>
+          <button
+            role="switch" aria-checked={communityFeatureEnabled}
+            onClick={async()=>{
+              const next=!communityFeatureEnabled;
+              setCommunityFeatureEnabled(next);
+              try{
+                await api.put('/api/admin/config',{actorUid:user.uid,actorEmail:user.email,communityFeatureEnabled:next,defaultCommunityId});
+                showToast('✅ '+(isEn?'Community settings saved':'Configuración de comunidad guardada'));
+              }catch(e){setCommunityFeatureEnabled(!next);showToast((e.message||String(e)),true);}
+            }}
+            style={{position:'relative',display:'inline-flex',width:38,height:22,borderRadius:22,background:communityFeatureEnabled?'#0b7f4f':'#cdd8db',border:'none',cursor:'pointer',padding:0,flexShrink:0,transition:'background .2s'}}>
+            <span style={{position:'absolute',top:3,left:communityFeatureEnabled?18:3,width:16,height:16,borderRadius:'50%',background:'#fff',boxShadow:'0 1px 3px rgba(0,0,0,.25)',transition:'left .2s',pointerEvents:'none'}}/>
+          </button>
           {isEn?'Community picker enabled':'Selector de comunidad habilitado'}
         </label>
         {!communityFeatureEnabled && (
@@ -7158,15 +7170,6 @@ function AdminSettings({ config={}, user, listings=[], contactProps={}, onSave, 
             </select>
           </label>
         )}
-        <button className="btn-p" style={{minHeight:32,padding:'4px 14px',fontSize:'.82rem'}}
-          onClick={async()=>{
-            try{
-              await api.put('/api/admin/config',{actorUid:user.uid,actorEmail:user.email,communityFeatureEnabled,defaultCommunityId});
-              showToast('✅ '+(isEn?'Community settings saved':'Configuración de comunidad guardada'));
-            }catch(e){showToast((e.message||String(e)),true);}
-          }}>
-          💾 {isEn?'Save':'Guardar'}
-        </button>
       </div>
     </div>
     {communitiesLoading && <div style={{padding:'20px 0',textAlign:'center'}}><span className="spinner-sm"/> {isEn?'Loading...':'Cargando...'}</div>}
@@ -7186,18 +7189,19 @@ function AdminSettings({ config={}, user, listings=[], contactProps={}, onSave, 
               <code style={{background:'#eef6f8',padding:'1px 5px',borderRadius:3,fontSize:'.75rem'}}>{c.id}</code>
               {c.tower&&<span style={{marginLeft:8}}>🏢 {c.tower}</span>}
               {c.city&&<span style={{marginLeft:8}}>📍 {c.city}{c.country?`, ${c.country}`:''}</span>}
-              <span className={`chip ${c.is_active?'c-teal':'c-red'}`} style={{marginLeft:8,fontSize:'.68rem',padding:'1px 7px'}}>{c.is_active?(isEn?'Active':'Activa'):(isEn?'Inactive':'Inactiva')}</span>
             </div>
           </div>
           <div style={{display:'flex',gap:6,alignItems:'center',flexShrink:0}}>
             <button className="btn-ghost" style={{fontSize:'.78rem',padding:'4px 10px'}} onClick={()=>setCommunityModal({mode:'edit',data:c})}>✏️ {isEn?'Edit':'Editar'}</button>
-            <label style={{display:'flex',alignItems:'center',gap:6,cursor:'pointer',userSelect:'none',fontSize:'.78rem',color:'#17313a',fontWeight:600}} title={c.is_active?(isEn?'Disable community':'Deshabilitar comunidad'):(isEn?'Enable community':'Habilitar comunidad')}>
-              <span style={{color:c.is_active?'#0b7f4f':'#9aa5a8'}}>{c.is_active?(isEn?'Active':'Activa'):(isEn?'Inactive':'Inactiva')}</span>
-              <div style={{position:'relative',width:38,height:22,flexShrink:0}}>
-                <input type="checkbox" checked={!!c.is_active} onChange={()=>api.put(`/api/communities/${c.id}`,{actorUid:user.uid,actorEmail:user.email,isActive:!c.is_active}).then(()=>loadCommunities()).catch(e=>showToast(e.message,true))} style={{opacity:0,width:0,height:0,position:'absolute'}}/>
-                <span style={{position:'absolute',inset:0,borderRadius:22,background:c.is_active?'#0b7f4f':'#cdd8db',transition:'background .2s',cursor:'pointer'}}/>
+            <label style={{display:'flex',alignItems:'center',gap:6,userSelect:'none',fontSize:'.78rem',color:'#17313a',fontWeight:600}}>
+              <span style={{color:c.is_active?'#0b7f4f':'#9aa5a8',minWidth:44}}>{c.is_active?(isEn?'Active':'Activa'):(isEn?'Inactive':'Inactiva')}</span>
+              <button
+                role="switch" aria-checked={!!c.is_active}
+                title={c.is_active?(isEn?'Disable community':'Deshabilitar comunidad'):(isEn?'Enable community':'Habilitar comunidad')}
+                onClick={()=>api.put(`/api/communities/${c.id}`,{actorUid:user.uid,actorEmail:user.email,isActive:!c.is_active}).then(()=>loadCommunities()).catch(e=>showToast(e.message,true))}
+                style={{position:'relative',display:'inline-flex',width:38,height:22,borderRadius:22,background:c.is_active?'#0b7f4f':'#cdd8db',border:'none',cursor:'pointer',padding:0,flexShrink:0,transition:'background .2s'}}>
                 <span style={{position:'absolute',top:3,left:c.is_active?18:3,width:16,height:16,borderRadius:'50%',background:'#fff',boxShadow:'0 1px 3px rgba(0,0,0,.25)',transition:'left .2s',pointerEvents:'none'}}/>
-              </div>
+              </button>
             </label>
             {c.id !== 'kai' && <button className="btn-ghost" style={{fontSize:'.78rem',padding:'4px 10px',color:'#c62828'}} onClick={()=>deleteCommunity(c.id)}>🗑️ {isEn?'Delete':'Eliminar'}</button>}
           </div>
