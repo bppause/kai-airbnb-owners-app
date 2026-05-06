@@ -2164,13 +2164,41 @@ app.get('/api/communities', async (req, res) => {
   } catch(e) { sendSupabaseError(res, e); }
 });
 
-// GET /api/admin/communities — returns all communities including inactive; used by global admin panel
-app.get('/api/admin/communities', async (req, res) => {
+// GET /api/admin/communities/filter-options — distinct city/state/country for filter dropdowns
+app.get('/api/admin/communities/filter-options', async (req, res) => {
   if (!requireSupabaseEnv(res)) return;
   const { uid, email } = req.query || {};
-  if (!(await isGlobalAdmin(uid, email))) return res.json({ communities: [] });
+  if (!(await isGlobalAdmin(uid, email))) return res.status(403).json({ error: 'Forbidden.' });
   try {
-    const { data, error } = await supabase.from('communities').select('*').order('name');
+    const { data, error } = await supabase.from('communities').select('city,state,country').order('name');
+    if (error) return sendSupabaseError(res, error);
+    const rows = data || [];
+    const uniq = (arr) => [...new Set(arr.filter(Boolean))].sort();
+    res.json({
+      cities:    uniq(rows.map(r => r.city)),
+      states:    uniq(rows.map(r => r.state)),
+      countries: uniq(rows.map(r => r.country)),
+    });
+  } catch(e) { sendSupabaseError(res, e); }
+});
+
+// GET /api/admin/communities — returns all communities including inactive; paginated + filtered
+app.get('/api/admin/communities', async (req, res) => {
+  if (!requireSupabaseEnv(res)) return;
+  const { uid, email, q='', city='', state='', country='', active='', page='1', limit='20' } = req.query || {};
+  if (!(await isGlobalAdmin(uid, email))) return res.json({ communities: [], total: 0 });
+  try {
+    let query = supabase.from('communities').select('*', { count: 'exact' }).order('name');
+    if (q)       query = query.or(`name.ilike.%${q}%,id.ilike.%${q}%,name_en.ilike.%${q}%`);
+    if (city)    query = query.ilike('city', `%${city}%`);
+    if (state)   query = query.ilike('state', `%${state}%`);
+    if (country) query = query.ilike('country', `%${country}%`);
+    if (active === 'true')  query = query.eq('is_active', true);
+    if (active === 'false') query = query.eq('is_active', false);
+    const pageNum  = Math.max(1, parseInt(page)  || 1);
+    const pageSize = Math.min(100, Math.max(1, parseInt(limit) || 20));
+    query = query.range((pageNum - 1) * pageSize, pageNum * pageSize - 1);
+    const { data, error, count } = await query;
     if (error) return sendSupabaseError(res, error);
     const communities = data || [];
     if (communities.length) {
@@ -2181,18 +2209,18 @@ app.get('/api/admin/communities', async (req, res) => {
       (cfgRows || []).forEach(r => { overridesMap[r.community_id] = r.value === 'true'; });
       communities.forEach(c => { c.overridesEnabled = !!overridesMap[c.id]; });
     }
-    res.json({ communities });
+    res.json({ communities, total: count ?? communities.length });
   } catch(e) { sendSupabaseError(res, e); }
 });
 
 // POST /api/communities — global admin only
 app.post('/api/communities', async (req, res) => {
   if (!requireSupabaseEnv(res)) return;
-  const { actorUid, actorEmail, id, name, nameEn='', tower='', city='', country='Colombia', logoUrl='', backgroundUrl='/morros-kai-bg.jpg', description='', descriptionEn='' } = req.body || {};
+  const { actorUid, actorEmail, id, name, nameEn='', tower='', city='', state='', country='Colombia', logoUrl='', backgroundUrl='/morros-kai-bg.jpg', description='', descriptionEn='' } = req.body || {};
   if (!(await isGlobalAdmin(actorUid, actorEmail))) return res.status(403).json({ error:'Solo un administrador global puede crear comunidades.' });
   if (!id || !name) return res.status(400).json({ error:'id and name are required.' });
   if (!/^[a-z0-9-]+$/.test(id)) return res.status(400).json({ error:'Community id must be lowercase letters, numbers, and hyphens only.' });
-  const row = { id, name, name_en:nameEn, tower, city, country, logo_url:logoUrl, background_url:backgroundUrl, description, description_en:descriptionEn, is_active:true, created_by_uid:actorUid||'', created_at:new Date().toISOString(), updated_at:new Date().toISOString() };
+  const row = { id, name, name_en:nameEn, tower, city, state, country, logo_url:logoUrl, background_url:backgroundUrl, description, description_en:descriptionEn, is_active:true, created_by_uid:actorUid||'', created_at:new Date().toISOString(), updated_at:new Date().toISOString() };
   const { data, error } = await supabase.from('communities').insert(row).select('*').single();
   if (error) return sendSupabaseError(res, error);
   await auditLog({ entity:'community', entityId:id, action:'create', actorUid:actorUid||'', actorEmail:actorEmail||'', after:data });
@@ -2231,7 +2259,7 @@ app.get('/api/communities/:id', async (req, res) => {
 // PUT /api/communities/:id — global admin or community admin
 app.put('/api/communities/:id', async (req, res) => {
   if (!requireSupabaseEnv(res)) return;
-  const { actorUid, actorEmail, name, nameEn, tower, city, country, logoUrl, backgroundUrl, description, descriptionEn, isActive } = req.body || {};
+  const { actorUid, actorEmail, name, nameEn, tower, city, state, country, logoUrl, backgroundUrl, description, descriptionEn, isActive } = req.body || {};
   if (!(await isCommunityAdmin(actorUid, actorEmail, req.params.id))) return res.status(403).json({ error:'Solo un administrador global o admin de esta comunidad puede actualizar la comunidad.' });
   const before = await getCommunity(req.params.id);
   if (!before) return res.status(404).json({ error:'Community not found.' });
@@ -2240,6 +2268,7 @@ app.put('/api/communities/:id', async (req, res) => {
   if (nameEn !== undefined) update.name_en = String(nameEn);
   if (tower !== undefined) update.tower = String(tower);
   if (city !== undefined) update.city = String(city);
+  if (state !== undefined) update.state = String(state);
   if (country !== undefined) update.country = String(country);
   if (logoUrl !== undefined) update.logo_url = String(logoUrl);
   if (backgroundUrl !== undefined) update.background_url = String(backgroundUrl);

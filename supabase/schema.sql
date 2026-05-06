@@ -22,6 +22,7 @@ create table if not exists public.communities (
   name_en text not null default '',
   tower text not null default '',          -- building identifier (e.g. 'KAI')
   city text not null default '',
+  state text not null default '',
   country text not null default 'Colombia',
   logo_url text not null default '',
   background_url text not null default '/morros-kai-bg.jpg',
@@ -32,6 +33,9 @@ create table if not exists public.communities (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+-- v83: state field for filtering communities by state/province
+alter table public.communities add column if not exists state text not null default '';
 
 -- Seed the default KAI community
 insert into public.communities (id, name, name_en, tower, city, country, background_url, description, description_en) values (

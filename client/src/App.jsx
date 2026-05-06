@@ -6249,6 +6249,7 @@ function CommunityCrudModal({ mode='create', initial={}, onSave, onClose, lang='
     nameEn: initial.name_en || '',
     tower: initial.tower || '',
     city: initial.city || '',
+    state: initial.state || '',
     country: initial.country || 'Colombia',
     logoUrl: initial.logo_url || '',
     backgroundUrl: initial.background_url || '',
@@ -6322,6 +6323,10 @@ function CommunityCrudModal({ mode='create', initial={}, onSave, onClose, lang='
         <div className="fg">
           <label>{isEn?'City':'Ciudad'}</label>
           <input value={f.city} onChange={e=>s('city',e.target.value)} placeholder="Cartagena"/>
+        </div>
+        <div className="fg">
+          <label>{isEn?'State / Province':'Departamento / Provincia'}</label>
+          <input value={f.state} onChange={e=>s('state',e.target.value)} placeholder={isEn?'e.g. Bolívar':'ej. Bolívar'}/>
         </div>
         <div className="fg">
           <label>{isEn?'Country':'País'}</label>
@@ -6543,6 +6548,12 @@ function AdminSettings({ config={}, user, listings=[], contactProps={}, onSave, 
   const [communityOverridesEnabled, setCommunityOverridesEnabled] = useState({}); // {cid: bool}
   const [communityConfigTab, setCommunityConfigTab] = useState({}); // {cid: tabId}
   const [commMissionLang, setCommMissionLang] = useState('es');
+  // Community list filter + pagination
+  const [commSearchDraft, setCommSearchDraft] = useState('');
+  const [commFilter, setCommFilter] = useState({ q:'', city:'', state:'', country:'', active:'' });
+  const [commPage, setCommPage] = useState(1);
+  const [commTotal, setCommTotal] = useState(0);
+  const [commFilterOptions, setCommFilterOptions] = useState({ cities:[], states:[], countries:[] });
   const [communityTplOpen, setCommunityTplOpen] = useState({});
   const [communityTplData, setCommunityTplData] = useState({});
   const [communityTplLoading, setCommunityTplLoading] = useState({});
@@ -6719,12 +6730,12 @@ function AdminSettings({ config={}, user, listings=[], contactProps={}, onSave, 
   const loadCommunities = useCallback(() => {
     if (!user?.uid) return;
     setCommunitiesLoading(true);
-    const qs = '?uid=' + encodeURIComponent(user.uid) + '&email=' + encodeURIComponent(user.email||'');
-    api.get('/api/admin/communities' + qs)
+    const params = new URLSearchParams({ uid:user.uid, email:user.email||'', ...commFilter, page:commPage, limit:20 });
+    api.get('/api/admin/communities?' + params.toString())
       .then(r => {
         const list = Array.isArray(r?.communities) ? r.communities : [];
         setCommunities(list);
-        // Seed communityConfigData so the overrides toggle shows correct state immediately
+        setCommTotal(r?.total ?? list.length);
         setCommunityConfigData(prev => {
           const next = { ...prev };
           list.forEach(c => {
@@ -6741,9 +6752,23 @@ function AdminSettings({ config={}, user, listings=[], contactProps={}, onSave, 
       })
       .catch(e => captureAdminError('communities', e))
       .finally(() => setCommunitiesLoading(false));
+  }, [user?.uid, user?.email, commFilter, commPage]);
+
+  const loadCommFilterOptions = useCallback(() => {
+    if (!user?.uid) return;
+    const qs = '?uid=' + encodeURIComponent(user.uid) + '&email=' + encodeURIComponent(user.email||'');
+    api.get('/api/admin/communities/filter-options' + qs)
+      .then(r => setCommFilterOptions(r || { cities:[], states:[], countries:[] }))
+      .catch(() => {});
   }, [user?.uid, user?.email]);
 
-  useEffect(() => { if (openSections.communities) loadCommunities(); }, [openSections.communities, loadCommunities]);
+  // Debounce search input → commFilter.q
+  useEffect(() => {
+    const t = setTimeout(() => { setCommFilter(p => ({...p, q:commSearchDraft})); setCommPage(1); }, 400);
+    return () => clearTimeout(t);
+  }, [commSearchDraft]);
+
+  useEffect(() => { if (openSections.communities) { loadCommunities(); loadCommFilterOptions(); } }, [openSections.communities, loadCommunities, loadCommFilterOptions]);
 
   const loadCommunityMembers = async (cid) => {
     setCommunityMembersLoading(p => ({...p,[cid]:true}));
@@ -6837,10 +6862,10 @@ function AdminSettings({ config={}, user, listings=[], contactProps={}, onSave, 
     const isEdit = f.id && communities.some(c => c.id === f.id);
     try {
       if (isEdit) {
-        await api.put(`/api/communities/${f.id}`, { actorUid:user.uid, actorEmail:user.email, name:f.name, nameEn:f.nameEn, tower:f.tower, city:f.city, country:f.country, logoUrl:f.logoUrl, backgroundUrl:f.backgroundUrl, description:f.description, descriptionEn:f.descriptionEn, isActive:f.isActive });
+        await api.put(`/api/communities/${f.id}`, { actorUid:user.uid, actorEmail:user.email, name:f.name, nameEn:f.nameEn, tower:f.tower, city:f.city, state:f.state, country:f.country, logoUrl:f.logoUrl, backgroundUrl:f.backgroundUrl, description:f.description, descriptionEn:f.descriptionEn, isActive:f.isActive });
         showToast(isEn ? '✅ Community updated' : '✅ Comunidad actualizada');
       } else {
-        await api.post('/api/communities', { actorUid:user.uid, actorEmail:user.email, id:f.id, name:f.name, nameEn:f.nameEn, tower:f.tower, city:f.city, country:f.country, logoUrl:f.logoUrl, backgroundUrl:f.backgroundUrl, description:f.description, descriptionEn:f.descriptionEn });
+        await api.post('/api/communities', { actorUid:user.uid, actorEmail:user.email, id:f.id, name:f.name, nameEn:f.nameEn, tower:f.tower, city:f.city, state:f.state, country:f.country, logoUrl:f.logoUrl, backgroundUrl:f.backgroundUrl, description:f.description, descriptionEn:f.descriptionEn });
         showToast(isEn ? '✅ Community created' : '✅ Comunidad creada');
       }
       setCommunityModal(null);
@@ -7405,10 +7430,48 @@ function AdminSettings({ config={}, user, listings=[], contactProps={}, onSave, 
         )}
       </div>
     </div>
+    {/* ── Filter bar ── */}
+    <div style={{display:'flex',gap:8,flexWrap:'wrap',marginBottom:12,alignItems:'center'}}>
+      <input
+        value={commSearchDraft}
+        onChange={e=>setCommSearchDraft(e.target.value)}
+        placeholder={isEn?'Search name or ID…':'Buscar nombre o ID…'}
+        style={{flex:'1 1 160px',minWidth:120,padding:'6px 10px',borderRadius:8,border:'1px solid rgba(47,79,58,.22)',fontSize:'.82rem',background:'#fff'}}
+      />
+      {commFilterOptions.cities.length > 0 && (
+        <select value={commFilter.city} onChange={e=>{setCommFilter(p=>({...p,city:e.target.value}));setCommPage(1);}} style={{padding:'6px 8px',borderRadius:8,border:'1px solid rgba(47,79,58,.22)',fontSize:'.82rem',background:'#fff',color:'#17313a'}}>
+          <option value="">{isEn?'All cities':'Todas las ciudades'}</option>
+          {commFilterOptions.cities.map(v=><option key={v} value={v}>{v}</option>)}
+        </select>
+      )}
+      {commFilterOptions.states.length > 0 && (
+        <select value={commFilter.state} onChange={e=>{setCommFilter(p=>({...p,state:e.target.value}));setCommPage(1);}} style={{padding:'6px 8px',borderRadius:8,border:'1px solid rgba(47,79,58,.22)',fontSize:'.82rem',background:'#fff',color:'#17313a'}}>
+          <option value="">{isEn?'All states':'Todos los depto.'}</option>
+          {commFilterOptions.states.map(v=><option key={v} value={v}>{v}</option>)}
+        </select>
+      )}
+      {commFilterOptions.countries.length > 0 && (
+        <select value={commFilter.country} onChange={e=>{setCommFilter(p=>({...p,country:e.target.value}));setCommPage(1);}} style={{padding:'6px 8px',borderRadius:8,border:'1px solid rgba(47,79,58,.22)',fontSize:'.82rem',background:'#fff',color:'#17313a'}}>
+          <option value="">{isEn?'All countries':'Todos los países'}</option>
+          {commFilterOptions.countries.map(v=><option key={v} value={v}>{v}</option>)}
+        </select>
+      )}
+      <select value={commFilter.active} onChange={e=>{setCommFilter(p=>({...p,active:e.target.value}));setCommPage(1);}} style={{padding:'6px 8px',borderRadius:8,border:'1px solid rgba(47,79,58,.22)',fontSize:'.82rem',background:'#fff',color:'#17313a'}}>
+        <option value="">{isEn?'Active + Inactive':'Activas + Inactivas'}</option>
+        <option value="true">{isEn?'Active only':'Solo activas'}</option>
+        <option value="false">{isEn?'Inactive only':'Solo inactivas'}</option>
+      </select>
+      {(commSearchDraft||commFilter.city||commFilter.state||commFilter.country||commFilter.active) && (
+        <button className="btn-ghost" style={{fontSize:'.78rem',padding:'5px 10px'}} onClick={()=>{setCommSearchDraft('');setCommFilter({q:'',city:'',state:'',country:'',active:''});setCommPage(1);}}>✕ {isEn?'Clear':'Limpiar'}</button>
+      )}
+      <span style={{fontSize:'.75rem',color:'#8a9fa5',marginLeft:'auto'}}>{commTotal} {isEn?'communities':'comunidades'}</span>
+    </div>
     {communitiesLoading && <div style={{padding:'20px 0',textAlign:'center'}}><span className="spinner-sm"/> {isEn?'Loading...':'Cargando...'}</div>}
     {!communitiesLoading && communities.length === 0 && (
       <div style={{padding:'16px 0',color:'#6b9ba8',textAlign:'center',fontSize:'.9rem'}}>
-        {isEn?'No communities yet. Create the first one above.':'Sin comunidades todavía. Crea la primera arriba.'}
+        {commFilter.q||commFilter.city||commFilter.state||commFilter.country||commFilter.active
+          ? (isEn?'No communities match your filters.':'Ninguna comunidad coincide con los filtros.')
+          : (isEn?'No communities yet. Create the first one above.':'Sin comunidades todavía. Crea la primera arriba.')}
       </div>
     )}
     {!communitiesLoading && communities.map(c => (
@@ -7421,7 +7484,7 @@ function AdminSettings({ config={}, user, listings=[], contactProps={}, onSave, 
             <div style={{fontSize:'.77rem',color:'#8a9fa5',marginTop:2}}>
               <code style={{background:'#eef6f8',padding:'1px 5px',borderRadius:3,fontSize:'.75rem'}}>{c.id}</code>
               {c.tower&&<span style={{marginLeft:8}}>🏢 {c.tower}</span>}
-              {c.city&&<span style={{marginLeft:8}}>📍 {c.city}{c.country?`, ${c.country}`:''}</span>}
+              {c.city&&<span style={{marginLeft:8}}>📍 {c.city}{c.state?`, ${c.state}`:''}{c.country?`, ${c.country}`:''}</span>}
             </div>
           </div>
           <div style={{display:'flex',gap:6,alignItems:'center',flexShrink:0}}>
@@ -7660,6 +7723,17 @@ function AdminSettings({ config={}, user, listings=[], contactProps={}, onSave, 
         </div>}
       </div>
     ))}
+    {/* ── Pagination ── */}
+    {commTotal > 20 && !communitiesLoading && (() => {
+      const totalPages = Math.ceil(commTotal / 20);
+      return (
+        <div style={{display:'flex',justifyContent:'center',alignItems:'center',gap:12,marginTop:12,padding:'8px 0'}}>
+          <button className="btn-ghost" style={{fontSize:'.78rem',padding:'4px 14px'}} disabled={commPage<=1} onClick={()=>setCommPage(p=>p-1)}>← {isEn?'Prev':'Anterior'}</button>
+          <span style={{fontSize:'.78rem',color:'#6b9ba8'}}>{isEn?`Page ${commPage} of ${totalPages}`:`Página ${commPage} de ${totalPages}`}</span>
+          <button className="btn-ghost" style={{fontSize:'.78rem',padding:'4px 14px'}} disabled={commPage>=totalPages} onClick={()=>setCommPage(p=>p+1)}>{isEn?'Next':'Siguiente'} →</button>
+        </div>
+      );
+    })()}
     {communityModal && (
       <CommunityCrudModal
         mode={communityModal.mode}
