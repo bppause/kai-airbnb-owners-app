@@ -28,37 +28,27 @@
     70% { box-shadow: 0 0 0 8px rgba(99,102,241,0); }
     100% { box-shadow: 0 0 0 0 rgba(99,102,241,0); }
   }
-  /* Mobile drawer */
   @media (max-width: 767px) {
     aside#sidebar {
-      position: fixed;
-      top: 0; left: 0; bottom: 0;
-      width: 17rem;
-      z-index: 50;
-      transform: translateX(-100%);
-      transition: transform .25s ease-out;
-      overflow-y: auto;
-      box-shadow: 0 10px 30px rgba(0,0,0,.15);
+      position: fixed; top: 0; left: 0; bottom: 0; width: 17rem; z-index: 50;
+      transform: translateX(-100%); transition: transform .25s ease-out;
+      overflow-y: auto; box-shadow: 0 10px 30px rgba(0,0,0,.15);
     }
     aside#sidebar.open { transform: translateX(0); display: block !important; }
     body.drawer-open { overflow: hidden; }
   }
-  /* Horizontal scroll affordance for tables */
   .table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
   .table-scroll table { min-width: 560px; }
-  /* Scrollable tab strips */
   .tab-strip { overflow-x: auto; -webkit-overflow-scrolling: touch; white-space: nowrap; scrollbar-width: none; }
   .tab-strip::-webkit-scrollbar { display: none; }
 </style>
 </head>
 <body class="bg-slate-50 text-slate-900">
 
-<!-- Demo banner -->
 <div class="demo-banner text-white text-center text-xs py-1.5 px-3">
   <span data-i18n="banner"></span>
 </div>
 
-<!-- Top bar -->
 <header class="bg-white border-b border-slate-200 px-3 md:px-6 py-3 flex items-center justify-between gap-2 sticky top-0 z-30">
   <div class="flex items-center gap-2 md:gap-3 min-w-0">
     <button id="drawer-toggle" class="md:hidden p-2 -ml-1 rounded-md hover:bg-slate-100" aria-label="Menu">
@@ -71,13 +61,11 @@
     </div>
   </div>
   <div class="flex items-center gap-1.5 md:gap-2 shrink-0">
-    <!-- Role switcher -->
     <div class="flex items-center bg-slate-100 rounded-lg p-0.5 md:p-1 text-[11px] md:text-xs font-medium">
       <button data-role="operator" class="role-btn px-2 md:px-3 py-1 md:py-1.5 rounded-md" data-i18n="role.operator"></button>
       <button data-role="owner" class="role-btn px-2 md:px-3 py-1 md:py-1.5 rounded-md" data-i18n="role.owner"></button>
       <button data-role="admin" class="role-btn px-2 md:px-3 py-1 md:py-1.5 rounded-md" data-i18n="role.admin"></button>
     </div>
-    <!-- Lang switcher -->
     <div class="flex items-center bg-slate-100 rounded-lg p-0.5 md:p-1 text-[11px] md:text-xs font-semibold">
       <button data-lang="es" class="lang-btn px-2 py-1 rounded-md">ES</button>
       <button data-lang="en" class="lang-btn px-2 py-1 rounded-md">EN</button>
@@ -85,11 +73,9 @@
   </div>
 </header>
 
-<!-- Mobile drawer backdrop -->
 <div id="drawer-backdrop" class="fixed inset-0 bg-slate-900/40 z-40 hidden md:hidden"></div>
 
 <div class="flex">
-  <!-- Sidebar -->
   <aside id="sidebar" class="w-56 shrink-0 hidden md:block bg-white border-r border-slate-200 min-h-[calc(100vh-89px)] p-3">
     <div class="text-[10px] uppercase tracking-wider text-slate-500 px-2 mb-2" data-i18n="nav.operator"></div>
     <nav id="nav-operator" class="space-y-0.5 text-sm">
@@ -101,12 +87,17 @@
       <button data-view="op-pricing" class="nav-item w-full text-left px-3 py-2 rounded-md hover:bg-slate-100 flex items-center gap-2"><span>💰</span><span data-i18n="nav.pricing"></span></button>
       <button data-view="op-staff" class="nav-item w-full text-left px-3 py-2 rounded-md hover:bg-slate-100 flex items-center gap-2"><span>👷</span><span data-i18n="nav.staff"></span></button>
       <button data-view="op-propose" class="nav-item w-full text-left px-3 py-2 rounded-md hover:bg-slate-100 flex items-center gap-2"><span>➕</span><span data-i18n="nav.propose"></span></button>
+      <button data-view="op-contract" class="nav-item w-full text-left px-3 py-2 rounded-md hover:bg-slate-100 flex items-center gap-2"><span>📜</span><span data-i18n="nav.contract"></span></button>
+      <button data-view="op-damage" class="nav-item w-full text-left px-3 py-2 rounded-md hover:bg-slate-100 flex items-center gap-2"><span>🚨</span><span data-i18n="nav.damage"></span></button>
+      <button data-view="op-building-notice" class="nav-item w-full text-left px-3 py-2 rounded-md hover:bg-slate-100 flex items-center gap-2"><span>📢</span><span data-i18n="nav.buildingNotice"></span></button>
     </nav>
     <div class="text-[10px] uppercase tracking-wider text-slate-500 px-2 mt-5 mb-2" data-i18n="nav.owner"></div>
     <nav id="nav-owner" class="space-y-0.5 text-sm">
+      <button data-view="own-inbox" class="nav-item w-full text-left px-3 py-2 rounded-md hover:bg-slate-100 flex items-center gap-2"><span>📬</span><span data-i18n="nav.inbox"></span></button>
       <button data-view="own-listing" class="nav-item w-full text-left px-3 py-2 rounded-md hover:bg-slate-100 flex items-center gap-2"><span>🏡</span><span data-i18n="nav.myListing"></span></button>
       <button data-view="own-approval" class="nav-item w-full text-left px-3 py-2 rounded-md hover:bg-slate-100 flex items-center gap-2"><span>✅</span><span data-i18n="nav.approval"></span></button>
       <button data-view="own-block" class="nav-item w-full text-left px-3 py-2 rounded-md hover:bg-slate-100 flex items-center gap-2"><span>📅</span><span data-i18n="nav.ownerBlock"></span></button>
+      <button data-view="own-pricing" class="nav-item w-full text-left px-3 py-2 rounded-md hover:bg-slate-100 flex items-center gap-2"><span>💲</span><span data-i18n="nav.proposePricing"></span></button>
     </nav>
     <div class="text-[10px] uppercase tracking-wider text-slate-500 px-2 mt-5 mb-2" data-i18n="nav.admin"></div>
     <nav id="nav-admin" class="space-y-0.5 text-sm">
@@ -118,14 +109,11 @@
     </div>
   </aside>
 
-  <!-- Main view container -->
   <main class="flex-1 min-w-0 p-4 md:p-6 max-w-[1200px] mx-auto w-full" id="view-container"></main>
 </div>
 
-<!-- Toast -->
 <div id="toast" class="fixed bottom-6 right-6 bg-slate-900 text-white text-sm px-4 py-2.5 rounded-lg shadow-xl opacity-0 pointer-events-none transition-opacity z-50"></div>
 
-<!-- Modal -->
 <div id="modal" class="fixed inset-0 bg-slate-900/50 hidden items-center justify-center z-40 p-4">
   <div class="bg-white rounded-xl shadow-2xl max-w-lg w-full p-6 fade-in" id="modal-content"></div>
 </div>
@@ -153,14 +141,18 @@ const I18N = {
     "nav.pricing": "Tarifas",
     "nav.staff": "Personal",
     "nav.propose": "Vincular unidad",
+    "nav.contract": "Contrato",
+    "nav.damage": "Reporte de daños",
+    "nav.buildingNotice": "Aviso de edificio",
+    "nav.inbox": "Bandeja de atención",
     "nav.myListing": "Mi propiedad",
     "nav.approval": "Aprobar costo",
     "nav.ownerBlock": "Bloquear fechas",
+    "nav.proposePricing": "Proponer tarifa",
     "nav.opMgmt": "Gestión de operadores",
     "hint.title": "💡 Cómo usar la demo",
     "hint.body": "Cambia rol e idioma arriba. Los botones de la barra lateral abren cada vista. Los elementos resaltados son interactivos.",
 
-    /* Dashboard */
     "dash.title": "Panel del operador",
     "dash.subtitle": "Vista global — todas las unidades, todas las comunidades",
     "dash.kpi.units": "Unidades activas",
@@ -172,7 +164,6 @@ const I18N = {
     "dash.upcoming": "Próximas tareas",
     "dash.communities": "Por comunidad",
 
-    /* Units list */
     "units.title": "Mis unidades",
     "units.subtitle": "8 unidades · 3 comunidades",
     "units.filter.all": "Todas",
@@ -184,7 +175,6 @@ const I18N = {
     "units.col.next": "Próximo evento",
     "units.col.actions": "Acciones",
 
-    /* Unit detail */
     "unit.back": "← Volver",
     "unit.title": "Apto 1204 · Torre Reserva",
     "unit.subtitle": "Gestionado por: Tu operadora — desde 12 mar 2026",
@@ -204,8 +194,11 @@ const I18N = {
     "unit.profile.lock": "Cerradura inteligente",
     "unit.profile.bedConfig": "Habitación 1: Queen · Habitación 2: 2 individuales · Sofá-cama: 1 · Total: 5 personas",
     "unit.profile.accessText": "Código del lobby: 4421 · Cerradura inteligente con PIN rotativo · Llave de respaldo en conserjería bajo nombre del huésped.",
+    "unit.vault": "Bóveda de credenciales",
+    "unit.vault.rnt": "RNT — vence feb 2027",
+    "unit.vault.manuals": "Manuales de electrodomésticos",
+    "unit.vault.access": "Códigos de acceso",
 
-    /* Service request list */
     "sr.title": "Solicitudes de servicio",
     "sr.subtitle": "Todas las unidades · todos los estados",
     "sr.new": "Nueva solicitud",
@@ -219,7 +212,6 @@ const I18N = {
     "sr.col.status": "Estado",
     "sr.col.cost": "Costo",
 
-    /* Service detail */
     "srd.title": "Reparación calentador a gas",
     "srd.unit": "Apto 1204 · Torre Reserva",
     "srd.created": "Creada por María Vélez (operadora) · 4 may 2026",
@@ -245,7 +237,6 @@ const I18N = {
     "srd.btn.message": "Mensaje al propietario",
     "srd.audit": "Acciones de la operadora se registran como: \"María Vélez actuando en nombre de Carlos Ramírez — Apto 1204\"",
 
-    /* Pricing */
     "price.title": "Bitácora de tarifas",
     "price.subtitle": "Apto 1204 · Torre Reserva",
     "price.current": "Tarifa vigente",
@@ -257,7 +248,6 @@ const I18N = {
     "price.propose": "Proponer cambio",
     "price.history": "Historial inmutable",
 
-    /* Staff */
     "staff.title": "Personal",
     "staff.subtitle": "Equipo asignado a múltiples unidades",
     "staff.add": "Añadir miembro",
@@ -267,7 +257,6 @@ const I18N = {
     "staff.col.units": "Unidades asignadas",
     "staff.col.status": "Estado",
 
-    /* Propose */
     "prop.title": "Vincular nueva unidad",
     "prop.subtitle": "Busca por comunidad y número de apartamento",
     "prop.community": "Comunidad",
@@ -279,7 +268,58 @@ const I18N = {
     "prop.send": "Enviar propuesta de gestión",
     "prop.cancel": "Cancelar",
 
-    /* Owner views */
+    "contract.title": "Contrato de gestión",
+    "contract.subtitle": "Apto 1204 · Torre Reserva",
+    "contract.active": "Activo desde 12 mar 2026",
+    "contract.terms": "Términos vigentes",
+    "contract.fee": "Comisión de gestión",
+    "contract.threshold": "Umbral de reparación",
+    "contract.term": "Plazo",
+    "contract.notice": "Aviso de terminación",
+    "contract.platforms": "Plataformas",
+    "contract.cleaning": "Limpieza",
+    "contract.services": "Servicios incluidos",
+    "contract.amendment": "Enmienda pendiente",
+    "contract.amendmentBody": "Umbral $150k → $200k COP · Propuesto por María Vélez · 3 may 2026",
+    "contract.history": "Historial de contrato (inmutable)",
+    "contract.propose": "Proponer enmienda",
+    "contract.approve": "Aprobar",
+    "contract.counter": "Contrapropuesta",
+    "contract.reject": "Rechazar",
+
+    "dmg.title": "Reporte de daños",
+    "dmg.subtitle": "Apto 1204 · Torre Reserva",
+    "dmg.path": "Origen del daño",
+    "dmg.path.guest": "Causado por huésped → AirCover (Airbnb)",
+    "dmg.path.nonguest": "No relacionado con huésped → Seguro del propietario",
+    "dmg.stay": "Referencia de estadía",
+    "dmg.stayRef": "Checkout 9 may — Anna K.",
+    "dmg.window": "Ventana AirCover: 5 días restantes",
+    "dmg.nonguest.note": "El propietario será notificado para que tramite el reclamo con su aseguradora.",
+    "dmg.description": "Descripción del daño",
+    "dmg.description.ph": "Describe el daño con el mayor detalle posible.",
+    "dmg.photos": "Fotos de evidencia",
+    "dmg.checkin": "Inspección de entrada",
+    "dmg.checkout": "Inspección de salida",
+    "dmg.photo": "Foto del daño",
+    "dmg.estimate": "Costo estimado (COP)",
+    "dmg.submit": "Enviar reporte",
+    "dmg.disclaimer": "KAI no procesa transacciones financieras — coordina el cobro de reparaciones por separado.",
+
+    "bldg.title": "Aviso de edificio",
+    "bldg.subtitle": "Relay a tu equipo",
+    "bldg.source": "Fuente: Martha Pause (propietaria) vía Kai",
+    "bldg.urgency": "Urgencia",
+    "bldg.urg.urgent": "Urgente",
+    "bldg.urg.standard": "Estándar",
+    "bldg.urg.info": "Informativo",
+    "bldg.message": "Mensaje",
+    "bldg.guestImpact": "Hay un huésped activo en la unidad durante este período — enviar mensaje por Airbnb",
+    "bldg.guestWarning": "Anna K. (6-9 may) estará en la unidad. Se recomienda notificar.",
+    "bldg.relay": "Enviar al equipo",
+    "bldg.ack": "Registro de acuse de recibo",
+    "bldg.ackEntry": "Camila del Valle acusó recibo · 08:14",
+
     "own.title": "Mi propiedad",
     "own.subtitle": "Apto 1204 · Torre Reserva",
     "own.operator": "Operadora actual",
@@ -294,6 +334,28 @@ const I18N = {
     "own.pending": "Pendientes de aprobación",
     "own.pending.cost": "Costo de servicio: $180.000 COP",
     "own.pending.viewSR": "Ver solicitud",
+    "own.team": "Directorio del equipo",
+    "own.coowners": "Co-propietarios",
+    "own.payoutOwner": "Propietario de pagos (tú)",
+    "own.calendarOwner": "Propietario de calendario",
+
+    "own.pricing.title": "Proponer cambio de tarifa",
+    "own.pricing.subtitle": "Apto 1204 · Torre Reserva",
+    "own.pricing.current": "Tarifa base actual",
+    "own.pricing.propose": "Nueva tarifa base propuesta",
+    "own.pricing.reason": "Motivo / nota al operador",
+    "own.pricing.reason.ph": "Ej. Temporada de vacaciones, quiero ajustar el precio.",
+    "own.pricing.note": "El operador debe confirmar antes de que tome efecto en Airbnb. Acepta contrapropuestas.",
+    "own.pricing.submit": "Enviar propuesta",
+    "own.pricing.history": "Historial de tarifas",
+
+    "inbox.title": "Lo que requiere tu atención",
+    "inbox.subtitle": "Apto 1204 · Torre Reserva",
+    "inbox.ballInCourt": "Tu turno",
+    "inbox.waiting": "Esperando al operador",
+    "inbox.noAction": "Sin acción requerida",
+    "inbox.noAction.sub": "Solo informativo",
+    "inbox.myListing": "Mi propiedad →",
 
     "appr.title": "Aprobar costo de servicio",
     "appr.unit": "Apto 1204 · Torre Reserva",
@@ -319,7 +381,6 @@ const I18N = {
     "block.notes.ph": "Ej. Visita familiar de fin de semana.",
     "block.send": "Enviar solicitud",
 
-    /* Admin */
     "adm.title": "Gestión de operadores",
     "adm.subtitle": "Aprobar registros, supervisar relaciones y resolver disputas",
     "adm.tab.pending": "Pendientes",
@@ -331,7 +392,6 @@ const I18N = {
     "adm.col.units": "Unidades",
     "adm.col.actions": "Acciones",
 
-    /* Common */
     "status.unmanaged": "No gestionada",
     "status.pendingOp": "Esperando operador",
     "status.pendingOwner": "Esperando propietario",
@@ -368,11 +428,19 @@ const I18N = {
     "toast.staffAdded": "Miembro añadido al equipo",
     "toast.priceProposed": "Cambio de tarifa propuesto",
     "toast.role": "Cambiando a vista de:",
+    "toast.contractAmended": "Enmienda de contrato enviada",
+    "toast.damageReported": "Reporte de daños enviado",
+    "toast.noticeRelayed": "Aviso enviado al equipo · Operador debe acusar recibo en 2h",
+    "toast.pricingProposed": "Propuesta de tarifa enviada al operador",
 
     "modal.proposal.title": "Propuesta enviada",
     "modal.proposal.body": "Carlos Ramírez recibirá una notificación en la app y un correo. Verás esta unidad en estado \"Esperando propietario\" hasta que acepte o decline.",
     "modal.approve.title": "Costo aprobado",
     "modal.approve.body": "La operadora puede asignar personal y comenzar el trabajo. Recibirás notificaciones en cada cambio de estado.",
+    "modal.contract.title": "Enmienda propuesta",
+    "modal.contract.body": "La enmienda ha sido registrada. El propietario recibirá una notificación para aprobar, rechazar o hacer contrapropuesta.",
+    "modal.damage.title": "Reporte enviado",
+    "modal.damage.body": "El reporte de daños ha sido registrado. Recuerda coordinar el cobro de reparaciones directamente — KAI no procesa pagos.",
   },
   en: {
     banner: "Clickable demo — Operator Portal · Mock data · Not a live environment",
@@ -392,9 +460,14 @@ const I18N = {
     "nav.pricing": "Pricing",
     "nav.staff": "Staff",
     "nav.propose": "Link a unit",
+    "nav.contract": "Contract",
+    "nav.damage": "Damage report",
+    "nav.buildingNotice": "Building notice",
+    "nav.inbox": "Attention inbox",
     "nav.myListing": "My listing",
     "nav.approval": "Approve cost",
     "nav.ownerBlock": "Block dates",
+    "nav.proposePricing": "Propose pricing",
     "nav.opMgmt": "Operator management",
     "hint.title": "💡 How to use this demo",
     "hint.body": "Switch role and language above. Sidebar buttons open each view. Highlighted items are interactive.",
@@ -440,6 +513,10 @@ const I18N = {
     "unit.profile.lock": "Smart lock",
     "unit.profile.bedConfig": "Room 1: Queen · Room 2: 2 singles · Sofa bed: 1 · Sleeps 5",
     "unit.profile.accessText": "Lobby code: 4421 · Smart lock with rotating PIN · Backup key with concierge under guest's name.",
+    "unit.vault": "Credential vault",
+    "unit.vault.rnt": "RNT — expires Feb 2027",
+    "unit.vault.manuals": "Appliance manuals",
+    "unit.vault.access": "Access codes",
 
     "sr.title": "Service requests",
     "sr.subtitle": "All units · all statuses",
@@ -510,6 +587,58 @@ const I18N = {
     "prop.send": "Send management proposal",
     "prop.cancel": "Cancel",
 
+    "contract.title": "Management contract",
+    "contract.subtitle": "Apt 1204 · Torre Reserva",
+    "contract.active": "Active since Mar 12, 2026",
+    "contract.terms": "Current terms",
+    "contract.fee": "Management fee",
+    "contract.threshold": "Repair threshold",
+    "contract.term": "Term",
+    "contract.notice": "Termination notice",
+    "contract.platforms": "Platforms",
+    "contract.cleaning": "Cleaning",
+    "contract.services": "Services included",
+    "contract.amendment": "Pending amendment",
+    "contract.amendmentBody": "Threshold $150k → $200k COP · Proposed by María Vélez · May 3, 2026",
+    "contract.history": "Contract history (immutable)",
+    "contract.propose": "Propose amendment",
+    "contract.approve": "Approve",
+    "contract.counter": "Counter-propose",
+    "contract.reject": "Reject",
+
+    "dmg.title": "Damage report",
+    "dmg.subtitle": "Apt 1204 · Torre Reserva",
+    "dmg.path": "Damage origin",
+    "dmg.path.guest": "Guest-caused → AirCover (Airbnb)",
+    "dmg.path.nonguest": "Non-guest → Owner's unit insurance",
+    "dmg.stay": "Stay reference",
+    "dmg.stayRef": "Checkout May 9 — Anna K.",
+    "dmg.window": "AirCover window: 5 days remaining",
+    "dmg.nonguest.note": "Owner will be notified to file a claim with their insurer.",
+    "dmg.description": "Damage description",
+    "dmg.description.ph": "Describe the damage in as much detail as possible.",
+    "dmg.photos": "Evidence photos",
+    "dmg.checkin": "Check-in inspection",
+    "dmg.checkout": "Check-out inspection",
+    "dmg.photo": "Damage photo",
+    "dmg.estimate": "Estimated cost (COP)",
+    "dmg.submit": "Submit report",
+    "dmg.disclaimer": "Zero financial transactions through KAI — coordinate repair billing separately.",
+
+    "bldg.title": "Building notice",
+    "bldg.subtitle": "Relay to your team",
+    "bldg.source": "Source: Martha Pause (owner) via Kai",
+    "bldg.urgency": "Urgency",
+    "bldg.urg.urgent": "Urgent",
+    "bldg.urg.standard": "Standard",
+    "bldg.urg.info": "Informational",
+    "bldg.message": "Message",
+    "bldg.guestImpact": "Active guest in unit during this period — prompt Airbnb message",
+    "bldg.guestWarning": "Anna K. (May 6–9) will be in the unit. Recommend notifying.",
+    "bldg.relay": "Relay to team",
+    "bldg.ack": "Acknowledgment log",
+    "bldg.ackEntry": "Camila del Valle acknowledged · 08:14",
+
     "own.title": "My listing",
     "own.subtitle": "Apt 1204 · Torre Reserva",
     "own.operator": "Current operator",
@@ -524,6 +653,28 @@ const I18N = {
     "own.pending": "Pending approvals",
     "own.pending.cost": "Service cost: $180,000 COP",
     "own.pending.viewSR": "View request",
+    "own.team": "Team directory",
+    "own.coowners": "Co-owners",
+    "own.payoutOwner": "Payout Owner (you)",
+    "own.calendarOwner": "Calendar Owner",
+
+    "own.pricing.title": "Propose pricing change",
+    "own.pricing.subtitle": "Apt 1204 · Torre Reserva",
+    "own.pricing.current": "Current base rate",
+    "own.pricing.propose": "Proposed new base rate",
+    "own.pricing.reason": "Reason / note to operator",
+    "own.pricing.reason.ph": "E.g. Holiday season, I'd like to adjust the price.",
+    "own.pricing.note": "Operator must confirm before it takes effect on Airbnb. Counter-proposals are supported.",
+    "own.pricing.submit": "Submit proposal",
+    "own.pricing.history": "Pricing history",
+
+    "inbox.title": "Your attention",
+    "inbox.subtitle": "Apt 1204 · Torre Reserva",
+    "inbox.ballInCourt": "Ball in your court",
+    "inbox.waiting": "Waiting on operator",
+    "inbox.noAction": "No action needed",
+    "inbox.noAction.sub": "FYI only",
+    "inbox.myListing": "My listing →",
 
     "appr.title": "Approve service cost",
     "appr.unit": "Apt 1204 · Torre Reserva",
@@ -596,11 +747,19 @@ const I18N = {
     "toast.staffAdded": "Staff member added",
     "toast.priceProposed": "Pricing change proposed",
     "toast.role": "Switching to view of:",
+    "toast.contractAmended": "Contract amendment submitted",
+    "toast.damageReported": "Damage report submitted",
+    "toast.noticeRelayed": "Team notified · Operator must acknowledge within 2h",
+    "toast.pricingProposed": "Pricing proposal sent to operator",
 
     "modal.proposal.title": "Proposal sent",
     "modal.proposal.body": "Carlos Ramírez will receive an in-app notification and an email. The unit will appear as \"Awaiting owner\" until they accept or decline.",
     "modal.approve.title": "Cost approved",
     "modal.approve.body": "The operator can now assign staff and begin the work. You will receive notifications on every status change.",
+    "modal.contract.title": "Amendment proposed",
+    "modal.contract.body": "The amendment has been recorded. The owner will receive a notification to approve, reject, or counter-propose.",
+    "modal.damage.title": "Report submitted",
+    "modal.damage.body": "The damage report has been logged. Remember to coordinate repair billing directly — KAI does not process payments.",
   }
 };
 
@@ -611,20 +770,53 @@ const state = {
   lang: localStorage.getItem('demoLang') || 'es',
   role: 'operator',
   view: 'op-dashboard',
+  damagePathGuest: true,
+  buildingNoticeRelayed: false,
 };
 
-/* ============================================================
-   View renderers — return HTML string
-   ============================================================ */
 const t = (k) => I18N[state.lang][k] ?? k;
 
 function pill(textKey, kind) {
   return `<span class="pill pill-${kind}">${t(textKey)}</span>`;
 }
 
+/* ============================================================
+   New helper functions
+   ============================================================ */
+function slaTimer(elapsed, remaining, overdue) {
+  const color = overdue ? 'pill-red' : remaining && parseInt(remaining) <= 8 ? 'pill-amber' : 'pill-green';
+  const txt = overdue ? `${elapsed} · ${state.lang==='es'?'vencido':'overdue'}` : `${elapsed} · ${remaining} ${state.lang==='es'?'restantes':'left'}`;
+  return `<span class="pill ${color}">${txt}</span>`;
+}
+
+function inboxItem(emoji, title, sub, slaText, slaColor, ballInCourt, actionText, target) {
+  const badge = ballInCourt
+    ? `<span class="pill pill-amber">⚡ ${t('inbox.ballInCourt')}</span>`
+    : `<span class="pill pill-blue">⏳ ${t('inbox.waiting')}</span>`;
+  return `<div class="flex flex-wrap items-center justify-between gap-3 p-4 rounded-lg border border-slate-200 hover:border-indigo-300 hover:bg-indigo-50/30 bg-white">
+    <div class="flex items-start gap-3 min-w-0 flex-1">
+      <span class="text-2xl">${emoji}</span>
+      <div class="min-w-0">
+        <div class="font-medium text-sm">${title}</div>
+        <div class="text-xs text-slate-500 mt-0.5">${sub}</div>
+        <div class="flex flex-wrap gap-2 mt-1.5">
+          <span class="pill ${slaColor}">${slaText}</span>
+          ${badge}
+        </div>
+      </div>
+    </div>
+    ${actionText ? `<button data-go="${target}" class="shrink-0 bg-slate-900 text-white text-xs px-3 py-1.5 rounded-lg hover:bg-slate-800">${actionText} →</button>` : ''}
+  </div>`;
+}
+
+/* ============================================================
+   View renderers — return HTML string
+   ============================================================ */
 const views = {
   /* ---------------- Operator dashboard ---------------- */
-  'op-dashboard': () => `
+  'op-dashboard': () => {
+    const es = state.lang === 'es';
+    return `
     <div class="fade-in">
       <div class="flex flex-wrap items-end justify-between gap-3 mb-5">
         <div>
@@ -650,10 +842,11 @@ const views = {
             <button class="text-xs text-indigo-600 font-medium" data-go="op-service-requests">${t('btn.viewAll')} →</button>
           </div>
           <div class="space-y-2">
-            ${attentionRow('🔥','#SR-1042','Apt 1204 · Torre Reserva', t('srd.title'), 'red', 'urg.emergency', 'op-service-detail')}
-            ${attentionRow('💸','#SR-1039','Apt 802 · Pinares', state.lang==='es'?'Limpieza profunda':'Deep cleaning', 'amber', 'status.awaiting', 'op-service-requests')}
-            ${attentionRow('📄','RNT','Apt 304 · El Bosque', state.lang==='es'?'RNT vence en 14 días':'RNT expires in 14 days', 'amber', 'urg.urgent', 'op-units')}
-            ${attentionRow('💰','PRC-22','Apt 1204 · Torre Reserva', state.lang==='es'?'Cambio de tarifa pendiente':'Pricing change pending', 'blue', 'status.awaiting', 'op-pricing')}
+            ${attentionRow('🔥','#SR-1042','Apt 1204 · Torre Reserva', t('srd.title'), 'red', 'urg.emergency', 'op-service-detail', slaTimer('8h','16h',false))}
+            ${attentionRow('💸','#SR-1039','Apt 802 · Pinares', es?'Limpieza profunda':'Deep cleaning', 'amber', 'status.awaiting', 'op-service-requests', slaTimer('1d 4h','4h',false))}
+            ${attentionRow('📄','RNT','Apt 304 · El Bosque', es?'RNT vence en 14 días':'RNT expires in 14 days', 'amber', 'urg.urgent', 'op-units', slaTimer('14d','—',false))}
+            ${attentionRow('💰','PRC-22','Apt 1204 · Torre Reserva', es?'Cambio de tarifa pendiente':'Pricing change pending', 'blue', 'status.awaiting', 'op-pricing', slaTimer('2d','24h',false))}
+            ${attentionRow('📢','BLDG-01','Torre Reserva', es?'Corte de agua 7 may':'Water shutoff May 7', 'amber', 'urg.urgent', 'op-building-notice', slaTimer('6h','2h',false))}
           </div>
         </div>
 
@@ -667,17 +860,19 @@ const views = {
           <hr class="my-4 border-slate-100"/>
           <h3 class="font-semibold text-sm mb-2">${t('dash.upcoming')}</h3>
           <ul class="text-xs space-y-1.5 text-slate-600">
-            <li>🧹 09:00 — Apt 802 · ${state.lang==='es'?'Limpieza salida':'Checkout cleaning'}</li>
+            <li>🧹 09:00 — Apt 802 · ${es?'Limpieza salida':'Checkout cleaning'}</li>
             <li>🔧 11:30 — Apt 1204 · ${t('srd.title')}</li>
-            <li>📋 15:00 — Apt 304 · ${state.lang==='es'?'Inspección trimestral':'Quarterly inspection'}</li>
+            <li>📋 15:00 — Apt 304 · ${es?'Inspección trimestral':'Quarterly inspection'}</li>
           </ul>
         </div>
       </div>
     </div>
-  `,
+  `;},
 
   /* ---------------- Units list ---------------- */
-  'op-units': () => `
+  'op-units': () => {
+    const es = state.lang === 'es';
+    return `
     <div class="fade-in">
       <div class="flex flex-wrap items-end justify-between gap-3 mb-5">
         <div>
@@ -705,21 +900,23 @@ const views = {
             </tr>
           </thead>
           <tbody class="divide-y divide-slate-100">
-            ${unitRow('Apt 1204', 'Torre Reserva', pill('status.active','green'), state.lang==='es'?'Reparación 11:30':'Repair 11:30', true)}
-            ${unitRow('Apt 802', 'Pinares del Norte', pill('status.active','green'), state.lang==='es'?'Limpieza 09:00':'Cleaning 09:00')}
-            ${unitRow('Apt 304', 'El Bosque', pill('status.active','green'), state.lang==='es'?'Inspección 15:00':'Inspection 15:00')}
+            ${unitRow('Apt 1204', 'Torre Reserva', pill('status.active','green'), es?'Reparación 11:30':'Repair 11:30', true)}
+            ${unitRow('Apt 802', 'Pinares del Norte', pill('status.active','green'), es?'Limpieza 09:00':'Cleaning 09:00')}
+            ${unitRow('Apt 304', 'El Bosque', pill('status.active','green'), es?'Inspección 15:00':'Inspection 15:00')}
             ${unitRow('Apt 905', 'Torre Reserva', pill('status.active','green'), '—')}
-            ${unitRow('Apt 1101', 'Torre Reserva', pill('status.pendingOwner','amber'), state.lang==='es'?'Esperando aceptación':'Awaiting acceptance')}
+            ${unitRow('Apt 1101', 'Torre Reserva', pill('status.pendingOwner','amber'), es?'Esperando aceptación':'Awaiting acceptance')}
             ${unitRow('Apt 502', 'Pinares del Norte', pill('status.active','green'), '—')}
-            ${unitRow('Apt 706', 'Pinares del Norte', pill('status.terminated','gray'), state.lang==='es'?'Solo lectura':'Read-only')}
+            ${unitRow('Apt 706', 'Pinares del Norte', pill('status.terminated','gray'), es?'Solo lectura':'Read-only')}
           </tbody>
         </table>
       </div>
     </div>
-  `,
+  `;},
 
   /* ---------------- Unit detail ---------------- */
-  'op-unit-detail': () => `
+  'op-unit-detail': () => {
+    const es = state.lang === 'es';
+    return `
     <div class="fade-in">
       <button data-go="op-units" class="text-sm text-indigo-600 mb-3">${t('unit.back')}</button>
       <div class="flex flex-wrap items-start justify-between gap-3 mb-4">
@@ -748,9 +945,9 @@ const views = {
             <button class="text-xs text-indigo-600 font-medium">${t('unit.profile.edit')}</button>
           </div>
           <div class="grid grid-cols-2 gap-3 text-sm mb-5">
-            <div class="flex items-center gap-2"><span>♨️</span> ${t('unit.profile.hotwater')}: <span class="text-slate-500">${state.lang==='es'?'Gas natural':'Natural gas'}</span></div>
+            <div class="flex items-center gap-2"><span>♨️</span> ${t('unit.profile.hotwater')}: <span class="text-slate-500">${es?'Gas natural':'Natural gas'}</span></div>
             <div class="flex items-center gap-2"><span>❄️</span> ${t('unit.profile.ac')}: <span class="text-slate-500">2</span></div>
-            <div class="flex items-center gap-2"><span>🛋️</span> ${t('unit.profile.sofa')}: <span class="text-slate-500">${state.lang==='es'?'Sí':'Yes'}</span></div>
+            <div class="flex items-center gap-2"><span>🛋️</span> ${t('unit.profile.sofa')}: <span class="text-slate-500">${es?'Sí':'Yes'}</span></div>
             <div class="flex items-center gap-2"><span>🔐</span> ${t('unit.profile.lock')}: <span class="text-slate-500">August Pro</span></div>
           </div>
           <h3 class="font-semibold text-sm mb-2">${t('unit.profile.beds')}</h3>
@@ -759,29 +956,54 @@ const views = {
           <p class="text-sm text-slate-600 mb-4">${t('unit.profile.accessText')}</p>
           <h3 class="font-semibold text-sm mb-2">${t('unit.profile.airbnb')}</h3>
           <a href="#" class="text-sm text-indigo-600 underline">airbnb.com/rooms/12345678</a>
+
+          <hr class="my-4 border-slate-100"/>
+          <h3 class="font-semibold text-sm mb-3">🔒 ${t('unit.vault')}</h3>
+          <div class="space-y-2">
+            <div class="flex items-center justify-between p-2.5 rounded-lg bg-slate-50 text-sm">
+              <div class="flex items-center gap-2"><span>📄</span><span>${t('unit.vault.rnt')}</span></div>
+              <button class="text-xs text-indigo-600">${es?'Ver':'View'}</button>
+            </div>
+            <div class="flex items-center justify-between p-2.5 rounded-lg bg-slate-50 text-sm">
+              <div class="flex items-center gap-2"><span>📗</span><span>${t('unit.vault.manuals')}</span></div>
+              <button class="text-xs text-indigo-600">${es?'Ver':'View'}</button>
+            </div>
+            <div class="flex items-center justify-between p-2.5 rounded-lg bg-slate-50 text-sm">
+              <div class="flex items-center gap-2"><span>🔑</span><span>${t('unit.vault.access')}</span></div>
+              <button class="text-xs text-indigo-600">${es?'Ver':'View'}</button>
+            </div>
+          </div>
         </div>
         <div class="bg-white border border-slate-200 rounded-xl p-5 text-sm">
-          <h3 class="font-semibold mb-3">${state.lang==='es'?'Resumen del mes':'Month at a glance'}</h3>
+          <h3 class="font-semibold mb-3">${es?'Resumen del mes':'Month at a glance'}</h3>
           <div class="space-y-2">
-            <div class="flex justify-between"><span class="text-slate-500">${state.lang==='es'?'Ocupación':'Occupancy'}</span><span class="font-semibold">82%</span></div>
-            <div class="flex justify-between"><span class="text-slate-500">${state.lang==='es'?'Ingresos':'Revenue'}</span><span class="font-semibold">$4.2M COP</span></div>
-            <div class="flex justify-between"><span class="text-slate-500">${state.lang==='es'?'Solicitudes':'Requests'}</span><span class="font-semibold">3</span></div>
-            <div class="flex justify-between"><span class="text-slate-500">${state.lang==='es'?'Costo de servicios':'Service costs'}</span><span class="font-semibold">$320k COP</span></div>
+            <div class="flex justify-between"><span class="text-slate-500">${es?'Ocupación':'Occupancy'}</span><span class="font-semibold">82%</span></div>
+            <div class="flex justify-between"><span class="text-slate-500">${es?'Solicitudes cerradas':'Requests closed'}</span><span class="font-semibold">3</span></div>
+            <div class="flex justify-between"><span class="text-slate-500">${es?'Costo de servicios':'Service costs'}</span><span class="font-semibold">$320k COP</span></div>
           </div>
           <hr class="my-3 border-slate-100"/>
-          <h3 class="font-semibold mb-2">${state.lang==='es'?'Próximas reservas':'Upcoming bookings'}</h3>
+          <h3 class="font-semibold mb-2">${es?'Próximas reservas':'Upcoming bookings'}</h3>
           <ul class="text-xs text-slate-600 space-y-1">
-            <li>📥 ${state.lang==='es'?'Check-in 6 may':'Check-in May 6'} — Anna K.</li>
-            <li>📤 ${state.lang==='es'?'Check-out 9 may':'Check-out May 9'}</li>
-            <li>📥 ${state.lang==='es'?'Check-in 12 may':'Check-in May 12'} — Diego R.</li>
+            <li>📥 ${es?'Check-in 6 may':'Check-in May 6'} — Anna K.</li>
+            <li>📤 ${es?'Check-out 9 may':'Check-out May 9'}</li>
+            <li>📥 ${es?'Check-in 12 may':'Check-in May 12'} — Diego R.</li>
+          </ul>
+          <hr class="my-3 border-slate-100"/>
+          <h3 class="font-semibold mb-2 text-xs uppercase tracking-wide text-slate-500">${es?'Equipo — visible al propietario':'Team — visible to owner'}</h3>
+          <ul class="text-xs text-slate-700 space-y-1.5">
+            <li class="flex items-center gap-2">👤 <span class="font-medium">Paula Ramirez</span> — ${es?'Relaciones con huéspedes':'Guest Relations'}</li>
+            <li class="flex items-center gap-2">🧹 <span class="font-medium">Camila del Valle</span> — ${es?'Limpieza':'Cleaning'}</li>
+            <li class="flex items-center gap-2">🔧 <span class="font-medium">Juan Pérez</span> — ${es?'Mantenimiento':'Maintenance'}</li>
           </ul>
         </div>
       </div>
     </div>
-  `,
+  `;},
 
   /* ---------------- Service requests list ---------------- */
-  'op-service-requests': () => `
+  'op-service-requests': () => {
+    const es = state.lang === 'es';
+    return `
     <div class="fade-in">
       <div class="flex flex-wrap items-end justify-between gap-3 mb-5">
         <div>
@@ -811,18 +1033,20 @@ const views = {
           </thead>
           <tbody class="divide-y divide-slate-100">
             ${srRow('SR-1042', t('srd.title'), 'Apt 1204', 'type.repair', 'urg.emergency', 'status.awaiting', '$180.000', true)}
-            ${srRow('SR-1039', state.lang==='es'?'Limpieza profunda':'Deep cleaning', 'Apt 802', 'type.cleaning', 'urg.urgent', 'status.assigned', '$95.000')}
-            ${srRow('SR-1037', state.lang==='es'?'Cambio de bombillas':'Bulb replacement', 'Apt 905', 'type.maintenance', 'urg.routine', 'status.inProgress', '$25.000')}
-            ${srRow('SR-1035', state.lang==='es'?'Inspección trimestral':'Quarterly inspection', 'Apt 304', 'type.inspection', 'urg.routine', 'status.assigned', '$0')}
-            ${srRow('SR-1033', state.lang==='es'?'Renovación RNT':'RNT renewal', 'Apt 304', 'type.regulatory', 'urg.urgent', 'status.submitted', '$120.000')}
+            ${srRow('SR-1039', es?'Limpieza profunda':'Deep cleaning', 'Apt 802', 'type.cleaning', 'urg.urgent', 'status.assigned', '$95.000')}
+            ${srRow('SR-1037', es?'Cambio de bombillas':'Bulb replacement', 'Apt 905', 'type.maintenance', 'urg.routine', 'status.inProgress', '$25.000')}
+            ${srRow('SR-1035', es?'Inspección trimestral':'Quarterly inspection', 'Apt 304', 'type.inspection', 'urg.routine', 'status.assigned', '$0')}
+            ${srRow('SR-1033', es?'Renovación RNT':'RNT renewal', 'Apt 304', 'type.regulatory', 'urg.urgent', 'status.submitted', '$120.000')}
           </tbody>
         </table>
       </div>
     </div>
-  `,
+  `;},
 
   /* ---------------- Service request detail ---------------- */
-  'op-service-detail': () => `
+  'op-service-detail': () => {
+    const es = state.lang === 'es';
+    return `
     <div class="fade-in">
       <button data-go="op-service-requests" class="text-sm text-indigo-600 mb-3">${t('unit.back')}</button>
       <div class="flex flex-wrap items-start justify-between gap-3 mb-3">
@@ -853,9 +1077,9 @@ const views = {
           <div class="bg-white border border-slate-200 rounded-xl p-5">
             <h2 class="font-semibold mb-3">${t('srd.timeline')}</h2>
             <ol class="relative border-l-2 border-slate-200 ml-2 pl-5 space-y-3 text-sm">
-              ${tl('1','green', t('srd.t1'), '4 may, 14:02', true)}
-              ${tl('2','green', t('srd.t2'), '4 may, 14:05', true)}
-              ${tl('3','amber', t('srd.t3'), state.lang==='es'?'Pendiente':'Pending', false, true)}
+              ${tl('1','green', t('srd.t1'), es?'4 may, 14:02':'May 4, 14:02', true)}
+              ${tl('2','green', t('srd.t2'), es?'4 may, 14:05':'May 4, 14:05', true)}
+              ${tl('3','amber', t('srd.t3'), es?'Pendiente':'Pending', false, true)}
               ${tl('4','gray', t('srd.t4'), '—')}
               ${tl('5','gray', t('srd.t5'), '—')}
               ${tl('6','gray', t('srd.t6'), '—')}
@@ -866,8 +1090,8 @@ const views = {
             <h2 class="font-semibold mb-3">${t('srd.attach')}</h2>
             <div class="grid grid-cols-3 gap-3">
               ${attachThumb('📷', t('srd.attach.before'))}
-              ${attachThumb('📷', t('srd.attach.after'), true)}
-              ${attachThumb('🧾', t('srd.attach.invoice'), true)}
+              ${attachThumb('📷', t('srd.attach.after'), false)}
+              ${attachThumb('🧾', t('srd.attach.invoice'), false)}
             </div>
           </div>
         </div>
@@ -880,7 +1104,7 @@ const views = {
             </div>
             <div class="mb-3">
               <div class="text-xs text-slate-500">${t('srd.staff')}</div>
-              <div class="font-medium">Juan Pérez · ${state.lang==='es'?'Técnico':'Technician'}</div>
+              <div class="font-medium">Juan Pérez · ${es?'Técnico':'Technician'}</div>
             </div>
             <div>
               <div class="text-xs text-slate-500">${t('srd.urgency')}</div>
@@ -895,10 +1119,12 @@ const views = {
         </div>
       </div>
     </div>
-  `,
+  `;},
 
-  /* ---------------- Pricing ---------------- */
-  'op-pricing': () => `
+  /* ---------------- Pricing (operator) ---------------- */
+  'op-pricing': () => {
+    const es = state.lang === 'es';
+    return `
     <div class="fade-in">
       <div class="flex flex-wrap items-end justify-between gap-3 mb-5">
         <div>
@@ -924,9 +1150,9 @@ const views = {
           <div class="text-sm">${t('price.discounts.text')}</div>
         </div>
         <div class="bg-amber-50 border border-amber-200 rounded-xl p-5 text-sm">
-          <div class="text-xs uppercase tracking-wider text-amber-700 mb-1">${state.lang==='es'?'Propuesta pendiente':'Pending proposal'}</div>
-          <div class="font-bold mb-1">$240k → $265k ${state.lang==='es'?'(Temporada alta)':'(Peak season)'}</div>
-          <div class="text-xs text-slate-600 mb-3">${state.lang==='es'?'Propuesto por María Vélez · 3 may 2026':'Proposed by María Vélez · May 3, 2026'}</div>
+          <div class="text-xs uppercase tracking-wider text-amber-700 mb-1">${es?'Propuesta pendiente':'Pending proposal'}</div>
+          <div class="font-bold mb-1">$240k → $265k ${es?'(Temporada alta)':'(Peak season)'}</div>
+          <div class="text-xs text-slate-600 mb-3">${es?'Propuesto por María Vélez · 3 may 2026':'Proposed by María Vélez · May 3, 2026'}</div>
           <button class="w-full bg-emerald-600 text-white text-xs py-1.5 rounded-md mb-1">${t('btn.approve')}</button>
           <button class="w-full bg-white border border-slate-300 text-xs py-1.5 rounded-md">${t('srd.btn.counter')}</button>
         </div>
@@ -935,16 +1161,18 @@ const views = {
       <div class="bg-white border border-slate-200 rounded-xl p-5">
         <h2 class="font-semibold mb-3">${t('price.history')}</h2>
         <ol class="relative border-l-2 border-slate-200 ml-2 pl-5 space-y-3 text-sm">
-          ${priceLog('PRC-21', '$220k → $240k', state.lang==='es'?'Aprobado por Carlos Ramírez':'Approved by Carlos Ramírez', '15 mar 2026')}
-          ${priceLog('PRC-20', '$200k → $220k', state.lang==='es'?'Aprobado por Carlos Ramírez':'Approved by Carlos Ramírez', '12 ene 2026')}
-          ${priceLog('PRC-19', state.lang==='es'?'Tarifa inicial $200k':'Initial rate $200k', state.lang==='es'?'Acuerdo inicial':'Initial agreement', '12 mar 2026')}
+          ${priceLog('PRC-21', '$220k → $240k', es?'Aprobado por Carlos Ramírez':'Approved by Carlos Ramírez', es?'15 mar 2026':'Mar 15, 2026')}
+          ${priceLog('PRC-20', '$200k → $220k', es?'Aprobado por Carlos Ramírez':'Approved by Carlos Ramírez', es?'12 ene 2026':'Jan 12, 2026')}
+          ${priceLog('PRC-19', es?'Tarifa inicial $200k':'Initial rate $200k', es?'Acuerdo inicial':'Initial agreement', es?'12 mar 2026':'Mar 12, 2026')}
         </ol>
       </div>
     </div>
-  `,
+  `;},
 
   /* ---------------- Staff ---------------- */
-  'op-staff': () => `
+  'op-staff': () => {
+    const es = state.lang === 'es';
+    return `
     <div class="fade-in">
       <div class="flex flex-wrap items-end justify-between gap-3 mb-5">
         <div>
@@ -966,17 +1194,17 @@ const views = {
             </tr>
           </thead>
           <tbody class="divide-y divide-slate-100">
-            ${staffRow('Juan Pérez', state.lang==='es'?'Técnico':'Technician', 'juan@stay.co · +57 300 111 2233', 4, pill('status.active','green'))}
-            ${staffRow('Diana Ruiz', state.lang==='es'?'Limpieza':'Cleaning', 'diana@stay.co · +57 301 444 5566', 6, pill('status.active','green'))}
-            ${staffRow('Andrés Gómez', state.lang==='es'?'Inspector':'Inspector', 'andres@stay.co · +57 302 777 8899', 8, pill('status.active','green'))}
-            ${staffRow('Laura Méndez', state.lang==='es'?'Limpieza':'Cleaning', 'laura@stay.co · +57 303 222 3344', 0, pill('status.pendingOp','amber'))}
+            ${staffRow('Juan Pérez', es?'Técnico':'Technician', 'juan@stay.co · +57 300 111 2233', 4, pill('status.active','green'))}
+            ${staffRow('Camila del Valle', es?'Limpieza':'Cleaning', 'camila@stay.co · +57 301 444 5566', 6, pill('status.active','green'))}
+            ${staffRow('Paula Ramirez', es?'Relaciones con huéspedes':'Guest Relations', 'paula@stay.co · +57 302 777 8899', 8, pill('status.active','green'))}
+            ${staffRow('Laura Méndez', es?'Limpieza':'Cleaning', 'laura@stay.co · +57 303 222 3344', 0, pill('status.pendingOp','amber'))}
           </tbody>
         </table>
       </div>
     </div>
-  `,
+  `;},
 
-  /* ---------------- Propose unit (link new unit) ---------------- */
+  /* ---------------- Propose unit ---------------- */
   'op-propose': () => `
     <div class="fade-in max-w-2xl">
       <h1 class="text-2xl font-bold mb-1">${t('prop.title')}</h1>
@@ -1010,8 +1238,262 @@ const views = {
     </div>
   `,
 
-  /* ---------------- Owner: my listing ---------------- */
-  'own-listing': () => `
+  /* ---------------- NEW: Contract ---------------- */
+  'op-contract': () => {
+    const es = state.lang === 'es';
+    return `
+    <div class="fade-in">
+      <div class="flex flex-wrap items-end justify-between gap-3 mb-5">
+        <div>
+          <h1 class="text-2xl font-bold">${t('contract.title')}</h1>
+          <p class="text-sm text-slate-500">${t('contract.subtitle')} · ${t('contract.active')}</p>
+        </div>
+        <button data-action="propose-amendment" class="bg-slate-900 text-white text-sm px-4 py-2 rounded-lg hover:bg-slate-800">+ ${t('contract.propose')}</button>
+      </div>
+
+      <div class="grid md:grid-cols-3 gap-4 mb-5">
+        <div class="md:col-span-2 space-y-4">
+          <div class="bg-white border border-slate-200 rounded-xl p-5">
+            <h2 class="font-semibold mb-4">${t('contract.terms')}</h2>
+            <div class="divide-y divide-slate-100 text-sm">
+              <div class="flex justify-between py-2.5"><span class="text-slate-500">${t('contract.fee')}</span><span class="font-semibold">15%</span></div>
+              <div class="flex justify-between py-2.5"><span class="text-slate-500">${t('contract.threshold')}</span><span class="font-semibold">$150,000 COP</span></div>
+              <div class="flex justify-between py-2.5"><span class="text-slate-500">${t('contract.term')}</span><span class="font-semibold">${es?'Mes a mes':'Month-to-month'}</span></div>
+              <div class="flex justify-between py-2.5"><span class="text-slate-500">${t('contract.notice')}</span><span class="font-semibold">30 ${es?'días':'days'}</span></div>
+              <div class="flex justify-between py-2.5"><span class="text-slate-500">${t('contract.platforms')}</span><span class="font-semibold">Airbnb + VRBO</span></div>
+              <div class="flex justify-between py-2.5"><span class="text-slate-500">${t('contract.cleaning')}</span><span class="font-semibold text-xs text-right max-w-[180px]">${es?'Operador coordina (tarifa Airbnb cubre estadías)':'Operator coordinates (Airbnb cleaning fee covers stays)'}</span></div>
+            </div>
+          </div>
+
+          <div class="bg-white border border-slate-200 rounded-xl p-5">
+            <h2 class="font-semibold mb-3">${t('contract.services')}</h2>
+            <ul class="space-y-2 text-sm">
+              ${['✅ '+( es?'Gestión de huéspedes 24/7':'Guest management 24/7'),
+                 '✅ '+(es?'Coordinación de limpieza entre estadías':'Cleaning coordination between stays'),
+                 '✅ '+(es?'Coordinación de reparaciones hasta el umbral':'Repair coordination up to threshold'),
+                 '✅ '+(es?'Gestión de listing (propuestas de precio + contenido)':'Listing management (pricing + content proposals)'),
+                 '✅ '+(es?'Reclamos AirCover dentro de ventana de 14 días':'AirCover claims within 14-day window'),
+                 '✅ '+(es?'Relay de avisos del edificio':'Building notice relay'),
+              ].map(s=>`<li class="flex items-start gap-2">${s}</li>`).join('')}
+            </ul>
+          </div>
+
+          <div class="bg-white border border-slate-200 rounded-xl p-5">
+            <h2 class="font-semibold mb-3">${t('contract.history')}</h2>
+            <ol class="relative border-l-2 border-slate-200 ml-2 pl-5 space-y-3 text-sm">
+              ${priceLog('H-2', es?'Enmienda abr 2026 — VRBO añadido':'Apr 2026 amendment — VRBO added', es?'Aprobado por Carlos Ramírez':'Approved by Carlos Ramírez', es?'1 abr 2026':'Apr 1, 2026')}
+              ${priceLog('H-1', es?'Contrato inicial firmado':'Initial contract signed', es?'Acuerdo de gestión':'Management agreement', es?'12 mar 2026':'Mar 12, 2026')}
+            </ol>
+          </div>
+        </div>
+
+        <div class="space-y-4">
+          <div class="bg-amber-50 border border-amber-200 rounded-xl p-5 text-sm">
+            <div class="text-xs uppercase tracking-wider text-amber-700 mb-2 font-semibold">⚠️ ${t('contract.amendment')}</div>
+            <p class="text-sm text-slate-800 mb-3">${t('contract.amendmentBody')}</p>
+            <div class="space-y-2">
+              <button data-action="approve-amendment" class="w-full bg-emerald-600 text-white text-xs py-2 rounded-lg hover:bg-emerald-700">${t('contract.approve')}</button>
+              <button class="w-full bg-white border border-slate-300 text-xs py-2 rounded-lg hover:bg-slate-50">${t('contract.counter')}</button>
+              <button class="w-full bg-white border border-red-300 text-red-600 text-xs py-2 rounded-lg hover:bg-red-50">${t('contract.reject')}</button>
+            </div>
+          </div>
+
+          <div class="bg-white border border-slate-200 rounded-xl p-5 text-sm">
+            <div class="text-xs text-slate-500 mb-1">${es?'Propietario':'Owner'}</div>
+            <div class="font-semibold">Carlos Ramírez</div>
+            <div class="text-xs text-slate-500 mt-2 mb-1">${es?'Operadora':'Operator'}</div>
+            <div class="font-semibold">María Vélez · Bogotá Stay Co.</div>
+            <div class="text-xs text-slate-500 mt-2 mb-1">${es?'Firma':'Signed'}</div>
+            <div>${es?'12 mar 2026':'Mar 12, 2026'}</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;},
+
+  /* ---------------- NEW: Damage Report ---------------- */
+  'op-damage': () => {
+    const es = state.lang === 'es';
+    const isGuest = state.damagePathGuest;
+    return `
+    <div class="fade-in max-w-3xl">
+      <h1 class="text-2xl font-bold mb-1">${t('dmg.title')}</h1>
+      <p class="text-sm text-slate-500 mb-5">${t('dmg.subtitle')}</p>
+
+      <div class="bg-white border border-slate-200 rounded-xl p-5 space-y-5">
+        <div>
+          <div class="text-sm font-semibold mb-3">${t('dmg.path')}</div>
+          <div class="space-y-2">
+            <label class="flex items-start gap-3 cursor-pointer p-3 rounded-lg border-2 ${isGuest?'border-indigo-400 bg-indigo-50':'border-slate-200 hover:border-slate-300'}">
+              <input type="radio" name="dmg-path" value="guest" ${isGuest?'checked':''} data-action="dmg-guest" class="mt-0.5 accent-indigo-600" />
+              <span class="text-sm">${t('dmg.path.guest')}</span>
+            </label>
+            <label class="flex items-start gap-3 cursor-pointer p-3 rounded-lg border-2 ${!isGuest?'border-indigo-400 bg-indigo-50':'border-slate-200 hover:border-slate-300'}">
+              <input type="radio" name="dmg-path" value="nonguest" ${!isGuest?'checked':''} data-action="dmg-nonguest" class="mt-0.5 accent-indigo-600" />
+              <span class="text-sm">${t('dmg.path.nonguest')}</span>
+            </label>
+          </div>
+        </div>
+
+        ${isGuest ? `
+        <div class="bg-slate-50 rounded-lg p-4 text-sm space-y-2">
+          <div class="text-xs text-slate-500">${t('dmg.stay')}</div>
+          <div class="font-semibold">${t('dmg.stayRef')}</div>
+          <div class="inline-flex items-center gap-2 text-xs bg-amber-100 text-amber-800 px-2.5 py-1 rounded-full font-medium">
+            ⏱ ${t('dmg.window')}
+          </div>
+        </div>
+        ` : `
+        <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 text-sm text-blue-900">
+          ℹ️ ${t('dmg.nonguest.note')}
+        </div>
+        `}
+
+        <div>
+          <label class="block text-xs text-slate-500 mb-1">${t('dmg.description')}</label>
+          <textarea placeholder="${t('dmg.description.ph')}" class="w-full border border-slate-300 rounded-md px-3 py-2 text-sm h-24"></textarea>
+        </div>
+
+        <div>
+          <div class="text-sm font-semibold mb-3">${t('dmg.photos')}</div>
+          <div class="grid grid-cols-3 gap-3">
+            ${attachThumb('📷', t('dmg.checkin'), true)}
+            ${attachThumb('📷', t('dmg.checkout'), false)}
+            ${attachThumb('📸', t('dmg.photo'), false)}
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-xs text-slate-500 mb-1">${t('dmg.estimate')}</label>
+          <input type="number" placeholder="0" class="w-full border border-slate-300 rounded-md px-3 py-2 text-sm" />
+        </div>
+
+        <div class="bg-slate-50 border border-slate-200 rounded-lg p-3 text-xs text-slate-600">
+          🚫 ${t('dmg.disclaimer')}
+        </div>
+
+        <button data-action="submit-damage" class="bg-slate-900 text-white text-sm px-5 py-2.5 rounded-lg hover:bg-slate-800">${t('dmg.submit')}</button>
+      </div>
+    </div>
+  `;},
+
+  /* ---------------- NEW: Building Notice ---------------- */
+  'op-building-notice': () => {
+    const es = state.lang === 'es';
+    const relayed = state.buildingNoticeRelayed;
+    return `
+    <div class="fade-in max-w-3xl">
+      <h1 class="text-2xl font-bold mb-1">${t('bldg.title')}</h1>
+      <p class="text-sm text-slate-500 mb-1">${t('bldg.subtitle')}</p>
+      <p class="text-xs text-indigo-700 bg-indigo-50 border border-indigo-200 rounded-md px-3 py-1.5 mb-5 inline-block">📨 ${t('bldg.source')}</p>
+
+      <div class="bg-white border border-slate-200 rounded-xl p-5 space-y-5">
+        <div>
+          <label class="block text-xs text-slate-500 mb-2">${t('bldg.urgency')}</label>
+          <div class="flex flex-wrap gap-2">
+            <button class="px-3 py-1.5 text-xs rounded-full bg-red-100 text-red-700 font-semibold border-2 border-red-400">${t('bldg.urg.urgent')}</button>
+            <button class="px-3 py-1.5 text-xs rounded-full bg-white border border-slate-300">${t('bldg.urg.standard')}</button>
+            <button class="px-3 py-1.5 text-xs rounded-full bg-white border border-slate-300">${t('bldg.urg.info')}</button>
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-xs text-slate-500 mb-1">${t('bldg.message')}</label>
+          <textarea class="w-full border border-slate-300 rounded-md px-3 py-2 text-sm h-24">${es?'Corte de servicio de agua 7 may, 8am–2pm — pisos 10–15 afectados':'Water utility shutoff May 7, 8am–2pm — floors 10–15 affected'}</textarea>
+        </div>
+
+        <div>
+          <label class="flex items-start gap-3 cursor-pointer p-3 rounded-lg border-2 border-amber-300 bg-amber-50">
+            <input type="checkbox" checked class="mt-0.5 accent-amber-600" />
+            <span class="text-sm">${t('bldg.guestImpact')}</span>
+          </label>
+          <div class="mt-2 ml-2 flex items-center gap-2 text-xs text-amber-800 bg-amber-100 border border-amber-200 rounded-md px-3 py-2">
+            ⚠️ ${t('bldg.guestWarning')}
+          </div>
+        </div>
+
+        ${relayed ? `
+        <div class="bg-emerald-50 border border-emerald-200 rounded-xl p-4">
+          <div class="font-semibold text-emerald-900 text-sm mb-3">✅ ${es?'Aviso enviado al equipo':'Notice relayed to team'}</div>
+          <div class="text-xs text-slate-500 mb-2 uppercase tracking-wider">${t('bldg.ack')}</div>
+          <div class="flex items-center gap-2 text-sm">
+            <span class="w-2 h-2 rounded-full bg-emerald-500 inline-block"></span>
+            <span>${t('bldg.ackEntry')}</span>
+          </div>
+        </div>
+        ` : `
+        <button data-action="relay-notice" class="bg-slate-900 text-white text-sm px-5 py-2.5 rounded-lg hover:bg-slate-800">${t('bldg.relay')}</button>
+        `}
+      </div>
+    </div>
+  `;},
+
+  /* ---------------- NEW: Owner Attention Inbox ---------------- */
+  'own-inbox': () => {
+    const es = state.lang === 'es';
+    return `
+    <div class="fade-in">
+      <div class="flex flex-wrap items-end justify-between gap-3 mb-5">
+        <div>
+          <h1 class="text-2xl font-bold">${t('inbox.title')}</h1>
+          <p class="text-sm text-slate-500">${t('inbox.subtitle')}</p>
+        </div>
+        <button data-go="own-listing" class="text-sm text-indigo-600 font-medium border border-indigo-200 rounded-lg px-3 py-1.5 hover:bg-indigo-50">${t('inbox.myListing')}</button>
+      </div>
+
+      <div class="space-y-3 mb-6">
+        ${inboxItem('🔧',
+          es?'Aprobación de costo — Calentador a gas':'Cost approval — Gas water heater',
+          es?'María Vélez · $180.000 COP estimado':'María Vélez · $180,000 COP estimated',
+          es?'8h · 16h restantes':'8h · 16h left', 'pill-green',
+          true,
+          es?'Revisar':'Review',
+          'own-approval'
+        )}
+        ${inboxItem('💰',
+          es?'Propuesta de tarifa $240k → $265k':'Pricing proposal $240k → $265k',
+          es?'María Vélez · Temporada alta · Expira en 24h':'María Vélez · Peak season · Expires in 24h',
+          es?'2 días · 24h restantes':'2 days · 24h left', 'pill-amber',
+          true,
+          es?'Revisar':'Review',
+          'own-pricing'
+        )}
+        ${inboxItem('📅',
+          es?'Bloqueo Jun 12–14 — procesando':'Date block Jun 12–14 — processing',
+          es?'Enviado hace 6h · Operadora revisando disponibilidad':'Sent 6h ago · Operator reviewing availability',
+          es?'6h · en revisión':'6h · under review', 'pill-blue',
+          false,
+          '',
+          ''
+        )}
+      </div>
+
+      <div class="mb-2">
+        <div class="text-xs uppercase tracking-wider text-slate-500 font-semibold mb-3">${t('inbox.noAction')} — ${t('inbox.noAction.sub')}</div>
+        <div class="space-y-2">
+          <div class="flex items-center gap-3 p-3 rounded-lg bg-white border border-slate-100 text-sm text-slate-600">
+            <span class="text-lg">📬</span>
+            <div>
+              <div class="font-medium text-slate-800">${es?'Reserva relay — Check-in 12 may (Diego R.)':'Booking relay — May 12 check-in (Diego R.)'}</div>
+              <div class="text-xs text-slate-500">${es?'Operadora coordinará limpieza y acceso':'Operator will coordinate cleaning and access'}</div>
+            </div>
+          </div>
+          <div class="flex items-center gap-3 p-3 rounded-lg bg-white border border-slate-100 text-sm text-slate-600">
+            <span class="text-lg">🧹</span>
+            <div>
+              <div class="font-medium text-slate-800">${es?'Limpieza profunda completada — Apto 1204':'Deep cleaning completed — Apt 1204'}</div>
+              <div class="text-xs text-slate-500">${es?'Camila del Valle · 5 may 2026':'Camila del Valle · May 5, 2026'}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;},
+
+  /* ---------------- Owner: my listing (updated) ---------------- */
+  'own-listing': () => {
+    const es = state.lang === 'es';
+    return `
     <div class="fade-in">
       <h1 class="text-2xl font-bold mb-1">${t('own.title')}</h1>
       <p class="text-sm text-slate-500 mb-5">${t('own.subtitle')}</p>
@@ -1035,6 +1517,38 @@ const views = {
             <div class="text-sm">⚖️ ${t('own.delegation.level')}</div>
           </div>
 
+          <div class="bg-white border border-slate-200 rounded-xl p-5">
+            <h2 class="font-semibold mb-3">👥 ${t('own.coowners')}</h2>
+            <div class="space-y-2 text-sm">
+              <div class="flex items-center justify-between p-2.5 rounded-lg bg-slate-50">
+                <div><span class="font-medium">Brian Pause</span></div>
+                <span class="pill pill-violet">💳 ${t('own.payoutOwner')}</span>
+              </div>
+              <div class="flex items-center justify-between p-2.5 rounded-lg bg-slate-50">
+                <div><span class="font-medium">Martha Pause</span></div>
+                <span class="pill pill-blue">📅 ${t('own.calendarOwner')}</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="bg-white border border-slate-200 rounded-xl p-5">
+            <h2 class="font-semibold mb-3">👷 ${t('own.team')}</h2>
+            <div class="space-y-2 text-sm">
+              <div class="flex items-center gap-3 p-2.5 rounded-lg bg-slate-50">
+                <span class="text-lg">👤</span>
+                <div><div class="font-medium">Paula Ramirez</div><div class="text-xs text-slate-500">${es?'Relaciones con huéspedes':'Guest Relations'}</div></div>
+              </div>
+              <div class="flex items-center gap-3 p-2.5 rounded-lg bg-slate-50">
+                <span class="text-lg">🧹</span>
+                <div><div class="font-medium">Camila del Valle</div><div class="text-xs text-slate-500">${es?'Limpieza':'Cleaning'}</div></div>
+              </div>
+              <div class="flex items-center gap-3 p-2.5 rounded-lg bg-slate-50">
+                <span class="text-lg">🔧</span>
+                <div><div class="font-medium">Juan Pérez</div><div class="text-xs text-slate-500">${es?'Mantenimiento':'Maintenance'}</div></div>
+              </div>
+            </div>
+          </div>
+
           <div class="bg-amber-50 border border-amber-200 rounded-xl p-5">
             <h2 class="font-semibold mb-2">⏳ ${t('own.pending')}</h2>
             <div class="bg-white rounded-lg p-3 flex items-center justify-between">
@@ -1047,22 +1561,25 @@ const views = {
           </div>
         </div>
 
-        <div class="bg-white border border-slate-200 rounded-xl p-5">
+        <div class="bg-white border border-slate-200 rounded-xl p-5 self-start">
           <h2 class="font-semibold mb-3">${t('own.actions')}</h2>
           <div class="space-y-2 text-sm">
             <button data-go="own-block" class="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-50 flex items-center gap-2">📅 ${t('own.actions.block')}</button>
+            <button data-go="own-pricing" class="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-50 flex items-center gap-2">💲 ${es?'Proponer cambio de tarifa':'Propose pricing change'}</button>
             <button class="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-50 flex items-center gap-2">📁 ${t('own.actions.docs')}</button>
             <button class="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-50 flex items-center gap-2 text-red-600">⛔ ${t('own.actions.terminate')}</button>
           </div>
         </div>
       </div>
     </div>
-  `,
+  `;},
 
   /* ---------------- Owner: approval ---------------- */
-  'own-approval': () => `
+  'own-approval': () => {
+    const es = state.lang === 'es';
+    return `
     <div class="fade-in max-w-2xl">
-      <button data-go="own-listing" class="text-sm text-indigo-600 mb-3">${t('unit.back')}</button>
+      <button data-go="own-inbox" class="text-sm text-indigo-600 mb-3">${t('unit.back')}</button>
       <h1 class="text-2xl font-bold mb-1">${t('appr.title')}</h1>
       <p class="text-sm text-slate-500 mb-5">${t('appr.unit')}</p>
 
@@ -1091,12 +1608,14 @@ const views = {
         </div>
       </div>
     </div>
-  `,
+  `;},
 
   /* ---------------- Owner: block dates ---------------- */
-  'own-block': () => `
+  'own-block': () => {
+    const es = state.lang === 'es';
+    return `
     <div class="fade-in max-w-2xl">
-      <button data-go="own-listing" class="text-sm text-indigo-600 mb-3">${t('unit.back')}</button>
+      <button data-go="own-inbox" class="text-sm text-indigo-600 mb-3">${t('unit.back')}</button>
       <h1 class="text-2xl font-bold mb-1">${t('block.title')}</h1>
       <p class="text-sm text-slate-500 mb-5">${t('block.unit')}</p>
 
@@ -1127,10 +1646,58 @@ const views = {
         <button data-action="send-block" class="bg-slate-900 text-white text-sm px-4 py-2 rounded-lg hover:bg-slate-800">${t('block.send')}</button>
       </div>
     </div>
-  `,
+  `;},
+
+  /* ---------------- NEW: Owner Propose Pricing ---------------- */
+  'own-pricing': () => {
+    const es = state.lang === 'es';
+    return `
+    <div class="fade-in max-w-2xl">
+      <button data-go="own-inbox" class="text-sm text-indigo-600 mb-3">${t('unit.back')}</button>
+      <h1 class="text-2xl font-bold mb-1">${t('own.pricing.title')}</h1>
+      <p class="text-sm text-slate-500 mb-5">${t('own.pricing.subtitle')}</p>
+
+      <div class="grid gap-4">
+        <div class="bg-white border border-slate-200 rounded-xl p-5 space-y-4">
+          <div class="grid grid-cols-3 gap-3 bg-slate-50 rounded-lg p-4 text-sm">
+            <div><div class="text-xs text-slate-500">${t('price.base')}</div><div class="font-bold text-lg">$240k</div></div>
+            <div><div class="text-xs text-slate-500">${t('price.weekend')}</div><div class="font-bold text-lg">$310k</div></div>
+            <div><div class="text-xs text-slate-500">${t('price.cleaning')}</div><div class="font-bold text-lg">$60k</div></div>
+          </div>
+
+          <div>
+            <label class="block text-xs text-slate-500 mb-1">${t('own.pricing.propose')} (COP)</label>
+            <input type="number" placeholder="265000" value="265000" class="w-full border border-slate-300 rounded-md px-3 py-2 text-sm" />
+          </div>
+
+          <div>
+            <label class="block text-xs text-slate-500 mb-1">${t('own.pricing.reason')}</label>
+            <textarea placeholder="${t('own.pricing.reason.ph')}" class="w-full border border-slate-300 rounded-md px-3 py-2 text-sm h-20">${es?'Temporada de vacaciones de junio, creo que el mercado aguanta más.':'June holiday season — I think the market supports a higher rate.'}</textarea>
+          </div>
+
+          <div class="bg-blue-50 border border-blue-200 rounded-lg p-3 text-xs text-blue-900">
+            ℹ️ ${t('own.pricing.note')}
+          </div>
+
+          <button data-action="owner-propose-price" class="bg-slate-900 text-white text-sm px-4 py-2 rounded-lg hover:bg-slate-800">${t('own.pricing.submit')}</button>
+        </div>
+
+        <div class="bg-white border border-slate-200 rounded-xl p-5">
+          <h2 class="font-semibold mb-3">${t('own.pricing.history')}</h2>
+          <ol class="relative border-l-2 border-slate-200 ml-2 pl-5 space-y-3 text-sm">
+            ${priceLog('PRC-21', '$220k → $240k', es?'Aprobado por Carlos Ramírez · propuesto por María Vélez':'Approved by Carlos Ramírez · proposed by María Vélez', es?'15 mar 2026':'Mar 15, 2026')}
+            ${priceLog('PRC-20', '$200k → $220k', es?'Aprobado por Carlos Ramírez · propuesto por María Vélez':'Approved by Carlos Ramírez · proposed by María Vélez', es?'12 ene 2026':'Jan 12, 2026')}
+            ${priceLog('PRC-19', es?'Tarifa inicial $200k':'Initial rate $200k', es?'Acuerdo inicial de gestión':'Initial management agreement', es?'12 mar 2026':'Mar 12, 2026')}
+          </ol>
+        </div>
+      </div>
+    </div>
+  `;},
 
   /* ---------------- Admin: operator management ---------------- */
-  'adm-operators': () => `
+  'adm-operators': () => {
+    const es = state.lang === 'es';
+    return `
     <div class="fade-in">
       <h1 class="text-2xl font-bold mb-1">${t('adm.title')}</h1>
       <p class="text-sm text-slate-500 mb-5">${t('adm.subtitle')}</p>
@@ -1160,7 +1727,7 @@ const views = {
               <td class="px-4 py-3">8</td>
               <td class="px-4 py-3 text-right">
                 <button class="text-xs bg-emerald-600 text-white px-2 py-1 rounded">${t('btn.approve')}</button>
-                <button class="text-xs bg-white border border-slate-300 px-2 py-1 rounded ml-1">${state.lang==='es'?'Rechazar':'Reject'}</button>
+                <button class="text-xs bg-white border border-slate-300 px-2 py-1 rounded ml-1">${es?'Rechazar':'Reject'}</button>
               </td>
             </tr>
             <tr class="hover:bg-slate-50">
@@ -1170,14 +1737,14 @@ const views = {
               <td class="px-4 py-3">3</td>
               <td class="px-4 py-3 text-right">
                 <button class="text-xs bg-emerald-600 text-white px-2 py-1 rounded">${t('btn.approve')}</button>
-                <button class="text-xs bg-white border border-slate-300 px-2 py-1 rounded ml-1">${state.lang==='es'?'Rechazar':'Reject'}</button>
+                <button class="text-xs bg-white border border-slate-300 px-2 py-1 rounded ml-1">${es?'Rechazar':'Reject'}</button>
               </td>
             </tr>
           </tbody>
         </table>
       </div>
     </div>
-  `,
+  `;},
 };
 
 /* ============================================================
@@ -1190,13 +1757,14 @@ function kpi(icon, num, label, accent) {
     <div class="text-xs text-slate-500 mt-1">${label}</div>
   </div>`;
 }
-function attentionRow(emoji, ref, sub, title, kind, badgeKey, target) {
+function attentionRow(emoji, ref, sub, title, kind, badgeKey, target, slaHtml) {
   return `<div data-go="${target}" class="cursor-pointer flex items-center justify-between gap-3 p-3 rounded-lg border border-slate-100 hover:border-indigo-300 hover:bg-indigo-50/40">
-    <div class="flex items-center gap-3 min-w-0">
+    <div class="flex items-center gap-3 min-w-0 flex-1">
       <span class="text-xl">${emoji}</span>
       <div class="min-w-0">
         <div class="font-medium text-sm truncate">${title}</div>
         <div class="text-xs text-slate-500 truncate">${ref} · ${sub}</div>
+        ${slaHtml ? `<div class="mt-1">${slaHtml}</div>` : ''}
       </div>
     </div>
     ${pill(badgeKey, kind)}
@@ -1287,7 +1855,6 @@ function render() {
   document.querySelectorAll('.nav-item').forEach(b => {
     b.classList.toggle('active', b.dataset.view === state.view);
   });
-  // Show nav section relevant to current role; keep all visible but highlight role
   document.getElementById('nav-operator').style.opacity = state.role==='operator' ? '1' : '.55';
   document.getElementById('nav-owner').style.opacity = state.role==='owner' ? '1' : '.55';
   document.getElementById('nav-admin').style.opacity = state.role==='admin' ? '1' : '.55';
@@ -1312,7 +1879,7 @@ function setLang(l) { state.lang = l; localStorage.setItem('demoLang', l); rende
 function setRole(r) {
   state.role = r;
   if (r === 'operator') state.view = 'op-dashboard';
-  if (r === 'owner') state.view = 'own-listing';
+  if (r === 'owner') state.view = 'own-inbox';
   if (r === 'admin') state.view = 'adm-operators';
   showToast(t('toast.role') + ' ' + t('role.'+r));
   render();
@@ -1323,7 +1890,7 @@ function showToast(msg) {
   el.textContent = msg;
   el.classList.remove('opacity-0');
   el.classList.add('opacity-100');
-  setTimeout(() => { el.classList.remove('opacity-100'); el.classList.add('opacity-0'); }, 2400);
+  setTimeout(() => { el.classList.remove('opacity-100'); el.classList.add('opacity-0'); }, 2800);
 }
 
 function showModal(titleKey, bodyKey, onClose) {
@@ -1359,16 +1926,41 @@ document.addEventListener('click', (e) => {
   const action = e.target.closest('[data-action]');
   if (action) {
     const a = action.dataset.action;
-    if (a === 'send-proposal') showModal('modal.proposal.title', 'modal.proposal.body', () => setView('op-units'));
-    else if (a === 'approve-cost' || a === 'owner-approve') {
+    if (a === 'send-proposal') {
+      showModal('modal.proposal.title', 'modal.proposal.body', () => setView('op-units'));
+    } else if (a === 'approve-cost' || a === 'owner-approve') {
       showToast(t('toast.approved'));
       showModal('modal.approve.title', 'modal.approve.body', () => {
-        if (state.role === 'owner') setView('own-listing'); else setView('op-service-requests');
+        if (state.role === 'owner') setView('own-inbox'); else setView('op-service-requests');
       });
+    } else if (a === 'send-block') {
+      showToast(t('toast.blockSent'));
+      setView('own-inbox');
+    } else if (a === 'add-staff') {
+      showToast(t('toast.staffAdded'));
+    } else if (a === 'propose-price') {
+      showToast(t('toast.priceProposed'));
+    } else if (a === 'approve-amendment' || a === 'propose-amendment') {
+      showToast(t('toast.contractAmended'));
+      showModal('modal.contract.title', 'modal.contract.body', null);
+    } else if (a === 'submit-damage') {
+      showToast(t('toast.damageReported'));
+      showModal('modal.damage.title', 'modal.damage.body', () => setView('op-service-requests'));
+    } else if (a === 'relay-notice') {
+      showToast(t('toast.noticeRelayed'));
+      state.buildingNoticeRelayed = true;
+      render();
+    } else if (a === 'dmg-guest') {
+      state.damagePathGuest = true;
+      render();
+    } else if (a === 'dmg-nonguest') {
+      state.damagePathGuest = false;
+      render();
+    } else if (a === 'owner-propose-price') {
+      showToast(t('toast.pricingProposed'));
+      setView('own-inbox');
     }
-    else if (a === 'send-block') { showToast(t('toast.blockSent')); setView('own-listing'); }
-    else if (a === 'add-staff') showToast(t('toast.staffAdded'));
-    else if (a === 'propose-price') showToast(t('toast.priceProposed'));
+    return;
   }
 });
 
