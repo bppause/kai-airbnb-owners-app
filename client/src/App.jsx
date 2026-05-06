@@ -6721,7 +6721,24 @@ function AdminSettings({ config={}, user, listings=[], contactProps={}, onSave, 
     setCommunitiesLoading(true);
     const qs = '?uid=' + encodeURIComponent(user.uid) + '&email=' + encodeURIComponent(user.email||'');
     api.get('/api/admin/communities' + qs)
-      .then(r => setCommunities(Array.isArray(r?.communities) ? r.communities : []))
+      .then(r => {
+        const list = Array.isArray(r?.communities) ? r.communities : [];
+        setCommunities(list);
+        // Seed communityConfigData so the overrides toggle shows correct state immediately
+        setCommunityConfigData(prev => {
+          const next = { ...prev };
+          list.forEach(c => {
+            if (!next[c.id]) next[c.id] = { overridesEnabled: !!c.overridesEnabled };
+            else if (next[c.id].overridesEnabled === undefined) next[c.id] = { ...next[c.id], overridesEnabled: !!c.overridesEnabled };
+          });
+          return next;
+        });
+        setCommunityOverridesEnabled(prev => {
+          const next = { ...prev };
+          list.forEach(c => { if (next[c.id] === undefined) next[c.id] = !!c.overridesEnabled; });
+          return next;
+        });
+      })
       .catch(e => captureAdminError('communities', e))
       .finally(() => setCommunitiesLoading(false));
   }, [user?.uid, user?.email]);

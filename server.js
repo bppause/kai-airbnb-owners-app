@@ -2172,7 +2172,16 @@ app.get('/api/admin/communities', async (req, res) => {
   try {
     const { data, error } = await supabase.from('communities').select('*').order('name');
     if (error) return sendSupabaseError(res, error);
-    res.json({ communities: data || [] });
+    const communities = data || [];
+    if (communities.length) {
+      const { data: cfgRows } = await supabase.from('community_config')
+        .select('community_id,value').eq('key', 'config_overrides_enabled')
+        .in('community_id', communities.map(c => c.id));
+      const overridesMap = {};
+      (cfgRows || []).forEach(r => { overridesMap[r.community_id] = r.value === 'true'; });
+      communities.forEach(c => { c.overridesEnabled = !!overridesMap[c.id]; });
+    }
+    res.json({ communities });
   } catch(e) { sendSupabaseError(res, e); }
 });
 
