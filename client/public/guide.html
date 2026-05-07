@@ -157,11 +157,12 @@ body.role-standard section[data-role="standard"],
 body.role-standard section[data-role="both"]{display:block}
 body.role-admin section[data-role="admin"],
 body.role-admin section[data-role="both"]{display:block}
-/* toc links */
-.toc-standard,.toc-admin{display:none}
-body.role-standard .toc-standard{display:block}
-body.role-admin .toc-admin{display:block}
-.toc-both{display:block}
+/* toc links — boost specificity past `.toc a{display:block}` (0,1,1) so the
+   role filter actually wins. Items that apply to both roles get BOTH
+   .toc-standard and .toc-admin classes (no .toc-both flag). */
+.toc a.toc-standard,.toc a.toc-admin{display:none}
+body.role-standard .toc a.toc-standard{display:block}
+body.role-admin   .toc a.toc-admin{display:block}
 
 /* ─── Footer ─── */
 .footer{text-align:center;padding:28px;font-size:.76rem;color:var(--ink2);opacity:.7;border-top:1px solid var(--border);margin-top:20px}
@@ -224,9 +225,9 @@ body.role-admin .toc-admin{display:block}
     <h3><span class="es-text">Contenido</span><span class="en-text">Contents</span></h3>
 
     <!-- Standard -->
-    <a class="toc-standard toc-both" href="#s-start">🚀 <span class="es-text">Inicio rápido</span><span class="en-text">Quick start</span></a>
+    <a class="toc-standard" href="#s-start">🚀 <span class="es-text">Inicio rápido</span><span class="en-text">Quick start</span></a>
     <a class="toc-standard" href="#s-listings">🏠 <span class="es-text">Mis Unidades</span><span class="en-text">My Units</span></a>
-    <a class="toc-standard toc-both" href="#s-incidents">⚠️ <span class="es-text">Incidentes</span><span class="en-text">Incidents</span></a>
+    <a class="toc-standard" href="#s-incidents">⚠️ <span class="es-text">Incidentes</span><span class="en-text">Incidents</span></a>
     <a class="toc-standard" href="#s-notifications">🔔 <span class="es-text">Notificaciones</span><span class="en-text">Notifications</span></a>
     <a class="toc-standard" href="#s-dashboard">📊 <span class="es-text">Dashboard</span><span class="en-text">Dashboard</span></a>
     <a class="toc-standard" href="#s-profile">👤 <span class="es-text">Perfil</span><span class="en-text">Profile</span></a>
