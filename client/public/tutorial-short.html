@@ -52,15 +52,11 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:radial-gradient(circ
 .fnode.on{background:var(--grad);color:#fff;border-color:transparent}
 .farr{color:#9ce5d6;font-weight:900}
 
-/* Email notification banner shown under the visual */
-.mailbar{margin-top:10px;padding:10px 12px;border-radius:10px;background:#0f2a30;border:1px solid rgba(156,229,214,.25);text-align:left;display:grid;grid-template-columns:auto 1fr;gap:10px;align-items:center;max-width:620px;margin-left:auto;margin-right:auto}
-.mailbar .ico{width:34px;height:34px;border-radius:9px;background:rgba(11,127,140,.25);display:flex;align-items:center;justify-content:center;font-size:1rem}
-.mailbar strong{display:block;font-size:.8rem;color:#9ce5d6;font-weight:800;letter-spacing:.04em;text-transform:uppercase;margin-bottom:2px}
-.mailbar .row{font-size:.78rem;color:#cfe6dc;line-height:1.45}
-.mailbar .row b{color:#fff;font-weight:800}
-.mailbar .row.kind{color:#fff;font-weight:700}
-.mailbar.none{background:rgba(255,255,255,.04);border-style:dashed;color:#cfe6dc}
-.mailbar.none .ico{background:rgba(255,255,255,.08)}
+/* Email notification — compact chip row */
+.mailbar{margin:8px auto 0;max-width:620px;display:flex;flex-wrap:wrap;align-items:center;gap:6px;font-size:.72rem;line-height:1.3}
+.mailbar .pill{display:inline-flex;align-items:center;gap:4px;padding:4px 9px;border-radius:99px;background:rgba(11,127,140,.22);color:#9ce5d6;border:1px solid rgba(156,229,214,.28);font-weight:700;white-space:nowrap}
+.mailbar .pill.dest{background:#0f2a30;color:#fff;border-color:rgba(156,229,214,.45)}
+.mailbar .pill.kind{background:rgba(255,255,255,.06);color:#cfe6dc;border-color:rgba(255,255,255,.14)}
 
 /* Caption ribbon */
 .caption{position:absolute;left:0;right:0;bottom:60px;text-align:center;padding:0 24px;font-size:.84rem;color:#cfe6dc;opacity:.95}
@@ -157,11 +153,7 @@ const SLIDES = [
       <button class="mock-btn" style="margin-top:8px">G&nbsp; <span class="es-text">Continuar con Google</span><span class="en-text">Continue with Google</span></button>
       <div class="cursor" style="left:62%;top:78%"></div>
     </div>`,
-    email:{
-      none:true,
-      to:{es:"En este paso no se envía email — solo se inicia la sesión con Google.",
-          en:"No email is sent at this step — you just sign in with Google."}
-    },
+    email:null,
     sec:11
   },
   {
@@ -179,12 +171,11 @@ const SLIDES = [
       <div class="cursor" style="left:24%;top:82%"></div>
     </div>`,
     email:{
-      to:{es:"Tu email de Google · y email del operador (si lo registraste).",
-          en:"Your Google email · and the operator email (if you registered one)."},
+      dest:{es:"Tu Gmail + email del operador",en:"Your Gmail + operator email"},
       kinds:[
-        {es:"📩 Registro recibido (al enviar la solicitud)", en:"📩 Registration received (on submit)"},
-        {es:"✅ Registro aprobado · 🚫 Registro rechazado (con motivo)", en:"✅ Registration approved · 🚫 Registration declined (with reason)"},
-        {es:"🏠 Listing creado (cuando el admin agrega/aprueba la unidad)", en:"🏠 Listing created (when the admin adds/approves the unit)"}
+        {es:"📩 Recibido",en:"📩 Received"},
+        {es:"✅ Aprobado",en:"✅ Approved"},
+        {es:"🚫 Rechazado",en:"🚫 Declined"}
       ]
     },
     sec:13
@@ -207,13 +198,12 @@ const SLIDES = [
       </div>
     </div>`,
     email:{
-      to:{es:"Tu email de Google + email del operador del listing (si es distinto).",
-          en:"Your Google email + the listing operator email (if different)."},
+      dest:{es:"Tu Gmail + email del operador",en:"Your Gmail + operator email"},
       kinds:[
-        {es:"⚠️ Acción requerida — Incidente nuevo (Paso 1: verificar)", en:"⚠️ Action required — New incident (Step 1: verify)"},
-        {es:"🔴 Recordatorio SLA — verificación pendiente (default 24 h)", en:"🔴 SLA reminder — verification pending (default 24 h)"},
-        {es:"✅ Incidente verificado (Paso 1 completo)", en:"✅ Incident verified (Step 1 complete)"},
-        {es:"🎯 Respuesta agregada — listo para cerrar (Paso 2)", en:"🎯 Resolution added — ready to close (Step 2)"}
+        {es:"⚠️ Nuevo · Paso 1",en:"⚠️ New · Step 1"},
+        {es:"🔴 SLA 24 h",en:"🔴 SLA 24 h"},
+        {es:"✅ Verificado",en:"✅ Verified"},
+        {es:"🎯 Resuelto · Paso 2",en:"🎯 Resolved · Step 2"}
       ]
     },
     sec:14
@@ -233,11 +223,7 @@ const SLIDES = [
         <span class="en-text">2 incidents await verification · 1 awaits resolution</span></div>
       </div>
     </div>`,
-    email:{
-      none:true,
-      to:{es:"El Dashboard no envía emails — solo refleja lo que ya está en tu bandeja.",
-          en:"The Dashboard doesn't send emails — it mirrors what already arrived to your inbox."}
-    },
+    email:null,
     sec:11
   },
   {
@@ -257,13 +243,10 @@ const SLIDES = [
       <span class="es-text">Acción pendiente — Paso 1 ó Paso 2</span><span class="en-text">Pending action — Step 1 or Step 2</span></div></div>
     </div>`,
     email:{
-      to:{es:"Todos los emails llegan a: tu Gmail + email del operador (si está registrado y es distinto).",
-          en:"All emails go to: your Gmail + the operator email (if registered and different)."},
+      dest:{es:"Tu Gmail + email del operador",en:"Your Gmail + operator email"},
       kinds:[
-        {es:"Idioma del email = idioma de tu cuenta (ES/EN). Cámbialo en Perfil.",
-         en:"Email language = your account language (ES/EN). Change it in Profile."},
-        {es:"También quedan registrados en 🔔 Alertas dentro de la app.",
-         en:"All emails are also logged in 🔔 Alerts inside the app."}
+        {es:"🌐 ES / EN",en:"🌐 ES / EN"},
+        {es:"🔔 También en Alertas",en:"🔔 Also in Alerts"}
       ]
     },
     sec:14
@@ -282,11 +265,7 @@ const SLIDES = [
       <div class="email-card" style="margin-top:6px"><div class="ico">📖</div><div><strong><span class="es-text">Guía y videos</span><span class="en-text">Guide and videos</span></strong>
       <span class="es-text">Tutorial corto · completo · escrito</span><span class="en-text">Short · full · written</span></div></div>
     </div>`,
-    email:{
-      none:true,
-      to:{es:"Abrir la Ayuda no genera emails.",
-          en:"Opening Help does not trigger any emails."}
-    },
+    email:null,
     sec:11
   },
   {
@@ -303,11 +282,7 @@ const SLIDES = [
       <button class="mock-btn ghost" style="margin-top:6px">↩ <span class="es-text">Cerrar sesión</span><span class="en-text">Sign out</span></button>
       <div class="cursor" style="left:24%;top:82%"></div>
     </div>`,
-    email:{
-      none:true,
-      to:{es:"Cerrar sesión no envía email — solo termina tu sesión en este navegador.",
-          en:"Signing out doesn't send any email — it just ends your session in this browser."}
-    },
+    email:null,
     sec:11
   }
 ];
@@ -324,18 +299,11 @@ const total   =SLIDES.reduce((s,x)=>s+x.sec,0);
 
 function mailHtml(em){
   if(!em) return '';
-  if(em.none){
-    return `<div class="mailbar none"><div class="ico">🚫</div><div>
-      <strong><span class="es-text">No envía email</span><span class="en-text">No email sent</span></strong>
-      <div class="row"><span class="es-text">${em.to.es}</span><span class="en-text">${em.to.en}</span></div>
-    </div></div>`;
-  }
-  const kinds=(em.kinds||[]).map(k=>`<div class="row kind">• <span class="es-text">${k.es}</span><span class="en-text">${k.en}</span></div>`).join('');
-  return `<div class="mailbar"><div class="ico">📧</div><div>
-    <strong><span class="es-text">Notificación por email</span><span class="en-text">Email notification</span></strong>
-    <div class="row"><b><span class="es-text">Llega a:</span><span class="en-text">Sent to:</span></b> <span class="es-text">${em.to.es}</span><span class="en-text">${em.to.en}</span></div>
+  const kinds=(em.kinds||[]).map(k=>`<span class="pill kind"><span class="es-text">${k.es}</span><span class="en-text">${k.en}</span></span>`).join('');
+  return `<div class="mailbar">
+    <span class="pill dest">📧 <span class="es-text">${em.dest.es}</span><span class="en-text">${em.dest.en}</span></span>
     ${kinds}
-  </div></div>`;
+  </div>`;
 }
 
 SLIDES.forEach((s,i)=>{
@@ -356,7 +324,9 @@ function fmt(sec){const m=Math.floor(sec/60),s=Math.floor(sec%60);return `${m}:$
 function render(){
   document.querySelectorAll('.slide').forEach((el,i)=>el.classList.toggle('active',i===idx));
   document.querySelectorAll('.dot').forEach((el,i)=>el.classList.toggle('active',i===idx));
-  capEl.innerHTML=`<span class="es-text">${SLIDES[idx].cap.es}</span><span class="en-text">${SLIDES[idx].cap.en}</span>`;
+  const s=SLIDES[idx];
+  if(s.email){ capEl.innerHTML=''; capEl.style.display='none'; }
+  else { capEl.style.display=''; capEl.innerHTML=`<span class="es-text">${s.cap.es}</span><span class="en-text">${s.cap.en}</span>`; }
   fill.style.width=Math.min(100,(elapsed/total)*100)+'%';
   timeEl.textContent=`${fmt(elapsed)} / ${fmt(total)}`;
 }
