@@ -242,8 +242,8 @@ const SCENES = [
   },
   {
     title: { es: 'Registro de propietario', en: 'Owner registration' },
-    body:  { es: 'La primera vez completas un formulario corto: país, WhatsApp con código de país, y los datos del Listing #1 (apartamento, habitaciones, capacidad, operador opcional). Recibirás un correo de confirmación.',
-             en: 'First time, you fill a short form: country, WhatsApp with country code, and Listing #1 details (apt, rooms, guests, optional operator). You\'ll receive a confirmation email.' },
+    body:  { es: 'La primera vez completas un formulario corto: país, teléfono de contacto con código de país, y los datos del Listing #1 (apartamento, habitaciones, capacidad, operador opcional). Recibirás un correo de confirmación.',
+             en: 'First time, you fill a short form: country, contact phone with country code, and Listing #1 details (apt, rooms, guests, optional operator). You\'ll receive a confirmation email.' },
     duration: 14000,
     email: { es: '📧 Tú recibes: registration_submitted', en: '📧 You receive: registration_submitted' },
     html: `
@@ -252,7 +252,7 @@ const SCENES = [
         <div class="banner info" style="font-size:.7rem"><span>ℹ️</span><span><span data-lang-es>Hola Test Test. Para usar la app debes registrar al menos un apartamento.</span><span data-lang-en>Hi Test Test. To use the app you must register at least one apartment.</span></span></div>
         <div class="modal" style="position:relative;inset:0;padding:10px;gap:6px;animation:none;flex:1;overflow:hidden">
           <div style="font-size:.74rem;font-weight:900;color:#203f2b">👤 <span data-lang-es>Tu información de contacto</span><span data-lang-en>Your contact information</span></div>
-          <div class="row" style="gap:8px"><div style="flex:1"><div class="lab">🌎 <span data-lang-es>País</span><span data-lang-en>Country</span> *</div><div class="input">Colombia (+57)</div></div><div style="flex:2"><div class="lab">📞 WhatsApp *</div><div class="input hl">+57 300 000 0000</div><div style="font-size:.62rem;color:var(--ink2);margin-top:2px"><span data-lang-es>Tu WhatsApp con código de país — se usará en todos tus listings</span><span data-lang-en>Your WhatsApp with country code — used for all your listings</span></div></div></div>
+          <div class="row" style="gap:8px"><div style="flex:1"><div class="lab">🌎 <span data-lang-es>País</span><span data-lang-en>Country</span> *</div><div class="input">Colombia (+57)</div></div><div style="flex:2"><div class="lab">📞 <span data-lang-es>Teléfono de contacto</span><span data-lang-en>Contact phone</span> *</div><div class="input hl">+57 300 000 0000</div><div style="font-size:.62rem;color:var(--ink2);margin-top:2px"><span data-lang-es>Con código de país — se usará en todos tus listings</span><span data-lang-en>With country code — used for all your listings</span></div></div></div>
           <div style="font-size:.74rem;font-weight:900;color:#203f2b;margin-top:4px">🏠 Listing #1</div>
           <div class="row" style="gap:6px"><div style="flex:1"><div class="lab"><span data-lang-es>Apto *</span><span data-lang-en>Apt *</span></div><div class="input">777</div></div><div style="flex:1"><div class="lab"><span data-lang-es>Habs *</span><span data-lang-en>Rooms *</span></div><div class="input">2</div></div><div style="flex:1"><div class="lab"><span data-lang-es>Huéspedes *</span><span data-lang-en>Guests *</span></div><div class="input">4</div></div><div style="flex:2"><div class="lab"><span data-lang-es>Operador (opcional)</span><span data-lang-en>Operator (optional)</span></div><div class="input">—</div></div></div>
           <div style="display:flex;justify-content:flex-end;margin-top:auto"><button class="btn hl">📨 <span data-lang-es>Enviar registro para aprobación</span><span data-lang-en>Submit registration for approval</span></button></div>

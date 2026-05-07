@@ -2681,41 +2681,25 @@ function AuthGate({ onLogin, lang="es-CO", setLang=()=>{}, complexLogo='', compl
         <div style={{margin:'4px 0 10px'}}>
           <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:6}}>
             <span style={{fontSize:'.7rem',color:'#0b7f4f',fontWeight:800,textTransform:'uppercase',letterSpacing:'.08em'}}>
-              {lang==='en' ? '▶ New here? Watch a 90-second tour' : '▶ ¿Eres nuevo? Mira un tour de 90 segundos'}
+              {lang==='en' ? '▶ New here? Watch a quick tour' : '▶ ¿Eres nuevo? Mira un tour rápido'}
             </span>
           </div>
-          <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(170px,1fr))',gap:8}}>
+          <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(180px,1fr))',gap:8}}>
             <a href={`/intro-short.html?lang=${lang==='en'?'en':'es'}`} target="_blank" rel="noopener noreferrer"
-               style={{display:'flex',gap:10,alignItems:'center',padding:'10px 12px',borderRadius:12,background:'linear-gradient(135deg,#e8f5ec,#f0f9f3)',border:'1.5px solid #0b7f4f',textDecoration:'none',color:'#17313a',boxShadow:'0 4px 12px rgba(11,127,79,.15)',position:'relative'}}>
-              <div style={{width:34,height:34,borderRadius:10,background:'linear-gradient(135deg,#0b7f4f,#0b7f8c)',color:'#fff',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'1rem',flexShrink:0}}>▶</div>
+               style={{display:'flex',gap:10,alignItems:'center',padding:'12px 14px',borderRadius:12,background:'linear-gradient(135deg,#e8f5ec,#f0f9f3)',border:'1.5px solid #0b7f4f',textDecoration:'none',color:'#17313a',boxShadow:'0 4px 12px rgba(11,127,79,.15)',position:'relative'}}>
+              <div style={{width:38,height:38,borderRadius:10,background:'linear-gradient(135deg,#0b7f4f,#0b7f8c)',color:'#fff',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'1.1rem',flexShrink:0}}>▶</div>
               <div style={{flex:1,minWidth:0}}>
-                <div style={{fontSize:'.78rem',fontWeight:800,color:'#1b5634',lineHeight:1.2}}>{lang==='en' ? 'Quick tour' : 'Tour rápido'}</div>
-                <div style={{fontSize:'.66rem',color:'#5b8068',fontWeight:600,marginTop:1}}>{lang==='en' ? '~90s · the basics' : '~90s · lo esencial'}</div>
+                <div style={{fontSize:'.84rem',fontWeight:800,color:'#1b5634',lineHeight:1.2}}>{lang==='en' ? 'Quick tour' : 'Tour rápido'}</div>
+                <div style={{fontSize:'.7rem',color:'#5b8068',fontWeight:600,marginTop:1}}>{lang==='en' ? '~90 sec · the basics' : '~90 seg · lo esencial'}</div>
               </div>
               <span style={{position:'absolute',top:-7,right:8,padding:'2px 7px',borderRadius:99,background:'#0b7f4f',color:'#fff',fontSize:'.58rem',fontWeight:800,letterSpacing:'.04em',textTransform:'uppercase'}}>{lang==='en'?'Start here':'Empieza aquí'}</span>
             </a>
             <a href={`/intro-full.html?lang=${lang==='en'?'en':'es'}`} target="_blank" rel="noopener noreferrer"
-               style={{display:'flex',gap:10,alignItems:'center',padding:'10px 12px',borderRadius:12,background:'#fff',border:'1px solid rgba(47,79,58,.16)',textDecoration:'none',color:'#17313a',boxShadow:'0 2px 8px rgba(20,32,26,.06)'}}>
-              <div style={{width:34,height:34,borderRadius:10,background:'#e8f5ec',color:'#0b7f4f',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'1rem',flexShrink:0}}>▶</div>
+               style={{display:'flex',gap:10,alignItems:'center',padding:'12px 14px',borderRadius:12,background:'#fff',border:'1px solid rgba(47,79,58,.16)',textDecoration:'none',color:'#17313a',boxShadow:'0 2px 8px rgba(20,32,26,.06)'}}>
+              <div style={{width:38,height:38,borderRadius:10,background:'#e8f5ec',color:'#0b7f4f',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'1.1rem',flexShrink:0}}>▶</div>
               <div style={{flex:1,minWidth:0}}>
-                <div style={{fontSize:'.78rem',fontWeight:800,color:'#203f2b',lineHeight:1.2}}>{lang==='en' ? 'Full tour' : 'Tour completo'}</div>
-                <div style={{fontSize:'.66rem',color:'#607063',fontWeight:600,marginTop:1}}>{lang==='en' ? '~3 min · full journey' : '~3 min · journey completo'}</div>
-              </div>
-            </a>
-            <a href={`/incidents-short.html?lang=${lang==='en'?'en':'es'}`} target="_blank" rel="noopener noreferrer"
-               style={{display:'flex',gap:10,alignItems:'center',padding:'10px 12px',borderRadius:12,background:'#fff',border:'1px solid rgba(47,79,58,.16)',textDecoration:'none',color:'#17313a',boxShadow:'0 2px 8px rgba(20,32,26,.06)'}}>
-              <div style={{width:34,height:34,borderRadius:10,background:'#fde8e8',color:'#c62828',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'1.05rem',flexShrink:0}}>⚠️</div>
-              <div style={{flex:1,minWidth:0}}>
-                <div style={{fontSize:'.78rem',fontWeight:800,color:'#203f2b',lineHeight:1.2}}>{lang==='en' ? 'Incidents — quick' : 'Incidentes — rápido'}</div>
-                <div style={{fontSize:'.66rem',color:'#607063',fontWeight:600,marginTop:1}}>{lang==='en' ? '~90s · report flow' : '~90s · flujo de reporte'}</div>
-              </div>
-            </a>
-            <a href={`/incidents-full.html?lang=${lang==='en'?'en':'es'}`} target="_blank" rel="noopener noreferrer"
-               style={{display:'flex',gap:10,alignItems:'center',padding:'10px 12px',borderRadius:12,background:'#fff',border:'1px solid rgba(47,79,58,.16)',textDecoration:'none',color:'#17313a',boxShadow:'0 2px 8px rgba(20,32,26,.06)'}}>
-              <div style={{width:34,height:34,borderRadius:10,background:'#fde8e8',color:'#c62828',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'1.05rem',flexShrink:0}}>⚠️</div>
-              <div style={{flex:1,minWidth:0}}>
-                <div style={{fontSize:'.78rem',fontWeight:800,color:'#203f2b',lineHeight:1.2}}>{lang==='en' ? 'Incidents — full' : 'Incidentes — completo'}</div>
-                <div style={{fontSize:'.66rem',color:'#607063',fontWeight:600,marginTop:1}}>{lang==='en' ? '~3 min · all states' : '~3 min · todos los estados'}</div>
+                <div style={{fontSize:'.84rem',fontWeight:800,color:'#203f2b',lineHeight:1.2}}>{lang==='en' ? 'Full tour' : 'Tour completo'}</div>
+                <div style={{fontSize:'.7rem',color:'#607063',fontWeight:600,marginTop:1}}>{lang==='en' ? '~3 min · full journey' : '~3 min · journey completo'}</div>
               </div>
             </a>
           </div>

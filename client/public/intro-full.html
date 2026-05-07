@@ -268,8 +268,8 @@ const SCENES = [
   // 3. OWNER REGISTRATION FORM
   {
     title: { es: 'Registro de propietario', en: 'Owner registration' },
-    body:  { es: 'Al ser tu primera vez aparece el formulario de registro: país, WhatsApp con código de país, y los datos del Listing #1 (apartamento, habitaciones, capacidad, operador opcional). Tu nombre y email vienen de Google.',
-             en: 'On your first visit the registration form appears: country, WhatsApp with country code, and Listing #1 details (apt, rooms, guests, optional operator). Name and email come from Google.' },
+    body:  { es: 'Al ser tu primera vez aparece el formulario de registro: país, teléfono de contacto con código de país, y los datos del Listing #1 (apartamento, habitaciones, capacidad, operador opcional). Tu nombre y email vienen de Google.',
+             en: 'On your first visit the registration form appears: country, contact phone with country code, and Listing #1 details (apt, rooms, guests, optional operator). Name and email come from Google.' },
     duration: 16000,
     email: { es: '📧 Tú recibes: registration_submitted', en: '📧 You receive: registration_submitted' },
     html: `
@@ -279,10 +279,10 @@ const SCENES = [
         <div class="modal" style="position:relative;inset:0;padding:10px;gap:6px;animation:none;flex:1;overflow:hidden">
           <div style="font-size:.74rem;font-weight:900;color:#203f2b">👤 <span data-lang-es>Tu información de contacto</span><span data-lang-en>Your contact information</span></div>
           <div style="font-size:.7rem;color:var(--ink2)"><strong>Name:</strong> Test Test · <strong>Email:</strong> morroskaitest@gmail.com</div>
-          <div class="row" style="gap:8px"><div style="flex:1"><div class="lab">🌎 <span data-lang-es>País</span><span data-lang-en>Country</span> *</div><div class="input">Colombia (+57)</div></div><div style="flex:2"><div class="lab">📞 WhatsApp *</div><div class="input hl">+57 300 000 0000</div></div></div>
+          <div class="row" style="gap:8px"><div style="flex:1"><div class="lab">🌎 <span data-lang-es>País</span><span data-lang-en>Country</span> *</div><div class="input">Colombia (+57)</div></div><div style="flex:2"><div class="lab">📞 <span data-lang-es>Teléfono de contacto</span><span data-lang-en>Contact phone</span> *</div><div class="input hl">+57 300 000 0000</div></div></div>
           <div style="font-size:.74rem;font-weight:900;color:#203f2b;margin-top:4px">🏠 Listing #1</div>
           <div class="row" style="gap:6px"><div style="flex:1"><div class="lab">Apt *</div><div class="input">777</div></div><div style="flex:1"><div class="lab"><span data-lang-es>Habs *</span><span data-lang-en>Rooms *</span></div><div class="input">2</div></div><div style="flex:1"><div class="lab"><span data-lang-es>Huéspedes *</span><span data-lang-en>Guests *</span></div><div class="input">4</div></div></div>
-          <div class="row" style="gap:6px"><div style="flex:1"><div class="lab"><span data-lang-es>Operador (opcional)</span><span data-lang-en>Operator (optional)</span></div><div class="input">—</div></div><div style="flex:1"><div class="lab"><span data-lang-es>Email operador</span><span data-lang-en>Operator email</span></div><div class="input">—</div></div><div style="flex:1"><div class="lab"><span data-lang-es>WhatsApp operador</span><span data-lang-en>Operator WhatsApp</span></div><div class="input">—</div></div></div>
+          <div class="row" style="gap:6px"><div style="flex:1"><div class="lab"><span data-lang-es>Operador (opcional)</span><span data-lang-en>Operator (optional)</span></div><div class="input">—</div></div><div style="flex:1"><div class="lab"><span data-lang-es>Email operador</span><span data-lang-en>Operator email</span></div><div class="input">—</div></div><div style="flex:1"><div class="lab"><span data-lang-es>Teléfono operador</span><span data-lang-en>Operator phone</span></div><div class="input">—</div></div></div>
           <div style="display:flex;justify-content:flex-end;margin-top:auto"><button class="btn hl">📨 <span data-lang-es>Enviar registro</span><span data-lang-en>Submit registration</span></button></div>
         </div>
       </div>`
@@ -340,8 +340,8 @@ const SCENES = [
   // 7. APARTMENT POPUP (CLICK PLATE)
   {
     title: { es: 'Toca el número para ver contactos', en: 'Tap the number for contacts' },
-    body:  { es: 'Las placas oscuras con el número son botones en toda la app. Al tocarlas se abre un popup con los contactos de la unidad: propietario, co-propietarios y operador, con email y WhatsApp listos para abrir.',
-             en: 'The dark number plates are buttons everywhere in the app. Tapping opens a popup with the unit\'s contacts: owner, co-owners and operator, with email and WhatsApp ready to open.' },
+    body:  { es: 'Las placas oscuras con el número son botones en toda la app. Al tocarlas se abre un popup con los contactos de la unidad: propietario, co-propietarios y operador, con email y teléfono a un toque.',
+             en: 'The dark number plates are buttons everywhere in the app. Tapping opens a popup with the unit\'s contacts: owner, co-owners and operator, with email and phone one tap away.' },
     duration: 13000,
     email: { es: 'Sin email · solo navegación', en: 'No email · navigation only', none:true },
     html: `
@@ -349,7 +349,7 @@ const SCENES = [
         <div class="listing-row" style="z-index:5"><div class="plate hl">777 <span class="plate-tag">MORROS KAI</span></div><div class="badge">🛏️ 2</div><div class="badge">👥 4</div><div class="row-actions"><button class="row-act report">+ <span data-lang-es>Reporte</span><span data-lang-en>Report</span></button><button class="row-act edit">✏️</button><button class="row-act del">🗑️</button></div></div>
         <div class="aptpop" style="left:50%;top:60px;transform:translateX(-50%)">
           <h4>📞 <span data-lang-es>Contactos · Apt 777</span><span data-lang-en>Contacts · Apt 777</span></h4>
-          <div class="aptpop-row"><div><strong>Test Test</strong><br/><span style="color:var(--ink2);font-size:.66rem"><span data-lang-es>Propietario</span><span data-lang-en>Owner</span></span></div><div style="display:flex;gap:6px"><a class="aptpop-link">📧</a><a class="aptpop-link">💬 WhatsApp</a></div></div>
+          <div class="aptpop-row"><div><strong>Test Test</strong><br/><span style="color:var(--ink2);font-size:.66rem"><span data-lang-es>Propietario</span><span data-lang-en>Owner</span></span></div><div style="display:flex;gap:6px"><a class="aptpop-link">📧 Email</a><a class="aptpop-link">📞 <span data-lang-es>Llamar</span><span data-lang-en>Call</span></a></div></div>
           <div class="aptpop-row"><div><strong>—</strong><br/><span style="color:var(--ink2);font-size:.66rem"><span data-lang-es>Operador no asignado</span><span data-lang-en>Operator not assigned</span></span></div><div style="font-size:.66rem;color:var(--ink2)"><span data-lang-es>Edita la unidad para agregar</span><span data-lang-en>Edit unit to add</span></div></div>
         </div>
       </div>`
@@ -385,7 +385,7 @@ const SCENES = [
         <div style="font-size:.7rem;color:var(--ink2)">INC-2401 · Apt 777 · 🔧 <span data-lang-es>Fuga en ducha</span><span data-lang-en>Shower leak</span></div>
         <div style="font-size:.74rem;font-weight:900;color:#203f2b;margin-top:4px"><span data-lang-es>Datos del huésped</span><span data-lang-en>Guest details</span></div>
         <div class="row" style="gap:6px"><div style="flex:1"><div class="lab"><span data-lang-es>Nombre</span><span data-lang-en>Name</span></div><div class="input">Andrés López</div></div><div style="flex:1"><div class="lab"><span data-lang-es>Ciudad</span><span data-lang-en>City</span></div><div class="input">Bogotá</div></div><div style="flex:1"><div class="lab"><span data-lang-es>País</span><span data-lang-en>Country</span></div><div class="input">🇨🇴 Colombia</div></div></div>
-        <div><div class="lab"><span data-lang-es>Acción inmediata tomada *</span><span data-lang-en>Immediate action taken *</span></div><div class="input hl" style="height:42px;padding-top:7px;font-size:.72rem"><span data-lang-es>Cerré la llave principal y avisé al operador por WhatsApp. Plomero agendado a las 3pm.</span><span data-lang-en>Closed main valve and notified operator via WhatsApp. Plumber scheduled 3pm.</span></div></div>
+        <div><div class="lab"><span data-lang-es>Acción inmediata tomada *</span><span data-lang-en>Immediate action taken *</span></div><div class="input hl" style="height:42px;padding-top:7px;font-size:.72rem"><span data-lang-es>Cerré la llave principal y avisé al operador. Plomero agendado a las 3pm.</span><span data-lang-en>Closed main valve and notified the operator. Plumber scheduled 3pm.</span></div></div>
         <div class="row" style="justify-content:space-between"><div class="pill blue">📧 <span data-lang-es>Notifica admins</span><span data-lang-en>Notifies admins</span></div><button class="btn">✓ <span data-lang-es>Confirmar verificación</span><span data-lang-en>Confirm verification</span></button></div>
       </div>`
   },
@@ -466,8 +466,8 @@ const SCENES = [
   // 14. PROFILE / LOGOUT
   {
     title: { es: 'Perfil, idioma y cerrar sesión', en: 'Profile, language and sign out' },
-    body:  { es: 'Tu inicial "T" arriba a la derecha abre el menú de perfil: cambia el idioma de la app, edita tu perfil (WhatsApp, email de notificaciones), y cierra sesión cuando termines.',
-             en: 'Your initial "T" top-right opens the profile menu: switch app language, edit your profile (WhatsApp, notification email), and sign out when you\'re done.' },
+    body:  { es: 'Tu inicial "T" arriba a la derecha abre el menú de perfil: cambia el idioma de la app, edita tu perfil (teléfono, email de notificaciones), y cierra sesión cuando termines.',
+             en: 'Your initial "T" top-right opens the profile menu: switch app language, edit your profile (phone, notification email), and sign out when you\'re done.' },
     duration: 12000,
     email: { es: 'Sin email · cambios locales de sesión', en: 'No email · local session changes', none:true },
     html: `
@@ -498,7 +498,6 @@ const SCENES = [
         <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center">
           <a href="/" class="btn"><span data-lang-es>Ir al inicio</span><span data-lang-en>Go to login</span></a>
           <a href="/intro-short.html" class="btn ghost">▶ <span data-lang-es>Tour rápido (90s)</span><span data-lang-en>Quick tour (90s)</span></a>
-          <a href="/incidents-full.html" class="btn ghost">⚠️ <span data-lang-es>Incidentes detallado</span><span data-lang-en>Incidents in detail</span></a>
           <a href="/guide.html" class="btn ghost">📖 <span data-lang-es>Guía</span><span data-lang-en>Guide</span></a>
         </div>
       </div>`
