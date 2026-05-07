@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>KAI Airbnb Owners · Tour completo / Full tour</title>
+<style>
+:root{
+  --green:#0b7f4f;--teal:#0b7f8c;--ink:#17313a;--ink2:#235f72;--bg:#f7f3e9;
+  --card:#fff;--border:rgba(47,79,58,.16);--yellow:#d9b45a;--red:#c62828;
+  --grad:linear-gradient(135deg,#0b7f4f,#0b7f8c);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{font-family:'Segoe UI',system-ui,sans-serif;background:#0f1d22;color:var(--ink);overflow:hidden}
+[data-lang-es],[data-lang-en]{display:none}
+body.lang-es [data-lang-es]{display:inline}
+body.lang-en [data-lang-en]{display:inline}
+
+.stage{position:fixed;inset:0;display:flex;flex-direction:column;background:radial-gradient(1200px 600px at 30% 20%,rgba(11,127,140,.25),transparent 70%),radial-gradient(900px 500px at 80% 80%,rgba(11,127,79,.22),transparent 70%),#0f1d22}
+
+.vbar{display:flex;align-items:center;gap:12px;padding:12px 18px;background:rgba(255,255,255,.06);border-bottom:1px solid rgba(255,255,255,.08);backdrop-filter:blur(8px)}
+.vbar-l{display:flex;align-items:center;gap:10px;color:#fff}
+.logo-mark{width:36px;height:36px;border-radius:11px;background:linear-gradient(135deg,#e7fff7,#d8f2f5);display:flex;align-items:center;justify-content:center;font-weight:900;color:var(--green);font-size:1.05rem;position:relative}
+.logo-mark .wave{font-size:.55rem;position:absolute;right:5px;top:5px;color:var(--teal)}
+.vbar-l strong{display:block;font-size:.92rem;font-weight:800;letter-spacing:.01em}
+.vsub{font-size:.74rem;opacity:.72}
+.vbar-r{margin-left:auto;display:flex;gap:8px;align-items:center}
+.lang-btn{padding:6px 12px;border-radius:99px;border:1px solid rgba(255,255,255,.18);background:transparent;color:#fff;font-weight:700;font-size:.78rem;cursor:pointer;transition:.15s}
+.lang-btn:hover{background:rgba(255,255,255,.08)}
+.lang-btn.active{background:linear-gradient(135deg,#0b7f4f,#0b7f8c);border-color:transparent}
+.vclose{width:34px;height:34px;border-radius:99px;background:rgba(255,255,255,.08);color:#fff;display:flex;align-items:center;justify-content:center;font-size:1.3rem;text-decoration:none;font-weight:300}
+.vclose:hover{background:rgba(255,255,255,.16)}
+
+.vstage{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:18px 18px 0;gap:14px;min-height:0}
+.vframe{position:relative;width:min(820px,94vw);aspect-ratio:16/9;max-height:58vh;border-radius:18px;background:#f7f3e9;box-shadow:0 24px 80px rgba(0,0,0,.45),0 4px 0 rgba(255,255,255,.05) inset;overflow:hidden;border:1px solid rgba(255,255,255,.08)}
+.scene{position:absolute;inset:0;opacity:0;transform:translateY(8px) scale(.98);transition:opacity .55s ease,transform .55s ease;padding:18px;display:flex;flex-direction:column;gap:10px}
+.scene.show{opacity:1;transform:translateY(0) scale(1)}
+
+.vcaption{width:min(820px,94vw);color:#eef6f9;text-align:center;padding:6px 12px}
+.vstep{display:inline-block;padding:3px 10px;border-radius:99px;background:rgba(255,255,255,.08);font-size:.7rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;margin-bottom:6px;color:#aee2c5}
+.vcaption h2{font-size:1.2rem;font-weight:800;margin-bottom:4px;color:#fff}
+.vcaption p{font-size:.88rem;opacity:.85;max-width:680px;margin:0 auto;line-height:1.5}
+
+.vctrls{display:flex;align-items:center;justify-content:center;gap:10px;padding:14px 16px 18px;background:transparent}
+.vdots{display:flex;gap:6px;margin-right:10px;flex-wrap:wrap;max-width:60vw;justify-content:center}
+.vdot{width:8px;height:8px;border-radius:50%;background:rgba(255,255,255,.22);cursor:pointer;transition:.18s}
+.vdot.done{background:rgba(255,255,255,.45)}
+.vdot.cur{background:#5fd9a8;width:22px;border-radius:99px}
+.vbtn{width:38px;height:38px;border-radius:50%;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.12);color:#fff;font-size:1rem;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:.15s}
+.vbtn:hover{background:rgba(255,255,255,.18)}
+.vbtn.play{width:46px;height:46px;background:linear-gradient(135deg,#0b7f4f,#0b7f8c);border:none;font-size:1.1rem}
+.vbtn.play:hover{filter:brightness(1.1)}
+.vprog{position:absolute;left:0;right:0;bottom:0;height:3px;background:rgba(0,0,0,.06)}
+.vprog-bar{height:100%;background:linear-gradient(90deg,#0b7f4f,#0b7f8c);width:0;transition:width .1s linear}
+
+/* Mock UI */
+.m-card{background:#fff;border:1px solid var(--border);border-radius:14px;padding:14px;box-shadow:0 6px 18px rgba(32,46,38,.06)}
+.m-row{display:flex;gap:10px;align-items:center}
+.m-col{display:flex;flex-direction:column;gap:8px}
+.m-title{font-size:.95rem;font-weight:900;color:#203f2b}
+.m-sub{font-size:.74rem;color:var(--ink2)}
+.m-pill{display:inline-block;padding:3px 10px;border-radius:99px;background:#e8f5ec;color:var(--green);font-size:.7rem;font-weight:800}
+.m-pill.warn{background:#fff8e1;color:#7a5a00}
+.m-pill.red{background:#fde8e8;color:var(--red)}
+.m-pill.blue{background:#e3f2fd;color:#0d3c6e}
+.m-btn{padding:8px 14px;border-radius:10px;background:var(--grad);color:#fff;font-size:.78rem;font-weight:800;border:none;display:inline-flex;align-items:center;gap:6px;box-shadow:0 4px 12px rgba(11,127,79,.25);text-decoration:none}
+.m-btn.ghost{background:#fff;color:var(--ink);border:1px solid var(--border);box-shadow:none}
+.m-btn.wa{background:#25d366;box-shadow:0 4px 12px rgba(37,211,102,.3)}
+.m-input{padding:8px 10px;border-radius:9px;border:1px solid var(--border);background:#fff;font-size:.78rem;width:100%}
+.m-banner{padding:10px 12px;border-radius:11px;background:linear-gradient(135deg,#fff8e1,#fffde7);border-left:4px solid var(--yellow);font-size:.78rem;color:#7a5a00;display:flex;gap:8px;align-items:center}
+.m-banner.ok{background:#e8f5ec;color:#1b5634;border-left-color:var(--green)}
+.m-plate{display:inline-flex;align-items:center;justify-content:center;width:54px;height:34px;border-radius:7px;background:#17313a;color:#fff;font-weight:900;font-size:.82rem;letter-spacing:.04em;cursor:pointer}
+.m-plate.pulse{animation:pulse 1.4s ease-in-out infinite}
+@keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(95,217,168,.7)}50%{box-shadow:0 0 0 10px rgba(95,217,168,0)}}
+.m-tab{padding:8px 14px;font-size:.78rem;font-weight:700;color:var(--ink2);border-bottom:2px solid transparent;cursor:pointer}
+.m-tab.active{color:var(--green);border-bottom-color:var(--green)}
+.m-list{display:flex;flex-direction:column;gap:8px}
+.m-listing{display:flex;align-items:center;gap:10px;padding:10px;border:1px solid var(--border);border-radius:11px;background:#fff}
+.m-popup{position:absolute;background:#fff;border-radius:14px;border:1px solid var(--border);padding:14px;box-shadow:0 18px 40px rgba(20,32,26,.18);max-width:340px;font-size:.78rem;z-index:20;animation:popIn .35s ease}
+@keyframes popIn{from{opacity:0;transform:translateY(8px) scale(.96)}to{opacity:1;transform:translateY(0) scale(1)}}
+.m-pop-row{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:6px 0;border-bottom:1px dashed var(--border);font-size:.75rem}
+.m-pop-row:last-child{border-bottom:none}
+.m-pop-link{color:var(--teal);font-weight:700;text-decoration:none;display:inline-flex;align-items:center;gap:4px}
+.m-modal{position:absolute;inset:14px;background:#fff;border-radius:14px;box-shadow:0 18px 40px rgba(20,32,26,.18);padding:16px;display:flex;flex-direction:column;gap:10px;animation:popIn .4s ease;z-index:15}
+.m-modal h3{font-size:.95rem;color:#203f2b}
+.m-bell{width:34px;height:34px;border-radius:50%;background:#fff8e1;display:flex;align-items:center;justify-content:center;font-size:1.1rem;position:relative}
+.m-bell-dot{position:absolute;top:2px;right:2px;width:9px;height:9px;border-radius:50%;background:var(--red);border:2px solid #fff}
+.m-google{display:inline-flex;align-items:center;gap:8px;padding:10px 18px;background:#fff;border:1px solid var(--border);border-radius:11px;font-weight:800;color:var(--ink);box-shadow:0 4px 14px rgba(20,32,26,.08)}
+.m-g-icon{width:18px;height:18px;border-radius:50%;background:conic-gradient(from 0deg,#4285f4 0 25%,#34a853 0 50%,#fbbc05 0 75%,#ea4335 0 100%)}
+.m-toggle{display:inline-flex;align-items:center;gap:6px;font-size:.74rem;color:var(--ink2);font-weight:700}
+.m-toggle .sw{width:30px;height:18px;border-radius:99px;background:var(--green);position:relative}
+.m-toggle .sw::after{content:'';position:absolute;top:2px;right:2px;width:14px;height:14px;border-radius:50%;background:#fff}
+.m-toggle.off .sw{background:#cfd8dc}
+.m-toggle.off .sw::after{right:auto;left:2px}
+.m-timer{display:inline-flex;align-items:center;gap:6px;padding:5px 10px;border-radius:99px;background:#fff8e1;color:#7a5a00;font-size:.74rem;font-weight:800}
+.m-bar{height:6px;border-radius:99px;background:#e8eef0;overflow:hidden}
+.m-bar > div{height:100%;background:linear-gradient(90deg,#0b7f4f,#0b7f8c)}
+
+/* Layouts */
+.s-login{display:flex;align-items:center;justify-content:center;gap:24px;height:100%}
+.s-login .login-card{width:300px;padding:18px;text-align:center;background:#fff;border-radius:18px;border:1px solid var(--border);box-shadow:0 12px 28px rgba(20,32,26,.12)}
+.s-login .login-card .badge{display:inline-block;padding:3px 10px;background:#e8f5ec;color:var(--green);border-radius:99px;font-size:.66rem;font-weight:800;margin-bottom:8px;text-transform:uppercase;letter-spacing:.06em}
+.s-login .login-card h3{font-size:1rem;color:#203f2b;margin-bottom:4px}
+.s-login .login-card p{font-size:.74rem;color:var(--ink2);margin-bottom:14px}
+.s-final{display:flex;align-items:center;justify-content:center;flex-direction:column;gap:14px;height:100%;text-align:center;padding:20px}
+.s-final h2{font-size:1.5rem;color:#203f2b;font-weight:900}
+.s-final p{font-size:.88rem;color:var(--ink2);max-width:480px}
+.s-final .row{display:flex;gap:10px;flex-wrap:wrap;justify-content:center}
+
+.hl{position:relative}
+.hl::after{content:'';position:absolute;inset:-4px;border:2px solid #5fd9a8;border-radius:14px;pointer-events:none;animation:pulseRing 1.6s ease-in-out infinite}
+@keyframes pulseRing{0%,100%{opacity:.7;transform:scale(1)}50%{opacity:1;transform:scale(1.04)}}
+
+@media(max-width:640px){
+  .vstage{padding:10px 10px 0}
+  .vframe{aspect-ratio:4/3;max-height:50vh}
+  .vcaption h2{font-size:1.05rem}
+  .vcaption p{font-size:.82rem}
+  .vbtn{width:34px;height:34px}
+  .vbtn.play{width:42px;height:42px}
+  .scene{padding:12px}
+  .vsub{display:none}
+}
+</style>
+</head>
+<body class="lang-es">
+<div class="stage">
+  <header class="vbar">
+    <div class="vbar-l">
+      <div class="logo-mark">K<span class="wave">~</span></div>
+      <div>
+        <strong>KAI Airbnb Owners</strong><br/>
+        <span class="vsub" data-lang-es>Tour completo · 3 minutos</span><span class="vsub" data-lang-en>Full tour · 3 minutes</span>
+      </div>
+    </div>
+    <div class="vbar-r">
+      <button class="lang-btn active" data-set-lang="es">ES</button>
+      <button class="lang-btn" data-set-lang="en">EN</button>
+      <a href="/" class="vclose" title="Cerrar / Close">×</a>
+    </div>
+  </header>
+
+  <main class="vstage">
+    <div class="vframe" id="vframe"></div>
+    <div class="vcaption">
+      <div class="vstep" id="vstep">1 / 10</div>
+      <h2 id="vtitle"></h2>
+      <p id="vbody"></p>
+    </div>
+  </main>
+
+  <footer class="vctrls">
+    <div class="vdots" id="vdots"></div>
+    <button class="vbtn" id="vprev" title="Anterior / Previous">‹</button>
+    <button class="vbtn play" id="vplay" title="Pausar / Pause">⏸</button>
+    <button class="vbtn" id="vnext" title="Siguiente / Next">›</button>
+  </footer>
+
+  <div class="vprog"><div class="vprog-bar" id="vprogbar"></div></div>
+</div>
+
+<script>
+const SCENES = [
+  {
+    title: { es: 'Ingresa con Google', en: 'Sign in with Google' },
+    body:  { es: 'KAI usa solo tu cuenta de Google — sin contraseñas nuevas. Selecciona tu comunidad antes de iniciar sesión si ves la lista de comunidades.',
+             en: 'KAI uses only your Google account — no new passwords. Select your community before signing in if the community list is shown.' },
+    duration: 11000,
+    html: `
+      <div class="s-login">
+        <div class="login-card">
+          <div class="badge"><span data-lang-es>Comunidad</span><span data-lang-en>Community</span></div>
+          <h3><span data-lang-es>Bienvenido a Morros KAI</span><span data-lang-en>Welcome to Morros KAI</span></h3>
+          <p><span data-lang-es>Propietarios Airbnb · Cartagena 🇨🇴</span><span data-lang-en>Airbnb Owners · Cartagena 🇨🇴</span></p>
+          <div class="m-google hl"><div class="m-g-icon"></div><span data-lang-es>Continuar con Google</span><span data-lang-en>Continue with Google</span></div>
+          <p style="margin-top:10px;font-size:.66rem;color:var(--ink2)"><span data-lang-es>🔒 Solo Google · sin contraseñas</span><span data-lang-en>🔒 Google only · no passwords</span></p>
+        </div>
+      </div>`
+  },
+  {
+    title: { es: 'Primera vez: registra tu unidad', en: 'First time: register your unit' },
+    body:  { es: 'Llenas un formulario corto: torre, número de apartamento, habitaciones, y tu WhatsApp con código de país. El operador es opcional pero recomendado — recibirá las notificaciones de incidentes.',
+             en: 'You fill a short form: tower, apartment number, rooms, and your WhatsApp with country code. Operator is optional but recommended — they receive incident notifications.' },
+    duration: 16000,
+    html: `
+      <div class="m-modal" style="overflow:auto">
+        <h3><span data-lang-es>Registro de propietario</span><span data-lang-en>Owner registration</span></h3>
+        <div class="m-row" style="gap:8px"><div style="flex:1"><label class="m-sub" style="font-weight:700"><span data-lang-es>Apartamento *</span><span data-lang-en>Apartment *</span></label><div class="m-input">1102</div></div><div style="flex:1"><label class="m-sub" style="font-weight:700">Torre</label><div class="m-input">A</div></div><div style="flex:1"><label class="m-sub" style="font-weight:700"><span data-lang-es>Habitaciones *</span><span data-lang-en>Rooms *</span></label><div class="m-input">3</div></div></div>
+        <div><label class="m-sub" style="font-weight:700"><span data-lang-es>📞 WhatsApp propietario *</span><span data-lang-en>📞 Owner WhatsApp *</span></label><div class="m-input hl">+57 300 000 0000</div><div class="m-sub" style="margin-top:3px"><span data-lang-es>Con código de país — se usará en todos tus listings</span><span data-lang-en>With country code — used for all your listings</span></div></div>
+        <div class="m-row" style="gap:8px"><div style="flex:1"><label class="m-sub" style="font-weight:700"><span data-lang-es>👤 Operador (opcional)</span><span data-lang-en>👤 Operator (optional)</span></label><div class="m-input">Carlos Pérez</div></div><div style="flex:1"><label class="m-sub" style="font-weight:700"><span data-lang-es>📲 WhatsApp operador</span><span data-lang-en>📲 Operator WhatsApp</span></label><div class="m-input">+57 310 555 7788</div></div></div>
+        <div class="m-row" style="justify-content:flex-end"><button class="m-btn"><span data-lang-es>📨 Enviar para aprobación</span><span data-lang-en>📨 Submit for approval</span></button></div>
+      </div>`
+  },
+  {
+    title: { es: 'Mis Unidades — pantalla de inicio', en: 'My Units — your home screen' },
+    body:  { es: 'Después de aprobado llegas a "Mis Unidades". El banner amarillo te guía con lo que necesitas hacer ahora; los apartamentos pendientes muestran el estado en sus etiquetas.',
+             en: 'Once approved you land on "My Units". The yellow banner guides you on what to do next; pending apartments show their status in their labels.' },
+    duration: 14000,
+    html: `
+      <div>
+        <div class="m-row" style="justify-content:space-between;margin-bottom:10px"><div><div class="m-title"><span data-lang-es>Mis Unidades</span><span data-lang-en>My Units</span></div><div class="m-sub"><span data-lang-es>2 apartamentos · 1 pendiente</span><span data-lang-en>2 apartments · 1 pending</span></div></div><button class="m-btn">+ <span data-lang-es>Agregar</span><span data-lang-en>Add</span></button></div>
+        <div class="m-banner hl" style="margin-bottom:10px"><span style="font-size:1.1rem">⚡</span><div><strong><span data-lang-es>¿Qué debes hacer ahora?</span><span data-lang-en>What's next?</span></strong> <span data-lang-es>Agrega WhatsApp del operador en Apt 1102 · revisa 1 incidente pendiente</span><span data-lang-en>Add operator WhatsApp on Apt 1102 · review 1 open incident</span></div></div>
+        <div class="m-list">
+          <div class="m-listing"><div class="m-plate">1102</div><div style="flex:1"><strong style="font-size:.82rem">Torre A · 1102</strong><div class="m-sub"><span data-lang-es>3 hab · 6 huéspedes</span><span data-lang-en>3 rooms · 6 guests</span></div></div><span class="m-pill"><span data-lang-es>Aprobado</span><span data-lang-en>Approved</span></span></div>
+          <div class="m-listing"><div class="m-plate">802</div><div style="flex:1"><strong style="font-size:.82rem">Torre B · 802</strong><div class="m-sub"><span data-lang-es>2 hab · 4 huéspedes · sin operador</span><span data-lang-en>2 rooms · 4 guests · no operator</span></div></div><span class="m-pill warn"><span data-lang-es>Perfil incompleto</span><span data-lang-en>Profile incomplete</span></span></div>
+        </div>
+      </div>`
+  },
+  {
+    title: { es: 'Agregar o editar una unidad', en: 'Add or edit a unit' },
+    body:  { es: 'Toca "Agregar" o el lápiz de edición. Mantén actualizado el email y WhatsApp del operador — son la clave para que las notificaciones de incidentes lleguen al responsable correcto.',
+             en: 'Tap "Add" or the edit pencil. Keep operator email and WhatsApp current — they\'re key for incident notifications to reach the right person.' },
+    duration: 15000,
+    html: `
+      <div class="m-modal">
+        <h3><span data-lang-es>Editar unidad · Apt 1102</span><span data-lang-en>Edit unit · Apt 1102</span></h3>
+        <div class="m-row" style="gap:8px"><div style="flex:1"><label class="m-sub" style="font-weight:700"><span data-lang-es>Habitaciones</span><span data-lang-en>Rooms</span></label><div class="m-input">3</div></div><div style="flex:1"><label class="m-sub" style="font-weight:700"><span data-lang-es>Huéspedes</span><span data-lang-en>Guests</span></label><div class="m-input">6</div></div><div style="flex:1"><label class="m-sub" style="font-weight:700"><span data-lang-es>URL Airbnb</span><span data-lang-en>Airbnb URL</span></label><div class="m-input" style="font-size:.7rem">airbnb.com/...</div></div></div>
+        <div class="m-row" style="gap:8px"><div style="flex:1"><label class="m-sub" style="font-weight:700"><span data-lang-es>Operador</span><span data-lang-en>Operator</span></label><div class="m-input">Carlos Pérez</div></div><div style="flex:1"><label class="m-sub" style="font-weight:700"><span data-lang-es>📧 Email operador</span><span data-lang-en>📧 Operator email</span></label><div class="m-input hl">carlos@operador.co</div></div></div>
+        <div><label class="m-sub" style="font-weight:700"><span data-lang-es>📲 WhatsApp operador</span><span data-lang-en>📲 Operator WhatsApp</span></label><div class="m-input hl">+57 310 555 7788</div></div>
+        <div class="m-banner ok"><span style="font-size:1rem">✓</span><span><span data-lang-es>El operador recibirá todas las notificaciones de incidentes por email.</span><span data-lang-en>The operator will receive all incident notifications by email.</span></span></div>
+      </div>`
+  },
+  {
+    title: { es: 'Toca cualquier número de unidad', en: 'Tap any unit number' },
+    body:  { es: 'Las placas oscuras con el número son botones en toda la app. Ábrelas para ver los contactos — propietario, co-propietarios y operador — con WhatsApp y email a un toque.',
+             en: 'The dark plates with the unit number are buttons everywhere in the app. Open them to see contacts — owner, co-owners, and operator — with WhatsApp and email one tap away.' },
+    duration: 14000,
+    html: `
+      <div style="position:relative;height:100%;display:flex;align-items:flex-start;justify-content:center;padding-top:14px">
+        <div class="m-listing" style="width:60%"><div class="m-plate pulse hl">1102</div><div style="flex:1"><strong style="font-size:.82rem">Torre A · 1102</strong><div class="m-sub">María Rodríguez · <span data-lang-es>Propietaria</span><span data-lang-en>Owner</span></div></div></div>
+        <div class="m-popup" style="left:50%;top:60px;transform:translateX(-50%);min-width:320px">
+          <div style="font-weight:900;color:#203f2b;margin-bottom:8px;font-size:.85rem"><span data-lang-es>📞 Contactos · Apt 1102</span><span data-lang-en>📞 Contacts · Apt 1102</span></div>
+          <div class="m-pop-row"><div><strong>María Rodríguez</strong><br/><span style="color:var(--ink2);font-size:.7rem"><span data-lang-es>Propietaria</span><span data-lang-en>Owner</span></span></div><a class="m-pop-link"><span style="color:#25d366">●</span> WhatsApp</a></div>
+          <div class="m-pop-row"><div><strong>Juan Gómez</strong><br/><span style="color:var(--ink2);font-size:.7rem"><span data-lang-es>Co-propietario</span><span data-lang-en>Co-owner</span></span></div><a class="m-pop-link"><span style="color:#25d366">●</span> WhatsApp</a></div>
+          <div class="m-pop-row"><div><strong>Carlos Pérez</strong><br/><span style="color:var(--ink2);font-size:.7rem"><span data-lang-es>Operador</span><span data-lang-en>Operator</span></span></div><a class="m-pop-link"><span style="color:#25d366">●</span> WhatsApp</a></div>
+          <div class="m-pop-row" style="border:none"><div style="color:var(--ink2);font-size:.7rem"><span data-lang-es>Toca para abrir el chat</span><span data-lang-en>Tap to open chat</span></div></div>
+        </div>
+      </div>`
+  },
+  {
+    title: { es: 'Reporta un incidente', en: 'Report an incident' },
+    body:  { es: 'Daño, ruido, mantenimiento, queja del huésped — elige el tipo, describe lo que pasó, y el sistema notifica automáticamente al operador y al admin de comunidad por correo.',
+             en: 'Damage, noise, maintenance, guest complaint — pick the type, describe what happened, and the system automatically notifies the operator and community admin by email.' },
+    duration: 18000,
+    html: `
+      <div class="m-modal">
+        <div style="display:flex;justify-content:space-between;align-items:center"><h3><span data-lang-es>Reportar incidente</span><span data-lang-en>Report incident</span></h3><span style="color:var(--ink2);font-size:1rem">×</span></div>
+        <div class="m-row" style="gap:8px"><div style="flex:1"><label class="m-sub" style="font-weight:700"><span data-lang-es>Unidad *</span><span data-lang-en>Unit *</span></label><div class="m-input">Torre A · 1102</div></div><div style="flex:1"><label class="m-sub" style="font-weight:700"><span data-lang-es>Tipo *</span><span data-lang-en>Type *</span></label><div class="m-input"><span data-lang-es>🔧 Mantenimiento</span><span data-lang-en>🔧 Maintenance</span></div></div></div>
+        <div class="m-row" style="gap:8px"><div style="flex:1"><label class="m-sub" style="font-weight:700"><span data-lang-es>Severidad</span><span data-lang-en>Severity</span></label><div class="m-input"><span data-lang-es>🟡 Media (24h SLA)</span><span data-lang-en>🟡 Medium (24h SLA)</span></div></div><div style="flex:1"><label class="m-sub" style="font-weight:700"><span data-lang-es>Adjuntos</span><span data-lang-en>Attachments</span></label><div class="m-input"><span data-lang-es>📎 2 fotos</span><span data-lang-en>📎 2 photos</span></div></div></div>
+        <div><label class="m-sub" style="font-weight:700"><span data-lang-es>Descripción *</span><span data-lang-en>Description *</span></label><div class="m-input" style="height:50px;padding-top:8px"><span data-lang-es>Fuga en la ducha del baño principal — requiere plomero antes del próximo check-in.</span><span data-lang-en>Leak in main bathroom shower — needs plumber before next check-in.</span></div></div>
+        <div class="m-row" style="justify-content:space-between"><div class="m-row" style="gap:6px"><div class="m-pill warn"><span data-lang-es>SLA: 24h</span><span data-lang-en>SLA: 24h</span></div><div class="m-pill blue"><span data-lang-es>Notifica al operador</span><span data-lang-en>Notifies operator</span></div></div><button class="m-btn hl"><span data-lang-es>📨 Enviar</span><span data-lang-en>📨 Submit</span></button></div>
+      </div>`
+  },
+  {
+    title: { es: 'Detalle del incidente y SLA', en: 'Incident detail and SLA' },
+    body:  { es: 'Cada incidente tiene un cronómetro de SLA en vivo, contactos directos vía WhatsApp, e historial de acciones. Cuando se vence, escala automáticamente al admin de comunidad.',
+             en: 'Every incident has a live SLA timer, direct WhatsApp contacts, and an action history. When time expires, it auto-escalates to the community admin.' },
+    duration: 16000,
+    html: `
+      <div class="m-modal">
+        <div class="m-row" style="justify-content:space-between"><div><h3><span data-lang-es>Fuga en baño principal</span><span data-lang-en>Main bathroom leak</span></h3><div class="m-sub">INC-2401 · Apt 1102 · 🔧 <span data-lang-es>Mantenimiento</span><span data-lang-en>Maintenance</span></div></div><div class="m-timer hl">⏱️ <span data-lang-es>4h 12m restantes</span><span data-lang-en>4h 12m left</span></div></div>
+        <div class="m-bar"><div style="width:65%"></div></div>
+        <div class="m-row" style="gap:10px"><div class="m-card" style="flex:1;padding:10px"><div class="m-sub" style="font-weight:700"><span data-lang-es>Operador asignado</span><span data-lang-en>Operator assigned</span></div><div style="font-size:.82rem;font-weight:700">Carlos Pérez</div><div class="m-row" style="gap:6px;margin-top:6px"><a class="m-pop-link" style="font-size:.72rem">📧</a><a class="m-pop-link" style="font-size:.72rem"><span style="color:#25d366">●</span> WhatsApp</a></div></div><div class="m-card" style="flex:1;padding:10px"><div class="m-sub" style="font-weight:700"><span data-lang-es>Estado</span><span data-lang-en>Status</span></div><div class="m-row" style="gap:6px;margin-top:4px"><span class="m-pill warn"><span data-lang-es>En proceso</span><span data-lang-en>In progress</span></span></div><div class="m-sub" style="margin-top:6px"><span data-lang-es>Plomero agendado a las 3pm</span><span data-lang-en>Plumber scheduled 3pm</span></div></div></div>
+        <div class="m-row" style="justify-content:flex-end;gap:6px"><button class="m-btn ghost"><span data-lang-es>+ Comentario</span><span data-lang-en>+ Comment</span></button><button class="m-btn"><span data-lang-es>✓ Resolver</span><span data-lang-en>✓ Resolve</span></button></div>
+      </div>`
+  },
+  {
+    title: { es: 'Comunidad y Dashboard', en: 'Community and Dashboard' },
+    body:  { es: 'El Dashboard te muestra avisos de la comunidad, incidentes abiertos, y SLAs próximos a vencer. La pestaña Comunidad agrupa los anuncios y actividad de tu complejo.',
+             en: 'The Dashboard shows community notices, open incidents, and SLAs nearing breach. The Community tab gathers announcements and activity for your complex.' },
+    duration: 15000,
+    html: `
+      <div>
+        <div class="m-row" style="gap:8px;margin-bottom:8px"><div class="m-tab active">Dashboard</div><div class="m-tab"><span data-lang-es>Comunidad</span><span data-lang-en>Community</span></div><div class="m-tab"><span data-lang-es>Incidentes</span><span data-lang-en>Incidents</span></div></div>
+        <div class="m-row" style="gap:8px;margin-bottom:8px"><div class="m-card" style="flex:1;padding:10px"><div class="m-sub"><span data-lang-es>Mis incidentes abiertos</span><span data-lang-en>My open incidents</span></div><div class="m-title" style="font-size:1.4rem;color:var(--green)">3</div></div><div class="m-card" style="flex:1;padding:10px"><div class="m-sub"><span data-lang-es>SLA por vencer</span><span data-lang-en>SLA approaching</span></div><div class="m-title" style="font-size:1.4rem;color:#7a5a00">1</div></div><div class="m-card" style="flex:1;padding:10px"><div class="m-sub"><span data-lang-es>Resueltos este mes</span><span data-lang-en>Resolved this month</span></div><div class="m-title" style="font-size:1.4rem;color:var(--green)">12</div></div></div>
+        <div class="m-card" style="padding:10px"><div class="m-sub" style="font-weight:700;margin-bottom:6px"><span data-lang-es>Avisos de la comunidad</span><span data-lang-en>Community notices</span></div><div class="m-row" style="gap:8px;margin-bottom:6px"><span style="font-size:1rem">📣</span><div style="flex:1;font-size:.78rem"><strong><span data-lang-es>Mantenimiento de piscina</span><span data-lang-en>Pool maintenance</span></strong> — <span class="m-sub">jueves 9am-12pm</span></div></div><div class="m-row" style="gap:8px"><span style="font-size:1rem">🔒</span><div style="flex:1;font-size:.78rem"><strong><span data-lang-es>Nuevas reglas de acceso</span><span data-lang-en>New access rules</span></strong> — <span class="m-sub"><span data-lang-es>vigentes desde el 15</span><span data-lang-en>effective the 15th</span></span></div></div></div>
+      </div>`
+  },
+  {
+    title: { es: 'Tu perfil: idioma, WhatsApp, contactos', en: 'Your profile: language, WhatsApp, contacts' },
+    body:  { es: 'Desde el menú superior derecho abres "Mi perfil". Cambia el idioma, actualiza tu WhatsApp (se aplica a todos tus listings), y revisa el email donde llegan tus notificaciones.',
+             en: 'From the top-right menu open "My profile". Switch language, update your WhatsApp (applied to all your listings), and check the email where notifications arrive.' },
+    duration: 16000,
+    html: `
+      <div class="m-modal">
+        <h3><span data-lang-es>Mi perfil</span><span data-lang-en>My profile</span></h3>
+        <div class="m-row" style="gap:8px"><div style="flex:1"><label class="m-sub" style="font-weight:700"><span data-lang-es>Nombre (de Google)</span><span data-lang-en>Name (from Google)</span></label><div class="m-input">María Rodríguez</div></div><div style="flex:1"><label class="m-sub" style="font-weight:700"><span data-lang-es>Email de notificaciones</span><span data-lang-en>Notification email</span></label><div class="m-input">maria@ejemplo.com</div></div></div>
+        <div><label class="m-sub" style="font-weight:700"><span data-lang-es>📞 WhatsApp</span><span data-lang-en>📞 WhatsApp</span></label><div class="m-input hl">+57 300 000 0000</div><div class="m-sub" style="margin-top:3px"><span data-lang-es>Se aplica a todos tus listings al actualizar aquí.</span><span data-lang-en>Applied to all your listings when you update here.</span></div></div>
+        <div class="m-row" style="gap:8px"><div style="flex:1"><label class="m-sub" style="font-weight:700"><span data-lang-es>Idioma</span><span data-lang-en>Language</span></label><div class="m-row" style="gap:6px;margin-top:4px"><span class="m-pill"><span data-lang-es>🇪🇸 Español</span><span data-lang-en>🇪🇸 Español</span></span><span class="m-pill" style="background:#f0f8fb;color:var(--ink2)">🇬🇧 English</span></div></div><div style="flex:1"><label class="m-sub" style="font-weight:700"><span data-lang-es>País</span><span data-lang-en>Country</span></label><div class="m-input">🇨🇴 Colombia</div></div></div>
+        <div class="m-banner ok"><span style="font-size:1rem">💡</span><span><span data-lang-es>Tip: el cambio de idioma aplica de inmediato en toda la app.</span><span data-lang-en>Tip: language change applies instantly across the whole app.</span></span></div>
+      </div>`
+  },
+  {
+    title: { es: '¡Listo! Eres un propietario KAI', en: "You're set! You're a KAI owner" },
+    body:  { es: 'Ya conoces todo lo esencial. Si necesitas detalles más específicos, abre la guía completa o vuelve a este tour cuando quieras desde el menú de ayuda.',
+             en: 'You know everything you need. For more details, open the full guide or come back to this tour anytime from the help menu.' },
+    duration: 11000,
+    html: `
+      <div class="s-final">
+        <div style="font-size:3rem">🎉</div>
+        <h2><span data-lang-es>Tour completado</span><span data-lang-en>Tour complete</span></h2>
+        <p><span data-lang-es>Inicia sesión, registra tu unidad, mantén tu WhatsApp y el del operador actualizados, reporta incidentes con un toque, y consulta el dashboard para tu día a día.</span><span data-lang-en>Sign in, register your unit, keep your WhatsApp and the operator's up to date, report incidents in one tap, and check the dashboard for your daily view.</span></p>
+        <div class="row">
+          <a href="/" class="m-btn"><span data-lang-es>Ir al inicio</span><span data-lang-en>Go to login</span></a>
+          <a href="/intro-short.html" class="m-btn ghost"><span data-lang-es>▶ Tour rápido (90s)</span><span data-lang-en>▶ Quick tour (90s)</span></a>
+          <a href="/guide.html" class="m-btn ghost"><span data-lang-es>📖 Guía completa</span><span data-lang-en>📖 Full guide</span></a>
+        </div>
+      </div>`
+  }
+];
+
+const frame = document.getElementById('vframe');
+const stepEl = document.getElementById('vstep');
+const titleEl = document.getElementById('vtitle');
+const bodyEl = document.getElementById('vbody');
+const dotsEl = document.getElementById('vdots');
+const progBar = document.getElementById('vprogbar');
+const playBtn = document.getElementById('vplay');
+const prevBtn = document.getElementById('vprev');
+const nextBtn = document.getElementById('vnext');
+
+let cur = 0, playing = true, sceneStart = 0, raf = null;
+
+function buildScenes(){
+  SCENES.forEach((s,i)=>{
+    const el = document.createElement('div');
+    el.className = 'scene';
+    el.dataset.idx = i;
+    el.innerHTML = s.html;
+    frame.appendChild(el);
+    const dot = document.createElement('div');
+    dot.className = 'vdot';
+    dot.addEventListener('click', ()=>go(i));
+    dotsEl.appendChild(dot);
+  });
+}
+function render(){
+  document.querySelectorAll('.scene').forEach((el,i)=>el.classList.toggle('show', i===cur));
+  document.querySelectorAll('.vdot').forEach((el,i)=>{
+    el.classList.toggle('cur', i===cur);
+    el.classList.toggle('done', i<cur);
+  });
+  stepEl.textContent = `${cur+1} / ${SCENES.length}`;
+  const lang = document.body.classList.contains('lang-en') ? 'en' : 'es';
+  titleEl.textContent = SCENES[cur].title[lang];
+  bodyEl.textContent = SCENES[cur].body[lang];
+}
+function go(i){
+  cur = (i+SCENES.length)%SCENES.length;
+  sceneStart = performance.now();
+  progBar.style.width = '0%';
+  render();
+}
+function tick(now){
+  if (!playing) { raf = requestAnimationFrame(tick); return; }
+  const dur = SCENES[cur].duration;
+  const elapsed = now - sceneStart;
+  progBar.style.width = Math.min(100, (elapsed/dur)*100) + '%';
+  if (elapsed >= dur) {
+    if (cur === SCENES.length-1) { playing = false; playBtn.textContent = '↻'; }
+    else go(cur+1);
+  }
+  raf = requestAnimationFrame(tick);
+}
+function togglePlay(){
+  playing = !playing;
+  if (!playing) { playBtn.textContent = '▶'; }
+  else {
+    if (cur === SCENES.length-1 && progBar.style.width === '100%') { go(0); }
+    else { sceneStart = performance.now() - (parseFloat(progBar.style.width)/100)*SCENES[cur].duration; }
+    playBtn.textContent = '⏸';
+  }
+}
+playBtn.addEventListener('click', togglePlay);
+prevBtn.addEventListener('click', ()=>go(cur-1));
+nextBtn.addEventListener('click', ()=>go(cur+1));
+document.querySelectorAll('[data-set-lang]').forEach(b=>{
+  b.addEventListener('click', ()=>{
+    const l = b.dataset.setLang;
+    document.body.classList.toggle('lang-es', l==='es');
+    document.body.classList.toggle('lang-en', l==='en');
+    document.querySelectorAll('.lang-btn').forEach(x=>x.classList.toggle('active', x.dataset.setLang===l));
+    render();
+  });
+});
+document.addEventListener('keydown', e=>{
+  if (e.key === 'ArrowRight') go(cur+1);
+  else if (e.key === 'ArrowLeft') go(cur-1);
+  else if (e.key === ' ') { e.preventDefault(); togglePlay(); }
+  else if (e.key === 'Escape') location.href = '/';
+});
+
+const urlLang = new URLSearchParams(location.search).get('lang');
+if (urlLang === 'en' || ((navigator.language||'').toLowerCase().startsWith('en') && urlLang!=='es')) {
+  document.body.classList.remove('lang-es');
+  document.body.classList.add('lang-en');
+  document.querySelectorAll('.lang-btn').forEach(x=>x.classList.toggle('active', x.dataset.setLang==='en'));
+}
+
+buildScenes();
+go(0);
+raf = requestAnimationFrame(tick);
+</script>
+</body>
+</html>

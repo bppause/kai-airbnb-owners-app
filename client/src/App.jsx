@@ -2687,7 +2687,13 @@ function AuthGate({ onLogin, lang="es-CO", setLang=()=>{}, complexLogo='', compl
           <strong>{t.firstAccess}</strong> {t.firstAccessText}
         </div>
         <p className="secure-copy">{t.secure}</p>
-        <div style={{textAlign:'center',margin:'10px 0 4px'}}>
+        <div style={{textAlign:'center',margin:'10px 0 4px',display:'flex',gap:14,justifyContent:'center',flexWrap:'wrap'}}>
+          <a href={`/intro-short.html?lang=${lang==='en'?'en':'es'}`} target="_blank" rel="noopener noreferrer" style={{fontSize:'.82rem',color:'#0b7f4f',fontWeight:700,textDecoration:'none'}}>
+            {lang==='en' ? '▶ Quick tour (90s)' : '▶ Tour rápido (90s)'}
+          </a>
+          <a href={`/intro-full.html?lang=${lang==='en'?'en':'es'}`} target="_blank" rel="noopener noreferrer" style={{fontSize:'.82rem',color:'#0b7f4f',fontWeight:700,textDecoration:'none'}}>
+            {lang==='en' ? '▶ Full tour (3 min)' : '▶ Tour completo (3 min)'}
+          </a>
           <a href="/guide.html" target="_blank" rel="noopener noreferrer" style={{fontSize:'.82rem',color:'#0b7f8c',fontWeight:700,textDecoration:'none'}}>
             {lang==='en' ? '📖 View user guide' : '📖 Ver guía de usuario'}
           </a>
