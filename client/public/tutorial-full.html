@@ -71,12 +71,16 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:radial-gradient(circ
 .tag{font-size:.7rem;padding:3px 9px;border-radius:99px;background:#f0f8fb;color:#0b7f8c;border:1px solid #cce7ee;font-weight:700}
 .kbd{font-family:'SF Mono',Menlo,monospace;font-size:.72rem;background:#eef2f5;color:#203f2b;border:1px solid rgba(0,0,0,.1);border-bottom-width:2px;border-radius:5px;padding:1px 6px}
 
-/* Hotspots — clickable pulses on the mock UI */
+/* Hotspots — numbered button with hover tooltip */
 .visual{position:relative}
-.hotspot{position:absolute;width:24px;height:24px;border-radius:50%;background:rgba(217,180,90,.92);border:2px solid #fff;cursor:pointer;transform:translate(-50%,-50%);z-index:3;color:#1a3c2a;font-weight:900;font-size:.74rem;display:flex;align-items:center;justify-content:center;box-shadow:0 0 0 0 rgba(217,180,90,.55);animation:hotpulse 1.6s infinite;padding:0}
-.hotspot:hover{background:#d9b45a;transform:translate(-50%,-50%) scale(1.12)}
-.hotspot:focus{outline:3px solid #9ce5d6;outline-offset:2px}
-@keyframes hotpulse{0%{box-shadow:0 0 0 0 rgba(217,180,90,.55)}70%{box-shadow:0 0 0 12px rgba(217,180,90,0)}100%{box-shadow:0 0 0 0 rgba(217,180,90,0)}}
+.hotspot{position:absolute;width:28px;height:28px;border-radius:50%;background:#d9b45a;border:2px solid #fff;cursor:pointer;transform:translate(-50%,-50%);z-index:3;color:#1a3c2a;font-weight:900;font-size:.84rem;display:flex;align-items:center;justify-content:center;box-shadow:0 0 0 0 rgba(217,180,90,.6),0 3px 8px rgba(0,0,0,.35);animation:hotpulse 1.8s infinite;padding:0;line-height:1}
+.hotspot:hover{background:#e8c878;transform:translate(-50%,-50%) scale(1.18);box-shadow:0 0 0 0 rgba(217,180,90,0),0 6px 14px rgba(0,0,0,.45)}
+.hotspot:focus{outline:3px solid #9ce5d6;outline-offset:3px}
+@keyframes hotpulse{0%{box-shadow:0 0 0 0 rgba(217,180,90,.6),0 3px 8px rgba(0,0,0,.35)}70%{box-shadow:0 0 0 14px rgba(217,180,90,0),0 3px 8px rgba(0,0,0,.35)}100%{box-shadow:0 0 0 0 rgba(217,180,90,0),0 3px 8px rgba(0,0,0,.35)}}
+/* Tooltip that appears on hover */
+.hotspot .hot-tip{position:absolute;bottom:calc(100% + 8px);left:50%;transform:translateX(-50%);background:#0a1620;color:#fff;font-size:.7rem;font-weight:700;padding:5px 10px;border-radius:6px;white-space:nowrap;opacity:0;pointer-events:none;transition:opacity .15s;border:1px solid rgba(156,229,214,.3);box-shadow:0 4px 12px rgba(0,0,0,.5)}
+.hotspot .hot-tip::after{content:'';position:absolute;top:100%;left:50%;transform:translateX(-50%);border:5px solid transparent;border-top-color:#0a1620}
+.hotspot:hover .hot-tip,.hotspot:focus .hot-tip{opacity:1}
 
 /* Hotspot popover */
 .pop-backdrop{position:absolute;inset:0;background:rgba(8,16,22,.72);z-index:9;display:flex;align-items:center;justify-content:center;padding:24px;animation:popfade .18s ease}
@@ -159,9 +163,9 @@ body.lang-en .en-text{display:revert}
           <span class="en-text">KAI · Full tutorial</span>
         </div>
         <div class="toplinks">
-          <span id="hotHint" style="font-size:.7rem;color:#9ce5d6;background:rgba(217,180,90,.15);border:1px solid rgba(217,180,90,.4);padding:3px 9px;border-radius:99px;font-weight:700;display:none;align-items:center;gap:4px">
-            <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#d9b45a;animation:hotpulse 1.6s infinite"></span>
-            <span class="es-text">Toca los puntos amarillos</span><span class="en-text">Tap the yellow dots</span>
+          <span id="hotHint" style="font-size:.72rem;color:#1a3c2a;background:#d9b45a;border:1px solid #fff;padding:4px 11px 4px 9px;border-radius:99px;font-weight:800;display:none;align-items:center;gap:5px;box-shadow:0 3px 8px rgba(0,0,0,.3)">
+            <span style="display:inline-block;width:14px;height:14px;border-radius:50%;background:#fff;color:#1a3c2a;font-size:.62rem;font-weight:900;display:inline-flex;align-items:center;justify-content:center">1</span>
+            <span class="es-text">Toca los puntos numerados para más detalle</span><span class="en-text">Tap the numbered dots for more detail</span>
           </span>
           <button class="speed" id="speed" onclick="cycleSpeed()">1×</button>
           <button class="lang-btn active" id="btnEs" onclick="setLang('es')">🇨🇴 ES</button>
@@ -221,8 +225,7 @@ const CHAPTERS = [
              en:"If the account chooser doesn't appear, sign out of Google or use an incognito window."},
         visual:`<div class="mock"><div class="mock-hdr"><div class="mock-logo">K</div><strong><span class="es-text">Bienvenido a KAI</span><span class="en-text">Welcome to KAI</span></strong></div>
           <div class="mock-row" style="font-size:.78rem"><span class="es-text">Comunidad: Morros KAI · Cartagena</span><span class="en-text">Community: Morros KAI · Cartagena</span></div>
-          <button class="mock-btn" style="margin-top:8px">G&nbsp; <span class="es-text">Continuar con Google</span><span class="en-text">Continue with Google</span></button>
-          <div class="cursor" style="left:60%;top:78%"></div></div>`,
+          <button class="mock-btn" style="margin-top:8px">G&nbsp; <span class="es-text">Continuar con Google</span><span class="en-text">Continue with Google</span></button></div>`,
         email:null,
         sec:14
       },
@@ -253,8 +256,7 @@ const CHAPTERS = [
           <div class="mock-row"><span class="es-text">Torre</span><span class="en-text">Tower</span> *: <span class="kbd">5</span></div>
           <div class="mock-row"><span class="es-text">Email operador</span><span class="en-text">Operator email</span>: opt@example.com</div>
           <div class="mock-row">WhatsApp: +57 300…</div>
-          <button class="mock-btn" style="margin-top:6px"><span class="es-text">Enviar para aprobación</span><span class="en-text">Submit for approval</span></button>
-          <div class="cursor" style="left:30%;top:88%"></div></div>`,
+          <button class="mock-btn" style="margin-top:6px"><span class="es-text">Enviar para aprobación</span><span class="en-text">Submit for approval</span></button></div>`,
         email:{
           dest:{es:"Tu Gmail + email del operador",en:"Your Gmail + operator email"},
           kinds:[
@@ -598,8 +600,7 @@ const CHAPTERS = [
         visual:`<div class="mock"><div class="mock-hdr"><div class="mock-logo">👤</div><strong><span class="es-text">Tu perfil</span><span class="en-text">Your profile</span></strong></div>
           <div class="mock-row">🌐 ES / EN</div>
           <div class="mock-row">🏘️ <span class="es-text">Comunidad activa</span><span class="en-text">Active community</span></div>
-          <div class="mock-row" style="background:#fde8e4;border-radius:8px;padding:8px;color:#c62828;font-weight:800">↩ <span class="es-text">Cerrar sesión</span><span class="en-text">Sign out</span></div>
-          <div class="cursor" style="left:30%;top:84%"></div></div>`,
+          <div class="mock-row" style="background:#fde8e4;border-radius:8px;padding:8px;color:#c62828;font-weight:800">↩ <span class="es-text">Cerrar sesión</span><span class="en-text">Sign out</span></div></div>`,
         email:null,
         sec:11
       },
@@ -643,7 +644,10 @@ function mailHtml(em){
 
 function hotsHtml(slideIdx, hotspots){
   if(!hotspots || !hotspots.length) return '';
-  return hotspots.map((h,hi)=>`<button class="hotspot" data-slide="${slideIdx}" data-hot="${hi}" style="left:${h.x}%;top:${h.y}%" aria-label="More info" title="${(h.title.en||'').replace(/"/g,'&quot;')}">${hi+1}</button>`).join('');
+  return hotspots.map((h,hi)=>{
+    const tipEn=(h.title.en||'').replace(/"/g,'&quot;');
+    return `<button class="hotspot" data-slide="${slideIdx}" data-hot="${hi}" style="left:${h.x}%;top:${h.y}%" aria-label="${tipEn}">${hi+1}<span class="hot-tip"><span class="es-text">Toca: ${h.title.es}</span><span class="en-text">Tap: ${h.title.en}</span></span></button>`;
+  }).join('');
 }
 
 SLIDES.forEach((s,i)=>{
