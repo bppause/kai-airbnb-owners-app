@@ -1452,6 +1452,7 @@ export default function App() {
       const newI = await api.post('/api/incidents', { ...data, reporterUid: user.uid, reporterName: user.name, aptLabel });
       setIncidents(i => [newI, ...i]);
       setModal(null);
+      loadAll(false);
       showToast(data.isGeneral ? (lang==='en'?'📢 General report submitted':'📢 Reporte general registrado') : '⚠️ Reporte registrado');
     } catch(e) {
       console.error('Save incident error', e);
@@ -1471,7 +1472,7 @@ export default function App() {
     try {
       const updated = await api.patch(`/api/incidents/${incidentId}/assign`, { actorUid:user.uid, actorEmail:user.email, aptId });
       setIncidents(i => i.map(x => x.id === incidentId ? updated : x));
-      setModal(null); showToast(lang==='en'?'🏠 Incident assigned to unit':'🏠 Incidente asignado a unidad');
+      setModal(null); loadAll(false); showToast(lang==='en'?'🏠 Incident assigned to unit':'🏠 Incidente asignado a unidad');
     } catch(e) { showToast('Error: ' + (e.message||''), true); } finally { setSyncing(false); }
   };
 
@@ -1480,7 +1481,7 @@ export default function App() {
     try {
       const updated = await api.patch(`/api/incidents/${incidentId}/close-general`, { actorUid:user.uid, actorEmail:user.email, action, resolution, resolutionComments });
       setIncidents(i => i.map(x => x.id === incidentId ? updated : x));
-      setModal(null); showToast(lang==='en'?'✓ General incident closed':'✓ Incidente general cerrado');
+      setModal(null); loadAll(false); showToast(lang==='en'?'✓ General incident closed':'✓ Incidente general cerrado');
     } catch(e) { showToast('Error: ' + (e.message||''), true); } finally { setSyncing(false); }
   };
 
@@ -1501,7 +1502,7 @@ export default function App() {
     try {
       const updated = await api.patch(`/api/incidents/${id}/verify`, { ownerUid:user.uid, guests:payload.guests || [], ownerComments:payload.ownerComments || '', ownerResolution:payload.ownerResolution || '' });
       setIncidents(i => i.map(x => x.id === id ? updated : x));
-      setModal(null); showToast('✅ Incidente verificado');
+      setModal(null); loadAll(false); showToast('✅ Incidente verificado');
     } catch(e) { showToast('Error al verificar: ' + (e.message || 'Revise datos'), true); }
     finally { setSyncing(false); }
   };
@@ -1511,7 +1512,7 @@ export default function App() {
     try {
       const updated = await api.patch(`/api/incidents/${id}/add-resolution`, { ownerUid:user.uid, ownerResolution:resolutionText });
       setIncidents(i => i.map(x => x.id === id ? updated : x));
-      setModal(null); showToast(lang==='en' ? '📝 Resolution saved — admin notified' : '📝 Respuesta guardada — admin notificado');
+      setModal(null); loadAll(false); showToast(lang==='en' ? '📝 Resolution saved — admin notified' : '📝 Respuesta guardada — admin notificado');
     } catch(e) { showToast('Error: ' + (e.message || ''), true); }
     finally { setSyncing(false); }
   };
@@ -1805,11 +1806,11 @@ export default function App() {
       {/* LoginModal removed — Google popup handles auth directly */}
       {modal?.type==="addListing" && <ListingModal title={appText(lang,"listings.add")} lang={lang} config={adminInfo.config} user={user} onSave={addListing} onClose={()=>setModal(null)} />}
       {modal?.type==="editListing" && <ListingModal title={appText(lang,"modal.listing.editTitle")} lang={lang} config={adminInfo.config} user={user} initial={modal.data} onSave={d=>editListing(modal.data.id, modal.data.ownerUid, d)} onClose={()=>setModal(null)} />}
-      {modal?.type==="incident" && <IncidentModal lang={lang} config={adminInfo.config} listings={listings} user={user} presetApt={modal.data?.aptId} onSave={addIncident} onClose={()=>setModal(null)} />}
-      {modal?.type==="verifyIncident" && <VerifyIncidentModal lang={lang} config={adminInfo.config} incident={modal.data} onSave={payload=>verifyIncident(modal.data.id,payload)} onClose={()=>setModal(null)} />}
-      {modal?.type==="addResolution" && <AddResolutionModal lang={lang} incident={modal.data} onSave={text=>addResolution(modal.data.id,text)} onClose={()=>setModal(null)} />}
-      {modal?.type==="assignGeneral" && <AssignToUnitModal lang={lang} incident={modal.data} listings={listings} onSave={aptId=>assignIncident(modal.data.id,aptId)} onClose={()=>setModal(null)} />}
-      {modal?.type==="closeGeneral" && <CloseGeneralModal lang={lang} incident={modal.data} onSave={data=>closeGeneralIncident(modal.data.id,data)} onClose={()=>setModal(null)} />}
+      {modal?.type==="incident" && <IncidentModal lang={lang} config={adminInfo.config} listings={listings} user={user} presetApt={modal.data?.aptId} onSave={addIncident} onClose={()=>{setModal(null);loadAll(false);}} />}
+      {modal?.type==="verifyIncident" && <VerifyIncidentModal lang={lang} config={adminInfo.config} incident={modal.data} onSave={payload=>verifyIncident(modal.data.id,payload)} onClose={()=>{setModal(null);loadAll(false);}} />}
+      {modal?.type==="addResolution" && <AddResolutionModal lang={lang} incident={modal.data} onSave={text=>addResolution(modal.data.id,text)} onClose={()=>{setModal(null);loadAll(false);}} />}
+      {modal?.type==="assignGeneral" && <AssignToUnitModal lang={lang} incident={modal.data} listings={listings} onSave={aptId=>assignIncident(modal.data.id,aptId)} onClose={()=>{setModal(null);loadAll(false);}} />}
+      {modal?.type==="closeGeneral" && <CloseGeneralModal lang={lang} incident={modal.data} onSave={data=>closeGeneralIncident(modal.data.id,data)} onClose={()=>{setModal(null);loadAll(false);}} />}
       {modal?.type==="sendUserEmail" && <SendUserEmailModal lang={lang} contact={modal.data} fromUser={user} onSend={sendUserEmail} onClose={()=>setModal(null)} />}
 
       {syncing && <div className="sync-overlay"><div className="spinner-sm"/><span>{lang === "en" ? "Saving to server..." : "Guardando en servidor..."}</span></div>}
