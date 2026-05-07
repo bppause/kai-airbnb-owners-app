@@ -2173,10 +2173,22 @@ function HelpView({ lang, effectiveRole, effectiveIsGlobalAdmin, listings=[], in
           <h1 className="ptitle">❓ {lang === 'en' ? 'Help & Guide' : 'Ayuda y guía'}</h1>
           <p className="psub">{lang === 'en' ? 'Browse topics or search for any feature.' : 'Explora temas o busca cualquier función.'}</p>
         </div>
-        <div style={{display:'flex',alignItems:'center',gap:10,flexWrap:'wrap'}}>
-          <button className="btn-p" style={{display:'flex',alignItems:'center',gap:6,padding:'8px 16px',fontSize:'.88rem'}} onClick={onStartTour}>
+        <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
+          <button className="btn-p" style={{display:'flex',alignItems:'center',gap:6,padding:'8px 14px',fontSize:'.85rem'}} onClick={onStartTour}>
             🎯 {lang === 'en' ? 'Interactive Tour' : 'Tour interactivo'}
           </button>
+          <a href="/tutorial-short.html" target="_blank" rel="noopener noreferrer"
+             style={{display:'inline-flex',alignItems:'center',gap:6,padding:'8px 14px',fontSize:'.85rem',fontWeight:700,borderRadius:8,background:'#fff',color:'#0b7f4f',border:'1.5px solid rgba(11,127,79,.35)',textDecoration:'none'}}>
+            ▶ {lang === 'en' ? 'Short tutorial' : 'Tutorial corto'}
+          </a>
+          <a href="/tutorial-full.html" target="_blank" rel="noopener noreferrer"
+             style={{display:'inline-flex',alignItems:'center',gap:6,padding:'8px 14px',fontSize:'.85rem',fontWeight:700,borderRadius:8,background:'#fff',color:'#0b7f8c',border:'1.5px solid rgba(11,127,140,.35)',textDecoration:'none'}}>
+            🎥 {lang === 'en' ? 'Full tutorial' : 'Tutorial completo'}
+          </a>
+          <a href="/guide.html" target="_blank" rel="noopener noreferrer"
+             style={{display:'inline-flex',alignItems:'center',gap:6,padding:'8px 14px',fontSize:'.85rem',fontWeight:700,borderRadius:8,background:'#fff',color:'#235f72',border:'1.5px solid rgba(35,95,114,.3)',textDecoration:'none'}}>
+            📖 {lang === 'en' ? 'Written guide' : 'Guía escrita'}
+          </a>
           <span className="help-topic-count">{filtered.length} {lang === 'en' ? (filtered.length===1?'topic':'topics') : (filtered.length===1?'tema':'temas')}</span>
         </div>
       </div>
@@ -2687,10 +2699,25 @@ function AuthGate({ onLogin, lang="es-CO", setLang=()=>{}, complexLogo='', compl
           <strong>{t.firstAccess}</strong> {t.firstAccessText}
         </div>
         <p className="secure-copy">{t.secure}</p>
-        <div style={{textAlign:'center',margin:'10px 0 4px'}}>
-          <a href="/guide.html" target="_blank" rel="noopener noreferrer" style={{fontSize:'.82rem',color:'#0b7f8c',fontWeight:700,textDecoration:'none'}}>
-            {lang==='en' ? '📖 View user guide' : '📖 Ver guía de usuario'}
-          </a>
+        <div className="login-tutorials" style={{margin:'14px 0 6px',padding:'12px',borderRadius:12,background:'rgba(11,127,79,.06)',border:'1px solid rgba(11,127,79,.18)'}}>
+          <div style={{fontSize:'.78rem',fontWeight:800,color:'#0b7f4f',textAlign:'center',marginBottom:8,letterSpacing:'.02em'}}>
+            {lang==='en' ? '🎬 New here? Watch a quick tutorial' : '🎬 ¿Nuevo aquí? Mira un tutorial rápido'}
+          </div>
+          <div style={{display:'flex',gap:8,flexWrap:'wrap',justifyContent:'center'}}>
+            <a href="/tutorial-short.html" target="_blank" rel="noopener noreferrer"
+               style={{flex:'1 1 150px',padding:'10px 12px',borderRadius:10,background:'linear-gradient(135deg,#0b7f4f,#0b7f8c)',color:'#fff',fontWeight:800,fontSize:'.82rem',textDecoration:'none',textAlign:'center',display:'flex',alignItems:'center',justifyContent:'center',gap:6,boxShadow:'0 4px 12px rgba(11,127,79,.22)'}}>
+              ▶ {lang==='en' ? 'Short tutorial · 90 s' : 'Tutorial corto · 90 s'}
+            </a>
+            <a href="/tutorial-full.html" target="_blank" rel="noopener noreferrer"
+               style={{flex:'1 1 150px',padding:'10px 12px',borderRadius:10,background:'#fff',color:'#0b7f4f',fontWeight:800,fontSize:'.82rem',textDecoration:'none',textAlign:'center',border:'1.5px solid rgba(11,127,79,.35)',display:'flex',alignItems:'center',justifyContent:'center',gap:6}}>
+              🎥 {lang==='en' ? 'Full tutorial' : 'Tutorial completo'}
+            </a>
+          </div>
+          <div style={{textAlign:'center',marginTop:8}}>
+            <a href="/guide.html" target="_blank" rel="noopener noreferrer" style={{fontSize:'.78rem',color:'#0b7f8c',fontWeight:700,textDecoration:'none'}}>
+              {lang==='en' ? '📖 Or read the written guide' : '📖 O lee la guía escrita'}
+            </a>
+          </div>
         </div>
         <div className="google-switch-help"><strong>{appText(lang,"login.switchGoogleTitle")}</strong><br/>{appText(lang,"login.switchGoogleHelp")}<br/><span>{appText(lang,"login.switchGoogleSteps")}</span></div>
         <button className="btn-google gate-btn" onClick={onLogin} title={appText(lang,"login.switchGoogleHelp")}><GoogleIcon/> {t.google}</button>

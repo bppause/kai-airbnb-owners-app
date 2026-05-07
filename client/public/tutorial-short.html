@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>KAI Airbnb Owners · Tutorial corto / Short tutorial</title>
+<style>
+:root{
+  --green:#0b7f4f;--teal:#0b7f8c;--ink:#17313a;--ink2:#235f72;--bg:#0c1a23;
+  --card:#fff;--border:rgba(255,255,255,.14);--yellow:#d9b45a;
+  --grad:linear-gradient(135deg,#0b7f4f,#0b7f8c);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{font-family:'Segoe UI',system-ui,sans-serif;background:radial-gradient(circle at 20% 0%,#11364a,var(--bg) 60%);color:#f6fbf8;line-height:1.5;font-size:15px;overflow:hidden}
+
+/* ─── Stage / video frame ─── */
+.stage{height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:18px;gap:14px}
+.player{width:min(960px,100%);height:min(540px,calc(100vh - 170px));position:relative;border-radius:18px;background:#0a1620;box-shadow:0 30px 80px rgba(0,0,0,.55),inset 0 0 0 1px rgba(255,255,255,.06);overflow:hidden}
+
+/* Top bar */
+.topbar{position:absolute;top:0;left:0;right:0;display:flex;align-items:center;gap:10px;padding:10px 14px;background:linear-gradient(180deg,rgba(0,0,0,.55),transparent);z-index:5}
+.brand{display:flex;align-items:center;gap:8px;font-weight:800;font-size:.86rem;color:#eafff5}
+.brand-mark{width:26px;height:26px;border-radius:8px;background:linear-gradient(135deg,#e7fff7,#d8f2f5);color:var(--green);display:flex;align-items:center;justify-content:center;font-weight:900}
+.toplinks{margin-left:auto;display:flex;gap:6px}
+.lang-btn{padding:4px 10px;border:1px solid var(--border);border-radius:99px;background:rgba(255,255,255,.06);color:#eafff5;cursor:pointer;font-size:.74rem;font-weight:700}
+.lang-btn.active{background:var(--grad);border-color:transparent;color:#fff}
+
+/* Slide area */
+.slides{position:absolute;inset:0}
+.slide{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:60px 40px 90px;opacity:0;transform:translateY(8px);transition:opacity .5s ease,transform .5s ease;text-align:center}
+.slide.active{opacity:1;transform:none}
+.slide h2{font-size:clamp(1.2rem,2.6vw,1.8rem);font-weight:900;color:#fff;margin-bottom:8px;letter-spacing:-.01em}
+.slide p{font-size:clamp(.85rem,1.6vw,1rem);color:#cfe6dc;max-width:640px;margin:0 auto}
+.slide .chip{display:inline-block;font-size:.72rem;font-weight:800;letter-spacing:.08em;text-transform:uppercase;padding:5px 12px;border-radius:99px;background:rgba(11,127,140,.25);color:#9ce5d6;margin-bottom:14px;border:1px solid rgba(156,229,214,.25)}
+.slide .visual{margin:18px 0 10px;width:min(620px,100%)}
+
+/* Mock UI elements (the "video" content) */
+.mock{background:#fff;color:var(--ink);border-radius:14px;padding:14px 16px;text-align:left;box-shadow:0 12px 28px rgba(0,0,0,.45);position:relative;overflow:hidden}
+.mock-hdr{display:flex;align-items:center;gap:10px;padding-bottom:10px;border-bottom:1px solid rgba(0,0,0,.08);margin-bottom:10px}
+.mock-logo{width:30px;height:30px;border-radius:9px;background:linear-gradient(135deg,#e7fff7,#d8f2f5);color:var(--green);display:flex;align-items:center;justify-content:center;font-weight:900}
+.mock-hdr strong{font-size:.92rem;color:#203f2b}
+.mock-row{display:flex;gap:8px;align-items:center;font-size:.82rem;color:var(--ink2);padding:6px 0}
+.mock-btn{display:inline-flex;align-items:center;gap:6px;padding:8px 14px;border-radius:10px;background:var(--grad);color:#fff;font-weight:800;font-size:.82rem;border:none}
+.mock-btn.ghost{background:#eef6f4;color:#0b7f4f;border:1px solid rgba(11,127,79,.25)}
+.cursor{position:absolute;width:18px;height:18px;border-radius:50%;background:rgba(217,180,90,.4);border:2px solid #d9b45a;pointer-events:none;transform:translate(-50%,-50%);transition:left .9s cubic-bezier(.5,.1,.2,1),top .9s cubic-bezier(.5,.1,.2,1);box-shadow:0 0 0 4px rgba(217,180,90,.12)}
+.email-card{display:flex;gap:10px;padding:10px;border-radius:10px;background:#f8fbf9;border:1px solid rgba(0,0,0,.06);font-size:.78rem;color:var(--ink2);align-items:flex-start}
+.email-card .ico{width:34px;height:34px;border-radius:9px;background:#e8f5ec;display:flex;align-items:center;justify-content:center;font-size:1.1rem;flex-shrink:0}
+.email-card strong{display:block;color:#203f2b;font-size:.84rem;margin-bottom:2px}
+.flow{display:flex;align-items:center;justify-content:center;gap:8px;flex-wrap:wrap;margin-top:6px}
+.fnode{padding:7px 11px;border-radius:9px;background:#fff;color:#203f2b;font-size:.76rem;font-weight:800;border:1px solid rgba(0,0,0,.08)}
+.fnode.on{background:var(--grad);color:#fff;border-color:transparent}
+.farr{color:#9ce5d6;font-weight:900}
+
+/* Caption ribbon */
+.caption{position:absolute;left:0;right:0;bottom:60px;text-align:center;padding:0 24px;font-size:.84rem;color:#cfe6dc;opacity:.95}
+
+/* Controls / progress */
+.controls{position:absolute;left:0;right:0;bottom:0;display:flex;align-items:center;gap:12px;padding:10px 14px;background:linear-gradient(0deg,rgba(0,0,0,.7),transparent);z-index:5}
+.ctrl-btn{background:rgba(255,255,255,.1);border:1px solid var(--border);color:#eafff5;width:36px;height:36px;border-radius:50%;cursor:pointer;font-size:.95rem;display:flex;align-items:center;justify-content:center}
+.ctrl-btn:hover{background:rgba(255,255,255,.18)}
+.ctrl-btn.primary{background:var(--grad);border-color:transparent;color:#fff;width:42px;height:42px;font-size:1.1rem}
+.progress{flex:1;height:5px;border-radius:99px;background:rgba(255,255,255,.14);overflow:hidden;position:relative}
+.progress-fill{height:100%;background:linear-gradient(90deg,#0b7f4f,#9ce5d6);width:0%;transition:width .25s linear}
+.timecode{font-size:.74rem;color:#cfe6dc;font-weight:700;min-width:64px;text-align:right;letter-spacing:.04em}
+.dots{display:flex;gap:4px;align-items:center}
+.dot{width:7px;height:7px;border-radius:50%;background:rgba(255,255,255,.25);cursor:pointer;transition:.18s}
+.dot.active{background:#9ce5d6;transform:scale(1.4)}
+
+/* Bottom action row (under player) */
+.actions{display:flex;gap:10px;flex-wrap:wrap;justify-content:center;align-items:center}
+.act-btn{padding:10px 18px;border-radius:11px;border:1px solid var(--border);background:rgba(255,255,255,.06);color:#f6fbf8;cursor:pointer;font-size:.84rem;font-weight:700;text-decoration:none;display:inline-flex;align-items:center;gap:6px}
+.act-btn:hover{background:rgba(255,255,255,.12)}
+.act-btn.primary{background:var(--grad);border-color:transparent}
+
+/* Language visibility */
+.es-text,.en-text{display:none}
+body.lang-es .es-text{display:revert}
+body.lang-en .en-text{display:revert}
+
+@media (max-width:600px){
+  .stage{padding:10px;gap:8px}
+  .player{height:min(560px,calc(100vh - 200px))}
+  .slide{padding:56px 18px 84px}
+  .caption{bottom:54px;font-size:.78rem}
+  .timecode{min-width:54px;font-size:.7rem}
+}
+</style>
+</head>
+<body class="lang-es">
+
+<div class="stage">
+
+  <div class="player" id="player" aria-label="Tutorial player">
+    <div class="topbar">
+      <div class="brand"><div class="brand-mark">K</div>
+        <span class="es-text">KAI · Tutorial corto (~90 s)</span>
+        <span class="en-text">KAI · Short tutorial (~90 s)</span>
+      </div>
+      <div class="toplinks">
+        <button class="lang-btn active" id="btnEs" onclick="setLang('es')">🇨🇴 ES</button>
+        <button class="lang-btn" id="btnEn" onclick="setLang('en')">🇺🇸 EN</button>
+      </div>
+    </div>
+
+    <div class="slides" id="slides"><!-- injected --></div>
+
+    <div class="caption" id="caption"></div>
+
+    <div class="controls">
+      <button class="ctrl-btn" id="prev" title="Prev">⏮</button>
+      <button class="ctrl-btn primary" id="play" title="Play / pause">▶</button>
+      <button class="ctrl-btn" id="next" title="Next">⏭</button>
+      <div class="progress"><div class="progress-fill" id="fill"></div></div>
+      <div class="dots" id="dots"></div>
+      <div class="timecode" id="time">0:00 / 1:30</div>
+    </div>
+  </div>
+
+  <div class="actions">
+    <button class="act-btn primary" onclick="window.close();window.location.href='/'">
+      <span class="es-text">🚀 Empezar a usar la app</span><span class="en-text">🚀 Start using the app</span>
+    </button>
+    <a class="act-btn" href="/tutorial-full.html">
+      <span class="es-text">🎬 Ver tutorial completo</span><span class="en-text">🎬 Watch full tutorial</span>
+    </a>
+    <a class="act-btn" href="/guide.html">
+      <span class="es-text">📖 Guía escrita</span><span class="en-text">📖 Written guide</span>
+    </a>
+  </div>
+
+</div>
+
+<script>
+/* ─── Slide content (~7 short slides ≈ 90 s) ─────────────────────────────── */
+const SLIDES = [
+  {
+    chip:{es:"1 · Bienvenida", en:"1 · Welcome"},
+    title:{es:"En 90 segundos: KAI Airbnb Owners",
+           en:"In 90 seconds: KAI Airbnb Owners"},
+    text:{es:"Una app para gestionar tus apartamentos, reportar incidentes y mantener informada a tu comunidad.",
+          en:"One app to manage your apartments, report incidents, and keep your community informed."},
+    cap:{es:"Inicia sesión con Google · sin contraseñas separadas.",
+         en:"Sign in with Google · no separate passwords."},
+    visual:`<div class="mock"><div class="mock-hdr"><div class="mock-logo">K</div><strong>KAI Airbnb Owners</strong></div>
+      <div class="mock-row" style="font-size:.84rem">🏠 <span class="es-text">Bienvenido — ingresa con tu cuenta de Google</span><span class="en-text">Welcome — sign in with your Google account</span></div>
+      <button class="mock-btn" style="margin-top:8px">G&nbsp; <span class="es-text">Continuar con Google</span><span class="en-text">Continue with Google</span></button>
+      <div class="cursor" style="left:62%;top:78%"></div>
+    </div>`,
+    sec:11
+  },
+  {
+    chip:{es:"2 · Registro", en:"2 · Registration"},
+    title:{es:"Registra tu primera unidad",
+           en:"Register your first unit"},
+    text:{es:"Ve a Mis Unidades → + Agregar unidad. Tu solicitud queda pendiente de aprobación.",
+          en:"Go to My Units → + Add unit. Your request stays pending approval."},
+    cap:{es:"📧 Recibirás un email cuando un admin apruebe o rechace tu registro.",
+         en:"📧 You'll get an email when an admin approves or declines your registration."},
+    visual:`<div class="mock"><div class="mock-hdr"><div class="mock-logo">🏠</div><strong><span class="es-text">Mis Unidades</span><span class="en-text">My Units</span></strong></div>
+      <div class="mock-row">Apt 502 · <span class="es-text">Torre</span><span class="en-text">Tower</span> 5</div>
+      <div class="mock-row">Apt 1203 · <span class="es-text">Torre</span><span class="en-text">Tower</span> 12</div>
+      <button class="mock-btn ghost" style="margin-top:6px">+ <span class="es-text">Agregar unidad</span><span class="en-text">Add unit</span></button>
+      <div class="cursor" style="left:24%;top:82%"></div>
+    </div>`,
+    sec:13
+  },
+  {
+    chip:{es:"3 · Incidentes", en:"3 · Incidents"},
+    title:{es:"Reporta un incidente en 3 pasos",
+           en:"Report an incident in 3 steps"},
+    text:{es:"Reportar → Verificar (Paso 1) → Resolver (Paso 2). El admin puede revisar entre pasos.",
+          en:"Report → Verify (Step 1) → Resolve (Step 2). Admin reviews between steps."},
+    cap:{es:"📧 Emails: nuevo incidente · recordatorio SLA · resolución.",
+         en:"📧 Emails: new incident · SLA reminder · resolution."},
+    visual:`<div class="mock"><div class="mock-hdr"><div class="mock-logo">⚠️</div><strong><span class="es-text">Incidentes</span><span class="en-text">Incidents</span></strong></div>
+      <div class="flow">
+        <div class="fnode">📝 <span class="es-text">Reporte</span><span class="en-text">Report</span></div><span class="farr">→</span>
+        <div class="fnode on">1️⃣ <span class="es-text">Verificar</span><span class="en-text">Verify</span></div><span class="farr">→</span>
+        <div class="fnode">🔍 Admin</div><span class="farr">→</span>
+        <div class="fnode on">2️⃣ <span class="es-text">Resolver</span><span class="en-text">Resolve</span></div><span class="farr">→</span>
+        <div class="fnode">✅ <span class="es-text">Cerrado</span><span class="en-text">Closed</span></div>
+      </div>
+    </div>`,
+    sec:14
+  },
+  {
+    chip:{es:"4 · Dashboard", en:"4 · Dashboard"},
+    title:{es:"El Dashboard te dice qué hacer hoy",
+           en:"The Dashboard tells you what to do today"},
+    text:{es:"Banner de acción: incidentes pendientes de verificar o resolver, registros pendientes.",
+          en:"Action banner: incidents pending verification or resolution, pending registrations."},
+    cap:{es:"Un clic en el banner te lleva al filtro correcto.",
+         en:"One click on the banner takes you to the right filter."},
+    visual:`<div class="mock"><div class="mock-hdr"><div class="mock-logo">📊</div><strong>Dashboard</strong></div>
+      <div class="email-card" style="background:#fff8e1;border-color:#f0d68a"><div class="ico">⚡</div>
+        <div><strong><span class="es-text">¿Qué debes hacer ahora?</span><span class="en-text">What do you need to do now?</span></strong>
+        <span class="es-text">2 incidentes esperan tu verificación · 1 espera resolución</span>
+        <span class="en-text">2 incidents await verification · 1 awaits resolution</span></div>
+      </div>
+    </div>`,
+    sec:11
+  },
+  {
+    chip:{es:"5 · Notificaciones", en:"5 · Notifications"},
+    title:{es:"Te mantenemos al día por email",
+           en:"We keep you up-to-date by email"},
+    text:{es:"Te enviamos correos automáticos a tu Google y al email del operador (si es distinto).",
+          en:"Automatic emails to your Google address and the operator email (if different)."},
+    cap:{es:"Idioma del email = idioma de tu cuenta. Cambia en Perfil.",
+         en:"Email language = account language. Change in Profile."},
+    visual:`<div class="mock"><div class="mock-hdr"><div class="mock-logo">📧</div><strong><span class="es-text">Emails que recibirás</span><span class="en-text">Emails you'll receive</span></strong></div>
+      <div class="email-card"><div class="ico">✅</div><div><strong><span class="es-text">Aprobación de registro</span><span class="en-text">Registration approved</span></strong>
+      <span class="es-text">Tu unidad fue aprobada</span><span class="en-text">Your unit has been approved</span></div></div>
+      <div class="email-card" style="margin-top:6px"><div class="ico">⚠️</div><div><strong><span class="es-text">Nuevo incidente</span><span class="en-text">New incident</span></strong>
+      <span class="es-text">Por favor verifica el reporte (Paso 1)</span><span class="en-text">Please verify the report (Step 1)</span></div></div>
+      <div class="email-card" style="margin-top:6px"><div class="ico">⏰</div><div><strong><span class="es-text">Recordatorio SLA</span><span class="en-text">SLA reminder</span></strong>
+      <span class="es-text">Acción pendiente — Paso 1 ó Paso 2</span><span class="en-text">Pending action — Step 1 or Step 2</span></div></div>
+    </div>`,
+    sec:14
+  },
+  {
+    chip:{es:"6 · Ayuda", en:"6 · Help"},
+    title:{es:"Ayuda + tour interactivo",
+           en:"Help + interactive tour"},
+    text:{es:"En ❓ Ayuda encontrarás preguntas frecuentes y un tour por funciones clave.",
+          en:"In ❓ Help you'll find FAQs and a tour of key features."},
+    cap:{es:"También puedes volver a este video desde Ayuda.",
+         en:"You can also re-watch this video from Help."},
+    visual:`<div class="mock"><div class="mock-hdr"><div class="mock-logo">❓</div><strong><span class="es-text">Ayuda y guía</span><span class="en-text">Help &amp; Guide</span></strong></div>
+      <div class="email-card"><div class="ico">🎯</div><div><strong><span class="es-text">Tour interactivo</span><span class="en-text">Interactive tour</span></strong>
+      <span class="es-text">Recorre la app paso a paso</span><span class="en-text">Walk through the app step by step</span></div></div>
+      <div class="email-card" style="margin-top:6px"><div class="ico">📖</div><div><strong><span class="es-text">Guía y videos</span><span class="en-text">Guide and videos</span></strong>
+      <span class="es-text">Tutorial corto · completo · escrito</span><span class="en-text">Short · full · written</span></div></div>
+    </div>`,
+    sec:11
+  },
+  {
+    chip:{es:"7 · Cerrar sesión", en:"7 · Logout"},
+    title:{es:"¿Cómo cerrar sesión?",
+           en:"How to log out?"},
+    text:{es:"Menú de perfil (esquina superior derecha) → Cerrar sesión. Tus datos se quedan a salvo.",
+          en:"Profile menu (top-right corner) → Sign out. Your data stays safe."},
+    cap:{es:"¡Listo! Ya puedes usar KAI Airbnb Owners.",
+         en:"That's it! You're ready to use KAI Airbnb Owners."},
+    visual:`<div class="mock"><div class="mock-hdr"><div class="mock-logo">👤</div><strong><span class="es-text">Tu perfil</span><span class="en-text">Your profile</span></strong></div>
+      <div class="mock-row">🌐 <span class="es-text">Idioma</span><span class="en-text">Language</span> · ES / EN</div>
+      <div class="mock-row">🏘️ <span class="es-text">Comunidad activa</span><span class="en-text">Active community</span></div>
+      <button class="mock-btn ghost" style="margin-top:6px">↩ <span class="es-text">Cerrar sesión</span><span class="en-text">Sign out</span></button>
+      <div class="cursor" style="left:24%;top:82%"></div>
+    </div>`,
+    sec:11
+  }
+];
+
+/* ─── Player engine ─── */
+const slidesEl=document.getElementById('slides');
+const dotsEl  =document.getElementById('dots');
+const fill    =document.getElementById('fill');
+const timeEl  =document.getElementById('time');
+const capEl   =document.getElementById('caption');
+const playBtn =document.getElementById('play');
+const lang    =()=>document.body.classList.contains('lang-en')?'en':'es';
+const total   =SLIDES.reduce((s,x)=>s+x.sec,0);
+
+SLIDES.forEach((s,i)=>{
+  const d=document.createElement('div'); d.className='slide'; d.dataset.idx=i;
+  d.innerHTML=`
+    <span class="chip"><span class="es-text">${s.chip.es}</span><span class="en-text">${s.chip.en}</span></span>
+    <h2><span class="es-text">${s.title.es}</span><span class="en-text">${s.title.en}</span></h2>
+    <p><span class="es-text">${s.text.es}</span><span class="en-text">${s.text.en}</span></p>
+    <div class="visual">${s.visual}</div>`;
+  slidesEl.appendChild(d);
+  const dot=document.createElement('div'); dot.className='dot'; dot.onclick=()=>goto(i); dotsEl.appendChild(dot);
+});
+
+let idx=0, elapsed=0, playing=true, timer=null;
+
+function fmt(sec){const m=Math.floor(sec/60),s=Math.floor(sec%60);return `${m}:${String(s).padStart(2,'0')}`}
+function render(){
+  document.querySelectorAll('.slide').forEach((el,i)=>el.classList.toggle('active',i===idx));
+  document.querySelectorAll('.dot').forEach((el,i)=>el.classList.toggle('active',i===idx));
+  capEl.innerHTML=`<span class="es-text">${SLIDES[idx].cap.es}</span><span class="en-text">${SLIDES[idx].cap.en}</span>`;
+  fill.style.width=Math.min(100,(elapsed/total)*100)+'%';
+  timeEl.textContent=`${fmt(elapsed)} / ${fmt(total)}`;
+}
+function tick(){
+  if(!playing) return;
+  elapsed += .25;
+  // figure out which slide we're on based on cumulative seconds
+  let acc=0, target=0;
+  for(let i=0;i<SLIDES.length;i++){ if(elapsed < acc + SLIDES[i].sec){ target=i; break; } acc+=SLIDES[i].sec; if(i===SLIDES.length-1) target=i;}
+  if(target!==idx){ idx=target; }
+  if(elapsed >= total){ elapsed=total; playing=false; playBtn.textContent='↻'; }
+  render();
+}
+function goto(i){
+  idx=Math.max(0,Math.min(SLIDES.length-1,i));
+  let acc=0; for(let k=0;k<idx;k++) acc+=SLIDES[k].sec;
+  elapsed=acc; render();
+}
+function play(){
+  if(elapsed>=total){ elapsed=0; idx=0; }
+  playing=!playing;
+  playBtn.textContent=playing?'⏸':'▶';
+}
+document.getElementById('play').onclick=play;
+document.getElementById('next').onclick=()=>{playing=false;playBtn.textContent='▶';goto(idx+1);};
+document.getElementById('prev').onclick=()=>{playing=false;playBtn.textContent='▶';goto(idx-1);};
+document.addEventListener('keydown',e=>{
+  if(e.key===' '){e.preventDefault();play();}
+  else if(e.key==='ArrowRight') goto(idx+1);
+  else if(e.key==='ArrowLeft') goto(idx-1);
+});
+
+function setLang(l){
+  document.body.className='lang-'+l;
+  document.getElementById('btnEs').classList.toggle('active',l==='es');
+  document.getElementById('btnEn').classList.toggle('active',l==='en');
+  document.documentElement.lang=l==='en'?'en':'es';
+}
+const p=new URLSearchParams(location.search);
+if(p.get('lang')==='en') setLang('en');
+
+playBtn.textContent='⏸';
+timer=setInterval(tick,250);
+render();
+</script>
+</body>
+</html>

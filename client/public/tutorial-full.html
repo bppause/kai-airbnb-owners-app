@@ -1,0 +1,517 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>KAI Airbnb Owners · Tutorial completo / Full tutorial</title>
+<style>
+:root{
+  --green:#0b7f4f;--teal:#0b7f8c;--ink:#17313a;--ink2:#235f72;--bg:#0c1a23;
+  --card:#fff;--border:rgba(255,255,255,.14);--yellow:#d9b45a;
+  --grad:linear-gradient(135deg,#0b7f4f,#0b7f8c);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{font-family:'Segoe UI',system-ui,sans-serif;background:radial-gradient(circle at 20% 0%,#11364a,var(--bg) 60%);color:#f6fbf8;line-height:1.5;font-size:15px;overflow:hidden}
+
+.stage{height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:18px;gap:14px}
+.player{width:min(1040px,100%);height:min(600px,calc(100vh - 170px));position:relative;border-radius:18px;background:#0a1620;box-shadow:0 30px 80px rgba(0,0,0,.55),inset 0 0 0 1px rgba(255,255,255,.06);overflow:hidden;display:flex}
+
+/* Side nav (chapters) */
+.nav{width:240px;flex-shrink:0;background:rgba(255,255,255,.03);border-right:1px solid var(--border);overflow-y:auto;padding:60px 0 70px}
+.nav h3{font-size:.66rem;letter-spacing:.1em;text-transform:uppercase;color:rgba(255,255,255,.45);padding:0 16px 6px;font-weight:800}
+.chap{display:flex;align-items:flex-start;gap:8px;padding:8px 14px;cursor:pointer;border-left:3px solid transparent;font-size:.78rem;color:#cfe6dc;transition:.15s}
+.chap:hover{background:rgba(255,255,255,.05)}
+.chap.active{background:linear-gradient(90deg,rgba(11,127,140,.25),transparent);border-left-color:#9ce5d6;color:#fff}
+.chap-num{width:20px;height:20px;border-radius:50%;background:rgba(255,255,255,.1);display:flex;align-items:center;justify-content:center;font-size:.66rem;font-weight:900;flex-shrink:0;margin-top:2px}
+.chap.active .chap-num{background:var(--grad);color:#fff}
+.chap-text{display:flex;flex-direction:column;gap:1px}
+.chap-text strong{font-size:.78rem;font-weight:800}
+.chap-text span{font-size:.7rem;opacity:.65}
+
+/* Right side content */
+.right{flex:1;position:relative;min-width:0}
+
+/* Top bar */
+.topbar{position:absolute;top:0;left:0;right:0;display:flex;align-items:center;gap:10px;padding:10px 14px;background:linear-gradient(180deg,rgba(0,0,0,.5),transparent);z-index:5}
+.brand{display:flex;align-items:center;gap:8px;font-weight:800;font-size:.84rem;color:#eafff5}
+.brand-mark{width:26px;height:26px;border-radius:8px;background:linear-gradient(135deg,#e7fff7,#d8f2f5);color:var(--green);display:flex;align-items:center;justify-content:center;font-weight:900}
+.toplinks{margin-left:auto;display:flex;gap:6px;align-items:center}
+.lang-btn{padding:4px 10px;border:1px solid var(--border);border-radius:99px;background:rgba(255,255,255,.06);color:#eafff5;cursor:pointer;font-size:.74rem;font-weight:700}
+.lang-btn.active{background:var(--grad);border-color:transparent;color:#fff}
+.speed{font-size:.72rem;color:#cfe6dc;background:rgba(255,255,255,.06);border:1px solid var(--border);border-radius:99px;padding:3px 8px;cursor:pointer;font-weight:700}
+
+/* Slide */
+.slides{position:absolute;inset:0}
+.slide{position:absolute;inset:0;padding:60px 32px 90px;display:flex;flex-direction:column;align-items:center;justify-content:center;opacity:0;transform:translateY(8px);transition:opacity .45s ease,transform .45s ease;text-align:center}
+.slide.active{opacity:1;transform:none}
+.slide .chip{display:inline-block;font-size:.7rem;font-weight:800;letter-spacing:.08em;text-transform:uppercase;padding:5px 12px;border-radius:99px;background:rgba(11,127,140,.25);color:#9ce5d6;margin-bottom:12px;border:1px solid rgba(156,229,214,.25)}
+.slide h2{font-size:clamp(1.1rem,2.4vw,1.6rem);font-weight:900;color:#fff;margin-bottom:6px;letter-spacing:-.01em}
+.slide p.lede{font-size:clamp(.84rem,1.5vw,.98rem);color:#cfe6dc;max-width:640px;margin:0 auto 14px}
+.slide .visual{width:min(640px,100%);margin:6px auto 0}
+
+/* Mock UI */
+.mock{background:#fff;color:var(--ink);border-radius:14px;padding:14px 16px;text-align:left;box-shadow:0 12px 28px rgba(0,0,0,.45);position:relative;overflow:hidden}
+.mock-hdr{display:flex;align-items:center;gap:10px;padding-bottom:10px;border-bottom:1px solid rgba(0,0,0,.08);margin-bottom:10px}
+.mock-logo{width:30px;height:30px;border-radius:9px;background:linear-gradient(135deg,#e7fff7,#d8f2f5);color:var(--green);display:flex;align-items:center;justify-content:center;font-weight:900}
+.mock-hdr strong{font-size:.92rem;color:#203f2b}
+.mock-row{display:flex;gap:8px;align-items:center;font-size:.82rem;color:var(--ink2);padding:5px 0}
+.mock-btn{display:inline-flex;align-items:center;gap:6px;padding:8px 14px;border-radius:10px;background:var(--grad);color:#fff;font-weight:800;font-size:.82rem;border:none}
+.mock-btn.ghost{background:#eef6f4;color:#0b7f4f;border:1px solid rgba(11,127,79,.25)}
+.cursor{position:absolute;width:18px;height:18px;border-radius:50%;background:rgba(217,180,90,.4);border:2px solid #d9b45a;pointer-events:none;transform:translate(-50%,-50%);box-shadow:0 0 0 4px rgba(217,180,90,.12);animation:pulse 1.4s infinite}
+@keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(217,180,90,.5)}50%{box-shadow:0 0 0 10px rgba(217,180,90,0)}}
+.email-card{display:flex;gap:10px;padding:10px;border-radius:10px;background:#f8fbf9;border:1px solid rgba(0,0,0,.06);font-size:.78rem;color:var(--ink2);align-items:flex-start}
+.email-card .ico{width:34px;height:34px;border-radius:9px;background:#e8f5ec;display:flex;align-items:center;justify-content:center;font-size:1.1rem;flex-shrink:0}
+.email-card strong{display:block;color:#203f2b;font-size:.82rem;margin-bottom:2px}
+.flow{display:flex;align-items:center;justify-content:center;gap:6px;flex-wrap:wrap;margin-top:6px}
+.fnode{padding:6px 10px;border-radius:9px;background:#fff;color:#203f2b;font-size:.72rem;font-weight:800;border:1px solid rgba(0,0,0,.08)}
+.fnode.on{background:var(--grad);color:#fff;border-color:transparent}
+.farr{color:#9ce5d6;font-weight:900}
+.tags{display:flex;gap:6px;flex-wrap:wrap;justify-content:center;margin-top:8px}
+.tag{font-size:.7rem;padding:3px 9px;border-radius:99px;background:#f0f8fb;color:#0b7f8c;border:1px solid #cce7ee;font-weight:700}
+.kbd{font-family:'SF Mono',Menlo,monospace;font-size:.72rem;background:#eef2f5;color:#203f2b;border:1px solid rgba(0,0,0,.1);border-bottom-width:2px;border-radius:5px;padding:1px 6px}
+
+/* Caption */
+.caption{position:absolute;left:0;right:0;bottom:60px;text-align:center;padding:0 24px;font-size:.84rem;color:#cfe6dc;opacity:.95}
+
+/* Controls */
+.controls{position:absolute;left:0;right:0;bottom:0;display:flex;align-items:center;gap:10px;padding:10px 14px;background:linear-gradient(0deg,rgba(0,0,0,.7),transparent);z-index:5}
+.ctrl-btn{background:rgba(255,255,255,.1);border:1px solid var(--border);color:#eafff5;width:34px;height:34px;border-radius:50%;cursor:pointer;font-size:.92rem;display:flex;align-items:center;justify-content:center}
+.ctrl-btn:hover{background:rgba(255,255,255,.18)}
+.ctrl-btn.primary{background:var(--grad);border-color:transparent;color:#fff;width:40px;height:40px;font-size:1rem}
+.progress{flex:1;height:5px;border-radius:99px;background:rgba(255,255,255,.14);overflow:hidden;position:relative;cursor:pointer}
+.progress-fill{height:100%;background:linear-gradient(90deg,#0b7f4f,#9ce5d6);width:0%;transition:width .25s linear}
+.timecode{font-size:.74rem;color:#cfe6dc;font-weight:700;min-width:74px;text-align:right;letter-spacing:.04em}
+
+/* Bottom action row */
+.actions{display:flex;gap:10px;flex-wrap:wrap;justify-content:center}
+.act-btn{padding:10px 18px;border-radius:11px;border:1px solid var(--border);background:rgba(255,255,255,.06);color:#f6fbf8;cursor:pointer;font-size:.84rem;font-weight:700;text-decoration:none;display:inline-flex;align-items:center;gap:6px}
+.act-btn:hover{background:rgba(255,255,255,.12)}
+.act-btn.primary{background:var(--grad);border-color:transparent}
+
+/* Mobile chapter toggle */
+.nav-toggle{display:none;position:absolute;top:8px;left:8px;z-index:6;background:rgba(255,255,255,.1);color:#eafff5;border:1px solid var(--border);padding:6px 10px;border-radius:8px;font-size:.74rem;font-weight:700;cursor:pointer}
+
+/* Lang */
+.es-text,.en-text{display:none}
+body.lang-es .es-text{display:revert}
+body.lang-en .en-text{display:revert}
+
+@media (max-width:760px){
+  .player{flex-direction:column;height:min(640px,calc(100vh - 200px))}
+  .nav{position:absolute;inset:0;width:100%;z-index:7;display:none;padding-top:48px;background:#0a1620}
+  .nav.open{display:block}
+  .nav-toggle{display:inline-flex}
+  .slide{padding:54px 18px 86px}
+  .timecode{min-width:60px;font-size:.7rem}
+  .caption{bottom:54px}
+}
+</style>
+</head>
+<body class="lang-es">
+
+<div class="stage">
+
+  <div class="player" id="player">
+
+    <nav class="nav" id="nav">
+      <h3><span class="es-text">Capítulos</span><span class="en-text">Chapters</span></h3>
+      <div id="chapList"></div>
+    </nav>
+
+    <div class="right">
+      <button class="nav-toggle" onclick="document.getElementById('nav').classList.toggle('open')">
+        ☰ <span class="es-text">Capítulos</span><span class="en-text">Chapters</span>
+      </button>
+
+      <div class="topbar">
+        <div class="brand"><div class="brand-mark">K</div>
+          <span class="es-text">KAI · Tutorial completo</span>
+          <span class="en-text">KAI · Full tutorial</span>
+        </div>
+        <div class="toplinks">
+          <button class="speed" id="speed" onclick="cycleSpeed()">1×</button>
+          <button class="lang-btn active" id="btnEs" onclick="setLang('es')">🇨🇴 ES</button>
+          <button class="lang-btn" id="btnEn" onclick="setLang('en')">🇺🇸 EN</button>
+        </div>
+      </div>
+
+      <div class="slides" id="slides"></div>
+      <div class="caption" id="caption"></div>
+
+      <div class="controls">
+        <button class="ctrl-btn" id="prev" title="Prev">⏮</button>
+        <button class="ctrl-btn primary" id="play" title="Play / pause">▶</button>
+        <button class="ctrl-btn" id="next" title="Next">⏭</button>
+        <div class="progress" id="bar"><div class="progress-fill" id="fill"></div></div>
+        <div class="timecode" id="time">0:00 / 0:00</div>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="actions">
+    <button class="act-btn primary" onclick="window.location.href='/'">
+      <span class="es-text">🚀 Ir a la app</span><span class="en-text">🚀 Go to the app</span>
+    </button>
+    <a class="act-btn" href="/tutorial-short.html">
+      <span class="es-text">⏱ Tutorial corto (90 s)</span><span class="en-text">⏱ Short tutorial (90 s)</span>
+    </a>
+    <a class="act-btn" href="/guide.html">
+      <span class="es-text">📖 Guía escrita</span><span class="en-text">📖 Written guide</span>
+    </a>
+  </div>
+
+</div>
+
+<script>
+/* ─── Chapters and slides — full walkthrough (~6–7 min total) ────────────── */
+const CHAPTERS = [
+  {
+    title:{es:"1. Inicio de sesión", en:"1. Sign in"},
+    sub:{es:"Google Sign-In", en:"Google Sign-In"},
+    slides:[
+      { title:{es:"Solo Google · sin contraseñas", en:"Google only · no passwords"},
+        text:{es:"KAI Airbnb Owners usa exclusivamente Google Sign-In. Selecciona la cuenta Gmail con la que quieres gestionar tus apartamentos.",
+              en:"KAI Airbnb Owners uses Google Sign-In only. Pick the Gmail account you want to use to manage your apartments."},
+        cap:{es:"Si el selector de cuentas no aparece, cierra sesión en Google o usa una ventana incógnita.",
+             en:"If the account chooser doesn't appear, sign out of Google or use an incognito window."},
+        visual:`<div class="mock"><div class="mock-hdr"><div class="mock-logo">K</div><strong><span class="es-text">Bienvenido a KAI</span><span class="en-text">Welcome to KAI</span></strong></div>
+          <div class="mock-row" style="font-size:.78rem"><span class="es-text">Comunidad: Morros KAI · Cartagena</span><span class="en-text">Community: Morros KAI · Cartagena</span></div>
+          <button class="mock-btn" style="margin-top:8px">G&nbsp; <span class="es-text">Continuar con Google</span><span class="en-text">Continue with Google</span></button>
+          <div class="cursor" style="left:60%;top:78%"></div></div>`,
+        sec:14
+      },
+      { title:{es:"Selecciona tu comunidad", en:"Select your community"},
+        text:{es:"Si la app aloja varias comunidades, elige la tuya en la pantalla de inicio antes de ingresar.",
+              en:"If the app hosts several communities, pick yours on the welcome screen before signing in."},
+        cap:{es:"Tu última selección queda guardada en el navegador.",
+             en:"Your last selection is saved in your browser."},
+        visual:`<div class="mock"><div class="mock-hdr"><div class="mock-logo">🏘️</div><strong><span class="es-text">Comunidad</span><span class="en-text">Community</span></strong></div>
+          <div class="mock-row" style="background:#eef6f4;border-radius:8px;padding:8px;color:#0b7f4f;font-weight:800">✓ Morros KAI · Cartagena</div>
+          <div class="mock-row">○ Sample Tower · Bogotá</div></div>`,
+        sec:10
+      }
+    ]
+  },
+  {
+    title:{es:"2. Registro", en:"2. Registration"},
+    sub:{es:"Tu primera unidad", en:"Your first unit"},
+    slides:[
+      { title:{es:"Registra tus apartamentos", en:"Register your apartments"},
+        text:{es:"Al ingresar por primera vez aparecerás como Visitante. Ve a Mis Unidades → + Agregar unidad y completa apartamento, torre, operador, email y WhatsApp.",
+              en:"On first sign-in you appear as a Visitor. Go to My Units → + Add unit and fill in apartment, tower, operator, email, and WhatsApp."},
+        cap:{es:"Puedes registrar varios apartamentos en la misma solicitud.",
+             en:"You can register several apartments in the same request."},
+        visual:`<div class="mock"><div class="mock-hdr"><div class="mock-logo">🏠</div><strong><span class="es-text">Mis Unidades</span><span class="en-text">My Units</span></strong></div>
+          <div class="mock-row"><span class="es-text">Apartamento</span><span class="en-text">Apartment</span> *: <span class="kbd">502</span></div>
+          <div class="mock-row"><span class="es-text">Torre</span><span class="en-text">Tower</span> *: <span class="kbd">5</span></div>
+          <div class="mock-row"><span class="es-text">Email operador</span><span class="en-text">Operator email</span>: opt@example.com</div>
+          <div class="mock-row">WhatsApp: +57 300…</div>
+          <button class="mock-btn" style="margin-top:6px"><span class="es-text">Enviar para aprobación</span><span class="en-text">Submit for approval</span></button>
+          <div class="cursor" style="left:30%;top:88%"></div></div>`,
+        sec:16
+      },
+      { title:{es:"Pendiente de aprobación", en:"Pending approval"},
+        text:{es:"Un admin revisará tu solicitud. Mientras tanto verás el estado en la app y recibirás un email cuando cambie.",
+              en:"An admin will review your request. Meanwhile you'll see the status in the app and receive an email when it changes."},
+        cap:{es:"📧 Email automático: 'Registro recibido' · luego 'Aprobado' o 'Rechazado con motivo'.",
+             en:"📧 Automatic email: 'Registration received' · then 'Approved' or 'Declined with reason'."},
+        visual:`<div class="mock"><div class="mock-hdr"><div class="mock-logo">⏳</div><strong><span class="es-text">Estado</span><span class="en-text">Status</span></strong></div>
+          <div class="email-card" style="background:#fff8e1;border-color:#f0d68a"><div class="ico">⏳</div><div><strong><span class="es-text">Pendiente</span><span class="en-text">Pending</span></strong>
+          <span class="es-text">Un administrador revisará tus apartamentos.</span><span class="en-text">An admin will review your apartments.</span></div></div>
+          <div class="email-card" style="margin-top:6px"><div class="ico">📧</div><div><strong><span class="es-text">Te avisaremos por email</span><span class="en-text">We'll email you</span></strong>
+          <span class="es-text">A tu Gmail y al email del operador (si es distinto).</span><span class="en-text">To your Gmail and to the operator email (if different).</span></div></div></div>`,
+        sec:13
+      }
+    ]
+  },
+  {
+    title:{es:"3. Mis Unidades", en:"3. My Units"},
+    sub:{es:"Editar y reportar", en:"Edit and report"},
+    slides:[
+      { title:{es:"Tu inventario al día", en:"Your inventory up-to-date"},
+        text:{es:"Cada tarjeta muestra una unidad. Usa ✏️ para editar email del operador, WhatsApp, URL de Airbnb. Usa ⚠️ Reportar para crear un incidente sobre esa unidad.",
+              en:"Each card shows one unit. Use ✏️ to edit operator email, WhatsApp, Airbnb URL. Use ⚠️ Report to create an incident on that unit."},
+        cap:{es:"Si falta el email del operador verás una advertencia de perfil incompleto.",
+             en:"If the operator email is missing you'll see an incomplete-profile warning."},
+        visual:`<div class="mock"><div class="mock-hdr"><div class="mock-logo">🏠</div><strong><span class="es-text">Mis Unidades</span><span class="en-text">My Units</span></strong></div>
+          <div class="mock-row" style="border:1px solid rgba(0,0,0,.08);border-radius:10px;padding:8px"><div style="flex:1"><strong>Apt 502</strong> · <span class="es-text">Torre</span><span class="en-text">Tower</span> 5<br/><span style="font-size:.74rem;color:#9aada8">opt@example.com</span></div>
+          <button class="mock-btn ghost" style="font-size:.74rem;padding:5px 10px">✏️ <span class="es-text">Editar</span><span class="en-text">Edit</span></button>
+          <button class="mock-btn" style="font-size:.74rem;padding:5px 10px">⚠️ <span class="es-text">Reportar</span><span class="en-text">Report</span></button></div>
+          <div class="cursor" style="left:88%;top:64%"></div></div>`,
+        sec:15
+      }
+    ]
+  },
+  {
+    title:{es:"4. Incidentes", en:"4. Incidents"},
+    sub:{es:"Flujo de 3 pasos", en:"3-step flow"},
+    slides:[
+      { title:{es:"Reportar un incidente", en:"Report an incident"},
+        text:{es:"Ve a Incidentes → + Nuevo. Elige unidad, tipo (ruido, daños, normas, pago…), descripción y fecha.",
+              en:"Go to Incidents → + New. Pick the unit, type (noise, damage, rules, payment…), description, and date."},
+        cap:{es:"Para áreas comunes activa 'Incidente general de la comunidad'.",
+             en:"For common areas toggle 'General community incident'."},
+        visual:`<div class="mock"><div class="mock-hdr"><div class="mock-logo">⚠️</div><strong><span class="es-text">Nuevo incidente</span><span class="en-text">New incident</span></strong></div>
+          <div class="mock-row"><span class="es-text">Unidad</span><span class="en-text">Unit</span>: <span class="kbd">Apt 502</span></div>
+          <div class="mock-row"><span class="es-text">Tipo</span><span class="en-text">Type</span>: <span class="tag">🔊 <span class="es-text">Ruido</span><span class="en-text">Noise</span></span></div>
+          <div class="mock-row"><span class="es-text">Categoría</span><span class="en-text">Category</span>: <span class="tag">⚠️ Grave</span></div>
+          <button class="mock-btn"><span class="es-text">Crear reporte</span><span class="en-text">Create report</span></button></div>`,
+        sec:14
+      },
+      { title:{es:"Paso 1 — Verificar (propietario)", en:"Step 1 — Verify (owner)"},
+        text:{es:"El propietario de la unidad recibe el incidente y debe confirmarlo. Sin verificación, queda en espera.",
+              en:"The owner of the unit receives the incident and must confirm it. Without verification it stays pending."},
+        cap:{es:"📧 Email: 'Nuevo incidente — verifica el reporte (Paso 1)' + recordatorio SLA por defecto a las 24 h.",
+             en:"📧 Email: 'New incident — please verify (Step 1)' + SLA reminder by default at 24 h."},
+        visual:`<div class="mock"><div class="mock-hdr"><div class="mock-logo">1️⃣</div><strong><span class="es-text">Paso 1</span><span class="en-text">Step 1</span></strong></div>
+          <div class="flow"><div class="fnode">📝</div><span class="farr">→</span>
+          <div class="fnode on">1️⃣ <span class="es-text">Verificar</span><span class="en-text">Verify</span></div><span class="farr">→</span>
+          <div class="fnode">🔍 Admin</div><span class="farr">→</span>
+          <div class="fnode">2️⃣ <span class="es-text">Resolver</span><span class="en-text">Resolve</span></div></div>
+          <div class="email-card" style="margin-top:8px"><div class="ico">📧</div><div><strong><span class="es-text">Email recibido</span><span class="en-text">Email received</span></strong>
+          <span class="es-text">Por favor confirma el reporte en Apt 502.</span><span class="en-text">Please confirm the report on Apt 502.</span></div></div></div>`,
+        sec:14
+      },
+      { title:{es:"Paso 2 — Resolver", en:"Step 2 — Resolve"},
+        text:{es:"Cuando el propietario documenta la acción tomada (o un admin lo hace en su nombre), el incidente queda cerrado.",
+              en:"When the owner documents the action taken (or an admin does it on their behalf), the incident is closed."},
+        cap:{es:"📧 Email final: 'Incidente resuelto — resumen de la acción tomada'.",
+             en:"📧 Final email: 'Incident resolved — summary of action taken'."},
+        visual:`<div class="mock"><div class="mock-hdr"><div class="mock-logo">2️⃣</div><strong><span class="es-text">Paso 2</span><span class="en-text">Step 2</span></strong></div>
+          <div class="mock-row"><span class="es-text">Acción tomada</span><span class="en-text">Action taken</span>:</div>
+          <div class="mock-row" style="background:#f0f8fb;border-radius:8px;padding:8px"><span class="es-text">Se contactó al huésped y se dio aviso. Ruido controlado.</span><span class="en-text">Guest contacted and warned. Noise stopped.</span></div>
+          <button class="mock-btn"><span class="es-text">Marcar resuelto</span><span class="en-text">Mark resolved</span></button></div>`,
+        sec:13
+      },
+      { title:{es:"Incidentes generales", en:"General incidents"},
+        text:{es:"Si activaste 'Incidente general' (área común, fachada), el admin lo asigna a una unidad o lo cierra directamente — no pasa por Paso 1 ni 2 del propietario.",
+              en:"If you toggled 'General incident' (common area, facade), the admin assigns it to a unit or closes it directly — it skips owner Steps 1 and 2."},
+        cap:{es:"Verás estos casos en la sección 📢 Comunidad.",
+             en:"You'll see these in the 📢 Community section."},
+        visual:`<div class="mock"><div class="mock-hdr"><div class="mock-logo">📢</div><strong><span class="es-text">Comunidad</span><span class="en-text">Community</span></strong></div>
+          <div class="email-card"><div class="ico">🛠️</div><div><strong><span class="es-text">Avería en ascensor (general)</span><span class="en-text">Elevator outage (general)</span></strong>
+          <span class="es-text">Admin: asignar a unidad ↔ cerrar directamente.</span><span class="en-text">Admin: assign to unit ↔ close directly.</span></div></div></div>`,
+        sec:11
+      }
+    ]
+  },
+  {
+    title:{es:"5. Dashboard", en:"5. Dashboard"},
+    sub:{es:"Tu día de un vistazo", en:"Your day at a glance"},
+    slides:[
+      { title:{es:"Banner '¿Qué hacer ahora?'", en:"'What to do now?' banner"},
+        text:{es:"Al ingresar verás los pasos pendientes: incidentes esperando tu verificación (Paso 1) o resolución (Paso 2) y registros pendientes (si eres admin).",
+              en:"On login you'll see pending steps: incidents awaiting verification (Step 1) or resolution (Step 2), and pending registrations (if you're admin)."},
+        cap:{es:"Cada chip te lleva al filtro correcto en Incidentes.",
+             en:"Each chip takes you to the right filter in Incidents."},
+        visual:`<div class="mock"><div class="mock-hdr"><div class="mock-logo">📊</div><strong>Dashboard</strong></div>
+          <div class="email-card" style="background:#fff8e1;border-color:#f0d68a"><div class="ico">⚡</div>
+          <div><strong><span class="es-text">¿Qué debes hacer ahora?</span><span class="en-text">What do you need to do now?</span></strong>
+          <span class="es-text">2 esperan verificación · 1 espera resolución</span><span class="en-text">2 await verification · 1 awaits resolution</span></div></div>
+          <div class="tags"><span class="tag">2× <span class="es-text">Verificar</span><span class="en-text">Verify</span></span>
+          <span class="tag">1× <span class="es-text">Resolver</span><span class="en-text">Resolve</span></span></div></div>`,
+        sec:13
+      },
+      { title:{es:"Métricas y analíticas", en:"Metrics and analytics"},
+        text:{es:"Resumen personal (incidentes abiertos en tus unidades) y visión de la comunidad (totales, distribución por tipo).",
+              en:"Personal summary (open incidents in your units) and community view (totals, distribution by type)."},
+        cap:{es:"Si el admin lo habilita, podrás ver Analíticas detalladas.",
+             en:"If the admin enables it, you'll see detailed Analytics."},
+        visual:`<div class="mock"><div class="mock-hdr"><div class="mock-logo">📈</div><strong><span class="es-text">Resumen</span><span class="en-text">Summary</span></strong></div>
+          <div class="tags"><span class="tag">🏠 3 <span class="es-text">Unidades</span><span class="en-text">Units</span></span>
+          <span class="tag">⚠️ 2 <span class="es-text">Abiertos</span><span class="en-text">Open</span></span>
+          <span class="tag">✅ 14 <span class="es-text">Cerrados</span><span class="en-text">Closed</span></span></div></div>`,
+        sec:10
+      }
+    ]
+  },
+  {
+    title:{es:"6. Notificaciones", en:"6. Notifications"},
+    sub:{es:"Emails que recibirás", en:"Emails you'll receive"},
+    slides:[
+      { title:{es:"Catálogo de emails automáticos", en:"Automatic email catalog"},
+        text:{es:"Te enviamos correos a tu Gmail y al email del operador del listing si es distinto. Idioma según tu cuenta.",
+              en:"We send emails to your Gmail and to the listing operator email if different. Language follows your account."},
+        cap:{es:"Todos los emails también quedan en 🔔 Alertas dentro de la app.",
+             en:"All emails also live in 🔔 Alerts inside the app."},
+        visual:`<div class="mock"><div class="mock-hdr"><div class="mock-logo">📧</div><strong><span class="es-text">Lo que te llegará</span><span class="en-text">What you'll get</span></strong></div>
+          <div class="email-card"><div class="ico">📝</div><div><strong><span class="es-text">Registro recibido</span><span class="en-text">Registration received</span></strong>
+          <span class="es-text">Confirmación al enviar tu solicitud.</span><span class="en-text">Confirmation when you submit your request.</span></div></div>
+          <div class="email-card" style="margin-top:6px"><div class="ico">✅</div><div><strong><span class="es-text">Aprobación / rechazo</span><span class="en-text">Approval / decline</span></strong>
+          <span class="es-text">Resultado de la revisión, con motivo si fue rechazado.</span><span class="en-text">Review result, with reason if declined.</span></div></div>
+          <div class="email-card" style="margin-top:6px"><div class="ico">⚠️</div><div><strong><span class="es-text">Nuevo incidente</span><span class="en-text">New incident</span></strong>
+          <span class="es-text">Te pedimos verificar el reporte (Paso 1).</span><span class="en-text">We ask you to verify the report (Step 1).</span></div></div>
+          <div class="email-card" style="margin-top:6px"><div class="ico">⏰</div><div><strong>SLA <span class="es-text">recordatorio</span><span class="en-text">reminder</span></strong>
+          <span class="es-text">Si no respondiste a tiempo (24 h por defecto).</span><span class="en-text">If you didn't respond in time (24 h by default).</span></div></div>
+          <div class="email-card" style="margin-top:6px"><div class="ico">🎯</div><div><strong><span class="es-text">Resolución</span><span class="en-text">Resolution</span></strong>
+          <span class="es-text">Resumen final cuando el incidente queda cerrado.</span><span class="en-text">Final summary when the incident is closed.</span></div></div></div>`,
+        sec:18
+      },
+      { title:{es:"Idioma y preferencias", en:"Language and preferences"},
+        text:{es:"Cambia idioma de la app y de los emails desde el menú de perfil (esquina superior derecha).",
+              en:"Change app and email language from the profile menu (top-right corner)."},
+        cap:{es:"Cada miembro de la comunidad puede tener su propio idioma.",
+             en:"Each community member can have their own language."},
+        visual:`<div class="mock"><div class="mock-hdr"><div class="mock-logo">🌐</div><strong><span class="es-text">Idioma</span><span class="en-text">Language</span></strong></div>
+          <div class="tags"><span class="tag">🇨🇴 Español</span><span class="tag">🇺🇸 English</span></div></div>`,
+        sec:9
+      }
+    ]
+  },
+  {
+    title:{es:"7. Ayuda", en:"7. Help"},
+    sub:{es:"Tour, FAQ, videos", en:"Tour, FAQ, videos"},
+    slides:[
+      { title:{es:"Sección de Ayuda", en:"Help section"},
+        text:{es:"Desde ❓ Ayuda puedes lanzar un tour interactivo, leer la guía escrita o volver a ver este tutorial corto/completo.",
+              en:"From ❓ Help you can launch an interactive tour, read the written guide, or re-watch this short/full tutorial."},
+        cap:{es:"También se accede a videos y guía desde la pantalla de inicio antes de ingresar.",
+             en:"Videos and guide are also accessible from the welcome screen before signing in."},
+        visual:`<div class="mock"><div class="mock-hdr"><div class="mock-logo">❓</div><strong><span class="es-text">Ayuda y guía</span><span class="en-text">Help &amp; Guide</span></strong></div>
+          <div class="email-card"><div class="ico">🎯</div><div><strong><span class="es-text">Tour interactivo</span><span class="en-text">Interactive tour</span></strong>
+          <span class="es-text">Recorrido guiado dentro de la app.</span><span class="en-text">Guided walk-through inside the app.</span></div></div>
+          <div class="email-card" style="margin-top:6px"><div class="ico">🎬</div><div><strong><span class="es-text">Tutorial corto</span><span class="en-text">Short tutorial</span></strong>
+          <span class="es-text">90 segundos con lo esencial.</span><span class="en-text">90 seconds covering the essentials.</span></div></div>
+          <div class="email-card" style="margin-top:6px"><div class="ico">🎥</div><div><strong><span class="es-text">Tutorial completo</span><span class="en-text">Full tutorial</span></strong>
+          <span class="es-text">Capítulos detallados de cada función.</span><span class="en-text">Detailed chapters for every feature.</span></div></div>
+          <div class="email-card" style="margin-top:6px"><div class="ico">📖</div><div><strong><span class="es-text">Guía escrita</span><span class="en-text">Written guide</span></strong>
+          <span class="es-text">Referencia completa con tablas de permisos.</span><span class="en-text">Full reference with permission tables.</span></div></div></div>`,
+        sec:14
+      }
+    ]
+  },
+  {
+    title:{es:"8. Cerrar sesión", en:"8. Log out"},
+    sub:{es:"Salir de forma segura", en:"Sign out safely"},
+    slides:[
+      { title:{es:"Cerrar sesión", en:"Sign out"},
+        text:{es:"Abre el menú de perfil (foto en esquina superior derecha) → Cerrar sesión. Tus datos quedan a salvo en la nube.",
+              en:"Open the profile menu (photo top-right) → Sign out. Your data stays safe in the cloud."},
+        cap:{es:"En equipos compartidos cierra sesión también en Google.",
+             en:"On shared devices sign out of Google too."},
+        visual:`<div class="mock"><div class="mock-hdr"><div class="mock-logo">👤</div><strong><span class="es-text">Tu perfil</span><span class="en-text">Your profile</span></strong></div>
+          <div class="mock-row">🌐 ES / EN</div>
+          <div class="mock-row">🏘️ <span class="es-text">Comunidad activa</span><span class="en-text">Active community</span></div>
+          <div class="mock-row" style="background:#fde8e4;border-radius:8px;padding:8px;color:#c62828;font-weight:800">↩ <span class="es-text">Cerrar sesión</span><span class="en-text">Sign out</span></div>
+          <div class="cursor" style="left:30%;top:84%"></div></div>`,
+        sec:11
+      },
+      { title:{es:"¡Listo para empezar!", en:"You're ready!"},
+        text:{es:"Has visto el flujo completo: ingreso → registro → unidades → incidentes → dashboard → ayuda → salir.",
+              en:"You've seen the full flow: sign-in → registration → units → incidents → dashboard → help → sign-out."},
+        cap:{es:"Bienvenido a KAI Airbnb Owners — gracias por cuidar la comunidad.",
+             en:"Welcome to KAI Airbnb Owners — thanks for caring for the community."},
+        visual:`<div class="mock" style="text-align:center;padding:22px"><div class="mock-logo" style="margin:0 auto 8px;width:48px;height:48px;font-size:1.4rem">K</div>
+          <strong style="display:block;font-size:1.05rem;color:#203f2b"><span class="es-text">¡Empieza ahora!</span><span class="en-text">Start now!</span></strong>
+          <div style="font-size:.82rem;color:#235f72;margin-top:4px"><span class="es-text">Cierra esta ventana o haz clic en 'Ir a la app'.</span><span class="en-text">Close this window or click 'Go to the app'.</span></div></div>`,
+        sec:9
+      }
+    ]
+  }
+];
+
+/* Flatten slides + remember chapter for each */
+const SLIDES = [];
+CHAPTERS.forEach((c,ci)=>c.slides.forEach((s,si)=>SLIDES.push({...s,ci,si,chap:c.title})));
+const TOTAL = SLIDES.reduce((s,x)=>s+x.sec,0);
+
+const slidesEl=document.getElementById('slides');
+const chapEl  =document.getElementById('chapList');
+const fill    =document.getElementById('fill');
+const timeEl  =document.getElementById('time');
+const capEl   =document.getElementById('caption');
+const playBtn =document.getElementById('play');
+const speedEl =document.getElementById('speed');
+const bar     =document.getElementById('bar');
+
+SLIDES.forEach((s,i)=>{
+  const d=document.createElement('div'); d.className='slide';
+  d.innerHTML=`
+    <span class="chip"><span class="es-text">${s.chap.es}</span><span class="en-text">${s.chap.en}</span></span>
+    <h2><span class="es-text">${s.title.es}</span><span class="en-text">${s.title.en}</span></h2>
+    <p class="lede"><span class="es-text">${s.text.es}</span><span class="en-text">${s.text.en}</span></p>
+    <div class="visual">${s.visual}</div>`;
+  slidesEl.appendChild(d);
+});
+
+CHAPTERS.forEach((c,ci)=>{
+  const node=document.createElement('div');
+  node.className='chap'; node.dataset.ci=ci;
+  node.innerHTML=`<div class="chap-num">${ci+1}</div>
+    <div class="chap-text"><strong><span class="es-text">${c.title.es}</span><span class="en-text">${c.title.en}</span></strong>
+    <span><span class="es-text">${c.sub.es}</span><span class="en-text">${c.sub.en}</span></span></div>`;
+  node.onclick=()=>jumpChapter(ci);
+  chapEl.appendChild(node);
+});
+
+let idx=0, elapsed=0, playing=true, speed=1;
+
+function fmt(sec){const m=Math.floor(sec/60),s=Math.floor(sec%60);return `${m}:${String(s).padStart(2,'0')}`}
+function startOf(i){let a=0;for(let k=0;k<i;k++)a+=SLIDES[k].sec;return a}
+function render(){
+  document.querySelectorAll('.slide').forEach((el,i)=>el.classList.toggle('active',i===idx));
+  document.querySelectorAll('.chap').forEach((el,i)=>el.classList.toggle('active',i===SLIDES[idx].ci));
+  capEl.innerHTML=`<span class="es-text">${SLIDES[idx].cap.es}</span><span class="en-text">${SLIDES[idx].cap.en}</span>`;
+  fill.style.width=Math.min(100,(elapsed/TOTAL)*100)+'%';
+  timeEl.textContent=`${fmt(elapsed)} / ${fmt(TOTAL)}`;
+}
+function tick(){
+  if(!playing) return;
+  elapsed += .25*speed;
+  let acc=0,target=0;
+  for(let i=0;i<SLIDES.length;i++){ if(elapsed < acc + SLIDES[i].sec){target=i;break} acc+=SLIDES[i].sec; if(i===SLIDES.length-1) target=i;}
+  if(target!==idx){ idx=target; }
+  if(elapsed>=TOTAL){ elapsed=TOTAL; playing=false; playBtn.textContent='↻'; }
+  render();
+}
+function goto(i){
+  idx=Math.max(0,Math.min(SLIDES.length-1,i));
+  elapsed=startOf(idx); render();
+}
+function jumpChapter(ci){
+  // first slide of chapter ci
+  let target = SLIDES.findIndex(s=>s.ci===ci);
+  if(target>=0){ playing=false; playBtn.textContent='▶'; goto(target); }
+  document.getElementById('nav').classList.remove('open');
+}
+function play(){
+  if(elapsed>=TOTAL){ elapsed=0; idx=0; }
+  playing=!playing;
+  playBtn.textContent=playing?'⏸':'▶';
+}
+function cycleSpeed(){
+  const order=[1,1.25,1.5,2,.75];
+  speed=order[(order.indexOf(speed)+1)%order.length];
+  speedEl.textContent=speed+'×';
+}
+document.getElementById('play').onclick=play;
+document.getElementById('next').onclick=()=>{playing=false;playBtn.textContent='▶';goto(idx+1);};
+document.getElementById('prev').onclick=()=>{playing=false;playBtn.textContent='▶';goto(idx-1);};
+bar.onclick=(e)=>{const r=bar.getBoundingClientRect();const pct=(e.clientX-r.left)/r.width;elapsed=Math.max(0,Math.min(TOTAL,pct*TOTAL));// snap idx
+  let acc=0;for(let i=0;i<SLIDES.length;i++){ if(elapsed<acc+SLIDES[i].sec){idx=i;break} acc+=SLIDES[i].sec; idx=i;}
+  render();};
+document.addEventListener('keydown',e=>{
+  if(e.key===' '){e.preventDefault();play();}
+  else if(e.key==='ArrowRight') goto(idx+1);
+  else if(e.key==='ArrowLeft') goto(idx-1);
+});
+
+function setLang(l){
+  document.body.className='lang-'+l;
+  document.getElementById('btnEs').classList.toggle('active',l==='es');
+  document.getElementById('btnEn').classList.toggle('active',l==='en');
+  document.documentElement.lang=l==='en'?'en':'es';
+}
+const p=new URLSearchParams(location.search);
+if(p.get('lang')==='en') setLang('en');
+const startCh=parseInt(p.get('chapter'),10);
+if(!isNaN(startCh) && startCh>=1 && startCh<=CHAPTERS.length){ jumpChapter(startCh-1); playing=true; playBtn.textContent='⏸'; }
+
+playBtn.textContent='⏸';
+setInterval(tick,250);
+render();
+</script>
+</body>
+</html>
