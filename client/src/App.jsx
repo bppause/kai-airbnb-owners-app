@@ -2687,16 +2687,34 @@ function AuthGate({ onLogin, lang="es-CO", setLang=()=>{}, complexLogo='', compl
           <strong>{t.firstAccess}</strong> {t.firstAccessText}
         </div>
         <p className="secure-copy">{t.secure}</p>
-        <div style={{textAlign:'center',margin:'10px 0 4px',display:'flex',gap:14,justifyContent:'center',flexWrap:'wrap'}}>
-          <a href={`/intro-short.html?lang=${lang==='en'?'en':'es'}`} target="_blank" rel="noopener noreferrer" style={{fontSize:'.82rem',color:'#0b7f4f',fontWeight:700,textDecoration:'none'}}>
-            {lang==='en' ? '▶ Quick tour (90s)' : '▶ Tour rápido (90s)'}
-          </a>
-          <a href={`/intro-full.html?lang=${lang==='en'?'en':'es'}`} target="_blank" rel="noopener noreferrer" style={{fontSize:'.82rem',color:'#0b7f4f',fontWeight:700,textDecoration:'none'}}>
-            {lang==='en' ? '▶ Full tour (3 min)' : '▶ Tour completo (3 min)'}
-          </a>
-          <a href="/guide.html" target="_blank" rel="noopener noreferrer" style={{fontSize:'.82rem',color:'#0b7f8c',fontWeight:700,textDecoration:'none'}}>
-            {lang==='en' ? '📖 View user guide' : '📖 Ver guía de usuario'}
-          </a>
+        <div style={{textAlign:'center',margin:'10px 0 4px',display:'flex',flexDirection:'column',gap:6}}>
+          <div style={{fontSize:'.7rem',color:'#607063',fontWeight:700,textTransform:'uppercase',letterSpacing:'.06em'}}>
+            {lang==='en' ? 'Getting started' : 'Primeros pasos'}
+          </div>
+          <div style={{display:'flex',gap:14,justifyContent:'center',flexWrap:'wrap'}}>
+            <a href={`/intro-short.html?lang=${lang==='en'?'en':'es'}`} target="_blank" rel="noopener noreferrer" style={{fontSize:'.82rem',color:'#0b7f4f',fontWeight:700,textDecoration:'none'}}>
+              {lang==='en' ? '▶ Quick tour (90s)' : '▶ Tour rápido (90s)'}
+            </a>
+            <a href={`/intro-full.html?lang=${lang==='en'?'en':'es'}`} target="_blank" rel="noopener noreferrer" style={{fontSize:'.82rem',color:'#0b7f4f',fontWeight:700,textDecoration:'none'}}>
+              {lang==='en' ? '▶ Full tour (3 min)' : '▶ Tour completo (3 min)'}
+            </a>
+          </div>
+          <div style={{fontSize:'.7rem',color:'#607063',fontWeight:700,textTransform:'uppercase',letterSpacing:'.06em',marginTop:4}}>
+            {lang==='en' ? 'Incident management' : 'Gestión de incidentes'}
+          </div>
+          <div style={{display:'flex',gap:14,justifyContent:'center',flexWrap:'wrap'}}>
+            <a href={`/incidents-short.html?lang=${lang==='en'?'en':'es'}`} target="_blank" rel="noopener noreferrer" style={{fontSize:'.82rem',color:'#c62828',fontWeight:700,textDecoration:'none'}}>
+              {lang==='en' ? '⚠️ Incidents — quick (90s)' : '⚠️ Incidentes — rápido (90s)'}
+            </a>
+            <a href={`/incidents-full.html?lang=${lang==='en'?'en':'es'}`} target="_blank" rel="noopener noreferrer" style={{fontSize:'.82rem',color:'#c62828',fontWeight:700,textDecoration:'none'}}>
+              {lang==='en' ? '⚠️ Incidents — full (3 min)' : '⚠️ Incidentes — completo (3 min)'}
+            </a>
+          </div>
+          <div style={{marginTop:4}}>
+            <a href="/guide.html" target="_blank" rel="noopener noreferrer" style={{fontSize:'.82rem',color:'#0b7f8c',fontWeight:700,textDecoration:'none'}}>
+              {lang==='en' ? '📖 View user guide' : '📖 Ver guía de usuario'}
+            </a>
+          </div>
         </div>
         <div className="google-switch-help"><strong>{appText(lang,"login.switchGoogleTitle")}</strong><br/>{appText(lang,"login.switchGoogleHelp")}<br/><span>{appText(lang,"login.switchGoogleSteps")}</span></div>
         <button className="btn-google gate-btn" onClick={onLogin} title={appText(lang,"login.switchGoogleHelp")}><GoogleIcon/> {t.google}</button>

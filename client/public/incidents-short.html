@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>KAI · Incidentes — Tour rápido / Quick tour</title>
+<style>
+:root{
+  --green:#0b7f4f;--teal:#0b7f8c;--ink:#17313a;--ink2:#235f72;--bg:#f7f3e9;
+  --card:#fff;--border:rgba(47,79,58,.16);--yellow:#d9b45a;--red:#c62828;--blue:#1565c0;
+  --grad:linear-gradient(135deg,#0b7f4f,#0b7f8c);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{font-family:'Segoe UI',system-ui,sans-serif;background:#0f1d22;color:var(--ink);overflow:hidden}
+[data-lang-es],[data-lang-en]{display:none}
+body.lang-es [data-lang-es]{display:inline}
+body.lang-en [data-lang-en]{display:inline}
+
+.stage{position:fixed;inset:0;display:flex;flex-direction:column;background:radial-gradient(1200px 600px at 30% 20%,rgba(11,127,140,.25),transparent 70%),radial-gradient(900px 500px at 80% 80%,rgba(198,40,40,.18),transparent 70%),#0f1d22}
+
+.vbar{display:flex;align-items:center;gap:12px;padding:12px 18px;background:rgba(255,255,255,.06);border-bottom:1px solid rgba(255,255,255,.08);backdrop-filter:blur(8px)}
+.vbar-l{display:flex;align-items:center;gap:10px;color:#fff}
+.logo-mark{width:36px;height:36px;border-radius:11px;background:linear-gradient(135deg,#e7fff7,#d8f2f5);display:flex;align-items:center;justify-content:center;font-weight:900;color:var(--green);font-size:1.05rem;position:relative}
+.logo-mark .wave{font-size:.55rem;position:absolute;right:5px;top:5px;color:var(--teal)}
+.vbar-l strong{display:block;font-size:.92rem;font-weight:800;letter-spacing:.01em}
+.vsub{font-size:.74rem;opacity:.72}
+.vbar-r{margin-left:auto;display:flex;gap:8px;align-items:center}
+.lang-btn{padding:6px 12px;border-radius:99px;border:1px solid rgba(255,255,255,.18);background:transparent;color:#fff;font-weight:700;font-size:.78rem;cursor:pointer;transition:.15s}
+.lang-btn:hover{background:rgba(255,255,255,.08)}
+.lang-btn.active{background:linear-gradient(135deg,#0b7f4f,#0b7f8c);border-color:transparent}
+.vclose{width:34px;height:34px;border-radius:99px;background:rgba(255,255,255,.08);color:#fff;display:flex;align-items:center;justify-content:center;font-size:1.3rem;text-decoration:none;font-weight:300}
+.vclose:hover{background:rgba(255,255,255,.16)}
+
+.vstage{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:18px 18px 0;gap:14px;min-height:0}
+.vframe{position:relative;width:min(820px,94vw);aspect-ratio:16/9;max-height:58vh;border-radius:18px;background:#f7f3e9;box-shadow:0 24px 80px rgba(0,0,0,.45),0 4px 0 rgba(255,255,255,.05) inset;overflow:hidden;border:1px solid rgba(255,255,255,.08)}
+.scene{position:absolute;inset:0;opacity:0;transform:translateY(8px) scale(.98);transition:opacity .55s ease,transform .55s ease;padding:18px;display:flex;flex-direction:column;gap:10px}
+.scene.show{opacity:1;transform:translateY(0) scale(1)}
+
+.vcaption{width:min(820px,94vw);color:#eef6f9;text-align:center;padding:6px 12px}
+.vstep{display:inline-block;padding:3px 10px;border-radius:99px;background:rgba(255,255,255,.08);font-size:.7rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;margin-bottom:6px;color:#aee2c5}
+.vcaption h2{font-size:1.2rem;font-weight:800;margin-bottom:4px;color:#fff}
+.vcaption p{font-size:.88rem;opacity:.85;max-width:680px;margin:0 auto;line-height:1.5}
+
+.vctrls{display:flex;align-items:center;justify-content:center;gap:10px;padding:14px 16px 18px;background:transparent}
+.vdots{display:flex;gap:6px;margin-right:10px}
+.vdot{width:8px;height:8px;border-radius:50%;background:rgba(255,255,255,.22);cursor:pointer;transition:.18s}
+.vdot.done{background:rgba(255,255,255,.45)}
+.vdot.cur{background:#5fd9a8;width:22px;border-radius:99px}
+.vbtn{width:38px;height:38px;border-radius:50%;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.12);color:#fff;font-size:1rem;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:.15s}
+.vbtn:hover{background:rgba(255,255,255,.18)}
+.vbtn.play{width:46px;height:46px;background:linear-gradient(135deg,#0b7f4f,#0b7f8c);border:none;font-size:1.1rem}
+.vbtn.play:hover{filter:brightness(1.1)}
+.vprog{position:absolute;left:0;right:0;bottom:0;height:3px;background:rgba(0,0,0,.06)}
+.vprog-bar{height:100%;background:linear-gradient(90deg,#0b7f4f,#0b7f8c);width:0;transition:width .1s linear}
+
+/* Mock UI */
+.m-card{background:#fff;border:1px solid var(--border);border-radius:14px;padding:14px;box-shadow:0 6px 18px rgba(32,46,38,.06)}
+.m-row{display:flex;gap:10px;align-items:center}
+.m-col{display:flex;flex-direction:column;gap:8px}
+.m-title{font-size:.95rem;font-weight:900;color:#203f2b}
+.m-sub{font-size:.74rem;color:var(--ink2)}
+.m-pill{display:inline-block;padding:3px 10px;border-radius:99px;background:#e8f5ec;color:var(--green);font-size:.7rem;font-weight:800;white-space:nowrap}
+.m-pill.warn{background:#fff8e1;color:#7a5a00}
+.m-pill.red{background:#fde8e8;color:var(--red)}
+.m-pill.blue{background:#e3f2fd;color:var(--blue)}
+.m-pill.gray{background:#eceff1;color:var(--ink2)}
+.m-btn{padding:8px 14px;border-radius:10px;background:var(--grad);color:#fff;font-size:.78rem;font-weight:800;border:none;display:inline-flex;align-items:center;gap:6px;box-shadow:0 4px 12px rgba(11,127,79,.25);text-decoration:none;cursor:pointer}
+.m-btn.ghost{background:#fff;color:var(--ink);border:1px solid var(--border);box-shadow:none}
+.m-btn.warn{background:linear-gradient(135deg,#d9b45a,#b08838);box-shadow:0 4px 12px rgba(217,180,90,.3)}
+.m-btn.red{background:linear-gradient(135deg,#c62828,#9a1f1f);box-shadow:0 4px 12px rgba(198,40,40,.3)}
+.m-input{padding:8px 10px;border-radius:9px;border:1px solid var(--border);background:#fff;font-size:.78rem;width:100%}
+.m-banner{padding:10px 12px;border-radius:11px;background:linear-gradient(135deg,#fff8e1,#fffde7);border-left:4px solid var(--yellow);font-size:.78rem;color:#7a5a00;display:flex;gap:8px;align-items:center}
+.m-banner.ok{background:#e8f5ec;color:#1b5634;border-left-color:var(--green)}
+.m-banner.red{background:#fde8e8;color:#7a1818;border-left-color:var(--red)}
+.m-banner.blue{background:#e3f2fd;color:#0d3c6e;border-left-color:var(--blue)}
+.m-plate{display:inline-flex;align-items:center;justify-content:center;width:54px;height:34px;border-radius:7px;background:#17313a;color:#fff;font-weight:900;font-size:.82rem;letter-spacing:.04em}
+.m-tab{padding:6px 12px;font-size:.74rem;font-weight:700;color:var(--ink2);border-bottom:2px solid transparent;cursor:pointer}
+.m-tab.active{color:var(--green);border-bottom-color:var(--green)}
+.m-modal{position:absolute;inset:14px;background:#fff;border-radius:14px;box-shadow:0 18px 40px rgba(20,32,26,.18);padding:14px;display:flex;flex-direction:column;gap:9px;animation:popIn .4s ease;z-index:15;overflow:auto}
+@keyframes popIn{from{opacity:0;transform:translateY(8px) scale(.96)}to{opacity:1;transform:translateY(0) scale(1)}}
+.m-modal h3{font-size:.95rem;color:#203f2b}
+.m-photos{display:flex;gap:6px}
+.m-photo{width:54px;height:54px;border-radius:7px;background:linear-gradient(135deg,#bcd4dc,#88abb6);position:relative;display:flex;align-items:center;justify-content:center;font-size:1.1rem;color:#fff}
+.m-photo.add{background:#fff;border:2px dashed var(--border);color:var(--ink2);font-size:.7rem;font-weight:800}
+.m-incident-row{display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--border);border-radius:11px;background:#fff}
+.hl{position:relative}
+.hl::after{content:'';position:absolute;inset:-4px;border:2px solid #5fd9a8;border-radius:14px;pointer-events:none;animation:pulseRing 1.6s ease-in-out infinite}
+@keyframes pulseRing{0%,100%{opacity:.7;transform:scale(1)}50%{opacity:1;transform:scale(1.04)}}
+.s-final{display:flex;align-items:center;justify-content:center;flex-direction:column;gap:14px;height:100%;text-align:center;padding:20px}
+.s-final h2{font-size:1.5rem;color:#203f2b;font-weight:900}
+.s-final p{font-size:.88rem;color:var(--ink2);max-width:480px}
+.s-final .row{display:flex;gap:10px;flex-wrap:wrap;justify-content:center}
+.lifecycle{display:flex;align-items:center;justify-content:center;gap:8px;flex-wrap:wrap;margin-top:8px}
+.lc-node{padding:8px 14px;border-radius:10px;background:#fff;border:1px solid var(--border);font-size:.78rem;font-weight:800;color:#203f2b;text-align:center;white-space:nowrap}
+.lc-node.cur{background:var(--grad);color:#fff;border-color:transparent;box-shadow:0 4px 14px rgba(11,127,79,.3)}
+.lc-arr{color:var(--teal);font-size:1rem}
+
+@media(max-width:640px){
+  .vstage{padding:10px 10px 0}
+  .vframe{aspect-ratio:4/3;max-height:50vh}
+  .vcaption h2{font-size:1.05rem}
+  .vcaption p{font-size:.82rem}
+  .vbtn{width:34px;height:34px}
+  .vbtn.play{width:42px;height:42px}
+  .scene{padding:12px}
+  .vsub{display:none}
+}
+</style>
+</head>
+<body class="lang-es">
+<div class="stage">
+  <header class="vbar">
+    <div class="vbar-l">
+      <div class="logo-mark">K<span class="wave">~</span></div>
+      <div>
+        <strong>KAI · <span data-lang-es>Incidentes</span><span data-lang-en>Incidents</span></strong><br/>
+        <span class="vsub" data-lang-es>Tour rápido · 90 segundos</span><span class="vsub" data-lang-en>Quick tour · 90 seconds</span>
+      </div>
+    </div>
+    <div class="vbar-r">
+      <button class="lang-btn active" data-set-lang="es">ES</button>
+      <button class="lang-btn" data-set-lang="en">EN</button>
+      <a href="/" class="vclose" title="Cerrar / Close">×</a>
+    </div>
+  </header>
+
+  <main class="vstage">
+    <div class="vframe" id="vframe"></div>
+    <div class="vcaption">
+      <div class="vstep" id="vstep">1 / 7</div>
+      <h2 id="vtitle"></h2>
+      <p id="vbody"></p>
+    </div>
+  </main>
+
+  <footer class="vctrls">
+    <div class="vdots" id="vdots"></div>
+    <button class="vbtn" id="vprev" title="Anterior / Previous">‹</button>
+    <button class="vbtn play" id="vplay" title="Pausar / Pause">⏸</button>
+    <button class="vbtn" id="vnext" title="Siguiente / Next">›</button>
+  </footer>
+
+  <div class="vprog"><div class="vprog-bar" id="vprogbar"></div></div>
+</div>
+
+<script>
+const SCENES = [
+  {
+    title: { es: 'El ciclo de un incidente — 4 estados', en: 'Incident lifecycle — 4 states' },
+    body:  { es: 'Cada incidente pasa por 4 estados. Tú como propietario haces el Paso 1 (verificar) y el Paso 2 (agregar respuesta). El admin de la comunidad lo cierra.',
+             en: 'Every incident moves through 4 states. As an owner you do Step 1 (verify) and Step 2 (add resolution). The community admin closes it.' },
+    duration: 12000,
+    html: `
+      <div style="display:flex;flex-direction:column;justify-content:center;height:100%">
+        <div class="lifecycle">
+          <div class="lc-node hl">⚠️ <span data-lang-es>Abierto</span><span data-lang-en>Open</span></div>
+          <span class="lc-arr">→</span>
+          <div class="lc-node">📝 <span data-lang-es>Verificado</span><span data-lang-en>Verified</span></div>
+          <span class="lc-arr">→</span>
+          <div class="lc-node">⏳ <span data-lang-es>Esperando admin</span><span data-lang-en>Awaiting admin</span></div>
+          <span class="lc-arr">→</span>
+          <div class="lc-node">✓ <span data-lang-es>Cerrado</span><span data-lang-en>Closed</span></div>
+        </div>
+        <div style="margin-top:18px;display:flex;justify-content:center;gap:14px;font-size:.78rem;color:var(--ink2)">
+          <div><strong>① <span data-lang-es>Verificar</span><span data-lang-en>Verify</span></strong> · <span data-lang-es>propietario</span><span data-lang-en>owner</span></div>
+          <div><strong>② <span data-lang-es>Respuesta</span><span data-lang-en>Resolution</span></strong> · <span data-lang-es>propietario</span><span data-lang-en>owner</span></div>
+          <div><strong>✓ <span data-lang-es>Cerrar</span><span data-lang-en>Close</span></strong> · <span data-lang-es>admin</span><span data-lang-en>admin</span></div>
+        </div>
+      </div>`
+  },
+  {
+    title: { es: 'Reporta un incidente con fotos', en: 'Report an incident with photos' },
+    body:  { es: 'Selecciona la unidad, categoría (🚨 Serio, 👁 En observación, 📌 Menor), tipo y descripción. Adjunta hasta 3 fotos — el sistema las comprime automáticamente. El borrador se guarda solo si cierras por accidente.',
+             en: 'Pick the unit, category (🚨 Serious, 👁 Watch, 📌 Minor), type and description. Attach up to 3 photos — the system compresses them automatically. The draft auto-saves if you close by accident.' },
+    duration: 16000,
+    html: `
+      <div class="m-modal">
+        <div style="display:flex;justify-content:space-between;align-items:center"><h3>+ <span data-lang-es>Reportar incidente</span><span data-lang-en>Report incident</span></h3><span style="color:var(--ink2);font-size:1.1rem">×</span></div>
+        <div class="m-banner blue" style="padding:6px 10px"><span>💡</span><span style="font-size:.74rem"><span data-lang-es>Borrador restaurado · </span><span data-lang-en>Draft restored · </span><a style="color:var(--blue);font-weight:700"><span data-lang-es>Limpiar</span><span data-lang-en>Clear</span></a></span></div>
+        <div class="m-row" style="gap:8px"><div style="flex:1"><label class="m-sub" style="font-weight:700"><span data-lang-es>Unidad *</span><span data-lang-en>Unit *</span></label><div class="m-input">Torre A · 1102</div></div><div style="flex:1"><label class="m-sub" style="font-weight:700"><span data-lang-es>Categoría</span><span data-lang-en>Category</span></label><div class="m-input"><span data-lang-es>👁 En observación</span><span data-lang-en>👁 Under watch</span></div></div><div style="flex:1"><label class="m-sub" style="font-weight:700"><span data-lang-es>Tipo *</span><span data-lang-en>Type *</span></label><div class="m-input"><span data-lang-es>🔧 Mantenimiento</span><span data-lang-en>🔧 Maintenance</span></div></div></div>
+        <div><label class="m-sub" style="font-weight:700"><span data-lang-es>Descripción *</span><span data-lang-en>Description *</span></label><div class="m-input" style="height:42px;padding-top:7px"><span data-lang-es>Fuga en ducha del baño principal — requiere plomero antes del próximo check-in.</span><span data-lang-en>Leak in main bathroom shower — needs plumber before next check-in.</span></div></div>
+        <div><label class="m-sub" style="font-weight:700"><span data-lang-es>📷 Fotos (máx 3)</span><span data-lang-en>📷 Photos (max 3)</span></label><div class="m-photos hl"><div class="m-photo">📷</div><div class="m-photo">📷</div><div class="m-photo add">+</div></div></div>
+        <div class="m-row" style="justify-content:flex-end;gap:6px"><button class="m-btn ghost"><span data-lang-es>Cancelar</span><span data-lang-en>Cancel</span></button><button class="m-btn">📨 <span data-lang-es>Enviar</span><span data-lang-en>Submit</span></button></div>
+      </div>`
+  },
+  {
+    title: { es: 'Paso 1 · Verifica el incidente', en: 'Step 1 · Verify the incident' },
+    body:  { es: 'Cuando un incidente abre en tu unidad, debes confirmar los datos del huésped (nombre, ciudad, país) y documentar la acción inmediata que tomaste. El botón "① Verificar" aparece en la tarjeta del incidente.',
+             en: 'When an incident opens on your unit, you must confirm the guest details (name, city, country) and document the immediate action you took. The "① Verify" button appears on the incident card.' },
+    duration: 14000,
+    html: `
+      <div class="m-modal">
+        <div class="m-row" style="justify-content:space-between"><h3>① <span data-lang-es>Verificar incidente</span><span data-lang-en>Verify incident</span></h3><span class="m-pill warn">⚠️ <span data-lang-es>Abierto</span><span data-lang-en>Open</span></span></div>
+        <div class="m-sub">INC-2401 · Apt 1102 · 🔧 <span data-lang-es>Fuga en ducha</span><span data-lang-en>Shower leak</span></div>
+        <div><label class="m-sub" style="font-weight:700"><span data-lang-es>Datos del huésped</span><span data-lang-en>Guest details</span></label></div>
+        <div class="m-row" style="gap:8px"><div style="flex:1"><label class="m-sub"><span data-lang-es>Nombre</span><span data-lang-en>Name</span></label><div class="m-input">Andrés López</div></div><div style="flex:1"><label class="m-sub"><span data-lang-es>Ciudad</span><span data-lang-en>City</span></label><div class="m-input">Bogotá</div></div><div style="flex:1"><label class="m-sub"><span data-lang-es>País</span><span data-lang-en>Country</span></label><div class="m-input">🇨🇴</div></div></div>
+        <div><label class="m-sub" style="font-weight:700"><span data-lang-es>Acción inmediata tomada *</span><span data-lang-en>Immediate action taken *</span></label><div class="m-input hl" style="height:46px;padding-top:7px"><span data-lang-es>Cerré la llave principal y avisé al operador por WhatsApp. Plomero agendado a las 3pm.</span><span data-lang-en>Closed main valve and notified operator via WhatsApp. Plumber scheduled 3pm.</span></div></div>
+        <div class="m-row" style="justify-content:flex-end"><button class="m-btn">✓ <span data-lang-es>Confirmar verificación</span><span data-lang-en>Confirm verification</span></button></div>
+      </div>`
+  },
+  {
+    title: { es: 'Paso 2 · Agrega tu respuesta', en: 'Step 2 · Add your resolution' },
+    body:  { es: 'Después de verificar, agrega cómo se resolvió: contactaste al huésped, coordinaste con el operador, reportaste a Airbnb, etc. Sin este paso el admin no puede cerrar.',
+             en: 'After verifying, add how it was resolved: you contacted the guest, coordinated with the operator, reported to Airbnb, etc. Without this step the admin cannot close.' },
+    duration: 13000,
+    html: `
+      <div class="m-modal">
+        <div class="m-row" style="justify-content:space-between"><h3>② <span data-lang-es>Agregar respuesta</span><span data-lang-en>Add resolution</span></h3><span class="m-pill blue">📝 <span data-lang-es>Verificado</span><span data-lang-en>Verified</span></span></div>
+        <div class="m-sub">INC-2401 · Apt 1102 · 🔧 <span data-lang-es>Fuga en ducha</span><span data-lang-en>Shower leak</span></div>
+        <div class="m-banner ok"><span>✓</span><span><span data-lang-es>Paso 1 completado · 14:32 hoy</span><span data-lang-en>Step 1 done · 14:32 today</span></span></div>
+        <div><label class="m-sub" style="font-weight:700"><span data-lang-es>Resolución del propietario *</span><span data-lang-en>Owner resolution *</span></label><div class="m-input hl" style="height:60px;padding-top:7px"><span data-lang-es>El plomero reemplazó el sello de la ducha. Verifiqué que no hay más fugas. El huésped fue compensado con descuento parcial vía Airbnb. Operador documentó costo: $180,000.</span><span data-lang-en>Plumber replaced shower seal. Verified no more leaks. Guest was compensated with partial Airbnb refund. Operator documented cost: $180,000.</span></div></div>
+        <div class="m-row" style="justify-content:flex-end"><button class="m-btn">📨 <span data-lang-es>Enviar respuesta</span><span data-lang-en>Submit resolution</span></button></div>
+      </div>`
+  },
+  {
+    title: { es: 'El admin lo cierra y todos reciben aviso', en: 'Admin closes it and everyone is notified' },
+    body:  { es: 'Una vez completados ambos pasos, el admin de la comunidad revisa la documentación y cierra el incidente. Tú, el operador, quien reportó y los admins reciben un email automático.',
+             en: 'Once both steps are done, the community admin reviews the documentation and closes the incident. You, the operator, the reporter, and admins all get an automatic email.' },
+    duration: 12000,
+    html: `
+      <div>
+        <div class="m-row" style="justify-content:space-between;margin-bottom:10px"><div class="m-title"><span data-lang-es>Mis Incidentes</span><span data-lang-en>My Incidents</span></div></div>
+        <div class="m-incident-row hl"><div class="m-plate">1102</div><div style="flex:1"><strong style="font-size:.82rem"><span data-lang-es>Fuga en ducha</span><span data-lang-en>Shower leak</span></strong><div class="m-sub">INC-2401 · 🔧 <span data-lang-es>cerrado por María (admin) · hace 2h</span><span data-lang-en>closed by María (admin) · 2h ago</span></div></div><span class="m-pill">✓ <span data-lang-es>Cerrado</span><span data-lang-en>Closed</span></span></div>
+        <div class="m-banner ok" style="margin-top:10px"><span>📧</span><span><span data-lang-es>Email enviado a: tú · operador · admin de comunidad · quien reportó</span><span data-lang-en>Email sent to: you · operator · community admin · reporter</span></span></div>
+        <div class="m-card" style="margin-top:8px;padding:10px"><div class="m-sub" style="font-weight:700"><span data-lang-es>Comentario del admin</span><span data-lang-en>Admin comment</span></div><div style="font-size:.78rem;margin-top:3px"><span data-lang-es>"Documentación completa. Costo dentro del rango aprobado. Caso resuelto."</span><span data-lang-en>"Complete documentation. Cost within approved range. Case resolved."</span></div></div>
+      </div>`
+  },
+  {
+    title: { es: 'Alertas agrupadas por incidente', en: 'Alerts grouped by incident' },
+    body:  { es: 'La campana 🔔 muestra todos los avisos relevantes — agrupados por incidente para que sigas el hilo de cada caso. Las acciones prioritarias (Paso 1, Paso 2) aparecen arriba.',
+             en: 'The bell 🔔 shows all relevant alerts — grouped by incident so you follow each case in one place. Priority actions (Step 1, Step 2) appear at the top.' },
+    duration: 12000,
+    html: `
+      <div>
+        <div class="m-row" style="justify-content:space-between;margin-bottom:10px"><div class="m-row" style="gap:10px"><span style="font-size:1.4rem;position:relative">🔔<span style="position:absolute;top:-2px;right:-4px;background:var(--red);color:#fff;border-radius:99px;font-size:.6rem;padding:1px 5px;font-weight:800">3</span></span><div class="m-title"><span data-lang-es>Alertas</span><span data-lang-en>Alerts</span></div></div></div>
+        <div class="m-banner red hl"><span>⚡</span><span><strong><span data-lang-es>Acciones prioritarias:</span><span data-lang-en>Priority actions:</span></strong> 1 <span data-lang-es>incidente requiere Paso 1</span><span data-lang-en>incident needs Step 1</span> · 1 <span data-lang-es>requiere Paso 2</span><span data-lang-en>needs Step 2</span></span></div>
+        <div class="m-card" style="padding:10px;margin-top:6px"><div class="m-row" style="justify-content:space-between"><strong style="font-size:.82rem"><span data-lang-es>Fuga en ducha · Apt 1102</span><span data-lang-en>Shower leak · Apt 1102</span></strong><span class="m-pill blue">2 <span data-lang-es>nuevos</span><span data-lang-en>new</span></span></div><div class="m-sub" style="margin-top:3px">📝 <span data-lang-es>Verificado · 📨 Email a operador · ⏱️ SLA en 4h</span><span data-lang-en>Verified · 📨 Email to operator · ⏱️ SLA in 4h</span></div></div>
+        <div class="m-card" style="padding:10px;margin-top:6px"><div class="m-row" style="justify-content:space-between"><strong style="font-size:.82rem"><span data-lang-es>Ruido nocturno · Apt 802</span><span data-lang-en>Night noise · Apt 802</span></strong><span class="m-pill gray"><span data-lang-es>leído</span><span data-lang-en>read</span></span></div><div class="m-sub" style="margin-top:3px">✓ <span data-lang-es>Cerrado por admin · ayer</span><span data-lang-en>Closed by admin · yesterday</span></div></div>
+      </div>`
+  },
+  {
+    title: { es: '¡Listo! Ya puedes gestionar incidentes', en: "You're set! You can manage incidents" },
+    body:  { es: 'Reporta con fotos, completa los Pasos 1 y 2 a tiempo, y revisa tus alertas. ¿Más detalles? Abre el tour completo o la guía.',
+             en: 'Report with photos, complete Steps 1 and 2 on time, and watch your alerts. Want more? Open the full tour or the guide.' },
+    duration: 11000,
+    html: `
+      <div class="s-final">
+        <div style="font-size:3rem">⚠️</div>
+        <h2><span data-lang-es>Tour de incidentes completado</span><span data-lang-en>Incidents tour complete</span></h2>
+        <p><span data-lang-es>Cada caso queda documentado con fotos, fechas y responsables. El SLA y los avisos automáticos hacen que nada se quede sin seguimiento.</span><span data-lang-en>Every case is documented with photos, timestamps, and owners. SLA and automatic alerts make sure nothing slips through.</span></p>
+        <div class="row">
+          <a href="/" class="m-btn"><span data-lang-es>Ir al inicio</span><span data-lang-en>Go to login</span></a>
+          <a href="/incidents-full.html" class="m-btn ghost"><span data-lang-es>▶ Tour completo de incidentes (3 min)</span><span data-lang-en>▶ Full incidents tour (3 min)</span></a>
+          <a href="/guide.html" class="m-btn ghost"><span data-lang-es>📖 Guía completa</span><span data-lang-en>📖 Full guide</span></a>
+        </div>
+      </div>`
+  }
+];
+
+const frame = document.getElementById('vframe');
+const stepEl = document.getElementById('vstep');
+const titleEl = document.getElementById('vtitle');
+const bodyEl = document.getElementById('vbody');
+const dotsEl = document.getElementById('vdots');
+const progBar = document.getElementById('vprogbar');
+const playBtn = document.getElementById('vplay');
+const prevBtn = document.getElementById('vprev');
+const nextBtn = document.getElementById('vnext');
+
+let cur = 0, playing = true, sceneStart = 0, raf = null;
+
+function buildScenes(){
+  SCENES.forEach((s,i)=>{
+    const el = document.createElement('div');
+    el.className = 'scene';
+    el.innerHTML = s.html;
+    frame.appendChild(el);
+    const dot = document.createElement('div');
+    dot.className = 'vdot';
+    dot.addEventListener('click', ()=>go(i));
+    dotsEl.appendChild(dot);
+  });
+}
+function render(){
+  document.querySelectorAll('.scene').forEach((el,i)=>el.classList.toggle('show', i===cur));
+  document.querySelectorAll('.vdot').forEach((el,i)=>{
+    el.classList.toggle('cur', i===cur);
+    el.classList.toggle('done', i<cur);
+  });
+  stepEl.textContent = `${cur+1} / ${SCENES.length}`;
+  const lang = document.body.classList.contains('lang-en') ? 'en' : 'es';
+  titleEl.textContent = SCENES[cur].title[lang];
+  bodyEl.textContent = SCENES[cur].body[lang];
+}
+function go(i){
+  cur = (i+SCENES.length)%SCENES.length;
+  sceneStart = performance.now();
+  progBar.style.width = '0%';
+  render();
+}
+function tick(now){
+  if (!playing) { raf = requestAnimationFrame(tick); return; }
+  const dur = SCENES[cur].duration;
+  const elapsed = now - sceneStart;
+  progBar.style.width = Math.min(100, (elapsed/dur)*100) + '%';
+  if (elapsed >= dur) {
+    if (cur === SCENES.length-1) { playing = false; playBtn.textContent = '↻'; }
+    else go(cur+1);
+  }
+  raf = requestAnimationFrame(tick);
+}
+function togglePlay(){
+  playing = !playing;
+  if (!playing) { playBtn.textContent = '▶'; }
+  else {
+    if (cur === SCENES.length-1 && progBar.style.width === '100%') { go(0); }
+    else { sceneStart = performance.now() - (parseFloat(progBar.style.width)/100)*SCENES[cur].duration; }
+    playBtn.textContent = '⏸';
+  }
+}
+playBtn.addEventListener('click', togglePlay);
+prevBtn.addEventListener('click', ()=>go(cur-1));
+nextBtn.addEventListener('click', ()=>go(cur+1));
+document.querySelectorAll('[data-set-lang]').forEach(b=>{
+  b.addEventListener('click', ()=>{
+    const l = b.dataset.setLang;
+    document.body.classList.toggle('lang-es', l==='es');
+    document.body.classList.toggle('lang-en', l==='en');
+    document.querySelectorAll('.lang-btn').forEach(x=>x.classList.toggle('active', x.dataset.setLang===l));
+    render();
+  });
+});
+document.addEventListener('keydown', e=>{
+  if (e.key === 'ArrowRight') go(cur+1);
+  else if (e.key === 'ArrowLeft') go(cur-1);
+  else if (e.key === ' ') { e.preventDefault(); togglePlay(); }
+  else if (e.key === 'Escape') location.href = '/';
+});
+
+const urlLang = new URLSearchParams(location.search).get('lang');
+if (urlLang === 'en' || ((navigator.language||'').toLowerCase().startsWith('en') && urlLang!=='es')) {
+  document.body.classList.remove('lang-es');
+  document.body.classList.add('lang-en');
+  document.querySelectorAll('.lang-btn').forEach(x=>x.classList.toggle('active', x.dataset.setLang==='en'));
+}
+
+buildScenes();
+go(0);
+raf = requestAnimationFrame(tick);
+</script>
+</body>
+</html>
