@@ -7,7 +7,7 @@
 <style>
 :root{
   --green:#0b7f4f;--teal:#0b7f8c;--ink:#17313a;--ink2:#235f72;--bg:#f7f3e9;
-  --card:#fff;--border:rgba(47,79,58,.16);--yellow:#d9b45a;--red:#c62828;
+  --card:#fff;--border:rgba(47,79,58,.16);--yellow:#d9b45a;--red:#c62828;--blue:#1565c0;
   --grad:linear-gradient(135deg,#0b7f4f,#0b7f8c);
 }
 *{box-sizing:border-box;margin:0;padding:0}
@@ -18,8 +18,6 @@ body.lang-es [data-lang-es]{display:inline}
 body.lang-en [data-lang-en]{display:inline}
 
 .stage{position:fixed;inset:0;display:flex;flex-direction:column;background:radial-gradient(1200px 600px at 30% 20%,rgba(11,127,140,.25),transparent 70%),radial-gradient(900px 500px at 80% 80%,rgba(11,127,79,.22),transparent 70%),#0f1d22}
-
-/* Top bar */
 .vbar{display:flex;align-items:center;gap:12px;padding:12px 18px;background:rgba(255,255,255,.06);border-bottom:1px solid rgba(255,255,255,.08);backdrop-filter:blur(8px)}
 .vbar-l{display:flex;align-items:center;gap:10px;color:#fff}
 .logo-mark{width:36px;height:36px;border-radius:11px;background:linear-gradient(135deg,#e7fff7,#d8f2f5);display:flex;align-items:center;justify-content:center;font-weight:900;color:var(--green);font-size:1.05rem;position:relative}
@@ -33,19 +31,18 @@ body.lang-en [data-lang-en]{display:inline}
 .vclose{width:34px;height:34px;border-radius:99px;background:rgba(255,255,255,.08);color:#fff;display:flex;align-items:center;justify-content:center;font-size:1.3rem;text-decoration:none;font-weight:300}
 .vclose:hover{background:rgba(255,255,255,.16)}
 
-/* Stage */
 .vstage{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:18px 18px 0;gap:14px;min-height:0}
-.vframe{position:relative;width:min(820px,94vw);aspect-ratio:16/9;max-height:58vh;border-radius:18px;background:#f7f3e9;box-shadow:0 24px 80px rgba(0,0,0,.45),0 4px 0 rgba(255,255,255,.05) inset;overflow:hidden;border:1px solid rgba(255,255,255,.08)}
-.scene{position:absolute;inset:0;opacity:0;transform:translateY(8px) scale(.98);transition:opacity .55s ease,transform .55s ease;padding:18px;display:flex;flex-direction:column;gap:10px}
+.vframe{position:relative;width:min(900px,94vw);aspect-ratio:16/9;max-height:60vh;border-radius:18px;background:#f7f3e9;box-shadow:0 24px 80px rgba(0,0,0,.45),0 4px 0 rgba(255,255,255,.05) inset;overflow:hidden;border:1px solid rgba(255,255,255,.08)}
+.scene{position:absolute;inset:0;opacity:0;transform:translateY(8px) scale(.98);transition:opacity .55s ease,transform .55s ease;padding:14px;display:flex;flex-direction:column;gap:8px;overflow:hidden}
 .scene.show{opacity:1;transform:translateY(0) scale(1)}
 
-/* Caption */
-.vcaption{width:min(820px,94vw);color:#eef6f9;text-align:center;padding:6px 12px}
-.vstep{display:inline-block;padding:3px 10px;border-radius:99px;background:rgba(255,255,255,.08);font-size:.7rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;margin-bottom:6px;color:#aee2c5}
-.vcaption h2{font-size:1.2rem;font-weight:800;margin-bottom:4px;color:#fff}
-.vcaption p{font-size:.88rem;opacity:.85;max-width:680px;margin:0 auto;line-height:1.5}
+.vcaption{width:min(900px,94vw);color:#eef6f9;text-align:center;padding:6px 12px}
+.vstep{display:inline-flex;align-items:center;gap:8px;padding:3px 10px;border-radius:99px;background:rgba(255,255,255,.08);font-size:.7rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;margin-bottom:6px;color:#aee2c5}
+.email-pill{display:inline-flex;align-items:center;gap:5px;padding:2px 9px;border-radius:99px;background:rgba(95,217,168,.16);color:#5fd9a8;font-size:.66rem;font-weight:700}
+.email-pill.none{background:rgba(255,255,255,.08);color:rgba(255,255,255,.55)}
+.vcaption h2{font-size:1.18rem;font-weight:800;margin-bottom:4px;color:#fff}
+.vcaption p{font-size:.86rem;opacity:.85;max-width:720px;margin:0 auto;line-height:1.5}
 
-/* Controls */
 .vctrls{display:flex;align-items:center;justify-content:center;gap:10px;padding:14px 16px 18px;background:transparent}
 .vdots{display:flex;gap:6px;margin-right:10px}
 .vdot{width:8px;height:8px;border-radius:50%;background:rgba(255,255,255,.22);cursor:pointer;transition:.18s}
@@ -54,75 +51,129 @@ body.lang-en [data-lang-en]{display:inline}
 .vbtn{width:38px;height:38px;border-radius:50%;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.12);color:#fff;font-size:1rem;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:.15s}
 .vbtn:hover{background:rgba(255,255,255,.18)}
 .vbtn.play{width:46px;height:46px;background:linear-gradient(135deg,#0b7f4f,#0b7f8c);border:none;font-size:1.1rem}
-.vbtn.play:hover{filter:brightness(1.1)}
 .vprog{position:absolute;left:0;right:0;bottom:0;height:3px;background:rgba(0,0,0,.06)}
 .vprog-bar{height:100%;background:linear-gradient(90deg,#0b7f4f,#0b7f8c);width:0;transition:width .1s linear}
 
-/* ───── Mock UI styles (echo the real app) ───── */
-.m-card{background:#fff;border:1px solid var(--border);border-radius:14px;padding:14px;box-shadow:0 6px 18px rgba(32,46,38,.06)}
-.m-row{display:flex;gap:10px;align-items:center}
-.m-col{display:flex;flex-direction:column;gap:8px}
-.m-title{font-size:.95rem;font-weight:900;color:#203f2b}
-.m-sub{font-size:.74rem;color:var(--ink2)}
-.m-pill{display:inline-block;padding:3px 10px;border-radius:99px;background:#e8f5ec;color:var(--green);font-size:.7rem;font-weight:800}
-.m-pill.warn{background:#fff8e1;color:#7a5a00}
-.m-pill.red{background:#fde8e8;color:var(--red)}
-.m-btn{padding:8px 14px;border-radius:10px;background:var(--grad);color:#fff;font-size:.78rem;font-weight:800;border:none;display:inline-flex;align-items:center;gap:6px;box-shadow:0 4px 12px rgba(11,127,79,.25)}
-.m-btn.ghost{background:#fff;color:var(--ink);border:1px solid var(--border);box-shadow:none}
-.m-btn.wa{background:#25d366;box-shadow:0 4px 12px rgba(37,211,102,.3)}
-.m-input{padding:8px 10px;border-radius:9px;border:1px solid var(--border);background:#fff;font-size:.78rem;width:100%}
-.m-banner{padding:10px 12px;border-radius:11px;background:linear-gradient(135deg,#fff8e1,#fffde7);border-left:4px solid var(--yellow);font-size:.78rem;color:#7a5a00;display:flex;gap:8px;align-items:center}
-.m-banner.ok{background:#e8f5ec;color:#1b5634;border-left-color:var(--green)}
-.m-plate{display:inline-flex;align-items:center;justify-content:center;width:54px;height:34px;border-radius:7px;background:#17313a;color:#fff;font-weight:900;font-size:.82rem;letter-spacing:.04em;cursor:pointer}
-.m-plate.pulse{animation:pulse 1.4s ease-in-out infinite}
-@keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(95,217,168,.7)}50%{box-shadow:0 0 0 10px rgba(95,217,168,0)}}
-.m-tab{padding:8px 14px;font-size:.78rem;font-weight:700;color:var(--ink2);border-bottom:2px solid transparent;cursor:pointer}
-.m-tab.active{color:var(--green);border-bottom-color:var(--green)}
-.m-list{display:flex;flex-direction:column;gap:8px}
-.m-listing{display:flex;align-items:center;gap:10px;padding:10px;border:1px solid var(--border);border-radius:11px;background:#fff}
-.m-cursor{position:absolute;width:22px;height:22px;pointer-events:none;z-index:30;transition:left .9s cubic-bezier(.4,0,.2,1),top .9s cubic-bezier(.4,0,.2,1);filter:drop-shadow(0 2px 4px rgba(0,0,0,.4))}
-.m-cursor::before{content:'';position:absolute;inset:0;background:#fff;clip-path:polygon(0 0, 0 80%, 28% 60%, 50% 100%, 65% 92%, 42% 50%, 80% 35%);border:1px solid #17313a}
-.m-popup{position:absolute;background:#fff;border-radius:14px;border:1px solid var(--border);padding:14px;box-shadow:0 18px 40px rgba(20,32,26,.18);max-width:320px;font-size:.78rem;z-index:20;animation:popIn .35s ease}
+/* ─── App-faithful mock pieces ─── */
+/* Top bar of in-app */
+.app-bar{display:flex;align-items:center;gap:10px;padding:8px 12px;background:rgba(255,255,255,.94);border-radius:11px;border:1px solid var(--border);box-shadow:0 4px 14px rgba(20,32,26,.06)}
+.app-bar-logo{width:30px;height:30px;border-radius:9px;background:linear-gradient(135deg,#e7fff7,#d8f2f5);display:flex;align-items:center;justify-content:center;font-weight:900;color:var(--green);font-size:.9rem;position:relative}
+.app-bar-logo .wave{font-size:.5rem;position:absolute;right:4px;top:4px;color:var(--teal)}
+.app-bar-tabs{display:flex;gap:2px;flex:1;overflow-x:auto}
+.app-tab{padding:6px 10px;border-radius:8px;font-size:.74rem;font-weight:700;color:var(--ink2);white-space:nowrap;cursor:pointer}
+.app-tab.active{background:#e8f5ec;color:var(--green)}
+.app-bar-r{display:flex;gap:6px;align-items:center}
+.lang-tag{padding:4px 8px;border:1px solid var(--border);border-radius:99px;font-size:.66rem;font-weight:700;background:#fff}
+.signout-btn{padding:5px 10px;border-radius:99px;background:#fff;border:1px solid var(--border);font-size:.7rem;font-weight:700;color:var(--ink);cursor:pointer}
+.user-circle{width:30px;height:30px;border-radius:50%;background:#cfd8dc;color:#fff;font-weight:800;font-size:.78rem;display:flex;align-items:center;justify-content:center}
+
+/* Stat pills row */
+.stat-row{display:grid;grid-template-columns:repeat(5,1fr);gap:6px}
+.stat{background:#fff;border:1.5px solid var(--border);border-radius:11px;padding:8px 10px;text-align:center;cursor:pointer;transition:.15s}
+.stat.active{border-color:var(--green);box-shadow:0 0 0 2px rgba(11,127,79,.12)}
+.stat .n{font-size:1.05rem;font-weight:900;color:#203f2b}
+.stat .l{font-size:.62rem;font-weight:700;color:var(--ink2);margin-top:2px}
+
+/* Listing row */
+.listing-row{display:flex;align-items:center;gap:8px;padding:9px 12px;background:#fff;border:1px solid var(--border);border-radius:12px}
+.plate{display:inline-flex;align-items:center;gap:6px;padding:5px 10px;border-radius:8px;background:#17313a;color:#fff;font-weight:900;font-size:.8rem}
+.plate-tag{font-size:.6rem;color:rgba(255,255,255,.65);font-weight:700}
+.badge{display:inline-flex;align-items:center;gap:3px;padding:3px 8px;border-radius:99px;background:#e3f2fd;color:#0d3c6e;font-size:.68rem;font-weight:700}
+.row-actions{display:flex;gap:5px;margin-left:auto}
+.row-act{padding:5px 10px;border-radius:9px;font-size:.7rem;font-weight:800;border:none;cursor:pointer;display:inline-flex;align-items:center;gap:3px}
+.row-act.report{background:#cfeaf1;color:#0d3c6e}
+.row-act.edit{background:#f9d9b0;color:#7a4d12}
+.row-act.del{background:#f7c8cc;color:#7a1818}
+
+/* Greeting card */
+.greet{display:flex;gap:10px;align-items:center;padding:12px;background:rgba(255,255,255,.85);border:1px solid var(--border);border-radius:12px}
+.greet-av{width:34px;height:34px;border-radius:50%;background:#5b6e75;color:#fff;font-weight:800;font-size:.82rem;display:flex;align-items:center;justify-content:center}
+.greet h4{font-size:.85rem;color:#203f2b;font-weight:900}
+.greet p{font-size:.72rem;color:var(--ink2);margin-top:1px}
+
+/* Page heading */
+.ph-row{display:flex;align-items:center;gap:8px;justify-content:space-between}
+.ph-row h2{font-size:1rem;color:#203f2b;font-weight:900;display:inline-flex;align-items:center;gap:6px}
+.ph-row p{font-size:.7rem;color:var(--ink2);margin-top:1px}
+.add-btn{padding:7px 12px;border-radius:10px;background:var(--grad);color:#fff;font-size:.74rem;font-weight:800;border:none;display:inline-flex;align-items:center;gap:4px;box-shadow:0 4px 12px rgba(11,127,79,.25)}
+
+/* Modal */
+.modal{position:absolute;inset:14px;background:#fff;border-radius:14px;box-shadow:0 18px 40px rgba(20,32,26,.18);padding:14px;display:flex;flex-direction:column;gap:8px;animation:popIn .4s ease;z-index:15;overflow:auto}
 @keyframes popIn{from{opacity:0;transform:translateY(8px) scale(.96)}to{opacity:1;transform:translateY(0) scale(1)}}
-.m-pop-row{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:6px 0;border-bottom:1px dashed var(--border);font-size:.75rem}
-.m-pop-row:last-child{border-bottom:none}
-.m-pop-link{color:var(--teal);font-weight:700;text-decoration:none;display:inline-flex;align-items:center;gap:4px}
-.m-modal{position:absolute;inset:14px;background:#fff;border-radius:14px;box-shadow:0 18px 40px rgba(20,32,26,.18);padding:16px;display:flex;flex-direction:column;gap:10px;animation:popIn .4s ease;z-index:15}
-.m-modal h3{font-size:.95rem;color:#203f2b}
-.m-bell{width:34px;height:34px;border-radius:50%;background:#fff8e1;display:flex;align-items:center;justify-content:center;font-size:1.1rem;position:relative}
-.m-bell-dot{position:absolute;top:2px;right:2px;width:9px;height:9px;border-radius:50%;background:var(--red);border:2px solid #fff}
-.m-google{display:inline-flex;align-items:center;gap:8px;padding:10px 18px;background:#fff;border:1px solid var(--border);border-radius:11px;font-weight:800;color:var(--ink);box-shadow:0 4px 14px rgba(20,32,26,.08)}
-.m-g-icon{width:18px;height:18px;border-radius:50%;background:conic-gradient(from 0deg,#4285f4 0 25%,#34a853 0 50%,#fbbc05 0 75%,#ea4335 0 100%)}
-.m-flag{display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:99px;background:#f0f8fb;font-size:.7rem;font-weight:700;color:var(--ink)}
-.m-toggle{display:inline-flex;align-items:center;gap:6px;font-size:.74rem;color:var(--ink2);font-weight:700}
-.m-toggle .sw{width:30px;height:18px;border-radius:99px;background:var(--green);position:relative}
-.m-toggle .sw::after{content:'';position:absolute;top:2px;right:2px;width:14px;height:14px;border-radius:50%;background:#fff}
+.modal h3{font-size:.92rem;color:#203f2b}
+.input{padding:7px 10px;border-radius:8px;border:1px solid var(--border);background:#fff;font-size:.74rem;width:100%;color:var(--ink)}
+.lab{font-size:.68rem;color:var(--ink2);font-weight:700;text-transform:uppercase;letter-spacing:.04em;margin-bottom:2px}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.btn{padding:7px 12px;border-radius:9px;background:var(--grad);color:#fff;font-size:.72rem;font-weight:800;border:none;cursor:pointer;display:inline-flex;align-items:center;gap:4px;text-decoration:none;box-shadow:0 4px 10px rgba(11,127,79,.2)}
+.btn.ghost{background:#fff;color:var(--ink);border:1px solid var(--border);box-shadow:none}
+.btn.warn{background:linear-gradient(135deg,#d9b45a,#b08838)}
 
-/* Scene-specific layout */
-.s-login{display:flex;align-items:center;justify-content:center;gap:24px;height:100%}
-.s-login .login-card{width:300px;padding:18px;text-align:center;background:#fff;border-radius:18px;border:1px solid var(--border);box-shadow:0 12px 28px rgba(20,32,26,.12)}
-.s-login .login-card .badge{display:inline-block;padding:3px 10px;background:#e8f5ec;color:var(--green);border-radius:99px;font-size:.66rem;font-weight:800;margin-bottom:8px;text-transform:uppercase;letter-spacing:.06em}
-.s-login .login-card h3{font-size:1rem;color:#203f2b;margin-bottom:4px}
-.s-login .login-card p{font-size:.74rem;color:var(--ink2);margin-bottom:14px}
-.s-myunits{display:flex;flex-direction:column;gap:10px}
-.s-final{display:flex;align-items:center;justify-content:center;flex-direction:column;gap:14px;height:100%;text-align:center;padding:20px}
-.s-final h2{font-size:1.5rem;color:#203f2b;font-weight:900}
-.s-final p{font-size:.88rem;color:var(--ink2);max-width:480px}
-.s-final .row{display:flex;gap:10px;flex-wrap:wrap;justify-content:center}
+/* Banners */
+.banner{padding:9px 12px;border-radius:11px;font-size:.74rem;display:flex;gap:8px;align-items:center}
+.banner.warn{background:linear-gradient(135deg,#fff8e1,#fffde7);border-left:4px solid var(--yellow);color:#7a5a00}
+.banner.ok{background:#e8f5ec;color:#1b5634;border-left:4px solid var(--green)}
+.banner.info{background:#e3f2fd;color:#0d3c6e;border-left:4px solid var(--blue)}
+.banner.red{background:#fde8e8;color:#7a1818;border-left:4px solid var(--red)}
 
-/* Highlights / annotations */
+/* Pills */
+.pill{display:inline-block;padding:3px 9px;border-radius:99px;font-size:.66rem;font-weight:800;white-space:nowrap}
+.pill.green{background:#e8f5ec;color:var(--green)}
+.pill.warn{background:#fff8e1;color:#7a5a00}
+.pill.red{background:#fde8e8;color:var(--red)}
+.pill.blue{background:#e3f2fd;color:var(--blue)}
+.pill.gray{background:#eceff1;color:var(--ink2)}
+
+/* Login welcome scene */
+.welcome-card{background:rgba(255,255,255,.94);border-radius:14px;padding:14px;border:1px solid var(--border);box-shadow:0 12px 30px rgba(20,32,26,.12)}
+.welcome-brand{display:flex;align-items:center;gap:10px}
+.welcome-logo{width:48px;height:48px;border-radius:11px;background:linear-gradient(135deg,#1a3c2a,#0b7f4f);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:900;font-size:1rem}
+.welcome-h1{font-size:1.05rem;font-weight:900;color:#203f2b;font-family:Georgia,serif}
+.welcome-sub{font-size:.7rem;color:var(--teal);font-weight:700}
+.hero-quote{padding:8px 12px;border-radius:10px;background:linear-gradient(135deg,#e8f5ec,#f7f3e9);border:1px solid var(--border);font-size:.72rem;color:#203f2b;line-height:1.4}
+.miss-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+.miss-card{padding:8px;border-radius:9px;background:#fff;border:1px solid var(--border);font-size:.66rem;line-height:1.3}
+.miss-icon{display:inline-flex;width:22px;height:22px;border-radius:50%;align-items:center;justify-content:center;margin-bottom:3px;font-size:.85rem}
+.miss-icon.green{background:#e8f5ec}.miss-icon.warn{background:#fff8e1}.miss-icon.peach{background:#ffe6cc}.miss-icon.blue{background:#e3f2fd}
+.miss-card strong{display:block;color:#203f2b;font-size:.7rem;font-weight:800;margin-bottom:1px}
+.rules-block{padding:8px 11px;border-radius:9px;background:rgba(255,255,255,.86);border:1px solid var(--border);font-size:.66rem;color:var(--ink)}
+.rules-block strong{display:block;color:#203f2b;font-weight:800;margin-bottom:3px;font-size:.72rem}
+.rules-block ul{padding-left:14px}
+.first-access{background:#fff8e1;border-left:3px solid var(--yellow);padding:7px 10px;border-radius:8px;font-size:.66rem;color:#7a5a00;line-height:1.4}
+.gbtn{display:inline-flex;align-items:center;gap:8px;padding:8px 14px;background:#fff;border:1px solid var(--border);border-radius:10px;font-weight:800;color:var(--ink);font-size:.74rem;box-shadow:0 4px 12px rgba(20,32,26,.08)}
+.gbtn-icon{width:14px;height:14px;border-radius:50%;background:conic-gradient(from 0deg,#4285f4 0 25%,#34a853 0 50%,#fbbc05 0 75%,#ea4335 0 100%)}
+
+/* Help/topics page */
+.help-search{padding:8px 12px;border-radius:11px;background:rgba(255,255,255,.94);border:1px solid var(--border);font-size:.78rem;color:var(--ink2);display:flex;align-items:center;gap:6px}
+.cat-row{display:flex;gap:6px;flex-wrap:wrap}
+.cat{padding:6px 14px;border-radius:99px;border:1px solid var(--border);background:#fff;font-size:.72rem;font-weight:800;color:var(--ink);display:inline-flex;align-items:center;gap:4px}
+.cat.active{background:var(--grad);color:#fff;border-color:transparent;box-shadow:0 4px 12px rgba(11,127,79,.25)}
+.help-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:6px}
+.help-card{display:flex;gap:8px;align-items:flex-start;padding:9px 11px;border-radius:11px;background:#fff;border:1px solid var(--border);font-size:.7rem}
+.help-icon{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:1rem;flex-shrink:0}
+.help-icon.peach{background:#ffe1d2}.help-icon.warn{background:#fff8e1}.help-icon.blue{background:#e3f2fd}.help-icon.green{background:#e8f5ec}.help-icon.gray{background:#eceff1}
+.help-card strong{display:block;color:#203f2b;font-weight:900;font-size:.74rem;margin-bottom:1px}
+.help-card span{font-size:.64rem;color:var(--ink2);line-height:1.3}
+
 .hl{position:relative}
-.hl::after{content:'';position:absolute;inset:-4px;border:2px solid #5fd9a8;border-radius:14px;pointer-events:none;animation:pulseRing 1.6s ease-in-out infinite}
+.hl::after{content:'';position:absolute;inset:-3px;border:2px solid #5fd9a8;border-radius:14px;pointer-events:none;animation:pulseRing 1.6s ease-in-out infinite}
 @keyframes pulseRing{0%,100%{opacity:.7;transform:scale(1)}50%{opacity:1;transform:scale(1.04)}}
+
+/* Final CTA */
+.s-final{display:flex;align-items:center;justify-content:center;flex-direction:column;gap:12px;height:100%;text-align:center;padding:18px}
+.s-final h2{font-size:1.4rem;color:#203f2b;font-weight:900}
+.s-final p{font-size:.84rem;color:var(--ink2);max-width:520px}
 
 @media(max-width:640px){
   .vstage{padding:10px 10px 0}
   .vframe{aspect-ratio:4/3;max-height:50vh}
   .vcaption h2{font-size:1.05rem}
-  .vcaption p{font-size:.82rem}
+  .vcaption p{font-size:.8rem}
   .vbtn{width:34px;height:34px}
   .vbtn.play{width:42px;height:42px}
-  .scene{padding:12px}
+  .scene{padding:10px}
+  .stat-row{grid-template-columns:repeat(5,1fr)}
+  .miss-grid{grid-template-columns:repeat(2,1fr)}
+  .help-grid{grid-template-columns:1fr}
   .vsub{display:none}
 }
 </style>
@@ -134,7 +185,7 @@ body.lang-en [data-lang-en]{display:inline}
       <div class="logo-mark">K<span class="wave">~</span></div>
       <div>
         <strong>KAI Airbnb Owners</strong><br/>
-        <span class="vsub" data-lang-es>Tour rápido · 90 segundos</span><span class="vsub" data-lang-en>Quick tour · 90 seconds</span>
+        <span class="vsub" data-lang-es>Tour rápido · ~90s · Propietario estándar</span><span class="vsub" data-lang-en>Quick tour · ~90s · Standard owner</span>
       </div>
     </div>
     <div class="vbar-r">
@@ -147,7 +198,10 @@ body.lang-en [data-lang-en]{display:inline}
   <main class="vstage">
     <div class="vframe" id="vframe"></div>
     <div class="vcaption">
-      <div class="vstep" id="vstep">1 / 6</div>
+      <div style="margin-bottom:6px;display:flex;gap:6px;justify-content:center;flex-wrap:wrap">
+        <span class="vstep" id="vstep">1 / 8</span>
+        <span class="email-pill" id="vemail"></span>
+      </div>
       <h2 id="vtitle"></h2>
       <p id="vbody"></p>
     </div>
@@ -166,191 +220,167 @@ body.lang-en [data-lang-en]{display:inline}
 <script>
 const SCENES = [
   {
-    title: { es: 'Ingresa con Google', en: 'Sign in with Google' },
-    body:  { es: 'KAI usa tu cuenta de Google. Sin contraseñas nuevas. La primera vez registras tu apartamento y esperas la aprobación del administrador.',
-             en: 'KAI uses your Google account. No new passwords. First time, you register your apartment and wait for admin approval.' },
+    title: { es: 'Bienvenida e ingreso con Google', en: 'Welcome and Google sign-in' },
+    body:  { es: 'La pantalla de inicio te da contexto: misión de la comunidad, reglas de participación y un aviso sobre el primer acceso. Inicia sesión con Google para continuar.',
+             en: 'The login screen sets context: community mission, engagement rules, and a first-access notice. Sign in with Google to continue.' },
+    duration: 13000,
+    email: { es: 'Sin email todavía', en: 'No email yet', none:true },
+    html: `
+      <div class="welcome-card" style="height:100%;display:flex;flex-direction:column;gap:8px">
+        <div class="welcome-brand"><div class="welcome-logo">M·K</div><div><div class="welcome-h1"><span data-lang-es>Bienvenido a Morros KAI</span><span data-lang-en>Welcome to Morros KAI</span></div><div class="welcome-sub">Morros Kai · Cartagena · Colombia</div></div></div>
+        <div class="hero-quote"><span data-lang-es>"Estamos construyendo una comunidad de propietarios comprometidos con la excelencia operativa, el cuidado de la propiedad y una mejor experiencia para los huéspedes."</span><span data-lang-en>"We are building a community of owners committed to operational excellence, property care, and a better guest experience."</span></div>
+        <div class="miss-grid">
+          <div class="miss-card"><div class="miss-icon green">🏠</div><strong><span data-lang-es>Gestión central</span><span data-lang-en>Centralized mgmt</span></strong><span data-lang-es>Apartamentos, contactos y emails en un lugar.</span><span data-lang-en>Apartments, contacts and emails in one place.</span></div>
+          <div class="miss-card"><div class="miss-icon warn">⚠️</div><strong><span data-lang-es>Reportes claros</span><span data-lang-en>Transparent reports</span></strong><span data-lang-es>Documenta incidentes para que el responsable actúe.</span><span data-lang-en>Document incidents so the right owner acts.</span></div>
+          <div class="miss-card"><div class="miss-icon peach">🤝</div><strong><span data-lang-es>Colaboración</span><span data-lang-en>Collaboration</span></strong><span data-lang-es>Comparte info útil entre propietarios.</span><span data-lang-en>Share useful info between owners.</span></div>
+          <div class="miss-card"><div class="miss-icon blue">📊</div><strong><span data-lang-es>Mejora continua</span><span data-lang-en>Continuous improvement</span></strong><span data-lang-es>Datos y tendencias para servir mejor.</span><span data-lang-en>Data and trends for better service.</span></div>
+        </div>
+        <div class="rules-block"><strong>📌 <span data-lang-es>Reglas de participación</span><span data-lang-en>Engagement rules</span></strong><ul><li><span data-lang-es>Reportes con información clara y verificable.</span><span data-lang-en>Reports with clear, verifiable info.</span></li><li><span data-lang-es>Plataforma para uso respetuoso y constructivo.</span><span data-lang-en>Respectful and constructive use.</span></li></ul></div>
+        <div class="first-access">⏳ <strong><span data-lang-es>Primer acceso:</span><span data-lang-en>First access:</span></strong> <span data-lang-es>al ingresar por primera vez debes registrar al menos una propiedad. Tu solicitud quedará pendiente hasta su aprobación.</span><span data-lang-en>on first sign-in you must register at least one property. Your request stays pending until approval.</span></div>
+        <div style="display:flex;justify-content:center"><div class="gbtn hl"><div class="gbtn-icon"></div><span data-lang-es>Continuar con Google</span><span data-lang-en>Continue with Google</span></div></div>
+      </div>`
+  },
+  {
+    title: { es: 'Registro de propietario', en: 'Owner registration' },
+    body:  { es: 'La primera vez completas un formulario corto: país, WhatsApp con código de país, y los datos del Listing #1 (apartamento, habitaciones, capacidad, operador opcional). Recibirás un correo de confirmación.',
+             en: 'First time, you fill a short form: country, WhatsApp with country code, and Listing #1 details (apt, rooms, guests, optional operator). You\'ll receive a confirmation email.' },
+    duration: 14000,
+    email: { es: '📧 Tú recibes: registration_submitted', en: '📧 You receive: registration_submitted' },
+    html: `
+      <div style="height:100%;display:flex;flex-direction:column;gap:6px">
+        <div class="app-bar"><div class="app-bar-logo">K<span class="wave">~</span></div><div style="flex:1;font-size:.78rem;font-family:Georgia,serif;font-weight:900;color:#203f2b"><span data-lang-es>Morros KAI — Registro de propietario</span><span data-lang-en>Morros KAI — Owner registration</span></div><div class="app-bar-r"><span class="lang-tag">ES</span><button class="signout-btn"><span data-lang-es>Salir</span><span data-lang-en>Sign out</span></button></div></div>
+        <div class="banner info" style="font-size:.7rem"><span>ℹ️</span><span><span data-lang-es>Hola Test Test. Para usar la app debes registrar al menos un apartamento.</span><span data-lang-en>Hi Test Test. To use the app you must register at least one apartment.</span></span></div>
+        <div class="modal" style="position:relative;inset:0;padding:10px;gap:6px;animation:none;flex:1;overflow:hidden">
+          <div style="font-size:.74rem;font-weight:900;color:#203f2b">👤 <span data-lang-es>Tu información de contacto</span><span data-lang-en>Your contact information</span></div>
+          <div class="row" style="gap:8px"><div style="flex:1"><div class="lab">🌎 <span data-lang-es>País</span><span data-lang-en>Country</span> *</div><div class="input">Colombia (+57)</div></div><div style="flex:2"><div class="lab">📞 WhatsApp *</div><div class="input hl">+57 300 000 0000</div><div style="font-size:.62rem;color:var(--ink2);margin-top:2px"><span data-lang-es>Tu WhatsApp con código de país — se usará en todos tus listings</span><span data-lang-en>Your WhatsApp with country code — used for all your listings</span></div></div></div>
+          <div style="font-size:.74rem;font-weight:900;color:#203f2b;margin-top:4px">🏠 Listing #1</div>
+          <div class="row" style="gap:6px"><div style="flex:1"><div class="lab"><span data-lang-es>Apto *</span><span data-lang-en>Apt *</span></div><div class="input">777</div></div><div style="flex:1"><div class="lab"><span data-lang-es>Habs *</span><span data-lang-en>Rooms *</span></div><div class="input">2</div></div><div style="flex:1"><div class="lab"><span data-lang-es>Huéspedes *</span><span data-lang-en>Guests *</span></div><div class="input">4</div></div><div style="flex:2"><div class="lab"><span data-lang-es>Operador (opcional)</span><span data-lang-en>Operator (optional)</span></div><div class="input">—</div></div></div>
+          <div style="display:flex;justify-content:flex-end;margin-top:auto"><button class="btn hl">📨 <span data-lang-es>Enviar registro para aprobación</span><span data-lang-en>Submit registration for approval</span></button></div>
+        </div>
+      </div>`
+  },
+  {
+    title: { es: 'Registro pendiente de aprobación', en: 'Registration pending approval' },
+    body:  { es: 'Tu solicitud queda pendiente. Un admin de la comunidad la revisa. No tienes que hacer nada — recibirás un correo cuando cambie el estado (aprobado o rechazado con motivo).',
+             en: 'Your request goes pending. A community admin reviews it. You don\'t need to do anything — you\'ll get an email when the status changes (approved or denied with reason).' },
     duration: 11000,
+    email: { es: '📧 Próximo: registration_approved / _declined', en: '📧 Next: registration_approved / _declined' },
     html: `
-      <div class="s-login">
-        <div class="login-card">
-          <div class="badge"><span data-lang-es>Comunidad</span><span data-lang-en>Community</span></div>
-          <h3><span data-lang-es>Bienvenido a Morros KAI</span><span data-lang-en>Welcome to Morros KAI</span></h3>
-          <p><span data-lang-es>Propietarios Airbnb · Cartagena 🇨🇴</span><span data-lang-en>Airbnb Owners · Cartagena 🇨🇴</span></p>
-          <div class="m-google hl"><div class="m-g-icon"></div><span data-lang-es>Continuar con Google</span><span data-lang-en>Continue with Google</span></div>
-          <p style="margin-top:10px;font-size:.66rem;color:var(--ink2)"><span data-lang-es>🔒 Solo Google · sin contraseñas</span><span data-lang-en>🔒 Google only · no passwords</span></p>
-        </div>
+      <div style="height:100%;display:flex;flex-direction:column;gap:8px">
+        <div class="app-bar"><div class="app-bar-logo">K<span class="wave">~</span></div><div style="flex:1;font-size:.78rem;font-family:Georgia,serif;font-weight:900;color:#203f2b"><span data-lang-es>Morros KAI — Registro de propietario</span><span data-lang-en>Morros KAI — Owner registration</span></div><div class="app-bar-r"><span class="lang-tag">ES</span><button class="signout-btn"><span data-lang-es>Salir</span><span data-lang-en>Sign out</span></button></div></div>
+        <div style="flex:1;display:flex;align-items:center;justify-content:center;padding:18px"><div class="banner warn hl" style="flex-direction:column;align-items:flex-start;gap:6px;max-width:560px;width:100%;padding:18px"><div style="display:flex;gap:10px;align-items:center"><span style="font-size:1.4rem">⏳</span><strong style="font-size:.95rem;color:#7a5a00"><span data-lang-es>Registro pendiente de aprobación</span><span data-lang-en>Registration pending approval</span></strong></div><div style="font-size:.78rem;color:#7a5a00"><span data-lang-es>Tu solicitud fue recibida. Un admin de la comunidad revisará tu información. Te enviaremos un correo cuando cambie el estado.</span><span data-lang-en>Your request was received. A community admin will review it. We\'ll email you when the status changes.</span></div></div></div>
       </div>`
   },
   {
-    title: { es: 'Mis Unidades — tu pantalla de inicio', en: 'My Units — your home screen' },
-    body:  { es: 'Después de iniciar sesión llegas a "Mis Unidades". El banner amarillo te dice qué necesitas hacer ahora: completar perfil, agregar operador, o reportar un incidente pendiente.',
-             en: 'After signing in you land on "My Units". The yellow banner tells you what to do next: complete profile, add operator, or follow up on a pending incident.' },
-    duration: 13000,
+    title: { es: 'Mis Unidades — pantalla de inicio', en: 'My Units — your home screen' },
+    body:  { es: 'Aprobado. Aterrizas en "Mis Unidades" con un saludo personal y tus 5 píldoras de filtro: Todos · ⚠️ Verificar · 📝 Resolución · ⏳ Admin · ✓ Cerrados. Tu listing aparece con botones rápidos: + Reporte, editar, eliminar.',
+             en: 'Approved. You land on "My Units" with a personal greeting and your 5 filter pills: All · ⚠️ Verify · 📝 Resolution · ⏳ Admin · ✓ Closed. Your listing shows quick buttons: + Report, edit, delete.' },
+    duration: 14000,
+    email: { es: '📧 Tú recibes: registration_approved + listing_created', en: '📧 You receive: registration_approved + listing_created' },
     html: `
-      <div class="s-myunits">
-        <div class="m-row" style="justify-content:space-between">
-          <div><div class="m-title"><span data-lang-es>Mis Unidades</span><span data-lang-en>My Units</span></div><div class="m-sub"><span data-lang-es>2 apartamentos registrados</span><span data-lang-en>2 apartments registered</span></div></div>
-          <button class="m-btn">+ <span data-lang-es>Agregar</span><span data-lang-en>Add</span></button>
+      <div style="height:100%;display:flex;flex-direction:column;gap:8px">
+        <div class="app-bar"><div class="app-bar-logo">K<span class="wave">~</span></div><div class="app-bar-tabs"><div class="app-tab active">🏠 <span data-lang-es>Mis Unidades</span><span data-lang-en>My Units</span></div><div class="app-tab">⚠️ <span data-lang-es>Incidentes</span><span data-lang-en>Incidents</span></div><div class="app-tab">📢 <span data-lang-es>Comunidad</span><span data-lang-en>Community</span></div><div class="app-tab">📊 Dashboard</div><div class="app-tab">🔔</div></div><div class="app-bar-r"><div class="user-circle">T</div></div></div>
+        <div class="greet"><div class="greet-av">T</div><div><h4><span data-lang-es>Buenos días, Test! 👋</span><span data-lang-en>Good morning, Test! 👋</span></h4><p><span data-lang-es>Todas las unidades al día — sin acciones pendientes hoy 🎉</span><span data-lang-en>All units clear — no pending actions today 🎉</span></p></div></div>
+        <div class="ph-row"><div><h2>🏠 <span data-lang-es>Mis Unidades</span><span data-lang-en>My Units</span></h2><p><span data-lang-es>Test Test · 1 unidad · 4 huéspedes en total</span><span data-lang-en>Test Test · 1 unit · 4 total guests</span></p></div><button class="add-btn">+ <span data-lang-es>Agregar unidad</span><span data-lang-en>Add unit</span></button></div>
+        <div class="stat-row hl">
+          <div class="stat active"><div class="n">1</div><div class="l">🏠 <span data-lang-es>Todos</span><span data-lang-en>All</span></div></div>
+          <div class="stat"><div class="n">0</div><div class="l">⚠️ <span data-lang-es>Verificar</span><span data-lang-en>Verify</span></div></div>
+          <div class="stat"><div class="n">0</div><div class="l">📝 <span data-lang-es>Resolución</span><span data-lang-en>Resolution</span></div></div>
+          <div class="stat"><div class="n">0</div><div class="l">⏳ <span data-lang-es>Admin</span><span data-lang-en>Admin</span></div></div>
+          <div class="stat"><div class="n">0</div><div class="l">✓ <span data-lang-es>Cerrados</span><span data-lang-en>Closed</span></div></div>
         </div>
-        <div class="m-banner hl"><span style="font-size:1.1rem">⚡</span><div><strong><span data-lang-es>¿Qué debes hacer ahora?</span><span data-lang-en>What's next?</span></strong> <span data-lang-es>Agrega el WhatsApp del operador en Apt 1102 para activar las notificaciones.</span><span data-lang-en>Add operator WhatsApp on Apt 1102 to enable notifications.</span></div></div>
-        <div class="m-list">
-          <div class="m-listing"><div class="m-plate">1102</div><div style="flex:1"><strong style="font-size:.82rem">Torre A · 1102</strong><div class="m-sub"><span data-lang-es>3 hab · 6 huéspedes</span><span data-lang-en>3 rooms · 6 guests</span></div></div><span class="m-pill"><span data-lang-es>Aprobado</span><span data-lang-en>Approved</span></span></div>
-          <div class="m-listing"><div class="m-plate">802</div><div style="flex:1"><strong style="font-size:.82rem">Torre B · 802</strong><div class="m-sub"><span data-lang-es>2 hab · 4 huéspedes</span><span data-lang-en>2 rooms · 4 guests</span></div></div><span class="m-pill"><span data-lang-es>Aprobado</span><span data-lang-en>Approved</span></span></div>
-        </div>
+        <div style="font-size:.66rem;color:var(--ink2);font-weight:800;text-transform:uppercase;letter-spacing:.06em;margin-top:2px">🏠 <span data-lang-es>Mis listings</span><span data-lang-en>My listings</span></div>
+        <div class="listing-row"><div class="plate">777 <span class="plate-tag">MORROS KAI</span></div><div class="badge">🛏️ 2</div><div class="badge">👥 4</div><div class="row-actions"><button class="row-act report">+ <span data-lang-es>Reporte</span><span data-lang-en>Report</span></button><button class="row-act edit">✏️</button><button class="row-act del">🗑️</button></div></div>
       </div>`
   },
   {
-    title: { es: 'Toca cualquier número de unidad', en: 'Tap any unit number' },
-    body:  { es: 'Las placas oscuras con el número son botones. Ábrelas para ver los contactos: propietario, co-propietarios y operador — con email y WhatsApp en un solo toque.',
-             en: 'The dark plates with the unit number are buttons. Open them to see contacts: owner, co-owners, and operator — with email and WhatsApp one tap away.' },
-    duration: 13000,
+    title: { es: 'Reporta un incidente', en: 'Report an incident' },
+    body:  { es: 'Toca "+ Reporte" en tu listing. Selecciona categoría (🚨 Serio · 👁 En observación · 📌 Menor), tipo, descripción y hasta 3 fotos. Al enviar, todos los involucrados reciben un correo automático.',
+             en: 'Tap "+ Report" on your listing. Pick category (🚨 Serious · 👁 Watch · 📌 Minor), type, description and up to 3 photos. On submit, everyone involved gets an automatic email.' },
+    duration: 14000,
+    email: { es: '📧 incident_new → tú · operador · admins · quien reportó', en: '📧 incident_new → you · operator · admins · reporter' },
     html: `
-      <div style="position:relative;height:100%;display:flex;align-items:flex-start;justify-content:center;padding-top:14px">
-        <div class="m-listing" style="width:60%"><div class="m-plate pulse hl">1102</div><div style="flex:1"><strong style="font-size:.82rem">Torre A · 1102</strong><div class="m-sub">María Rodríguez · <span data-lang-es>Propietaria</span><span data-lang-en>Owner</span></div></div></div>
-        <div class="m-popup" style="left:50%;top:60px;transform:translateX(-50%);min-width:300px">
-          <div style="font-weight:900;color:#203f2b;margin-bottom:8px;font-size:.85rem"><span data-lang-es>📞 Contactos · Apt 1102</span><span data-lang-en>📞 Contacts · Apt 1102</span></div>
-          <div class="m-pop-row"><div><strong>María Rodríguez</strong><br/><span style="color:var(--ink2);font-size:.7rem"><span data-lang-es>Propietaria</span><span data-lang-en>Owner</span></span></div><a class="m-pop-link"><span style="color:#25d366">●</span> WhatsApp</a></div>
-          <div class="m-pop-row"><div><strong>Carlos Pérez</strong><br/><span style="color:var(--ink2);font-size:.7rem"><span data-lang-es>Operador</span><span data-lang-en>Operator</span></span></div><a class="m-pop-link"><span style="color:#25d366">●</span> WhatsApp</a></div>
-          <div class="m-pop-row" style="border:none"><div style="color:var(--ink2);font-size:.7rem"><span data-lang-es>Toca para abrir el chat</span><span data-lang-en>Tap to open chat</span></div></div>
-        </div>
+      <div class="modal">
+        <div class="row" style="justify-content:space-between"><h3>+ <span data-lang-es>Reportar incidente</span><span data-lang-en>Report incident</span></h3><span style="color:var(--ink2);font-size:1.1rem">×</span></div>
+        <div class="row" style="gap:6px"><div style="flex:1"><div class="lab"><span data-lang-es>Unidad *</span><span data-lang-en>Unit *</span></div><div class="input">Apt 777 · Morros KAI</div></div><div style="flex:1"><div class="lab"><span data-lang-es>Fecha</span><span data-lang-en>Date</span></div><div class="input">2026-05-07</div></div><div style="flex:1"><div class="lab"><span data-lang-es>Categoría</span><span data-lang-en>Category</span></div><div class="input">👁 <span data-lang-es>En observación</span><span data-lang-en>Under watch</span></div></div></div>
+        <div class="row" style="gap:6px"><div style="flex:1"><div class="lab"><span data-lang-es>Tipo *</span><span data-lang-en>Type *</span></div><div class="input">🔧 <span data-lang-es>Mantenimiento</span><span data-lang-en>Maintenance</span></div></div></div>
+        <div><div class="lab"><span data-lang-es>Descripción *</span><span data-lang-en>Description *</span></div><div class="input" style="height:42px;padding-top:7px;font-size:.72rem"><span data-lang-es>Fuga en ducha del baño principal — requiere plomero antes del próximo check-in.</span><span data-lang-en>Leak in main bathroom shower — needs plumber before next check-in.</span></div></div>
+        <div><div class="lab">📷 <span data-lang-es>Fotos (máx 3)</span><span data-lang-en>Photos (max 3)</span></div><div class="row" style="gap:5px"><div style="width:46px;height:46px;border-radius:7px;background:linear-gradient(135deg,#bcd4dc,#88abb6);display:flex;align-items:center;justify-content:center;color:#fff;font-size:1.1rem">📷</div><div style="width:46px;height:46px;border-radius:7px;background:linear-gradient(135deg,#bcd4dc,#88abb6);display:flex;align-items:center;justify-content:center;color:#fff;font-size:1.1rem">📷</div><div style="width:46px;height:46px;border-radius:7px;background:#fff;border:2px dashed var(--border);display:flex;align-items:center;justify-content:center;color:var(--ink2);font-size:.7rem;font-weight:800">+</div></div></div>
+        <div class="row" style="justify-content:space-between"><span class="pill warn">⏱️ SLA: 24h</span><button class="btn hl">📨 <span data-lang-es>Enviar</span><span data-lang-en>Submit</span></button></div>
       </div>`
   },
   {
-    title: { es: 'Reporta un incidente en segundos', en: 'Report an incident in seconds' },
-    body:  { es: 'Daño, ruido, mantenimiento, queja del huésped — el operador y el administrador reciben el aviso por correo. Tú haces seguimiento desde la pestaña Incidentes.',
-             en: 'Damage, noise, maintenance, guest complaint — the operator and admin get notified by email. You follow up from the Incidents tab.' },
+    title: { es: 'Tus 2 pasos: ① Verificar y ② Agregar respuesta', en: 'Your 2 steps: ① Verify and ② Add resolution' },
+    body:  { es: 'En la tarjeta del incidente aparecen los botones de acción rápida. Paso 1: confirma huésped y acción inmediata. Paso 2: agrega cómo se resolvió. Cada paso dispara un email a admins (con el operador en copia).',
+             en: 'Quick-action buttons appear on the incident card. Step 1: confirm guest and immediate action. Step 2: add how it was resolved. Each step fires an email to admins (operator in copy).' },
+    duration: 14000,
+    email: { es: '📧 incident_verified → admins · luego incident_resolution_added → admins', en: '📧 incident_verified → admins · then incident_resolution_added → admins' },
+    html: `
+      <div style="height:100%;display:flex;flex-direction:column;gap:8px">
+        <div class="ph-row"><h2>⚠️ <span data-lang-es>Mis Incidentes</span><span data-lang-en>My Incidents</span></h2></div>
+        <div class="listing-row" style="background:#fff8e1;border-color:var(--yellow)">
+          <div class="plate">777</div><div style="flex:1"><strong style="font-size:.78rem">🔧 <span data-lang-es>Fuga en ducha</span><span data-lang-en>Shower leak</span></strong><div style="font-size:.66rem;color:var(--ink2)">INC-2401 · ⚠️ <span data-lang-es>Abierto · necesita Paso 1</span><span data-lang-en>Open · needs Step 1</span></div></div>
+          <button class="row-act" style="background:#fff3e0;color:#bf360c">① <span data-lang-es>Verificar</span><span data-lang-en>Verify</span></button>
+        </div>
+        <div class="listing-row" style="background:#e3f2fd;border-color:#90caf9">
+          <div class="plate">777</div><div style="flex:1"><strong style="font-size:.78rem">🔇 <span data-lang-es>Ruido nocturno</span><span data-lang-en>Night noise</span></strong><div style="font-size:.66rem;color:var(--ink2)">INC-2398 · 📝 <span data-lang-es>Verificado · necesita Paso 2</span><span data-lang-en>Verified · needs Step 2</span></div></div>
+          <button class="row-act hl" style="background:#e8f5ec;color:var(--green)">② <span data-lang-es>Agregar respuesta</span><span data-lang-en>Add resolution</span></button>
+        </div>
+        <div class="banner info" style="font-size:.7rem;margin-top:4px"><span>🔒</span><span><span data-lang-es>Tu acción confirma huésped + acción inmediata (Paso 1) o documenta cómo se resolvió (Paso 2). Sin tus 2 pasos, el admin no puede cerrar.</span><span data-lang-en>Your action confirms guest + immediate action (Step 1) or documents how it was resolved (Step 2). Without your 2 steps, admin cannot close.</span></span></div>
+      </div>`
+  },
+  {
+    title: { es: 'Admin cierra · Alertas + Ayuda + Salir', en: 'Admin closes · Alerts + Help + Sign out' },
+    body:  { es: 'El admin de comunidad revisa y cierra el incidente. Recibes email de cierre. La campana 🔔 muestra todo agrupado por incidente. La pestaña Ayuda tiene una guía interactiva con búsqueda y categorías. El menú "T" arriba a la derecha permite cambiar idioma y cerrar sesión.',
+             en: 'Community admin reviews and closes. You get a closure email. The bell 🔔 shows everything grouped by incident. The Help tab has an interactive guide with search and categories. The "T" menu top-right lets you switch language and sign out.' },
     duration: 16000,
+    email: { es: '📧 incident_resolved → tú · operador · admins · quien reportó', en: '📧 incident_resolved → you · operator · admins · reporter' },
     html: `
-      <div class="m-modal">
-        <div style="display:flex;justify-content:space-between;align-items:center"><h3><span data-lang-es>Reportar incidente</span><span data-lang-en>Report incident</span></h3><span style="color:var(--ink2);font-size:1rem">×</span></div>
-        <div class="m-row" style="gap:8px"><div style="flex:1"><label class="m-sub" style="font-weight:700"><span data-lang-es>Unidad</span><span data-lang-en>Unit</span></label><div class="m-input">Torre A · 1102</div></div><div style="flex:1"><label class="m-sub" style="font-weight:700"><span data-lang-es>Tipo</span><span data-lang-en>Type</span></label><div class="m-input"><span data-lang-es>🔧 Mantenimiento</span><span data-lang-en>🔧 Maintenance</span></div></div></div>
-        <div><label class="m-sub" style="font-weight:700"><span data-lang-es>Descripción</span><span data-lang-en>Description</span></label><div class="m-input" style="height:60px;padding-top:8px"><span data-lang-es>Fuga en la ducha del baño principal — requiere plomero.</span><span data-lang-en>Leak in main bathroom shower — needs plumber.</span></div></div>
-        <div class="m-row" style="justify-content:space-between"><div class="m-pill warn"><span data-lang-es>SLA: 24h</span><span data-lang-en>SLA: 24h</span></div><div class="m-row" style="gap:8px"><button class="m-btn ghost"><span data-lang-es>Cancelar</span><span data-lang-en>Cancel</span></button><button class="m-btn hl"><span data-lang-es>📨 Enviar</span><span data-lang-en>📨 Submit</span></button></div></div>
+      <div style="height:100%;display:flex;flex-direction:column;gap:6px">
+        <div class="help-search">🔎 <span style="opacity:.7"><span data-lang-es>Buscar temas...</span><span data-lang-en>Search topics...</span></span></div>
+        <div class="cat-row"><span class="cat active">🟢 <span data-lang-es>Todo</span><span data-lang-en>All</span></span><span class="cat">📘 <span data-lang-es>Básicos</span><span data-lang-en>Basics</span></span><span class="cat">⚠️ <span data-lang-es>Incidentes</span><span data-lang-en>Incidents</span></span></div>
+        <div class="help-grid hl">
+          <div class="help-card"><div class="help-icon peach">🚀</div><div><strong><span data-lang-es>Primeros pasos</span><span data-lang-en>Getting started</span></strong><span><span data-lang-es>Cómo ingresar y entender tu rol.</span><span data-lang-en>Sign in and understand your role.</span></span></div></div>
+          <div class="help-card"><div class="help-icon warn">⚠️</div><div><strong><span data-lang-es>Reportar incidente</span><span data-lang-en>Reporting incident</span></strong><span><span data-lang-es>Con fotos · general o de unidad.</span><span data-lang-en>With photos · unit or general.</span></span></div></div>
+          <div class="help-card"><div class="help-icon blue">🔄</div><div><strong><span data-lang-es>Ciclo de vida</span><span data-lang-en>Incident lifecycle</span></strong><span><span data-lang-es>3 estados · ① ② cerrar</span><span data-lang-en>3 states · ① ② close</span></span></div></div>
+          <div class="help-card"><div class="help-icon green">🔔</div><div><strong><span data-lang-es>Alertas y notificaciones</span><span data-lang-en>Alerts and notifications</span></strong><span><span data-lang-es>Agrupadas por incidente.</span><span data-lang-en>Grouped by incident.</span></span></div></div>
+        </div>
+        <div class="row" style="justify-content:flex-end;gap:5px;margin-top:auto"><button class="signout-btn"><span data-lang-es>🚪 Cerrar sesión</span><span data-lang-en>🚪 Sign out</span></button></div>
       </div>`
   },
   {
-    title: { es: 'Alertas y notificaciones', en: 'Alerts and notifications' },
-    body:  { es: 'Cuando tu operador resuelve un incidente, cuando hay un nuevo aviso de comunidad, o cuando algo necesita tu atención — todo aparece en Alertas. La campana muestra el conteo en vivo.',
-             en: 'When your operator resolves an incident, when a community notice arrives, or when something needs your attention — it all shows in Alerts. The bell shows a live count.' },
-    duration: 12000,
-    html: `
-      <div class="m-col" style="gap:10px">
-        <div class="m-row" style="justify-content:space-between"><div class="m-row" style="gap:10px"><div class="m-bell hl">🔔<span class="m-bell-dot"></span></div><div><div class="m-title"><span data-lang-es>Alertas</span><span data-lang-en>Alerts</span></div><div class="m-sub"><span data-lang-es>3 nuevas</span><span data-lang-en>3 new</span></div></div></div></div>
-        <div class="m-card" style="padding:10px"><div class="m-row" style="gap:10px"><span style="font-size:1.2rem">✅</span><div style="flex:1"><strong style="font-size:.82rem"><span data-lang-es>Incidente resuelto</span><span data-lang-en>Incident resolved</span></strong><div class="m-sub"><span data-lang-es>Plomero atendió la fuga · Apt 1102 · hace 2h</span><span data-lang-en>Plumber fixed the leak · Apt 1102 · 2h ago</span></div></div></div></div>
-        <div class="m-card" style="padding:10px"><div class="m-row" style="gap:10px"><span style="font-size:1.2rem">📣</span><div style="flex:1"><strong style="font-size:.82rem"><span data-lang-es>Aviso de comunidad</span><span data-lang-en>Community notice</span></strong><div class="m-sub"><span data-lang-es>Mantenimiento de piscina jueves 9am-12pm</span><span data-lang-en>Pool maintenance Thursday 9am-12pm</span></div></div></div></div>
-        <div class="m-card" style="padding:10px"><div class="m-row" style="gap:10px"><span style="font-size:1.2rem">⚠️</span><div style="flex:1"><strong style="font-size:.82rem"><span data-lang-es>SLA por vencer</span><span data-lang-en>SLA approaching</span></strong><div class="m-sub"><span data-lang-es>Quedan 4h para responder al huésped</span><span data-lang-en>4h left to respond to guest</span></div></div></div></div>
-      </div>`
-  },
-  {
-    title: { es: '¡Listo! Empieza ahora', en: "You're set! Start now" },
-    body:  { es: 'Cambia el idioma, edita tu perfil y tu WhatsApp desde el menú superior derecho. ¿Más detalles? Abre la guía completa o el tour largo.',
-             en: 'Switch language, edit your profile and WhatsApp from the top-right menu. Want more? Open the full guide or the long tour.' },
+    title: { es: '¡Listo! Ya conoces el flujo', en: "You're set! You know the flow" },
+    body:  { es: 'Login → registro → Mis Unidades → reporte → Pasos 1 y 2 → admin cierra. Cada cambio dispara emails a quienes deben enterarse. Para más detalles, abre el tour completo o la guía.',
+             en: 'Login → register → My Units → report → Steps 1 & 2 → admin closes. Every change emails the people who need to know. For more, open the full tour or the guide.' },
     duration: 11000,
+    email: { es: 'Resumen completo en el tour completo', en: 'Full summary in the full tour' },
     html: `
       <div class="s-final">
-        <div style="font-size:3rem">🎉</div>
-        <h2><span data-lang-es>Ya conoces lo esencial</span><span data-lang-en>You know the essentials</span></h2>
-        <p><span data-lang-es>Inicia sesión, registra tu unidad, contacta vía WhatsApp con un toque, y reporta cualquier incidente. El equipo administrador y tu operador reciben todo en tiempo real.</span><span data-lang-en>Sign in, register your unit, contact people via WhatsApp in one tap, and report incidents. Admins and your operator get notified in real time.</span></p>
-        <div class="row">
-          <a href="/" class="m-btn"><span data-lang-es>Ir al inicio</span><span data-lang-en>Go to login</span></a>
-          <a href="/intro-full.html" class="m-btn ghost"><span data-lang-es>▶ Tour completo (3 min)</span><span data-lang-en>▶ Full tour (3 min)</span></a>
-          <a href="/guide.html" class="m-btn ghost"><span data-lang-es>📖 Guía completa</span><span data-lang-en>📖 Full guide</span></a>
+        <div style="font-size:2.6rem">🎉</div>
+        <h2><span data-lang-es>Tour completado</span><span data-lang-en>Tour complete</span></h2>
+        <p><span data-lang-es>Eres propietario estándar: gestionas tu unidad, reportas incidentes, completas tus 2 pasos, y el sistema mantiene a todos al día por correo.</span><span data-lang-en>You\'re a standard owner: manage your unit, report incidents, complete your 2 steps, and the system keeps everyone updated by email.</span></p>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center">
+          <a href="/" class="btn"><span data-lang-es>Ir al inicio</span><span data-lang-en>Go to login</span></a>
+          <a href="/intro-full.html" class="btn ghost">▶ <span data-lang-es>Tour completo (3 min)</span><span data-lang-en>Full tour (3 min)</span></a>
+          <a href="/guide.html" class="btn ghost">📖 <span data-lang-es>Guía</span><span data-lang-en>Guide</span></a>
         </div>
       </div>`
   }
 ];
 
-const frame = document.getElementById('vframe');
-const stepEl = document.getElementById('vstep');
-const titleEl = document.getElementById('vtitle');
-const bodyEl = document.getElementById('vbody');
-const dotsEl = document.getElementById('vdots');
-const progBar = document.getElementById('vprogbar');
-const playBtn = document.getElementById('vplay');
-const prevBtn = document.getElementById('vprev');
-const nextBtn = document.getElementById('vnext');
-
-let cur = 0, playing = true, sceneStart = 0, raf = null, lastTick = 0;
-
-function buildScenes(){
-  SCENES.forEach((s,i)=>{
-    const el = document.createElement('div');
-    el.className = 'scene';
-    el.dataset.idx = i;
-    el.innerHTML = s.html;
-    frame.appendChild(el);
-    const dot = document.createElement('div');
-    dot.className = 'vdot';
-    dot.addEventListener('click', ()=>go(i));
-    dotsEl.appendChild(dot);
-  });
-}
-function render(){
-  document.querySelectorAll('.scene').forEach((el,i)=>el.classList.toggle('show', i===cur));
-  document.querySelectorAll('.vdot').forEach((el,i)=>{
-    el.classList.toggle('cur', i===cur);
-    el.classList.toggle('done', i<cur);
-  });
-  stepEl.textContent = `${cur+1} / ${SCENES.length}`;
-  const lang = document.body.classList.contains('lang-en') ? 'en' : 'es';
-  titleEl.textContent = SCENES[cur].title[lang];
-  bodyEl.textContent = SCENES[cur].body[lang];
-}
-function go(i){
-  cur = (i+SCENES.length)%SCENES.length;
-  sceneStart = performance.now();
-  progBar.style.width = '0%';
-  render();
-}
-function tick(now){
-  if (!playing) { lastTick = now; raf = requestAnimationFrame(tick); return; }
-  const dur = SCENES[cur].duration;
-  const elapsed = now - sceneStart;
-  progBar.style.width = Math.min(100, (elapsed/dur)*100) + '%';
-  if (elapsed >= dur) {
-    if (cur === SCENES.length-1) { playing = false; playBtn.textContent = '↻'; }
-    else go(cur+1);
-  }
-  raf = requestAnimationFrame(tick);
-}
-function togglePlay(){
-  playing = !playing;
-  if (!playing) { playBtn.textContent = '▶'; }
-  else {
-    if (cur === SCENES.length-1 && progBar.style.width === '100%') { go(0); }
-    else { sceneStart = performance.now() - (parseFloat(progBar.style.width)/100)*SCENES[cur].duration; }
-    playBtn.textContent = '⏸';
-  }
-}
-playBtn.addEventListener('click', togglePlay);
-prevBtn.addEventListener('click', ()=>go(cur-1));
-nextBtn.addEventListener('click', ()=>go(cur+1));
-document.querySelectorAll('[data-set-lang]').forEach(b=>{
-  b.addEventListener('click', ()=>{
-    const l = b.dataset.setLang;
-    document.body.classList.toggle('lang-es', l==='es');
-    document.body.classList.toggle('lang-en', l==='en');
-    document.querySelectorAll('.lang-btn').forEach(x=>x.classList.toggle('active', x.dataset.setLang===l));
-    render();
-  });
-});
-document.addEventListener('keydown', e=>{
-  if (e.key === 'ArrowRight') go(cur+1);
-  else if (e.key === 'ArrowLeft') go(cur-1);
-  else if (e.key === ' ') { e.preventDefault(); togglePlay(); }
-  else if (e.key === 'Escape') location.href = '/';
-});
-
-const urlLang = new URLSearchParams(location.search).get('lang');
-if (urlLang === 'en' || (navigator.language||'').toLowerCase().startsWith('en') && urlLang!=='es') {
-  document.body.classList.remove('lang-es');
-  document.body.classList.add('lang-en');
-  document.querySelectorAll('.lang-btn').forEach(x=>x.classList.toggle('active', x.dataset.setLang==='en'));
-}
-
-buildScenes();
-go(0);
-raf = requestAnimationFrame(tick);
+const frame=document.getElementById('vframe'),stepEl=document.getElementById('vstep'),emailEl=document.getElementById('vemail'),titleEl=document.getElementById('vtitle'),bodyEl=document.getElementById('vbody'),dotsEl=document.getElementById('vdots'),progBar=document.getElementById('vprogbar'),playBtn=document.getElementById('vplay'),prevBtn=document.getElementById('vprev'),nextBtn=document.getElementById('vnext');
+let cur=0,playing=true,sceneStart=0,raf=null;
+function buildScenes(){SCENES.forEach((s,i)=>{const el=document.createElement('div');el.className='scene';el.innerHTML=s.html;frame.appendChild(el);const dot=document.createElement('div');dot.className='vdot';dot.addEventListener('click',()=>go(i));dotsEl.appendChild(dot);});}
+function render(){document.querySelectorAll('.scene').forEach((el,i)=>el.classList.toggle('show',i===cur));document.querySelectorAll('.vdot').forEach((el,i)=>{el.classList.toggle('cur',i===cur);el.classList.toggle('done',i<cur);});stepEl.textContent=`${cur+1} / ${SCENES.length}`;const lang=document.body.classList.contains('lang-en')?'en':'es';titleEl.textContent=SCENES[cur].title[lang];bodyEl.textContent=SCENES[cur].body[lang];const em=SCENES[cur].email;if(em){emailEl.textContent=em[lang];emailEl.classList.toggle('none',!!em.none);emailEl.style.display='inline-flex';}else{emailEl.style.display='none';}}
+function go(i){cur=(i+SCENES.length)%SCENES.length;sceneStart=performance.now();progBar.style.width='0%';render();}
+function tick(now){if(!playing){raf=requestAnimationFrame(tick);return;}const dur=SCENES[cur].duration;const elapsed=now-sceneStart;progBar.style.width=Math.min(100,(elapsed/dur)*100)+'%';if(elapsed>=dur){if(cur===SCENES.length-1){playing=false;playBtn.textContent='↻';}else go(cur+1);}raf=requestAnimationFrame(tick);}
+function togglePlay(){playing=!playing;if(!playing){playBtn.textContent='▶';}else{if(cur===SCENES.length-1&&progBar.style.width==='100%'){go(0);}else{sceneStart=performance.now()-(parseFloat(progBar.style.width)/100)*SCENES[cur].duration;}playBtn.textContent='⏸';}}
+playBtn.addEventListener('click',togglePlay);prevBtn.addEventListener('click',()=>go(cur-1));nextBtn.addEventListener('click',()=>go(cur+1));
+document.querySelectorAll('[data-set-lang]').forEach(b=>{b.addEventListener('click',()=>{const l=b.dataset.setLang;document.body.classList.toggle('lang-es',l==='es');document.body.classList.toggle('lang-en',l==='en');document.querySelectorAll('.lang-btn').forEach(x=>x.classList.toggle('active',x.dataset.setLang===l));render();});});
+document.addEventListener('keydown',e=>{if(e.key==='ArrowRight')go(cur+1);else if(e.key==='ArrowLeft')go(cur-1);else if(e.key===' '){e.preventDefault();togglePlay();}else if(e.key==='Escape')location.href='/';});
+const urlLang=new URLSearchParams(location.search).get('lang');
+if(urlLang==='en'||((navigator.language||'').toLowerCase().startsWith('en')&&urlLang!=='es')){document.body.classList.remove('lang-es');document.body.classList.add('lang-en');document.querySelectorAll('.lang-btn').forEach(x=>x.classList.toggle('active',x.dataset.setLang==='en'));}
+buildScenes();go(0);raf=requestAnimationFrame(tick);
 </script>
 </body>
 </html>
