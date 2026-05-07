@@ -1,0 +1,1282 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>KAI Portal — Interactive Prototype</title>
+<style>
+:root {
+  --brand:#FF385C; --op:#1a56db; --op-l:#dbeafe; --owner:#0d9488; --owner-l:#ccfbf1;
+  --admin:#7c3aed; --admin-l:#ede9fe; --green:#16a34a; --amber:#d97706; --red:#dc2626;
+  --text:#111827; --muted:#6b7280; --border:#e5e7eb; --bg:#f3f4f6; --card:#fff;
+  --sidebar:220px; --topbar:56px;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--text);font-size:14px;line-height:1.5;}
+button{font-family:inherit;cursor:pointer;}
+
+/* ── LOGIN ── */
+#login{display:flex;align-items:center;justify-content:center;min-height:100vh;background:linear-gradient(135deg,#1e293b 0%,#0f172a 100%);}
+.login-box{background:#fff;border-radius:16px;padding:40px;max-width:540px;width:calc(100% - 40px);box-shadow:0 20px 60px rgba(0,0,0,0.3);}
+.kai-wordmark{font-size:28px;font-weight:900;color:var(--brand);letter-spacing:-1px;margin-bottom:8px;}
+.login-sub{color:var(--muted);margin-bottom:28px;font-size:15px;}
+.path-cards{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:24px;}
+.path-card{border:2px solid var(--border);border-radius:12px;padding:20px;text-align:center;cursor:pointer;transition:all .18s;background:#fff;}
+.path-card:hover{border-color:currentColor;}
+.path-card.selected{border-width:3px;}
+.path-card.owner-card{color:var(--owner);}
+.path-card.owner-card.selected{background:var(--owner-l);border-color:var(--owner);}
+.path-card.op-card{color:var(--op);}
+.path-card.op-card.selected{background:var(--op-l);border-color:var(--op);}
+.path-icon{font-size:36px;margin-bottom:8px;}
+.path-title{font-size:16px;font-weight:700;}
+.path-desc{font-size:12px;color:var(--muted);margin-top:4px;}
+.google-btn{width:100%;padding:12px;background:#fff;border:1.5px solid var(--border);border-radius:8px;font-size:15px;font-weight:600;display:flex;align-items:center;justify-content:center;gap:10px;transition:all .15s;color:var(--text);}
+.google-btn:hover{background:#f9fafb;border-color:#9ca3af;}
+.google-btn:disabled{opacity:.4;cursor:not-allowed;}
+.google-logo{width:20px;height:20px;background:url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="%234285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="%2334A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="%23FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="%23EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>') center/contain no-repeat;}
+.welcome-screen{text-align:center;padding:20px 0;}
+.welcome-icon{font-size:56px;margin-bottom:16px;}
+.welcome-title{font-size:24px;font-weight:800;margin-bottom:8px;}
+.welcome-body{color:var(--muted);margin-bottom:28px;font-size:15px;line-height:1.6;}
+.btn-primary{display:inline-flex;align-items:center;gap:8px;padding:12px 24px;background:var(--brand);color:#fff;border:none;border-radius:8px;font-size:15px;font-weight:700;transition:opacity .15s;}
+.btn-primary:hover{opacity:.9;}
+.btn-primary.blue{background:var(--op);}
+.btn-primary.teal{background:var(--owner);}
+
+/* ── APP SHELL ── */
+#app{display:none;min-height:100vh;}
+#topbar{position:fixed;top:0;left:0;right:0;height:var(--topbar);background:#fff;border-bottom:1px solid var(--border);z-index:100;display:flex;align-items:center;padding:0 20px;gap:16px;}
+.top-logo{font-size:20px;font-weight:900;color:var(--brand);letter-spacing:-0.5px;min-width:80px;}
+.role-switcher{display:flex;background:var(--bg);border-radius:20px;padding:3px;gap:2px;margin:0 auto;}
+.role-btn{padding:5px 16px;border:none;background:none;border-radius:16px;font-size:13px;font-weight:600;color:var(--muted);transition:all .15s;cursor:pointer;}
+.role-btn.active{background:#fff;box-shadow:0 1px 4px rgba(0,0,0,0.12);}
+.role-btn.active.owner{color:var(--owner);}
+.role-btn.active.op{color:var(--op);}
+.role-btn.active.admin{color:var(--admin);}
+.top-right{display:flex;align-items:center;gap:12px;margin-left:auto;}
+.notif-btn{position:relative;background:none;border:none;font-size:20px;padding:4px;color:var(--muted);}
+.notif-badge{position:absolute;top:0;right:0;width:16px;height:16px;background:var(--brand);color:#fff;border-radius:50%;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;}
+.avatar{width:32px;height:32px;border-radius:50%;background:var(--op-l);color:var(--op);font-weight:700;font-size:13px;display:flex;align-items:center;justify-content:center;cursor:pointer;}
+.avatar.owner-av{background:var(--owner-l);color:var(--owner);}
+#sidebar{position:fixed;top:var(--topbar);left:0;width:var(--sidebar);bottom:0;background:#fff;border-right:1px solid var(--border);overflow-y:auto;padding:12px 0;}
+.sidebar-section{padding:8px 12px 4px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);}
+.nav-item{display:flex;align-items:center;gap:10px;padding:9px 16px;border:none;background:none;width:100%;text-align:left;font-size:14px;font-weight:500;color:var(--text);border-radius:0;cursor:pointer;transition:all .12s;}
+.nav-item:hover{background:var(--bg);}
+.nav-item.active{background:var(--op-l);color:var(--op);font-weight:700;}
+.nav-item.active.owner-nav{background:var(--owner-l);color:var(--owner);}
+.nav-item.active.admin-nav{background:var(--admin-l);color:var(--admin);}
+.nav-icon{font-size:16px;width:20px;text-align:center;}
+.nav-badge{margin-left:auto;background:var(--brand);color:#fff;border-radius:10px;font-size:11px;font-weight:700;padding:1px 7px;}
+#main{margin-left:var(--sidebar);margin-top:var(--topbar);padding:28px 24px;min-height:calc(100vh - var(--topbar));}
+.main-inner{max-width:960px;margin:0 auto;}
+
+/* ── CARDS & LAYOUT ── */
+.page-header{margin-bottom:24px;}
+.page-title{font-size:22px;font-weight:800;}
+.page-sub{color:var(--muted);margin-top:4px;}
+.card{background:var(--card);border-radius:12px;border:1px solid var(--border);padding:20px;margin-bottom:16px;box-shadow:0 1px 4px rgba(0,0,0,0.04);}
+.card-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;}
+.card-title{font-size:16px;font-weight:700;}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;}
+.stat-card{background:var(--card);border-radius:12px;border:1px solid var(--border);padding:18px;text-align:center;}
+.stat-val{font-size:28px;font-weight:900;}
+.stat-lbl{font-size:12px;color:var(--muted);margin-top:4px;}
+
+/* ── BADGES ── */
+.badge{display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:12px;font-size:12px;font-weight:700;}
+.badge-green{background:#dcfce7;color:var(--green);}
+.badge-amber{background:#fef3c7;color:var(--amber);}
+.badge-gray{background:#f3f4f6;color:var(--muted);}
+.badge-blue{background:var(--op-l);color:var(--op);}
+.badge-red{background:#fee2e2;color:var(--red);}
+.badge-teal{background:var(--owner-l);color:var(--owner);}
+.phase-badge{display:inline-block;padding:2px 7px;border-radius:8px;font-size:11px;font-weight:800;margin-left:8px;}
+.p0{background:#dcfce7;color:#166534;}
+.p1{background:var(--op-l);color:#1e40af;}
+.p2{background:var(--owner-l);color:#134e4a;}
+.p3,.p4,.p5,.p6,.p7{background:#f3f4f6;color:var(--muted);}
+
+/* ── SLA TIMER ── */
+.sla-timer{display:inline-flex;align-items:center;gap:6px;padding:3px 10px;border-radius:10px;font-size:12px;font-weight:600;}
+.sla-ok{background:#dcfce7;color:var(--green);}
+.sla-warn{background:#fef3c7;color:var(--amber);}
+.sla-urgent{background:#fee2e2;color:var(--red);}
+
+/* ── INBOX ── */
+.inbox-section-title{font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin:20px 0 10px;padding-left:2px;}
+.inbox-item{background:var(--card);border-radius:10px;border:1px solid var(--border);padding:14px 16px;margin-bottom:10px;display:flex;align-items:flex-start;gap:14px;}
+.inbox-item.urgent{border-left:4px solid var(--red);}
+.inbox-item.warn{border-left:4px solid var(--amber);}
+.inbox-icon{font-size:22px;margin-top:2px;}
+.inbox-body{flex:1;}
+.inbox-title{font-weight:700;font-size:14px;margin-bottom:3px;}
+.inbox-desc{font-size:13px;color:var(--muted);}
+.inbox-meta{display:flex;align-items:center;gap:8px;margin-top:8px;flex-wrap:wrap;}
+.inbox-actions{display:flex;gap:8px;margin-top:10px;}
+.waiting-item{background:#fafafa;border-radius:10px;border:1px solid var(--border);padding:12px 16px;margin-bottom:8px;display:flex;align-items:center;gap:12px;color:var(--muted);}
+
+/* ── UNIT CARDS ── */
+.unit-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px;}
+.unit-card{background:var(--card);border-radius:12px;border:1px solid var(--border);padding:18px;cursor:pointer;transition:all .15s;position:relative;overflow:hidden;}
+.unit-card:hover{box-shadow:0 4px 16px rgba(0,0,0,0.1);transform:translateY(-1px);}
+.unit-card-header{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:12px;}
+.unit-apt{font-size:20px;font-weight:900;}
+.unit-comm{font-size:12px;color:var(--muted);margin-top:2px;}
+.unit-owners{display:flex;flex-direction:column;gap:4px;margin:10px 0;}
+.owner-row{display:flex;align-items:center;gap:6px;font-size:13px;}
+.owner-dot{width:8px;height:8px;border-radius:50%;}
+.unit-footer{display:flex;align-items:center;justify-content:space-between;margin-top:12px;padding-top:12px;border-top:1px solid var(--border);}
+.unit-stat{font-size:12px;color:var(--muted);display:flex;align-items:center;gap:4px;}
+
+/* ── TABLES ── */
+table{width:100%;border-collapse:collapse;font-size:14px;}
+th{padding:10px 12px;text-align:left;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);border-bottom:2px solid var(--border);}
+td{padding:11px 12px;border-bottom:1px solid var(--border);vertical-align:middle;}
+tr:last-child td{border-bottom:none;}
+tr:hover td{background:#fafafa;}
+
+/* ── BUTTONS ── */
+.btn{display:inline-flex;align-items:center;gap:6px;padding:8px 16px;border-radius:7px;font-size:13px;font-weight:600;border:none;cursor:pointer;transition:all .15s;}
+.btn-sm{padding:5px 12px;font-size:12px;}
+.btn-outline{background:#fff;border:1.5px solid var(--border);color:var(--text);}
+.btn-outline:hover{border-color:#9ca3af;background:#f9fafb;}
+.btn-green{background:var(--green);color:#fff;}
+.btn-green:hover{opacity:.9;}
+.btn-red{background:var(--red);color:#fff;}
+.btn-red:hover{opacity:.9;}
+.btn-blue{background:var(--op);color:#fff;}
+.btn-blue:hover{opacity:.9;}
+.btn-amber{background:var(--amber);color:#fff;}
+.btn-amber:hover{opacity:.9;}
+.btn-ghost{background:none;border:none;color:var(--muted);font-size:13px;}
+.btn-ghost:hover{color:var(--text);}
+
+/* ── FORMS ── */
+.form-row{margin-bottom:14px;}
+label{display:block;font-size:12px;font-weight:700;margin-bottom:5px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;}
+input[type=text],input[type=email],select,textarea{width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:7px;font-size:14px;font-family:inherit;transition:border-color .15s;background:#fff;}
+input[type=text]:focus,input[type=email]:focus,select:focus,textarea:focus{outline:none;border-color:var(--op);}
+textarea{resize:vertical;min-height:80px;}
+
+/* ── MODALS ── */
+#modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:200;align-items:center;justify-content:center;}
+#modal-overlay.open{display:flex;}
+.modal{background:#fff;border-radius:14px;padding:28px;max-width:520px;width:calc(100% - 40px);max-height:90vh;overflow-y:auto;position:relative;}
+.modal-title{font-size:18px;font-weight:800;margin-bottom:16px;}
+.modal-actions{display:flex;gap:10px;justify-content:flex-end;margin-top:20px;padding-top:16px;border-top:1px solid var(--border);}
+.modal-close{position:absolute;top:16px;right:16px;background:none;border:none;font-size:20px;cursor:pointer;color:var(--muted);line-height:1;}
+
+/* ── FLOW STEPS ── */
+.flow-steps{display:flex;gap:0;margin-bottom:24px;}
+.flow-step-pill{padding:6px 14px;font-size:12px;font-weight:700;border-radius:0;border:1.5px solid var(--border);color:var(--muted);background:#fff;margin-right:-1px;}
+.flow-step-pill:first-child{border-radius:7px 0 0 7px;}
+.flow-step-pill:last-child{border-radius:0 7px 7px 0;}
+.flow-step-pill.active{background:var(--op);color:#fff;border-color:var(--op);z-index:1;position:relative;}
+.flow-step-pill.done{background:var(--green);color:#fff;border-color:var(--green);}
+
+/* ── TIMELINE ── */
+.timeline{display:flex;flex-direction:column;gap:0;}
+.tl-item{display:flex;gap:14px;padding-bottom:18px;}
+.tl-line{display:flex;flex-direction:column;align-items:center;}
+.tl-dot{width:10px;height:10px;border-radius:50%;background:var(--op);flex-shrink:0;margin-top:4px;}
+.tl-connector{flex:1;width:2px;background:var(--border);min-height:14px;margin:4px 0;}
+.tl-body{flex:1;}
+.tl-who{font-size:12px;font-weight:700;color:var(--muted);}
+.tl-what{font-size:13px;margin-top:2px;}
+.tl-when{font-size:11px;color:var(--muted);margin-top:2px;}
+
+/* ── TOAST ── */
+#toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#1e293b;color:#fff;padding:12px 22px;border-radius:10px;font-size:14px;font-weight:600;z-index:300;display:none;box-shadow:0 4px 20px rgba(0,0,0,0.3);}
+
+/* ── ROADMAP ── */
+#roadmap-drawer{position:fixed;right:-480px;top:var(--topbar);bottom:0;width:460px;background:#fff;border-left:1px solid var(--border);z-index:150;overflow-y:auto;transition:right .25s;padding:24px;}
+#roadmap-drawer.open{right:0;}
+.roadmap-toggle{position:fixed;bottom:24px;right:24px;background:var(--text);color:#fff;border:none;border-radius:12px;padding:10px 16px;font-size:13px;font-weight:700;cursor:pointer;z-index:140;box-shadow:0 4px 16px rgba(0,0,0,0.2);}
+.phase-row{border:1px solid var(--border);border-radius:10px;margin-bottom:12px;overflow:hidden;}
+.phase-row-header{display:flex;align-items:center;gap:12px;padding:12px 16px;cursor:pointer;background:var(--bg);}
+.phase-num{width:30px;height:30px;border-radius:50%;font-weight:900;font-size:13px;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.phase-info{flex:1;}
+.phase-name{font-weight:700;font-size:14px;}
+.phase-effort{font-size:12px;color:var(--muted);}
+.phase-status{font-size:18px;}
+.phase-body{padding:12px 16px;border-top:1px solid var(--border);font-size:13px;color:var(--muted);display:none;}
+.phase-row.expanded .phase-body{display:block;}
+
+/* ── HIGHLIGHT BOXES ── */
+.info-box{background:var(--op-l);border-left:4px solid var(--op);border-radius:0 8px 8px 0;padding:12px 14px;font-size:13px;margin:12px 0;}
+.warn-box{background:#fffbeb;border-left:4px solid var(--amber);border-radius:0 8px 8px 0;padding:12px 14px;font-size:13px;margin:12px 0;}
+.phase-locked{background:#f9fafb;border:2px dashed var(--border);border-radius:10px;padding:20px;text-align:center;color:var(--muted);margin:16px 0;}
+
+/* ── TOGGLE ── */
+.toggle-row{display:flex;align-items:center;justify-content:space-between;padding:12px 0;border-bottom:1px solid var(--border);}
+.toggle-row:last-child{border-bottom:none;}
+.toggle-label{font-size:14px;}
+.toggle-sub{font-size:12px;color:var(--muted);}
+.toggle{position:relative;width:40px;height:22px;cursor:pointer;}
+.toggle input{opacity:0;width:0;height:0;}
+.toggle-track{position:absolute;inset:0;border-radius:11px;background:#d1d5db;transition:.2s;}
+.toggle input:checked~.toggle-track{background:var(--owner);}
+.toggle-thumb{position:absolute;top:3px;left:3px;width:16px;height:16px;border-radius:50%;background:#fff;transition:.2s;box-shadow:0 1px 3px rgba(0,0,0,.2);}
+.toggle input:checked~.toggle-thumb{left:21px;}
+
+/* ── RESPONSIVE ── */
+@media(max-width:700px){
+  :root{--sidebar:0px;}
+  #sidebar{display:none;}
+  .grid2,.grid3{grid-template-columns:1fr;}
+  .path-cards{grid-template-columns:1fr;}
+}
+</style>
+</head>
+<body>
+
+<!-- ══════════ LOGIN ══════════ -->
+<div id="login">
+  <div class="login-box">
+    <div id="login-path">
+      <div class="kai-wordmark">KAI</div>
+      <div class="login-sub">Property management — structured, tracked, permanent.</div>
+      <div class="path-cards">
+        <div class="path-card owner-card" id="card-owner" onclick="selectPath('owner')">
+          <div class="path-icon">🏠</div>
+          <div class="path-title">I'm an Owner</div>
+          <div class="path-desc">Manage my properties and track my operator</div>
+        </div>
+        <div class="path-card op-card" id="card-op" onclick="selectPath('operator')">
+          <div class="path-icon">🏢</div>
+          <div class="path-title">I'm an Operator</div>
+          <div class="path-desc">Manage my portfolio across communities</div>
+        </div>
+      </div>
+      <button class="google-btn" id="google-btn" disabled onclick="doLogin()">
+        <div class="google-logo"></div> Continue with Google
+      </button>
+      <div style="margin-top:16px;text-align:center;font-size:12px;color:var(--muted);">Demo: click a card above, then Continue with Google</div>
+    </div>
+    <div id="login-owner-welcome" style="display:none;" class="welcome-screen">
+      <div class="welcome-icon">🏡</div>
+      <div class="welcome-title">Welcome to KAI</div>
+      <div class="welcome-body">Your properties, your operator, your incidents — all in one place. Permanent records, clear accountability, no more WhatsApp chaos.</div>
+      <button class="btn-primary teal" onclick="enterApp('owner')">Enter KAI →</button>
+    </div>
+    <div id="login-op-welcome" style="display:none;" class="welcome-screen">
+      <div class="welcome-icon">📊</div>
+      <div class="welcome-title">Welcome to KAI Operator</div>
+      <div class="welcome-body">Your full portfolio — across every community, every owner, every unit — in one dashboard. Structured workflows replace WhatsApp group chaos.</div>
+      <button class="btn-primary blue" onclick="enterApp('operator')">Enter KAI →</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ APP SHELL ══════════ -->
+<div id="app">
+  <!-- TOP BAR -->
+  <div id="topbar">
+    <div class="top-logo">KAI</div>
+    <div class="role-switcher" id="role-switcher">
+      <button class="role-btn owner" onclick="switchRole('owner')">Owner</button>
+      <button class="role-btn op" onclick="switchRole('operator')">Operator</button>
+      <button class="role-btn admin" onclick="switchRole('admin')">Admin</button>
+    </div>
+    <div class="top-right">
+      <button class="notif-btn" onclick="nav('own-inbox')">🔔<span class="notif-badge" id="notif-count">3</span></button>
+      <div class="avatar owner-av" id="top-avatar" onclick="nav('own-profile')">BP</div>
+    </div>
+  </div>
+  <!-- SIDEBAR -->
+  <nav id="sidebar"></nav>
+  <!-- MAIN CONTENT -->
+  <main id="main"><div class="main-inner" id="content"></div></main>
+</div>
+
+<!-- ══════════ MODAL ══════════ -->
+<div id="modal-overlay" onclick="closeModal(event)">
+  <div class="modal" id="modal-box"></div>
+</div>
+
+<!-- ══════════ TOAST ══════════ -->
+<div id="toast"></div>
+
+<!-- ══════════ ROADMAP DRAWER ══════════ -->
+<button class="roadmap-toggle" onclick="toggleRoadmap()">📋 Roadmap</button>
+<div id="roadmap-drawer">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;">
+    <div style="font-size:18px;font-weight:800;">KAI Roadmap</div>
+    <button class="btn-ghost" onclick="toggleRoadmap()">✕ Close</button>
+  </div>
+  <div id="roadmap-content"></div>
+</div>
+
+<script>
+// ══════════════════════════════════════════════════════════
+// DATA
+// ══════════════════════════════════════════════════════════
+const UNITS = [
+  { id:'kai317', apt:'317', community:'Morros KAI', operatorStatus:'active',
+    operatorName:'Luxury Rentals', operatorSince:'Oct 2025',
+    owners:[{name:'Brian Pause',role:'payout'},{name:'Martha Pause',role:'calendar'}],
+    openRequests:2, pendingApprovals:1, nextEvent:'Checkout Jun 21',
+    contract:{fee:'15%',threshold:'$150.000 COP',notice:'30 days',platforms:'Airbnb, VRBO',term:'Month-to-month'} },
+  { id:'zoe204', apt:'204', community:'Morros Zoe', operatorStatus:'active',
+    operatorName:'Luxury Rentals', operatorSince:'Nov 2025',
+    owners:[{name:'Carlos Mejía',role:'payout'}],
+    openRequests:0, pendingApprovals:0, nextEvent:'Check-in Jul 3' },
+  { id:'zoe311', apt:'311', community:'Morros Zoe', operatorStatus:'pending',
+    operatorName:'Luxury Rentals', operatorSince:null,
+    owners:[{name:'Ana García',role:'payout'}],
+    openRequests:0, pendingApprovals:1, nextEvent:null },
+  { id:'eco108', apt:'108', community:'Morros ECO', operatorStatus:'active',
+    operatorName:'Luxury Rentals', operatorSince:'Dec 2025',
+    owners:[{name:'Luis Fernández',role:'payout'},{name:'Rosa Fernández',role:'calendar'}],
+    openRequests:1, pendingApprovals:0, nextEvent:'Cleaning Jul 1' },
+];
+
+const INBOX = [
+  { id:'i1',type:'contract',icon:'📄',unit:'Morros KAI 317',title:'Contract amendment to review',
+    desc:'Luxury Rentals proposes raising repair threshold from $150K to $200K COP.',
+    elapsed:'2d 4h',remaining:'21h',urgency:'warn',action:'Review Contract',actionFn:'openContractModal' },
+  { id:'i2',type:'repair',icon:'🔧',unit:'Morros KAI 317',title:'Repair approval: AC refrigerant leak',
+    desc:'Estimated cost: $300.000 COP. Guests currently in unit.',
+    elapsed:'4h',remaining:'20h',urgency:'ok',action:'Approve / Reject',actionFn:'openRepairModal' },
+  { id:'i3',type:'pricing',icon:'💰',unit:'Morros KAI 317',title:'Pricing proposal: 345K → 400K base',
+    desc:'+16% increase. Ranking impact: top 20 → top 80. 48h to respond.',
+    elapsed:'23h',remaining:'1h',urgency:'urgent',action:'Review & Respond',actionFn:'openPricingModal' },
+];
+const WAITING = [
+  { id:'w1',icon:'🧹',unit:'Morros KAI 317',title:'Cleaning after owner visit — in progress',
+    desc:'Assigned to Mary. Scheduled Jun 21, 10am.',elapsed:'1h' },
+];
+const FYI_ITEMS = [
+  { id:'f1',icon:'📅',unit:'Morros KAI 317',title:'Date block Jun 18–20 confirmed',
+    desc:'Cleaning scheduled Jun 21 at 10am before next guest check-in.' },
+];
+
+const STAFF = [
+  {id:'s1',name:'Paula Ramírez',role:'Supervision',email:'paula@luxuryrentals57.com',status:'active'},
+  {id:'s2',name:'Jailin Pérez',role:'Cleaning',email:'jailin@luxuryrentals57.com',status:'active'},
+  {id:'s3',name:'Camila del Valle',role:'Logistics',email:'camila@luxuryrentals57.com',status:'active'},
+  {id:'s4',name:'Andrea Trespalacios',role:'Guest Relations',email:'andrea@luxuryrentals57.com',status:'active'},
+  {id:'s5',name:'Juan Carlos Muñoz',role:'Logistics',email:'juan@luxuryrentals57.com',status:'active'},
+];
+
+const PHASES = [
+  {num:0,name:'Login Split, Role Switch & Owner Opt-Out',effort:'Medium',sessions:'3–5',status:'✅',color:'#16a34a',
+   items:['Login gate: I\'m an Owner / I\'m an Operator cards','Operator welcome screen variant','Role switch toggle in profile','operator role added to server','Global admins auto-get operator role','Admin panel: grant/revoke operator role','Owner community opt-out per-community toggle']},
+  {num:1,name:'Operator Identity & Unit Linking',effort:'Very High',sessions:'8–11',status:'🔨',color:'#1a56db',
+   items:['Operator business profile CRUD','Staff roster CRUD','Unit linking: propose/accept/decline flow','Payout Owner + Calendar Owner model','Management contract propose/confirm/amend','Status badges: No Operator / Pending / Active','Contract terms drive repair threshold & SLA']},
+  {num:2,name:'Operator Dashboard (Multi-Community)',effort:'Medium–High',sessions:'4–6',status:'📋',color:'#0d9488',
+   items:['Cross-community unit view','Attention-first sort','Community filter','Staff daily assignment list','Route operator to dashboard on login']},
+  {num:3,name:'Service Requests & Work Orders',effort:'Very High',sessions:'8–12',status:'📅',color:'#6b7280',
+   items:['Create/track/close maintenance requests','Owner approval gate when cost > 0','Before/after photos + invoice upload','Status timeline (mirrors incident audit log)','Owner notified at every status change','Link service request to incident']},
+  {num:4,name:'Scheduling & Owner Blocks',effort:'High',sessions:'5–7',status:'📅',color:'#6b7280',
+   items:['Owner requests date blocks (personal/family/maintenance)','Operator confirms and coordinates cleaning','Conflict detection: block vs. service request','Calendar view per unit (week/month grid)','Manual booking entry until iCal/API']},
+  {num:5,name:'Pricing Log & Bidirectional Confirmation',effort:'High',sessions:'6–8',status:'📅',color:'#6b7280',
+   items:['Structured pricing record: base rate, weekend rate, discounts','Either party proposes changes','Other party must confirm before change takes effect','Counter-proposal support','Named season rules: peak periods with multiplier','Immutable decision log','Applied to Airbnb confirmation step']},
+  {num:6,name:'Documents & Compliance',effort:'Medium',sessions:'3–4',status:'📅',color:'#6b7280',
+   items:['Document folder per unit: RNT, utilities, insurance, Airbnb assets','Invoices auto-archived on service request close','Quarterly summary: occupancy + service costs']},
+  {num:7,name:'Staff Task Management',effort:'Medium',sessions:'3–5',status:'📅',color:'#6b7280',
+   items:['Staff-scoped mobile view: daily assignments','Staff updates: Arrived / In Progress / Done + photo','Operator real-time team overview (polling)','Full unit history visible to new staff from day one']},
+];
+
+// ══════════════════════════════════════════════════════════
+// STATE
+// ══════════════════════════════════════════════════════════
+const S = { role:'owner', view:'own-inbox', unit:null, loginPath:null, linkStep:1 };
+
+// ══════════════════════════════════════════════════════════
+// LOGIN
+// ══════════════════════════════════════════════════════════
+function selectPath(p) {
+  S.loginPath = p;
+  document.getElementById('card-owner').classList.toggle('selected', p==='owner');
+  document.getElementById('card-op').classList.toggle('selected', p==='operator');
+  document.getElementById('google-btn').disabled = false;
+}
+function doLogin() {
+  document.getElementById('login-path').style.display = 'none';
+  if (S.loginPath==='owner') document.getElementById('login-owner-welcome').style.display='block';
+  else document.getElementById('login-op-welcome').style.display='block';
+}
+function enterApp(role) {
+  S.role = role;
+  document.getElementById('login').style.display = 'none';
+  document.getElementById('app').style.display = 'block';
+  updateShell();
+  if (role==='owner') nav('own-inbox');
+  else nav('op-dashboard');
+}
+
+// ══════════════════════════════════════════════════════════
+// SHELL
+// ══════════════════════════════════════════════════════════
+function updateShell() {
+  // role switcher active state
+  document.querySelectorAll('.role-btn').forEach(b => {
+    b.classList.toggle('active', b.classList.contains(S.role==='admin'?'admin':S.role==='owner'?'owner':'op'));
+    if (b.classList.contains('active') && S.role==='owner') b.classList.add('owner');
+    if (b.classList.contains('active') && S.role==='operator') b.classList.add('op');
+  });
+  // avatar
+  const av = document.getElementById('top-avatar');
+  if (S.role==='operator') { av.textContent='LR'; av.className='avatar'; }
+  else if (S.role==='admin') { av.textContent='GA'; av.className='avatar'; av.style.background='var(--admin-l)'; av.style.color='var(--admin)'; }
+  else { av.textContent='BP'; av.className='avatar owner-av'; }
+
+  renderSidebar();
+}
+function switchRole(r) {
+  S.role = r;
+  updateShell();
+  if (r==='owner') nav('own-inbox');
+  else if (r==='operator') nav('op-dashboard');
+  else nav('admin-operators');
+}
+
+function renderSidebar() {
+  const sb = document.getElementById('sidebar');
+  const navClass = S.role==='owner'?'owner-nav':S.role==='admin'?'admin-nav':'';
+  const activeCount = INBOX.length;
+  let html = '';
+  if (S.role==='owner') {
+    html = `
+      <div class="sidebar-section">Owner</div>
+      ${navItem('own-inbox','📥','Attention Inbox',navClass,activeCount)}
+      ${navItem('own-units','🏠','My Units',navClass)}
+      ${navItem('own-profile','👤','Profile & Settings',navClass)}
+      <div class="sidebar-section" style="margin-top:16px;">Preview</div>
+      ${navItem('own-pricing','💰','Pricing',navClass,'P5')}
+      ${navItem('own-blocks','📅','Date Blocks',navClass,'P4')}`;
+  } else if (S.role==='operator') {
+    html = `
+      <div class="sidebar-section">Operator</div>
+      ${navItem('op-dashboard','📊','Dashboard',navClass)}
+      ${navItem('op-portfolio','🏘','My Portfolio',navClass)}
+      ${navItem('op-link','🔗','Link a Unit',navClass)}
+      ${navItem('op-staff','👥','Staff Roster',navClass)}
+      ${navItem('op-contract','📋','Contract',navClass)}
+      ${navItem('op-bizprofile','🏢','Business Profile',navClass)}
+      <div class="sidebar-section" style="margin-top:16px;">Preview</div>
+      ${navItem('op-service','🔧','Service Requests',navClass,'P3')}
+      ${navItem('op-pricing','💰','Pricing',navClass,'P5')}
+      ${navItem('op-docs','📁','Documents',navClass,'P6')}
+      ${navItem('op-tasks','📱','Staff Tasks',navClass,'P7')}`;
+  } else {
+    html = `
+      <div class="sidebar-section">Admin</div>
+      ${navItem('admin-operators','🛡','Operator Roles',navClass)}
+      ${navItem('admin-community','🏘','Communities',navClass)}`;
+  }
+  sb.innerHTML = html;
+}
+function navItem(view,icon,label,cls,badge='') {
+  const active = S.view===view ? `active ${cls}` : '';
+  const badgeHtml = badge ? (isNaN(badge)?`<span class="phase-badge p${badge.replace('P','')}">${badge}</span>`:`<span class="nav-badge">${badge}</span>`) : '';
+  return `<button class="nav-item ${active}" onclick="nav('${view}')">`+
+    `<span class="nav-icon">${icon}</span>${label}${badgeHtml}</button>`;
+}
+function nav(view, unit=null) {
+  S.view = view;
+  if (unit) S.unit = unit;
+  renderSidebar();
+  document.getElementById('content').innerHTML = renderView(view);
+  window.scrollTo(0,0);
+}
+
+// ══════════════════════════════════════════════════════════
+// VIEWS
+// ══════════════════════════════════════════════════════════
+function renderView(v) {
+  const views = {
+    'own-inbox': viewOwnerInbox,
+    'own-units': viewOwnerUnits,
+    'own-unit': viewOwnerUnit,
+    'own-profile': viewOwnerProfile,
+    'own-pricing': viewOwnerPricing,
+    'own-blocks': viewOwnerBlocks,
+    'op-dashboard': viewOpDashboard,
+    'op-portfolio': viewOpPortfolio,
+    'op-link': viewOpLink,
+    'op-staff': viewOpStaff,
+    'op-contract': viewOpContract,
+    'op-bizprofile': viewOpBizProfile,
+    'op-service': viewOpService,
+    'op-pricing': viewOpPricing,
+    'op-docs': viewOpDocs,
+    'op-tasks': viewOpTasks,
+    'admin-operators': viewAdminOperators,
+    'admin-community': viewAdminCommunity,
+  };
+  return (views[v] || (() => `<div class="card"><p>View not found: ${v}</p></div>`))();
+}
+
+// ─── OWNER: INBOX ───────────────────────────────────────
+function viewOwnerInbox() {
+  const items = INBOX.map(i => {
+    const sla = i.urgency==='urgent'?'sla-urgent':i.urgency==='warn'?'sla-warn':'sla-ok';
+    return `<div class="inbox-item ${i.urgency}" id="iitem-${i.id}">
+      <div class="inbox-icon">${i.icon}</div>
+      <div class="inbox-body">
+        <div class="inbox-title">${i.title}</div>
+        <div class="inbox-desc">${i.desc}</div>
+        <div class="inbox-meta">
+          <span class="badge badge-gray">📍 ${i.unit}</span>
+          <span class="sla-timer ${sla}">⏱ ${i.elapsed} elapsed · ${i.remaining} remaining</span>
+        </div>
+        <div class="inbox-actions">
+          <button class="btn btn-blue btn-sm" onclick="${i.actionFn}('${i.id}')">${i.action}</button>
+          <button class="btn btn-outline btn-sm" onclick="dismissItem('${i.id}')">Dismiss</button>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+
+  const waiting = WAITING.map(w => `<div class="waiting-item">
+    <span style="font-size:20px;">${w.icon}</span>
+    <div style="flex:1;"><div style="font-weight:600;color:var(--text);">${w.title}</div>
+    <div style="font-size:12px;">${w.desc}</div></div>
+    <span class="badge badge-gray">${w.elapsed}</span>
+  </div>`).join('');
+
+  const fyi = FYI_ITEMS.map(f => `<div class="waiting-item">
+    <span style="font-size:20px;">${f.icon}</span>
+    <div><div style="font-weight:600;color:var(--text);">${f.title}</div>
+    <div style="font-size:12px;">${f.desc}</div></div>
+  </div>`).join('');
+
+  return `<div class="page-header">
+    <div class="page-title">Attention Inbox <span class="phase-badge p0">P0</span></div>
+    <div class="page-sub">Items where your response is needed. Sorted by SLA urgency.</div>
+  </div>
+  <div class="inbox-section-title">🎯 Ball in your court — ${INBOX.length} items</div>
+  ${items}
+  <div class="inbox-section-title">⏳ Waiting on operator</div>
+  ${waiting}
+  <div class="inbox-section-title">📢 FYI</div>
+  ${fyi}`;
+}
+
+// ─── OWNER: MY UNITS ─────────────────────────────────────
+function viewOwnerUnits() {
+  const myUnits = [UNITS[0]]; // owner sees only their unit
+  const cards = myUnits.map(u => unitCard(u, 'own-unit')).join('');
+  return `<div class="page-header">
+    <div class="page-title">My Units <span class="phase-badge p0">P0</span></div>
+    <div class="page-sub">Your registered properties and their management status.</div>
+  </div>
+  <div class="unit-grid">${cards}</div>
+  <div class="card" style="margin-top:8px;border:2px dashed var(--border);text-align:center;padding:28px;">
+    <div style="font-size:28px;margin-bottom:8px;">➕</div>
+    <div style="font-weight:700;margin-bottom:4px;">Add another property</div>
+    <div style="color:var(--muted);font-size:13px;margin-bottom:14px;">Register a new unit to start receiving management and incident tracking.</div>
+    <button class="btn btn-outline" onclick="toast('Registration flow opens here — Phase 0')">Register Property</button>
+  </div>`;
+}
+function unitCard(u, clickView) {
+  const statusBadge = u.operatorStatus==='active'?'<span class="badge badge-green">🟢 Actively Managed</span>':
+    u.operatorStatus==='pending'?'<span class="badge badge-amber">🟡 Pending</span>':
+    '<span class="badge badge-gray">⚫ No Operator</span>';
+  const owners = u.owners.map(o =>
+    `<div class="owner-row"><div class="owner-dot" style="background:${o.role==='payout'?'var(--owner)':'var(--op)'}"></div>
+    ${o.name} <span class="badge ${o.role==='payout'?'badge-teal':'badge-blue'}" style="font-size:10px;padding:1px 6px;">${o.role==='payout'?'Payout':'Calendar'}</span></div>`
+  ).join('');
+  const opInfo = u.operatorStatus==='active'?`<div style="font-size:12px;color:var(--muted);margin-top:6px;">📋 ${u.operatorName} · since ${u.operatorSince}</div>`:'';
+  const alerts = (u.pendingApprovals>0||u.openRequests>0)?`<div style="font-size:12px;color:var(--amber);margin-top:6px;">⚠️ ${u.pendingApprovals} pending · ${u.openRequests} open requests</div>`:'';
+  return `<div class="unit-card" onclick="nav('${clickView}',UNITS.find(x=>x.id==='${u.id}'))">
+    <div class="unit-card-header">
+      <div><div class="unit-apt">Apt ${u.apt}</div><div class="unit-comm">${u.community}</div></div>
+      ${statusBadge}
+    </div>
+    <div class="unit-owners">${owners}</div>
+    ${opInfo}${alerts}
+    <div class="unit-footer">
+      <div class="unit-stat">${u.nextEvent?'📆 '+u.nextEvent:'—'}</div>
+      <button class="btn btn-outline btn-sm">View →</button>
+    </div>
+  </div>`;
+}
+
+// ─── OWNER: UNIT DETAIL ──────────────────────────────────
+function viewOwnerUnit() {
+  const u = S.unit || UNITS[0];
+  const owners = u.owners.map(o =>
+    `<div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border);">
+      <div style="width:36px;height:36px;border-radius:50%;background:${o.role==='payout'?'var(--owner-l)':'var(--op-l)'};display:flex;align-items:center;justify-content:center;font-weight:700;color:${o.role==='payout'?'var(--owner)':'var(--op)'};">${o.name[0]}</div>
+      <div><div style="font-weight:700;">${o.name}</div><div style="font-size:12px;color:var(--muted);">${o.role==='payout'?'Payout Owner — financial approval rights':'Calendar Owner — sees calendar & threads'}</div></div>
+      <span class="badge ${o.role==='payout'?'badge-teal':'badge-blue'}" style="margin-left:auto;">${o.role==='payout'?'Payout':'Calendar'}</span>
+    </div>`
+  ).join('');
+
+  return `<div style="margin-bottom:16px;">
+    <button class="btn btn-ghost" onclick="nav('own-units')">← My Units</button>
+  </div>
+  <div class="page-header">
+    <div class="page-title">Apt ${u.apt} — ${u.community} <span class="phase-badge p1">P1</span></div>
+    <div class="page-sub">Unit overview, operator relationship, and pending approvals.</div>
+  </div>
+  <div class="grid2">
+    <div class="card">
+      <div class="card-header"><div class="card-title">🏢 Operator</div>
+        <span class="badge badge-green">Active</span></div>
+      <div style="font-size:15px;font-weight:700;">${u.operatorName}</div>
+      <div style="font-size:13px;color:var(--muted);margin-top:4px;">Managing since ${u.operatorSince||'—'}</div>
+      <div style="margin-top:12px;font-size:13px;">
+        <div>📧 oscar@luxuryrentals57.com</div>
+        <div style="margin-top:4px;">📱 +57 305 216 6010</div>
+        <div style="margin-top:4px;">🏘 Morros KAI · Morros Zoe · Morros ECO</div>
+      </div>
+      <div style="margin-top:14px;display:flex;gap:8px;">
+        <button class="btn btn-outline btn-sm" onclick="nav('own-unit')">View Contract</button>
+        <button class="btn btn-outline btn-sm" style="color:var(--red);" onclick="toast('Termination requires confirmation — opens modal')">Remove Operator</button>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-header"><div class="card-title">👥 Co-Owners</div>
+        <button class="btn btn-outline btn-sm" onclick="toast('Payout Owner manages co-owner roster — Phase 1')">Manage</button></div>
+      ${owners}
+      <div class="info-box" style="margin-top:12px;">The Payout Owner (you) adds or removes Calendar Owners. Calendar Owners see calendar and threads but not repair cost amounts.</div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-header"><div class="card-title">⚠️ Pending Your Action</div></div>
+    ${INBOX.map(i=>`<div class="inbox-item ${i.urgency}" style="margin-bottom:10px;">
+      <div class="inbox-icon">${i.icon}</div>
+      <div class="inbox-body">
+        <div class="inbox-title">${i.title}</div>
+        <div class="inbox-desc">${i.desc}</div>
+        <div class="inbox-actions" style="margin-top:8px;">
+          <button class="btn btn-blue btn-sm" onclick="${i.actionFn}('${i.id}')">${i.action}</button>
+        </div>
+      </div>
+    </div>`).join('')}
+  </div>
+  <div class="card">
+    <div class="card-header"><div class="card-title">📋 Contract Terms</div>
+      <span class="phase-badge p1">P1</span></div>
+    <table><tr><th>Term</th><th>Value</th></tr>
+      <tr><td>Management fee</td><td><strong>${u.contract?.fee||'—'}</strong></td></tr>
+      <tr><td>Repair approval threshold</td><td>${u.contract?.threshold||'—'}</td></tr>
+      <tr><td>Contract term</td><td>${u.contract?.term||'—'}</td></tr>
+      <tr><td>Termination notice</td><td>${u.contract?.notice||'—'}</td></tr>
+      <tr><td>Platforms covered</td><td>${u.contract?.platforms||'—'}</td></tr>
+    </table>
+  </div>
+  <div class="grid2">
+    <div class="phase-locked"><span style="font-size:24px;">🔧</span><br><strong>Service Requests</strong><br><span class="phase-badge p3">Phase 3</span></div>
+    <div class="phase-locked"><span style="font-size:24px;">💰</span><br><strong>Pricing Log</strong><br><span class="phase-badge p5">Phase 5</span></div>
+    <div class="phase-locked"><span style="font-size:24px;">📅</span><br><strong>Date Blocks</strong><br><span class="phase-badge p4">Phase 4</span></div>
+    <div class="phase-locked"><span style="font-size:24px;">📁</span><br><strong>Documents</strong><br><span class="phase-badge p6">Phase 6</span></div>
+  </div>`;
+}
+
+// ─── OWNER: PROFILE ──────────────────────────────────────
+function viewOwnerProfile() {
+  return `<div class="page-header">
+    <div class="page-title">Profile & Settings <span class="phase-badge p0">P0</span></div>
+  </div>
+  <div class="card">
+    <div class="card-title" style="margin-bottom:16px;">👤 Account</div>
+    <div style="display:flex;align-items:center;gap:16px;margin-bottom:20px;">
+      <div style="width:56px;height:56px;border-radius:50%;background:var(--owner-l);color:var(--owner);font-size:20px;font-weight:900;display:flex;align-items:center;justify-content:center;">BP</div>
+      <div><div style="font-size:16px;font-weight:700;">Brian Pause</div>
+        <div style="color:var(--muted);font-size:13px;">brian@morroskai317.com</div>
+        <div style="margin-top:6px;display:flex;gap:8px;"><span class="badge badge-teal">Payout Owner</span></div>
+      </div>
+    </div>
+    <div style="font-size:13px;font-weight:700;margin-bottom:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;">Role Switch</div>
+    <div style="display:flex;align-items:center;gap:12px;padding:12px;background:var(--bg);border-radius:8px;margin-bottom:20px;">
+      <div style="flex:1;"><div style="font-weight:700;">You also have Operator access</div>
+        <div style="font-size:12px;color:var(--muted);">Switch to manage units on behalf of other owners.</div></div>
+      <button class="btn btn-blue" onclick="switchRole('operator')">Switch to Operator →</button>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-title" style="margin-bottom:4px;">🏘 Community Opt-Out <span class="phase-badge p0">P0</span></div>
+    <div style="font-size:13px;color:var(--muted);margin-bottom:16px;">Opt out to hide your unit from community incident queries. Your unit is still tracked privately.</div>
+    <div class="toggle-row">
+      <div><div class="toggle-label">Morros KAI</div><div class="toggle-sub">Your primary community — Apt 317</div></div>
+      <label class="toggle"><input type="checkbox" checked onchange="toast('Community opt-out preference saved')">
+        <div class="toggle-track"></div><div class="toggle-thumb"></div></label>
+    </div>
+    <div class="toggle-row">
+      <div><div class="toggle-label">Morros Zoe</div><div class="toggle-sub">No units registered in this community</div></div>
+      <label class="toggle"><input type="checkbox">
+        <div class="toggle-track"></div><div class="toggle-thumb"></div></label>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-title" style="margin-bottom:16px;">🔔 Notifications</div>
+    <div class="toggle-row">
+      <div><div class="toggle-label">Email on new inbox item</div></div>
+      <label class="toggle"><input type="checkbox" checked>
+        <div class="toggle-track"></div><div class="toggle-thumb"></div></label>
+    </div>
+    <div class="toggle-row">
+      <div><div class="toggle-label">Email on repair status change</div><div class="toggle-sub">Phase 3</div></div>
+      <label class="toggle"><input type="checkbox" checked>
+        <div class="toggle-track"></div><div class="toggle-thumb"></div></label>
+    </div>
+    <div class="toggle-row">
+      <div><div class="toggle-label">WhatsApp notifications</div><div class="toggle-sub">Not available — email only for now</div></div>
+      <label class="toggle"><input type="checkbox" disabled>
+        <div class="toggle-track"></div><div class="toggle-thumb"></div></label>
+    </div>
+  </div>`;
+}
+
+// ─── OWNER: PRICING PREVIEW ──────────────────────────────
+function viewOwnerPricing() {
+  return `<div class="page-header">
+    <div class="page-title">Pricing <span class="phase-badge p5">Phase 5</span></div>
+    <div class="page-sub">Bidirectional pricing proposals — either party proposes, the other must confirm.</div>
+  </div>
+  <div class="warn-box">🔒 This feature is available in Phase 5. The UI below is a preview.</div>
+  <div class="card" style="opacity:.8;">
+    <div class="card-title" style="margin-bottom:16px;">💰 Current Rates — Morros KAI 317</div>
+    <table><tr><th>Rate Type</th><th>Amount</th><th>Status</th></tr>
+      <tr><td>Base weekday</td><td>$345.000 COP</td><td><span class="badge badge-green">Active</span></td></tr>
+      <tr><td>Weekend (Fri–Sat)</td><td>$390.000 COP</td><td><span class="badge badge-green">Active</span></td></tr>
+      <tr><td>Cleaning fee</td><td>$150.000 COP</td><td><span class="badge badge-green">Active</span></td></tr>
+    </table>
+    <div style="margin-top:16px;padding:14px;background:#fffbeb;border-radius:8px;border:1px solid #fde68a;">
+      <div style="font-weight:700;color:var(--amber);margin-bottom:6px;">⏳ Open Proposal: Base rate 345K → 400K</div>
+      <div style="font-size:13px;">Proposed by Luxury Rentals · 23h ago · Expires in 1h</div>
+      <div style="margin-top:10px;display:flex;gap:8px;">
+        <button class="btn btn-green btn-sm" onclick="toast('Pricing confirmed — change will be applied in Airbnb')">✓ Confirm</button>
+        <button class="btn btn-outline btn-sm" onclick="openPricingModal('i3')">Counter-propose</button>
+        <button class="btn btn-outline btn-sm" style="color:var(--red);" onclick="toast('Proposal rejected')">✕ Reject</button>
+      </div>
+    </div>
+  </div>
+  <div class="card" style="opacity:.8;">
+    <div class="card-header"><div class="card-title">📜 Decision Log</div></div>
+    <div class="timeline">
+      ${tlItem('var(--green)','Pricing confirmed','Base rate 300K → 345K. Confirmed by Brian Pause.','Apr 22, 2026')}
+      ${tlItem('var(--op)','Proposal by Luxury Rentals','Proposed base rate increase 300K → 345K.','Apr 20, 2026')}
+      ${tlItem('var(--red)','Proposal rejected','Previous proposal 300K → 400K. Rejected by Brian Pause after 10 days of 0 bookings.','Apr 26, 2026')}
+    </div>
+  </div>`;
+}
+
+// ─── OWNER: DATE BLOCKS PREVIEW ──────────────────────────
+function viewOwnerBlocks() {
+  return `<div class="page-header">
+    <div class="page-title">Date Blocks <span class="phase-badge p4">Phase 4</span></div>
+    <div class="page-sub">Request personal-use or maintenance blocks on your calendar.</div>
+  </div>
+  <div class="warn-box">🔒 This feature is available in Phase 4. The UI below is a preview.</div>
+  <div class="card" style="opacity:.8;">
+    <div class="card-header"><div class="card-title">📅 Your Blocks — Morros KAI 317</div>
+      <button class="btn btn-blue btn-sm" onclick="toast('Date block form — Phase 4')">+ Request Block</button></div>
+    <table><tr><th>Dates</th><th>Reason</th><th>Status</th><th>Cleaning</th></tr>
+      <tr><td>Jun 18–20, 2026</td><td>Personal use (Martha)</td><td><span class="badge badge-green">Confirmed</span></td><td>Jun 21, 10am</td></tr>
+      <tr><td>Sep 12–18, 2026</td><td>Family visit</td><td><span class="badge badge-amber">Requested</span></td><td>—</td></tr>
+    </table>
+  </div>`;
+}
+
+// ─── OPERATOR: DASHBOARD ─────────────────────────────────
+function viewOpDashboard() {
+  const attention = UNITS.filter(u => u.pendingApprovals > 0 || u.openRequests > 0);
+  const communities = [...new Set(UNITS.map(u=>u.community))];
+
+  const attCards = attention.map(u => `
+    <div class="card" style="margin-bottom:12px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+        <div><div style="font-weight:700;">Apt ${u.apt} · ${u.community}</div>
+          <div style="font-size:12px;color:var(--muted);">${u.owners.map(o=>o.name).join(', ')}</div></div>
+        ${u.operatorStatus==='pending'?'<span class="badge badge-amber">Pending link</span>':'<span class="badge badge-green">Active</span>'}
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        ${u.pendingApprovals>0?`<span class="sla-timer sla-warn">⚠️ ${u.pendingApprovals} owner approval pending</span>`:''}
+        ${u.openRequests>0?`<span class="sla-timer sla-ok">🔧 ${u.openRequests} open requests</span>`:''}
+        ${u.nextEvent?`<span class="badge badge-gray">📆 ${u.nextEvent}</span>`:''}
+      </div>
+      <div style="margin-top:10px;display:flex;gap:8px;">
+        <button class="btn btn-outline btn-sm" onclick="nav('op-portfolio')">View Unit</button>
+        ${u.operatorStatus==='pending'?`<button class="btn btn-blue btn-sm" onclick="toast('Owner notified — awaiting response')">Follow Up</button>`:''}
+      </div>
+    </div>`).join('');
+
+  const commFilters = `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:20px;">
+    <button class="btn btn-blue btn-sm" onclick="toast('Filtered: All communities')">All</button>
+    ${communities.map(c=>`<button class="btn btn-outline btn-sm" onclick="toast('Filtered: ${c}')">${c}</button>`).join('')}
+  </div>`;
+
+  return `<div class="page-header">
+    <div class="page-title">Operator Dashboard <span class="phase-badge p2">P2</span></div>
+    <div class="page-sub">All communities · units requiring attention surface first.</div>
+  </div>
+  <div class="grid3" style="margin-bottom:20px;">
+    <div class="stat-card"><div class="stat-val">${UNITS.length}</div><div class="stat-lbl">Units managed</div></div>
+    <div class="stat-card"><div class="stat-val" style="color:var(--amber);">${attention.length}</div><div class="stat-lbl">Needs attention</div></div>
+    <div class="stat-card"><div class="stat-val" style="color:var(--green);">${STAFF.length}</div><div class="stat-lbl">Staff active</div></div>
+  </div>
+  ${commFilters}
+  <div style="font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin-bottom:12px;">🚨 Needs Attention</div>
+  ${attCards}
+  <div style="font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin:20px 0 12px;">👥 Staff Today</div>
+  <div class="card">
+    <table><tr><th>Staff</th><th>Role</th><th>Assigned</th><th>Status</th></tr>
+      <tr><td>Paula Ramírez</td><td>Supervision</td><td>Morros KAI 317, ECO 108</td><td><span class="badge badge-green">On site</span></td></tr>
+      <tr><td>Jailin Pérez</td><td>Cleaning</td><td>KAI 317 (Jun 21)</td><td><span class="badge badge-amber">En route</span></td></tr>
+      <tr><td>Camila del Valle</td><td>Logistics</td><td>Zoe 204</td><td><span class="badge badge-gray">Not started</span></td></tr>
+    </table>
+  </div>`;
+}
+
+// ─── OPERATOR: PORTFOLIO ─────────────────────────────────
+function viewOpPortfolio() {
+  const byCommunity = {};
+  UNITS.forEach(u => { (byCommunity[u.community]||=[]).push(u); });
+  const sections = Object.entries(byCommunity).map(([comm, units]) =>
+    `<div style="margin-bottom:24px;"><div style="font-size:15px;font-weight:700;margin-bottom:12px;">🏘 ${comm}</div>
+    <div class="unit-grid">${units.map(u=>unitCard(u,'op-portfolio')).join('')}</div></div>`
+  ).join('');
+  return `<div class="page-header">
+    <div class="page-title">My Portfolio <span class="phase-badge p1">P1</span></div>
+    <div class="page-sub">${UNITS.length} units across ${Object.keys(byCommunity).length} communities.</div>
+  </div>
+  <div style="margin-bottom:16px;">
+    <button class="btn btn-blue" onclick="nav('op-link')">🔗 Link a New Unit</button>
+  </div>
+  ${sections}`;
+}
+
+// ─── OPERATOR: UNIT LINK FLOW ────────────────────────────
+function viewOpLink() {
+  const step = S.linkStep||1;
+  const steps = ['Search','Review','Propose','Confirm'];
+  const pills = steps.map((s,i)=>`<div class="flow-step-pill ${step===i+1?'active':step>i+1?'done':''}">${step>i+1?'✓ ':''} ${s}</div>`).join('');
+
+  let body = '';
+  if (step===1) body = `
+    <div class="card">
+      <div class="card-title" style="margin-bottom:16px;">Search for a unit to link</div>
+      <div class="grid2">
+        <div class="form-row"><label>Community</label>
+          <select><option>Morros KAI</option><option>Morros Zoe</option><option>Morros ECO</option><option>Morros City</option></select></div>
+        <div class="form-row"><label>Apartment number</label>
+          <input type="text" placeholder="e.g. 402"></div>
+      </div>
+      <button class="btn btn-blue" onclick="S.linkStep=2;nav('op-link')">Search →</button>
+    </div>`;
+  else if (step===2) body = `
+    <div class="card">
+      <div class="card-title" style="margin-bottom:16px;">Unit found — review before proposing</div>
+      <table><tr><th>Field</th><th>Value</th></tr>
+        <tr><td>Community</td><td>Morros KAI</td></tr>
+        <tr><td>Apartment</td><td>402</td></tr>
+        <tr><td>Payout Owner</td><td>Carlos Ramírez</td></tr>
+        <tr><td>Current operator</td><td><span class="badge badge-gray">No operator</span></td></tr>
+        <tr><td>Building</td><td>Morros KAI (2025, newest)</td></tr>
+      </table>
+      <div class="info-box">✅ This unit has no active operator. You can send a management proposal to the Payout Owner.</div>
+      <div style="display:flex;gap:8px;margin-top:16px;">
+        <button class="btn btn-outline" onclick="S.linkStep=1;nav('op-link')">← Back</button>
+        <button class="btn btn-blue" onclick="S.linkStep=3;nav('op-link')">Proceed to Propose →</button>
+      </div>
+    </div>`;
+  else if (step===3) body = `
+    <div class="card">
+      <div class="card-title" style="margin-bottom:16px;">Send management proposal to Carlos Ramírez</div>
+      <div class="form-row"><label>Delegation level</label>
+        <select>
+          <option>operator_assists (default) — Operator can complete Step 1 on behalf of owner</option>
+          <option>owner_handles — Owner handles everything, operator notified</option>
+          <option>operator_handles — Operator handles everything, owner notified</option>
+        </select></div>
+      <div class="form-row"><label>Message to owner (optional)</label>
+        <textarea placeholder="Introduce yourself and explain what you offer...">Hi Carlos, I'm Oscar from Luxury Rentals. We manage 4 units at Morros KAI and Zoe, achieving Top 3 ranking in Cartagena. I'd love to manage your unit as well.</textarea></div>
+      <div class="form-row"><label>Draft contract terms</label>
+        <div style="background:var(--bg);border-radius:8px;padding:14px;font-size:13px;">
+          Management fee: <strong>15%</strong> · Repair threshold: <strong>$150.000 COP</strong> · Platforms: <strong>Airbnb</strong><br>
+          <span style="color:var(--muted);">Full contract will be proposed separately after link is accepted.</span>
+        </div></div>
+      <div style="display:flex;gap:8px;margin-top:16px;">
+        <button class="btn btn-outline" onclick="S.linkStep=2;nav('op-link')">← Back</button>
+        <button class="btn btn-blue" onclick="S.linkStep=4;nav('op-link')">Send Proposal →</button>
+      </div>
+    </div>`;
+  else body = `
+    <div class="card" style="text-align:center;padding:32px;">
+      <div style="font-size:48px;margin-bottom:16px;">📨</div>
+      <div style="font-size:18px;font-weight:800;margin-bottom:8px;">Proposal sent!</div>
+      <div style="color:var(--muted);margin-bottom:20px;">Carlos Ramírez has been notified by email. Morros KAI Apt 402 is now showing as <span class="badge badge-amber">Pending</span> in your portfolio.</div>
+      <div style="display:flex;gap:10px;justify-content:center;">
+        <button class="btn btn-outline" onclick="S.linkStep=1;nav('op-link')">Link Another Unit</button>
+        <button class="btn btn-blue" onclick="nav('op-portfolio')">Back to Portfolio →</button>
+      </div>
+    </div>`;
+
+  return `<div class="page-header">
+    <div class="page-title">Link a Unit <span class="phase-badge p1">P1</span></div>
+    <div class="page-sub">Search for a unit, review its status, and send a management proposal to the Payout Owner.</div>
+  </div>
+  <div class="flow-steps" style="margin-bottom:24px;">${pills}</div>
+  ${body}`;
+}
+
+// ─── OPERATOR: STAFF ─────────────────────────────────────
+function viewOpStaff() {
+  const rows = STAFF.map(s => `<tr>
+    <td><strong>${s.name}</strong></td>
+    <td><span class="badge ${s.role==='Supervision'?'badge-blue':s.role==='Cleaning'?'badge-teal':s.role==='Guest Relations'?'badge-amber':'badge-gray'}">${s.role}</span></td>
+    <td>${s.email}</td>
+    <td><span class="badge badge-green">Active</span></td>
+    <td><button class="btn btn-ghost btn-sm" onclick="toast('Edit staff — opens form')">Edit</button>
+        <button class="btn btn-ghost btn-sm" style="color:var(--red);" onclick="toast('Staff removed')">Remove</button></td>
+  </tr>`).join('');
+  return `<div class="page-header">
+    <div class="page-title">Staff Roster <span class="phase-badge p1">P1</span></div>
+    <div class="page-sub">Manage your team. Staff with a platform account can update task status from their phone.</div>
+  </div>
+  <div class="card">
+    <div class="card-header"><div class="card-title">👥 ${STAFF.length} Staff Members</div>
+      <button class="btn btn-blue" onclick="openAddStaffModal()">+ Add Staff</button></div>
+    <table><tr><th>Name</th><th>Role</th><th>Email</th><th>Status</th><th>Actions</th></tr>
+      ${rows}</table>
+  </div>
+  <div class="info-box">Staff can be added as contacts without a platform account. They only need an account to log task status updates (Phase 7).</div>`;
+}
+
+// ─── OPERATOR: CONTRACT ──────────────────────────────────
+function viewOpContract() {
+  const u = UNITS[0];
+  return `<div class="page-header">
+    <div class="page-title">Management Contract <span class="phase-badge p1">P1</span></div>
+    <div class="page-sub">Morros KAI Apt 317 · Luxury Rentals ↔ Brian Pause (Payout Owner)</div>
+  </div>
+  <div class="card">
+    <div class="card-header"><div class="card-title">📋 Current Active Terms</div>
+      <span class="badge badge-green">Active since Oct 2025</span></div>
+    <table><tr><th>Term</th><th>Value</th><th>Drives</th></tr>
+      <tr><td>Management fee</td><td><strong>15%</strong></td><td>Operator billing</td></tr>
+      <tr><td>Fee basis</td><td>Net after Airbnb host fee</td><td>Billing calculation</td></tr>
+      <tr><td>Repair approval threshold</td><td><strong>$150.000 COP</strong></td><td>Auto-approve below threshold</td></tr>
+      <tr><td>Response commitment</td><td>Step 1: 24h · Step 2: 48h</td><td>SLA timers in inbox</td></tr>
+      <tr><td>Contract term</td><td>Month-to-month</td><td>—</td></tr>
+      <tr><td>Termination notice</td><td>30 days</td><td>Termination flow</td></tr>
+      <tr><td>Platforms covered</td><td>Airbnb, VRBO</td><td>Unit profile</td></tr>
+      <tr><td>Cleaning arrangement</td><td>Operator provides (included in fee)</td><td>Cleaning cost tracking</td></tr>
+    </table>
+    <div style="margin-top:14px;">
+      <button class="btn btn-outline" onclick="openContractModal('i1')">Propose Amendment</button>
+    </div>
+  </div>
+  <div class="card" style="border:2px solid var(--amber);">
+    <div class="card-header">
+      <div class="card-title">⏳ Pending Amendment</div>
+      <span class="sla-timer sla-warn">21h remaining</span>
+    </div>
+    <div style="font-size:14px;margin-bottom:14px;"><strong>Proposed by:</strong> Luxury Rentals · 2 days ago</div>
+    <table><tr><th>Term</th><th>Current</th><th>Proposed</th></tr>
+      <tr><td>Repair threshold</td><td>$150.000 COP</td><td style="color:var(--amber);font-weight:700;">$200.000 COP</td></tr>
+    </table>
+    <div class="warn-box">Raising the threshold means repairs up to $200K will be auto-approved. Open repair requests are not affected (new threshold applies to future requests only).</div>
+    <div style="display:flex;gap:8px;margin-top:12px;">
+      <button class="btn btn-green btn-sm" onclick="toast('Amendment confirmed — threshold updated to $200K')">✓ Confirm</button>
+      <button class="btn btn-outline btn-sm" onclick="openContractModal('i1')">Counter-propose</button>
+      <button class="btn btn-outline btn-sm" style="color:var(--red);" onclick="toast('Amendment rejected — terms unchanged')">✕ Reject</button>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-header"><div class="card-title">📜 Immutable Decision Log</div></div>
+    <div class="timeline">
+      ${tlItem('var(--amber)','Amendment proposed','Repair threshold $150K → $200K. Proposed by Luxury Rentals.','May 5, 2026')}
+      ${tlItem('var(--green)','Contract activated','Initial contract confirmed by Brian Pause. Fee 15%, threshold $150K, 30-day notice.','Oct 17, 2025')}
+      ${tlItem('var(--op)','Contract proposed','Luxury Rentals sent management proposal.','Oct 17, 2025')}
+    </div>
+  </div>`;
+}
+
+// ─── OPERATOR: BUSINESS PROFILE ──────────────────────────
+function viewOpBizProfile() {
+  return `<div class="page-header">
+    <div class="page-title">Business Profile <span class="phase-badge p1">P1</span></div>
+  </div>
+  <div class="card">
+    <div class="card-title" style="margin-bottom:20px;">🏢 Luxury Rentals</div>
+    <div class="grid2">
+      <div class="form-row"><label>Business name</label><input type="text" value="Luxury Rentals"></div>
+      <div class="form-row"><label>Contact email</label><input type="email" value="oscar@luxuryrentals57.com"></div>
+      <div class="form-row"><label>WhatsApp</label><input type="text" value="+57 305 216 6010"></div>
+      <div class="form-row"><label>Instagram</label><input type="text" value="@luxuryrentals57"></div>
+    </div>
+    <div class="form-row"><label>Communities served</label>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px;">
+        ${['Morros KAI','Morros Zoe','Morros ECO','Morros City'].map(c=>
+          `<label style="display:flex;align-items:center;gap:6px;font-size:13px;font-weight:500;cursor:pointer;">
+            <input type="checkbox" checked style="width:auto;"> ${c}</label>`
+        ).join('')}
+      </div>
+    </div>
+    <div class="info-box">Billing: Off by default. Payment setup will be available when billing is wired.</div>
+    <button class="btn btn-blue" style="margin-top:8px;" onclick="toast('Profile saved')">Save Profile</button>
+  </div>`;
+}
+
+// ─── PHASE 3–7 PREVIEWS ──────────────────────────────────
+function viewOpService() {
+  return phasePreview('P3','Service Requests & Work Orders','🔧',
+    'Create, track, and close maintenance/repair/cleaning/inspection requests. Owner approval gate when cost > 0.',
+    `<div class="card" style="opacity:.8;">
+      <div class="card-header"><div class="card-title">Service Requests</div><button class="btn btn-blue btn-sm" onclick="toast('Multi-step form: Type → Details → Assign → Submit')">+ New Request</button></div>
+      <table><tr><th>Unit</th><th>Type</th><th>Title</th><th>Status</th><th>Cost</th></tr>
+        <tr><td>KAI 317</td><td>Repair</td><td>AC refrigerant leak</td><td><span class="badge badge-amber">Awaiting approval</span></td><td>$300.000</td></tr>
+        <tr><td>KAI 317</td><td>Cleaning</td><td>Deep clean post-renovation</td><td><span class="badge badge-green">Completed</span></td><td>$180.000</td></tr>
+      </table>
+    </div>`);
+}
+function viewOpPricing() {
+  return phasePreview('P5','Pricing Log & Bidirectional Confirmation','💰',
+    'Either party (owner or operator) can propose rate changes. The other must confirm before any change takes effect.',
+    `<div class="card" style="opacity:.8;">
+      <div class="card-title" style="margin-bottom:12px;">Draft → Proposed → Confirmed | Rejected | Expired</div>
+      <table><tr><th>Unit</th><th>Type</th><th>Proposed by</th><th>Change</th><th>State</th></tr>
+        <tr><td>KAI 317</td><td>Base rate</td><td>Luxury Rentals</td><td>345K → 400K</td><td><span class="badge badge-amber">Proposed</span></td></tr>
+        <tr><td>Zoe 204</td><td>Season rule</td><td>Carlos Mejía</td><td>Dec +35%</td><td><span class="badge badge-blue">Counter-proposed</span></td></tr>
+      </table>
+    </div>`);
+}
+function viewOpDocs() {
+  return phasePreview('P6','Documents & Compliance','📁',
+    'Document folder per unit: RNT, utilities, insurance, Airbnb assets. Invoices auto-archived on service request close.',
+    `<div class="card" style="opacity:.8;">
+      <table><tr><th>Type</th><th>File</th><th>Uploaded</th><th></th></tr>
+        <tr><td><span class="badge badge-blue">RNT</span></td><td>RNT_KAI317_2026.pdf</td><td>Mar 19, 2026</td><td><button class="btn btn-outline btn-sm">Download</button></td></tr>
+        <tr><td><span class="badge badge-teal">Insurance</span></td><td>poliza_seguro_2026.pdf</td><td>Jan 3, 2026</td><td><button class="btn btn-outline btn-sm">Download</button></td></tr>
+      </table>
+    </div>`);
+}
+function viewOpTasks() {
+  return phasePreview('P7','Staff Task Management','📱',
+    'Staff mobile view: daily assignments across communities. Status updates: Arrived / In Progress / Done + photo.',
+    `<div style="max-width:360px;margin:0 auto;"><div class="card" style="opacity:.8;">
+      <div style="font-size:13px;font-weight:700;color:var(--muted);margin-bottom:12px;">Paula's tasks today · May 7, 2026</div>
+      ${['KAI 317 — Inspection post-checkout','KAI 317 — Verify AC after repair','ECO 108 — Guest check-in 3pm'].map((t,i)=>
+        `<div style="padding:10px;border-radius:8px;background:var(--bg);margin-bottom:8px;display:flex;align-items:center;gap:10px;">
+          <span style="font-size:18px;">${['✅','🔵','⬜'][i]}</span>
+          <div style="flex:1;font-size:13px;">${t}</div>
+          <button class="btn btn-outline btn-sm" onclick="toast('Status update saved')">Update</button>
+        </div>`).join('')}
+    </div></div>`);
+}
+function phasePreview(phase, title, icon, desc, preview) {
+  return `<div class="page-header">
+    <div class="page-title">${icon} ${title} <span class="phase-badge ${phase.toLowerCase()}">${phase}</span></div>
+    <div class="page-sub">${desc}</div>
+  </div>
+  <div class="warn-box">🔒 This feature ships in ${phase}. The UI below is a non-interactive preview to illustrate the design intent.</div>
+  ${preview}`;
+}
+
+// ─── ADMIN: OPERATORS ────────────────────────────────────
+function viewAdminOperators() {
+  const users = [
+    {name:'Oscar Lindo',email:'oscar@luxuryrentals57.com',role:'operator',grantedBy:'Global Admin'},
+    {name:'Brian Pause',email:'brian@morroskai317.com',role:'user',grantedBy:'—'},
+    {name:'Martha Pause',email:'martha@morroskai317.com',role:'user',grantedBy:'—'},
+    {name:'Carlos Mejía',email:'carlos@example.com',role:'user',grantedBy:'—'},
+  ];
+  const rows = users.map(u=>`<tr>
+    <td><strong>${u.name}</strong><br><span style="font-size:12px;color:var(--muted);">${u.email}</span></td>
+    <td><span class="badge ${u.role==='operator'?'badge-blue':'badge-gray'}">${u.role}</span></td>
+    <td style="font-size:12px;color:var(--muted);">${u.grantedBy}</td>
+    <td>
+      ${u.role==='operator'
+        ?`<button class="btn btn-outline btn-sm" style="color:var(--red);" onclick="toast('Operator role revoked for ${u.name}')">Revoke</button>`
+        :`<button class="btn btn-blue btn-sm" onclick="toast('Operator role granted to ${u.name} — email sent')">Grant Operator</button>`}
+    </td></tr>`).join('');
+  return `<div class="page-header">
+    <div class="page-title">Operator Role Management <span class="phase-badge p0">P0</span></div>
+    <div class="page-sub">Grant or revoke the operator role. Global admins receive the operator role automatically.</div>
+  </div>
+  <div class="card">
+    <div class="card-header"><div class="card-title">Users</div>
+      <div style="display:flex;gap:8px;"><input type="text" placeholder="Search by email..." style="width:200px;padding:6px 10px;font-size:13px;"></div>
+    </div>
+    <table><tr><th>User</th><th>Current role</th><th>Granted by</th><th>Action</th></tr>${rows}</table>
+  </div>
+  <div class="info-box">Global admins (set via GLOBAL_ADMIN_EMAILS environment variable) automatically receive operator access. Other users must be granted the operator role here.</div>`;
+}
+function viewAdminCommunity() {
+  return `<div class="page-header"><div class="page-title">Communities</div></div>
+  <div class="card">
+    <table><tr><th>Community</th><th>Units</th><th>Operators</th><th>Members</th></tr>
+      <tr><td>Morros KAI</td><td>1</td><td>Luxury Rentals</td><td>3</td></tr>
+      <tr><td>Morros Zoe</td><td>2</td><td>Luxury Rentals</td><td>5</td></tr>
+      <tr><td>Morros ECO</td><td>1</td><td>Luxury Rentals</td><td>2</td></tr>
+    </table>
+  </div>`;
+}
+
+// ══════════════════════════════════════════════════════════
+// TIMELINE HELPER
+// ══════════════════════════════════════════════════════════
+function tlItem(color, who, what, when) {
+  return `<div class="tl-item">
+    <div class="tl-line"><div class="tl-dot" style="background:${color}"></div><div class="tl-connector"></div></div>
+    <div class="tl-body"><div class="tl-who">${who}</div><div class="tl-what">${what}</div><div class="tl-when">${when}</div></div>
+  </div>`;
+}
+
+// ══════════════════════════════════════════════════════════
+// MODALS
+// ══════════════════════════════════════════════════════════
+function openModal(html) {
+  document.getElementById('modal-box').innerHTML = html;
+  document.getElementById('modal-overlay').classList.add('open');
+}
+function closeModal(e) {
+  if (e.target===document.getElementById('modal-overlay')||e.currentTarget===null) {
+    document.getElementById('modal-overlay').classList.remove('open');
+  }
+}
+function openContractModal() {
+  openModal(`<button class="modal-close" onclick="document.getElementById('modal-overlay').classList.remove('open')">✕</button>
+    <div class="modal-title">📋 Management Contract — Amendment</div>
+    <div class="info-box" style="margin-bottom:16px;">You are proposing an amendment. The other party must confirm before it takes effect.</div>
+    <div class="form-row"><label>Term to amend</label>
+      <select><option>Repair approval threshold</option><option>Management fee %</option><option>Termination notice period</option><option>Platforms covered</option></select></div>
+    <div class="form-row"><label>Current value</label><input type="text" value="$150.000 COP" readonly style="background:var(--bg);"></div>
+    <div class="form-row"><label>Proposed new value</label><input type="text" value="$200.000 COP"></div>
+    <div class="form-row"><label>Reason / note</label><textarea placeholder="Why are you proposing this change?"></textarea></div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="document.getElementById('modal-overlay').classList.remove('open')">Cancel</button>
+      <button class="btn btn-blue" onclick="document.getElementById('modal-overlay').classList.remove('open');toast('Amendment proposed — owner notified by email. 48h to respond.')">Send Amendment Proposal</button>
+    </div>`);
+}
+function openRepairModal() {
+  openModal(`<button class="modal-close" onclick="document.getElementById('modal-overlay').classList.remove('open')">✕</button>
+    <div class="modal-title">🔧 Repair Approval — AC Refrigerant Leak</div>
+    <table style="margin-bottom:16px;"><tr><th>Field</th><th>Value</th></tr>
+      <tr><td>Unit</td><td>Morros KAI Apt 317</td></tr>
+      <tr><td>Reported by</td><td>Jailin Pérez</td></tr>
+      <tr><td>Issue</td><td>Refrigerant leak at fittings — guests in unit</td></tr>
+      <tr><td>Estimated cost</td><td><strong>$300.000 COP</strong></td></tr>
+      <tr><td>Urgency</td><td><span class="badge badge-amber">Urgent</span></td></tr>
+    </table>
+    <div class="warn-box">Above your contract threshold ($150K). Your approval is required before work starts.</div>
+    <div class="form-row"><label>Comment (optional)</label><textarea placeholder="Any instructions for the technician?"></textarea></div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="document.getElementById('modal-overlay').classList.remove('open')">Cancel</button>
+      <button class="btn btn-red btn-sm" onclick="document.getElementById('modal-overlay').classList.remove('open');dismissItem('i2');toast('Repair rejected — operator notified')">✕ Reject</button>
+      <button class="btn btn-green" onclick="document.getElementById('modal-overlay').classList.remove('open');dismissItem('i2');toast('Repair approved — technician proceeding. You will be notified when done.')">✓ Approve Repair</button>
+    </div>`);
+}
+function openPricingModal() {
+  openModal(`<button class="modal-close" onclick="document.getElementById('modal-overlay').classList.remove('open')">✕</button>
+    <div class="modal-title">💰 Pricing Proposal — Respond</div>
+    <table style="margin-bottom:16px;"><tr><th>Field</th><th>Value</th></tr>
+      <tr><td>Proposed by</td><td>Luxury Rentals</td></tr>
+      <tr><td>Change</td><td>Base rate $345K → $400K (+16%)</td></tr>
+      <tr><td>Ranking impact</td><td style="color:var(--red);">Top 20 → Top 80 (estimated)</td></tr>
+      <tr><td>Expires</td><td><span class="sla-timer sla-urgent">1h remaining</span></td></tr>
+    </table>
+    <div class="warn-box">At $400K/night the listing dropped from top 20 to top 80 in northern Cartagena, resulting in 0 bookings for 10 days.</div>
+    <div id="counter-area" style="display:none;">
+      <div class="form-row"><label>Your counter-proposal</label><input type="text" id="counter-val" placeholder="e.g. $345.000 COP"></div>
+      <div class="form-row"><label>Reason</label><textarea placeholder="Why you prefer this rate..."></textarea></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="document.getElementById('modal-overlay').classList.remove('open')">Cancel</button>
+      <button class="btn btn-outline btn-sm" onclick="document.getElementById('counter-area').style.display='block';this.style.display='none'">↩ Counter-propose</button>
+      <button class="btn btn-red btn-sm" onclick="document.getElementById('modal-overlay').classList.remove('open');dismissItem('i3');toast('Pricing proposal rejected — operator notified')">✕ Reject</button>
+      <button class="btn btn-green" onclick="document.getElementById('modal-overlay').classList.remove('open');dismissItem('i3');toast('Pricing confirmed at $400K — operator will apply in Airbnb')">✓ Confirm</button>
+    </div>`);
+}
+function openAddStaffModal() {
+  openModal(`<button class="modal-close" onclick="document.getElementById('modal-overlay').classList.remove('open')">✕</button>
+    <div class="modal-title">👤 Add Staff Member</div>
+    <div class="grid2">
+      <div class="form-row"><label>Full name</label><input type="text" placeholder="e.g. María López"></div>
+      <div class="form-row"><label>Role</label>
+        <select><option>Cleaning</option><option>Supervision</option><option>Logistics</option><option>Guest Relations</option></select></div>
+      <div class="form-row"><label>Email</label><input type="email" placeholder="staff@yourcompany.com"></div>
+      <div class="form-row"><label>WhatsApp</label><input type="text" placeholder="+57 300 ..."></div>
+    </div>
+    <div class="info-box">Staff don't need a platform account unless they will log task status (Phase 7).</div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="document.getElementById('modal-overlay').classList.remove('open')">Cancel</button>
+      <button class="btn btn-blue" onclick="document.getElementById('modal-overlay').classList.remove('open');toast('Staff member added — invitation email sent')">Add to Roster</button>
+    </div>`);
+}
+
+// ══════════════════════════════════════════════════════════
+// DISMISS INBOX ITEM
+// ══════════════════════════════════════════════════════════
+function dismissItem(id) {
+  const el = document.getElementById('iitem-'+id);
+  if (el) { el.style.opacity='0.4'; el.style.pointerEvents='none'; }
+  const idx = INBOX.findIndex(i=>i.id===id);
+  if (idx>-1) INBOX.splice(idx,1);
+  document.getElementById('notif-count').textContent = INBOX.length;
+}
+
+// ══════════════════════════════════════════════════════════
+// TOAST
+// ══════════════════════════════════════════════════════════
+let toastTimer;
+function toast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.style.display = 'block';
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(()=>el.style.display='none', 3000);
+}
+
+// ══════════════════════════════════════════════════════════
+// ROADMAP
+// ══════════════════════════════════════════════════════════
+function toggleRoadmap() {
+  const d = document.getElementById('roadmap-drawer');
+  d.classList.toggle('open');
+  if (d.classList.contains('open')) renderRoadmap();
+}
+function renderRoadmap() {
+  const colorsStatus = {0:'#16a34a',1:'#1a56db',2:'#0d9488',3:'#6b7280',4:'#6b7280',5:'#6b7280',6:'#6b7280',7:'#6b7280'};
+  const html = PHASES.map(p=>`
+    <div class="phase-row" id="ph-${p.num}">
+      <div class="phase-row-header" onclick="document.getElementById('ph-${p.num}').classList.toggle('expanded')">
+        <div class="phase-num" style="background:${colorsStatus[p.num]}20;color:${colorsStatus[p.num]};">P${p.num}</div>
+        <div class="phase-info">
+          <div class="phase-name">${p.name}</div>
+          <div class="phase-effort">${p.effort} · ~${p.sessions} sessions</div>
+        </div>
+        <div class="phase-status">${p.status}</div>
+      </div>
+      <div class="phase-body">
+        <ul style="list-style:none;display:flex;flex-direction:column;gap:6px;">
+          ${p.items.map(i=>`<li style="display:flex;gap:8px;font-size:13px;"><span style="color:var(--green);">✓</span>${i}</li>`).join('')}
+        </ul>
+      </div>
+    </div>`).join('');
+  document.getElementById('roadmap-content').innerHTML = html +
+    `<div style="margin-top:20px;padding:14px;background:#fffbeb;border-radius:8px;border:1px solid #fde68a;">
+      <div style="font-weight:700;font-size:13px;color:var(--amber);margin-bottom:8px;">⚠️ Open Questions before Phase 1</div>
+      <ul style="list-style:none;font-size:12px;color:var(--muted);display:flex;flex-direction:column;gap:6px;">
+        <li><strong>CONTRACT-1</strong> One contract per unit, or one per operator-owner pair?</li>
+        <li><strong>CONTRACT-2</strong> All owners confirm contract, or Payout Owner only?</li>
+        <li><strong>CONTRACT-3</strong> KAI default template, or blank form?</li>
+        <li><strong>Q5</strong> Can community admin see who opted out?</li>
+        <li><strong>Q9</strong> Staff individual Google logins, or PIN system?</li>
+        <li><strong>Q10</strong> Who is the pilot community / operator?</li>
+      </ul>
+    </div>`;
+}
+function togglePhase(n) {
+  document.getElementById('ph-'+n).classList.toggle('expanded');
+}
+
+// ══════════════════════════════════════════════════════════
+// INIT
+// ══════════════════════════════════════════════════════════
+// For demo: allow jumping straight into app by clicking phase badge
+document.addEventListener('keydown', e => {
+  if (e.key==='Escape') document.getElementById('modal-overlay').classList.remove('open');
+});
+</script>
+</body>
+</html>
