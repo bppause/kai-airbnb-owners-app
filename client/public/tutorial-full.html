@@ -71,6 +71,28 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:radial-gradient(circ
 .tag{font-size:.7rem;padding:3px 9px;border-radius:99px;background:#f0f8fb;color:#0b7f8c;border:1px solid #cce7ee;font-weight:700}
 .kbd{font-family:'SF Mono',Menlo,monospace;font-size:.72rem;background:#eef2f5;color:#203f2b;border:1px solid rgba(0,0,0,.1);border-bottom-width:2px;border-radius:5px;padding:1px 6px}
 
+/* Hotspots — clickable pulses on the mock UI */
+.visual{position:relative}
+.hotspot{position:absolute;width:24px;height:24px;border-radius:50%;background:rgba(217,180,90,.92);border:2px solid #fff;cursor:pointer;transform:translate(-50%,-50%);z-index:3;color:#1a3c2a;font-weight:900;font-size:.74rem;display:flex;align-items:center;justify-content:center;box-shadow:0 0 0 0 rgba(217,180,90,.55);animation:hotpulse 1.6s infinite;padding:0}
+.hotspot:hover{background:#d9b45a;transform:translate(-50%,-50%) scale(1.12)}
+.hotspot:focus{outline:3px solid #9ce5d6;outline-offset:2px}
+@keyframes hotpulse{0%{box-shadow:0 0 0 0 rgba(217,180,90,.55)}70%{box-shadow:0 0 0 12px rgba(217,180,90,0)}100%{box-shadow:0 0 0 0 rgba(217,180,90,0)}}
+
+/* Hotspot popover */
+.pop-backdrop{position:absolute;inset:0;background:rgba(8,16,22,.72);z-index:9;display:flex;align-items:center;justify-content:center;padding:24px;animation:popfade .18s ease}
+@keyframes popfade{from{opacity:0}to{opacity:1}}
+.pop{background:#fff;color:var(--ink);border-radius:14px;padding:18px 20px 16px;max-width:420px;width:100%;box-shadow:0 30px 80px rgba(0,0,0,.5);position:relative;animation:poprise .25s cubic-bezier(.2,.8,.3,1)}
+@keyframes poprise{from{transform:translateY(8px);opacity:0}to{transform:none;opacity:1}}
+.pop h4{font-size:1rem;font-weight:900;color:#203f2b;margin:0 22px 6px 0;line-height:1.3}
+.pop p{font-size:.86rem;color:var(--ink2);line-height:1.5;margin-bottom:10px}
+.pop .pop-mail{font-size:.76rem;background:#f0f8fb;border-left:3px solid #0b7f8c;padding:8px 10px;border-radius:6px;color:#0b7f8c;font-weight:700;margin-bottom:10px;display:flex;align-items:flex-start;gap:6px}
+.pop .pop-mail.empty{background:#f4f4f4;border-color:#bbb;color:#666}
+.pop .pop-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:4px}
+.pop .pop-actions a,.pop .pop-actions button{padding:7px 12px;border-radius:8px;font-weight:800;font-size:.78rem;text-decoration:none;background:linear-gradient(135deg,#0b7f4f,#0b7f8c);color:#fff;border:none;cursor:pointer;display:inline-flex;align-items:center;gap:4px}
+.pop .pop-actions a.ghost,.pop .pop-actions button.ghost{background:#eef6f4;color:#0b7f4f;border:1px solid rgba(11,127,79,.25)}
+.pop-close{position:absolute;top:6px;right:8px;background:transparent;border:none;font-size:1.3rem;cursor:pointer;color:#9aada8;line-height:1;padding:4px 8px}
+.pop-close:hover{color:#235f72}
+
 /* Email notification — compact chip row */
 .mailbar{margin:8px auto 0;max-width:640px;display:flex;flex-wrap:wrap;align-items:center;gap:6px;font-size:.72rem;line-height:1.3;justify-content:center}
 .mailbar .pill{display:inline-flex;align-items:center;gap:4px;padding:4px 9px;border-radius:99px;background:rgba(11,127,140,.22);color:#9ce5d6;border:1px solid rgba(156,229,214,.28);font-weight:700;white-space:nowrap}
@@ -136,6 +158,10 @@ body.lang-en .en-text{display:revert}
           <span class="en-text">KAI · Full tutorial</span>
         </div>
         <div class="toplinks">
+          <span id="hotHint" style="font-size:.7rem;color:#9ce5d6;background:rgba(217,180,90,.15);border:1px solid rgba(217,180,90,.4);padding:3px 9px;border-radius:99px;font-weight:700;display:none;align-items:center;gap:4px">
+            <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#d9b45a;animation:hotpulse 1.6s infinite"></span>
+            <span class="es-text">Toca los puntos amarillos</span><span class="en-text">Tap the yellow dots</span>
+          </span>
           <button class="speed" id="speed" onclick="cycleSpeed()">1×</button>
           <button class="lang-btn active" id="btnEs" onclick="setLang('es')">🇨🇴 ES</button>
           <button class="lang-btn" id="btnEn" onclick="setLang('en')">🇺🇸 EN</button>
@@ -144,6 +170,16 @@ body.lang-en .en-text{display:revert}
 
       <div class="slides" id="slides"></div>
       <div class="caption" id="caption"></div>
+
+      <div class="pop-backdrop" id="popBackdrop" hidden onclick="if(event.target===this)closePop()">
+        <div class="pop" role="dialog" aria-modal="true" aria-labelledby="popTitle">
+          <button class="pop-close" onclick="closePop()" aria-label="Close">×</button>
+          <h4 id="popTitle"></h4>
+          <p id="popBody"></p>
+          <div class="pop-mail" id="popMail" hidden></div>
+          <div class="pop-actions" id="popActions"></div>
+        </div>
+      </div>
 
       <div class="controls">
         <button class="ctrl-btn" id="prev" title="Prev">⏮</button>
@@ -260,8 +296,7 @@ const CHAPTERS = [
         visual:`<div class="mock"><div class="mock-hdr"><div class="mock-logo">🏠</div><strong><span class="es-text">Mis Unidades</span><span class="en-text">My Units</span></strong></div>
           <div class="mock-row" style="border:1px solid rgba(0,0,0,.08);border-radius:10px;padding:8px"><div style="flex:1"><strong>Apt 502</strong> · <span class="es-text">Torre</span><span class="en-text">Tower</span> 5<br/><span style="font-size:.74rem;color:#9aada8">opt@example.com</span></div>
           <button class="mock-btn ghost" style="font-size:.74rem;padding:5px 10px">✏️ <span class="es-text">Editar</span><span class="en-text">Edit</span></button>
-          <button class="mock-btn" style="font-size:.74rem;padding:5px 10px">⚠️ <span class="es-text">Reportar</span><span class="en-text">Report</span></button></div>
-          <div class="cursor" style="left:88%;top:64%"></div></div>`,
+          <button class="mock-btn" style="font-size:.74rem;padding:5px 10px">⚠️ <span class="es-text">Reportar</span><span class="en-text">Report</span></button></div></div>`,
         email:{
           dest:{es:"Tu Gmail + email del operador",en:"Your Gmail + operator email"},
           kinds:[
@@ -270,6 +305,32 @@ const CHAPTERS = [
             {es:"🗑 Eliminado",en:"🗑 Deleted"}
           ]
         },
+        hotspots:[
+          { x:55, y:58,
+            title:{es:"✏️ Editar unidad",en:"✏️ Edit unit"},
+            body:{es:"Actualiza email del operador, WhatsApp, URL de Airbnb. Cualquier cambio se sincroniza con la comunidad.",
+                  en:"Update operator email, WhatsApp, Airbnb URL. Any change syncs across the community."},
+            mail:{es:"📧 Dispara: ✏️ \"Listing actualizado\"",en:"📧 Triggers: ✏️ \"Listing updated\""},
+            actions:[
+              {label:{es:"📧 Ver capítulo Notificaciones",en:"📧 See Notifications chapter"},chapter:6}
+            ]
+          },
+          { x:75, y:58,
+            title:{es:"⚠️ Reportar incidente desde la tarjeta",en:"⚠️ Report incident from the card"},
+            body:{es:"Atajo de un toque para crear un incidente ya enlazado a este apartamento — ahorra varios pasos vs. el formulario en blanco.",
+                  en:"One-tap shortcut to create an incident already linked to this apartment — saves several steps vs. starting from a blank form."},
+            mail:{es:"📧 Dispara: ⚠️ \"Incidente nuevo\" + ⏰ inicio del SLA",en:"📧 Triggers: ⚠️ \"New incident\" + ⏰ SLA start"},
+            actions:[
+              {label:{es:"⚠️ Ir al flujo de incidentes",en:"⚠️ Jump to incident flow"},chapter:4}
+            ]
+          },
+          { x:25, y:74,
+            title:{es:"📨 Email del operador",en:"📨 Operator email"},
+            body:{es:"Si el operador tiene un email distinto al tuyo, todas las notificaciones se duplican aquí. Si está vacío o equivocado, no recibirá copias.",
+                  en:"If the operator has an email different from yours, every notification is duplicated here. If it's empty or wrong, they won't get copies."},
+            mail:{es:"📧 Aplica a TODOS los emails de unidad e incidente",en:"📧 Applies to ALL listing and incident emails"}
+          }
+        ],
         sec:15
       }
     ]
@@ -316,6 +377,29 @@ const CHAPTERS = [
             {es:"✅ Verificado · admins",en:"✅ Verified · admins"}
           ]
         },
+        hotspots:[
+          { x:30, y:52,
+            title:{es:"¿Qué significa \"verificar\"?",en:"What does \"verify\" mean?"},
+            body:{es:"Confirmas que el incidente ocurrió y opcionalmente añades datos del huésped y la acción que tomaste. Es el Paso 1 — sin él, el incidente queda en espera.",
+                  en:"You confirm the incident happened and optionally add guest details and the action you took. It's Step 1 — without it, the incident stays pending."},
+            mail:{es:"📧 Al verificar, los admins reciben \"Incidente verificado\"",en:"📧 When you verify, admins get \"Incident verified\""}
+          },
+          { x:54, y:52,
+            title:{es:"🔍 Revisión del admin",en:"🔍 Admin review"},
+            body:{es:"Algunas comunidades hacen una revisión del admin entre el Paso 1 y el Paso 2. No bloquea tu acción — solo añade contexto.",
+                  en:"Some communities have an admin review between Step 1 and Step 2. It doesn't block your action — just adds context."},
+            mail:{es:"📧 No envía email adicional al propietario",en:"📧 No additional email to the owner"}
+          },
+          { x:50, y:88,
+            title:{es:"📧 El email que recibirás",en:"📧 The email you'll receive"},
+            body:{es:"Llega un correo con un botón verde \"Verificar ahora\" que te lleva directo al formulario. Si pasan 24 h sin verificar, llega un recordatorio rojo (SLA configurable por el admin).",
+                  en:"An email with a green \"Verify now\" button takes you straight to the form. If 24 h pass without verifying, a red reminder follows (SLA configurable by admin)."},
+            mail:{es:"📧 ⚠️ incident_new + 🔴 incident_sla_reminder",en:"📧 ⚠️ incident_new + 🔴 incident_sla_reminder"},
+            actions:[
+              {label:{es:"📨 Ver catálogo completo de emails",en:"📨 See full email catalog"},chapter:6}
+            ]
+          }
+        ],
         sec:14
       },
       { title:{es:"Paso 2 — Resolver", en:"Step 2 — Resolve"},
@@ -334,6 +418,23 @@ const CHAPTERS = [
             {es:"📬 Cierre final",en:"📬 Final close"}
           ]
         },
+        hotspots:[
+          { x:50, y:55,
+            title:{es:"📝 Documenta la acción tomada",en:"📝 Document the action taken"},
+            body:{es:"Una línea corta basta: \"Contacté al huésped, ruido controlado\" o \"Reparación coordinada con el admin\". El admin lo necesita para cerrar formalmente.",
+                  en:"One short line is enough: \"Contacted guest, noise stopped\" or \"Repair coordinated with admin\". The admin needs it to formally close."},
+            mail:{es:"📧 Dispara: 🎯 \"Respuesta agregada — listo para cerrar\" al admin",en:"📧 Triggers: 🎯 \"Resolution added — ready to close\" to admin"}
+          },
+          { x:50, y:88,
+            title:{es:"✅ Marcar resuelto",en:"✅ Mark resolved"},
+            body:{es:"Al hacer clic, el incidente queda listo para que el admin lo cierre. Tú no necesitas hacer nada más — recibirás el email de cierre cuando se cierre formalmente.",
+                  en:"After clicking, the incident is ready for the admin to close. You don't need to do anything else — you'll get the closure email when it formally closes."},
+            mail:{es:"📧 Después: 📬 cierre final a todas las partes",en:"📧 After: 📬 final closure to all parties"},
+            actions:[
+              {label:{es:"📨 Ver emails de cierre",en:"📨 See closure emails"},chapter:6}
+            ]
+          }
+        ],
         sec:13
       },
       { title:{es:"Incidentes generales", en:"General incidents"},
@@ -415,6 +516,38 @@ const CHAPTERS = [
             {es:"🎯 Resuelto",en:"🎯 Resolved"}
           ]
         },
+        hotspots:[
+          { x:14, y:30,
+            title:{es:"📩 Registro recibido",en:"📩 Registration received"},
+            body:{es:"Llega en cuanto envías la solicitud — antes de que un admin la revise. Confirma que el sistema la recibió correctamente.",
+                  en:"Arrives the moment you submit — before any admin reviews it. Confirms the system received it."},
+            mail:{es:"Llega a: tu Gmail + email del operador (si lo registraste)",en:"Sent to: your Gmail + operator email (if registered)"},
+            actions:[
+              {label:{es:"📝 Ver registro",en:"📝 See registration"},chapter:2}
+            ]
+          },
+          { x:14, y:48,
+            title:{es:"✅ Aprobado · 🚫 Rechazado",en:"✅ Approved · 🚫 Declined"},
+            body:{es:"Resultado de la revisión del admin. Si fue rechazado incluye el motivo, y puedes corregir y reenviar la solicitud.",
+                  en:"Result of the admin review. If declined it includes the reason, and you can fix and resubmit."},
+            mail:{es:"Aprobado: te da link para entrar al panel · Rechazado: incluye motivo",en:"Approved: gives you a link to enter the dashboard · Declined: includes reason"}
+          },
+          { x:14, y:66,
+            title:{es:"⚠️ Nuevo incidente — Paso 1",en:"⚠️ New incident — Step 1"},
+            body:{es:"Llega al PROPIETARIO de la unidad afectada (no al que reportó). Tiene un botón verde \"Verificar ahora\" que abre el formulario directo.",
+                  en:"Arrives to the OWNER of the affected unit (not the reporter). It has a green \"Verify now\" button that opens the form directly."},
+            mail:{es:"📧 Si no respondes en 24 h llega un recordatorio rojo (SLA)",en:"📧 If you don't respond in 24 h a red reminder follows (SLA)"},
+            actions:[
+              {label:{es:"⚠️ Ver flujo de incidentes",en:"⚠️ See incident flow"},chapter:4}
+            ]
+          },
+          { x:14, y:84,
+            title:{es:"⏰ Recordatorio SLA",en:"⏰ SLA reminder"},
+            body:{es:"Si pasan 24 h (configurable por el admin) sin verificar o resolver, llega este recordatorio. El reloj sigue corriendo hasta que actúes.",
+                  en:"If 24 h pass (admin-configurable) without verifying or resolving, this reminder arrives. The clock keeps ticking until you act."},
+            mail:{es:"📧 Se repite cada ciclo SLA hasta que el incidente avance",en:"📧 Repeats each SLA cycle until the incident moves forward"}
+          }
+        ],
         sec:18
       },
       { title:{es:"Idioma y preferencias", en:"Language and preferences"},
@@ -507,16 +640,64 @@ function mailHtml(em){
   </div>`;
 }
 
+function hotsHtml(slideIdx, hotspots){
+  if(!hotspots || !hotspots.length) return '';
+  return hotspots.map((h,hi)=>`<button class="hotspot" data-slide="${slideIdx}" data-hot="${hi}" style="left:${h.x}%;top:${h.y}%" aria-label="More info" title="${(h.title.en||'').replace(/"/g,'&quot;')}">${hi+1}</button>`).join('');
+}
+
 SLIDES.forEach((s,i)=>{
   const d=document.createElement('div'); d.className='slide';
   d.innerHTML=`
     <span class="chip"><span class="es-text">${s.chap.es}</span><span class="en-text">${s.chap.en}</span></span>
     <h2><span class="es-text">${s.title.es}</span><span class="en-text">${s.title.en}</span></h2>
     <p class="lede"><span class="es-text">${s.text.es}</span><span class="en-text">${s.text.en}</span></p>
-    <div class="visual">${s.visual}</div>
+    <div class="visual">${s.visual}${hotsHtml(i, s.hotspots)}</div>
     ${mailHtml(s.email)}`;
   slidesEl.appendChild(d);
 });
+
+/* Hotspot popover wiring */
+const popBackdrop=document.getElementById('popBackdrop');
+const popTitle=document.getElementById('popTitle');
+const popBody=document.getElementById('popBody');
+const popMail=document.getElementById('popMail');
+const popActions=document.getElementById('popActions');
+let wasPlayingBeforePop=false;
+
+function openPop(slideIdx, hotIdx){
+  const h=SLIDES[slideIdx]?.hotspots?.[hotIdx];
+  if(!h) return;
+  popTitle.innerHTML=`<span class="es-text">${h.title.es}</span><span class="en-text">${h.title.en}</span>`;
+  popBody.innerHTML=`<span class="es-text">${h.body.es}</span><span class="en-text">${h.body.en}</span>`;
+  if(h.mail){ popMail.hidden=false; popMail.innerHTML=`<span class="es-text">${h.mail.es}</span><span class="en-text">${h.mail.en}</span>`; }
+  else { popMail.hidden=true; popMail.innerHTML=''; }
+  popActions.innerHTML='';
+  (h.actions||[]).forEach(a=>{
+    const btn=document.createElement('button');
+    btn.innerHTML=`<span class="es-text">${a.label.es}</span><span class="en-text">${a.label.en}</span>`;
+    btn.onclick=()=>{ closePop(); if(typeof a.chapter==='number') jumpChapter(a.chapter-1); };
+    popActions.appendChild(btn);
+  });
+  // Always include Continue
+  const cont=document.createElement('button');
+  cont.className='ghost';
+  cont.innerHTML=`<span class="es-text">Continuar tutorial</span><span class="en-text">Continue tutorial</span>`;
+  cont.onclick=()=>{ closePop(); if(wasPlayingBeforePop){ playing=true; playBtn.textContent='⏸'; } };
+  popActions.appendChild(cont);
+  wasPlayingBeforePop=playing;
+  playing=false; playBtn.textContent='▶';
+  popBackdrop.hidden=false;
+}
+function closePop(){
+  popBackdrop.hidden=true;
+}
+slidesEl.addEventListener('click',e=>{
+  const btn=e.target.closest('.hotspot');
+  if(!btn) return;
+  e.stopPropagation();
+  openPop(parseInt(btn.dataset.slide,10), parseInt(btn.dataset.hot,10));
+});
+document.addEventListener('keydown',e=>{ if(e.key==='Escape' && !popBackdrop.hidden) closePop(); });
 
 CHAPTERS.forEach((c,ci)=>{
   const node=document.createElement('div');
@@ -538,6 +719,8 @@ function render(){
   const s=SLIDES[idx];
   if(s.email){ capEl.innerHTML=''; capEl.style.display='none'; }
   else { capEl.style.display=''; capEl.innerHTML=`<span class="es-text">${s.cap.es}</span><span class="en-text">${s.cap.en}</span>`; }
+  const hint=document.getElementById('hotHint');
+  if(hint) hint.style.display=(s.hotspots && s.hotspots.length)?'inline-flex':'none';
   fill.style.width=Math.min(100,(elapsed/TOTAL)*100)+'%';
   timeEl.textContent=`${fmt(elapsed)} / ${fmt(TOTAL)}`;
 }
@@ -577,6 +760,7 @@ bar.onclick=(e)=>{const r=bar.getBoundingClientRect();const pct=(e.clientX-r.lef
   let acc=0;for(let i=0;i<SLIDES.length;i++){ if(elapsed<acc+SLIDES[i].sec){idx=i;break} acc+=SLIDES[i].sec; idx=i;}
   render();};
 document.addEventListener('keydown',e=>{
+  if(!popBackdrop.hidden) return; // popover handles its own keys
   if(e.key===' '){e.preventDefault();play();}
   else if(e.key==='ArrowRight') goto(idx+1);
   else if(e.key==='ArrowLeft') goto(idx-1);
