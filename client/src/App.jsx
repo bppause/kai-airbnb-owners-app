@@ -2713,6 +2713,12 @@ function AuthGate({ onLogin, lang="es-CO", setLang=()=>{}, complexLogo='', compl
               🎥 {lang==='en' ? 'Full tutorial' : 'Tutorial completo'}
             </a>
           </div>
+          <div style={{marginTop:10,padding:'8px 10px',background:'rgba(11,127,140,.08)',borderRadius:8,fontSize:'.74rem',color:'#235f72',lineHeight:1.45}}>
+            📧 <strong>{lang==='en' ? 'Email notifications:' : 'Notificaciones por email:'}</strong>{' '}
+            {lang==='en'
+              ? 'each tutorial slide shows exactly which emails you\'ll receive (registration, listing, incident step 1/2, SLA reminders) and which mailbox they\'ll arrive at — your Google account and the operator email if different.'
+              : 'cada slide del tutorial indica exactamente qué emails recibirás (registro, listing, incidente paso 1/2, recordatorios SLA) y a qué buzón llegan — tu cuenta de Google y el email del operador si es distinto.'}
+          </div>
           <div style={{textAlign:'center',marginTop:8}}>
             <a href="/guide.html" target="_blank" rel="noopener noreferrer" style={{fontSize:'.78rem',color:'#0b7f8c',fontWeight:700,textDecoration:'none'}}>
               {lang==='en' ? '📖 Or read the written guide' : '📖 O lee la guía escrita'}

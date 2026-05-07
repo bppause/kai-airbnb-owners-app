@@ -71,6 +71,16 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:radial-gradient(circ
 .tag{font-size:.7rem;padding:3px 9px;border-radius:99px;background:#f0f8fb;color:#0b7f8c;border:1px solid #cce7ee;font-weight:700}
 .kbd{font-family:'SF Mono',Menlo,monospace;font-size:.72rem;background:#eef2f5;color:#203f2b;border:1px solid rgba(0,0,0,.1);border-bottom-width:2px;border-radius:5px;padding:1px 6px}
 
+/* Email notification banner */
+.mailbar{margin:10px auto 0;padding:10px 12px;border-radius:10px;background:#0f2a30;border:1px solid rgba(156,229,214,.25);text-align:left;display:grid;grid-template-columns:auto 1fr;gap:10px;align-items:center;max-width:640px}
+.mailbar .ico{width:34px;height:34px;border-radius:9px;background:rgba(11,127,140,.25);display:flex;align-items:center;justify-content:center;font-size:1rem}
+.mailbar strong{display:block;font-size:.78rem;color:#9ce5d6;font-weight:800;letter-spacing:.04em;text-transform:uppercase;margin-bottom:2px}
+.mailbar .row{font-size:.76rem;color:#cfe6dc;line-height:1.45}
+.mailbar .row b{color:#fff;font-weight:800}
+.mailbar .row.kind{color:#fff;font-weight:700}
+.mailbar.none{background:rgba(255,255,255,.04);border-style:dashed}
+.mailbar.none .ico{background:rgba(255,255,255,.08)}
+
 /* Caption */
 .caption{position:absolute;left:0;right:0;bottom:60px;text-align:center;padding:0 24px;font-size:.84rem;color:#cfe6dc;opacity:.95}
 
@@ -180,6 +190,9 @@ const CHAPTERS = [
           <div class="mock-row" style="font-size:.78rem"><span class="es-text">Comunidad: Morros KAI · Cartagena</span><span class="en-text">Community: Morros KAI · Cartagena</span></div>
           <button class="mock-btn" style="margin-top:8px">G&nbsp; <span class="es-text">Continuar con Google</span><span class="en-text">Continue with Google</span></button>
           <div class="cursor" style="left:60%;top:78%"></div></div>`,
+        email:{none:true,
+          to:{es:"Iniciar sesión con Google no envía emails. Tampoco hay emails de bienvenida.",
+              en:"Signing in with Google does not send emails. There are no welcome emails either."}},
         sec:14
       },
       { title:{es:"Selecciona tu comunidad", en:"Select your community"},
@@ -190,6 +203,9 @@ const CHAPTERS = [
         visual:`<div class="mock"><div class="mock-hdr"><div class="mock-logo">🏘️</div><strong><span class="es-text">Comunidad</span><span class="en-text">Community</span></strong></div>
           <div class="mock-row" style="background:#eef6f4;border-radius:8px;padding:8px;color:#0b7f4f;font-weight:800">✓ Morros KAI · Cartagena</div>
           <div class="mock-row">○ Sample Tower · Bogotá</div></div>`,
+        email:{none:true,
+          to:{es:"Elegir comunidad solo guarda tu preferencia local — no envía email.",
+              en:"Picking a community only saves a local preference — no email is sent."}},
         sec:10
       }
     ]
@@ -210,6 +226,16 @@ const CHAPTERS = [
           <div class="mock-row">WhatsApp: +57 300…</div>
           <button class="mock-btn" style="margin-top:6px"><span class="es-text">Enviar para aprobación</span><span class="en-text">Submit for approval</span></button>
           <div class="cursor" style="left:30%;top:88%"></div></div>`,
+        email:{
+          to:{es:"Tu email de Google + (si lo registraste) email del operador.",
+              en:"Your Google email + (if you registered one) the operator email."},
+          kinds:[
+            {es:"📩 \"Registro recibido\" — confirmación al enviar la solicitud",
+             en:"📩 \"Registration received\" — confirmation when you submit"},
+            {es:"En paralelo, el admin recibe \"Nuevo registro pendiente\"",
+             en:"In parallel, the admin receives \"New registration pending\""}
+          ]
+        },
         sec:16
       },
       { title:{es:"Pendiente de aprobación", en:"Pending approval"},
@@ -222,6 +248,16 @@ const CHAPTERS = [
           <span class="es-text">Un administrador revisará tus apartamentos.</span><span class="en-text">An admin will review your apartments.</span></div></div>
           <div class="email-card" style="margin-top:6px"><div class="ico">📧</div><div><strong><span class="es-text">Te avisaremos por email</span><span class="en-text">We'll email you</span></strong>
           <span class="es-text">A tu Gmail y al email del operador (si es distinto).</span><span class="en-text">To your Gmail and to the operator email (if different).</span></div></div></div>`,
+        email:{
+          to:{es:"Tu email de Google + email del operador (si es distinto del tuyo).",
+              en:"Your Google email + the operator email (if different from yours)."},
+          kinds:[
+            {es:"✅ \"Registro aprobado\" — incluye enlace para entrar al panel",
+             en:"✅ \"Registration approved\" — includes link to enter the dashboard"},
+            {es:"🚫 \"Registro rechazado\" — incluye el motivo del rechazo",
+             en:"🚫 \"Registration declined\" — includes the decline reason"}
+          ]
+        },
         sec:13
       }
     ]
@@ -240,6 +276,18 @@ const CHAPTERS = [
           <button class="mock-btn ghost" style="font-size:.74rem;padding:5px 10px">✏️ <span class="es-text">Editar</span><span class="en-text">Edit</span></button>
           <button class="mock-btn" style="font-size:.74rem;padding:5px 10px">⚠️ <span class="es-text">Reportar</span><span class="en-text">Report</span></button></div>
           <div class="cursor" style="left:88%;top:64%"></div></div>`,
+        email:{
+          to:{es:"Tu email de Google + email del operador (si es distinto).",
+              en:"Your Google email + the operator email (if different)."},
+          kinds:[
+            {es:"🏠 \"Listing creado\" — al añadir o aprobar una unidad",
+             en:"🏠 \"Listing created\" — when a unit is added or approved"},
+            {es:"✏️ \"Listing actualizado\" — al editar email/operador/Airbnb URL",
+             en:"✏️ \"Listing updated\" — when you edit email/operator/Airbnb URL"},
+            {es:"🗑 \"Listing eliminado\" — al eliminar la unidad",
+             en:"🗑 \"Listing deleted\" — when the unit is removed"}
+          ]
+        },
         sec:15
       }
     ]
@@ -258,6 +306,16 @@ const CHAPTERS = [
           <div class="mock-row"><span class="es-text">Tipo</span><span class="en-text">Type</span>: <span class="tag">🔊 <span class="es-text">Ruido</span><span class="en-text">Noise</span></span></div>
           <div class="mock-row"><span class="es-text">Categoría</span><span class="en-text">Category</span>: <span class="tag">⚠️ Grave</span></div>
           <button class="mock-btn"><span class="es-text">Crear reporte</span><span class="en-text">Create report</span></button></div>`,
+        email:{
+          to:{es:"Email del propietario de la unidad afectada (Google + operador) — incluso si no fuiste tú quien reportó.",
+              en:"Email of the owner of the affected unit (Google + operator) — even if you weren't the reporter."},
+          kinds:[
+            {es:"⚠️ \"Acción requerida — Incidente nuevo\" con botón \"Verificar ahora\" (Paso 1)",
+             en:"⚠️ \"Action required — New incident\" with a \"Verify now\" button (Step 1)"},
+            {es:"📊 \"SLA iniciado\" — el reloj para verificar empieza a correr",
+             en:"📊 \"SLA started\" — the clock for verification starts running"}
+          ]
+        },
         sec:14
       },
       { title:{es:"Paso 1 — Verificar (propietario)", en:"Step 1 — Verify (owner)"},
@@ -272,6 +330,16 @@ const CHAPTERS = [
           <div class="fnode">2️⃣ <span class="es-text">Resolver</span><span class="en-text">Resolve</span></div></div>
           <div class="email-card" style="margin-top:8px"><div class="ico">📧</div><div><strong><span class="es-text">Email recibido</span><span class="en-text">Email received</span></strong>
           <span class="es-text">Por favor confirma el reporte en Apt 502.</span><span class="en-text">Please confirm the report on Apt 502.</span></div></div></div>`,
+        email:{
+          to:{es:"Tu email de Google + email del operador (si es distinto).",
+              en:"Your Google email + the operator email (if different)."},
+          kinds:[
+            {es:"🔴 \"Recordatorio urgente — sin verificar\" si pasa el SLA (default 24 h)",
+             en:"🔴 \"Urgent reminder — not yet verified\" if SLA elapses (default 24 h)"},
+            {es:"✅ Cuando verificas, los admins reciben \"Incidente verificado\"",
+             en:"✅ When you verify, admins receive \"Incident verified\""}
+          ]
+        },
         sec:14
       },
       { title:{es:"Paso 2 — Resolver", en:"Step 2 — Resolve"},
@@ -283,6 +351,16 @@ const CHAPTERS = [
           <div class="mock-row"><span class="es-text">Acción tomada</span><span class="en-text">Action taken</span>:</div>
           <div class="mock-row" style="background:#f0f8fb;border-radius:8px;padding:8px"><span class="es-text">Se contactó al huésped y se dio aviso. Ruido controlado.</span><span class="en-text">Guest contacted and warned. Noise stopped.</span></div>
           <button class="mock-btn"><span class="es-text">Marcar resuelto</span><span class="en-text">Mark resolved</span></button></div>`,
+        email:{
+          to:{es:"Admins de la comunidad + tu email de Google + email del operador.",
+              en:"Community admins + your Google email + the operator email."},
+          kinds:[
+            {es:"🎯 \"Respuesta agregada — listo para cerrar\" al admin (Paso 2 completo)",
+             en:"🎯 \"Resolution added — ready to close\" to admin (Step 2 complete)"},
+            {es:"📬 Confirmación final cuando el admin cierra el incidente",
+             en:"📬 Final confirmation when the admin closes the incident"}
+          ]
+        },
         sec:13
       },
       { title:{es:"Incidentes generales", en:"General incidents"},
@@ -293,6 +371,14 @@ const CHAPTERS = [
         visual:`<div class="mock"><div class="mock-hdr"><div class="mock-logo">📢</div><strong><span class="es-text">Comunidad</span><span class="en-text">Community</span></strong></div>
           <div class="email-card"><div class="ico">🛠️</div><div><strong><span class="es-text">Avería en ascensor (general)</span><span class="en-text">Elevator outage (general)</span></strong>
           <span class="es-text">Admin: asignar a unidad ↔ cerrar directamente.</span><span class="en-text">Admin: assign to unit ↔ close directly.</span></div></div></div>`,
+        email:{
+          to:{es:"Solo admins, hasta que el incidente se asigne a una unidad. Si se asigna, vuelve al flujo Paso 1 / Paso 2 del propietario.",
+              en:"Admins only, until the incident is assigned to a unit. Once assigned, it re-enters the owner Step 1 / Step 2 flow."},
+          kinds:[
+            {es:"📨 Avisos al admin cuando hay un nuevo incidente general",
+             en:"📨 Admin notices when a new general incident is created"}
+          ]
+        },
         sec:11
       }
     ]
@@ -312,6 +398,9 @@ const CHAPTERS = [
           <span class="es-text">2 esperan verificación · 1 espera resolución</span><span class="en-text">2 await verification · 1 awaits resolution</span></div></div>
           <div class="tags"><span class="tag">2× <span class="es-text">Verificar</span><span class="en-text">Verify</span></span>
           <span class="tag">1× <span class="es-text">Resolver</span><span class="en-text">Resolve</span></span></div></div>`,
+        email:{none:true,
+          to:{es:"El Dashboard solo muestra lo que ya pasó — no envía emails. Si te llega un email es porque ocurrió un evento real (incidente, registro, listing).",
+              en:"The Dashboard only shows what already happened — it doesn't send emails. If an email arrives it's because a real event fired (incident, registration, listing)."}},
         sec:13
       },
       { title:{es:"Métricas y analíticas", en:"Metrics and analytics"},
@@ -323,6 +412,9 @@ const CHAPTERS = [
           <div class="tags"><span class="tag">🏠 3 <span class="es-text">Unidades</span><span class="en-text">Units</span></span>
           <span class="tag">⚠️ 2 <span class="es-text">Abiertos</span><span class="en-text">Open</span></span>
           <span class="tag">✅ 14 <span class="es-text">Cerrados</span><span class="en-text">Closed</span></span></div></div>`,
+        email:{none:true,
+          to:{es:"Las analíticas no envían emails. Si quieres reportes periódicos pídelo a tu admin de comunidad.",
+              en:"Analytics do not send emails. If you want periodic reports ask your community admin."}},
         sec:10
       }
     ]
@@ -347,6 +439,20 @@ const CHAPTERS = [
           <span class="es-text">Si no respondiste a tiempo (24 h por defecto).</span><span class="en-text">If you didn't respond in time (24 h by default).</span></div></div>
           <div class="email-card" style="margin-top:6px"><div class="ico">🎯</div><div><strong><span class="es-text">Resolución</span><span class="en-text">Resolution</span></strong>
           <span class="es-text">Resumen final cuando el incidente queda cerrado.</span><span class="en-text">Final summary when the incident is closed.</span></div></div></div>`,
+        email:{
+          to:{es:"📍 Llegan a 1 ó 2 buzones por evento: (a) tu cuenta de Google con la que entraste y (b) el email del operador del listing si lo registraste y es distinto. Los admins reciben copia en eventos de aprobación o cierre.",
+              en:"📍 Each event lands in 1 or 2 mailboxes: (a) the Google account you signed in with, and (b) the listing operator email if you registered one and it differs. Admins are copied on approval or closure events."},
+          kinds:[
+            {es:"📩 registration_submitted · ✅ registration_approved · 🚫 registration_declined",
+             en:"📩 registration_submitted · ✅ registration_approved · 🚫 registration_declined"},
+            {es:"🏠 listing_created · ✏️ listing_updated · 🗑 listing_deleted",
+             en:"🏠 listing_created · ✏️ listing_updated · 🗑 listing_deleted"},
+            {es:"⚠️ incident_new · 📊 incident_sla_notification · 🔴 incident_sla_reminder",
+             en:"⚠️ incident_new · 📊 incident_sla_notification · 🔴 incident_sla_reminder"},
+            {es:"✅ incident_verified · 🎯 incident_resolution_added (cierre del Paso 2)",
+             en:"✅ incident_verified · 🎯 incident_resolution_added (Step 2 closure)"}
+          ]
+        },
         sec:18
       },
       { title:{es:"Idioma y preferencias", en:"Language and preferences"},
@@ -356,6 +462,9 @@ const CHAPTERS = [
              en:"Each community member can have their own language."},
         visual:`<div class="mock"><div class="mock-hdr"><div class="mock-logo">🌐</div><strong><span class="es-text">Idioma</span><span class="en-text">Language</span></strong></div>
           <div class="tags"><span class="tag">🇨🇴 Español</span><span class="tag">🇺🇸 English</span></div></div>`,
+        email:{none:true,
+          to:{es:"Cambiar idioma no envía email. El siguiente email que recibas saldrá ya en el idioma elegido.",
+              en:"Changing language doesn't send an email. The next email you receive will use the new language."}},
         sec:9
       }
     ]
@@ -378,6 +487,9 @@ const CHAPTERS = [
           <span class="es-text">Capítulos detallados de cada función.</span><span class="en-text">Detailed chapters for every feature.</span></div></div>
           <div class="email-card" style="margin-top:6px"><div class="ico">📖</div><div><strong><span class="es-text">Guía escrita</span><span class="en-text">Written guide</span></strong>
           <span class="es-text">Referencia completa con tablas de permisos.</span><span class="en-text">Full reference with permission tables.</span></div></div></div>`,
+        email:{none:true,
+          to:{es:"Abrir Ayuda, ver el tour o esta animación no envía emails.",
+              en:"Opening Help, the tour, or this animation does not send emails."}},
         sec:14
       }
     ]
@@ -396,6 +508,9 @@ const CHAPTERS = [
           <div class="mock-row">🏘️ <span class="es-text">Comunidad activa</span><span class="en-text">Active community</span></div>
           <div class="mock-row" style="background:#fde8e4;border-radius:8px;padding:8px;color:#c62828;font-weight:800">↩ <span class="es-text">Cerrar sesión</span><span class="en-text">Sign out</span></div>
           <div class="cursor" style="left:30%;top:84%"></div></div>`,
+        email:{none:true,
+          to:{es:"Cerrar sesión no envía email. Tampoco se borra tu cuenta — al volver a entrar verás todo igual.",
+              en:"Signing out doesn't send an email. Your account isn't deleted — sign back in and you'll find everything as you left it."}},
         sec:11
       },
       { title:{es:"¡Listo para empezar!", en:"You're ready!"},
@@ -406,6 +521,9 @@ const CHAPTERS = [
         visual:`<div class="mock" style="text-align:center;padding:22px"><div class="mock-logo" style="margin:0 auto 8px;width:48px;height:48px;font-size:1.4rem">K</div>
           <strong style="display:block;font-size:1.05rem;color:#203f2b"><span class="es-text">¡Empieza ahora!</span><span class="en-text">Start now!</span></strong>
           <div style="font-size:.82rem;color:#235f72;margin-top:4px"><span class="es-text">Cierra esta ventana o haz clic en 'Ir a la app'.</span><span class="en-text">Close this window or click 'Go to the app'.</span></div></div>`,
+        email:{none:true,
+          to:{es:"Recuerda: si nunca recibiste un email esperado, revisa SPAM y confirma que el email del operador sea correcto en Mis Unidades.",
+              en:"Reminder: if an expected email never arrived, check SPAM and confirm the operator email is correct in My Units."}},
         sec:9
       }
     ]
@@ -426,13 +544,30 @@ const playBtn =document.getElementById('play');
 const speedEl =document.getElementById('speed');
 const bar     =document.getElementById('bar');
 
+function mailHtml(em){
+  if(!em) return '';
+  if(em.none){
+    return `<div class="mailbar none"><div class="ico">🚫</div><div>
+      <strong><span class="es-text">No envía email</span><span class="en-text">No email sent</span></strong>
+      <div class="row"><span class="es-text">${em.to.es}</span><span class="en-text">${em.to.en}</span></div>
+    </div></div>`;
+  }
+  const kinds=(em.kinds||[]).map(k=>`<div class="row kind">• <span class="es-text">${k.es}</span><span class="en-text">${k.en}</span></div>`).join('');
+  return `<div class="mailbar"><div class="ico">📧</div><div>
+    <strong><span class="es-text">Notificación por email</span><span class="en-text">Email notification</span></strong>
+    <div class="row"><b><span class="es-text">Llega a:</span><span class="en-text">Sent to:</span></b> <span class="es-text">${em.to.es}</span><span class="en-text">${em.to.en}</span></div>
+    ${kinds}
+  </div></div>`;
+}
+
 SLIDES.forEach((s,i)=>{
   const d=document.createElement('div'); d.className='slide';
   d.innerHTML=`
     <span class="chip"><span class="es-text">${s.chap.es}</span><span class="en-text">${s.chap.en}</span></span>
     <h2><span class="es-text">${s.title.es}</span><span class="en-text">${s.title.en}</span></h2>
     <p class="lede"><span class="es-text">${s.text.es}</span><span class="en-text">${s.text.en}</span></p>
-    <div class="visual">${s.visual}</div>`;
+    <div class="visual">${s.visual}</div>
+    ${mailHtml(s.email)}`;
   slidesEl.appendChild(d);
 });
 
