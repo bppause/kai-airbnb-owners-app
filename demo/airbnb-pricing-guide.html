@@ -1,0 +1,1426 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Guía de Precios Airbnb / Airbnb Pricing Guide</title>
+<style>
+  :root {
+    --brand: #FF385C;
+    --brand-dark: #D93B55;
+    --op: #1a56db;
+    --op-light: #e8f0fe;
+    --owner: #0d9488;
+    --owner-light: #ccfbf1;
+    --bg: #f7f7f7;
+    --card: #ffffff;
+    --text: #222;
+    --muted: #6b7280;
+    --border: #e5e7eb;
+    --gold: #f59e0b;
+    --green: #16a34a;
+    --red: #dc2626;
+    --radius: 12px;
+    --shadow: 0 2px 12px rgba(0,0,0,0.08);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); font-size: 15px; line-height: 1.6; }
+
+  /* ── HEADER ── */
+  .site-header { background: #fff; border-bottom: 1px solid var(--border); padding: 0 24px; display: flex; align-items: center; justify-content: space-between; height: 60px; position: sticky; top: 0; z-index: 100; box-shadow: 0 1px 6px rgba(0,0,0,0.06); }
+  .logo { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 17px; color: var(--brand); }
+  .logo svg { width: 28px; height: 28px; }
+  .lang-toggle { display: flex; border: 1.5px solid var(--border); border-radius: 8px; overflow: hidden; }
+  .lang-btn { padding: 6px 14px; background: none; border: none; cursor: pointer; font-size: 13px; font-weight: 600; color: var(--muted); transition: all .15s; }
+  .lang-btn.active { background: var(--brand); color: #fff; }
+
+  /* ── NAV TABS ── */
+  .tab-bar { background: #fff; border-bottom: 1px solid var(--border); display: flex; overflow-x: auto; padding: 0 20px; gap: 4px; position: sticky; top: 60px; z-index: 90; }
+  .tab-bar::-webkit-scrollbar { display: none; }
+  .tab-btn { padding: 14px 18px; background: none; border: none; border-bottom: 3px solid transparent; cursor: pointer; font-size: 14px; font-weight: 500; color: var(--muted); white-space: nowrap; transition: all .15s; }
+  .tab-btn.active { color: var(--brand); border-bottom-color: var(--brand); font-weight: 700; }
+  .tab-btn:hover:not(.active) { color: var(--text); }
+
+  /* ── LAYOUT ── */
+  .page { max-width: 980px; margin: 0 auto; padding: 28px 20px 60px; }
+  .section { display: none; }
+  .section.active { display: block; }
+
+  /* ── CARDS ── */
+  .card { background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow); padding: 24px; margin-bottom: 20px; border: 1px solid var(--border); }
+  .card-title { font-size: 17px; font-weight: 700; margin-bottom: 16px; display: flex; align-items: center; gap-8: 8px; }
+  .card-title .icon { font-size: 20px; margin-right: 8px; }
+  .card-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; margin-top: 16px; }
+
+  /* ── STAT BOXES ── */
+  .stat-box { background: var(--bg); border-radius: 10px; padding: 16px; border: 1px solid var(--border); text-align: center; }
+  .stat-val { font-size: 26px; font-weight: 800; color: var(--brand); }
+  .stat-label { font-size: 12px; color: var(--muted); margin-top: 4px; }
+
+  /* ── RANKING METER ── */
+  .rank-meter { margin: 20px 0; }
+  .rank-track { height: 12px; border-radius: 6px; background: linear-gradient(90deg, #16a34a 0%, #f59e0b 50%, #dc2626 100%); position: relative; margin: 8px 0; }
+  .rank-thumb { position: absolute; top: -6px; width: 24px; height: 24px; border-radius: 50%; background: #fff; border: 3px solid var(--brand); box-shadow: 0 2px 6px rgba(0,0,0,0.2); transform: translateX(-50%); transition: left .3s; cursor: pointer; }
+  .rank-labels { display: flex; justify-content: space-between; font-size: 11px; color: var(--muted); }
+  .rank-result { background: var(--bg); border-radius: 10px; padding: 16px; margin-top: 12px; border: 2px solid var(--border); display: flex; align-items: center; gap: 16px; }
+  .rank-badge { font-size: 28px; font-weight: 900; min-width: 80px; text-align: center; }
+  .rank-badge.top20 { color: var(--green); }
+  .rank-badge.top50 { color: var(--gold); }
+  .rank-badge.top100 { color: var(--red); }
+  .rank-explain { font-size: 13px; color: var(--muted); }
+
+  /* ── SLIDER ── */
+  .slider-row { display: flex; align-items: center; gap: 14px; margin: 12px 0; }
+  .slider-label { min-width: 120px; font-size: 13px; font-weight: 600; }
+  input[type=range] { flex: 1; accent-color: var(--brand); height: 6px; cursor: pointer; }
+  .slider-val { min-width: 100px; text-align: right; font-weight: 700; color: var(--brand); font-size: 15px; }
+
+  /* ── CONVERSATION BUBBLES ── */
+  .chat { display: flex; flex-direction: column; gap: 12px; margin: 16px 0; }
+  .bubble-wrap { display: flex; align-items: flex-end; gap: 8px; }
+  .bubble-wrap.op { flex-direction: row; }
+  .bubble-wrap.owner { flex-direction: row-reverse; }
+  .avatar { width: 34px; height: 34px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 700; flex-shrink: 0; }
+  .avatar.op { background: var(--op-light); color: var(--op); }
+  .avatar.owner { background: var(--owner-light); color: var(--owner); }
+  .bubble { max-width: 72%; padding: 10px 14px; border-radius: 14px; font-size: 13.5px; line-height: 1.5; }
+  .bubble.op { background: var(--op-light); color: #1e3a8a; border-bottom-left-radius: 4px; }
+  .bubble.owner { background: var(--owner-light); color: #134e4a; border-bottom-right-radius: 4px; }
+  .bubble .who { font-size: 11px; font-weight: 700; margin-bottom: 4px; opacity: .7; }
+  .bubble .time { font-size: 10px; text-align: right; margin-top: 4px; opacity: .5; }
+  .bubble.highlight { border: 2px solid var(--brand); }
+
+  /* ── ROLE PILL ── */
+  .role-pill { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 20px; font-size: 12px; font-weight: 700; }
+  .role-pill.op { background: var(--op-light); color: var(--op); }
+  .role-pill.owner { background: var(--owner-light); color: var(--owner); }
+
+  /* ── FACTOR LIST ── */
+  .factor-list { display: flex; flex-direction: column; gap: 10px; margin-top: 12px; }
+  .factor-item { display: flex; align-items: flex-start; gap: 12px; padding: 12px; border-radius: 10px; background: var(--bg); border: 1px solid var(--border); }
+  .factor-rank { font-size: 22px; font-weight: 900; min-width: 32px; color: var(--brand); }
+  .factor-body { flex: 1; }
+  .factor-title { font-weight: 700; font-size: 14px; }
+  .factor-desc { font-size: 13px; color: var(--muted); margin-top: 3px; }
+  .factor-tag { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 600; margin-top: 4px; }
+  .factor-tag.op-controls { background: var(--op-light); color: var(--op); }
+  .factor-tag.shared { background: #fef9c3; color: #92400e; }
+  .factor-tag.owner-controls { background: var(--owner-light); color: var(--owner); }
+
+  /* ── TABLE ── */
+  table { width: 100%; border-collapse: collapse; margin: 14px 0; font-size: 14px; }
+  th { background: var(--bg); padding: 10px 12px; text-align: left; font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); border-bottom: 2px solid var(--border); }
+  td { padding: 10px 12px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: #fafafa; }
+  .badge-green { background: #dcfce7; color: var(--green); padding: 2px 8px; border-radius: 10px; font-size: 12px; font-weight: 600; }
+  .badge-gold { background: #fef3c7; color: #b45309; padding: 2px 8px; border-radius: 10px; font-size: 12px; font-weight: 600; }
+  .badge-red { background: #fee2e2; color: var(--red); padding: 2px 8px; border-radius: 10px; font-size: 12px; font-weight: 600; }
+  .badge-blue { background: var(--op-light); color: var(--op); padding: 2px 8px; border-radius: 10px; font-size: 12px; font-weight: 600; }
+
+  /* ── CALCULATOR ── */
+  .calc-output { background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); color: #fff; border-radius: 12px; padding: 20px; margin-top: 16px; }
+  .calc-row { display: flex; justify-content: space-between; padding: 6px 0; font-size: 14px; border-bottom: 1px solid rgba(255,255,255,0.1); }
+  .calc-row:last-child { border-bottom: none; font-size: 18px; font-weight: 800; color: #fbbf24; padding-top: 12px; }
+  .calc-row .lbl { color: rgba(255,255,255,0.7); }
+
+  /* ── SEASON CALENDAR ── */
+  .season-grid { display: grid; grid-template-columns: repeat(12, 1fr); gap: 4px; margin: 14px 0; }
+  .month-col { display: flex; flex-direction: column; gap: 4px; align-items: center; }
+  .month-name { font-size: 10px; font-weight: 700; color: var(--muted); text-align: center; }
+  .month-bar { width: 100%; height: 40px; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700; color: #fff; cursor: pointer; transition: transform .15s; }
+  .month-bar:hover { transform: scaleY(1.1); }
+  .season-standard { background: #60a5fa; }
+  .season-high { background: #f59e0b; }
+  .season-peak { background: #ef4444; }
+  .season-legend { display: flex; gap: 16px; margin-top: 8px; }
+  .legend-item { display: flex; align-items: center; gap: 6px; font-size: 12px; }
+  .legend-dot { width: 12px; height: 12px; border-radius: 3px; }
+
+  /* ── FLOW DIAGRAM ── */
+  .flow { display: flex; flex-direction: column; gap: 0; margin: 16px 0; }
+  .flow-step { display: flex; gap: 16px; }
+  .flow-line { display: flex; flex-direction: column; align-items: center; }
+  .flow-dot { width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 15px; flex-shrink: 0; }
+  .flow-connector { flex: 1; width: 2px; background: var(--border); min-height: 20px; margin: 4px 0; }
+  .flow-content { padding-bottom: 20px; flex: 1; }
+  .flow-title { font-weight: 700; font-size: 14px; margin-bottom: 4px; }
+  .flow-body { font-size: 13px; color: var(--muted); }
+
+  /* ── HIGHLIGHT BOX ── */
+  .highlight-box { border-radius: 10px; padding: 14px 16px; margin: 14px 0; font-size: 14px; }
+  .highlight-box.warning { background: #fffbeb; border-left: 4px solid var(--gold); }
+  .highlight-box.info { background: var(--op-light); border-left: 4px solid var(--op); }
+  .highlight-box.success { background: #f0fdf4; border-left: 4px solid var(--green); }
+  .highlight-box.danger { background: #fef2f2; border-left: 4px solid var(--red); }
+
+  /* ── CHECKLIST ── */
+  .checklist { list-style: none; margin: 12px 0; display: flex; flex-direction: column; gap: 8px; }
+  .checklist li { display: flex; align-items: flex-start; gap: 10px; font-size: 14px; }
+  .checklist li::before { content: '✓'; color: var(--green); font-weight: 800; margin-top: 1px; flex-shrink: 0; }
+
+  /* ── HERO ── */
+  .hero { background: linear-gradient(135deg, #FF385C 0%, #D93B55 60%, #c0392b 100%); color: #fff; border-radius: var(--radius); padding: 32px 28px; margin-bottom: 24px; }
+  .hero h1 { font-size: 26px; font-weight: 900; margin-bottom: 8px; line-height: 1.2; }
+  .hero p { font-size: 15px; opacity: .9; max-width: 620px; }
+  .hero-meta { display: flex; gap: 16px; margin-top: 16px; flex-wrap: wrap; }
+  .hero-meta-item { display: flex; align-items: center; gap: 6px; font-size: 13px; background: rgba(255,255,255,0.15); padding: 6px 12px; border-radius: 20px; }
+
+  /* ── QUOTE ── */
+  .real-quote { background: #1e293b; color: #e2e8f0; border-radius: 10px; padding: 14px 16px; font-size: 13px; font-style: italic; margin: 12px 0; position: relative; }
+  .real-quote::before { content: '"'; font-size: 48px; color: var(--brand); position: absolute; top: -8px; left: 10px; font-style: normal; line-height: 1; }
+  .real-quote .attribution { font-size: 11px; color: #94a3b8; margin-top: 6px; font-style: normal; }
+
+  /* ── RESPONSIVE ── */
+  @media (max-width: 640px) {
+    .hero h1 { font-size: 20px; }
+    .season-grid { grid-template-columns: repeat(6, 1fr); }
+    .slider-label { min-width: 90px; font-size: 12px; }
+    .card { padding: 16px; }
+    .tab-btn { padding: 12px 12px; font-size: 13px; }
+  }
+
+  /* ── HIDDEN BY LANG ── */
+  [data-lang="en"] { display: none; }
+  body.en [data-lang="es"] { display: none; }
+  body.en [data-lang="en"] { display: block; }
+  span[data-lang="en"] { display: none; }
+  body.en span[data-lang="en"] { display: inline; }
+  body.en span[data-lang="es"] { display: none; }
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<header class="site-header">
+  <div class="logo">
+    <svg viewBox="0 0 32 32" fill="currentColor"><path d="M16 1C7.716 1 1 7.716 1 16s6.716 15 15 15 15-6.716 15-15S24.284 1 16 1zm0 27C8.82 28 3 22.18 3 15S8.82 2 16 2s13 5.82 13 13-5.82 13-13 13z"/><path d="M16 7c-2.484 0-4.5 2.016-4.5 4.5 0 3.375 4.5 8 4.5 8s4.5-4.625 4.5-8C20.5 9.016 18.484 7 16 7zm0 6.5a2 2 0 110-4 2 2 0 010 4z"/></svg>
+    <span data-lang="es">Guía de Precios Airbnb</span>
+    <span data-lang="en">Airbnb Pricing Guide</span>
+  </div>
+  <div class="lang-toggle">
+    <button class="lang-btn active" onclick="setLang('es')">ES</button>
+    <button class="lang-btn" onclick="setLang('en')">EN</button>
+  </div>
+</header>
+
+<!-- TAB BAR -->
+<nav class="tab-bar">
+  <button class="tab-btn active" onclick="setTab('overview')" data-tab="overview">
+    <span data-lang="es">📊 Resumen</span><span data-lang="en">📊 Overview</span>
+  </button>
+  <button class="tab-btn" onclick="setTab('ranking')" data-tab="ranking">
+    <span data-lang="es">🏆 Algoritmo</span><span data-lang="en">🏆 Algorithm</span>
+  </button>
+  <button class="tab-btn" onclick="setTab('pricing')" data-tab="pricing">
+    <span data-lang="es">💰 Precios</span><span data-lang="en">💰 Pricing</span>
+  </button>
+  <button class="tab-btn" onclick="setTab('seasons')" data-tab="seasons">
+    <span data-lang="es">📅 Temporadas</span><span data-lang="en">📅 Seasons</span>
+  </button>
+  <button class="tab-btn" onclick="setTab('calculator')" data-tab="calculator">
+    <span data-lang="es">🧮 Calculadora</span><span data-lang="en">🧮 Calculator</span>
+  </button>
+  <button class="tab-btn" onclick="setTab('conversation')" data-tab="conversation">
+    <span data-lang="es">💬 Operador & Dueño</span><span data-lang="en">💬 Operator & Owner</span>
+  </button>
+  <button class="tab-btn" onclick="setTab('checklist')" data-tab="checklist">
+    <span data-lang="es">✅ Lista de Acción</span><span data-lang="en">✅ Action List</span>
+  </button>
+</nav>
+
+<!-- ════════════════════════════════════════════════════════ -->
+<!-- TAB: OVERVIEW -->
+<!-- ════════════════════════════════════════════════════════ -->
+<div class="page">
+<div class="section active" id="tab-overview">
+
+  <div class="hero">
+    <h1>
+      <span data-lang="es">Maximiza tus reservas y revenue en Airbnb</span>
+      <span data-lang="en">Maximize your Airbnb bookings and revenue</span>
+    </h1>
+    <p data-lang="es">Basado en datos reales del mercado de Cartagena — cómo trabajan juntos el operador y el dueño para posicionar bien el anuncio y cobrar el precio correcto.</p>
+    <p data-lang="en">Based on real Cartagena market data — how operator and owner work together to position the listing well and charge the right price.</p>
+    <div class="hero-meta">
+      <div class="hero-meta-item">📍 <span data-lang="es">Morros Kai, Cartagena</span><span data-lang="en">Morros Kai, Cartagena</span></div>
+      <div class="hero-meta-item">🏠 <span data-lang="es">2 hab · 2 baños</span><span data-lang="en">2 bed · 2 bath</span></div>
+      <div class="hero-meta-item">⭐ <span data-lang="es">Favorito entre huéspedes</span><span data-lang="en">Guest Favorite badge</span></div>
+      <div class="hero-meta-item">🏆 <span data-lang="es">Top 3 Cartagena</span><span data-lang="en">Top 3 in Cartagena</span></div>
+    </div>
+  </div>
+
+  <!-- Key insight cards -->
+  <div class="card-grid">
+    <div class="stat-box">
+      <div class="stat-val">⚖️</div>
+      <div style="font-size:14px;font-weight:700;margin:6px 0" data-lang="es">El dilema central</div>
+      <div style="font-size:14px;font-weight:700;margin:6px 0" data-lang="en">The core trade-off</div>
+      <div class="stat-label" data-lang="es">Precio más alto = menos visibilidad = menos reservas. Precio más bajo = más reservas = menos ingreso por noche.</div>
+      <div class="stat-label" data-lang="en">Higher price = less visibility = fewer bookings. Lower price = more bookings = less revenue per night.</div>
+    </div>
+    <div class="stat-box">
+      <div class="stat-val" style="color:var(--op)">🎯</div>
+      <div style="font-size:14px;font-weight:700;margin:6px 0" data-lang="es">Zona óptima Cartagena Norte</div>
+      <div style="font-size:14px;font-weight:700;margin:6px 0" data-lang="en">Sweet spot N. Cartagena</div>
+      <div class="stat-label" data-lang="es">$90–$110 USD/noche (~315K–385K COP) para unidades 2 hab bien calificadas en Morros.</div>
+      <div class="stat-label" data-lang="en">$90–$110 USD/night (~315K–385K COP) for well-rated 2-bed units in Morros complex.</div>
+    </div>
+    <div class="stat-box">
+      <div class="stat-val" style="color:var(--owner)">60% / 80%</div>
+      <div style="font-size:14px;font-weight:700;margin:6px 0" data-lang="es">Meta de ocupación</div>
+      <div style="font-size:14px;font-weight:700;margin:6px 0" data-lang="en">Occupancy target</div>
+      <div class="stat-label" data-lang="es">60% en temporada regular · 80% en temporada alta para viabilidad financiera.</div>
+      <div class="stat-label" data-lang="en">60% in regular season · 80% in peak season for financial viability.</div>
+    </div>
+    <div class="stat-box">
+      <div class="stat-val" style="color:var(--gold)">+200%</div>
+      <div style="font-size:14px;font-weight:700;margin:6px 0" data-lang="es">Pico de Año Nuevo</div>
+      <div style="font-size:14px;font-weight:700;margin:6px 0" data-lang="en">New Year peak markup</div>
+      <div class="stat-label" data-lang="es">Dic 30 – Ene 2 justifica el precio más alto del año. Semana Santa y vacaciones de mitad de año: +30%.</div>
+      <div class="stat-label" data-lang="en">Dec 30 – Jan 2 commands the highest rates of the year. Easter and mid-year holidays: +30%.</div>
+    </div>
+  </div>
+
+  <!-- Two roles explained -->
+  <div class="card" style="margin-top:8px;">
+    <div class="card-title"><span class="icon">👥</span>
+      <span data-lang="es">Dos roles, una meta</span>
+      <span data-lang="en">Two roles, one goal</span>
+    </div>
+    <p style="margin-bottom:16px;color:var(--muted);font-size:14px;" data-lang="es">En Airbnb el operador (anfitrión principal / Host) y el dueño (co-anfitrión / Co-Host) deben alinear decisiones de precio, presentación y operación. Cada uno tiene control sobre cosas distintas.</p>
+    <p style="margin-bottom:16px;color:var(--muted);font-size:14px;" data-lang="en">On Airbnb the operator (primary Host) and the owner (Co-Host) must align on pricing, listing quality, and operations. Each controls different things.</p>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+      <div style="background:var(--op-light);border-radius:10px;padding:16px;">
+        <div style="font-weight:700;color:var(--op);margin-bottom:10px;font-size:15px;">
+          🏢 <span data-lang="es">Operador (Host principal)</span><span data-lang="en">Operator (Primary Host)</span>
+        </div>
+        <ul class="checklist" style="font-size:13px;">
+          <li data-lang="es">Gestiona el calendario y precios</li>
+          <li data-lang="es">Responde huéspedes (7am–medianoche)</li>
+          <li data-lang="es">Coordina limpieza e inspecciones</li>
+          <li data-lang="es">Reporta daños a Airbnb (AirCover)</li>
+          <li data-lang="es">Propone cambios de precio al dueño</li>
+          <li data-lang="en">Manages calendar and pricing</li>
+          <li data-lang="en">Responds to guests (7am–midnight)</li>
+          <li data-lang="en">Coordinates cleaning and inspections</li>
+          <li data-lang="en">Files damage claims to Airbnb (AirCover)</li>
+          <li data-lang="en">Proposes price changes to owner</li>
+        </ul>
+      </div>
+      <div style="background:var(--owner-light);border-radius:10px;padding:16px;">
+        <div style="font-weight:700;color:var(--owner);margin-bottom:10px;font-size:15px;">
+          🏠 <span data-lang="es">Dueño (Co-anfitrión)</span><span data-lang="en">Owner (Co-Host)</span>
+        </div>
+        <ul class="checklist" style="font-size:13px;">
+          <li data-lang="es">Aprueba o contraoferta los precios</li>
+          <li data-lang="es">Autoriza reparaciones con costo</li>
+          <li data-lang="es">Proporciona documentos (RNT, seguro)</li>
+          <li data-lang="es">Solicita bloqueo de fechas personales</li>
+          <li data-lang="es">Ve resúmenes de huéspedes y reseñas</li>
+          <li data-lang="en">Approves or counters price proposals</li>
+          <li data-lang="en">Authorizes repairs with cost</li>
+          <li data-lang="en">Provides documents (RNT, insurance)</li>
+          <li data-lang="en">Requests personal-use date blocks</li>
+          <li data-lang="en">Reviews guest summaries and reviews</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="highlight-box warning">
+    <strong data-lang="es">⚠️ Error más común:</strong>
+    <strong data-lang="en">⚠️ Most common mistake:</strong>
+    <span data-lang="es"> Subir el precio sin revisar primero el impacto en el ranking. En este caso, subir de $300K a $400K COP bajó el anuncio de top 20 a top 80, y resultó en <strong>0 reservas en 10 días</strong>.</span>
+    <span data-lang="en"> Raising the price without first checking the ranking impact. In this case, going from 300K to 400K COP dropped the listing from top 20 to top 80, resulting in <strong>0 bookings in 10 days</strong>.</span>
+  </div>
+
+</div>
+
+<!-- ════════════════════════════════════════════════════════ -->
+<!-- TAB: RANKING ALGORITHM -->
+<!-- ════════════════════════════════════════════════════════ -->
+<div class="section" id="tab-ranking">
+
+  <div class="card">
+    <div class="card-title"><span class="icon">🏆</span>
+      <span data-lang="es">El Algoritmo de Airbnb — qué controla tu posición</span>
+      <span data-lang="en">The Airbnb Algorithm — what controls your position</span>
+    </div>
+
+    <div class="real-quote">
+      <span data-lang="es">Entre más alto es el precio, más abajo te posiciona el algoritmo a la hora de las búsquedas. Un anuncio que no tiene visualizaciones tendrá menos reservas, porque el algoritmo lo ubica abajo.</span>
+      <span data-lang="en">The higher the price, the lower the algorithm positions you in searches. A listing with no impressions will have fewer bookings because the algorithm ranks it lower.</span>
+      <div class="attribution">— <span data-lang="es">Paula Ramírez, coordinadora operativa, datos reales de Cartagena Norte, 2026</span><span data-lang="en">Paula Ramírez, operations coordinator, real Cartagena Norte data, 2026</span></div>
+    </div>
+
+    <!-- Interactive ranking simulator -->
+    <div style="margin-top:20px;">
+      <div style="font-weight:700;font-size:15px;margin-bottom:12px;" data-lang="es">🎮 Simulador de Posición — mueve el precio y ve cómo cambia el ranking</div>
+      <div style="font-weight:700;font-size:15px;margin-bottom:12px;" data-lang="en">🎮 Position Simulator — move the price and see how ranking changes</div>
+
+      <div class="slider-row">
+        <span class="slider-label" data-lang="es">Tarifa base</span>
+        <span class="slider-label" data-lang="en">Base rate</span>
+        <input type="range" id="rankSlider" min="200000" max="600000" step="5000" value="345000" oninput="updateRanking()">
+        <span class="slider-val" id="rankPrice">$345.000</span>
+      </div>
+
+      <div class="rank-meter">
+        <div class="rank-track">
+          <div class="rank-thumb" id="rankThumb" style="left:24%"></div>
+        </div>
+        <div class="rank-labels">
+          <span data-lang="es">Top 10 (mejor)</span><span data-lang="en">Top 10 (best)</span>
+          <span data-lang="es">Top 50</span><span data-lang="en">Top 50</span>
+          <span data-lang="es">Top 100+ (peor)</span><span data-lang="en">Top 100+ (worst)</span>
+        </div>
+      </div>
+
+      <div class="rank-result">
+        <div class="rank-badge top20" id="rankBadge">Top 20</div>
+        <div>
+          <div id="rankTitle" style="font-weight:700;font-size:15px;"></div>
+          <div class="rank-explain" id="rankDesc"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- The 6 ranking factors -->
+  <div class="card">
+    <div class="card-title"><span class="icon">📋</span>
+      <span data-lang="es">Los 6 factores de ranking (en orden de impacto)</span>
+      <span data-lang="en">The 6 ranking factors (in order of impact)</span>
+    </div>
+    <p style="font-size:13px;color:var(--muted);margin-bottom:16px;" data-lang="es">Según datos operativos reales de Luxury Rentals, operador con Top 3 en Cartagena.</p>
+    <p style="font-size:13px;color:var(--muted);margin-bottom:16px;" data-lang="en">Based on real operational data from Luxury Rentals, a Top 3 operator in Cartagena.</p>
+
+    <div class="factor-list">
+      <div class="factor-item">
+        <div class="factor-rank">1</div>
+        <div class="factor-body">
+          <div class="factor-title" data-lang="es">💰 Precio competitivo</div>
+          <div class="factor-title" data-lang="en">💰 Competitive price</div>
+          <div class="factor-desc" data-lang="es">El factor más importante. Airbnb favorece listados con precios dentro del rango del mercado local. Cada 50K COP de aumento puede costar 30+ posiciones.</div>
+          <div class="factor-desc" data-lang="en">The most important factor. Airbnb favors listings priced within the local market range. Every 50K COP increase can cost 30+ positions.</div>
+          <span class="factor-tag shared" data-lang="es">Operador propone · Dueño confirma</span>
+          <span class="factor-tag shared" data-lang="en">Operator proposes · Owner confirms</span>
+        </div>
+      </div>
+      <div class="factor-item">
+        <div class="factor-rank">2</div>
+        <div class="factor-body">
+          <div class="factor-title" data-lang="es">⭐ Reseñas y calificación</div>
+          <div class="factor-title" data-lang="en">⭐ Reviews and rating</div>
+          <div class="factor-desc" data-lang="es">Calificación 5.0 y badge "Favorito entre huéspedes" dan visibilidad adicional. Responder a todas las reseñas (positivas y negativas) refuerza el posicionamiento y la confianza.</div>
+          <div class="factor-desc" data-lang="en">5.0 rating and "Guest Favorite" badge give additional visibility. Responding to all reviews (positive and negative) reinforces positioning and trust.</div>
+          <span class="factor-tag op-controls" data-lang="es">Operador gestiona</span>
+          <span class="factor-tag op-controls" data-lang="en">Operator manages</span>
+        </div>
+      </div>
+      <div class="factor-item">
+        <div class="factor-rank">3</div>
+        <div class="factor-body">
+          <div class="factor-title" data-lang="es">🏅 Badge "Favorito entre huéspedes"</div>
+          <div class="factor-title" data-lang="en">🏅 "Guest Favorite" badge</div>
+          <div class="factor-desc" data-lang="es">Mejor que Superhost en términos de visibilidad algorítmica. Se obtiene con calificación alta + suficientes reseñas recientes. Más valioso que el status Superhost.</div>
+          <div class="factor-desc" data-lang="en">Better than Superhost in terms of algorithmic visibility. Earned with high rating + enough recent reviews. More valuable than Superhost status for search position.</div>
+          <span class="factor-tag op-controls" data-lang="es">Operador gestiona</span>
+          <span class="factor-tag op-controls" data-lang="en">Operator manages</span>
+        </div>
+      </div>
+      <div class="factor-item">
+        <div class="factor-rank">4</div>
+        <div class="factor-body">
+          <div class="factor-title" data-lang="es">📸 Calidad de fotos</div>
+          <div class="factor-title" data-lang="en">📸 Photo quality</div>
+          <div class="factor-desc" data-lang="es">Fotos profesionales del apartamento + zonas comunes (piscina, playa, gym). El orden importa: la foto de portada determina el CTR (tasa de clics). Actualizar fotos mejora el engagement.</div>
+          <div class="factor-desc" data-lang="en">Professional photos of apartment + shared amenities (pool, beach, gym). Order matters: the cover photo determines CTR (click-through rate). Updating photos improves engagement.</div>
+          <span class="factor-tag shared" data-lang="es">Operador ejecuta · Dueño aporta fotos</span>
+          <span class="factor-tag shared" data-lang="en">Operator executes · Owner contributes photos</span>
+        </div>
+      </div>
+      <div class="factor-item">
+        <div class="factor-rank">5</div>
+        <div class="factor-body">
+          <div class="factor-title" data-lang="es">📝 Título y descripción</div>
+          <div class="factor-title" data-lang="en">📝 Title and description</div>
+          <div class="factor-desc" data-lang="es">Máximo 50 caracteres en el título — úsalos bien. Incluye el diferenciador principal (vista al mar, frente a la playa, edificio nuevo). El dueño puede proponer cambios y el operador los aplica.</div>
+          <div class="factor-desc" data-lang="en">Max 50 characters in title — use them well. Include the main differentiator (ocean view, beachfront, new building). Owner can suggest changes; operator applies them.</div>
+          <span class="factor-tag shared" data-lang="es">Colaboración Operador + Dueño</span>
+          <span class="factor-tag shared" data-lang="en">Operator + Owner collaboration</span>
+        </div>
+      </div>
+      <div class="factor-item">
+        <div class="factor-rank">6</div>
+        <div class="factor-body">
+          <div class="factor-title" data-lang="es">⚡ Velocidad de respuesta</div>
+          <div class="factor-title" data-lang="en">⚡ Response speed</div>
+          <div class="factor-desc" data-lang="es">Airbnb premia la velocidad de respuesta. El operador con equipo 7 días / 7am–medianoche tiene ventaja. Mensajes programados de bienvenida y seguimiento aumentan conversión.</div>
+          <div class="factor-desc" data-lang="en">Airbnb rewards fast response. An operator with a team 7 days / 7am–midnight has an advantage. Scheduled welcome and follow-up messages increase conversion.</div>
+          <span class="factor-tag op-controls" data-lang="es">Operador gestiona</span>
+          <span class="factor-tag op-controls" data-lang="en">Operator manages</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Discount & algo -->
+  <div class="card">
+    <div class="card-title"><span class="icon">🎁</span>
+      <span data-lang="es">Los descuentos también mejoran el ranking</span>
+      <span data-lang="en">Discounts also improve ranking</span>
+    </div>
+    <div class="real-quote">
+      <span data-lang="es">Los descuentos son importantes dejarlos para que el algoritmo nos dé visibilidad.</span>
+      <span data-lang="en">Discounts are important to keep active so the algorithm gives us visibility.</span>
+      <div class="attribution">— Oscar Lindo, Luxury Rentals</div>
+    </div>
+    <p style="font-size:14px;color:var(--muted);margin:12px 0;" data-lang="es">Airbnb muestra un tachado con el precio original y el precio con descuento, lo que mejora el CTR. Los descuentos activos señalan al algoritmo que el anuncio es dinámico y atractivo.</p>
+    <p style="font-size:14px;color:var(--muted);margin:12px 0;" data-lang="en">Airbnb shows a strikethrough with the original price and the discounted price, improving CTR. Active discounts signal to the algorithm that the listing is dynamic and attractive.</p>
+    <table>
+      <tr><th data-lang="es">Tipo de descuento</th><th data-lang="en">Discount type</th><th>%</th><th data-lang="es">Cuándo aplicar</th><th data-lang="en">When to apply</th></tr>
+      <tr>
+        <td data-lang="es">Último minuto</td><td data-lang="en">Last-minute</td>
+        <td><span class="badge-red">−20%</span></td>
+        <td data-lang="es">Fechas sin reserva en los próximos 7 días</td>
+        <td data-lang="en">Dates without booking in next 7 days</td>
+      </tr>
+      <tr>
+        <td data-lang="es">Reserva anticipada</td><td data-lang="en">Early-bird booking</td>
+        <td><span class="badge-green">−10%</span></td>
+        <td data-lang="es">Reservas hechas con 3+ meses de anticipación</td>
+        <td data-lang="en">Bookings made 3+ months in advance</td>
+      </tr>
+      <tr>
+        <td data-lang="es">Estadía semanal</td><td data-lang="en">Weekly stay</td>
+        <td><span class="badge-blue">−15%</span></td>
+        <td data-lang="es">Estancias de 7+ noches</td>
+        <td data-lang="en">Stays of 7+ nights</td>
+      </tr>
+      <tr>
+        <td data-lang="es">Estadía mensual</td><td data-lang="en">Monthly stay</td>
+        <td><span class="badge-gold">−20%</span></td>
+        <td data-lang="es">Estancias de 28+ noches</td>
+        <td data-lang="en">Stays of 28+ nights</td>
+      </tr>
+    </table>
+  </div>
+
+</div>
+
+<!-- ════════════════════════════════════════════════════════ -->
+<!-- TAB: PRICING -->
+<!-- ════════════════════════════════════════════════════════ -->
+<div class="section" id="tab-pricing">
+
+  <div class="card">
+    <div class="card-title"><span class="icon">💰</span>
+      <span data-lang="es">Estructura de precios completa</span>
+      <span data-lang="en">Full pricing structure</span>
+    </div>
+
+    <div class="highlight-box info">
+      <strong data-lang="es">📐 Cómo se construye el precio que ve el huésped</strong>
+      <strong data-lang="en">📐 How the price the guest sees is built</strong>
+    </div>
+
+    <div style="margin:16px 0;">
+      <div class="slider-row">
+        <span class="slider-label" data-lang="es">Base (2026)</span>
+        <span class="slider-label" data-lang="en">Base (2026)</span>
+        <input type="range" id="baseRate" min="200000" max="600000" step="5000" value="345000" oninput="updatePricing()">
+        <span class="slider-val" id="baseRateVal">$345.000</span>
+      </div>
+      <div class="slider-row">
+        <span class="slider-label" data-lang="es">Fin de semana</span>
+        <span class="slider-label" data-lang="en">Weekend</span>
+        <input type="range" id="weekendRate" min="0" max="200000" step="5000" value="45000" oninput="updatePricing()">
+        <span class="slider-val" id="weekendRateVal">+$45.000</span>
+      </div>
+      <div class="slider-row">
+        <span class="slider-label" data-lang="es">Descuento std</span>
+        <span class="slider-label" data-lang="en">Std discount</span>
+        <input type="range" id="stdDiscount" min="0" max="30" step="1" value="15" oninput="updatePricing()">
+        <span class="slider-val" id="stdDiscountVal">−15%</span>
+      </div>
+      <div class="slider-row">
+        <span class="slider-label" data-lang="es">Tarifa aseo</span>
+        <span class="slider-label" data-lang="en">Cleaning fee</span>
+        <input type="range" id="cleaningFee" min="0" max="300000" step="10000" value="150000" oninput="updatePricing()">
+        <span class="slider-val" id="cleaningFeeVal">$150.000</span>
+      </div>
+    </div>
+
+    <div class="calc-output" id="pricingOutput">
+      <!-- filled by JS -->
+    </div>
+  </div>
+
+  <!-- Comparable market data -->
+  <div class="card">
+    <div class="card-title"><span class="icon">📊</span>
+      <span data-lang="es">Benchmarks del mercado — Morros, Cartagena (2026)</span>
+      <span data-lang="en">Market benchmarks — Morros, Cartagena (2026)</span>
+    </div>
+    <p style="font-size:13px;color:var(--muted);margin-bottom:14px;" data-lang="es">Investigación real de mercado usando IA + Airbnb (Brian Pause, abril 2026). Tipo de cambio ~3.500 COP/USD.</p>
+    <p style="font-size:13px;color:var(--muted);margin-bottom:14px;" data-lang="en">Real market research using AI + Airbnb (Brian Pause, April 2026). Exchange rate ~3,500 COP/USD.</p>
+    <table>
+      <tr>
+        <th data-lang="es">Anuncio</th><th data-lang="en">Listing</th>
+        <th data-lang="es">Hab/Baños</th><th data-lang="en">Bed/Bath</th>
+        <th>USD/noche</th>
+        <th>COP/noche</th>
+        <th data-lang="es">Posición</th><th data-lang="en">Position</th>
+      </tr>
+      <tr>
+        <td>Morros ECO</td><td data-lang="en">Morros ECO</td><td>2/2</td><td data-lang="en">2/2</td>
+        <td>$82</td><td>~287K</td><td><span class="badge-green" data-lang="es">Buena</span><span class="badge-green" data-lang="en">Good</span></td>
+      </tr>
+      <tr>
+        <td>Morros City</td><td data-lang="en">Morros City</td><td>2/2</td><td data-lang="en">2/2</td>
+        <td>$96</td><td>~336K</td><td><span class="badge-green" data-lang="es">Buena</span><span class="badge-green" data-lang="en">Good</span></td>
+      </tr>
+      <tr>
+        <td>Morros Zoe</td><td data-lang="en">Morros Zoe</td><td>2/2</td><td data-lang="en">2/2</td>
+        <td>$105</td><td>~367K</td><td><span class="badge-green" data-lang="es">Buena</span><span class="badge-green" data-lang="en">Good</span></td>
+      </tr>
+      <tr style="background:#fffbeb;">
+        <td><strong>Morros KAI 317</strong></td><td data-lang="en"><strong>Morros KAI 317</strong></td>
+        <td>2/2+sofá</td><td data-lang="en">2/2+sofa</td>
+        <td><strong>~$99</strong></td><td><strong>~345K</strong></td>
+        <td><span class="badge-gold" data-lang="es">Tu anuncio</span><span class="badge-gold" data-lang="en">Your listing</span></td>
+      </tr>
+      <tr>
+        <td>Morros City (piso alto)</td><td data-lang="en">Morros City (high floor)</td><td>2/2</td><td data-lang="en">2/2</td>
+        <td>$192</td><td>~672K</td><td><span class="badge-gold" data-lang="es">Temporada alta</span><span class="badge-gold" data-lang="en">Peak only</span></td>
+      </tr>
+      <tr>
+        <td>Morros Cartagena</td><td data-lang="en">Morros Cartagena</td><td>2/3</td><td data-lang="en">2/3</td>
+        <td>$72</td><td>~252K</td><td><span class="badge-red" data-lang="es">Edificio antiguo</span><span class="badge-red" data-lang="en">Older building</span></td>
+      </tr>
+    </table>
+
+    <div class="highlight-box success" style="margin-top:8px;">
+      <strong data-lang="es">✅ Ventaja de Morros KAI:</strong>
+      <strong data-lang="en">✅ Morros KAI advantage:</strong>
+      <span data-lang="es"> Edificio nuevo (2025), calificación 5.0, badge Guest Favorite, sofá cama extra. Justifica precio en el rango medio-premium ($95–$115 USD en temporada regular).</span>
+      <span data-lang="en"> New building (2025), 5.0 rating, Guest Favorite badge, extra sofa bed. Justifies pricing in the mid-premium range ($95–$115 USD in regular season).</span>
+    </div>
+  </div>
+
+  <!-- Annual rate planning -->
+  <div class="card">
+    <div class="card-title"><span class="icon">📆</span>
+      <span data-lang="es">Planificación anual de precios</span>
+      <span data-lang="en">Annual price planning</span>
+    </div>
+    <table>
+      <tr>
+        <th data-lang="es">Año</th><th data-lang="en">Year</th>
+        <th data-lang="es">Base (antes descuento)</th><th data-lang="en">Base (before discount)</th>
+        <th data-lang="es">Base efectiva (−15%)</th><th data-lang="en">Effective base (−15%)</th>
+        <th data-lang="es">Incremento</th><th data-lang="en">Increase</th>
+      </tr>
+      <tr>
+        <td>2026</td><td data-lang="en">2026</td>
+        <td>$345.000 COP</td><td data-lang="en">$345.000 COP</td>
+        <td>~$293.000 COP</td><td data-lang="en">~$293.000 COP</td>
+        <td>—</td><td data-lang="en">—</td>
+      </tr>
+      <tr>
+        <td>2027</td><td data-lang="en">2027</td>
+        <td>$450.000 COP</td><td data-lang="en">$450.000 COP</td>
+        <td>~$382.000 COP</td><td data-lang="en">~$382.000 COP</td>
+        <td><span class="badge-gold">+30%</span></td><td data-lang="en"><span class="badge-gold">+30%</span></td>
+      </tr>
+      <tr style="opacity:.6;">
+        <td data-lang="es">2028 (proyección)</td><td data-lang="en">2028 (projected)</td>
+        <td>~$495.000 COP</td><td data-lang="en">~$495.000 COP</td>
+        <td>~$420.000 COP</td><td data-lang="en">~$420.000 COP</td>
+        <td><span class="badge-green">+10%</span></td><td data-lang="en"><span class="badge-green">+10%</span></td>
+      </tr>
+    </table>
+    <div class="highlight-box warning" style="margin-top:8px;">
+      <strong data-lang="es">⚠️ Problema del calendario abierto:</strong>
+      <strong data-lang="en">⚠️ Open calendar problem:</strong>
+      <span data-lang="es"> Si abres el calendario a 12 meses, los huéspedes pueden reservar 2027 a precios de 2026. Solución: abrir solo 6–9 meses de anticipación, o actualizar precios de 2027 antes de abrir ese año en el calendario.</span>
+      <span data-lang="en"> If you open the calendar 12 months ahead, guests can book 2027 at 2026 prices. Solution: open only 6–9 months ahead, or update 2027 prices before opening that year on the calendar.</span>
+    </div>
+  </div>
+
+</div>
+
+<!-- ════════════════════════════════════════════════════════ -->
+<!-- TAB: SEASONS -->
+<!-- ════════════════════════════════════════════════════════ -->
+<div class="section" id="tab-seasons">
+
+  <div class="card">
+    <div class="card-title"><span class="icon">📅</span>
+      <span data-lang="es">Calendario de temporadas — Cartagena / Morros</span>
+      <span data-lang="en">Season calendar — Cartagena / Morros</span>
+    </div>
+
+    <div class="season-legend">
+      <div class="legend-item"><div class="legend-dot" style="background:#60a5fa"></div><span data-lang="es">Temporada estándar</span><span data-lang="en">Standard season</span></div>
+      <div class="legend-item"><div class="legend-dot" style="background:#f59e0b"></div><span data-lang="es">Temporada alta (+30%)</span><span data-lang="en">High season (+30%)</span></div>
+      <div class="legend-item"><div class="legend-dot" style="background:#ef4444"></div><span data-lang="es">Pico (+200%)</span><span data-lang="en">Peak (+200%)</span></div>
+    </div>
+
+    <div class="season-grid" style="margin-top:16px;">
+      <!-- Jan -->
+      <div class="month-col">
+        <div class="month-bar season-high" title="Ene: +30% (hasta ene 31)">+30%</div>
+        <div class="month-name" data-lang="es">Ene</div><div class="month-name" data-lang="en">Jan</div>
+      </div>
+      <!-- Feb -->
+      <div class="month-col">
+        <div class="month-bar season-standard" title="Feb: Estándar">Std</div>
+        <div class="month-name" data-lang="es">Feb</div><div class="month-name" data-lang="en">Feb</div>
+      </div>
+      <!-- Mar -->
+      <div class="month-col">
+        <div class="month-bar season-standard" title="Mar: Estándar (Semana Santa varía)">Std</div>
+        <div class="month-name" data-lang="es">Mar</div><div class="month-name" data-lang="en">Mar</div>
+      </div>
+      <!-- Apr -->
+      <div class="month-col">
+        <div class="month-bar season-high" title="Abr 1–5: Semana Santa +30%">+30%<br><span style="font-size:9px">1–5</span></div>
+        <div class="month-name" data-lang="es">Abr</div><div class="month-name" data-lang="en">Apr</div>
+      </div>
+      <!-- May -->
+      <div class="month-col">
+        <div class="month-bar season-standard" title="May: Estándar">Std</div>
+        <div class="month-name" data-lang="es">May</div><div class="month-name" data-lang="en">May</div>
+      </div>
+      <!-- Jun -->
+      <div class="month-col">
+        <div class="month-bar season-high" title="Jun 15–: Vacaciones escolares +30%">+30%<br><span style="font-size:9px">15→</span></div>
+        <div class="month-name" data-lang="es">Jun</div><div class="month-name" data-lang="en">Jun</div>
+      </div>
+      <!-- Jul -->
+      <div class="month-col">
+        <div class="month-bar season-high" title="Jul: Vacaciones escolares +30%">+30%</div>
+        <div class="month-name" data-lang="es">Jul</div><div class="month-name" data-lang="en">Jul</div>
+      </div>
+      <!-- Aug -->
+      <div class="month-col">
+        <div class="month-bar season-standard" title="Ago: Estándar">Std</div>
+        <div class="month-name" data-lang="es">Ago</div><div class="month-name" data-lang="en">Aug</div>
+      </div>
+      <!-- Sep -->
+      <div class="month-col">
+        <div class="month-bar season-standard" title="Sep: Estándar">Std</div>
+        <div class="month-name" data-lang="es">Sep</div><div class="month-name" data-lang="en">Sep</div>
+      </div>
+      <!-- Oct -->
+      <div class="month-col">
+        <div class="month-bar season-high" title="Oct 8–11: Día de la Raza +30%">+30%<br><span style="font-size:9px">8–11</span></div>
+        <div class="month-name" data-lang="es">Oct</div><div class="month-name" data-lang="en">Oct</div>
+      </div>
+      <!-- Nov -->
+      <div class="month-col">
+        <div class="month-bar season-high" title="Nov 12–15: Independencia Cartagena +30%">+30%<br><span style="font-size:9px">12–15</span></div>
+        <div class="month-name" data-lang="es">Nov</div><div class="month-name" data-lang="en">Nov</div>
+      </div>
+      <!-- Dec -->
+      <div class="month-col">
+        <div class="month-bar season-peak" title="Dic 1–31: +30% / Dic 30–Ene 2: +200%">+200%<br><span style="font-size:9px">30–2</span></div>
+        <div class="month-name" data-lang="es">Dic</div><div class="month-name" data-lang="en">Dec</div>
+      </div>
+    </div>
+
+    <table style="margin-top:20px;">
+      <tr>
+        <th data-lang="es">Temporada / Evento</th><th data-lang="en">Season / Event</th>
+        <th data-lang="es">Fechas</th><th data-lang="en">Dates</th>
+        <th data-lang="es">Markup</th><th data-lang="en">Markup</th>
+        <th data-lang="es">Sobre tarifa base</th><th data-lang="en">On base rate</th>
+      </tr>
+      <tr>
+        <td data-lang="es">Semana Santa / Easter</td><td data-lang="en">Easter / Holy Week</td>
+        <td data-lang="es">Abr 1–5 (varía)</td><td data-lang="en">Apr 1–5 (varies)</td>
+        <td><span class="badge-gold">+30%</span></td>
+        <td>345K → ~449K</td><td data-lang="en">345K → ~449K</td>
+      </tr>
+      <tr>
+        <td data-lang="es">Vacaciones escolares</td><td data-lang="en">School holidays</td>
+        <td>Jun 15 – Ago 1</td><td data-lang="en">Jun 15 – Aug 1</td>
+        <td><span class="badge-gold">+30%</span></td>
+        <td>345K → ~449K</td><td data-lang="en">345K → ~449K</td>
+      </tr>
+      <tr>
+        <td data-lang="es">Día de la Raza</td><td data-lang="en">Columbus Day long weekend</td>
+        <td>Oct 8–11</td><td data-lang="en">Oct 8–11</td>
+        <td><span class="badge-gold">+30%</span></td>
+        <td>345K → ~449K</td><td data-lang="en">345K → ~449K</td>
+      </tr>
+      <tr>
+        <td data-lang="es">Ind. Cartagena</td><td data-lang="en">Cartagena Independence</td>
+        <td>Nov 12–15</td><td data-lang="en">Nov 12–15</td>
+        <td><span class="badge-gold">+30%</span></td>
+        <td>345K → ~449K</td><td data-lang="en">345K → ~449K</td>
+      </tr>
+      <tr>
+        <td data-lang="es">Temporada alta diciembre</td><td data-lang="en">December high season</td>
+        <td>Dic 1–29</td><td data-lang="en">Dec 1–29</td>
+        <td><span class="badge-gold">+30%</span></td>
+        <td>345K → ~449K</td><td data-lang="en">345K → ~449K</td>
+      </tr>
+      <tr>
+        <td data-lang="es"><strong>🎆 Año Nuevo (PICO)</strong></td><td data-lang="en"><strong>🎆 New Year (PEAK)</strong></td>
+        <td>Dic 30 – Ene 2</td><td data-lang="en">Dec 30 – Jan 2</td>
+        <td><span class="badge-red">+200%</span></td>
+        <td>345K → ~1.035M</td><td data-lang="en">345K → ~1.035M</td>
+      </tr>
+    </table>
+
+    <div class="highlight-box success">
+      <strong data-lang="es">💡 Consejo del operador:</strong>
+      <strong data-lang="en">💡 Operator tip:</strong>
+      <span data-lang="es"> Configura los precios de temporada alta con 2–3 meses de anticipación. Para Semana Santa (que cambia de fecha), revisa el calendario colombiano de festivos cada año en enero.</span>
+      <span data-lang="en"> Set peak season prices 2–3 months in advance. For Easter (which changes date), check the Colombian holiday calendar every January.</span>
+    </div>
+  </div>
+
+</div>
+
+<!-- ════════════════════════════════════════════════════════ -->
+<!-- TAB: REVENUE CALCULATOR -->
+<!-- ════════════════════════════════════════════════════════ -->
+<div class="section" id="tab-calculator">
+
+  <div class="card">
+    <div class="card-title"><span class="icon">🧮</span>
+      <span data-lang="es">Calculadora de ingresos netos estimados</span>
+      <span data-lang="en">Estimated net revenue calculator</span>
+    </div>
+    <p style="font-size:13px;color:var(--muted);margin-bottom:20px;" data-lang="es">Modela diferentes escenarios de precio y ocupación. Los valores de Airbnb fee (20%) y comisión operador (15%) son promedios del mercado.</p>
+    <p style="font-size:13px;color:var(--muted);margin-bottom:20px;" data-lang="en">Model different price and occupancy scenarios. Airbnb fee (20%) and operator commission (15%) are market averages.</p>
+
+    <div class="slider-row">
+      <span class="slider-label" data-lang="es">Tarifa efectiva/noche</span>
+      <span class="slider-label" data-lang="en">Effective rate/night</span>
+      <input type="range" id="calcRate" min="150000" max="800000" step="5000" value="293000" oninput="updateCalc()">
+      <span class="slider-val" id="calcRateVal">$293.000</span>
+    </div>
+    <div class="slider-row">
+      <span class="slider-label" data-lang="es">Noches/mes</span>
+      <span class="slider-label" data-lang="en">Nights/month</span>
+      <input type="range" id="calcNights" min="1" max="30" step="1" value="18" oninput="updateCalc()">
+      <span class="slider-val" id="calcNightsVal">18 noches</span>
+    </div>
+    <div class="slider-row">
+      <span class="slider-label" data-lang="es">Tarifa aseo/estadía</span>
+      <span class="slider-label" data-lang="en">Cleaning fee/stay</span>
+      <input type="range" id="calcCleaning" min="0" max="300000" step="10000" value="150000" oninput="updateCalc()">
+      <span class="slider-val" id="calcCleaningVal">$150.000</span>
+    </div>
+    <div class="slider-row">
+      <span class="slider-label" data-lang="es">Promedio estadía</span>
+      <span class="slider-label" data-lang="en">Avg stay length</span>
+      <input type="range" id="calcStayLen" min="1" max="14" step="1" value="3" oninput="updateCalc()">
+      <span class="slider-val" id="calcStayLenVal">3 noches</span>
+    </div>
+    <div class="slider-row">
+      <span class="slider-label" data-lang="es">Comisión operador</span>
+      <span class="slider-label" data-lang="en">Operator commission</span>
+      <input type="range" id="calcOpFee" min="0" max="30" step="1" value="15" oninput="updateCalc()">
+      <span class="slider-val" id="calcOpFeeVal">15%</span>
+    </div>
+    <div class="slider-row">
+      <span class="slider-label" data-lang="es">Gastos fijos/mes</span>
+      <span class="slider-label" data-lang="en">Fixed costs/month</span>
+      <input type="range" id="calcCosts" min="0" max="2000000" step="50000" value="500000" oninput="updateCalc()">
+      <span class="slider-val" id="calcCostsVal">$500.000</span>
+    </div>
+
+    <div class="calc-output" id="calcOutput">
+      <!-- filled by JS -->
+    </div>
+
+    <div class="highlight-box info" style="margin-top:16px;">
+      <strong data-lang="es">📌 Nota:</strong>
+      <strong data-lang="en">📌 Note:</strong>
+      <span data-lang="es"> Los pagos de Airbnb van directamente al Payout Owner — Airbnb deduce su comisión antes de transferir. El operador cobra su comisión aparte según contrato. KAI no procesa pagos.</span>
+      <span data-lang="en"> Airbnb payouts go directly to the Payout Owner — Airbnb deducts its fee before transferring. The operator charges their commission separately per contract. KAI does not process payments.</span>
+    </div>
+  </div>
+
+  <!-- Break-even -->
+  <div class="card">
+    <div class="card-title"><span class="icon">⚖️</span>
+      <span data-lang="es">Punto de equilibrio</span>
+      <span data-lang="en">Break-even analysis</span>
+    </div>
+    <div class="real-quote">
+      <span data-lang="es">Con costos operativos actuales, asumiendo 60% de ocupación en temporada regular y 80% en picos, el precio de equilibrio es aproximadamente 560.000 COP/noche.</span>
+      <span data-lang="en">With current operating costs, assuming 60% regular occupancy and 80% peak occupancy, the break-even rate is approximately 560,000 COP/night.</span>
+      <div class="attribution">— Brian Pause, <span data-lang="es">propietario</span><span data-lang="en">owner</span>, Morros KAI 317</div>
+    </div>
+    <p style="font-size:13px;color:var(--muted);margin:12px 0;" data-lang="es">El break-even incluye: hipoteca/cuota, administración del edificio, servicios públicos, comisión operador, reparaciones promedio, aseo entre huéspedes.</p>
+    <p style="font-size:13px;color:var(--muted);margin:12px 0;" data-lang="en">Break-even includes: mortgage/installment, building admin fee, utilities, operator commission, average repairs, between-guest cleaning.</p>
+    <div class="highlight-box warning">
+      <strong data-lang="es">🎯 Estrategia:</strong>
+      <strong data-lang="en">🎯 Strategy:</strong>
+      <span data-lang="es"> El precio base de temporada regular no necesita cubrir el break-even solo — las temporadas altas (+30%) y el pico de Año Nuevo (+200%) aportan el mayor ingreso. Optimiza el precio regular para <strong>ocupación &gt; 60%</strong>, y usa los picos para rentabilidad.</span>
+      <span data-lang="en"> The regular-season base price doesn't need to cover break-even alone — high seasons (+30%) and New Year peak (+200%) contribute the most revenue. Optimize regular-season price for <strong>occupancy &gt; 60%</strong>, and rely on peaks for profitability.</span>
+    </div>
+  </div>
+
+</div>
+
+<!-- ════════════════════════════════════════════════════════ -->
+<!-- TAB: OPERATOR-OWNER CONVERSATION -->
+<!-- ════════════════════════════════════════════════════════ -->
+<div class="section" id="tab-conversation">
+
+  <div class="card">
+    <div class="card-title"><span class="icon">💬</span>
+      <span data-lang="es">Cómo deben colaborar operador y dueño</span>
+      <span data-lang="en">How operator and owner should collaborate</span>
+    </div>
+    <p style="font-size:14px;color:var(--muted);margin-bottom:16px;" data-lang="es">Estos son los flujos de conversación ideales — basados en lo que salió mal en el grupo de WhatsApp real y cómo debería funcionar con una plataforma estructurada.</p>
+    <p style="font-size:14px;color:var(--muted);margin-bottom:16px;" data-lang="en">These are the ideal conversation flows — based on what went wrong in the real WhatsApp group and how it should work with a structured platform.</p>
+
+    <div style="display:flex;gap:16px;margin-bottom:16px;flex-wrap:wrap;">
+      <div class="role-pill op">🏢 <span data-lang="es">Operador (Host)</span><span data-lang="en">Operator (Host)</span></div>
+      <div class="role-pill owner">🏠 <span data-lang="es">Dueño (Co-Host)</span><span data-lang="en">Owner (Co-Host)</span></div>
+    </div>
+  </div>
+
+  <!-- Scenario 1: Price change -->
+  <div class="card">
+    <div style="background:var(--brand);color:#fff;border-radius:8px;padding:8px 14px;font-size:13px;font-weight:700;margin-bottom:16px;display:inline-block;">
+      <span data-lang="es">Escenario 1: Propuesta de cambio de precio</span>
+      <span data-lang="en">Scenario 1: Price change proposal</span>
+    </div>
+
+    <div class="highlight-box danger" style="margin-bottom:16px;">
+      <strong data-lang="es">❌ Cómo NO hacerlo (lo que pasó en la realidad):</strong>
+      <strong data-lang="en">❌ What NOT to do (what actually happened):</strong>
+      <br><span data-lang="es">Operador sube precio de 300K a 400K (33%) a la 1am. Dueño se entera al día siguiente. 10 días después, 0 reservas nuevas. Nadie revisó el impacto en el ranking antes del cambio.</span>
+      <span data-lang="en">Operator raises price from 300K to 400K (33%) at 1am. Owner finds out next day. 10 days later, 0 new bookings. Nobody checked ranking impact before the change.</span>
+    </div>
+
+    <div class="chat">
+      <div class="bubble-wrap op">
+        <div class="avatar op">OP</div>
+        <div class="bubble op highlight">
+          <div class="who" data-lang="es">Operador · Propuesta de precio</div>
+          <div class="who" data-lang="en">Operator · Price proposal</div>
+          <div data-lang="es">Buenos días. Basado en nuestra investigación de mercado, proponemos subir la tarifa base de $300.000 a $400.000 COP para 2026.<br><br>
+          <strong>Por qué:</strong> Morros KAI es el edificio más nuevo + calificación 5.0 + badge Guest Favorite. El mercado Morros 2-hab está en $82–$105 USD (287K–367K). Estamos por debajo del más antiguo del complejo.<br><br>
+          <strong>Impacto esperado en ranking:</strong> bajaría de top 20 a aprox. top 80. Recomendamos monitorear 2 semanas.<br><br>
+          ¿Confirma o propone un ajuste diferente?</div>
+          <div data-lang="en">Good morning. Based on our market research, we propose raising the base rate from $300,000 to $400,000 COP for 2026.<br><br>
+          <strong>Why:</strong> Morros KAI is the newest building + 5.0 rating + Guest Favorite badge. Morros 2-bed market is at $82–$105 USD (287K–367K). We're below the oldest building in the complex.<br><br>
+          <strong>Expected ranking impact:</strong> would drop from top 20 to approx. top 80. We recommend monitoring for 2 weeks.<br><br>
+          Do you confirm or propose a different adjustment?</div>
+          <div class="time">9:05 AM</div>
+        </div>
+      </div>
+      <div class="bubble-wrap owner">
+        <div class="avatar owner">BP</div>
+        <div class="bubble owner">
+          <div class="who" data-lang="es">Brian (Dueño) · Contraoferta</div>
+          <div class="who" data-lang="en">Brian (Owner) · Counter-offer</div>
+          <div data-lang="es">Gracias por el análisis. El ranking me preocupa. ¿Podemos probar con $345.000 primero? Así seguimos en top 50 y mantenemos ocupación > 60%. Si en 2 semanas vemos ocupación estable, subimos a $375.000.</div>
+          <div data-lang="en">Thanks for the analysis. The ranking impact concerns me. Can we try $345,000 first? That keeps us in top 50 and maintains occupancy > 60%. If in 2 weeks occupancy is stable, we move to $375,000.</div>
+          <div class="time">9:42 AM</div>
+        </div>
+      </div>
+      <div class="bubble-wrap op">
+        <div class="avatar op">OP</div>
+        <div class="bubble op">
+          <div class="who" data-lang="es">Operador · Confirmación</div>
+          <div class="who" data-lang="en">Operator · Confirmation</div>
+          <div data-lang="es">Perfecto. Aplicamos $345.000 base + $390.000 fin de semana (mismo margen proporcional). Revisamos en 14 días con datos de vistas e inquiries. El cambio queda registrado.</div>
+          <div data-lang="en">Perfect. Applying $345,000 base + $390,000 weekend (same proportional margin). We review in 14 days with view and inquiry data. Change is logged.</div>
+          <div class="time">9:48 AM</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="highlight-box success">
+      <strong data-lang="es">✅ Principio clave:</strong>
+      <strong data-lang="en">✅ Key principle:</strong>
+      <span data-lang="es"> El operador propone CON datos de ranking. El dueño puede confirmar o contraoferta. Ninguno actúa unilateralmente. El acuerdo queda registrado con fecha y actores.</span>
+      <span data-lang="en"> Operator proposes WITH ranking data. Owner can confirm or counter. Neither acts unilaterally. The agreement is logged with date and actors.</span>
+    </div>
+  </div>
+
+  <!-- Scenario 2: Repair approval -->
+  <div class="card">
+    <div style="background:#f59e0b;color:#fff;border-radius:8px;padding:8px 14px;font-size:13px;font-weight:700;margin-bottom:16px;display:inline-block;">
+      <span data-lang="es">Escenario 2: Reparación urgente — aprobación requerida</span>
+      <span data-lang="en">Scenario 2: Urgent repair — approval required</span>
+    </div>
+
+    <div class="highlight-box danger" style="margin-bottom:16px;">
+      <strong data-lang="es">❌ Cómo NO hacerlo:</strong>
+      <strong data-lang="en">❌ What NOT to do:</strong>
+      <br><span data-lang="es">Técnico llega al apartamento con huéspedes adentro, le dice al operador que el trabajo son 300K, pide la mitad por adelantado. Operador pide la transferencia antes de que el dueño sepa qué pasó.</span>
+      <span data-lang="en">Technician arrives at the apartment with guests inside, tells the operator the repair costs 300K, asks for half upfront. Operator requests the transfer before the owner knows what happened.</span>
+    </div>
+
+    <div class="chat">
+      <div class="bubble-wrap op">
+        <div class="avatar op">OP</div>
+        <div class="bubble op">
+          <div class="who" data-lang="es">Operador · Alerta de reparación</div>
+          <div class="who" data-lang="en">Operator · Repair alert</div>
+          <div data-lang="es">🔴 Urgente: Aire acondicionado cuarto 1 tiene fuga de refrigerante. Técnico en sitio.<br><br>
+          <strong>Diagnóstico:</strong> Fuga en tuercas, requiere gas refrigerante nuevo (R-32, no disponible en todos lados).<br>
+          <strong>Costo estimado:</strong> $300.000 COP (mano de obra + gas)<br>
+          <strong>Impacto:</strong> Huéspedes actuales en el apto, se están quejando del calor.<br>
+          <strong>Urgencia:</strong> Alta — riesgo de mala reseña.<br><br>
+          ¿Autoriza proceder?</div>
+          <div data-lang="en">🔴 Urgent: Bedroom 1 A/C has refrigerant leak. Technician on-site.<br><br>
+          <strong>Diagnosis:</strong> Leak at fittings, requires new refrigerant (R-32, not widely available).<br>
+          <strong>Estimated cost:</strong> $300,000 COP (labor + gas)<br>
+          <strong>Impact:</strong> Current guests in apartment, complaining about heat.<br>
+          <strong>Urgency:</strong> High — risk of bad review.<br><br>
+          Do you authorize proceeding?</div>
+          <div class="time">2:06 PM</div>
+        </div>
+      </div>
+      <div class="bubble-wrap owner">
+        <div class="avatar owner">MP</div>
+        <div class="bubble owner">
+          <div class="who" data-lang="es">Martha (Dueña) · Autorización</div>
+          <div class="who" data-lang="en">Martha (Owner) · Authorization</div>
+          <div data-lang="es">Autorizado. Procedan con la reparación. Para la próxima, consulten antes de llamar al técnico — necesito saber qué está pasando primero.<br><br>
+          Por favor envíen factura al terminar. Transferencia al terminar el trabajo, no antes.</div>
+          <div data-lang="en">Authorized. Proceed with the repair. Going forward, please consult me before calling the technician — I need to know what's happening first.<br><br>
+          Please send invoice when done. Transfer on completion, not before.</div>
+          <div class="time">2:16 PM</div>
+        </div>
+      </div>
+      <div class="bubble-wrap op">
+        <div class="avatar op">OP</div>
+        <div class="bubble op">
+          <div class="who" data-lang="es">Operador · Cierre</div>
+          <div class="who" data-lang="en">Operator · Closure</div>
+          <div data-lang="es">✅ Reparación completa. Adjunto: 3 fotos (antes/durante/después) + factura Sr. José Perdomo $300.000. Aire funcionando correctamente. Huéspedes confirmaron que está bien.</div>
+          <div data-lang="en">✅ Repair complete. Attached: 3 photos (before/during/after) + invoice Sr. José Perdomo $300,000. A/C working correctly. Guests confirmed it's working well.</div>
+          <div class="time">3:49 PM</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Scenario 3: Annual review -->
+  <div class="card">
+    <div style="background:var(--owner);color:#fff;border-radius:8px;padding:8px 14px;font-size:13px;font-weight:700;margin-bottom:16px;display:inline-block;">
+      <span data-lang="es">Escenario 3: Revisión de precios anual (Dueño propone)</span>
+      <span data-lang="en">Scenario 3: Annual price review (Owner proposes)</span>
+    </div>
+
+    <div class="chat">
+      <div class="bubble-wrap owner">
+        <div class="avatar owner">BP</div>
+        <div class="bubble owner">
+          <div class="who" data-lang="es">Brian (Dueño) · Propuesta 2027</div>
+          <div class="who" data-lang="en">Brian (Owner) · 2027 proposal</div>
+          <div data-lang="es">Para 2027, propongo base de $450.000 COP (antes del descuento del 15%). Razonamiento:<br>
+          • Inflación ~10% en costos operativos<br>
+          • El mercado Morros Zoe ya está en $450K base con mismos descuentos<br>
+          • Break-even con 60/80% ocupación requiere ~560K efectivo<br><br>
+          ¿Cuál es tu análisis del mercado para ese rango?</div>
+          <div data-lang="en">For 2027, I propose a $450,000 COP base (before the 15% discount). Reasoning:<br>
+          • ~10% inflation in operating costs<br>
+          • Morros Zoe market is already at $450K base with same discounts<br>
+          • Break-even at 60/80% occupancy requires ~560K effective<br><br>
+          What's your market analysis for that range?</div>
+          <div class="time">Apr 22, 9:03 AM</div>
+        </div>
+      </div>
+      <div class="bubble-wrap op">
+        <div class="avatar op">OP</div>
+        <div class="bubble op">
+          <div class="who" data-lang="es">Operador · Análisis</div>
+          <div class="who" data-lang="en">Operator · Analysis</div>
+          <div data-lang="es">Buena propuesta. Datos de nuestra cartera Morros Zoe (4 aptos):<br>
+          • Base 2026: $450K + mismos 4 descuentos<br>
+          • Ocupación actual: 58% regular, 84% picos<br>
+          • Ranking: top 40–60 rango<br><br>
+          Para Morros KAI siendo más nuevo + 5.0, $450K en 2027 es defendible. Recomendamos abrir el calendario 2027 solo 6 meses en adelante para evitar reservas a precios 2026.<br><br>
+          ✅ Aprobamos la propuesta de $450K para 2027.</div>
+          <div data-lang="en">Good proposal. Data from our Morros Zoe portfolio (4 units):<br>
+          • 2026 base: $450K + same 4 discounts<br>
+          • Current occupancy: 58% regular, 84% peaks<br>
+          • Ranking: top 40–60 range<br><br>
+          For Morros KAI being newer + 5.0 rating, $450K in 2027 is defensible. We recommend opening the 2027 calendar only 6 months ahead to avoid bookings at 2026 prices.<br><br>
+          ✅ We approve the $450K proposal for 2027.</div>
+          <div class="time">Apr 22, 11:42 AM</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Flow diagram: who does what -->
+  <div class="card">
+    <div class="card-title"><span class="icon">🔄</span>
+      <span data-lang="es">Flujo de aprobación — quién hace qué</span>
+      <span data-lang="en">Approval flow — who does what</span>
+    </div>
+    <div class="flow">
+      <div class="flow-step">
+        <div class="flow-line">
+          <div class="flow-dot" style="background:var(--op-light);color:var(--op);">1</div>
+          <div class="flow-connector"></div>
+        </div>
+        <div class="flow-content">
+          <div class="flow-title" data-lang="es">🏢 Operador — Propone</div>
+          <div class="flow-title" data-lang="en">🏢 Operator — Proposes</div>
+          <div class="flow-body" data-lang="es">Crea propuesta con: nuevo precio, datos de mercado, impacto estimado en ranking, competidores de referencia.</div>
+          <div class="flow-body" data-lang="en">Creates proposal with: new price, market data, estimated ranking impact, reference competitors.</div>
+        </div>
+      </div>
+      <div class="flow-step">
+        <div class="flow-line">
+          <div class="flow-dot" style="background:var(--owner-light);color:var(--owner);">2</div>
+          <div class="flow-connector"></div>
+        </div>
+        <div class="flow-content">
+          <div class="flow-title" data-lang="es">🏠 Dueño — Revisa en 48h</div>
+          <div class="flow-title" data-lang="en">🏠 Owner — Reviews within 48h</div>
+          <div class="flow-body" data-lang="es">Tiene 48 horas para: <strong>Confirmar</strong> (aplica), <strong>Contraoferta</strong> (propone alternativa), o <strong>Rechazar</strong>. La propuesta expira si no hay respuesta.</div>
+          <div class="flow-body" data-lang="en">Has 48 hours to: <strong>Confirm</strong> (applies), <strong>Counter-offer</strong> (proposes alternative), or <strong>Reject</strong>. Proposal expires with no response.</div>
+        </div>
+      </div>
+      <div class="flow-step">
+        <div class="flow-line">
+          <div class="flow-dot" style="background:#f0fdf4;color:var(--green);">3</div>
+          <div class="flow-connector"></div>
+        </div>
+        <div class="flow-content">
+          <div class="flow-title" data-lang="es">✅ Confirmado — Se aplica en Airbnb</div>
+          <div class="flow-title" data-lang="en">✅ Confirmed — Applied in Airbnb</div>
+          <div class="flow-body" data-lang="es">El operador actualiza el precio en Airbnb y marca "aplicado". Queda en el historial inmutable con fecha, quien propuso y quien confirmó.</div>
+          <div class="flow-body" data-lang="en">Operator updates price in Airbnb and marks "applied". Recorded in immutable log with date, proposer, and confirmer.</div>
+        </div>
+      </div>
+      <div class="flow-step">
+        <div class="flow-line">
+          <div class="flow-dot" style="background:#fef9c3;color:#92400e;">4</div>
+        </div>
+        <div class="flow-content">
+          <div class="flow-title" data-lang="es">📊 Seguimiento — 14 días después</div>
+          <div class="flow-title" data-lang="en">📊 Follow-up — 14 days later</div>
+          <div class="flow-body" data-lang="es">Operador comparte: vistas, inquiries, reservas nuevas, posición en ranking. Si hay impacto negativo, se propone ajuste.</div>
+          <div class="flow-body" data-lang="en">Operator shares: views, inquiries, new bookings, ranking position. If there's negative impact, an adjustment is proposed.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ════════════════════════════════════════════════════════ -->
+<!-- TAB: ACTION CHECKLIST -->
+<!-- ════════════════════════════════════════════════════════ -->
+<div class="section" id="tab-checklist">
+
+  <div class="card">
+    <div class="card-title"><span class="icon">✅</span>
+      <span data-lang="es">Lista de acciones — Para el operador</span>
+      <span data-lang="en">Action checklist — For the operator</span>
+    </div>
+
+    <div style="font-weight:700;font-size:14px;color:var(--op);margin:8px 0;" data-lang="es">Inmediato (primera semana)</div>
+    <div style="font-weight:700;font-size:14px;color:var(--op);margin:8px 0;" data-lang="en">Immediate (first week)</div>
+    <ul class="checklist">
+      <li data-lang="es">Verificar precio actual vs. benchmark de 5 competidores en el mismo complejo</li>
+      <li data-lang="es">Confirmar que los 4 tipos de descuento están activos (último minuto, anticipada, semanal, mensual)</li>
+      <li data-lang="es">Revisar ranking actual buscando como huésped en fecha futura</li>
+      <li data-lang="es">Documentar posición actual (pantallazos) como baseline</li>
+      <li data-lang="es">Compartir benchmark y posición con el dueño en formato claro</li>
+      <li data-lang="en">Verify current price vs. 5-competitor benchmark in same complex</li>
+      <li data-lang="en">Confirm all 4 discount types are active (last-minute, early-bird, weekly, monthly)</li>
+      <li data-lang="en">Check current ranking by searching as a guest for a future date</li>
+      <li data-lang="en">Document current position (screenshots) as baseline</li>
+      <li data-lang="en">Share benchmark and position with owner in clear format</li>
+    </ul>
+
+    <div style="font-weight:700;font-size:14px;color:var(--op);margin:16px 0 8px;" data-lang="es">Mensual</div>
+    <div style="font-weight:700;font-size:14px;color:var(--op);margin:16px 0 8px;" data-lang="en">Monthly</div>
+    <ul class="checklist">
+      <li data-lang="es">Revisar ranking y vistas del anuncio — ¿estamos ganando o perdiendo posición?</li>
+      <li data-lang="es">Comparar precios de la competencia — ¿se han movido?</li>
+      <li data-lang="es">Evaluar ocupación: ¿estamos por encima o por debajo del 60%?</li>
+      <li data-lang="es">Proponer ajustes de precio al dueño si hay señales de mercado</li>
+      <li data-lang="es">Solicitar reseñas activamente a huéspedes que no hayan respondido</li>
+      <li data-lang="en">Review listing ranking and views — are we gaining or losing position?</li>
+      <li data-lang="en">Compare competitor prices — have they moved?</li>
+      <li data-lang="en">Evaluate occupancy: are we above or below 60%?</li>
+      <li data-lang="en">Propose price adjustments to owner if there are market signals</li>
+      <li data-lang="en">Actively request reviews from guests who haven't left one</li>
+    </ul>
+
+    <div style="font-weight:700;font-size:14px;color:var(--op);margin:16px 0 8px;" data-lang="es">Anual (enero)</div>
+    <div style="font-weight:700;font-size:14px;color:var(--op);margin:16px 0 8px;" data-lang="en">Annual (January)</div>
+    <ul class="checklist">
+      <li data-lang="es">Revisar calendario colombiano de festivos para el año en curso → actualizar fechas de temporada alta</li>
+      <li data-lang="es">Proponer incremento de precio para el siguiente año (inflación, mercado)</li>
+      <li data-lang="es">Configurar ventana de calendario: 9 meses máximo para evitar reservas a precios desactualizados</li>
+      <li data-lang="es">Actualizar fotos del listado — fotos de menos de 1 año tienen mejor engagement</li>
+      <li data-lang="en">Review Colombian holiday calendar for current year → update peak season dates</li>
+      <li data-lang="en">Propose price increase for following year (inflation, market)</li>
+      <li data-lang="en">Set calendar booking window: max 9 months to avoid bookings at outdated prices</li>
+      <li data-lang="en">Update listing photos — photos less than 1 year old have better engagement</li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <div class="card-title"><span class="icon">🏠</span>
+      <span data-lang="es">Lista de acciones — Para el dueño</span>
+      <span data-lang="en">Action checklist — For the owner</span>
+    </div>
+
+    <div style="font-weight:700;font-size:14px;color:var(--owner);margin:8px 0;" data-lang="es">Conoce tu listing</div>
+    <div style="font-weight:700;font-size:14px;color:var(--owner);margin:8px 0;" data-lang="en">Know your listing</div>
+    <ul class="checklist">
+      <li data-lang="es">Busca tu apartamento en Airbnb como si fueras un huésped — ¿en qué posición aparece?</li>
+      <li data-lang="es">Lee las últimas 10 reseñas — ¿qué mencionan positivo y negativo?</li>
+      <li data-lang="es">Compara tu precio con los 3 apartamentos más similares en el edificio</li>
+      <li data-lang="es">Solicita al operador el reporte de ranking mensual (vistas, inquiries, conversión)</li>
+      <li data-lang="en">Search your apartment on Airbnb as if you were a guest — what position does it appear?</li>
+      <li data-lang="en">Read the last 10 reviews — what do they mention positively and negatively?</li>
+      <li data-lang="en">Compare your price to the 3 most similar apartments in the building</li>
+      <li data-lang="en">Request the monthly ranking report from the operator (views, inquiries, conversion)</li>
+    </ul>
+
+    <div style="font-weight:700;font-size:14px;color:var(--owner);margin:16px 0 8px;" data-lang="es">En cada propuesta de precio del operador, pregunta:</div>
+    <div style="font-weight:700;font-size:14px;color:var(--owner);margin:16px 0 8px;" data-lang="en">On each operator price proposal, ask:</div>
+    <ul class="checklist">
+      <li data-lang="es">¿Cuál es la posición actual y cuál sería la posición estimada con el nuevo precio?</li>
+      <li data-lang="es">¿Qué están cobrando los 5 competidores más similares hoy?</li>
+      <li data-lang="es">¿Cuál fue la ocupación del último mes vs. la meta del 60%?</li>
+      <li data-lang="es">¿Hay temporada alta próxima que justifique el ajuste?</li>
+      <li data-lang="en">What is the current position and what would the estimated position be with the new price?</li>
+      <li data-lang="en">What are the 5 most similar competitors charging today?</li>
+      <li data-lang="en">What was last month's occupancy vs. the 60% target?</li>
+      <li data-lang="en">Is there an upcoming peak season that justifies the adjustment?</li>
+    </ul>
+
+    <div class="highlight-box info" style="margin-top:16px;">
+      <strong data-lang="es">💡 Tu derecho como Co-Host:</strong>
+      <strong data-lang="en">💡 Your right as Co-Host:</strong>
+      <span data-lang="es"> Pide al operador acceso de co-anfitrión en Airbnb para ver las vistas del anuncio, el calendario y el historial de reservas en tiempo real. No necesitas permiso para modificar precios — solo para ver el estado.</span>
+      <span data-lang="en"> Ask the operator for co-host access in Airbnb to see listing views, calendar, and booking history in real time. You don't need permission to modify prices — just to see the status.</span>
+    </div>
+  </div>
+
+  <!-- Red flags -->
+  <div class="card">
+    <div class="card-title"><span class="icon">🚨</span>
+      <span data-lang="es">Señales de alerta — cuándo actuar</span>
+      <span data-lang="en">Red flags — when to act</span>
+    </div>
+    <table>
+      <tr>
+        <th data-lang="es">Señal</th><th data-lang="en">Signal</th>
+        <th data-lang="es">Causa probable</th><th data-lang="en">Likely cause</th>
+        <th data-lang="es">Acción</th><th data-lang="en">Action</th>
+      </tr>
+      <tr>
+        <td data-lang="es">0 reservas en 7+ días fuera de temporada alta</td>
+        <td data-lang="en">0 bookings in 7+ days outside peak</td>
+        <td data-lang="es">Precio demasiado alto / ranking caído</td>
+        <td data-lang="en">Price too high / ranking dropped</td>
+        <td><span class="badge-red" data-lang="es">Revisar precio</span><span class="badge-red" data-lang="en">Review price</span></td>
+      </tr>
+      <tr>
+        <td data-lang="es">Muchas vistas, pocas reservas</td>
+        <td data-lang="en">Many views, few bookings</td>
+        <td data-lang="es">Precio correcto pero fotos o descripción débil</td>
+        <td data-lang="en">Right price but weak photos or description</td>
+        <td><span class="badge-gold" data-lang="es">Mejorar fotos/título</span><span class="badge-gold" data-lang="en">Improve photos/title</span></td>
+      </tr>
+      <tr>
+        <td data-lang="es">Reseña negativa sobre limpieza</td>
+        <td data-lang="en">Negative review about cleanliness</td>
+        <td data-lang="es">Estándar de limpieza inconsistente</td>
+        <td data-lang="en">Inconsistent cleaning standard</td>
+        <td><span class="badge-red" data-lang="es">Auditar proceso aseo</span><span class="badge-red" data-lang="en">Audit cleaning process</span></td>
+      </tr>
+      <tr>
+        <td data-lang="es">Calificación baja por amenidad faltante</td>
+        <td data-lang="en">Low rating for missing amenity</td>
+        <td data-lang="es">Amenidad en la descripción no disponible</td>
+        <td data-lang="en">Amenity listed but not available</td>
+        <td><span class="badge-gold" data-lang="es">Actualizar listing</span><span class="badge-gold" data-lang="en">Update listing</span></td>
+      </tr>
+      <tr>
+        <td data-lang="es">Cambio de precio sin consultar al dueño</td>
+        <td data-lang="en">Price change without consulting owner</td>
+        <td data-lang="es">Falta de proceso de aprobación</td>
+        <td data-lang="en">Missing approval process</td>
+        <td><span class="badge-red" data-lang="es">Establecer protocolo</span><span class="badge-red" data-lang="en">Establish protocol</span></td>
+      </tr>
+    </table>
+  </div>
+
+</div>
+</div><!-- end .page -->
+
+<script>
+// ── LANGUAGE ──────────────────────────────────────────────
+function setLang(lang) {
+  document.body.classList.toggle('en', lang === 'en');
+  document.querySelectorAll('.lang-btn').forEach(b => b.classList.toggle('active', b.textContent === lang.toUpperCase()));
+  updateRanking(); updatePricing(); updateCalc();
+}
+
+// ── TABS ──────────────────────────────────────────────────
+function setTab(id) {
+  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+  document.getElementById('tab-' + id).classList.add('active');
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === id));
+}
+
+// ── FORMAT COP ────────────────────────────────────────────
+function cop(n) {
+  return '$' + Math.round(n).toLocaleString('es-CO');
+}
+
+// ── RANKING SIMULATOR ─────────────────────────────────────
+function updateRanking() {
+  const val = parseInt(document.getElementById('rankSlider').value);
+  document.getElementById('rankPrice').textContent = cop(val);
+
+  // position logic based on Paula's real data
+  const pct = (val - 200000) / (600000 - 200000); // 0–1
+  const thumbPct = pct * 92 + 4;
+  document.getElementById('rankThumb').style.left = thumbPct + '%';
+
+  const isEN = document.body.classList.contains('en');
+  let badge, badgeClass, title, desc;
+  if (val <= 310000) {
+    badge = 'Top 10–20'; badgeClass = 'top20';
+    title = isEN ? '🟢 Excellent position' : '🟢 Posición excelente';
+    desc = isEN ? 'Maximum visibility in northern Cartagena. Occupancy > 70% expected in regular season. You are below or at market average.' : 'Máxima visibilidad en Cartagena norte. Ocupación > 70% esperada en temporada regular. Estás por debajo o en el promedio del mercado.';
+  } else if (val <= 370000) {
+    badge = 'Top 20–40'; badgeClass = 'top20';
+    title = isEN ? '🟢 Good position' : '🟢 Buena posición';
+    desc = isEN ? 'Good visibility. Occupancy around 60–70%. In the mid-premium range for Morros. Recommended range.' : 'Buena visibilidad. Ocupación aprox. 60–70%. En el rango mid-premium de Morros. Rango recomendado.';
+  } else if (val <= 450000) {
+    badge = 'Top 40–70'; badgeClass = 'top50';
+    title = isEN ? '🟡 Moderate position' : '🟡 Posición moderada';
+    desc = isEN ? 'Reduced visibility. Occupancy may fall below 60% in regular season. Monitor closely after any price change at this level.' : 'Visibilidad reducida. Ocupación puede caer bajo 60% en temporada regular. Monitorea de cerca tras cualquier cambio de precio a este nivel.';
+  } else if (val <= 550000) {
+    badge = 'Top 70–90'; badgeClass = 'top100';
+    title = isEN ? '🔴 Low visibility' : '🔴 Baja visibilidad';
+    desc = isEN ? 'High risk of 0 bookings for 7+ days. At this price only very premium or peak-season demand will convert. Rarely justified.' : 'Riesgo alto de 0 reservas por 7+ días. A este precio solo demanda muy premium o de temporada alta convertirá. Raramente justificado.';
+  } else {
+    badge = 'Top 100+'; badgeClass = 'top100';
+    title = isEN ? '🔴 Practically invisible' : '🔴 Prácticamente invisible';
+    desc = isEN ? 'At this price you have exited the competitive market for regular-season Morros Kai. Only viable for peak periods (New Year +200%).' : 'A este precio saliste del mercado competitivo para temporada regular de Morros Kai. Solo viable para picos (Año Nuevo +200%).';
+  }
+
+  document.getElementById('rankBadge').textContent = badge;
+  document.getElementById('rankBadge').className = 'rank-badge ' + badgeClass;
+  document.getElementById('rankTitle').textContent = title;
+  document.getElementById('rankDesc').textContent = desc;
+}
+
+// ── PRICING CALCULATOR ────────────────────────────────────
+function updatePricing() {
+  const base = parseInt(document.getElementById('baseRate').value);
+  const wknd = parseInt(document.getElementById('weekendRate').value);
+  const disc = parseInt(document.getElementById('stdDiscount').value);
+  const clean = parseInt(document.getElementById('cleaningFee').value);
+  const isEN = document.body.classList.contains('en');
+
+  document.getElementById('baseRateVal').textContent = cop(base);
+  document.getElementById('weekendRateVal').textContent = '+' + cop(wknd);
+  document.getElementById('stdDiscountVal').textContent = '−' + disc + '%';
+  document.getElementById('cleaningFeeVal').textContent = cop(clean);
+
+  const effectiveWeekday = base * (1 - disc/100);
+  const effectiveWeekend = (base + wknd) * (1 - disc/100);
+  const airbnbFeeWeekday = effectiveWeekday * 0.20;
+  const guestWeekday = effectiveWeekday + airbnbFeeWeekday + clean;
+  const airbnbFeeWeekend = effectiveWeekend * 0.20;
+  const guestWeekend = effectiveWeekend + airbnbFeeWeekend + clean;
+  const usdWeekday = (effectiveWeekday / 3500).toFixed(0);
+
+  const lBase = isEN ? 'Listed base rate' : 'Tarifa base publicada';
+  const lDisc = isEN ? `Standard discount (−${disc}%)` : `Descuento estándar (−${disc}%)`;
+  const lEff = isEN ? 'Effective nightly rate (weekday)' : 'Tarifa efectiva/noche (entre semana)';
+  const lEffW = isEN ? 'Effective nightly rate (weekend)' : 'Tarifa efectiva/noche (fin de semana)';
+  const lAirbnb = isEN ? 'Airbnb service fee (+20%)' : 'Fee Airbnb (+20%)';
+  const lClean = isEN ? 'Cleaning fee (per stay)' : 'Tarifa de aseo (por estadía)';
+  const lGuest = isEN ? '→ Guest pays total (weekday)' : '→ Huésped paga total (entre semana)';
+  const lGuestW = isEN ? '→ Guest pays total (weekend)' : '→ Huésped paga total (fin de semana)';
+  const lUSD = isEN ? 'Approx. in USD (~3,500 COP/USD)' : 'Aprox. en USD (~3.500 COP/USD)';
+
+  document.getElementById('pricingOutput').innerHTML = `
+    <div class="calc-row"><span class="lbl">${lBase}</span><span>${cop(base)}</span></div>
+    <div class="calc-row"><span class="lbl">${lDisc}</span><span style="color:#fca5a5">− ${cop(base * disc/100)}</span></div>
+    <div class="calc-row"><span class="lbl">${lEff}</span><span style="color:#86efac">${cop(effectiveWeekday)}</span></div>
+    <div class="calc-row"><span class="lbl">${lEffW}</span><span style="color:#86efac">${cop(effectiveWeekend)}</span></div>
+    <div class="calc-row"><span class="lbl">${lAirbnb}</span><span style="color:#fca5a5">+ ${cop(airbnbFeeWeekday)}</span></div>
+    <div class="calc-row"><span class="lbl">${lClean}</span><span style="color:#fca5a5">+ ${cop(clean)}</span></div>
+    <div class="calc-row"><span class="lbl">${lGuest}</span><span>${cop(guestWeekday)}</span></div>
+    <div class="calc-row"><span class="lbl">${lGuestW}</span><span>${cop(guestWeekend)}</span></div>
+    <div class="calc-row"><span class="lbl">${lUSD}</span><span>~$${usdWeekday} USD</span></div>
+  `;
+}
+
+// ── REVENUE CALCULATOR ────────────────────────────────────
+function updateCalc() {
+  const rate = parseInt(document.getElementById('calcRate').value);
+  const nights = parseInt(document.getElementById('calcNights').value);
+  const clean = parseInt(document.getElementById('calcCleaning').value);
+  const stayLen = parseInt(document.getElementById('calcStayLen').value);
+  const opFee = parseInt(document.getElementById('calcOpFee').value);
+  const costs = parseInt(document.getElementById('calcCosts').value);
+  const isEN = document.body.classList.contains('en');
+
+  document.getElementById('calcRateVal').textContent = cop(rate);
+  document.getElementById('calcNightsVal').textContent = nights + (isEN ? ' nights' : ' noches');
+  document.getElementById('calcCleaningVal').textContent = cop(clean);
+  document.getElementById('calcStayLenVal').textContent = stayLen + (isEN ? ' nights' : ' noches');
+  document.getElementById('calcOpFeeVal').textContent = opFee + '%';
+  document.getElementById('calcCostsVal').textContent = cop(costs);
+
+  const numStays = Math.max(1, Math.round(nights / stayLen));
+  const grossNights = rate * nights;
+  const grossCleaning = clean * numStays;
+  const grossTotal = grossNights + grossCleaning;
+  const airbnbCut = grossTotal * 0.20;  // Airbnb fee paid by guest, host nets effective rate
+  const hostReceives = rate * nights;  // effective rate already net of Airbnb from guest side
+  const opCut = hostReceives * opFee / 100;
+  const ownerNet = hostReceives - opCut + (clean * numStays) - costs;
+  const occupancy = Math.round(nights / 30 * 100);
+
+  const lGross = isEN ? 'Gross from nights (effective rate × nights)' : 'Bruto de noches (tarifa efectiva × noches)';
+  const lCleans = isEN ? `Cleaning fees (${numStays} stays × ${cop(clean)})` : `Tarifas de aseo (${numStays} estadías × ${cop(clean)})`;
+  const lOcc = isEN ? `Occupancy rate (${nights}/30 days)` : `Tasa de ocupación (${nights}/30 días)`;
+  const lOp = isEN ? `Operator commission (${opFee}%)` : `Comisión operador (${opFee}%)`;
+  const lCosts = isEN ? 'Fixed costs (utilities, admin, etc.)' : 'Costos fijos (servicios, adm., etc.)';
+  const lNet = isEN ? '🏠 Owner net / month' : '🏠 Neto del dueño / mes';
+
+  const color = ownerNet > 0 ? '#fbbf24' : '#f87171';
+  document.getElementById('calcOutput').innerHTML = `
+    <div class="calc-row"><span class="lbl">${lGross}</span><span>${cop(hostReceives)}</span></div>
+    <div class="calc-row"><span class="lbl">${lCleans}</span><span>${cop(clean * numStays)}</span></div>
+    <div class="calc-row"><span class="lbl">${lOcc}</span><span>${occupancy}%</span></div>
+    <div class="calc-row"><span class="lbl">${lOp}</span><span style="color:#fca5a5">− ${cop(opCut)}</span></div>
+    <div class="calc-row"><span class="lbl">${lCosts}</span><span style="color:#fca5a5">− ${cop(costs)}</span></div>
+    <div class="calc-row"><span class="lbl">${lNet}</span><span style="color:${color}">${cop(ownerNet)}</span></div>
+  `;
+}
+
+// ── INIT ──────────────────────────────────────────────────
+updateRanking();
+updatePricing();
+updateCalc();
+</script>
+</body>
+</html>
