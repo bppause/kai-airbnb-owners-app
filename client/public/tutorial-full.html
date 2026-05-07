@@ -301,14 +301,14 @@ const CHAPTERS = [
             <div class="a-mission-card"><div class="ico">🤝</div><div><h5><span class="es-text">Confianza</span><span class="en-text">Trust</span></h5><p><span class="es-text">Comunidad de propietarios verificados</span><span class="en-text">Verified-owners community</span></p></div></div>
             <div class="a-mission-card"><div class="ico">🛡️</div><div><h5><span class="es-text">Cuidado</span><span class="en-text">Care</span></h5><p><span class="es-text">Reportes claros y trazables</span><span class="en-text">Clear, traceable reports</span></p></div></div>
           </div>
-          <button class="a-btn-google" style="width:100%;justify-content:center;margin-top:14px">
+          <button class="a-btn-google" data-h="googleBtn" style="width:100%;justify-content:center;margin-top:14px">
             <svg width="18" height="18" viewBox="0 0 18 18"><path fill="#4285F4" d="M17.64 9.205c0-.638-.057-1.252-.164-1.841H9v3.481h4.844a4.14 4.14 0 0 1-1.796 2.716v2.259h2.908c1.702-1.566 2.684-3.875 2.684-6.615z"/><path fill="#34A853" d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 0 0 9 18z"/><path fill="#FBBC05" d="M3.964 10.71A5.41 5.41 0 0 1 3.682 9c0-.593.102-1.17.282-1.71V4.958H.957A8.996 8.996 0 0 0 0 9c0 1.452.348 2.827.957 4.042l3.007-2.332z"/><path fill="#EA4335" d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 0 0 .957 4.958L3.964 7.29C4.672 5.163 6.656 3.58 9 3.58z"/></svg>
             <span class="es-text">Continuar con Google</span><span class="en-text">Continue with Google</span>
           </button>
         </div>`,
         email:null,
         hotspots:[
-          { x:50, y:84,
+          { anchor:'googleBtn', at:'tr',
             title:{es:"Iniciar sesión con Google",en:"Sign in with Google"},
             body:{es:"KAI usa exclusivamente Google Sign-In: no hay contraseñas separadas. Si el selector no aparece, cierra sesión en Google o usa una ventana incógnita.",
                   en:"KAI uses Google Sign-In only: no separate passwords. If the chooser doesn't appear, sign out of Google or use an incognito window."},
@@ -344,7 +344,7 @@ const CHAPTERS = [
           <p class="a-sub" style="margin-bottom:12px"><span class="es-text">Hola Jorge. Para usar la app debes registrar uno o más apartamentos que son tuyos.</span><span class="en-text">Hi Jorge. To use the app you must register one or more apartments you own.</span></p>
           <div class="a-fg-row">
             <div class="a-fg"><label>🏠 <span class="es-text">Apartamento</span><span class="en-text">Apartment</span> * <button class="a-tip" data-tipkey="aptNumber">ⓘ</button></label><input value="502" placeholder="000"/></div>
-            <div class="a-fg"><label><span class="es-text">Torre</span><span class="en-text">Tower</span> *</label><input class="locked" value="5" readonly/></div>
+            <div class="a-fg"><label><span class="es-text">Torre</span><span class="en-text">Tower</span> *</label><input data-h="tower" class="locked" value="5" readonly/></div>
           </div>
           <div class="a-fg-row">
             <div class="a-fg"><label><span class="es-text">Habitaciones</span><span class="en-text">Rooms</span></label><select><option>2</option></select></div>
@@ -357,7 +357,7 @@ const CHAPTERS = [
           </div>
           <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:6px">
             <button class="a-btn-ghost"><span class="es-text">＋ Agregar otro apartamento</span><span class="en-text">＋ Add another apartment</span></button>
-            <button class="a-btn-p"><span class="es-text">Enviar registro para aprobación</span><span class="en-text">Submit registration for approval</span></button>
+            <button class="a-btn-p" data-h="submitReg"><span class="es-text">Enviar registro para aprobación</span><span class="en-text">Submit registration for approval</span></button>
           </div>
         </div>`,
         email:{
@@ -368,24 +368,12 @@ const CHAPTERS = [
           ]
         },
         hotspots:[
-          { x:18, y:30,
-            title:{es:"🏠 Número de apartamento",en:"🏠 Apartment number"},
-            body:{es:"Ingresa 3 dígitos (ej: 705). Solo un propietario puede registrar cada unidad.",
-                  en:"Enter 3 digits (e.g. 705). Each unit can only be registered to one owner."},
-            mail:{es:"Tooltip que verás en la app al pasar el cursor sobre ⓘ",en:"Tooltip you'll see in-app when hovering ⓘ"}
-          },
-          { x:62, y:30,
+          { anchor:'tower', at:'tr',
             title:{es:"Torre fija",en:"Fixed tower"},
             body:{es:"La torre se autocompleta según la comunidad y no puede modificarse desde aquí. Si tu apartamento está en otra torre, contacta al admin.",
                   en:"Tower auto-fills based on the community and can't be changed here. If your apartment is in a different tower, contact the admin."}
           },
-          { x:82, y:60,
-            title:{es:"📨 Email del operador",en:"📨 Operator email"},
-            body:{es:"Email del operador para incidentes y recordatorios SLA. Opcional. Si lo dejas vacío, las notificaciones solo van a tu Gmail.",
-                  en:"Operator email for incidents and SLA reminders. Optional. If left empty, notifications only go to your Gmail."},
-            mail:{es:"📧 Aplica a TODOS los emails de unidad e incidente",en:"📧 Applies to ALL listing and incident emails"}
-          },
-          { x:78, y:88,
+          { anchor:'submitReg', at:'tr',
             title:{es:"Enviar registro",en:"Submit registration"},
             body:{es:"Tu solicitud queda pendiente. Un admin la revisa y aprueba o rechaza. Recibirás un email con el resultado.",
                   en:"Your request stays pending. An admin reviews and approves or declines. You'll receive an email with the result."},
@@ -430,7 +418,7 @@ const CHAPTERS = [
               <h3 class="a-title">🏢 <span class="es-text">Inventario de Unidades</span><span class="en-text">Unit Inventory</span></h3>
               <p class="a-sub"><span class="es-text">Morros KAI · 3 unidades registradas</span><span class="en-text">Morros KAI · 3 registered units</span></p>
             </div>
-            <button class="a-btn-p"><span class="es-text">＋ Agregar unidad</span><span class="en-text">＋ Add unit</span></button>
+            <button class="a-btn-p" data-h="addUnit"><span class="es-text">＋ Agregar unidad</span><span class="en-text">＋ Add unit</span></button>
           </div>
           <div class="a-list-card">
             <div class="meta">
@@ -438,14 +426,14 @@ const CHAPTERS = [
               <div class="det"><span class="es-text">Operador</span><span class="en-text">Operator</span>: opt@example.com · <span class="a-chip ok">✅ <span class="es-text">Sin reportes abiertos</span><span class="en-text">No open reports</span></span></div>
             </div>
             <div class="acts">
-              <button class="a-bsm bs-rep">⚠️ <span class="es-text">Reporte</span><span class="en-text">Report</span></button>
-              <button class="a-bsm">✏️ <span class="es-text">Editar</span><span class="en-text">Edit</span></button>
+              <button class="a-bsm bs-rep" data-h="reportBtn">⚠️ <span class="es-text">Reporte</span><span class="en-text">Report</span></button>
+              <button class="a-bsm" data-h="editBtn">✏️ <span class="es-text">Editar</span><span class="en-text">Edit</span></button>
             </div>
           </div>
           <div class="a-list-card">
             <div class="meta">
               <div class="apt">Apt 1203 · <span style="font-size:.78rem;color:#235f72;font-family:'DM Sans',system-ui,sans-serif">Torre 12</span></div>
-              <div class="det"><span class="es-text">Operador</span><span class="en-text">Operator</span>: <span style="color:#c62828"><span class="es-text">⚠️ Email faltante</span><span class="en-text">⚠️ Email missing</span></span> · <span class="a-chip warn">⚠️ 1 <span class="es-text">abierto</span><span class="en-text">open</span></span></div>
+              <div class="det"><span class="es-text">Operador</span><span class="en-text">Operator</span>: <span data-h="missingEmail" style="color:#c62828"><span class="es-text">⚠️ Email faltante</span><span class="en-text">⚠️ Email missing</span></span> · <span class="a-chip warn">⚠️ 1 <span class="es-text">abierto</span><span class="en-text">open</span></span></div>
             </div>
             <div class="acts">
               <button class="a-bsm bs-rep">⚠️ <span class="es-text">Reporte</span><span class="en-text">Report</span></button>
@@ -462,13 +450,13 @@ const CHAPTERS = [
           ]
         },
         hotspots:[
-          { x:88, y:18,
+          { anchor:'addUnit', at:'tr',
             title:{es:"＋ Agregar unidad",en:"＋ Add unit"},
             body:{es:"Registra una nueva unidad. El número debe ser único y quedará asociado a tu cuenta Google. Cada nueva unidad pasa por aprobación del admin.",
                   en:"Register a new unit. The number must be unique and will be linked to your Google account. Each new unit goes through admin approval."},
             mail:{es:"📧 Dispara: 📩 \"Registro recibido\" + admin recibe aviso",en:"📧 Triggers: 📩 \"Registration received\" + admin gets a notice"}
           },
-          { x:88, y:46,
+          { anchor:'reportBtn', at:'tr',
             title:{es:"⚠️ Reportar desde la tarjeta",en:"⚠️ Report from the card"},
             body:{es:"Atajo de un toque para crear un incidente ya enlazado a este apartamento — ahorra varios pasos vs. el formulario en blanco.",
                   en:"One-tap shortcut to create an incident already linked to this apartment — saves several steps vs. starting from a blank form."},
@@ -477,7 +465,7 @@ const CHAPTERS = [
               {label:{es:"⚠️ Ir al flujo de incidentes",en:"⚠️ Jump to incident flow"},chapter:4}
             ]
           },
-          { x:88, y:62,
+          { anchor:'editBtn', at:'tr',
             title:{es:"✏️ Editar unidad",en:"✏️ Edit unit"},
             body:{es:"Actualiza email del operador, WhatsApp, URL de Airbnb. Cualquier cambio se sincroniza con la comunidad.",
                   en:"Update operator email, WhatsApp, Airbnb URL. Any change syncs across the community."},
@@ -486,7 +474,7 @@ const CHAPTERS = [
               {label:{es:"📧 Ver capítulo Notificaciones",en:"📧 See Notifications chapter"},chapter:6}
             ]
           },
-          { x:34, y:80,
+          { anchor:'missingEmail', at:'tr',
             title:{es:"⚠️ Email del operador faltante",en:"⚠️ Missing operator email"},
             body:{es:"Si el operador no tiene email registrado, las notificaciones SLA y de incidentes solo llegan a ti. Edita la unidad para completarlo.",
                   en:"If the operator has no registered email, SLA and incident notifications only go to you. Edit the unit to complete it."}
@@ -517,10 +505,10 @@ const CHAPTERS = [
             <div class="a-fg"><label>😈 <span class="es-text">Categoría</span><span class="en-text">Category</span> * <button class="a-tip" data-tipkey="incidentCategory">ⓘ</button></label><select id="selCat"><option>⚠️ Incidente Grave</option></select></div>
           </div>
           <div class="a-fg"><label>📝 <span class="es-text">Descripción</span><span class="en-text">Description</span> * <button class="a-tip" data-tipkey="incidentDescription">ⓘ</button></label><textarea placeholder="Describe el incidente...">Huéspedes generando ruido extremo. Múltiples vecinos afectados. Se solicitó parar y continúa el problema.</textarea></div>
-          <div style="display:flex;align-items:center;gap:8px;background:#fff8e1;border:1px solid #f0d68a;border-radius:10px;padding:8px 11px;margin-bottom:10px;font-size:.76rem;color:#7a5a00"><input type="checkbox" style="margin:0"/><span class="es-text">Incidente general de la comunidad (área común, fachada, ascensor…)</span><span class="en-text">General community incident (common area, facade, elevator…)</span></div>
+          <div data-h="generalToggle" style="display:flex;align-items:center;gap:8px;background:#fff8e1;border:1px solid #f0d68a;border-radius:10px;padding:8px 11px;margin-bottom:10px;font-size:.76rem;color:#7a5a00"><input type="checkbox" style="margin:0"/><span class="es-text">Incidente general de la comunidad (área común, fachada, ascensor…)</span><span class="en-text">General community incident (common area, facade, elevator…)</span></div>
           <div style="display:flex;gap:8px;justify-content:flex-end">
             <button class="a-btn-ghost"><span class="es-text">Cancelar</span><span class="en-text">Cancel</span></button>
-            <button class="a-btn-p">⚠️ <span class="es-text">Registrar reporte</span><span class="en-text">Submit report</span></button>
+            <button class="a-btn-p" data-h="submitReport">⚠️ <span class="es-text">Registrar reporte</span><span class="en-text">Submit report</span></button>
           </div>
         </div>`,
         email:{
@@ -531,27 +519,12 @@ const CHAPTERS = [
           ]
         },
         hotspots:[
-          { x:25, y:36,
-            title:{es:"🏠 Selecciona el apartamento",en:"🏠 Select the apartment"},
-            body:{es:"Selecciona el apartamento donde ocurrió el incidente. Solo verás unidades aprobadas en tu comunidad.",
-                  en:"Select the apartment where the incident happened. You'll only see approved units in your community."}
-          },
-          { x:25, y:62,
-            title:{es:"🏷️ Tipo de incidente",en:"🏷️ Incident type"},
-            body:{es:"Clasifica la naturaleza del incidente: ruido, daños, normas, limpieza, etc. Cada tipo tiene plantillas de descripción sugeridas.",
-                  en:"Classify the incident nature: noise, damage, rules, cleanliness, etc. Each type has suggested description templates."}
-          },
-          { x:75, y:62,
-            title:{es:"😈 Categoría de seguimiento",en:"😈 Tracking category"},
-            body:{es:"Grave / En observación / Menor. Sirve para filtrar y priorizar — y determina la urgencia del SLA.",
-                  en:"Serious / Under watch / Minor. Used for filtering and prioritization — also determines SLA urgency."}
-          },
-          { x:50, y:84,
+          { anchor:'generalToggle', at:'r',
             title:{es:"🌐 Incidente general",en:"🌐 General incident"},
             body:{es:"Si activas esta casilla el incidente NO pasa por Paso 1/Paso 2 del propietario. El admin lo asigna a una unidad o lo cierra directamente.",
                   en:"If you toggle this the incident does NOT go through Owner Step 1/Step 2. The admin assigns it to a unit or closes directly."}
           },
-          { x:80, y:96,
+          { anchor:'submitReport', at:'tr',
             title:{es:"⚠️ Registrar reporte",en:"⚠️ Submit report"},
             body:{es:"Al enviar, el propietario de la unidad afectada recibe email y debe verificar (Paso 1). Si no responde en 24 h, llega un recordatorio rojo.",
                   en:"On submit, the owner of the affected unit receives an email and must verify (Step 1). If they don't respond in 24 h, a red reminder is sent."},
@@ -576,13 +549,13 @@ const CHAPTERS = [
           <div class="a-flow" style="margin-bottom:12px">
             <div class="a-flow-node">📝 <span class="es-text">Reporte</span><span class="en-text">Report</span></div>
             <span class="a-flow-arr">→</span>
-            <div class="a-flow-node on">1️⃣ <span class="es-text">Verificar</span><span class="en-text">Verify</span></div>
+            <div data-h="step1Node" class="a-flow-node on">1️⃣ <span class="es-text">Verificar</span><span class="en-text">Verify</span></div>
             <span class="a-flow-arr">→</span>
             <div class="a-flow-node">🔍 Admin</div>
             <span class="a-flow-arr">→</span>
             <div class="a-flow-node">2️⃣ <span class="es-text">Resolver</span><span class="en-text">Resolve</span></div>
           </div>
-          <div class="a-section-label"><span class="es-text">Huésped(es) confirmado(s)</span><span class="en-text">Confirmed guest(s)</span></div>
+          <div data-h="guestSection" class="a-section-label"><span class="es-text">Huésped(es) confirmado(s)</span><span class="en-text">Confirmed guest(s)</span></div>
           <div class="a-fg-row">
             <div class="a-fg"><label><span class="es-text">Nombre</span><span class="en-text">First name</span></label><input value="Carlos"/></div>
             <div class="a-fg"><label><span class="es-text">Apellido</span><span class="en-text">Last name</span></label><input value="Pérez"/></div>
@@ -591,10 +564,10 @@ const CHAPTERS = [
             <div class="a-fg"><label>🏙️ <span class="es-text">Ciudad</span><span class="en-text">City</span> *</label><input value="Bogotá"/></div>
             <div class="a-fg"><label>🌍 <span class="es-text">País</span><span class="en-text">Country</span> *</label><input value="Colombia"/></div>
           </div>
-          <div class="a-fg"><label>💡 <span class="es-text">Acción inmediata</span><span class="en-text">Immediate action</span> * <button class="a-tip" data-tipkey="verifyIncident">ⓘ</button></label><textarea>Llamé al huésped y le pedí que bajara el volumen. Notifiqué al operador.</textarea></div>
+          <div class="a-fg"><label>💡 <span class="es-text">Acción inmediata</span><span class="en-text">Immediate action</span> * <button class="a-tip" data-tipkey="verifyIncident">ⓘ</button></label><textarea data-h="immediateAction">Llamé al huésped y le pedí que bajara el volumen. Notifiqué al operador.</textarea></div>
           <div style="display:flex;gap:8px;justify-content:flex-end">
             <button class="a-btn-ghost"><span class="es-text">Cancelar</span><span class="en-text">Cancel</span></button>
-            <button class="a-btn-p">✅ <span class="es-text">Guardar verificación</span><span class="en-text">Save verification</span></button>
+            <button class="a-btn-p" data-h="saveVerify">✅ <span class="es-text">Guardar verificación</span><span class="en-text">Save verification</span></button>
           </div>
         </div>`,
         email:{
@@ -605,22 +578,21 @@ const CHAPTERS = [
           ]
         },
         hotspots:[
-          { x:38, y:30,
+          { anchor:'step1Node', at:'tr',
             title:{es:"1️⃣ Paso 1 — Verificar (tú estás aquí)",en:"1️⃣ Step 1 — Verify (you are here)"},
             body:{es:"Confirmas que el incidente ocurrió y documentas la acción inmediata tomada. Sin Paso 1 el incidente queda en espera.",
-                  en:"You confirm the incident happened and document the immediate action taken. Without Step 1 the incident stays pending."},
-            mail:{es:"Tooltip que verás al pasar sobre ⓘ del botón Verificar",en:"Tooltip you'll see when hovering ⓘ on the Verify button"}
+                  en:"You confirm the incident happened and document the immediate action taken. Without Step 1 the incident stays pending."}
           },
-          { x:30, y:62,
+          { anchor:'guestSection', at:'r',
             title:{es:"👥 Datos del huésped",en:"👥 Guest details"},
             body:{es:"Captura quién estaba hospedado para que la comunidad pueda hacer seguimiento entre listings y, si es necesario, agregar el huésped a la lista negra.",
                   en:"Capture who was staying so the community can cross-track between listings and, if needed, add the guest to the blacklist."}
           },
-          { x:50, y:88,
-            title:{es:"💡 Acción inmediata (requerida)",en:"💡 Immediate action (required)"},
-            body:{es:"Paso 1: el propietario verifica y documenta la acción inmediata tomada. Paso 2 (por separado): el propietario agrega su respuesta — requerida antes de que el admin pueda cerrar.",
-                  en:"Step 1: Owner verifies and documents immediate action taken. Step 2 (separate): Owner adds their resolution — required before admin can close."},
-            mail:{es:"📧 Al guardar: ✅ \"Incidente verificado\" a admins · pasa al Paso 2",en:"📧 On save: ✅ \"Incident verified\" to admins · moves to Step 2"},
+          { anchor:'saveVerify', at:'tr',
+            title:{es:"✅ Guardar verificación",en:"✅ Save verification"},
+            body:{es:"Al guardar, los admins reciben \"Incidente verificado\" y el incidente avanza al Paso 2.",
+                  en:"On save, admins receive \"Incident verified\" and the incident moves to Step 2."},
+            mail:{es:"📧 Dispara: ✅ incident_verified",en:"📧 Triggers: ✅ incident_verified"},
             actions:[
               {label:{es:"➡️ Ver Paso 2",en:"➡️ See Step 2"},chapter:4}
             ]
@@ -638,11 +610,11 @@ const CHAPTERS = [
             <h3 class="a-title">2️⃣ <span class="es-text">Paso 2 · Agregar respuesta</span><span class="en-text">Step 2 · Add resolution</span></h3>
             <p class="a-sub">Apt 502 · ✅ <span class="es-text">Verificado por el propietario</span><span class="en-text">Verified by owner</span></p>
           </div></div>
-          <div style="background:#fff8e1;border-left:4px solid #d9b45a;border-radius:10px;padding:10px 12px;margin-bottom:12px;font-size:.78rem;color:#7a5a00"><span class="es-text">⚠️ Respuesta pendiente — el administrador no puede cerrar este incidente hasta que agregues tu respuesta.</span><span class="en-text">⚠️ Resolution pending — the admin cannot close this incident until you add your resolution.</span></div>
-          <div class="a-fg"><label>🔍 <span class="es-text">Tu respuesta</span><span class="en-text">Your resolution</span> *</label><textarea style="min-height:80px">Se contactó directamente con el huésped, se coordinó con el operador y se notificó a Airbnb. El huésped aceptó las normas y el ruido se detuvo a las 23:00.</textarea></div>
+          <div data-h="closeBlock" style="background:#fff8e1;border-left:4px solid #d9b45a;border-radius:10px;padding:10px 12px;margin-bottom:12px;font-size:.78rem;color:#7a5a00"><span class="es-text">⚠️ Respuesta pendiente — el administrador no puede cerrar este incidente hasta que agregues tu respuesta.</span><span class="en-text">⚠️ Resolution pending — the admin cannot close this incident until you add your resolution.</span></div>
+          <div class="a-fg"><label>🔍 <span class="es-text">Tu respuesta</span><span class="en-text">Your resolution</span> *</label><textarea data-h="resolutionField" style="min-height:80px">Se contactó directamente con el huésped, se coordinó con el operador y se notificó a Airbnb. El huésped aceptó las normas y el ruido se detuvo a las 23:00.</textarea></div>
           <div style="display:flex;gap:8px;justify-content:flex-end">
             <button class="a-btn-ghost"><span class="es-text">Cancelar</span><span class="en-text">Cancel</span></button>
-            <button class="a-btn-p">📝 <span class="es-text">Guardar respuesta</span><span class="en-text">Save resolution</span></button>
+            <button class="a-btn-p" data-h="saveResolution">📝 <span class="es-text">Guardar respuesta</span><span class="en-text">Save resolution</span></button>
           </div>
           <div class="a-section-label" style="margin-top:14px"><span class="es-text">Historial</span><span class="en-text">Timeline</span></div>
           <div class="a-email-list">
@@ -658,18 +630,18 @@ const CHAPTERS = [
           ]
         },
         hotspots:[
-          { x:50, y:34,
+          { anchor:'closeBlock', at:'tr',
             title:{es:"⚠️ Bloqueo del cierre",en:"⚠️ Closure block"},
             body:{es:"El admin global no puede cerrar el incidente hasta que el propietario agregue su respuesta. Esto evita cierres sin contexto del propietario afectado.",
                   en:"The global admin can't close the incident until the owner adds their resolution. This prevents closures without input from the affected owner."}
           },
-          { x:50, y:56,
+          { anchor:'resolutionField', at:'tr',
             title:{es:"🔍 Tu respuesta (Paso 2)",en:"🔍 Your resolution (Step 2)"},
             body:{es:"Describe tu respuesta al incidente. Ej.: se trabajó directamente con el huésped, se coordinó con el operador o la administración del edificio, se involucró a Airbnb o las autoridades necesarias.",
                   en:"Describe your resolution. E.g. worked directly with the guest, coordinated with the operator or building management, involved Airbnb or the necessary authorities."},
             mail:{es:"📧 Dispara: 🎯 \"Respuesta agregada — listo para cerrar\" al admin",en:"📧 Triggers: 🎯 \"Resolution added — ready to close\" to admin"}
           },
-          { x:78, y:74,
+          { anchor:'saveResolution', at:'tr',
             title:{es:"📝 Guardar respuesta",en:"📝 Save resolution"},
             body:{es:"Al guardar, el admin global recibe email y puede cerrar formalmente el incidente. Tú recibirás el email de cierre cuando esto suceda.",
                   en:"On save, the global admin gets an email and can formally close the incident. You'll get the closure email when this happens."},
@@ -712,9 +684,9 @@ const CHAPTERS = [
           <div class="a-hdr"><div>
             <h3 class="a-title"><span class="es-text">Dashboard Comunal</span><span class="en-text">Community Dashboard</span></h3>
             <p class="a-sub"><span class="es-text">Vista compartida en tiempo real · Morros KAI</span><span class="en-text">Shared real-time view · Morros KAI</span></p>
-          </div><button class="a-btn-p">⚠️ <span class="es-text">Reportar incidente</span><span class="en-text">Report incident</span></button></div>
-          <div class="a-action-banner"><div><strong>⚡ <span class="es-text">¿Qué debes hacer ahora?</span><span class="en-text">What do you need to do now?</span></strong><small><span class="es-text">2 incidentes esperan tu verificación · 1 espera resolución</span><span class="en-text">2 incidents await your verification · 1 awaits resolution</span></small></div><button class="a-btn-p">→</button></div>
-          <div class="a-action-banner resolve"><div><strong>✅ <span class="es-text">Listos para cerrar</span><span class="en-text">Ready to close</span></strong><small><span class="es-text">3 incidentes con respuesta del propietario</span><span class="en-text">3 incidents with owner resolution</span></small></div><button class="a-btn-p">→</button></div>
+          </div><button class="a-btn-p" data-h="reportIncBtn">⚠️ <span class="es-text">Reportar incidente</span><span class="en-text">Report incident</span></button></div>
+          <div data-h="ownerBanner" class="a-action-banner"><div><strong>⚡ <span class="es-text">¿Qué debes hacer ahora?</span><span class="en-text">What do you need to do now?</span></strong><small><span class="es-text">2 incidentes esperan tu verificación · 1 espera resolución</span><span class="en-text">2 incidents await your verification · 1 awaits resolution</span></small></div><button class="a-btn-p">→</button></div>
+          <div data-h="resolveBanner" class="a-action-banner resolve"><div><strong>✅ <span class="es-text">Listos para cerrar</span><span class="en-text">Ready to close</span></strong><small><span class="es-text">3 incidentes con respuesta del propietario</span><span class="en-text">3 incidents with owner resolution</span></small></div><button class="a-btn-p">→</button></div>
           <div style="display:flex;gap:8px;margin-top:12px">
             <div class="a-stat"><div class="num">3</div><div class="lbl"><span class="es-text">Apartamentos</span><span class="en-text">Apartments</span></div></div>
             <div class="a-stat"><div class="num">2</div><div class="lbl"><span class="es-text">Reportes abiertos</span><span class="en-text">Open reports</span></div></div>
@@ -724,21 +696,20 @@ const CHAPTERS = [
         </div>`,
         email:null,
         hotspots:[
-          { x:88, y:18,
+          { anchor:'reportIncBtn', at:'tr',
             title:{es:"⚠️ Reportar incidente",en:"⚠️ Report incident"},
             body:{es:"Reporta un incidente visible para propietarios aprobados. Incluye datos claros y verificables.",
                   en:"Report an incident visible to approved owners. Include clear, verifiable details."},
-            mail:{es:"Tooltip que verás al pasar sobre el botón en la app",en:"Tooltip you'll see hovering the button in-app"},
             actions:[
               {label:{es:"➡️ Ver formulario de reporte",en:"➡️ See report form"},chapter:4}
             ]
           },
-          { x:50, y:42,
+          { anchor:'ownerBanner', at:'tr',
             title:{es:"⚡ Banner de acción del propietario",en:"⚡ Owner action banner"},
             body:{es:"Aparece cuando hay incidentes esperando tu Paso 1 (verificar) o Paso 2 (resolver). Un clic te lleva al filtro correcto en Incidentes.",
                   en:"Appears when incidents await your Step 1 (verify) or Step 2 (resolve). One click takes you to the right filter in Incidents."}
           },
-          { x:50, y:64,
+          { anchor:'resolveBanner', at:'tr',
             title:{es:"✅ Banner del admin (resolver)",en:"✅ Admin resolve banner"},
             body:{es:"Solo visible para admins globales y delegados con permiso canResolveIncidents. Indica incidentes ya con respuesta del propietario, listos para cierre formal.",
                   en:"Only visible to global admins and delegates with canResolveIncidents permission. Shows incidents already with owner resolution, ready for formal closure."}
@@ -775,11 +746,11 @@ const CHAPTERS = [
             <p class="a-sub"><span class="es-text">Catálogo de emails · idioma de tu cuenta</span><span class="en-text">Email catalog · your account language</span></p>
           </div></div>
           <div class="a-email-list">
-            <div class="a-email-item unread"><div class="ico">📩</div><div><strong><span class="es-text">Registro recibido — Morros KAI</span><span class="en-text">Registration received — Morros KAI</span></strong><span><span class="es-text">Confirmación al enviar la solicitud · llega antes de la revisión.</span><span class="en-text">Confirmation when you submit · arrives before review.</span></span></div></div>
-            <div class="a-email-item unread"><div class="ico">✅</div><div><strong><span class="es-text">Registro aprobado — Morros KAI</span><span class="en-text">Registration approved — Morros KAI</span></strong><span><span class="es-text">Tu unidad fue aprobada. Incluye link para entrar.</span><span class="en-text">Your unit was approved. Includes link to enter.</span></span></div></div>
-            <div class="a-email-item"><div class="ico">⚠️</div><div><strong><span class="es-text">⚠️ Acción requerida — Incidente Apto 502</span><span class="en-text">⚠️ Action required — Incident Apt 502</span></strong><span><span class="es-text">Por favor abre el enlace y toca "Verificar ahora" (Paso 1).</span><span class="en-text">Please open the link and tap "Verify now" (Step 1).</span></span></div></div>
-            <div class="a-email-item"><div class="ico" style="background:#fde8e4;color:#c62828">🔴</div><div><strong><span class="es-text">🔴 Recordatorio urgente — Apto 502 sin verificar</span><span class="en-text">🔴 Urgent reminder — Apt 502 not yet verified</span></strong><span><span class="es-text">SLA superado (24 h). Acción pendiente.</span><span class="en-text">SLA elapsed (24 h). Pending action.</span></span></div></div>
-            <div class="a-email-item"><div class="ico">🎯</div><div><strong><span class="es-text">✅ Respuesta agregada — Apto 502 listo para cerrar</span><span class="en-text">✅ Resolution added — Apt 502 ready to close</span></strong><span><span class="es-text">Paso 2 completo. El admin puede cerrar formalmente.</span><span class="en-text">Step 2 complete. Admin can formally close.</span></span></div></div>
+            <div data-h="emRegRcv" class="a-email-item unread"><div class="ico">📩</div><div><strong><span class="es-text">Registro recibido — Morros KAI</span><span class="en-text">Registration received — Morros KAI</span></strong><span><span class="es-text">Confirmación al enviar la solicitud · llega antes de la revisión.</span><span class="en-text">Confirmation when you submit · arrives before review.</span></span></div></div>
+            <div data-h="emRegApr" class="a-email-item unread"><div class="ico">✅</div><div><strong><span class="es-text">Registro aprobado — Morros KAI</span><span class="en-text">Registration approved — Morros KAI</span></strong><span><span class="es-text">Tu unidad fue aprobada. Incluye link para entrar.</span><span class="en-text">Your unit was approved. Includes link to enter.</span></span></div></div>
+            <div data-h="emIncNew" class="a-email-item"><div class="ico">⚠️</div><div><strong><span class="es-text">⚠️ Acción requerida — Incidente Apto 502</span><span class="en-text">⚠️ Action required — Incident Apt 502</span></strong><span><span class="es-text">Por favor abre el enlace y toca "Verificar ahora" (Paso 1).</span><span class="en-text">Please open the link and tap "Verify now" (Step 1).</span></span></div></div>
+            <div data-h="emSla" class="a-email-item"><div class="ico" style="background:#fde8e4;color:#c62828">🔴</div><div><strong><span class="es-text">🔴 Recordatorio urgente — Apto 502 sin verificar</span><span class="en-text">🔴 Urgent reminder — Apt 502 not yet verified</span></strong><span><span class="es-text">SLA superado (24 h). Acción pendiente.</span><span class="en-text">SLA elapsed (24 h). Pending action.</span></span></div></div>
+            <div data-h="emRes" class="a-email-item"><div class="ico">🎯</div><div><strong><span class="es-text">✅ Respuesta agregada — Apto 502 listo para cerrar</span><span class="en-text">✅ Resolution added — Apt 502 ready to close</span></strong><span><span class="es-text">Paso 2 completo. El admin puede cerrar formalmente.</span><span class="en-text">Step 2 complete. Admin can formally close.</span></span></div></div>
           </div>
         </div>`,
         email:{
@@ -792,7 +763,7 @@ const CHAPTERS = [
           ]
         },
         hotspots:[
-          { x:12, y:34,
+          { anchor:'emRegRcv', at:'tr',
             title:{es:"📩 Registro recibido",en:"📩 Registration received"},
             body:{es:"Llega en cuanto envías la solicitud — antes de que un admin la revise. Confirma que el sistema la recibió correctamente.",
                   en:"Arrives the moment you submit — before any admin reviews it. Confirms the system received it."},
@@ -801,13 +772,13 @@ const CHAPTERS = [
               {label:{es:"📝 Ver registro",en:"📝 See registration"},chapter:2}
             ]
           },
-          { x:12, y:50,
+          { anchor:'emRegApr', at:'tr',
             title:{es:"✅ Aprobado · 🚫 Rechazado",en:"✅ Approved · 🚫 Declined"},
             body:{es:"Resultado de la revisión del admin. Si fue rechazado incluye el motivo, y puedes corregir y reenviar la solicitud.",
                   en:"Result of the admin review. If declined it includes the reason, and you can fix and resubmit."},
             mail:{es:"Aprobado: te da link para entrar al panel · Rechazado: incluye motivo",en:"Approved: gives you a link to enter the dashboard · Declined: includes reason"}
           },
-          { x:12, y:64,
+          { anchor:'emIncNew', at:'tr',
             title:{es:"⚠️ Nuevo incidente — Paso 1",en:"⚠️ New incident — Step 1"},
             body:{es:"Llega al PROPIETARIO de la unidad afectada (no al que reportó). Tiene un botón verde \"Verificar ahora\" que abre el formulario directo.",
                   en:"Arrives to the OWNER of the affected unit (not the reporter). It has a green \"Verify now\" button that opens the form directly."},
@@ -816,13 +787,13 @@ const CHAPTERS = [
               {label:{es:"⚠️ Ver flujo de incidentes",en:"⚠️ See incident flow"},chapter:4}
             ]
           },
-          { x:12, y:78,
+          { anchor:'emSla', at:'tr',
             title:{es:"🔴 Recordatorio SLA urgente",en:"🔴 Urgent SLA reminder"},
             body:{es:"Si pasan 24 h (configurable por el admin) sin verificar o resolver, llega este recordatorio rojo. El reloj sigue corriendo hasta que actúes.",
                   en:"If 24 h pass (admin-configurable) without verifying or resolving, this red reminder arrives. The clock keeps ticking until you act."},
             mail:{es:"📧 Se repite cada ciclo SLA hasta que el incidente avance",en:"📧 Repeats each SLA cycle until the incident moves forward"}
           },
-          { x:12, y:92,
+          { anchor:'emRes', at:'tr',
             title:{es:"🎯 Respuesta agregada",en:"🎯 Resolution added"},
             body:{es:"Llega al admin global cuando completaste el Paso 2. Avisa que el incidente está listo para cerrar formalmente.",
                   en:"Goes to the global admin when you've completed Step 2. Indicates the incident is ready for formal closure."},
@@ -926,9 +897,45 @@ function hotsHtml(slideIdx, hotspots){
   if(!hotspots || !hotspots.length) return '';
   return hotspots.map((h,hi)=>{
     const tipEn=(h.title.en||'').replace(/"/g,'&quot;');
-    return `<button class="hotspot" data-slide="${slideIdx}" data-hot="${hi}" style="left:${h.x}%;top:${h.y}%" aria-label="${tipEn}">${hi+1}<span class="hot-tip"><span class="es-text">Toca: ${h.title.es}</span><span class="en-text">Tap: ${h.title.en}</span></span></button>`;
+    const pos = h.anchor ? '' : `left:${h.x}%;top:${h.y}%`;
+    const dataAnchor = h.anchor ? ` data-anchor="${h.anchor}" data-at="${h.at||'tr'}"` : '';
+    return `<button class="hotspot" data-slide="${slideIdx}" data-hot="${hi}"${dataAnchor} style="${pos}" aria-label="${tipEn}">${hi+1}<span class="hot-tip"><span class="es-text">Toca: ${h.title.es}</span><span class="en-text">Tap: ${h.title.en}</span></span></button>`;
   }).join('');
 }
+
+/* Position hotspots that have an anchor element. Called on slide activate
+   and on resize/fullscreen. Computes pixel offsets from the named element
+   and converts to a % within the .visual container so dots stay glued to
+   their target even as layout reflows. */
+function placeAnchoredHotspots(){
+  const slide = document.querySelector('.slide.active');
+  if(!slide) return;
+  const visual = slide.querySelector('.visual');
+  if(!visual) return;
+  const v = visual.getBoundingClientRect();
+  if(!v.width || !v.height) return;
+  visual.querySelectorAll('.hotspot[data-anchor]').forEach(dot => {
+    const target = visual.querySelector('[data-h="'+dot.dataset.anchor+'"]');
+    if(!target) return;
+    const t = target.getBoundingClientRect();
+    const at = dot.dataset.at || 'tr';
+    const inset = 6;
+    let cx, cy;
+    if(at==='tr'){ cx = t.right - inset; cy = t.top + inset; }
+    else if(at==='tl'){ cx = t.left + inset; cy = t.top + inset; }
+    else if(at==='br'){ cx = t.right - inset; cy = t.bottom - inset; }
+    else if(at==='bl'){ cx = t.left + inset; cy = t.bottom - inset; }
+    else if(at==='r' ){ cx = t.right - inset; cy = t.top + t.height/2; }
+    else if(at==='l' ){ cx = t.left + inset; cy = t.top + t.height/2; }
+    else if(at==='t' ){ cx = t.left + t.width/2; cy = t.top + inset; }
+    else if(at==='b' ){ cx = t.left + t.width/2; cy = t.bottom - inset; }
+    else { cx = t.left + t.width/2; cy = t.top + t.height/2; }
+    dot.style.left = ((cx - v.left) / v.width * 100) + '%';
+    dot.style.top  = ((cy - v.top)  / v.height * 100) + '%';
+  });
+}
+window.addEventListener('resize', placeAnchoredHotspots);
+document.addEventListener('fullscreenchange', ()=>setTimeout(placeAnchoredHotspots, 60));
 
 SLIDES.forEach((s,i)=>{
   const d=document.createElement('div'); d.className='slide';
@@ -1045,6 +1052,8 @@ function render(){
   if(hint) hint.style.display=(s.hotspots && s.hotspots.length)?'inline-flex':'none';
   fill.style.width=Math.min(100,(elapsed/TOTAL)*100)+'%';
   timeEl.textContent=`${fmt(elapsed)} / ${fmt(TOTAL)}`;
+  // Anchor-driven hotspots need a frame to reflow before measuring
+  requestAnimationFrame(()=>requestAnimationFrame(placeAnchoredHotspots));
 }
 function tick(){
   if(!playing) return;
