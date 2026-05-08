@@ -9,659 +9,609 @@
 ## 1. Why this document exists
 
 The product started as a single-purpose tool: structured **incident reporting**
-between owners and a community admin in Morros KAI / Serena del Mar. Two things
-have happened since:
+between owners and a community admin in Morros KAI / Serena del Mar. Two
+expansions are now visible:
 
-1. The discovery work for the **Operator Portal** — grounded in a real 7-month
-   WhatsApp transcript between owners (Brian and Martha Pause) and operator
-   (Luxury Rentals / Oscar Lindo) for unit Morros KAI 317 — showed that the
-   same data model (units, owners, incidents, audit trail, role-based
-   permissions) is the spine of a much larger product: the WhatsApp-replacement
-   layer for day-to-day STR operations.
-2. Conversations with owners, operators and the building's community admin
-   surfaced needs that go well beyond incidents and operator coordination:
-   amenity bookings, package handling, fees and fines, tourism-board reporting,
-   resident directory, etc.
+1. The **Operator Portal** discovery — grounded in a real 7-month WhatsApp
+   transcript between owners (Brian and Martha Pause) and operator (Luxury
+   Rentals / Oscar Lindo) for unit Morros KAI 317 — showed the same data
+   model is the spine of an STR governance product replacing the WhatsApp
+   group between operator, owner, and team.
+2. Conversations across the building's stakeholders surfaced needs that go
+   well beyond incidents and Airbnb operators: **building administration,
+   facilities, sales/property development, on-site operations, residents,
+   visitors and guests, tourism authorities, communications, analytics**.
 
-This roadmap stitches all of that into one product picture. It does **not**
-prescribe build order beyond H1; later horizons are intentionally directional
-so they can be re-prioritised as we learn from the pilot.
+This roadmap stitches all of that into one product picture across the **full
+lifecycle of a property** — pre-sale → handover → ownership → operation
+(personal use or STR) → resale. Each lifecycle stage has different audiences
+and different operating patterns, but all share the same record (unit, owner,
+building, audit, identity).
+
+Important framing: the operator-portal discovery is one module, not the whole
+platform. The seven design principles drawn from that WhatsApp transcript
+(§4) are authoritative *inside* the operator-owner pillar. Other pillars
+(sales, facilities, building admin, tourism) need their own discovery and
+will not necessarily inherit the same operating model.
 
 ---
 
 ## 2. North star
 
-> **KAI is the relationship management layer between operators (hosts), owners
-> (co-hosts), and the buildings their units sit in.** Airbnb (and other listing
-> platforms) remain the source of truth for bookings, guest data, and money.
-> KAI owns everything else: typed requests, approvals, audits, expenses,
-> documents, devices, building context.
+> **One operating system for residential communities across the full
+> property lifecycle.** Same record, different views per audience. Every
+> action audited. Every open loop visible to the party who can close it.
+> Spanish-first, English-ready, multilingual extensible.
 
-Three product promises follow:
+Three product promises that apply across all pillars:
 
-- **Visibility over control.** Owners and admins want to *see* what is
-  happening before they want to *do* anything. (`USE_CASE_DISCOVERY.md` § 5
-  finds owners asked for visibility ~5× and were denied; a read-only dashboard
-  would resolve ~60% of follow-up volume.)
+- **Visibility over control.** Most stakeholders want to *see* what's
+  happening before they want to *do* anything. Read-only dashboards solve a
+  surprising share of friction.
 - **Approval gates, not courtesies.** Significant cost or change requires
-  explicit acceptance, not a 1am WhatsApp heads-up.
-- **Permanent record.** Decisions, invoices, photos, and credentials live in
-  the platform — not in a chat group that disappears with staff turnover.
+  explicit acceptance — whether it's a repair (operator → owner), an
+  amenity reservation (resident → admin), or a sales contract amendment
+  (buyer → developer).
+- **Permanent record.** Decisions, invoices, photos, contracts, and
+  credentials live in the platform — not in chat groups, email threads, or
+  binders that disappear with staff turnover.
 
-### Scope boundary (locked)
+### What KAI is not (scope edges)
 
-KAI **does not** replicate or replace what listing platforms already do:
+KAI doesn't replicate purpose-built systems where they already work:
 
-| Out of scope (Airbnb / OTA owns) | In scope (KAI owns) |
+| Out of scope (someone else's source of truth) | KAI captures |
 |---|---|
-| Guest profiles, booking & stay data | Typed requests tied to a stay (repair, block, damage) |
-| Payout calculation, splits, remittances | Repair approvals, invoice ledger, expense tracking |
-| Calendar sync & booking confirmation | Owner-initiated calendar blocks; building-driven blocks |
-| Guest messaging (Airbnb inbox) | Operator → Owner notifications when guest action is needed |
-| Cleaning fee charged to guest (line item) | Non-guest cleaning costs (deep clean, owner visit prep) |
-| AirCover claim filing | Damage case tracking + the photo log AirCover requires |
-| Review publishing | Review visibility and draft-approval workflow |
+| Airbnb / OTA: bookings, guest profiles, payouts, host inbox, AirCover filing | Relationship events around the stay (approvals, damage cases, photo log) |
+| ERP / accounting: GL, AR, AP, tax filing | Expense submission, receipt vault, and the data hand-off |
+| CRM / sales pipeline tools (HubSpot, Salesforce) | The buyer-facing post-reservation experience and document signing |
+| Banking, payment rails | Payment intent + reconciliation, not money movement |
+| Calendar systems (Google, Outlook) | Building-context events that don't belong in a personal calendar |
 
-**Rule of thumb:** if it lives natively in Airbnb's host UI, KAI does not
-duplicate it. We capture the *relationship* events around it.
+The rule: if a specialised system already owns it, integrate; don't replace.
 
 ---
 
-## 3. Design principles from real-chat findings
+## 3. Where we are today (baseline)
 
-Seven behavioural findings from `USE_CASE_DISCOVERY.md` directly drive the
-product. They are not abstract values; they are constraints on every screen.
+| Capability | State |
+|---|---|
+| Incident workflow `Open → Owner Verification → Resolved` | **Production** |
+| Listings as source of truth for ownership | **Production** |
+| Registration approval workflow | **Production** |
+| Roles: `global_admin`, `delegate_admin`, `user` | **Production** |
+| Smart notifications (in-app + email) | **Production** |
+| Bilingual UI (es-CO default, en) | **Production** |
+| Audit logs | **Production** |
+| Email templates (DB-overridable) | **Production** |
+| Operator Portal (Phases 0–7) | **Designed, not built** |
+| Multi-owner model (Payout / Calendar Owner) | **Designed, not built** |
+| Listing Management Contract | **Designed, not built** |
+| Per-stay inspection photo log + two-path damage workflow | **Designed, not built** |
+| Building Operations modules (visitors, packages, amenities, fees) | **Not yet designed** |
+| Facilities & Common-Area Maintenance | **Not yet designed** |
+| Property Development / Sales / Handover / Warranty | **Not yet designed** |
+| Tourism authority reporting (SIRE / RNT / tax) | **Not yet designed** |
+| Communications hub (announcements, polls, minutes) | **Not yet designed** |
 
-1. **Owners are engaged, not passive.** Brian built an AI pricing tool; Martha
-   tracks compliance. Treat owners as power users, not clients.
-2. **Follow-up burden falls entirely on owners today.** Every open loop must be
-   visible to both parties with an aging timer; closure requires the
-   responsible party to confirm.
+Technical constraints to keep in mind across all pillars:
+
+- Single-tenant deployment per building today. Multi-building tenancy is the
+  H1 architectural step.
+- One large `server.js` and one large `App.jsx`. Per-pillar code splitting
+  becomes a precondition before H2.
+- Supabase only; manual migrations.
+- Firebase Google sign-in only; almost every audience expansion below this
+  baseline (guards, vendors, residents-without-Gmail, guests, sales leads)
+  needs additional auth modes.
+
+---
+
+## 4. Design principles (and where they apply)
+
+### 4.1 Operator-Owner pillar — from the real-chat findings
+
+Seven behavioural findings from `USE_CASE_DISCOVERY.md`. Authoritative inside
+the operator portal; informative elsewhere.
+
+1. **Owners are engaged, not passive.** Treat them as power users.
+2. **Follow-up burden falls on owners today.** Open loops must be visible to
+   both parties with aging timers; closure requires the responsible party.
 3. **Operator acts first, informs later.** Approval gates are *enforced*, not
-   courtesy. No work above threshold starts without owner confirmation.
-4. **Zero credentials or financial details in chat.** Bank accounts (Bancolombia,
-   Nequi handles) and RNT logins appeared in plain text. KAI ships an
-   encrypted vault and a structured expense flow; chat is for context only.
-5. **Owners want visibility, not total control.** A read-only owner dashboard
-   covers most of the friction. Direct edit rights are not the goal.
-6. **Trust erodes through small repeated failures.** A Yale lock battery took
-   10 days and 6 follow-ups. Aging timers and SLA escalation prevent this from
-   accumulating.
-7. **Team rosters are opaque to owners.** Owners must see a named team
-   directory with roles for every unit they own.
+   courtesy.
+4. **Zero credentials or financial details in chat.** Encrypted vault +
+   structured expense flow; chat is for context only.
+5. **Owners want visibility, not total control.** Read-only dashboards cover
+   most friction.
+6. **Trust erodes through small repeated failures.** Aging timers and SLA
+   escalation prevent accumulation.
+7. **Team rosters are opaque to owners.** Named team directory with roles per
+   unit.
+
+### 4.2 Cross-pillar principles (apply everywhere)
+
+- **Same record, different views.** A unit isn't owned by a pillar — it's
+  shared. Build the projection layer; don't fork the schema.
+- **Audit everything that writes.** A standard helper, not a per-pillar
+  decision.
+- **Multilingual from day one.** Every new pillar's UI, comms, and templates
+  pass through the same i18n layer.
+- **Notifications respect role and consent.** A resident shouldn't see an
+  operator's repair-cost numbers; a sales lead shouldn't get HOA notices.
+- **Mobile is not optional.** Field staff, guards, residents, guests all use
+  phones first.
 
 ---
 
-## 4. Where we are today (baseline)
+## 5. Audiences (personas)
 
-| Capability | State | Notes |
-|---|---|---|
-| Incident workflow `Open → Owner Verification → Resolved` | **Production** | `server.js`, `client/src/App.jsx` |
-| Listings as source of truth for ownership | **Production** | Pending / approved / declined |
-| Registration approval workflow | **Production** | First-time owner gate |
-| Roles: `global_admin`, `delegate_admin`, `user` | **Production** | `getUserRole()` in `server.js` |
-| Configurable delegate permissions | **Production** | `app_config.default_delegate_permissions` + per-user JSON |
-| Smart notifications (in-app + email) | **Production** | Resend; SLA timers; escalation reminders |
-| Bilingual UI (es-CO default, en) | **Production** | Inline strings in `App.jsx` |
-| Audit logs | **Production** | `audit_logs` table |
-| Email templates (DB-overridable) | **Production** | `email_templates` table |
-| `operator` role + portal | **Designed, not built** | `PROTOTYPE_READINESS.md` Phase 0 |
-| Login path split (Owner vs Operator) | **Designed, not built** | Phase 0 |
-| Listing Management Contract (terms + amendments) | **Designed, not built** | `USE_CASE_DISCOVERY.md` § Listing Management Contract |
-| Multi-owner model (Payout / Calendar Owner) | **Designed, not built** | `USE_CASE_DISCOVERY.md` § Platform & Role Model |
-| Typed-request inbox (WhatsApp replacement) | **Designed, not built** | `USE_CASE_DISCOVERY.md` § Request Type Taxonomy |
-| Bidirectional pricing proposals | **Designed, not built** | Phase 5 |
-| Per-stay inspection photo log | **Designed, not built** | AirCover prerequisite |
-| Two-path damage workflow (AirCover vs owner insurance) | **Designed, not built** | Phase 3 |
-| Service requests / work orders | **Designed, not built** | Phase 3 |
-| Anything below in §7 "H2/H3" | **Not yet designed** | This document is the first sketch |
+The platform serves the lifecycle of a property and the building it sits in.
+That means many more personas than "owner / admin / operator".
 
-Key technical facts that constrain the roadmap:
-
-- Single-tenant deployment per building today. Multi-building tenancy and
-  multi-property operators are the H1 architectural step, not a config tweak.
-- Backend is one large `server.js`; frontend is one large `App.jsx`. Either we
-  decompose deliberately as we add modules, or future work gets harder
-  super-linearly.
-- Database is Supabase. No local fallback. Migrations are applied manually via
-  `supabase/schema.sql`.
-- Auth is Firebase (Google only). Adding any persona that isn't a Gmail-using
-  owner (guards, vendors, guests, individual team members) means widening the
-  auth story.
-
----
-
-## 5. Operating model: typed requests + unified attention inbox
-
-This is the actual product, distinct from the module catalog in §6. Every
-WhatsApp message that requires action becomes a **typed, trackable request**
-with a defined initiator, recipients, SLA, and resolution path. Both operator
-and owner see one shared concept: *"What needs me right now?"*
-
-### Request type families (full taxonomy in `USE_CASE_DISCOVERY.md`)
-
-- **Operator → Owner(s).** Repair approval, repair FYI, guest issue, booking
-  relay, special-request approval, pricing proposal, peak-period proposal,
-  damage (two paths), non-guest cleaning, utility bill, general update.
-- **Owner → Operator.** Task request, calendar block, pricing proposal,
-  listing-change request, document request, general question.
-- **Operator → Team (internal).** Cleaning, repair, inspection, access-code
-  change, building-notice relay.
-- **System-generated.** AirCover window prompt (12 days post-checkout),
-  Superhost risk prompt, scheduled rate-change activation.
-
-### SLA tiers (default — overridable per unit/community)
-
-| Tier | Examples | Response | Overdue action |
+| # | Persona | Lifecycle stage | Pillars they primarily live in |
 |---|---|---|---|
-| Critical | Guest lockout, guest safety | 1h | Alert owner if operator silent |
-| Urgent | AC/hot water, AirCover window, special request | 2–4h | Reminder at 50%, badge red |
-| Standard | Repair approval, task request | 24h | Reminder at 12h |
-| Async | Pricing / peak / listing change | 48h | Reminder at 24h; expires at 48h |
-| Monthly | Utility bill | 5d | Reminder at 3d |
-| FYI | Booking notification | None | Auto-archive 7d |
+| 1 | **Property developer / sales team** | Pre-sale, construction, handover | Sales & Development, Communications |
+| 2 | **Buyer / pre-owner** | Pre-sale → handover | Sales & Development |
+| 3 | **Owner — Payout** (1 per unit, financial approval rights) | Ownership + STR | Operator-Owner, Building Admin |
+| 4 | **Owner — Calendar** (0+ per unit, no financial visibility) | Ownership + STR | Operator-Owner |
+| 5 | **Resident / renter** (long-term tenant, not owner) | Ownership phase | Building Admin, Operations |
+| 6 | **Building / HOA admin** (delegate or global) | Ownership phase | Building Admin, Operations, Facilities |
+| 7 | **Board / committee member** | Ownership phase | Building Admin, Communications |
+| 8 | **Facilities team** (engineer, building maintenance, common-area cleaners) | Ownership phase | Facilities |
+| 9 | **Guard / front desk / concierge** | Ownership phase | Operations, Access Control |
+| 10 | **Vendor / contractor** | All stages | Facilities, Operator-Owner |
+| 11 | **Airbnb operator / co-host** (one per unit, may operate many) | STR operation | Operator-Owner |
+| 12 | **Operator's team** (cleaning, supervision, logistics, guest support) | STR operation | Operator-Owner |
+| 13 | **Long-term guest / Airbnb guest** (impact-only persona inside KAI) | STR operation | Operator-Owner, Tourism, Operations |
+| 14 | **Visitor / delivery** (one-shot guest of a resident) | Ownership phase | Operations |
+| 15 | **Tourism authority / regulator** (consumer of structured reports) | STR operation | Tourism |
+| 16 | **External buyer / agent** (resale phase) | End of ownership | Sales & Development |
 
-### Visibility rules (multi-owner aware)
+Implication: the role model needs to grow from 3 today to ~10–12 distinct
+roles, plus per-unit subtypes (Payout/Calendar) and per-pillar permissions.
+Plan it once (see §8) instead of re-doing the permissions layer per pillar.
 
-- **Payout Owner** — sees everything; has approval rights on financial items.
-- **Calendar Owner** — sees calendar items and all request threads; financial
-  amounts hidden ("—").
-- **All owners** — can post replies in any thread for their unit.
-- **Team** — sees only their assignments; never sees repair cost amounts (per
-  `USE_CASE_DISCOVERY.md` open question NOTIFY-2 default).
+---
 
-### What the inbox replaces
+## 6. Functional pillars
 
-| Field | Replaces |
+Eleven pillars. The user-supplied module table from the brainstorm slots into
+these. Each module renders different views per persona using the same record.
+
+### 6.1 Property Development & Sales
+
+For new construction phase and unit resale.
+
+| Module | Problem it solves |
 |---|---|
-| Type | Topic buried in the message |
-| Owner | "Ball in your court" clarity |
-| Status | Open → In Progress → Awaiting Response → Resolved |
-| SLA timer | Aging visibility, yellow/red escalation |
-| Thread | Follow-ups stay attached, not lost in the group |
-| Visibility | Right people only, instead of "everyone in the WhatsApp" |
+| Pre-sales / Lead capture | Brochure, virtual tour, reservation deposit, lead → buyer conversion |
+| Sales contracts & payment plans | Promesa, escritura, milestone payments, late-payment dunning |
+| Construction progress comms | Photos, milestone updates, ETA changes shared with buyers |
+| Pre-delivery inspection (acta de entrega) | Punch list, defect logging, sign-off |
+| Unit handover | Handover packet (keys, codes, manuals, warranties), title transfer tracking |
+| Warranty period mgmt | Post-handover defect reporting (1y / 5y / 10y warranty windows in Colombia), routes to developer not operator |
+| Resale support | Owner lists for sale, brokers granted scoped access, handover to new owner |
 
-This is the foundation. Everything in §6 below — pricing, calendar, contracts,
-documents, building notices — is a **typed request that flows through this
-inbox**. Build the inbox first; everything else layers on it.
+### 6.2 Building Administration & Governance
+
+The HOA / community admin's day-to-day.
+
+| Module | Problem it solves |
+|---|---|
+| Resident & Owner Directory | Unit ↔ resident graph; renters; emergency contacts; consent flags |
+| Board governance | Committees, meeting minutes, voting / polls, bylaw amendments |
+| HOA Fees / Cuotas | Recurring billing, late fees, payment tracking, statements |
+| Fines & Violations | Issued, contested, paid; linked to incident |
+| Reserve Fund & Budget | Annual budget, reserve health, special assessments |
+| Document Library | Bylaws, regulations, permits, insurance certificates, tax filings |
+| HOA Communications (admin pillar overlaps with §6.10) | Targeted broadcasts to residents/owners |
+
+### 6.3 Facilities & Common-Area Maintenance
+
+Distinct from unit-level maintenance (which lives in Operator-Owner).
+
+| Module | Problem it solves |
+|---|---|
+| Common-Area Asset Register | Elevators, generators, pumps, pool equipment, HVAC, lighting; warranties; lifecycle |
+| Preventive Maintenance Schedules | Recurring tasks per asset; technician assignments; compliance with manufacturer schedules |
+| Reactive Work Orders (common areas) | Reported by residents, guards, or detected by IoT |
+| Vendor & Contractor Management | Approved vendor list, COIs, ratings, access windows, performance |
+| Inspections & QA | Periodic asset and area inspections with photo evidence |
+| Energy & Utilities | Common-area consumption, sub-metering, anomaly flags, cost allocation |
+| Smart Building / IoT | Common-area sensors (leak, smoke, occupancy, CCTV events) feeding into incidents and work orders |
+
+### 6.4 Operations & Access Control
+
+The front desk / guard's surface.
+
+| Module | Problem it solves |
+|---|---|
+| Visitor & Delivery Pre-Registration | Resident/owner registers expected guest; guard checks in |
+| Package & Delivery Mgmt | Receive, photograph, notify resident, confirm pickup |
+| Access & Security | Smart locks, gate codes, badges, restricted areas, visitor codes |
+| Parking & Vehicle Mgmt | Owner/resident vehicle registry, visitor parking, violations, towing |
+| Guard log / Shift handover | Notes, incidents, anomalies; visible to next shift and admin |
+| Lost & Found | Logging + return workflow |
+| Emergency Response Center | Fire, flood, violence, medical, evacuation playbooks; broadcast |
+
+### 6.5 Resident Experience
+
+Owner / renter as a *resident* — separate from owner-as-co-host.
+
+| Module | Problem it solves |
+|---|---|
+| Resident Portal Home | Unified inbox: notices, fees due, my packages, my visitors, my reservations |
+| Amenity Reservations | Pool, jacuzzi, sauna, BBQ, gym, meeting room, parking, visitor spaces |
+| Personal Visitor & Vehicle Pre-Reg | Self-service alternative to phoning the guard |
+| Move-In / Move-Out Workflow | Inventory, key handoff, deposit handling, condition photos |
+| Maintenance Requests (in-unit, owner-initiated) | When the resident is not an STR operator's unit |
+
+### 6.6 Guest & Visitor Management
+
+Different from §6.4 because it includes Airbnb guests and longer stays.
+
+| Module | Problem it solves |
+|---|---|
+| Guest Pre-Arrival Registration | KYC-light, ID upload, building rules acknowledgment |
+| Building Access Provisioning | Time-bound codes, lock provisioning, guard pre-notice |
+| Digital Guidebook | House manual, local recommendations, multilingual |
+| In-Stay Issue Routing | Guest impact ticket → operator first, building admin only on escalation |
+| Guest Departure & Inspection | Linked to operator-portal photo log when STR; otherwise owner-handled |
+
+### 6.7 Operator–Owner Governance (the Airbnb operator portal)
+
+This is the pillar described in `USE_CASE_DISCOVERY.md`. **The seven design
+principles in §4.1 apply specifically here.** Detailed module list is in
+`OPERATOR_PORTAL_PROPOSAL.md`. Headline modules:
+
+| Module | Problem it solves |
+|---|---|
+| Typed Request Inbox + SLA engine | The WhatsApp replacement; aging timers; persona-aware visibility |
+| Listing Management Contract | Locked terms (fee, threshold, services, notice); proposal/amendment lifecycle |
+| Multi-Owner Roster (Payout + Calendar) | Multiple co-hosts per unit with differing access |
+| Operator Multi-Community Console | One view of all units across buildings |
+| Owner Read-Only Dashboard | Listing state, pricing, ranking context, reviews |
+| Bidirectional Pricing | Either party proposes; the other confirms; immutable log |
+| Per-stay Photo Log + Two-Path Damage | AirCover (guest) vs owner-insurance (non-guest) |
+| Service Requests / Work Orders (in-unit) | Repair, cleaning, inspection, device, building-notice relay |
+| Credential & Document Vault (per unit) | RNT/TRA/manuals, no chat-leak |
+| Operator Team Roster + Mobile Tasks | Visible to owners; team picks up daily list on phone |
+| Review Approval, Guest Block List, Calendar Blocks | Owner controls without taking the wheel |
+
+This pillar's scope explicitly excludes: Airbnb payouts, channel manager,
+guest profiles, AirCover filing UI. See §2 scope edges.
+
+### 6.8 Compliance & Tourism
+
+Where the building meets the regulator.
+
+| Module | Problem it solves |
+|---|---|
+| Rules & Compliance Center (building) | STR caps per unit, quiet hours, pet rules, pool hours, fines policy |
+| Licensing & Permits | RNT registration, STR licenses, expirations, renewal reminders |
+| Tourism Authority Reporting | SIRE / Migración Colombia for foreign guests; occupancy/origin/length-of-stay statistics |
+| Tourism Tax & Levies | Per-stay calc, remittance reporting (national + municipal) |
+| Insurance & Claims | Building policies, COIs, owner-unit policies; two-path damage hand-off |
+| Habeas Data (Colombia) / GDPR-style | Resident, guest, lead PII consent + retention + subject requests |
+| Audit Trail | Every action: who, what, when, why (already live for incidents) |
+
+### 6.9 Incident & Emergency Management
+
+The pillar that exists today.
+
+| Module | Problem it solves |
+|---|---|
+| Incident Reporting & Triage | Structured open → verify → resolve workflow |
+| Owner Verification Workflow | Owner confirms before close (live) |
+| SLA & Escalation | Aging timers; configurable per type |
+| Smart Notifications | Right person, right urgency |
+| Risk & Reputation Monitoring | Reputation-impacting incidents, repeat-apartment surfacing |
+| Emergency Response Center | Cross-references with §6.4 — playbooks, broadcast, guard coordination |
+
+### 6.10 Communications
+
+Cross-pillar layer; many modules in §6.2/§6.4/§6.7 push events through here.
+
+| Module | Problem it solves |
+|---|---|
+| Announcements (admin → audience) | Targeted broadcast: building-wide, floor, owners-only, residents-only, operators-only |
+| Polls & Surveys | Board votes, resident sentiment |
+| Meeting Minutes | Linked to governance, searchable, multilingual |
+| Notifications Engine | Email + in-app today; WhatsApp + push later |
+| Multilingual Content Layer | All UI/comms/docs/templates flow through one i18n layer |
+| Targeted Comms with Consent | Sales-lead nurture, owner mailers, with opt-out |
+
+### 6.11 Analytics, Reporting & AI
+
+| Module | Problem it solves |
+|---|---|
+| Admin Dashboard / KPIs | Open incidents, repeat offenders, SLA compliance, fees collected |
+| Building Health Score | Composite of facilities, compliance, satisfaction, incidents |
+| Sales Funnel Analytics | Lead → reservation → contract → handover, by source/cohort |
+| Operator Scorecard | Incidents, response time, complaints, reviews per operator |
+| Anomaly Detection | Utility bill > X% of avg; conflated damage; access-pattern anomalies |
+| AI Smart Notifications | Auto-route by type/urgency/persona |
+| AI Drafting & Translation | Reduce admin/operator/sales workload |
+| Owner Investment View | Cap rate, RevPAR, comps; owner-only |
+| Trend Reports | Repeat apartments, seasonal patterns, vendor performance |
 
 ---
 
-## 6. Personas
+## 7. Where the operator-portal "inbox-first" pattern applies
 
-| Persona | Primary jobs-to-be-done | Today | Roadmap horizon |
-|---|---|---|---|
-| **Payout Owner** (one per unit) | Approve cost/price, file & verify incidents, block dates, see everything | H0 (incidents only) | H1 portfolio view |
-| **Calendar Owner** (zero+ per unit) | See calendar, participate in threads, request tasks; financials hidden | Not modelled | H1 |
-| **Operator / co-host** | Manage all units across communities, dispatch staff, get owner approvals, close loops | Designed | H1 |
-| **Operator's team** (cleaning, supervision, logistics, guest support) | Daily task list across communities, mark done with photo | Designed | H1 (Phase 7) |
-| **Community / building admin** (delegate or global) | Triage incidents, enforce STR rules, comms, fees, amenities | H0 (incidents) | H2 |
-| **Guard / front desk** | Visitor & package logging, amenity check-in, panic | Not in scope | H2 |
-| **Vendor / contractor** | Receive a work order, schedule access, upload invoice | Not in scope | H2 (read-only invite first) |
-| **Guest** | Surfaces in KAI only as an *impact* (lockout, AC down) — not as a directly served persona | Not modelled | H3 (limited: pre-arrival check-in, building rules) |
-| **Authority / tourism board** | Receive structured reporting (RNT, SIRE, occupancy, tax) | Not in scope | H3 |
+The typed-request + unified-inbox + SLA pattern (`USE_CASE_DISCOVERY.md`) is
+the operating model **inside the Operator-Owner pillar**. Other pillars have
+different operating patterns and shouldn't be force-fitted:
 
-The role model needs to grow from 3 (`global_admin`, `delegate_admin`, `user`)
-to ~7, plus per-unit owner subtypes (Payout / Calendar). Plan it once
-(see §9) instead of re-doing the permissions layer each time we add a persona.
+| Pillar | Primary operating pattern |
+|---|---|
+| Operator-Owner | **Typed requests + attention inbox** (chat replacement) |
+| Sales & Development | **Pipeline / stage-gates** + document signing + buyer comms |
+| Building Admin | **Recurring billing cycle** + governance calendar + fines workflow |
+| Facilities | **Asset-centric work orders** + preventive schedules + IoT events |
+| Operations / Access | **Real-time event stream** (visitor in, package in, gate event) |
+| Resident Experience | **Self-service portal** + reservation calendar |
+| Guest & Visitor | **Pre-arrival flow** + access provisioning timer |
+| Compliance & Tourism | **Calendar of obligations** (filings, renewals, taxes due) |
+| Incidents | **Open/verify/close ticket workflow** (already live) |
+| Communications | **Broadcast / targeted send** with delivery tracking |
+| Analytics & AI | **Pull / dashboard** + push alerts on anomaly |
 
----
-
-## 7. Module map
-
-Modules are grouped by *what problem they solve*, not by who uses them. Most
-modules render different views per persona using the same record.
-
-### 7.1 Operating layer (the WhatsApp replacement itself)
-
-| Module | Problem it solves | Status |
-|---|---|---|
-| Typed Request Inbox | Every action item has a type, status, SLA, thread | Designed |
-| Unified Attention Feed | "What needs me now?" view per persona | Designed |
-| SLA & Escalation Engine | Aging timers, yellow/red, auto-reminders, expiry | Partial (incident SLAs live) |
-| Audit Trail | Every write logged; standard helper across modules | **Live** for incidents |
-| Notifications (in-app + email) | Right person, right urgency | **Live** |
-| Multilingual support (es-CO + en) | All UI, comms, templates | **Live (UI)** — extends to docs/comms |
-
-### 7.2 Operator–Owner Governance
-
-| Module | Problem it solves | Status |
-|---|---|---|
-| Operator Identity & Unit Linking | Who manages which unit, owner-accepted, one operator per unit | Designed |
-| **Listing Management Contract** | Locked terms (fee, threshold, services, notice period); propose / counter / amend / terminate | **Designed (locked concept)** |
-| Multi-Owner Roster (Payout + Calendar) | Multiple co-hosts per unit with differing access levels | Designed |
-| Operator Multi-Community Console | One view of all units across buildings | Designed |
-| Owner Read-Only Dashboard | Listing state, pricing schedule, ranking context, review history | Designed |
-| Operator Team Roster (visible to owners) | Named directory with roles per unit | Designed |
-| Bidirectional Pricing | Either party proposes; the other confirms / counters / rejects; immutable log | Designed |
-| Pricing-with-Ranking-Preview | Show estimated Airbnb position before confirming | Designed |
-| Scheduled / Annual Rate Changes | Future-dated rate that auto-applies | Designed |
-| Discount Structure (last-minute, early-bird, weekly, monthly) | Per-unit discount rules with proposal flow | Designed |
-| Owner Calendar / Personal Use Blocks | Distinct from guest bookings; auto-schedules cleaning | Designed |
-| Listing-Change Requests + Version History | Title, description, photos, rules, amenities — bidirectional flow | Designed |
-| Review Dashboard with Draft Approval | Owner sees draft response before publish | Designed |
-| Guest Block List (per unit) | Owner can request operator block a specific guest | Designed |
-| Operator Scorecard | Incidents, complaints, response time per operator | Future |
-| Listing / Branding Compliance | Approved photos, naming, building rules | Future |
-
-### 7.3 Service Operations
-
-| Module | Problem it solves | Status |
-|---|---|---|
-| Service Requests / Work Orders | Maintenance · Repair · Cleaning · Inspection · Trámite · Other | Designed |
-| Approval Threshold Engine | Auto-approve below contract threshold; gate above | Designed |
-| Per-Stay Inspection Photo Log | Required baseline for AirCover; distinguishes guest vs non-guest damage | Designed |
-| **Two-Path Damage Workflow** | Guest → AirCover (operator files); Non-guest → owner insurance (KAI documents) | Designed |
-| Non-Guest Cleaning (expense flow) | Deep clean, owner-visit prep, post-renovation | Designed |
-| Device / IoT Management | Per-device instructions (Yale lock, AC, appliances), escalation, photo proof | Designed |
-| Recurring Maintenance Schedules | AC filter, water heater flush, deep clean | Designed (future phase) |
-| Vendor & Contractor Management | Approved list, COIs, ratings, access windows | Future |
-| Building Notice Ingestion | Owner/admin uploads; operator must ack; if guest-impacting prompts action | Designed |
-| Lost & Found | Logging + return workflow | Future |
-| Asset & Inventory Register | Appliances, warranties, lifecycle | Future |
-
-### 7.4 Documents, Credentials & Compliance
-
-| Module | Problem it solves | Status |
-|---|---|---|
-| **Credential Vault (per unit)** | RNT, TRA, warranties, manuals — encrypted, access-controlled | Designed |
-| Document Vault (per unit) | Utility bills, invoices, insurance policies, listing assets | Designed |
-| Expense Submission Ledger | Repair invoices + utility bills with no bank details in chat | Designed |
-| HOA Document Library | Bylaws, policies, contracts, permits | Future |
-| Insurance & Claims | Policy registry, COIs, two-path damage hand-off | Partial (damage workflow designed) |
-| Licensing & Permits | RNT / STR registration with renewal reminders | Future (H3) |
-| Tourism Authority Reporting | SIRE / Migración Colombia / occupancy stats | Future (H3) |
-| Tourism Tax & Levies | Calc, collect, remit (national + municipal) | Future (H3) |
-| Data Privacy & Consent | Habeas Data (Colombia), retention policy | Future |
-
-### 7.5 Building / Community Layer
-
-| Module | Problem it solves | Status |
-|---|---|---|
-| Incident Management (community) | Structured triage of community incidents | **Live** |
-| Resident & Owner Directory | Unit ↔ resident graph, emergency contacts | Future |
-| Visitor & Guest Registration | Pre-register guests/vendors/deliveries | Future |
-| Access & Security | Smart locks, gate codes, guard approvals | Future |
-| Package & Delivery | Receive, photograph, notify, confirm pickup | Future |
-| Parking & Vehicle | Owner vehicles, visitor spots, violations | Future |
-| Amenity Reservations | Pool, BBQ, gym, meeting room | Future |
-| Rules & Compliance Center (building) | STR caps per unit, quiet hours, pet rules, fines | Future |
-| HOA Fees / Fines / Deposits | Billing, dunning, payment tracking | Future |
-| Announcements / Polls / Minutes | Comms hub for board → residents | Future |
-| Emergency Response | Fire/flood/medical playbooks | Future |
-
-### 7.6 Insight & AI
-
-| Module | Problem it solves | Status |
-|---|---|---|
-| Admin Dashboard / Reporting | KPIs: open incidents, repeat offenders, SLA | Partial |
-| Owner Read-Only Dashboard | Listing state, pricing, ranking, review history | Designed |
-| Operator Scorecard | Quantitative trust signal across operators | Future |
-| Anomaly Detection | Utility bill > X% of rolling avg; conflated damage cases | Future |
-| Pricing-with-Ranking-Preview | Estimated Airbnb position before confirming | Designed |
-| AI Triage / Drafting / Translation | Reduce admin & operator workload | Future |
-| Risk & Reputation Monitoring | Reputation-impacting incidents | Future |
-
-### 7.7 Explicitly out of scope (do not build)
-
-These are tempting modules that the locked scope boundary excludes:
-
-- Owner Statements & Payouts, Tax Pack, Revenue Splits — Airbnb owns payouts.
-- Channel Manager (publishing to Airbnb / VRBO / Booking) — out of scope.
-- Unified Guest Inbox / AI guest replies — Airbnb's inbox.
-- Dynamic pricing engine — KAI surfaces ranking impact, doesn't price.
-- Guest profiles / KYC — owned by Airbnb.
-- AirCover claim filing — happens on Airbnb; KAI prepares the package.
+A typed-request inbox can sit *under* several pillars (tasks, approvals,
+escalations) — but it isn't the universal operating model. Not every domain
+is a chat replacement.
 
 ---
 
 ## 8. Horizons
 
-Horizons are *thematic*, not strict quarter boundaries. Each one has an exit
-condition; we don't move on until it's met.
+Horizons are *thematic*, not strict gates. Pillars can move semi-independently
+once foundations are in place; the rough order below reflects current
+priorities and the existing baseline.
 
 ### H0 — Today (delivered)
 
-**Theme:** Community incident management as the trust anchor between owners
-and the building admin.
+Incident management as the trust anchor between owners and the building admin.
+Production. Bilingual UI. Audit + email working.
 
-Exit condition (already met): owners submit & verify incidents; admins
-resolve & escalate with SLA tracking; audit + email working in production;
-bilingual UI live.
+### H1 — Operator–Owner Relationship Layer
 
-### H1 — Operator–Owner Relationship Layer (next)
+The Airbnb operator portal as designed in `OPERATOR_PORTAL_PROPOSAL.md` and
+`USE_CASE_DISCOVERY.md`. Phases 0–7. Inbox-first.
 
-**Theme:** Replace the WhatsApp group as the canonical channel between
-operator, owners, and team for a unit. **Build the inbox core first;
-everything else layers on it** (`USE_CASE_DISCOVERY.md` closing line).
+**Why first:** highest-friction daily flow, designed already, money follows
+it (operator-paid model in `GTM_AND_PRICING.md`), and it forces multi-building
+tenancy — the precondition for everything below.
 
-**Scope, in build order:**
+### H2 — Building Operations Suite
 
-1. **Phase 0** — Login path split (Owner vs Operator), `operator` role,
-   per-community owner opt-out.
-2. **Phase 1** — Operator identity, unit linking, **multi-owner roster**
-   (Payout / Calendar), team directory visible to owners. Co-host /
-   platform-access tracking.
-3. **Phase 2** — Operator multi-community console + owner read-only
-   dashboard.
-4. **Phase 3 (the core)** — Typed-request inbox: service requests, repair
-   approval gate, **per-stay inspection photo log**, two-path damage
-   workflow, device/IoT tickets, building-notice ingestion with operator
-   acknowledgment, expense submission (zero bank details in chat),
-   non-guest cleaning. SLA timers + escalation across all types.
-5. **Phase 4** — Owner calendar blocks (personal use, distinct from guest
-   rate, auto-schedules cleaning).
-6. **Phase 5** — Bidirectional pricing: base/weekend/seasonal/peak;
-   discounts (last-minute, early-bird, weekly, monthly); cleaning fee;
-   ranking-impact preview before confirm; scheduled annual rate change.
-7. **Phase 6** — Document & credential vault, utility-bill upload with
-   anomaly flag, **Listing Management Contract** as a first-class record
-   (proposal / amendment / termination flow that drives threshold + SLA +
-   services-included).
-8. **Phase 7** — Operator team task management on mobile.
+The community admin, residents, guards, and facilities team move into the
+platform.
 
-**Cross-cutting in H1:**
+Indicative scope:
+1. Resident & Owner Directory (Building Admin §6.2).
+2. Visitor & Package Management (Operations §6.4).
+3. Amenity Reservations (Resident Experience §6.5).
+4. Rules & Compliance Center — building-side (Compliance §6.8).
+5. HOA Fees / Cuotas / Fines (Building Admin §6.2). First payments touch.
+6. Facilities work orders + asset register + preventive schedules
+   (Facilities §6.3). Distinct from in-unit operator service requests.
+7. Vendor & Contractor Mgmt (cross-cutting Facilities + Operator-Owner).
+8. Communications Hub: announcements, polls, minutes (§6.10).
+9. Emergency Response playbooks (§6.4 + §6.9).
 
-- Listing-change request + version history.
-- Review dashboard with draft approval; guest block list.
-- Multilingual everything (es-CO + en).
-- AirCover window prompt (system-generated 12 days post-checkout).
+**Exit:** delegate admin runs a normal week — incidents, visitors, packages,
+amenities, fees, an announcement, a maintenance work order, an emergency
+drill — without email or WhatsApp.
 
-**Exit condition:**
+### H3 — Property Development, Sales & Lifecycle
 
-- A pilot operator runs at least one unit's full cycle on the platform —
-  contract → linked unit → repair-or-clean request → owner approval →
-  invoice → close — with no parallel WhatsApp thread for the same item.
-- Owners report they can answer "what's the status of X on my unit?"
-  without asking the operator.
-- The operator's team picks up their daily list on mobile.
-- A guest-damage incident produces an AirCover-ready package (per-stay
-  photos, description, invoice, claim reference) entirely from KAI.
+The pre-sale and post-handover phases of a unit.
 
-**Why this first:** highest-friction daily flow, designed already, money
-follows it (operator-paid model in `GTM_AND_PRICING.md`), and it forces us to
-generalise the platform from "one building" to "operator's units across
-buildings" — the multi-tenant precondition for everything in H2/H3.
+Indicative scope:
+1. Pre-sales lead capture + reservation deposit (Sales §6.1).
+2. Sales contracts + payment plans + dunning (Sales §6.1). Second payments
+   touch — different rails (sales vs. recurring HOA).
+3. Construction progress comms to buyers (Sales §6.1 + Communications).
+4. Pre-delivery inspection / acta de entrega (Sales §6.1).
+5. Handover packet (keys, codes, manuals, warranties) — bridges Sales →
+   Operations + Resident Experience.
+6. Warranty-period defect routing (Sales §6.1) — defect goes to *developer*,
+   not operator; tracks 1y/5y/10y windows under Colombian law.
+7. Resale support: owner lists for sale, broker scoped access, handover to
+   new owner without losing history.
 
-### H2 — Building Operating System
+**Exit:** a buyer is captured as a lead, signs a contract through the
+platform, receives milestone updates during construction, signs the acta de
+entrega, transitions to resident/owner, files a warranty defect that routes
+to the developer not the operator.
 
-**Theme:** The community admin's day-to-day moves into the platform too.
-Visitors, packages, amenities, fees, and rules join incidents and operations.
+### H4 — Compliance & Tourism Layer
 
-**Indicative scope (priority order to be set after H1 pilot):**
+Where the building speaks structured data to authorities and protects PII.
 
-1. **Resident & Owner Directory.** Cleans up `app_users` + `listings` into a
-   proper unit ↔ resident graph, including renters and emergency contacts.
-2. **Visitor & Package Management.** Replaces guard notebooks. Pre-register
-   guests/vendors; package photo + pickup confirmation. First persona that
-   isn't email-as-Google: guards likely need a kiosk/PIN auth.
-3. **Amenity Reservations.** Pool, BBQ, gym, meeting room.
-4. **Rules & Compliance Center.** STR caps per unit, quiet hours, pet rules,
-   fines. Connects to Incident Management via "rule violation → incident".
-5. **HOA Fees / Fines / Deposits.** Billing + dunning. First time we touch
-   payments → forces the payments foundation (§9).
-6. **Vendor & Contractor Management.** Approved list + COI tracking. Read-only
-   vendor invites first; full vendor portal later.
-7. **Announcements / Polls / Minutes.** Comms hub for board → residents.
-8. **Maintenance preventive scheduling.** Recurring work-order templates as
-   typed requests in the H1 inbox.
-9. **Building-notice → listing-update trigger.** When admin posts a
-   guest-impacting notice (pool closed during a stay), system prompts the
-   operator to update the listing and message guests on Airbnb.
+Indicative scope:
+1. Guest registration to authorities (SIRE / Migración Colombia).
+2. RNT tracking + renewal reminders.
+3. Tourism tax calc + remittance reporting.
+4. Owner unit-insurance registry (enables non-guest damage path).
+5. Habeas Data PII workflow (data-subject requests, retention, consent).
+6. Building rules surfaced into Airbnb listings via operator workflow.
 
-**Exit condition:** A delegate admin runs a normal week — incidents, visitors,
-packages, amenities, fee reminders, an announcement — without touching email
-or WhatsApp for any of it.
+**Exit:** a foreign guest's stay generates the SIRE report, calculates
+tourism tax, confirms RNT validity, and respects retention rules — with no
+manual data entry beyond the operator's booking relay.
 
-### H3 — Compliance & Regulatory Layer
+### H5 — Intelligence & Scale
 
-**Theme:** The platform talks to authorities on the unit's behalf. Guest
-appears as a *first-class subject* (for compliance) but still not as a directly
-served persona — Airbnb owns guest communication.
+Insight, mobile, and beyond-one-building.
 
-**Indicative scope:**
-
-1. **Guest Registration to Authorities.** SIRE / Migración Colombia for
-   foreign guests. Reads from operator-entered booking relays; outputs the
-   files the law requires.
-2. **Tourism Registry (RNT) tracking + renewals.** Lives in the credential
-   vault but with regulatory reminders.
-3. **Tourism Tax / Levies.** Calc per stay; remittance reporting.
-4. **Pre-Arrival Building Rules surface.** Building rules and access
-   instructions packaged for operators to share with guests via Airbnb
-   messaging — KAI generates, operator sends.
-5. **Owner Insurance Policy Registry.** Policy details stored to enable the
-   non-guest damage path; policy expiry reminders.
-6. **Habeas Data compliance.** Resident & visitor PII retention; data subject
-   request workflow.
-
-**Exit condition:** A foreign guest's stay generates the SIRE report,
-calculates tourism tax, and confirms RNT validity — with no manual data entry
-beyond the operator's booking relay.
-
-### H4 — Intelligence & Scale
-
-**Theme:** The platform stops being just a system of record and starts being a
-system of insight — and goes beyond one building.
-
-**Indicative scope:**
-
-1. **AI smart notifications & triage.** Auto-route incidents and service
-   requests by type/urgency/history. Draft replies in the operator inbox.
-2. **Operator Scorecard & Risk/Reputation Monitoring.** Quantitative trust
-   signal across operators, used in matching and pricing.
-3. **Analytics & Trends.** Repeat apartments, high-risk operators, seasonal
-   issues, cost drivers per unit.
-4. **Mobile apps.** Guest, owner, operator, field tech, board member —
-   probably not all native; some are PWAs.
-5. **Multi-building rollout beyond Morros KAI.**
-6. **Open API / integrations.** Read-only owner API; PMS (Hostaway/Guesty)
-   inbound; accounting (Siigo / QuickBooks) outbound; IoT (locks, sensors);
-   payments.
-7. **Optional Airbnb API direct push** for confirmed pricing changes (replaces
-   "Applied on Airbnb ✓" manual confirmation).
+Indicative scope:
+1. AI smart notifications + triage + drafting + translation across pillars.
+2. Operator scorecard, vendor scorecard, building health score.
+3. Sales funnel analytics; owner investment view.
+4. Anomaly detection (utility, access, damage patterns).
+5. Mobile apps / PWAs per persona (resident, guard, field tech, operator,
+   owner, board, sales lead).
+6. Multi-building rollout beyond Morros KAI; multi-currency.
+7. Open API / integrations: PMS, accounting (Siigo / QuickBooks), banking,
+   IoT, OTAs, e-sign providers.
 
 ---
 
-## 9. Persona × module matrix (compact)
+## 9. Persona × pillar matrix (compact)
 
 `●` primary  `◐` secondary / read or assist  `.` not involved
-PO = Payout Owner · CO = Calendar Owner · Op = Operator · Tm = Team
-Ad = Building Admin · Gd = Guard · Gs = Guest (impact only)
 
 ```
-                              PO   CO   Op   Tm   Ad   Gd   Gs
-Typed Request Inbox            ●    ◐    ●    ◐    ●    .    .
-Listing Mgmt Contract          ●    ◐    ●    .    .    .    .
-Multi-Owner Roster             ●    ◐    ◐    .    .    .    .
-Operator Console               .    .    ●    ◐    .    .    .
-Owner Read-Only Dashboard      ●    ◐    .    .    .    .    .
-Team Directory (visible)       ●    ◐    ●    ●    .    .    .
-Bidirectional Pricing          ●    ◐    ●    .    .    .    .
-Owner Calendar / Blocks        ●    ◐    ◐    .    .    .    .
-Listing Change Requests        ●    ◐    ●    .    .    .    .
-Review Approval                ●    ◐    ●    .    .    .    .
-Service Requests               ◐    ◐    ●    ●    .    .    ◐
-Per-Stay Photo Log             ◐    .    ●    ●    .    .    ◐
-Two-Path Damage                ●    ◐    ●    ◐    .    .    ◐
-Device / IoT                   ◐    .    ●    ●    .    .    ◐
-Building Notice Ingestion      ◐    ◐    ●    .    ●    ◐    .
-Credential / Doc Vault         ●    ◐    ●    .    ◐    .    .
-Expense Ledger                 ●    .    ●    .    .    .    .
-Incident Mgmt (community)      ●    ◐    ◐    .    ●    ◐    .
-Resident Directory             ◐    ◐    .    .    ●    ◐    .
-Visitor & Package              .    .    ◐    .    ●    ●    ◐
-Amenity Reservations           ●    ◐    .    .    ●    ◐    ◐
-Rules & Compliance             ◐    ◐    ◐    .    ●    .    ◐
-Fees / Fines / Deposits        ●    .    .    .    ●    .    .
-Vendor Mgmt                    .    .    ◐    .    ●    .    .
-Comms Hub                      ◐    ◐    ◐    .    ●    ◐    .
-Tourism Reporting (SIRE/RNT)   ◐    .    ●    .    ◐    .    ◐
-Tourism Tax                    ◐    .    ●    .    ◐    .    .
-Operator Scorecard / AI        ●    ◐    ●    .    ●    .    .
+                          Sales  Bldg-Adm  Fac  Ops  Res  Guest  Op-Own  Compl  Inc  Comms  AI
+Developer / sales team      ●       ◐       .    .    .    .      .       ◐    .    ●      ◐
+Buyer / pre-owner           ●       .       .    .    .    .      .       .    .    ◐      .
+Payout Owner                ◐       ●       ◐    ◐    ●    ◐      ●       ◐    ●    ●      ●
+Calendar Owner              .       ◐       .    .    ◐    ◐      ●       .    ◐    ◐      ◐
+Resident / renter           .       ●       ◐    ●    ●    ◐      .       ◐    ●    ●      .
+Building / HOA admin        ◐       ●       ●    ●    ◐    ◐      ◐       ●    ●    ●      ●
+Board member                ◐       ●       ◐    .    .    .      .       ●    ◐    ●      ●
+Facilities team             .       ◐       ●    ◐    .    .      .       ◐    ◐    ◐      .
+Guard / front desk          .       ◐       .    ●    ◐    ●      .       .    ●    ◐      .
+Vendor / contractor         .       .       ●    ◐    .    .      ◐       ◐    .    .      .
+Operator / co-host          .       ◐       ◐    .    .    ◐      ●       ●    ◐    ◐      ●
+Operator's team             .       .       .    .    .    ◐      ●       .    .    .      .
+Guest (impact only)         .       .       .    ◐    .    ●      ◐       ◐    ◐    .      .
+Visitor / delivery          .       .       .    ●    .    ●      .       .    .    .      .
+Tourism authority           .       .       .    .    .    .      .       ●    .    .      ◐
+External buyer / agent      ●       ◐       .    .    .    .      .       ◐    .    ◐      .
 ```
+
+Pillars: Sales (§6.1) · Bldg-Adm (§6.2) · Fac (§6.3) · Ops (§6.4) ·
+Res (§6.5) · Guest (§6.6) · Op-Own (§6.7) · Compl (§6.8) · Inc (§6.9) ·
+Comms (§6.10) · AI (§6.11).
 
 ---
 
 ## 10. Cross-cutting foundations
 
-These have to be planned once, not per module. Most of them are the *real*
-work behind H2 and H3 even though they're invisible on a feature list.
+Plan once, not per pillar. These get harder the later we touch them.
 
 1. **Identity & multi-tenant RBAC.** Today: 3 roles, single building. Need:
-   ~7 personas, multiple buildings, multi-property operators, **per-unit
-   Payout/Calendar Owner subtypes**, owner ↔ operator role-switching. Decide
-   before H2 whether to keep Firebase-Google-only or add email-link / phone /
-   kiosk auth for guards & vendors.
-2. **Workflow & notification engine.** Right now SLA, escalation, and email
-   templating live inline in `server.js`. With H1's typed-request taxonomy
-   (~25+ request types) this must become a declarative engine, not N copies.
-3. **Audit trail.** `audit_logs` exists; we need to *enforce* it for every
-   write across new modules. Standard helper in `server.js` so future modules
-   don't skip it.
-4. **Document & credential storage.** Vault for RNT/TRA/credentials (encrypted,
-   access-controlled), separate document store for invoices/utility bills/
-   listing assets, eventual e-sign for contracts. Pick the storage layer once
-   (Supabase Storage vs. S3+CDN) before H1 Phase 6.
-5. **Expense ledger (no payments yet).** H1 captures invoices and acknowledges
-   payment-out-of-band. Real payments arrive first in H2 with HOA fees.
-   Multi-currency from day one even if H1/H2 are COP-only.
-6. **Code structure.** `server.js` and `App.jsx` are already at the limit of
-   "one file is fine". Before H2 we should extract per-module route files on
-   the server and per-feature folders on the client. Not a rewrite — a
-   precondition to keep adding modules at speed.
-7. **Mobile / PWA.** Operator team, guard, and guest all need mobile-first
-   surfaces. PWA first, native only where push or offline forces it.
-8. **AI layer.** Drafting, triage, translation, anomaly detection, ranking
-   suggestions. Cross-cutting from H1 onward; add as a service, not module by
-   module.
-9. **Data privacy & retention.** Habeas Data (Colombia) for residents and
-   guests; operator credential isolation. Policy doc must land before H3
-   because guests bring real PII into the platform.
-10. **Listing-platform integrations.** Read-only first (relayed booking
-    metadata, review fetching). Direct push (rate change, calendar block) is
-    H4 at earliest; until then, the "Applied on Airbnb ✓" manual confirmation
-    closes every loop.
+   ~12 personas, multiple buildings, multi-property operators, per-unit
+   subtypes (Payout/Calendar), per-pillar permissions, lifecycle-aware roles
+   (buyer → owner → ex-owner). Plan auth modes for non-Gmail audiences
+   (guards, vendors, residents, guests, sales leads).
+2. **Workflow & notification engine.** SLA, escalation, templating today
+   live inline in `server.js`. With ~25+ request types in operator-owner
+   alone — and dozens more once admin/facilities/sales come online — this
+   has to become a declarative engine.
+3. **Audit trail.** Standard helper enforced for every write across pillars.
+4. **Document & credential storage.** One vault layer with versioning,
+   retention, encryption, e-sign. Used by operator-owner, building admin,
+   facilities (manuals, warranties), sales (contracts), compliance.
+5. **Payments & money.** First touched in H1 (operator expense ledger, no
+   movement), then H2 (HOA fees recurring), then H3 (sales contract
+   milestones, very different rails). Multi-currency. Provider choice for
+   COP (Wompi / Mercado Pago / ePayco) and milestone/escrow flows for sales.
+6. **Code structure.** Per-pillar split of `server.js` and `App.jsx` is a
+   precondition for H2.
+7. **Mobile / PWA.** Multiple persona-specific surfaces; PWA-first.
+8. **AI service layer.** Drafting, triage, translation, anomaly detection.
+   Cross-cutting from H1; do not bolt onto each pillar.
+9. **Data privacy & retention.** Habeas Data for residents, guests, leads,
+   visitors. Policy must land before H3 (buyer leads PII) and is mandatory
+   before H4 (guest authority data).
+10. **Integrations & API.** Read-only owner API first. PMS / OTA inbound
+    (operator-owner). Accounting outbound (Siigo, QuickBooks) for fees +
+    sales. IoT inbound (facilities). E-sign (sales). Banking (payments).
+    CRM (sales).
 
 ---
 
 ## 11. Decisions to lock before each horizon
 
-Pulled from `USE_CASE_DISCOVERY.md` open-question lists. Items prefixed with a
-code (e.g. **MO-1**) are quoted from that document.
-
 ### Before H1 ships
 
-**Multi-owner model (blocks Phase 1):**
+Multi-owner / inbox / pricing / contract — the blocking question lists from
+`USE_CASE_DISCOVERY.md` (MO-1..5, SLA-1/2, TEAM-1, THREAD-1, PRICE-1, G, I,
+D, CONTRACT-1..5). See that document for full text. Plus:
 
-- [ ] **MO-1** — Can the 85% owner share be split among multiple Payout
-      Owners? If yes, KAI needs a per-owner share field.
-- [ ] **MO-2** — Can a Calendar Owner approve a financial request on behalf of
-      the Payout Owner, or is approval strictly the Payout Owner's?
-- [ ] **MO-3** — Who can manage the owner roster — Payout Owner only, or any
-      Calendar Owner?
-- [ ] **MO-4** — When a Payout Owner removes a Calendar Owner, do they lose
-      access immediately? Are they notified?
-- [ ] **MO-5** — Does the operator see Payout vs Calendar distinctions in
-      threads, or do all owners appear identically?
-
-**Inbox / SLA core (blocks Phase 3):**
-
-- [ ] **D** — Does Instant Book require owner notification, or fully silent?
-- [ ] **SLA-1** — On unanswered urgent guest issues, does KAI alert all owners
-      or only the Payout Owner?
-- [ ] **SLA-2** — Are SLA thresholds global-admin only, or owner/operator
-      customizable per unit?
-- [ ] **TEAM-1** — Do team members get individual logins, or does the operator
-      act on their behalf? (Drives auth model expansion timing.)
-- [ ] **THREAD-1** — Calendar Owner replies in an approval thread — counts as
-      approval or informational only?
-
-**Pricing (blocks Phase 5):**
-
-- [ ] **G** — Is Airbnb Smart Pricing on/off bidirectional or operator's call?
-- [ ] **I** — Are minimum-stay rule changes bidirectional or operator
-      discretion?
-- [ ] **PRICE-1** — On 48h proposal expiry, does it expire (safer) or
-      auto-approve?
-
-**Documents & contract (blocks Phase 6):**
-
-- [ ] **CONTRACT-1** — One contract per unit, or one per operator-owner pair
-      covering all their units together?
-- [ ] **CONTRACT-2** — Multi-owner units: do all owners sign, or only Payout?
-- [ ] **CONTRACT-3** — Default contract template provided, or blank form?
-- [ ] **CONTRACT-4** — Is the management fee % visible to Calendar Owners?
-- [ ] **CONTRACT-5** — Does an amendment to the repair threshold apply
-      retroactively to open requests, or only new ones?
-- [ ] Supabase Storage bucket provisioning before file uploads ship.
-
-**Commercial / pilot:**
-
-- [ ] Confirm `GTM_AND_PRICING.md` proposal: operator pays, off by default
-      until billing is wired.
-- [ ] Email-only notifications confirmed (no WhatsApp) for H1.
+- [ ] Operator billing model (operator-paid, off by default until wired).
+- [ ] Email-only notifications confirmed for H1.
 - [ ] Pilot building (Morros KAI 317 + 1 more unit).
 
 ### Before H2 starts
 
-- [ ] Auth: do guards/vendors get Firebase-Google, kiosk, magic-link, or
-      something else?
-- [ ] Multi-building tenancy: one Supabase instance with `community_id`
-      everywhere, or one project per building?
-- [ ] Code structure: commit to splitting `server.js` and `App.jsx` before
-      first H2 module ships.
-- [ ] Payments provider for COP (Wompi? Mercado Pago? ePayco?).
-- [ ] Document storage backend (Supabase Storage vs. S3 + CDN).
+- [ ] Auth modes for non-Gmail personas (guards, residents, vendors).
+- [ ] Multi-building tenancy: one Supabase with `community_id`, or one
+      project per building?
+- [ ] Code structure: per-pillar split before first H2 module.
+- [ ] HOA-fees payment provider for COP.
+- [ ] Document storage backend (Supabase Storage vs S3 + CDN).
+- [ ] Resident vs owner — same record with role flag, or separate persona
+      tables?
+- [ ] Facilities work orders vs Operator-Owner service requests — shared
+      "work order" entity with type discriminator, or two separate models?
 
-### Before H3 starts
+### Before H3 starts (Sales & Lifecycle)
 
-- [ ] Whether KAI itself files SIRE / RNT, or just generates the file an
-      operator submits.
+- [ ] Are we serving developers ourselves, or is this a future-build for KAI
+      to license to developers? (Affects schema multi-tenancy.)
+- [ ] Sales contract storage: KAI as e-sign integrator, or just document
+      vault + manual signature?
+- [ ] Milestone payment rails: bank transfer reconciliation only, or
+      platform-mediated escrow?
+- [ ] Warranty period defect routing: developer-employee accounts vs.
+      developer-as-vendor?
+- [ ] Lead capture: KAI-native or HubSpot/Salesforce integration?
+- [ ] Resale workflow: how much history transfers to the new owner?
+
+### Before H4 starts (Compliance & Tourism)
+
+- [ ] Does KAI file SIRE / RNT, or just generate the file an operator
+      submits?
 - [ ] Tourism tax remittance — platform of record vs. report-only.
-- [ ] Guest auth model if any — phone+OTP, email link, or signed URL only.
+- [ ] Guest auth model if any — phone+OTP, email link, signed URL only.
 - [ ] PII retention policy (Habeas Data) finalised and reviewed by counsel.
+- [ ] Data subject access request workflow.
 
-### Inform design (not blocking)
+### Before H5 starts (Intelligence & Scale)
 
-- **F** — Final say on Airbnb host response to a negative review — operator or
-  owner?
-- **H** — If operator-owner relationship ends, what happens to the Airbnb
-  listing?
-- **NOTIFY-1** — Daily digest of FYI items, or only real-time notifications?
-- **NOTIFY-2** — Are repair cost amounts ever visible to team members?
+- [ ] AI provider (Claude API, OpenAI, on-prem) — cost ceiling and PII
+      handling.
+- [ ] Mobile strategy: one PWA shell per persona, or a single shell with
+      role-aware views?
+- [ ] Public API auth (per-owner read-only key vs. OAuth).
 
 ---
 
 ## 12. Risks worth naming early
 
-- **Scope creep into Airbnb territory.** Channel manager, guest profiles, host
-  inbox, payouts, dynamic pricing engines are huge products on their own and
-  are *explicitly out of scope* (§2). Any feature that starts to look like
-  "we are now Hostaway" should bounce off the scope boundary, not negotiate
-  with it.
-- **Persona expansion outpacing RBAC.** Adding Calendar Owners, guards,
-  vendors, team members, guests one at a time without a foundation rewrite
-  produces a permissions tangle. Spend H1 evenings paying down the role model.
-- **WhatsApp gravity.** Replacing the chat is *the* product thesis for H1.
-  If pilot users keep a parallel WhatsApp thread for the same items, H1 has
-  failed regardless of what shipped. Measure it explicitly.
-- **Inbox-last instead of inbox-first.** The temptation is to build the
-  contract module, the pricing module, the document vault as standalone
-  features. They are not — they are typed requests. Shipping any of them
-  before the inbox core (Phase 3) means rebuilding their UX twice.
-- **Compliance underestimation.** SIRE / RNT / tourism tax look like "another
-  module" but they're regulated workflows with audit and legal exposure.
-  Treat H3 as half product / half ops + legal.
-- **Single-file architecture compounding.** Every horizon adds modules; if we
-  don't split before H2, we'll spend H3 fighting the codebase.
-- **Per-stay photo log skipped or partial.** Without it, AirCover claims fail
-  and the two-path damage workflow is theatre. It is a Phase 3 hard
-  requirement, not a nice-to-have.
-- **Credentials leak into the inbox.** The inbox is not a chat. The vault
-  exists for a reason. Any UI that lets users paste a bank account or RNT
-  password into a request thread reintroduces the very problem KAI was built
-  to solve.
+- **Audience myopia.** Treating the operator-portal design principles
+  (inbox-first, enforced approval gates, zero-credentials-in-chat) as
+  universal across all pillars produces wrong UX for sales, facilities,
+  amenity reservations, etc. Each pillar deserves its own discovery.
+- **Scope creep into specialist tools.** Channel manager, full ERP, full
+  CRM, e-sign, banking are huge products. Integrate; don't replace.
+- **Persona expansion outpacing RBAC.** Going from 3 roles to ~12 without a
+  foundation rewrite produces a permissions tangle. Pay it down in H1.
+- **WhatsApp gravity (operator-owner only).** Replacing the chat is *the*
+  product thesis for H1. If pilot users keep a parallel WhatsApp thread for
+  the same items, H1 has failed regardless of what shipped.
+- **Inbox-last instead of inbox-first (operator-owner).** Building contract
+  / pricing / vault as standalones before the inbox core means rebuilding
+  their UX twice.
+- **Compliance underestimation.** SIRE / RNT / tax / Habeas Data look like
+  modules but are regulated workflows with legal exposure. H4 is half
+  product / half ops + legal.
+- **Sales pillar requires different commercial dynamics.** A developer is
+  the customer for §6.1; an HOA is the customer for §6.2; an operator is
+  the customer for §6.7. The platform must be sellable to each without
+  bundling them.
+- **Single-file architecture compounding.** Every pillar adds modules; if
+  we don't split before H2, we'll spend H3 fighting the codebase.
+- **Per-stay photo log skipped or partial (operator-owner).** Without it,
+  AirCover claims fail and the two-path damage workflow is theatre.
+- **Lifecycle-aware identity.** A buyer becomes an owner becomes a seller.
+  History must transfer cleanly without losing audit, threads, or warranty
+  context.
 
 ---
 
@@ -669,12 +619,13 @@ code (e.g. **MO-1**) are quoted from that document.
 
 - It is not a release plan with dates. The phase weeks in
   `OPERATOR_PORTAL_PROPOSAL.md` and the token estimates in
-  `USE_CASE_DISCOVERY.md` are still the source of truth for H1 timing and
-  effort.
-- It is not a commitment to build every module listed in §7. Many will turn
+  `USE_CASE_DISCOVERY.md` are still the source of truth for H1.
+- It is not a commitment to build every module listed in §6. Many will turn
   into "buy/integrate" or "wontbuild" once we get closer.
 - It is not a UI spec. UI work for each horizon is owned by the design docs
   for that scope (today: `OPERATOR_PORTAL_DESIGN.md`).
+- The seven design principles in §4.1 are operator-portal-specific. Other
+  pillars need their own discovery.
 
 If something here contradicts a more specific doc inside the horizon we are
 currently executing, the specific doc wins. This file is the map, not the
