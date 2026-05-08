@@ -62,18 +62,7 @@ const EMAIL_PROVIDER = (process.env.EMAIL_PROVIDER || 'resend').toLowerCase();
 
 const resend = (EMAIL_PROVIDER === 'resend' && RESEND_API_KEY) ? new Resend(RESEND_API_KEY) : null;
 const emailConfigured = Boolean(resend && EMAIL_FROM);
-const GLOBAL_ADMIN_EMAILS = String(process.env.GLOBAL_ADMIN_EMAILS || process.env.BOOTSTRAP_ADMIN_EMAILS || '').split(',').map(x=>x.trim().toLowerCase()).filter(Boolean);
-const getGlobalAdminEmails = () => String(process.env.GLOBAL_ADMIN_EMAILS || process.env.BOOTSTRAP_ADMIN_EMAILS || '').split(',').map(x => String(x || '').trim().toLowerCase()).filter(Boolean);
-const isEnvGlobalAdminEmail = (email='') => getGlobalAdminEmails().includes(String(email || '').trim().toLowerCase());
 
-const DEFAULT_DELEGATE_PERMISSIONS = {
-  canApproveRegistrations: true,
-  canResolveIncidents: true,
-  canUpdateGlobalListings: false,
-  canDeleteGlobalListings: false,
-  canUpdateGlobalIncidents: false,
-  canDeleteGlobalIncidents: false
-};
 // Per email-type routing defaults — matches current workflow behaviour exactly.
 // owner   = listing owner / registrant   operator       = listing operator
 // globalAdmin = env GLOBAL_ADMIN_EMAILS + escalation CC   delegateAdmin  = role-gated platform-wide
@@ -96,61 +85,6 @@ const DEFAULT_EMAIL_NOTIFICATION_CONFIG = {
   listing_updated:           { enabled:true,  owner:true,  operator:false, globalAdmin:true,  delegateAdmin:true,  communityAdmin:true  },
   listing_deleted:           { enabled:true,  owner:true,  operator:false, globalAdmin:true,  delegateAdmin:true,  communityAdmin:true  },
 };
-const DEFAULT_STANDARD_MENU_PERMISSIONS = {
-  dashboard: true,
-  listings: true,
-  incidents: true,
-  notifications: true,
-  about: true,
-  my: true,
-  analytics: false
-};
-async function getAppPermissionsConfig() {
-  const cfg = await getAppConfig();
-  return {
-    standardMenuPermissions: safeJsonObject(cfg.standard_menu_permissions, DEFAULT_STANDARD_MENU_PERMISSIONS),
-    defaultDelegatePermissions: safeJsonObject(cfg.default_delegate_permissions, DEFAULT_DELEGATE_PERMISSIONS),
-    defaultCommunityAdminPermissions: safeJsonObject(cfg.default_community_admin_permissions, COMMUNITY_ADMIN_PERM_DEFAULTS)
-  };
-}
-async function getUserPermissions({ uid='', email='' }={}) {
-  const role = await getUserRole({ uid, email });
-  const cfg = await getAppPermissionsConfig();
-  let row = null;
-  if (uid) {
-    try { const { data } = await supabase.from('app_users').select('permissions').eq('uid', uid).maybeSingle(); row = data || null; } catch(e) {}
-  }
-  const stored = safeJsonObject(row?.permissions, {});
-  if (role === 'global_admin') {
-    return { role, menu: Object.fromEntries(Object.keys(DEFAULT_STANDARD_MENU_PERMISSIONS).map(k => [k, true])), delegate: { canApproveRegistrations:true, canResolveIncidents:true, canUpdateGlobalListings:true, canDeleteGlobalListings:true, canUpdateGlobalIncidents:true, canDeleteGlobalIncidents:true } };
-  }
-  if (role === 'delegate_admin') {
-    return { role, menu: { ...cfg.standardMenuPermissions, approvals:true }, delegate: { ...cfg.defaultDelegatePermissions, ...stored } };
-  }
-  return { role, menu: { ...cfg.standardMenuPermissions }, delegate: { ...DEFAULT_DELEGATE_PERMISSIONS, canApproveRegistrations:false } };
-}
-async function hasDelegatePermission(uid, email, permission) {
-  const perms = await getUserPermissions({ uid, email });
-  return perms.role === 'global_admin' || !!perms.delegate?.[permission];
-}
-async function canUpdateGlobalListing(uid, email) { return hasDelegatePermission(uid, email, 'canUpdateGlobalListings'); }
-async function canDeleteGlobalListing(uid, email) { return hasDelegatePermission(uid, email, 'canDeleteGlobalListings'); }
-async function canUpdateGlobalIncident(uid, email) { return hasDelegatePermission(uid, email, 'canUpdateGlobalIncidents'); }
-async function canDeleteGlobalIncident(uid, email) { return hasDelegatePermission(uid, email, 'canDeleteGlobalIncidents'); }
-async function getDelegateAdminsWithPermission(permission) {
-  try {
-    const { data, error } = await supabase.from('app_users').select('email,permissions').eq('role', 'delegate_admin');
-    if (error || !data) return [];
-    const cfg = await getAppPermissionsConfig();
-    return normalizeRecipients(
-      data.filter(u => {
-        const stored = safeJsonObject(u.permissions, {});
-        const effective = { ...cfg.defaultDelegatePermissions, ...stored };
-        return !!effective[permission];
-      }).map(u => u.email)
-    );
-  } catch(e) { warn('getDelegateAdminsWithPermission failed: ' + (e?.message || e)); return []; }
-}
 const DEFAULT_SLA_HOURS = Number(process.env.DEFAULT_SLA_HOURS || 24);
 const DEFAULT_ESCALATION_CC_EMAILS = String(process.env.DEFAULT_ESCALATION_CC_EMAILS || process.env.SLA_CC_EMAILS || '').split(',').map(x=>x.trim().toLowerCase()).filter(Boolean);
 
@@ -216,6 +150,21 @@ const { sendSpanishEmail, getEmailTemplates, sendTemplatedEmail, sendSplitEmail 
   require('./server/core/email')({ supabase, resend, emailConfigured, EMAIL_FROM, getAppConfig });
 const getSlaHours = async () => { const cfg = await getAppConfig(); const h = Number(cfg.sla_hours || DEFAULT_SLA_HOURS || 24); return Number.isFinite(h) && h > 0 ? h : 24; };
 const getEscalationCcEmails = async () => normalizeRecipients(String((await getAppConfig()).escalation_cc_emails || '').split(','));
+
+// ─── ROLE/PERMISSION HELPERS (extracted in stage 4d) ─────────────────────────
+// All role resolution and the small DB lookup helpers (getCommunity,
+// getCommunityAdminEmails, getReporterEmail, …) live in server/core/roles.js.
+// Constants come back too so the existing module-mount blocks below don't change.
+const {
+  DEFAULT_DELEGATE_PERMISSIONS, DEFAULT_STANDARD_MENU_PERMISSIONS, COMMUNITY_ADMIN_PERM_DEFAULTS,
+  getUserRole, isGlobalAdmin, isCommunityAdmin, hasCommunityAdminPerm, canManageRegistrations,
+  getUserPermissions, hasDelegatePermission,
+  canUpdateGlobalListing, canDeleteGlobalListing, canUpdateGlobalIncident, canDeleteGlobalIncident,
+  getAppPermissionsConfig, getDelegateAdminsWithPermission,
+  getCommunity, getCommunityAdminEmails, getCommunityEscalationEmails, getUserCommunities,
+  getApprovedUser, getReporterEmail, getReporterName,
+  getGlobalAdminEmails, isEnvGlobalAdminEmail,
+} = require('./server/core/roles')({ supabase, getAppConfig, getEscalationCcEmails });
 const getEmailNotificationConfig = async () => {
   const cfg = await getAppConfig();
   const raw = safeJsonObject(cfg.email_notification_config, {});
@@ -231,115 +180,20 @@ const getEmailNotificationConfig = async () => {
 // Separate owner-only vs operator-only recipient getters (used by config-aware send functions)
 const getListingOwnerEmails = (listing) => normalizeRecipients([listing?.email, listing?.user_email, listing?.userEmail]);
 const getListingOperatorEmails = (listing) => normalizeRecipients([listing?.operator_email, listing?.operatorEmail]);
-const getUserRole = async ({ uid='', email='' } = {}) => {
-  const em = String(email || '').trim().toLowerCase();
-  if (em && isEnvGlobalAdminEmail(em)) return 'global_admin';
-  try {
-    let q = supabase.from('app_users').select('role,email').limit(1);
-    if (uid) q = q.eq('uid', uid); else if (em) q = q.eq('email', em); else return 'user';
-    const { data, error } = await q.maybeSingle();
-    if (!error && data?.role) return data.role;
-  } catch(e) { warn('Role lookup failed: ' + (e?.message || e)); }
-  return 'user';
-};
-const canManageRegistrations = async (uid, email='', communityId='kai') =>
-  (await getUserRole({uid,email})) === 'global_admin' ||
-  await hasDelegatePermission(uid, email, 'canApproveRegistrations') ||
-  await hasCommunityAdminPerm(uid, email, communityId, 'canApproveRegistrations');
-const isGlobalAdmin = async (uid, email='') => (await getUserRole({uid,email})) === 'global_admin';
 
-// ─── MULTI-COMMUNITY HELPERS (v80) ───────────────────────────────────────────
 const getCommunityId = (req) => {
   const val = String(req?.headers?.['x-community-id'] || req?.query?.communityId || '').trim().toLowerCase();
   return val || 'kai';
 };
-const getCommunity = async (communityId='kai') => {
-  try {
-    const { data } = await supabase.from('communities').select('*').eq('id', communityId).maybeSingle();
-    return data || null;
-  } catch(e) { warn('getCommunity failed: ' + (e?.message || e)); return null; }
-};
-const getCommunityAdminEmails = async (communityId='kai') => {
-  try {
-    const { data } = await supabase.from('community_memberships').select('user_email').eq('community_id', communityId).eq('role','community_admin');
-    return normalizeRecipients((data||[]).map(r=>r.user_email));
-  } catch(e) { return []; }
-};
 // Returns community admin emails from the DB, falling back to app_config escalation_cc_emails
 // when no community admins have been registered yet (backwards-compatible).
-const getCommunityEscalationEmails = async (communityId='kai') => {
-  const admins = await getCommunityAdminEmails(communityId);
-  if (admins.length) return admins;
-  return getEscalationCcEmails();
-};
-const isCommunityAdmin = async (uid='', email='', communityId='kai') => {
-  const role = await getUserRole({ uid, email });
-  if (role === 'global_admin') return true;
-  if (!uid) return false;
-  try {
-    const { data } = await supabase.from('community_memberships').select('role').eq('community_id', communityId).eq('user_uid', uid).maybeSingle();
-    return data?.role === 'community_admin';
-  } catch(e) { return false; }
-};
-const COMMUNITY_ADMIN_PERM_DEFAULTS = { canApproveRegistrations:true, canResolveIncidents:true, canManageListings:false };
 const OVERRIDABLE_COMMUNITY_KEYS = ['mission_title_es','mission_body_es','mission_title_en','mission_body_en','mission_sections_es','mission_sections_en','escalation_cc_emails','community_admin_default_permissions','tooltips_es','tooltips_en','ui_labels_es','ui_labels_en'];
-const hasCommunityAdminPerm = async (uid='', email='', communityId='kai', permKey='') => {
-  if (!uid && !email) return false;
-  try {
-    let q = supabase.from('community_memberships').select('role,permissions').eq('community_id', communityId).eq('role','community_admin');
-    if (uid) q = q.eq('user_uid', uid);
-    else q = q.eq('user_email', String(email).trim().toLowerCase());
-    const { data } = await q.maybeSingle();
-    if (!data) return false;
-    const perms = safeJsonObject(data.permissions, {});
-    return !!(perms[permKey] ?? COMMUNITY_ADMIN_PERM_DEFAULTS[permKey] ?? false);
-  } catch(e) { return false; }
-};
-const getUserCommunities = async (uid='', email='') => {
-  const role = await getUserRole({ uid, email });
-  if (role === 'global_admin') {
-    try {
-      const { data } = await supabase.from('communities').select('*').order('name');
-      return data || [];
-    } catch(e) { return []; }
-  }
-  if (!uid) return [];
-  try {
-    // Communities where user has approved listings (primary membership)
-    const { data: listings } = await supabase.from('listings').select('community_id').eq('user_uid', uid).eq('status', 'approved');
-    const approvedCommunityIds = [...new Set((listings||[]).map(l => l.community_id).filter(Boolean))];
-    // Communities where user is a community admin (may not have approved listing, e.g. global-delegated)
-    const { data: memberships } = await supabase.from('community_memberships').select('community_id, role').eq('user_uid', uid);
-    const adminCommunityIds = (memberships||[]).map(m => m.community_id).filter(Boolean);
-    const allCommunityIds = [...new Set([...approvedCommunityIds, ...adminCommunityIds])];
-    if (!allCommunityIds.length) return [];
-    const { data: communities } = await supabase.from('communities').select('*').in('id', allCommunityIds).eq('is_active', true).order('name');
-    return (communities||[]).map(c => {
-      const membership = (memberships||[]).find(m => m.community_id === c.id);
-      return { ...c, memberRole: membership?.role || 'member' };
-    });
-  } catch(e) { return []; }
-};
 const getIncidentRecipients = async (listing, { includeEscalationCc=false } = {}) => {
   const base = [listing?.email, listing?.user_email, listing?.userEmail, listing?.operator_email, listing?.operatorEmail];
   if (includeEscalationCc) base.push(...await getEscalationCcEmails());
   return normalizeRecipients(base);
 };
 // Lookup reporter email by UID from app_users (reporter != always listing owner)
-const getReporterEmail = async (reporterUid='') => {
-  if (!reporterUid) return '';
-  try {
-    const { data } = await supabase.from('app_users').select('email').eq('uid', reporterUid).maybeSingle();
-    return String(data?.email || '').trim().toLowerCase();
-  } catch(e) { return ''; }
-};
-const getReporterName = async (reporterUid='') => {
-  if (!reporterUid) return '';
-  try {
-    const { data } = await supabase.from('app_users').select('name').eq('uid', reporterUid).maybeSingle();
-    return String(data?.name || '').trim();
-  } catch(e) { return ''; }
-};
 // ── Split recipient builder ─────────────────────────────────────────────────
 // Returns two separate lists so individual recipients (reporter, owner, operator)
 // each receive a private email addressed only to them, while admin groups receive
@@ -502,11 +356,6 @@ const validateApartmentUniqueness = async (listings, { ownerUid = '', excludeLis
   return null;
 };
 
-const getApprovedUser = async (uid) => {
-  const { data, error } = await supabase.from('listings').select('*').eq('owner_uid', uid).eq('status','approved').order('created_at',{ascending:false}).limit(1).maybeSingle();
-  if (error) throw error;
-  return data || null;
-};
 const sendRegistrationSubmittedEmail = async ({ registration, appUrl }) => {
   const notifCfg = await getEmailNotificationConfig();
   const typeCfg = notifCfg['registration_submitted'];
