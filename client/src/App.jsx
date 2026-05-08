@@ -35,6 +35,14 @@ import GeneralIncidentsView from "./modules/incidents/views/GeneralIncidentsView
 import Overlay from "./core/ui/Overlay";
 import AddResolutionModal from "./modules/incidents/components/AddResolutionModal";
 
+// ─── Stage F9 extractions: UnitPicker (platform) + AssignToUnitModal ─────────
+// UnitPicker is a platform-level component — units are shared across modules
+// (incidents, registrations, future operator portal). AssignToUnitModal pulls
+// `lang` via useApp(); other props stay per-instance.
+// See docs/PLATFORM_ARCHITECTURE.md §11 frontend stage F9.
+import UnitPicker from "./platform/units/components/UnitPicker";
+import AssignToUnitModal from "./modules/incidents/components/AssignToUnitModal";
+
 // ─── API client (extracted in stage F3) ──────────────────────────────────────
 // All fetch calls flow through this module so the X-Community-Id header is
 // always set, errors are normalized, and Render cold-start timeouts are
@@ -1313,7 +1321,7 @@ export default function App() {
       {modal?.type==="incident" && <IncidentModal lang={lang} config={adminInfo.config} listings={listings} user={user} presetApt={modal.data?.aptId} onSave={addIncident} onClose={()=>{setModal(null);loadAll(false);}} />}
       {modal?.type==="verifyIncident" && <VerifyIncidentModal lang={lang} config={adminInfo.config} incident={modal.data} onSave={payload=>verifyIncident(modal.data.id,payload)} onClose={()=>{setModal(null);loadAll(false);}} />}
       {modal?.type==="addResolution" && <AddResolutionModal incident={modal.data} onSave={text=>addResolution(modal.data.id,text)} onClose={()=>{setModal(null);loadAll(false);}} />}
-      {modal?.type==="assignGeneral" && <AssignToUnitModal lang={lang} incident={modal.data} listings={listings} onSave={aptId=>assignIncident(modal.data.id,aptId)} onClose={()=>{setModal(null);loadAll(false);}} />}
+      {modal?.type==="assignGeneral" && <AssignToUnitModal incident={modal.data} listings={listings} onSave={aptId=>assignIncident(modal.data.id,aptId)} onClose={()=>{setModal(null);loadAll(false);}} />}
       {modal?.type==="closeGeneral" && <CloseGeneralModal lang={lang} incident={modal.data} onSave={data=>closeGeneralIncident(modal.data.id,data)} onClose={()=>{setModal(null);loadAll(false);}} />}
       {modal?.type==="sendUserEmail" && <SendUserEmailModal lang={lang} contact={modal.data} fromUser={user} onSend={sendUserEmail} onClose={()=>setModal(null)} />}
 
@@ -5104,116 +5112,6 @@ function ListingModal({ title, user, initial={}, onSave, onClose, lang="es-CO", 
 
 // ─── UNIT PICKER ──────────────────────────────────────────────────────────────
 // Searchable, floor-grouped unit selector. Replaces <select> for 100+ units.
-function UnitPicker({ listings=[], value='', onChange=()=>{}, lang='es-CO', error=false, disabled=false }) {
-  const isEn = lang === 'en';
-  const [query, setQuery] = React.useState('');
-  const [open, setOpen] = React.useState(false);
-  const ref = React.useRef(null);
-  const inputRef = React.useRef(null);
-
-  const selected = listings.find(l => l.id === value) || null;
-
-  // Close on outside click / Escape
-  React.useEffect(() => {
-    if (!open) return;
-    const onDown = (e) => {
-      if (ref.current && !ref.current.contains(e.target)) setOpen(false);
-    };
-    const onKey = (e) => { if (e.key === 'Escape') setOpen(false); };
-    document.addEventListener('mousedown', onDown);
-    document.addEventListener('keydown', onKey);
-    return () => { document.removeEventListener('mousedown', onDown); document.removeEventListener('keydown', onKey); };
-  }, [open]);
-
-  const sorted = React.useMemo(() => [...listings].sort((a,b) => a.apt.localeCompare(b.apt, undefined, {numeric:true})), [listings]);
-
-  const filtered = React.useMemo(() => {
-    const q = query.trim().toLowerCase();
-    if (!q) return sorted;
-    return sorted.filter(l =>
-      l.apt.toLowerCase().includes(q) ||
-      String(l.owner||'').toLowerCase().includes(q) ||
-      String(l.email||'').toLowerCase().includes(q) ||
-      String(l.contact||l.whatsapp||'').toLowerCase().includes(q)
-    );
-  }, [sorted, query]);
-
-  // Always group by floor
-  const grouped = React.useMemo(() => {
-    const map = {};
-    for (const l of filtered) {
-      const num = parseInt(l.apt, 10);
-      const floor = Number.isFinite(num) ? String(Math.floor(num / 100)) : '?';
-      (map[floor] = map[floor] || []).push(l);
-    }
-    return Object.entries(map)
-      .sort(([a],[b]) => (a==='?'?999:Number(a)) - (b==='?'?999:Number(b)))
-      .map(([floor, units]) => ({ floor, units }));
-  }, [filtered]);
-
-  const select = (l) => { onChange(l.id); setOpen(false); setQuery(''); };
-  const clear   = () => { onChange('');   setOpen(true);  setQuery(''); setTimeout(()=>inputRef.current?.focus(),30); };
-
-  return (
-    <div className={`upk-wrap${error?' upk-error':''}${disabled?' upk-disabled':''}`} ref={ref}>
-      {selected ? (
-        <div className="upk-selected" onClick={()=>!disabled&&clear()}>
-          <span className="upk-sel-apt">{aptDisplay(selected.apt, lang)}</span>
-          <span className="upk-sel-owner">{selected.owner}</span>
-          {!disabled && <button type="button" className="upk-clear" onClick={e=>{e.stopPropagation();clear();}} aria-label="Clear">✕</button>}
-        </div>
-      ) : (
-        <div className="upk-input-wrap">
-          <span className="upk-search-icon">🔍</span>
-          <input
-            ref={inputRef}
-            className="upk-input"
-            value={query}
-            disabled={disabled}
-            placeholder={isEn ? 'Search by unit #, owner name, email, or WhatsApp…' : 'Buscar por número, nombre, email o WhatsApp…'}
-            onChange={e => { setQuery(e.target.value); setOpen(true); }}
-            onFocus={() => setOpen(true)}
-            autoComplete="off"
-          />
-          {query && <button type="button" className="upk-clear" onClick={()=>setQuery('')}>✕</button>}
-        </div>
-      )}
-      {open && !selected && (
-        <div className="upk-dropdown">
-          {filtered.length === 0 && (
-            <div className="upk-empty">{isEn ? 'No units match your search.' : 'Ninguna unidad coincide.'}</div>
-          )}
-          {grouped.map(({ floor, units }) => (
-            <div key={floor ?? 'all'}>
-              <div className="upk-floor-hdr">
-                {isEn ? `Floor ${floor}` : `Piso ${floor}`}
-                <span className="upk-floor-count">{units.length}</span>
-              </div>
-              {units.map(l => {
-                const ownerEmail = l.email || '';
-                const ownerWa = l.contact || l.whatsapp || '';
-                return (
-                  <button key={l.id} type="button" className="upk-item" onMouseDown={e=>{e.preventDefault();select(l);}}>
-                    <div className="upk-item-row">
-                      <strong className="upk-item-apt">{l.apt}</strong>
-                      <span className="upk-item-owner">{l.owner}</span>
-                      {(ownerEmail || ownerWa) && (
-                        <span className="upk-item-contact">
-                          {ownerEmail && <span className="upk-item-email" title={ownerEmail}>✉</span>}
-                          {ownerWa && <span className="upk-item-wa" title={ownerWa}>📱</span>}
-                        </span>
-                      )}
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
 
 function IncidentModal({ listings, user, presetApt, onSave, onClose, lang="es-CO", config={} }) {
   // Exclude units the current user owns — incidents are filed against other units.
@@ -7891,33 +7789,6 @@ function AdminSettings({ config={}, user, listings=[], contactProps={}, onSave, 
 }
 
 // ─── ASSIGN GENERAL INCIDENT TO UNIT ─────────────────────────────────────────
-function AssignToUnitModal({ incident, listings=[], onSave, onClose, lang='es-CO' }) {
-  const isEn = lang==='en';
-  const [aptId,setAptId] = useState('');
-  return (
-    <Overlay onClose={onClose}>
-      <div className="modal-title">🏠 {isEn?'Assign incident to unit':'Asignar incidente a unidad'}</div>
-      <div className="modal-sub">{isEn?'Select the unit this incident relates to. Once assigned it follows the standard workflow.':'Selecciona la unidad a la que aplica este incidente. Una vez asignado sigue el flujo estándar.'}</div>
-      <div className="fg2">
-        <div className="fg full">
-          <div className="gen-inc-preview" style={{marginBottom:10}}>
-            <span style={{fontSize:'.72rem',fontWeight:800,color:'#496674',textTransform:'uppercase',letterSpacing:'.06em'}}>{isEn?'Incident':'Incidente'}</span>
-            <div style={{fontSize:'.84rem',color:'#17313a',marginTop:4,lineHeight:1.4}}>{String(incident.desc||'').slice(0,120)}</div>
-            <div style={{fontSize:'.72rem',color:'#8a9fa5',marginTop:4}}>{incident.type} · {incident.date}</div>
-          </div>
-          <label>{isEn?'Select unit to assign':'Seleccionar unidad para asignar'}</label>
-          <UnitPicker listings={listings} value={aptId} onChange={setAptId} lang={lang}/>
-        </div>
-      </div>
-      <div className="mact">
-        <button className="btn-ghost" onClick={onClose}>{isEn?'Cancel':'Cancelar'}</button>
-        <button className="btn-p" disabled={!aptId} onClick={()=>aptId&&onSave(aptId)}>
-          🏠 {isEn?'Assign to unit':'Asignar a unidad'}
-        </button>
-      </div>
-    </Overlay>
-  );
-}
 
 // ─── CLOSE GENERAL INCIDENT (admin direct close) ──────────────────────────────
 function CloseGeneralModal({ incident, onSave, onClose, lang='es-CO' }) {
