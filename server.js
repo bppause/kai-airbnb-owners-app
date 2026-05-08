@@ -43,6 +43,10 @@ const supabase = createClient(
   { auth: { persistSession: false, autoRefreshToken: false }, realtime: { transport: ws } }
 );
 
+// Audit helpers (extracted in stage 4b) — bound to the supabase client created above.
+// See server/core/audit.js and docs/PLATFORM_ARCHITECTURE.md §11.
+const { auditEvent, auditLog } = require('./server/core/audit')(supabase);
+
 const requireSupabaseEnv = (res) => {
   if (SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY) return true;
   res.status(500).json({ error: 'Supabase is not configured. Add SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY.' });
@@ -600,42 +604,6 @@ const sendListingChangeEmail = async ({ listing, action, appUrl }) => {
 
 
 
-
-
-const auditEvent = async ({ listingId, registrationId, actorUid, actorName, action, reason='', before=null, after=null }) => {
-  try {
-    await supabase.from('listing_audit_events').insert({
-      id: 'aud_' + uuidv4().slice(0,8),
-      listing_id: listingId || null,
-      registration_id: registrationId || null,
-      actor_uid: actorUid || '',
-      actor_name: actorName || '',
-      action,
-      reason: String(reason || ''),
-      before_data: before || null,
-      after_data: after || null,
-      created_at: new Date().toISOString(),
-    });
-  } catch(e) { warn('Audit event save failed: ' + (e?.message || e)); }
-};
-
-const auditLog = async ({ entity, entityId='', action, actorUid='', actorEmail='', actorName='', before=null, after=null, reason='' }) => {
-  try {
-    await supabase.from('audit_logs').insert({
-      id: 'log_' + uuidv4().slice(0,10),
-      entity: String(entity || ''),
-      entity_id: String(entityId || ''),
-      action: String(action || ''),
-      actor_uid: String(actorUid || ''),
-      actor_email: String(actorEmail || '').toLowerCase(),
-      actor_name: String(actorName || ''),
-      reason: String(reason || ''),
-      before_data: before || null,
-      after_data: after || null,
-      created_at: new Date().toISOString(),
-    });
-  } catch(e) { warn('Audit log save failed: ' + (e?.message || e)); }
-};
 
 
 
