@@ -280,10 +280,13 @@ export default function AdminSettings({ config={}, user, listings=[], contactPro
   };
   const saveBranding = () => onSave({ complexNameEs:brandingNameEs, complexNameEn:brandingNameEn, complexLocation:brandingLocation, complexLogo:brandingLogo, complexBg:brandingBg });
   const saveEmailSender = () => { if (!emailFromAddress.trim() || !emailFromAddressEn.trim()) { showToast(isEn?'Both email addresses are required':'Ambos emails son requeridos', true); return; } onSave({ emailFromName, emailFromAddress, emailFromNameEn, emailFromAddressEn }); };
-  // Master switches save — values stored as strings in app_config so the
-  // server can read them with String(cfg.x||'false')==='true' without JSON.parse.
-  const saveMasterSwitches = () => onSave({
-    emailKillSwitch:String(emailKillSwitch),
+  // Master switches — emergency kill-switches split into per-subsystem saves
+  // so each section's Save button only writes its own keys. The audit
+  // controls live next to the AuditLogViewer (UX: admins look in one place
+  // for audit features); the email kill-switch lives next to the Email
+  // Sender section.
+  const saveEmailKillSwitch = () => onSave({ emailKillSwitch:String(emailKillSwitch) });
+  const saveAuditControls = () => onSave({
     auditKillSwitch:String(auditKillSwitch),
     auditEventToggles, // posted as a plain object; server JSON.stringifies
   });
@@ -1418,92 +1421,29 @@ export default function AdminSettings({ config={}, user, listings=[], contactPro
     </div>
   </AdminSection>
 
-  {/* ── Master switches — emergency kill-switches ───────────────── */}
+  {/* ── Email kill-switch (lives next to Email Sender) ───────────── */}
   <AdminSection
-    title={`🚦 ${isEn?'Master switches':'Interruptores maestros'}`}
+    title={`🚦 ${isEn?'Email delivery kill-switch':'Interruptor de emails'}`}
     subtitle={isEn
-      ? 'Emergency kill-switches that halt subsystems platform-wide. Use sparingly — toggling ON stops every community from sending email or writing audit log entries.'
-      : 'Interruptores de emergencia que detienen subsistemas a nivel plataforma. Úsalos con cuidado — activarlos detiene los emails y la auditoría de TODAS las comunidades.'}
-    action={<button className="btn-p" style={{minHeight:36,padding:'6px 14px'}} onClick={saveMasterSwitches}>💾 {isEn?'Save':'Guardar'}</button>}
+      ? 'Emergency switch that halts every outbound email platform-wide. Use sparingly — toggling ON stops every community from sending.'
+      : 'Interruptor de emergencia que detiene todos los emails salientes a nivel plataforma. Úsalo con cuidado — activarlo detiene los emails de TODAS las comunidades.'}
+    action={<button className="btn-p" style={{minHeight:36,padding:'6px 14px'}} onClick={saveEmailKillSwitch}>💾 {isEn?'Save':'Guardar'}</button>}
     open={openSections.masterSwitches}
     onToggle={()=>toggleSection('masterSwitches')}>
-    <div style={{display:'flex',flexDirection:'column',gap:14}}>
-      <label style={{display:'flex',alignItems:'flex-start',gap:10,padding:'12px 14px',background:emailKillSwitch?'#fff5f5':'#f8f9fa',border:`1.5px solid ${emailKillSwitch?'#e53935':'#e8eaed'}`,borderRadius:8,cursor:'pointer'}}>
-        <input type="checkbox" checked={emailKillSwitch} onChange={e=>setEmailKillSwitch(e.target.checked)} style={{marginTop:3,width:18,height:18,flexShrink:0}}/>
-        <div style={{flex:1}}>
-          <div style={{fontWeight:700,fontSize:'.92rem',color:emailKillSwitch?'#c62828':'#17313a'}}>
-            📧 {isEn?'Halt all outbound emails':'Detener todos los emails salientes'}
-            {emailKillSwitch && <span style={{marginLeft:8,fontSize:'.7rem',background:'#c62828',color:'#fff',padding:'1px 8px',borderRadius:999}}>ON</span>}
-          </div>
-          <div style={{fontSize:'.78rem',color:'#496674',marginTop:4,lineHeight:1.45}}>
-            {isEn
-              ? 'When ON, sendTemplatedEmail() and sendSplitEmail() short-circuit and log every attempt as "skipped: Global email kill-switch is ON". No incident notifications, SLA reminders, or registration emails are sent.'
-              : 'Cuando está activo, sendTemplatedEmail() y sendSplitEmail() se cortocircuitan y registran cada intento como "skipped: Global email kill-switch is ON". No se envían notificaciones de incidentes, recordatorios SLA, ni emails de registro.'}
-          </div>
+    <label style={{display:'flex',alignItems:'flex-start',gap:10,padding:'12px 14px',background:emailKillSwitch?'#fff5f5':'#f8f9fa',border:`1.5px solid ${emailKillSwitch?'#e53935':'#e8eaed'}`,borderRadius:8,cursor:'pointer'}}>
+      <input type="checkbox" checked={emailKillSwitch} onChange={e=>setEmailKillSwitch(e.target.checked)} style={{marginTop:3,width:18,height:18,flexShrink:0}}/>
+      <div style={{flex:1}}>
+        <div style={{fontWeight:700,fontSize:'.92rem',color:emailKillSwitch?'#c62828':'#17313a'}}>
+          📧 {isEn?'Halt all outbound emails':'Detener todos los emails salientes'}
+          {emailKillSwitch && <span style={{marginLeft:8,fontSize:'.7rem',background:'#c62828',color:'#fff',padding:'1px 8px',borderRadius:999}}>ON</span>}
         </div>
-      </label>
-      <label style={{display:'flex',alignItems:'flex-start',gap:10,padding:'12px 14px',background:auditKillSwitch?'#fff5f5':'#f8f9fa',border:`1.5px solid ${auditKillSwitch?'#e53935':'#e8eaed'}`,borderRadius:8,cursor:'pointer'}}>
-        <input type="checkbox" checked={auditKillSwitch} onChange={e=>setAuditKillSwitch(e.target.checked)} style={{marginTop:3,width:18,height:18,flexShrink:0}}/>
-        <div style={{flex:1}}>
-          <div style={{fontWeight:700,fontSize:'.92rem',color:auditKillSwitch?'#c62828':'#17313a'}}>
-            🕵️ {isEn?'Halt all audit log writes':'Detener toda la escritura del log de auditoría'}
-            {auditKillSwitch && <span style={{marginLeft:8,fontSize:'.7rem',background:'#c62828',color:'#fff',padding:'1px 8px',borderRadius:999}}>ON</span>}
-          </div>
-          <div style={{fontSize:'.78rem',color:'#496674',marginTop:4,lineHeight:1.45}}>
-            {isEn
-              ? 'When ON, auditLog() returns early without writing to audit_logs. Every action (incident state changes, role updates, config edits, listing CRUD, …) silently skips the audit trail. The legacy listing_audit_events table is unaffected.'
-              : 'Cuando está activo, auditLog() retorna sin escribir en audit_logs. Cada acción (cambios de estado de incidentes, actualizaciones de roles, edición de configuración, CRUD de listings, …) salta el registro silenciosamente. La tabla legacy listing_audit_events no se ve afectada.'}
-          </div>
+        <div style={{fontSize:'.78rem',color:'#496674',marginTop:4,lineHeight:1.45}}>
+          {isEn
+            ? 'When ON, sendTemplatedEmail() and sendSplitEmail() short-circuit and log every attempt as "skipped: Global email kill-switch is ON". No incident notifications, SLA reminders, or registration emails are sent. The per-community email override (community tab) does NOT bypass this — global beats per-community.'
+            : 'Cuando está activo, sendTemplatedEmail() y sendSplitEmail() se cortocircuitan y registran cada intento como "skipped: Global email kill-switch is ON". No se envían notificaciones de incidentes, recordatorios SLA, ni emails de registro. El override por comunidad (pestaña de comunidad) NO lo bypassa — el global gana sobre el por-comunidad.'}
         </div>
-      </label>
-
-      {/* Per-event-type audit toggles — grouped by entity for readability. */}
-      {(() => {
-        const types = adminInfo.auditEventTypes || [];
-        if (!types.length) return null;
-        const disabled = auditKillSwitch;
-        // Group by entity prefix
-        const groups = {};
-        for (const t of types) {
-          const [entity, action] = t.split('.');
-          if (!groups[entity]) groups[entity] = [];
-          groups[entity].push(action);
-        }
-        const disabledCount = Object.values(auditEventToggles).filter(v => v === false).length;
-        return (
-          <div style={{padding:'12px 14px',background:'#f8f9fa',border:'1px solid #e8eaed',borderRadius:8,opacity:disabled?0.5:1}}>
-            <div style={{fontWeight:700,fontSize:'.88rem',color:'#17313a',marginBottom:4}}>
-              🎚️ {isEn?'Per-event audit toggles':'Activación por tipo de evento'}
-              {disabledCount > 0 && <span style={{marginLeft:8,fontSize:'.7rem',background:'#fff3cd',color:'#856404',border:'1px solid #ffe082',padding:'1px 8px',borderRadius:999}}>{disabledCount} {isEn?'disabled':'desactivado'+(disabledCount===1?'':'s')}</span>}
-            </div>
-            <div style={{fontSize:'.76rem',color:'#496674',marginBottom:10,lineHeight:1.45}}>
-              {isEn
-                ? 'Uncheck individual events to skip writing them to audit_logs. The global kill-switch above takes precedence: when it is ON these checkboxes have no effect.'
-                : 'Desmarca eventos individuales para no escribirlos en audit_logs. El interruptor maestro arriba tiene prioridad: cuando está activo estas casillas no tienen efecto.'}
-            </div>
-            <div style={{display:'flex',flexDirection:'column',gap:8}}>
-              {Object.keys(groups).sort().map(entity => (
-                <div key={entity}>
-                  <div style={{fontSize:'.72rem',fontWeight:700,color:'#496674',marginBottom:4,textTransform:'uppercase',letterSpacing:'.04em'}}>{entity}</div>
-                  <div style={{display:'flex',flexWrap:'wrap',gap:6}}>
-                    {groups[entity].sort().map(action => {
-                      const key = `${entity}.${action}`;
-                      const enabled = auditEventToggles[key] !== false;
-                      return (
-                        <label key={key} style={{display:'inline-flex',alignItems:'center',gap:5,padding:'4px 10px',borderRadius:999,background:enabled?'#fff':'#fff3cd',border:`1px solid ${enabled?'#cce7ee':'#ffe082'}`,fontSize:'.74rem',color:enabled?'#17313a':'#856404',cursor:disabled?'not-allowed':'pointer'}}>
-                          <input type="checkbox" disabled={disabled} checked={enabled} onChange={e=>setAuditEventEnabled(key, e.target.checked)} style={{margin:0,cursor:disabled?'not-allowed':'pointer'}}/>
-                          {action}
-                        </label>
-                      );
-                    })}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        );
-      })()}
-    </div>
+      </div>
+    </label>
   </AdminSection>
 
   {/* ── Email Sender ────────────────────────────────────────────── */}
@@ -2103,8 +2043,76 @@ export default function AdminSettings({ config={}, user, listings=[], contactPro
     );
   })()}
 
-  {/* ── Audit Log Viewer ───────────────────────────────────────────────── */}
-  <AdminSection title={`🕵️ ${isEn?'Audit Log':'Log de auditoría'}`} subtitle={isEn?'Full activity history for listings, incidents, roles, and config changes.':'Historial completo de actividad: listings, incidentes, roles y configuración.'} open={openSections.auditLog} onToggle={()=>toggleSection('auditLog')}>
+  {/* ── Audit Log: kill-switch + per-event toggles + viewer ──────────── */}
+  <AdminSection
+    title={`🕵️ ${isEn?'Audit Log':'Log de auditoría'}`}
+    subtitle={isEn?'Full activity history for listings, incidents, roles, and config changes. Includes the global kill-switch and per-event-type toggles that gate auditLog() writes server-side.':'Historial completo de actividad: listings, incidentes, roles y configuración. Incluye el interruptor maestro y los toggles por tipo de evento que controlan las escrituras de auditLog() en el servidor.'}
+    action={<button className="btn-p" style={{minHeight:36,padding:'6px 14px'}} onClick={saveAuditControls}>💾 {isEn?'Save':'Guardar'}</button>}
+    open={openSections.auditLog}
+    onToggle={()=>toggleSection('auditLog')}>
+    {/* Global audit kill-switch */}
+    <label style={{display:'flex',alignItems:'flex-start',gap:10,padding:'12px 14px',marginBottom:14,background:auditKillSwitch?'#fff5f5':'#f8f9fa',border:`1.5px solid ${auditKillSwitch?'#e53935':'#e8eaed'}`,borderRadius:8,cursor:'pointer'}}>
+      <input type="checkbox" checked={auditKillSwitch} onChange={e=>setAuditKillSwitch(e.target.checked)} style={{marginTop:3,width:18,height:18,flexShrink:0}}/>
+      <div style={{flex:1}}>
+        <div style={{fontWeight:700,fontSize:'.92rem',color:auditKillSwitch?'#c62828':'#17313a'}}>
+          🛑 {isEn?'Halt all audit log writes':'Detener toda la escritura del log de auditoría'}
+          {auditKillSwitch && <span style={{marginLeft:8,fontSize:'.7rem',background:'#c62828',color:'#fff',padding:'1px 8px',borderRadius:999}}>ON</span>}
+        </div>
+        <div style={{fontSize:'.78rem',color:'#496674',marginTop:4,lineHeight:1.45}}>
+          {isEn
+            ? 'When ON, auditLog() returns early without writing to audit_logs. Every action (incident state changes, role updates, config edits, listing CRUD, …) silently skips the audit trail. The legacy listing_audit_events table is unaffected.'
+            : 'Cuando está activo, auditLog() retorna sin escribir en audit_logs. Cada acción (cambios de estado de incidentes, actualizaciones de roles, edición de configuración, CRUD de listings, …) salta el registro silenciosamente. La tabla legacy listing_audit_events no se ve afectada.'}
+        </div>
+      </div>
+    </label>
+
+    {/* Per-event-type audit toggles — grouped by entity for readability. */}
+    {(() => {
+      const types = adminInfo.auditEventTypes || [];
+      if (!types.length) return null;
+      const disabled = auditKillSwitch;
+      const groups = {};
+      for (const t of types) {
+        const [entity, action] = t.split('.');
+        if (!groups[entity]) groups[entity] = [];
+        groups[entity].push(action);
+      }
+      const disabledCount = Object.values(auditEventToggles).filter(v => v === false).length;
+      return (
+        <div style={{padding:'12px 14px',marginBottom:18,background:'#f8f9fa',border:'1px solid #e8eaed',borderRadius:8,opacity:disabled?0.5:1}}>
+          <div style={{fontWeight:700,fontSize:'.88rem',color:'#17313a',marginBottom:4}}>
+            🎚️ {isEn?'Per-event audit toggles':'Activación por tipo de evento'}
+            {disabledCount > 0 && <span style={{marginLeft:8,fontSize:'.7rem',background:'#fff3cd',color:'#856404',border:'1px solid #ffe082',padding:'1px 8px',borderRadius:999}}>{disabledCount} {isEn?'disabled':'desactivado'+(disabledCount===1?'':'s')}</span>}
+          </div>
+          <div style={{fontSize:'.76rem',color:'#496674',marginBottom:10,lineHeight:1.45}}>
+            {isEn
+              ? 'Uncheck individual events to skip writing them to audit_logs. The global kill-switch above takes precedence: when it is ON these checkboxes have no effect.'
+              : 'Desmarca eventos individuales para no escribirlos en audit_logs. El interruptor maestro arriba tiene prioridad: cuando está activo estas casillas no tienen efecto.'}
+          </div>
+          <div style={{display:'flex',flexDirection:'column',gap:8}}>
+            {Object.keys(groups).sort().map(entity => (
+              <div key={entity}>
+                <div style={{fontSize:'.72rem',fontWeight:700,color:'#496674',marginBottom:4,textTransform:'uppercase',letterSpacing:'.04em'}}>{entity}</div>
+                <div style={{display:'flex',flexWrap:'wrap',gap:6}}>
+                  {groups[entity].sort().map(action => {
+                    const key = `${entity}.${action}`;
+                    const enabled = auditEventToggles[key] !== false;
+                    return (
+                      <label key={key} style={{display:'inline-flex',alignItems:'center',gap:5,padding:'4px 10px',borderRadius:999,background:enabled?'#fff':'#fff3cd',border:`1px solid ${enabled?'#cce7ee':'#ffe082'}`,fontSize:'.74rem',color:enabled?'#17313a':'#856404',cursor:disabled?'not-allowed':'pointer'}}>
+                        <input type="checkbox" disabled={disabled} checked={enabled} onChange={e=>setAuditEventEnabled(key, e.target.checked)} style={{margin:0,cursor:disabled?'not-allowed':'pointer'}}/>
+                        {action}
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      );
+    })()}
+
+    {/* Existing audit log viewer */}
     <AuditLogViewer/>
   </AdminSection>
   </>}
