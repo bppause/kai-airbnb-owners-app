@@ -143,7 +143,7 @@ export default function AdminSettings({ config={}, user, listings=[], contactPro
       return adminInfo.communityAdminOf[0].communityId;
     return '';
   });
-  const ADMIN_SEC_DEFAULT = {communities:false,branding:false,masterSwitches:false,emailSender:false,roles:true,sla:false,mission:false,menu:false,delegate:false,communityAdminPerms:false,users:true,tooltips:false,uiLabels:false,email:false,emailNotif:false,auditLog:false,commMembers:false,commMission:false,commLabels:false,commTooltips:false,commTpl:false};
+  const ADMIN_SEC_DEFAULT = {communities:false,branding:false,masterSwitches:false,emailSender:false,roles:true,sla:false,mission:false,menu:false,delegate:false,communityAdminPerms:false,users:true,tooltips:false,uiLabels:false,email:false,emailNotif:false,auditLog:false,commMembers:false,commEmail:false,commMission:false,commLabels:false,commTooltips:false,commTpl:false};
   const [openSections,setOpenSections] = useState(()=>{
     try{ const s=JSON.parse(localStorage.getItem('kai_admin_open')||'null'); return s&&typeof s==='object'?{...ADMIN_SEC_DEFAULT,...s}:ADMIN_SEC_DEFAULT; }catch{ return ADMIN_SEC_DEFAULT; }
   });
@@ -624,6 +624,40 @@ export default function AdminSettings({ config={}, user, listings=[], contactPro
               </div>
             )}
             {/* ── Mission ── */}
+            {/* ── Per-community email delivery override ─────────── */}
+            <AdminSection
+              title={`📧 ${isEn?'Email delivery':'Envío de emails'}`}
+              subtitle={isEn
+                ? 'Halt outbound emails for THIS community only. The global email kill-switch (platform tab) takes precedence; toggling here only affects this community when global is OFF.'
+                : 'Detener los emails salientes SOLO de esta comunidad. El interruptor global (pestaña plataforma) tiene prioridad; este interruptor solo aplica cuando el global está apagado.'}
+              action={!commOverridesOn?null:<button className="btn-p" style={{minHeight:36,padding:'6px 14px'}} onClick={()=>saveCommunitySection(activeCommId,['email_enabled'])} disabled={!commData||!adminInfo.isGlobalAdmin}>💾 {isEn?'Save':'Guardar'}</button>}
+              open={openSections.commEmail} onToggle={()=>toggleSection('commEmail')}>
+              {!commOverridesOn && <div style={{fontSize:'.78rem',color:'#7a5a00',background:'#fff8e1',border:'1px solid #ffe082',borderRadius:6,padding:'8px 12px'}}>🔒 {isEn?'Enable community overrides at the top of this tab to edit.':'Activa los overrides de comunidad arriba para editar.'}</div>}
+              {commOverridesOn && (() => {
+                const enabled = String(getCommVal('email_enabled') || 'true') !== 'false';
+                const overridden = hasOverride('email_enabled');
+                return (
+                  <label style={{display:'flex',alignItems:'flex-start',gap:10,padding:'12px 14px',background:enabled?'#f0f8f4':'#fff5f5',border:`1.5px solid ${enabled?'#cce7ee':'#e53935'}`,borderRadius:8,cursor:adminInfo.isGlobalAdmin?'pointer':'not-allowed',opacity:adminInfo.isGlobalAdmin?1:0.6}}>
+                    <input type="checkbox" disabled={!adminInfo.isGlobalAdmin} checked={enabled} onChange={e=>setCommVal('email_enabled', e.target.checked ? 'true' : 'false')} style={{marginTop:3,width:18,height:18,flexShrink:0}}/>
+                    <div style={{flex:1}}>
+                      <div style={{fontWeight:700,fontSize:'.92rem',color:enabled?'#17313a':'#c62828'}}>
+                        {enabled
+                          ? (isEn?'Email delivery enabled':'Envío de email activado')
+                          : (isEn?'Email delivery DISABLED for this community':'Envío de email DESACTIVADO para esta comunidad')}
+                        {overridden && <span style={{marginLeft:8,fontSize:'.7rem',background:'#0b7f4f',color:'#fff',padding:'1px 8px',borderRadius:999}}>{isEn?'overridden':'sobreescrito'}</span>}
+                      </div>
+                      <div style={{fontSize:'.78rem',color:'#496674',marginTop:4,lineHeight:1.45}}>
+                        {enabled
+                          ? (isEn?'Outbound emails for this community follow normal rules. Untick to skip every send for this community only.':'Los emails de esta comunidad siguen las reglas normales. Desmarca para omitir cada envío solo en esta comunidad.')
+                          : (isEn?'Every sendTemplatedEmail()/sendSplitEmail() call for this community logs as "skipped" and returns without contacting Resend.':'Cada llamada de sendTemplatedEmail()/sendSplitEmail() de esta comunidad se registra como "skipped" y retorna sin llamar a Resend.')}
+                      </div>
+                      {!adminInfo.isGlobalAdmin && <div style={{fontSize:'.74rem',color:'#7a5a00',marginTop:6}}>🔒 {isEn?'Only global admins can change this.':'Solo administradores globales pueden cambiar esto.'}</div>}
+                    </div>
+                  </label>
+                );
+              })()}
+            </AdminSection>
+
             <AdminSection title={`🌊 ${lt(lang,'Misión y reglas de participación')}`} subtitle={isEn?'Override the community mission shown on the Mission page (Spanish and English).':'Sobreescribe la misión de comunidad mostrada en la página de Misión (español e inglés).'} action={!commOverridesOn?null:<button className="btn-p" style={{minHeight:36,padding:'6px 14px'}} onClick={()=>saveCommunitySection(activeCommId,['mission_sections_es','mission_sections_en'])} disabled={!canEditMissionContent}>💾 {isEn?'Save':'Guardar'}</button>} open={openSections.commMission} onToggle={()=>toggleSection('commMission')}>
               {!canEditMissionContent && <div style={{marginBottom:12,padding:'8px 12px',background:'#fff3e0',borderRadius:8,fontSize:'.78rem',color:'#7a5a00',border:'1px solid #f5c97a'}}>{isEn?(!commOverridesOn?'Content editing is not enabled for this community. Contact your global admin to enable it.':'You do not have permission to edit the mission for this community.'):(!commOverridesOn?'La edición de contenido no está habilitada para esta comunidad. Contacta al administrador global para habilitarla.':'No tienes permiso para editar la misión de esta comunidad.')}</div>}
               {(()=>{
