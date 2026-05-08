@@ -155,131 +155,12 @@ const DEFAULT_SLA_HOURS = Number(process.env.DEFAULT_SLA_HOURS || 24);
 const DEFAULT_ESCALATION_CC_EMAILS = String(process.env.DEFAULT_ESCALATION_CC_EMAILS || process.env.SLA_CC_EMAILS || '').split(',').map(x=>x.trim().toLowerCase()).filter(Boolean);
 
 const buttonHtml = (href, label) => '<p style="margin:18px 0"><a href="' + escapeHtml(href) + '" style="background:#2F4F3A;color:#fff;text-decoration:none;padding:10px 16px;border-radius:10px;display:inline-block;font-weight:700">' + escapeHtml(label) + '</a></p>';
-const getEffectiveEmailFrom = async (lang='es-CO') => {
-  try {
-    const cfg = await getAppConfig();
-    const isEn = normalizeLanguage(lang) === 'en';
-    const addr = ((isEn ? cfg.email_from_address_en : cfg.email_from_address) || '').trim();
-    if (!addr) return EMAIL_FROM;
-    // Explicit override wins; otherwise derive from community name
-    const explicitName = ((isEn ? cfg.email_from_name_en : cfg.email_from_name) || '').trim();
-    const communityName = ((isEn ? cfg.complex_name_en : cfg.complex_name_es) || '').trim();
-    const name = explicitName || (communityName
-      ? (isEn ? `${communityName} Community` : `Comunidad ${communityName}`)
-      : '');
-    return name ? `${name} <${addr}>` : addr;
-  } catch(e) { /* fall through */ }
-  return EMAIL_FROM;
-};
-
-const sendSpanishEmail = async ({ to, subject, text, html, lang='es-CO' }) => {
-  if (!emailConfigured) return { sent:false, skipped:true, reason:'Resend email is not configured. Add RESEND_API_KEY and EMAIL_FROM in Render.' };
-  const recipients = normalizeRecipients(to);
-  if (!recipients.length) return { sent:false, skipped:true, reason:'Recipient email is missing.' };
-  const from = await getEffectiveEmailFrom(lang);
-  const { data, error: resendError } = await resend.emails.send({ from, to:recipients, subject, text, html });
-  if (resendError) throw new Error(resendError.message || JSON.stringify(resendError));
-  return { sent:true, skipped:false, id:data?.id || '' };
-};
 
 
 // ─── EDITABLE EMAIL TEMPLATES ───────────────────────────────────────────────
 // Defaults moved to server/templates/email-defaults.js — see docs/PLATFORM_ARCHITECTURE.md §11.
 const { DEFAULT_EMAIL_TEMPLATES, DEFAULT_EMAIL_TEMPLATES_EN } = require('./server/templates/email-defaults');
 
-
-const getUserLanguageByEmail = async (email='') => {
-  const em = String(email || '').trim().toLowerCase();
-  if (!em) return 'es-CO';
-  try {
-    const { data } = await supabase.from('app_users').select('language_preference').eq('email', em).maybeSingle();
-    return normalizeLanguage(data?.language_preference || 'es-CO');
-  } catch(e) { return 'es-CO'; }
-};
-const getEmailTemplates = async (language='es-CO', communityId='__global__') => {
-  const lang = normalizeLanguage(language);
-  const merged = { ...(lang === 'en' ? DEFAULT_EMAIL_TEMPLATES_EN : DEFAULT_EMAIL_TEMPLATES) };
-  const applyRows = (rows) => (rows||[]).forEach(t => {
-    if (merged[t.key]) merged[t.key] = { ...merged[t.key], label:t.label || merged[t.key].label, subject:t.subject || merged[t.key].subject, text:t.text || merged[t.key].text, html:t.html || merged[t.key].html };
-  });
-  try {
-    const { data: globalData, error: ge } = await supabase.from('email_templates').select('key,label,subject,text,html,language').eq('language', lang).eq('community_id', '__global__');
-    if (ge) warn('Email template read failed: ' + ge.message);
-    else applyRows(globalData);
-    if (communityId && communityId !== '__global__') {
-      const { data: communityData } = await supabase.from('email_templates').select('key,label,subject,text,html,language').eq('language', lang).eq('community_id', communityId);
-      applyRows(communityData);
-    }
-  } catch(e) { warn('Email template read failed: ' + (e?.message || e)); }
-  return merged;
-};
-
-const renderTemplate = (template, vars = {}) => String(template || '').replace(/\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/g, (_, key) => {
-  const value = vars[key] ?? '';
-  // Variables ending in Html are intentionally trusted server-generated snippets.
-  return /Html$/.test(key) ? String(value || '') : escapeHtml(value);
-});
-const logEmailDelivery = async ({ eventType='', recipients=[], subject='', status='', errorMessage='', relatedEntity='', relatedId='' }) => {
-  try {
-    await supabase.from('email_delivery_logs').insert({
-      id:'eml_' + uuidv4().slice(0,10),
-      event_type:String(eventType||''), recipients:normalizeRecipients(recipients), subject:String(subject||''),
-      status:String(status||''), error_message:String(errorMessage||''), related_entity:String(relatedEntity||''), related_id:String(relatedId||''),
-      created_at:new Date().toISOString()
-    });
-  } catch(e) { warn('Email delivery log failed: ' + (e?.message || e)); }
-};
-const sendTemplatedEmail = async ({ key, to, vars={}, language='auto', relatedEntity='', relatedId='', communityId='__global__' }) => {
-  const recipients = normalizeRecipients(to);
-  if (!recipients.length) {
-    await logEmailDelivery({ eventType:key, recipients, subject:'', status:'skipped', errorMessage:'No recipient email provided', relatedEntity, relatedId });
-    return { sent:false, skipped:true, reason:'Recipient email is missing.' };
-  }
-  const groups = {};
-  if (language && language !== 'auto') {
-    groups[normalizeLanguage(language)] = [...recipients];
-  } else {
-    for (const r of recipients) {
-      const lang = await getUserLanguageByEmail(r);
-      groups[lang] = groups[lang] || [];
-      groups[lang].push(r);
-    }
-  }
-  // Apply community email routing CC overrides
-  if (communityId && communityId !== '__global__') {
-    try {
-      const { data: routingRow } = await supabase.from('community_config').select('value').eq('community_id', communityId).eq('key', 'community_email_routing').maybeSingle();
-      if (routingRow?.value) {
-        const routing = safeJsonObject(routingRow.value, {});
-        const eventCc = normalizeRecipients((routing[key] || {}).cc || []);
-        for (const cc of eventCc) {
-          const ccLang = await getUserLanguageByEmail(cc);
-          groups[ccLang] = groups[ccLang] || [];
-          if (!groups[ccLang].includes(cc)) groups[ccLang].push(cc);
-        }
-      }
-    } catch(e) { warn('Community email routing failed: ' + (e?.message || e)); }
-  }
-  const results = [];
-  for (const [lang, recips] of Object.entries(groups)) {
-    const templates = await getEmailTemplates(lang, communityId);
-    const defaults = lang === 'en' ? DEFAULT_EMAIL_TEMPLATES_EN : DEFAULT_EMAIL_TEMPLATES;
-    const t = templates[key] || defaults[key];
-    if (!t) throw new Error('Email template not found: ' + key);
-    const subject = renderTemplate(t.subject, vars);
-    const text = renderTemplate(t.text, vars);
-    const html = renderTemplate(t.html, vars);
-    try {
-      const result = await sendSpanishEmail({ to:recips, subject, text, html, lang });
-      await logEmailDelivery({ eventType:key, recipients:recips, subject, status:result.sent ? 'sent' : 'skipped', errorMessage:result.reason || '', relatedEntity, relatedId });
-      results.push(result);
-    } catch(e) {
-      await logEmailDelivery({ eventType:key, recipients:recips, subject, status:'failed', errorMessage:e?.message || String(e), relatedEntity, relatedId });
-      throw e;
-    }
-  }
-  return { sent: results.some(r=>r.sent), skipped: results.every(r=>r.skipped), grouped:true };
-};
 
 const getAppConfig = async (communityId='kai') => {
   const cfg = {
@@ -326,6 +207,13 @@ const getAppConfig = async (communityId='kai') => {
   cfg.mission_body = cfg.mission_body_es;
   return cfg;
 };
+
+// ─── EMAIL HELPERS (extracted in stage 4c) ───────────────────────────────────
+// Generic primitives (sendSpanishEmail, getEmailTemplates, sendTemplatedEmail,
+// sendSplitEmail) live in server/core/email.js. Per-module senders below still
+// live in this file and consume these via local destructure.
+const { sendSpanishEmail, getEmailTemplates, sendTemplatedEmail, sendSplitEmail } =
+  require('./server/core/email')({ supabase, resend, emailConfigured, EMAIL_FROM, getAppConfig });
 const getSlaHours = async () => { const cfg = await getAppConfig(); const h = Number(cfg.sla_hours || DEFAULT_SLA_HOURS || 24); return Number.isFinite(h) && h > 0 ? h : 24; };
 const getEscalationCcEmails = async () => normalizeRecipients(String((await getAppConfig()).escalation_cc_emails || '').split(','));
 const getEmailNotificationConfig = async () => {
@@ -479,40 +367,6 @@ const buildSplitRecipients = async (typeCfg, listing, reporterEmail='', communit
 // Send individual private emails + one group admin email for an incident event.
 // Each individual (reporter/owner/operator) gets their own private email so they
 // cannot see who else was notified.  Admin group receives one combined email.
-const sendSplitEmail = async ({ key, individual, group, vars, relatedEntity, relatedId, communityId='__global__' }) => {
-  if (!emailConfigured) return { sent:false, skipped:true, reason:'Resend email is not configured.' };
-  const results = [];
-
-  // One email per individual — addressed privately to that person only
-  for (const email of individual) {
-    try {
-      const lang = await getUserLanguageByEmail(email);
-      const templates = await getEmailTemplates(lang, communityId);
-      const defaults = lang === 'en' ? DEFAULT_EMAIL_TEMPLATES_EN : DEFAULT_EMAIL_TEMPLATES;
-      const t = templates[key] || defaults[key];
-      if (!t) continue;
-      const subject = renderTemplate(t.subject, vars);
-      const text    = renderTemplate(t.text,    vars);
-      const html    = renderTemplate(t.html,    vars);
-      const result  = await sendSpanishEmail({ to:[email], subject, text, html, lang });
-      await logEmailDelivery({ eventType:key, recipients:[email], subject, status:result.sent?'sent':'skipped', errorMessage:result.reason||'', relatedEntity, relatedId });
-      results.push(result);
-    } catch(e) { warn(`Individual email (${key}) to ${email} failed: ${e?.message||e}`); }
-  }
-
-  // One combined email for the admin group (includes community routing CC)
-  if (group.length) {
-    try {
-      const result = await sendTemplatedEmail({ key, to:group, vars, relatedEntity, relatedId, communityId });
-      results.push(result);
-    } catch(e) { warn(`Group email (${key}) failed: ${e?.message||e}`); }
-  }
-
-  const sent = results.some(r => r?.sent);
-  const skipped = results.length > 0 && results.every(r => r?.skipped);
-  return { sent, skipped, results };
-};
-
 const sendIncidentEmail = async ({ listing, incident, appUrl, isEscalation=false }) => {
   const key = isEscalation ? 'incident_sla' : 'incident_new';
   const notifCfg = await getEmailNotificationConfig();
