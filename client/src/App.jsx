@@ -1112,17 +1112,19 @@ export default function App() {
   const ROLE_PREVIEW_PERMS = {
     global_admin: { isGlobalAdmin:true, role:'global_admin', canManage:true, menu:{ dashboard:true, listings:true, incidents:true, notifications:true, about:true, my:true, analytics:true, approvals:true }, delegate:{ canApproveRegistrations:true, canResolveIncidents:true, canUpdateGlobalListings:true, canDeleteGlobalListings:true, canUpdateGlobalIncidents:true, canDeleteGlobalIncidents:true } },
     delegate_admin: { isGlobalAdmin:false, role:'delegate_admin', canManage:true, menu:{ ...DEFAULT_STANDARD_MENU_PERMISSIONS, approvals:true }, delegate:{ ...DEFAULT_DELEGATE_PERMISSIONS } },
+    community_admin: { isGlobalAdmin:false, isCommunityAdmin:true, role:'user', canManage:true, menu:{ ...DEFAULT_STANDARD_MENU_PERMISSIONS, approvals:true }, delegate:{ ...DEFAULT_DELEGATE_PERMISSIONS } },
     standard_admin: { isGlobalAdmin:false, role:'standard_admin', canManage:false, menu:{ ...DEFAULT_STANDARD_MENU_PERMISSIONS }, delegate:{ ...DEFAULT_DELEGATE_PERMISSIONS, canApproveRegistrations:false, canResolveIncidents:true } },
     user: { isGlobalAdmin:false, role:'user', canManage:false, menu:{ ...DEFAULT_STANDARD_MENU_PERMISSIONS }, delegate:{ ...DEFAULT_DELEGATE_PERMISSIONS, canApproveRegistrations:false, canResolveIncidents:false } },
   };
   const PREVIEW_ROLE_LABELS = {
-    en: { global_admin:'Global Admin', delegate_admin:'Delegate Admin', standard_admin:'Standard Admin', user:'Owner/User' },
-    es: { global_admin:'Admin global', delegate_admin:'Admin delegado', standard_admin:'Admin estándar', user:'Propietario/Usuario' },
+    en: { global_admin:'Global Admin', delegate_admin:'Delegate Admin', community_admin:'Community Admin', standard_admin:'Standard Admin', user:'Owner/User' },
+    es: { global_admin:'Admin global', delegate_admin:'Admin delegado', community_admin:'Admin comunidad', standard_admin:'Admin estándar', user:'Propietario/Usuario' },
   };
   const previewPerms = previewRole ? ROLE_PREVIEW_PERMS[previewRole] : null;
   const effectiveIsGlobalAdmin = previewPerms ? previewPerms.isGlobalAdmin : adminInfo.isGlobalAdmin;
   const effectiveRole = previewPerms ? previewPerms.role : adminInfo.role;
   const effectiveCanManageRegistrations = previewPerms ? previewPerms.canManage : adminInfo.canManageRegistrations;
+  const effectiveIsCommunityAdmin = previewPerms ? !!previewPerms.isCommunityAdmin : !!adminInfo.isCommunityAdmin;
 
   const loadAll = useCallback(async (isInit=false) => {
     if (!user?.uid || registration?.status !== "approved") { setLoading(false); return; }
@@ -1407,7 +1409,7 @@ export default function App() {
     canSeeMenu('listings')                  ? { id:'listings',   icon:'🏠', label:t.nav.listings } : null,
     canSeeMenu('dashboard')                 ? { id:'dashboard',  icon:'📊', label:t.nav.dashboard } : null,
     effectiveCanManageRegistrations && isApproved ? { id:'approvals', icon:'📝', label:t.nav.approvals, badge:pendingRegistrations.length } : null,
-    (effectiveIsGlobalAdmin || adminInfo.role === 'delegate_admin' || adminInfo.isCommunityAdmin) && isApproved    ? { id:'admin',      icon:'⚙️', label:t.nav.admin } : null,
+    (effectiveIsGlobalAdmin || effectiveRole === 'delegate_admin' || effectiveIsCommunityAdmin) && isApproved    ? { id:'admin',      icon:'⚙️', label:t.nav.admin } : null,
     (effectiveIsGlobalAdmin || (analyticsEnabledForAll && canSeeMenu('analytics'))) && isApproved ? { id:'analytics', icon:'📈', label:t.nav.analytics } : null,
   ].filter(Boolean);
 
@@ -1652,6 +1654,7 @@ export default function App() {
                   {[
                     {value:'',               label:lang==='en'?'Global Admin':'Admin global'},
                     {value:'delegate_admin',  label:lang==='en'?'Delegate Admin':'Admin delegado'},
+                    {value:'community_admin', label:lang==='en'?'Community Admin':'Admin comunidad'},
                     {value:'user',            label:lang==='en'?'Owner/User':'Propietario/Usuario'},
                   ].map(opt=>(
                     <button key={opt.value||'ga'} type="button"
@@ -1687,15 +1690,15 @@ export default function App() {
                     <strong>{user.name}</strong>
                     <span>{user.email}</span>
                     <small>{myListings.length ? `${myListings.length} ${lang === 'en' ? (myListings.length>1?'units':'unit') : ('unidad' + (myListings.length>1?'es':''))}` : (lang === "en" ? "Visitor" : "Visitante")}</small>
-                    <span className={`profile-role-badge prb-${effectiveIsGlobalAdmin?'global':effectiveRole==='delegate_admin'?'delegate':adminInfo.isCommunityAdmin?'community':'user'}`}>{effectiveIsGlobalAdmin?(lang==='en'?'🌐 Global Admin':'🌐 Admin global'):effectiveRole==='delegate_admin'?(lang==='en'?'🛡️ Delegate Admin':'🛡️ Admin delegado'):adminInfo.isCommunityAdmin?(lang==='en'?'🏢 Community Admin':'🏢 Admin comunidad'):(lang==='en'?'🏠 Unit Owner':'🏠 Propietario')}</span>
+                    <span className={`profile-role-badge prb-${effectiveIsGlobalAdmin?'global':effectiveRole==='delegate_admin'?'delegate':effectiveIsCommunityAdmin?'community':'user'}`}>{effectiveIsGlobalAdmin?(lang==='en'?'🌐 Global Admin':'🌐 Admin global'):effectiveRole==='delegate_admin'?(lang==='en'?'🛡️ Delegate Admin':'🛡️ Admin delegado'):effectiveIsCommunityAdmin?(lang==='en'?'🏢 Community Admin':'🏢 Admin comunidad'):(lang==='en'?'🏠 Unit Owner':'🏠 Propietario')}</span>
                   </div>
                   <button className="dd-item" onClick={()=>{setView('profile');setOpenDropdown(null);}}>{lang === "en" ? "👤 My profile" : "👤 Mi perfil"}</button>
                   <button className="dd-item" onClick={()=>{setShowTour(true);setOpenDropdown(null);}}>🎯 {lang === "en" ? "Interactive tour" : "Tour interactivo"}</button>
                   <button className="dd-item" onClick={()=>{setView('my');setOpenDropdown(null);}}>🏠 {t.nav.my}</button>
                   <button className="dd-item" onClick={()=>{setView('about');setOpenDropdown(null);}}>🌊 {t.nav.about}</button>
-                  {(effectiveIsGlobalAdmin || adminInfo.role === 'delegate_admin' || adminInfo.isCommunityAdmin) && <button className="dd-item" onClick={()=>{setView('admin');setOpenDropdown(null);}}>⚙️ {t.nav.admin}</button>}
+                  {(effectiveIsGlobalAdmin || effectiveRole === 'delegate_admin' || effectiveIsCommunityAdmin) && <button className="dd-item" onClick={()=>{setView('admin');setOpenDropdown(null);}}>⚙️ {t.nav.admin}</button>}
                   {(effectiveIsGlobalAdmin || analyticsEnabledForAll) && <button className="dd-item" onClick={()=>{setView('analytics');setOpenDropdown(null);}}>📈 {t.nav.analytics}</button>}
-                  {adminInfo.isGlobalAdmin && <div className="profile-view-as"><span>👁 {lang==='en'?'View as:':'Ver como:'}</span><select className="view-as-select" value={previewRole||''} onChange={e=>{setPreviewRole(e.target.value||null);setOpenDropdown(null);}}><option value="">{lang==='en'?'Global Admin':'Admin global'}</option><option value="delegate_admin">{lang==='en'?'Delegate Admin':'Admin delegado'}</option><option value="user">{lang==='en'?'Owner/User':'Propietario/Usuario'}</option></select></div>}
+                  {adminInfo.isGlobalAdmin && <div className="profile-view-as"><span>👁 {lang==='en'?'View as:':'Ver como:'}</span><select className="view-as-select" value={previewRole||''} onChange={e=>{setPreviewRole(e.target.value||null);setOpenDropdown(null);}}><option value="">{lang==='en'?'Global Admin':'Admin global'}</option><option value="delegate_admin">{lang==='en'?'Delegate Admin':'Admin delegado'}</option><option value="community_admin">{lang==='en'?'Community Admin':'Admin comunidad'}</option><option value="user">{lang==='en'?'Owner/User':'Propietario/Usuario'}</option></select></div>}
                   <button className="dd-item danger" onClick={()=>{setOpenDropdown(null);logout();}}>{lang === "en" ? "🚪 Log out" : "🚪 Cerrar sesión"}</button>
                   <div className="profile-version">{complexName} · v{APP_VERSION}</div>
                 </div>
@@ -1729,7 +1732,7 @@ export default function App() {
         {view==="notifications" && user && <NotificationsView lang={lang} notifications={notifications} incidents={incidents} listings={listings} contactProps={contactProps} onRead={markNotificationRead} onReadAll={markAllNotificationsRead} smartAlerts={smartAlerts} onIncidentDetail={openIncidentDetail} />}
         {view==="approvals" && user && effectiveCanManageRegistrations && <PendingApprovalsView lang={lang} pending={pendingRegistrations} onApprove={id=>reviewRegistrationAction(id,'approve')} onDecline={id=>reviewRegistrationAction(id,'decline')} active={activeRegistrations} />}
         {view==="analytics" && user && (effectiveIsGlobalAdmin || analyticsEnabledForAll) && <AnalyticsDashboard lang={lang} user={user} contactProps={contactProps} showToast={showToast} isGlobalAdmin={effectiveIsGlobalAdmin} />}
-        {view==="admin" && user && ((effectiveIsGlobalAdmin || adminInfo.role === 'delegate_admin' || adminInfo.isCommunityAdmin) ? <ErrorBoundary section="admin" fallback={(err)=><AdminFallback lang={lang} error={err}/>}><AdminSettings config={adminInfo.config || {}} user={user} listings={listings} contactProps={contactProps} onSave={saveAdminConfig} showToast={showToast} lang={lang} adminInfo={adminInfo} /></ErrorBoundary> : <AdminAccessHelp user={user} adminInfo={adminInfo} lang={lang} />)}
+        {view==="admin" && user && ((effectiveIsGlobalAdmin || effectiveRole === 'delegate_admin' || effectiveIsCommunityAdmin) ? <ErrorBoundary section="admin" fallback={(err)=><AdminFallback lang={lang} error={err}/>}><AdminSettings config={adminInfo.config || {}} user={user} listings={listings} contactProps={contactProps} onSave={saveAdminConfig} showToast={showToast} lang={lang} adminInfo={adminInfo} /></ErrorBoundary> : <AdminAccessHelp user={user} adminInfo={adminInfo} lang={lang} />)}
         {view==="my" && user && <><DashboardGreeting user={user} lang={lang} role={effectiveIsGlobalAdmin?'global':effectiveRole==='delegate_admin'?'delegate':'standard'} pendingOwner={needsOwnerVerification.length} pendingOwnerResolution={needsOwnerResolution.length} pendingResolve={needsAdminResolution.length} pendingRegistrations={effectiveCanManageRegistrations?pendingRegistrations.length:0} myOpenCount={needsOwnerVerification.length} onOwnerClick={()=>{setIncidentQuickFilter('ownerVerification');setView('incidents');}} onResolveClick={()=>{setIncidentQuickFilter('requiresResolution');setView('incidents');}} onRegistrationsClick={()=>setView('approvals')} setView={setView}/><MyListings lang={lang} listings={myListings} allListings={listings} incidents={incidents} user={user} contactProps={contactProps} isGlobalAdmin={effectiveIsGlobalAdmin} canResolveGlobal={canResolveIncidentsNow} onAdd={()=>setModal({type:"addListing"})} onEdit={l=>setModal({type:"editListing",data:l})} onDelete={deleteListing} onReport={l=>setModal({type:"incident",data:{aptId:l.id}})} onVerify={inc=>setModal({type:"verifyIncident",data:inc})} onResolve={resolveIncident} onAddResolution={inc=>setModal({type:"addResolution",data:inc})} onNavigateToIncidents={f=>{setIncidentQuickFilter({type:'floorFilter',aptIds:f.aptIds,status:f.status||'all'});setView('incidents');}} onIncidentDetail={openIncidentDetail} onAssign={inc=>setModal({type:'assignGeneral',data:inc})} onCloseGeneral={inc=>setModal({type:'closeGeneral',data:inc})} /></>}
         {view==="profile" && user && <ProfileView lang={lang} user={user} userProfile={userProfile} onSave={saveProfile} communities={adminInfo.communities||[]} currentCommunityId={adminInfo.communityId||_communityId} onSwitchCommunity={switchCommunity} reputation={reputation} reputationLoading={reputationLoading} loadReputation={loadReputation} />}
         {view==="help" && <HelpView lang={lang} effectiveRole={effectiveRole} effectiveIsGlobalAdmin={effectiveIsGlobalAdmin} delegatePerms={delegatePerms} listings={listings} incidents={incidents} user={user} setView={setView} onReport={()=>{ if(!user){login();return;} setModal({type:'incident'}); }} onAddListing={()=>{ if(!user){login();return;} setModal({type:'addListing'}); }} setIncidentQuickFilter={setIncidentQuickFilter} openMore={()=>setOpenDropdown('more')} onStartTour={()=>setShowTour(true)} />}
