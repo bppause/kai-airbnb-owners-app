@@ -1074,306 +1074,73 @@ app.use('/api/incidents', incidentsRouter); // legacy alias — drop after clien
 
 
 
-app.get('/api/admin/email-templates', async (req, res) => {
-  log('[ADMIN] email-templates requested by ' + String(req.query?.email || ''));
-  if (!requireSupabaseEnv(res)) return;
-  const { uid, email } = req.query || {};
-  const language = String(req.query.language || 'es-CO');
-  const requestedCommunityId = String(req.query.communityId || '__global__').trim();
-  const globalAdmin = await isGlobalAdmin(uid, email);
-  if (!globalAdmin) {
-    if (!uid) return res.status(403).json({ error:'Autenticación requerida.' });
-    if (requestedCommunityId === '__global__') return res.status(403).json({ error:'Solo un administrador global puede ver plantillas globales.' });
-    const communityAdminCheck = await isCommunityAdmin(uid, email, requestedCommunityId);
-    if (!communityAdminCheck) return res.status(403).json({ error:'Solo un administrador global o de comunidad puede ver plantillas de email.' });
-  }
-  res.json({ templates: await getEmailTemplates(language, requestedCommunityId), communityId: requestedCommunityId, variables: {
-    incident_new:['apt','owner','operator','operatorEmail','guestName','date','type','category','status','desc','incidentLink'],
-    incident_sla:['apt','owner','operator','operatorEmail','guestName','date','type','category','status','desc','incidentLink','slaCycleCount','pendingStep','pendingStepLabel','pendingStepLabelEs'],
-    incident_sla_notification:['apt','owner','operator','operatorEmail','guestName','date','type','category','status','desc','incidentLink','slaCycleCount','pendingStep','pendingStepLabel','pendingStepLabelEs'],
-    incident_sla_reminder:['apt','owner','operator','operatorEmail','guestName','date','type','category','status','desc','incidentLink','slaCycleCount','pendingStep','pendingStepLabel','pendingStepLabelEs'],
-    incident_verified:['apt','owner','operator','operatorEmail','ownerGuestNames','ownerGuestCity','ownerGuestCountry','ownerComments','ownerAnswer','incidentLink'],
-    incident_resolution_added:['apt','owner','operator','operatorEmail','ownerGuestNames','ownerGuestCity','ownerGuestCountry','ownerComments','ownerAnswer','incidentLink'],
-    incident_resolved:['apt','owner','operator','operatorEmail','resolvedBy','resolutionComments','ownerAnswer','date','type','category','incidentLink','reporterName'],
-    registration_submitted:['userName','userEmail','registrationLink'],
-    registration_approved:['userName','userEmail','dashboardLink'],
-    registration_declined:['userName','userEmail','reason','reasonLine','reasonHtml','reasonLineEn','reasonHtmlEn','registrationLink'],
-    registration_reviewer:['reviewerName','userName','userEmail','approvalsLink'],
-    incident_general_sla:['apt','desc','type','category','slaCycleCount','slaHours','incidentLink','pendingStep','pendingStepLabel','pendingStepLabelEs'],
-    listing_created:['apt','owner','listingEmail','listingLink'],
-    listing_updated:['apt','owner','listingEmail','listingLink'],
-    listing_deleted:['apt','owner','listingEmail']
-  }});
+// ─── API: USERS (mounted from server/platform/users) ────────────────────────
+// Canonical: /api/platform/users/*   Legacy alias: /api/users/*
+// Includes: /preference, /profile (GET+PUT), /reputation. See
+// docs/PLATFORM_ARCHITECTURE.md §11 stage 3d.
+const usersModule = require('./server/platform/users');
+const usersRouter = usersModule.createRouter({
+  supabase, requireSupabaseEnv, sendSupabaseError,
+  isValidEmail,
 });
+app.use('/api/platform/users', usersRouter);
+app.use('/api/users', usersRouter); // legacy alias — drop after client migrates
 
-app.put('/api/admin/email-templates', async (req, res) => {
-  if (!requireSupabaseEnv(res)) return;
-  const { actorUid, actorEmail, templates } = req.body || {};
-  const language = normalizeLanguage(req.body?.language || 'es-CO');
-  const requestedCommunityId = String(req.body?.communityId || '__global__').trim();
-  const globalAdmin = await isGlobalAdmin(actorUid, actorEmail);
-  if (!globalAdmin) {
-    if (!actorUid) return res.status(403).json({ error:'Autenticación requerida.' });
-    if (requestedCommunityId === '__global__') return res.status(403).json({ error:'Solo un administrador global puede actualizar plantillas globales.' });
-    const caCheck = await isCommunityAdmin(actorUid, actorEmail, requestedCommunityId);
-    if (!caCheck) return res.status(403).json({ error:'Solo un administrador global o de comunidad puede actualizar plantillas de email.' });
-    const { data: oeRow } = await supabase.from('community_config').select('value').eq('community_id', requestedCommunityId).eq('key', 'config_overrides_enabled').maybeSingle();
-    if (oeRow?.value !== 'true') return res.status(403).json({ error:'Los overrides no están habilitados para esta comunidad. Pide al admin global que los habilite.' });
-  }
-  const communityId = requestedCommunityId;
-  if (!templates || typeof templates !== 'object') return res.status(400).json({ error:'templates is required.' });
-  for (const [key, t] of Object.entries(templates)) {
-    if (!DEFAULT_EMAIL_TEMPLATES[key]) continue;
-    const row = { community_id:communityId, key, language:String(language || 'es-CO'), label:String(t.label || DEFAULT_EMAIL_TEMPLATES[key].label || key), subject:String(t.subject || DEFAULT_EMAIL_TEMPLATES[key].subject || ''), text:String(t.text || DEFAULT_EMAIL_TEMPLATES[key].text || ''), html:String(t.html || DEFAULT_EMAIL_TEMPLATES[key].html || ''), updated_at:new Date().toISOString(), updated_by_email:String(actorEmail || '').toLowerCase() };
-    const { error } = await supabase.from('email_templates').upsert(row, { onConflict:'community_id,key,language' });
-    if (error) return sendSupabaseError(res, error);
-  }
-  await auditLog({ entity:'email_templates', entityId:String(communityId + ':' + language), action:'update', actorUid:actorUid, actorEmail:actorEmail, after:templates });
-  res.json({ ok:true, templates: await getEmailTemplates(language, communityId), communityId });
+// ─── API: EMAIL ADMIN (mounted from server/platform/email) ───────────────────
+// Canonical: /api/platform/email/*
+// Legacy aliases (URL-rewrite below): /api/admin/email-templates,
+//   /api/admin/email-notification-config, /api/contact/send-email.
+const emailModule = require('./server/platform/email');
+const emailRouter = emailModule.createRouter({
+  supabase, requireSupabaseEnv, sendSupabaseError, log,
+  isGlobalAdmin, isCommunityAdmin,
+  normalizeLanguage, normalizeRecipients,
+  getEmailTemplates, getEmailNotificationConfig,
+  DEFAULT_EMAIL_TEMPLATES, DEFAULT_EMAIL_NOTIFICATION_CONFIG,
+  auditLog,
+  escapeHtml, sendSpanishEmail,
 });
+app.use('/api/platform/email', emailRouter);
+function forwardToEmailRouter(targetPath) {
+  return (req, res, next) => {
+    const queryIdx = req.url.indexOf('?');
+    req.url = targetPath + (queryIdx >= 0 ? req.url.slice(queryIdx) : '');
+    emailRouter(req, res, next);
+  };
+}
+app.get('/api/admin/email-templates',           forwardToEmailRouter('/templates'));
+app.put('/api/admin/email-templates',           forwardToEmailRouter('/templates'));
+app.get('/api/admin/email-notification-config', forwardToEmailRouter('/notification-config'));
+app.put('/api/admin/email-notification-config', forwardToEmailRouter('/notification-config'));
+app.post('/api/contact/send-email',             forwardToEmailRouter('/contact'));
 
-app.get('/api/admin/email-notification-config', async (req, res) => {
-  if (!requireSupabaseEnv(res)) return;
-  const { uid, email } = req.query || {};
-  if (!(await isGlobalAdmin(uid, email))) return res.status(403).json({ error:'Global admin only.' });
-  res.json({ config: await getEmailNotificationConfig(), defaults: DEFAULT_EMAIL_NOTIFICATION_CONFIG });
+// ─── API: PLATFORM ADMIN (mounted from server/platform/admin) ────────────────
+// Canonical: /api/platform/admin/*
+// Legacy aliases (URL-rewrite below): /api/admin/{me,config,users,delegate}.
+const platformAdminModule = require('./server/platform/admin');
+const platformAdminRouter = platformAdminModule.createRouter({
+  supabase, requireSupabaseEnv, sendSupabaseError, log,
+  isGlobalAdmin, getUserRole, normalizeRole,
+  getCommunityId, getAppConfig, getUserPermissions, getUserCommunities,
+  getAppPermissionsConfig, hasCommunityAdminPerm,
+  safeJsonObject, normalizeLanguage, normalizeRecipients,
+  getGlobalAdminEmails, getApprovedUser,
+  auditLog,
+  DEFAULT_DELEGATE_PERMISSIONS, DEFAULT_STANDARD_MENU_PERMISSIONS, COMMUNITY_ADMIN_PERM_DEFAULTS,
 });
+app.use('/api/platform/admin', platformAdminRouter);
+function forwardToPlatformAdminRouter(targetPath) {
+  return (req, res, next) => {
+    const queryIdx = req.url.indexOf('?');
+    req.url = targetPath + (queryIdx >= 0 ? req.url.slice(queryIdx) : '');
+    platformAdminRouter(req, res, next);
+  };
+}
+app.get('/api/admin/me',       forwardToPlatformAdminRouter('/me'));
+app.put('/api/admin/config',   forwardToPlatformAdminRouter('/config'));
+app.get('/api/admin/users',    forwardToPlatformAdminRouter('/users'));
+app.post('/api/admin/delegate', forwardToPlatformAdminRouter('/delegate'));
 
-app.put('/api/admin/email-notification-config', async (req, res) => {
-  if (!requireSupabaseEnv(res)) return;
-  const { actorUid, actorEmail, config } = req.body || {};
-  if (!(await isGlobalAdmin(actorUid, actorEmail))) return res.status(403).json({ error:'Global admin only.' });
-  if (!config || typeof config !== 'object') return res.status(400).json({ error:'config object required.' });
-  // Merge submitted config with defaults — only known keys, boolean values only
-  const merged = {};
-  for (const [key, def] of Object.entries(DEFAULT_EMAIL_NOTIFICATION_CONFIG)) {
-    const incoming = (config[key] && typeof config[key] === 'object') ? config[key] : {};
-    merged[key] = { enabled: Boolean(incoming.enabled ?? def.enabled), owner: Boolean(incoming.owner ?? def.owner), operator: Boolean(incoming.operator ?? def.operator), globalAdmin: Boolean(incoming.globalAdmin ?? def.globalAdmin), delegateAdmin: Boolean(incoming.delegateAdmin ?? def.delegateAdmin) };
-  }
-  const { error } = await supabase.from('app_config').upsert({ key:'email_notification_config', value:JSON.stringify(merged) }, { onConflict:'key' });
-  if (error) return sendSupabaseError(res, error);
-  await auditLog({ entity:'app_config', entityId:'email_notification_config', action:'update', actorUid, actorEmail, after:merged });
-  res.json({ ok:true, config: merged });
-});
-
-app.post('/api/contact/send-email', async (req, res) => {
-  if (!requireSupabaseEnv(res)) return;
-  const { actorUid, actorEmail, actorName, to, toName, subject, message } = req.body || {};
-  const recipient = normalizeRecipients(to)[0];
-  if (!actorUid || !actorEmail) return res.status(401).json({ error:'Debe iniciar sesión para enviar email.' });
-  if (!recipient) return res.status(400).json({ error:'El email del destinatario es requerido.' });
-  if (!String(subject || '').trim() || !String(message || '').trim()) return res.status(400).json({ error:'Asunto y mensaje son requeridos.' });
-  try {
-    const html = `<div style="font-family:Arial,sans-serif;line-height:1.5;color:#17313a"><h2 style="color:#2F4F3A">${escapeHtml(subject)}</h2><p>${escapeHtml(message).replace(/\n/g,'<br/>')}</p><hr/><p style="font-size:12px;color:#607063">Enviado desde Propietarios Airbnb KAI por ${escapeHtml(actorName || actorEmail)} (${escapeHtml(actorEmail)}).</p></div>`;
-    const result = await sendSpanishEmail({ to:recipient, subject:String(subject).trim(), text:String(message || '') + `\n\nEnviado por ${actorName || actorEmail} (${actorEmail})`, html });
-    await auditLog({ entity:'contact_email', entityId:recipient, action:'send', actorUid, actorEmail, after:{ to:recipient, toName, subject, sent:result.sent, skipped:result.skipped, reason:result.reason || '' } });
-    res.json({ ok:true, email:result });
-  } catch(e) {
-    warn('Contact email failed: ' + (e?.message || e));
-    res.status(500).json({ error:e?.message || 'No se pudo enviar el email.' });
-  }
-});
-
-app.put('/api/users/preference', async (req, res) => {
-  if (!requireSupabaseEnv(res)) return;
-  const { uid, email, name, language } = req.body || {};
-  if (!uid || !email) return res.status(400).json({ error:'uid and email are required.' });
-  const lang = ['es-CO','en'].includes(language) ? language : 'es-CO';
-  const { error } = await supabase.from('app_users').upsert({ uid, email:String(email).toLowerCase(), name:name||'', language_preference:lang, updated_at:new Date().toISOString() }, { onConflict:'uid' });
-  if (error) return sendSupabaseError(res, error);
-  res.json({ ok:true, language:lang });
-});
-
-app.get('/api/users/profile', async (req, res) => {
-  if (!requireSupabaseEnv(res)) return;
-  const uid = String(req.query.uid || '').trim();
-  if (!uid) return res.status(400).json({ error:'uid is required.' });
-  // Try with notification_email; fall back to base columns if column not yet in schema cache
-  let { data, error } = await supabase.from('app_users').select('whatsapp,country,notification_email').eq('uid', uid).maybeSingle();
-  if (error && String(error.message || '').includes('notification_email')) {
-    ({ data, error } = await supabase.from('app_users').select('whatsapp,country').eq('uid', uid).maybeSingle());
-  }
-  if (error) return sendSupabaseError(res, error);
-  res.json({ whatsapp: data?.whatsapp || '', country: data?.country || 'Colombia', notificationEmail: data?.notification_email || '' });
-});
-
-app.put('/api/users/profile', async (req, res) => {
-  if (!requireSupabaseEnv(res)) return;
-  const { uid, email, whatsapp, country, notificationEmail } = req.body || {};
-  if (!uid || !email) return res.status(400).json({ error:'uid and email are required.' });
-  const waRaw = String(whatsapp || '').trim();
-  // Auto-normalize: prepend + if the number has 10+ digits but no country code prefix
-  const waDigits = waRaw.replace(/[^0-9]/g, '');
-  const wa = waRaw ? (waRaw.startsWith('+') ? waRaw : (waDigits.length >= 10 ? '+' + waDigits : waRaw)) : '';
-  const em = String(email).toLowerCase();
-  const countryVal = String(country || 'Colombia').trim();
-  const notifEmailRaw = String(notificationEmail || '').trim().toLowerCase();
-  const notifEmail = notifEmailRaw && isValidEmail(notifEmailRaw) ? notifEmailRaw : '';
-  // Email used for notifications: notification_email if set and valid, otherwise Google email
-  const effectiveEmail = notifEmail || em;
-  // Core upsert without notification_email — safe even before schema migration runs
-  const { error } = await supabase.from('app_users').upsert({
-    uid, email: em, whatsapp: wa, country: countryVal, updated_at: new Date().toISOString()
-  }, { onConflict: 'uid' });
-  if (error) return sendSupabaseError(res, error);
-  // Save notification_email separately so a missing column never breaks the main profile save
-  const { error: neErr } = await supabase.from('app_users').update({ notification_email: notifEmail }).eq('uid', uid);
-  if (neErr) warn('notification_email save failed (run schema migration): ' + (neErr.message || neErr));
-  // Propagate contact info to all of this owner's listings so notifications stay in sync
-  if (wa || effectiveEmail) {
-    await supabase.from('listings').update({ contact: wa, email: effectiveEmail }).eq('owner_uid', uid).in('status', ['approved', 'pending']);
-  }
-  res.json({ ok: true, whatsapp: wa, country: countryVal, notificationEmail: notifEmail });
-});
-
-app.get('/api/admin/me', async (req, res) => {
-  log('[ADMIN] me requested by ' + String(req.query?.email || ''));
-  if (!requireSupabaseEnv(res)) return;
-  const uid = String(req.query.uid || '').trim();
-  const email = String(req.query.email || '').trim().toLowerCase();
-  const name = String(req.query.name || '').trim();
-  const clientLang = normalizeLanguage(req.query.lang || 'es-CO');
-  const role = await getUserRole({ uid, email });
-  let languagePreference = clientLang;
-  try {
-    if (uid && email) {
-      // Check for existing row so we can preserve a stored language preference
-      const { data: existing } = await supabase.from('app_users').select('language_preference').eq('uid', uid).maybeSingle();
-      if (existing) {
-        languagePreference = normalizeLanguage(existing.language_preference || clientLang);
-        const row = { uid, email, name, updated_at: new Date().toISOString() };
-        if (role === 'global_admin') row.role = 'global_admin';
-        await supabase.from('app_users').update(row).eq('uid', uid);
-      } else {
-        languagePreference = clientLang;
-        const row = { uid, email, name, language_preference: clientLang, updated_at: new Date().toISOString() };
-        if (role === 'global_admin') row.role = 'global_admin';
-        await supabase.from('app_users').insert(row);
-      }
-    }
-  } catch(e) { warn('app_users upsert in /api/admin/me failed: ' + (e?.message || e)); }
-  const communityId = getCommunityId(req);
-  const config = await getAppConfig(communityId);
-  const permissions = await getUserPermissions({ uid, email });
-  const communities = await getUserCommunities(uid, email);
-  let communityAdminOf = [];
-  if (uid) {
-    try {
-      const { data: caMemberships } = await supabase.from('community_memberships')
-        .select('community_id,permissions').eq('user_uid', uid).eq('role','community_admin');
-      communityAdminOf = (caMemberships||[]).map(m => ({
-        communityId: m.community_id,
-        permissions: safeJsonObject(m.permissions, COMMUNITY_ADMIN_PERM_DEFAULTS)
-      }));
-    } catch(e) { communityAdminOf = []; }
-  }
-  const isCommunityAdminFlag = communityAdminOf.length > 0;
-  const canManageRegs = role === 'global_admin' || !!permissions.delegate?.canApproveRegistrations ||
-    await hasCommunityAdminPerm(uid, email, communityId, 'canApproveRegistrations');
-  res.json({ role, isGlobalAdmin: role === 'global_admin', canManageRegistrations: canManageRegs, languagePreference, config, permissions, communityId, communities, communityAdminOf, isCommunityAdmin: isCommunityAdminFlag });
-});
-
-app.put('/api/admin/config', async (req, res) => {
-  if (!requireSupabaseEnv(res)) return;
-  const { actorUid, actorEmail, slaHours, escalationCcEmails, analyticsEnabled, missionTitle, missionBody, missionTitleEs, missionBodyEs, missionTitleEn, missionBodyEn, missionSectionsEs, missionSectionsEn, standardMenuPermissions, defaultDelegatePermissions, communityAdminDefaultPermissions, tooltipsEs, tooltipsEn, uiLabelsEs, uiLabelsEn, complexNameEs, complexNameEn, complexLocation, complexLogo, complexBg, emailFromName, emailFromAddress, emailFromNameEn, emailFromAddressEn, nav_config, communityFeatureEnabled, defaultCommunityId } = req.body || {};
-  if (!(await isGlobalAdmin(actorUid, actorEmail))) return res.status(403).json({ error:'Solo un administrador global puede cambiar la configuración.' });
-  const before = await getAppConfig();
-  const rows = [];
-  if (slaHours !== undefined) rows.push({ key:'sla_hours', value:String(Math.max(1, Number(slaHours || 24))) });
-  if (escalationCcEmails !== undefined) rows.push({ key:'escalation_cc_emails', value:normalizeRecipients(String(escalationCcEmails || '').split(',')).join(',') });
-  if (analyticsEnabled !== undefined) rows.push({ key:'analytics_enabled', value:(analyticsEnabled === true || String(analyticsEnabled) === 'true') ? 'true' : 'false' });
-  if (missionTitle !== undefined) rows.push({ key:'mission_title_es', value:String(missionTitle || '') });
-  if (missionBody !== undefined) rows.push({ key:'mission_body_es', value:String(missionBody || '') });
-  if (missionTitleEs !== undefined) rows.push({ key:'mission_title_es', value:String(missionTitleEs || '') });
-  if (missionBodyEs !== undefined) rows.push({ key:'mission_body_es', value:String(missionBodyEs || '') });
-  if (missionTitleEn !== undefined) rows.push({ key:'mission_title_en', value:String(missionTitleEn || '') });
-  if (missionBodyEn !== undefined) rows.push({ key:'mission_body_en', value:String(missionBodyEn || '') });
-  if (missionSectionsEs !== undefined) rows.push({ key:'mission_sections_es', value: typeof missionSectionsEs === 'string' ? missionSectionsEs : JSON.stringify(missionSectionsEs) });
-  if (missionSectionsEn !== undefined) rows.push({ key:'mission_sections_en', value: typeof missionSectionsEn === 'string' ? missionSectionsEn : JSON.stringify(missionSectionsEn) });
-  if (standardMenuPermissions !== undefined) rows.push({ key:'standard_menu_permissions', value: JSON.stringify(safeJsonObject(standardMenuPermissions, DEFAULT_STANDARD_MENU_PERMISSIONS)) });
-  if (defaultDelegatePermissions !== undefined) rows.push({ key:'default_delegate_permissions', value: JSON.stringify(safeJsonObject(defaultDelegatePermissions, DEFAULT_DELEGATE_PERMISSIONS)) });
-  if (communityAdminDefaultPermissions !== undefined) rows.push({ key:'default_community_admin_permissions', value: JSON.stringify(safeJsonObject(communityAdminDefaultPermissions, COMMUNITY_ADMIN_PERM_DEFAULTS)) });
-  if (tooltipsEs !== undefined) rows.push({ key:'tooltips_es', value: typeof tooltipsEs === 'string' ? tooltipsEs : JSON.stringify(safeJsonObject(tooltipsEs, {})) });
-  if (tooltipsEn !== undefined) rows.push({ key:'tooltips_en', value: typeof tooltipsEn === 'string' ? tooltipsEn : JSON.stringify(safeJsonObject(tooltipsEn, {})) });
-  if (uiLabelsEs !== undefined) rows.push({ key:'ui_labels_es', value: typeof uiLabelsEs === 'string' ? uiLabelsEs : JSON.stringify(safeJsonObject(uiLabelsEs, {})) });
-  if (uiLabelsEn !== undefined) rows.push({ key:'ui_labels_en', value: typeof uiLabelsEn === 'string' ? uiLabelsEn : JSON.stringify(safeJsonObject(uiLabelsEn, {})) });
-  if (complexNameEs !== undefined) rows.push({ key:'complex_name_es', value:String(complexNameEs||'') });
-  if (complexNameEn !== undefined) rows.push({ key:'complex_name_en', value:String(complexNameEn||'') });
-  if (complexLocation !== undefined) rows.push({ key:'complex_location', value:String(complexLocation||'') });
-  if (complexLogo !== undefined) rows.push({ key:'complex_logo', value:String(complexLogo||'') });
-  if (complexBg !== undefined) rows.push({ key:'complex_bg', value:String(complexBg||'') });
-  if (emailFromName !== undefined) rows.push({ key:'email_from_name', value:String(emailFromName||'') });
-  if (emailFromAddress !== undefined) rows.push({ key:'email_from_address', value:String(emailFromAddress||'').toLowerCase().trim() });
-  if (emailFromNameEn !== undefined) rows.push({ key:'email_from_name_en', value:String(emailFromNameEn||'') });
-  if (emailFromAddressEn !== undefined) rows.push({ key:'email_from_address_en', value:String(emailFromAddressEn||'').toLowerCase().trim() });
-  if (nav_config !== undefined) rows.push({ key:'nav_config', value: typeof nav_config === 'string' ? nav_config : JSON.stringify(safeJsonObject(nav_config, {})) });
-  if (communityFeatureEnabled !== undefined) rows.push({ key:'community_feature_enabled', value: communityFeatureEnabled === true || String(communityFeatureEnabled) === 'true' ? 'true' : 'false' });
-  if (defaultCommunityId !== undefined) rows.push({ key:'default_community_id', value: String(defaultCommunityId||'kai') });
-  for (const row of rows) {
-    const { error } = await supabase.from('app_config').upsert(row, { onConflict:'key' });
-    if (error) return sendSupabaseError(res, error);
-  }
-  const after = await getAppConfig();
-  await auditLog({ entity:'app_config', entityId:'global', action:'update', actorUid, actorEmail, before, after });
-  res.json({ ok:true, config: after });
-});
-
-app.get('/api/admin/users', async (req, res) => {
-  log('[ADMIN] users requested by ' + String(req.query?.email || ''));
-  if (!requireSupabaseEnv(res)) return;
-  const { uid, email } = req.query || {};
-  if (!(await isGlobalAdmin(uid, email))) return res.status(403).json({ error:'Solo un administrador global puede ver usuarios.' });
-  const { data: rows, error } = await supabase.from('app_users').select('*').order('email', { ascending:true });
-  if (error) return sendSupabaseError(res, error);
-  const { data: approvedListings, error: lerr } = await supabase.from('listings').select('owner_uid,community_id').eq('status','approved');
-  if (lerr) return sendSupabaseError(res, lerr);
-  const approved = new Set((approvedListings || []).map(x => x.owner_uid).filter(Boolean));
-  const communityByUid = {};
-  (approvedListings||[]).forEach(l => { if(l.owner_uid && l.community_id) { if(!communityByUid[l.owner_uid]) communityByUid[l.owner_uid]=[]; if(!communityByUid[l.owner_uid].includes(l.community_id)) communityByUid[l.owner_uid].push(l.community_id); } });
-  const globalEmails = getGlobalAdminEmails();
-  const permsCfg = await getAppPermissionsConfig();
-  // Fetch all community memberships and community names in one pass
-  const { data: memberships } = await supabase.from('community_memberships').select('user_uid,community_id,role,permissions');
-  const { data: communityRows } = await supabase.from('communities').select('id,name,name_en');
-  const communityNameMap = {};
-  (communityRows||[]).forEach(c => { communityNameMap[c.id] = { name:c.name, nameEn:c.name_en||c.name }; });
-  // Group memberships by user_uid
-  const membershipByUid = {};
-  (memberships||[]).forEach(m => {
-    if (!membershipByUid[m.user_uid]) membershipByUid[m.user_uid] = [];
-    membershipByUid[m.user_uid].push({ communityId:m.community_id, role:m.role, permissions:safeJsonObject(m.permissions, COMMUNITY_ADMIN_PERM_DEFAULTS), communityName:communityNameMap[m.community_id]?.name||m.community_id, communityNameEn:communityNameMap[m.community_id]?.nameEn||m.community_id });
-  });
-  const users = (rows || []).filter(u => approved.has(u.uid) || globalEmails.includes(String(u.email || '').trim().toLowerCase())).map(u => {
-    const envGlobal = globalEmails.includes(String(u.email || '').trim().toLowerCase());
-    const role = envGlobal ? 'global_admin' : normalizeRole(u.role || 'user');
-    const storedPerms = safeJsonObject(u.permissions, {});
-    const permissions = role === 'global_admin'
-      ? { ...DEFAULT_DELEGATE_PERMISSIONS, canApproveRegistrations:true, canResolveIncidents:true, canUpdateGlobalListings:true, canDeleteGlobalListings:true, canUpdateGlobalIncidents:true, canDeleteGlobalIncidents:true }
-      : role === 'delegate_admin' ? { ...permsCfg.defaultDelegatePermissions, ...storedPerms } : {};
-    const communityMemberships = membershipByUid[u.uid] || [];
-    return { uid:u.uid, email:u.email, name:u.name || '', role, permissions, languagePreference:u.language_preference || 'es-CO', approved: approved.has(u.uid), envGlobal, communityMemberships, communityIds: communityByUid[u.uid] || [] };
-  });
-  res.json({ users, standardMenuPermissions: permsCfg.standardMenuPermissions, defaultDelegatePermissions: permsCfg.defaultDelegatePermissions, defaultCommunityAdminPermissions: permsCfg.defaultCommunityAdminPermissions });
-});
-
-app.post('/api/admin/delegate', async (req, res) => {
-  if (!requireSupabaseEnv(res)) return;
-  const { actorUid, actorEmail, uid, email, name, role, permissions } = req.body || {};
-  if (!(await isGlobalAdmin(actorUid, actorEmail))) return res.status(403).json({ error:'Solo un administrador global puede delegar administradores.' });
-  if (!uid || !email || !['user','delegate_admin','global_admin'].includes(role)) return res.status(400).json({ error:'uid, email and role are required.' });
-  if (role === 'delegate_admin' || role === 'global_admin') {
-    const approved = await getApprovedUser(uid);
-    if (!approved && role !== 'global_admin') return res.status(400).json({ error:'Solo usuarios registrados y aprobados pueden ser delegados para aprobar/rechazar registros.' });
-  }
-  const beforeRole = await getUserRole({ uid, email });
-  const normalizedPermissions = role === 'delegate_admin' ? safeJsonObject(permissions, DEFAULT_DELEGATE_PERMISSIONS) : {};
-  const { error } = await supabase.from('app_users').upsert({ uid, email:String(email).toLowerCase(), name:name||'', role, permissions: normalizedPermissions, updated_at:new Date().toISOString() }, { onConflict:'uid' });
-  if (error) return sendSupabaseError(res, error);
-  await auditLog({ entity:'user_role', entityId:uid, action:'delegate_update', actorUid, actorEmail, before:{ role: beforeRole }, after:{ uid, email, name, role, permissions: normalizedPermissions } });
-  res.json({ ok:true });
-});
-
-// ── Audit log viewer (global admin only) ─────────────────────────────────────
 // ─── API: AUDIT LOGS (mounted from server/platform/audit) ────────────────────
 // Canonical: /api/platform/audit/logs   Legacy alias: /api/admin/audit-logs
 // See docs/PLATFORM_ARCHITECTURE.md §11 stage 3c.
@@ -1901,65 +1668,6 @@ app.get('/api/me/communities', async (req, res) => {
   } catch(e) { sendSupabaseError(res, e); }
 });
 
-// ─── REPUTATION ────────────────────────────────────────────────────────────────
-// GET /api/users/reputation — compute trust score for a user
-app.get('/api/users/reputation', async (req, res) => {
-  if (!requireSupabaseEnv(res)) return;
-  const uid = String(req.query.uid || '').trim();
-  if (!uid) return res.status(400).json({ error:'uid required' });
-  try {
-    const [appUserRes, incAsReporterRes, incAsOwnerRes, listingsRes] = await Promise.all([
-      supabase.from('app_users').select('uid,name,whatsapp,email,created_at').eq('uid', uid).maybeSingle(),
-      supabase.from('incidents').select('id,status,created_at').eq('reporter_uid', uid),
-      supabase.from('incidents').select('id,status,created_at,owner_resolution_at').eq('owner_uid', uid).not('owner_resolution_at','is',null),
-      supabase.from('listings').select('id,apt,status').eq('owner_uid', uid),
-    ]);
-    const appUser = appUserRes.data;
-    const asReporter = incAsReporterRes.data || [];
-    const asOwner = incAsOwnerRes.data || [];
-
-    // Profile completeness (0-20 pts)
-    const profilePts = (!appUser ? 0 : (appUser.whatsapp ? 10 : 0) + (appUser.name ? 10 : 0));
-
-    // Reports submitted (5 pts each, max 50)
-    const reportCount = asReporter.length;
-    const reportPts = Math.min(reportCount * 5, 50);
-
-    // Resolved reports ratio (0-30 pts)
-    const resolvedReports = asReporter.filter(i => i.status === 'resolved').length;
-    const resolvedRatio = reportCount > 0 ? resolvedReports / reportCount : 0;
-    const resolvedPts = Math.round(resolvedRatio * 30);
-
-    // Fast response as owner: avg hours to add resolution, < 24h = full pts (0-20 pts)
-    let responsePts = 0;
-    if (asOwner.length > 0) {
-      const avgHrs = asOwner.reduce((sum, i) => {
-        const hrs = (new Date(i.owner_resolution_at) - new Date(i.created_at)) / 3600000;
-        return sum + (isNaN(hrs) ? 48 : hrs);
-      }, 0) / asOwner.length;
-      responsePts = avgHrs <= 24 ? 20 : avgHrs <= 48 ? 12 : avgHrs <= 72 ? 6 : 0;
-    }
-
-    // Tenure (2 pts per 30 days, max 20 pts)
-    const joinedAt = appUser?.created_at ? new Date(appUser.created_at) : new Date();
-    const tenureDays = Math.max(0, (Date.now() - joinedAt) / 86400000);
-    const tenurePts = Math.min(Math.floor(tenureDays / 30) * 2, 20);
-
-    const total = profilePts + reportPts + resolvedPts + responsePts + tenurePts;
-    const maxPts = 140;
-    const score = Math.round((total / maxPts) * 100);
-
-    const tier = score >= 71 ? 'pillar' : score >= 36 ? 'active' : 'resident';
-    const tierEs = tier === 'pillar' ? 'Pilar de la Comunidad' : tier === 'active' ? 'Miembro Activo' : 'Residente';
-    const tierEn = tier === 'pillar' ? 'Community Pillar' : tier === 'active' ? 'Active Member' : 'Resident';
-
-    res.json({
-      score, tier, tierEs, tierEn,
-      breakdown: { profilePts, reportPts, resolvedPts, responsePts, tenurePts, total, maxPts },
-      stats: { reportCount, resolvedReports, responseCount: asOwner.length, tenureDays: Math.floor(tenureDays), listingCount: (listingsRes.data||[]).length },
-    });
-  } catch(e) { warn('Reputation calc failed: ' + (e?.message || e)); res.status(500).json({ error: e?.message || String(e) }); }
-});
 
 // ─── COMMUNITY GOALS ──────────────────────────────────────────────────────────
 // GET /api/communities/:id/goals — quarterly engagement + resolution metrics
