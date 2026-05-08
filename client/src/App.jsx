@@ -16,7 +16,16 @@ import {
   parseJsonObject, slaResInfo, compressImage, HL,
   floorColor, getFloorNum,
   normalizeOwnerGuests, guestFullName, guestLocation,
+  fmtDate, fmtDateTime, today,
 } from "./core/utils";
+
+// ─── UI primitives + first extracted view (stage F7) ─────────────────────────
+// EmptyState/Empty are shared placeholders. GeneralIncidentsView is the first
+// real view extraction — consumes shared state via useApp() and now requires
+// only its action callbacks + presentation flag from the call site.
+// See docs/PLATFORM_ARCHITECTURE.md §11 frontend stage F7.
+import { EmptyState, Empty } from "./core/ui/EmptyState";
+import GeneralIncidentsView from "./modules/incidents/views/GeneralIncidentsView";
 
 // ─── API client (extracted in stage F3) ──────────────────────────────────────
 // All fetch calls flow through this module so the X-Community-Id header is
@@ -376,14 +385,6 @@ const BUILD_TIME = (() => {
   } catch(e) { return ''; }
 })();
 
-const fmtDate = d => { if(!d) return ""; const [y,m,day]=String(d).split("T")[0].split("-"); return `${parseInt(day)} ${["ene","feb","mar","abr","may","jun","jul","ago","sep","oct","nov","dic"][parseInt(m)-1]} ${y}`; };
-const fmtDateTime = (iso, lang='es-CO') => {
-  if (!iso) return '';
-  try {
-    return new Date(iso).toLocaleString(lang==='en'?'en-US':'es-CO',{day:'numeric',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'});
-  } catch(e) { return String(iso).slice(0,16).replace('T',' '); }
-};
-const today = () => new Date().toISOString().split("T")[0];
 
 // ─── PHOTO COMPRESSION — client-side, Canvas API ─────────────────────────────
 // Resize to ≤900px, JPEG quality 0.65. Falls back to 0.38 if > 500 KB.
@@ -4481,7 +4482,7 @@ function IncidentsView({ incidents, listings, user, quickFilter=null, onQuickFil
         </button>
       </div>
       {tab==='general'
-        ? <GeneralIncidentsView incidents={incidents} listings={listings} user={user} contactProps={contactProps} isGlobalAdmin={isGlobalAdmin} canResolveGlobal={canResolveGlobal} onIncidentDetail={onIncidentDetail} onAssign={onAssign} onClose={onCloseGeneral} lang={lang} embedded={true}/>
+        ? <GeneralIncidentsView canResolveGlobal={canResolveGlobal} onIncidentDetail={onIncidentDetail} onAssign={onAssign} onClose={onCloseGeneral} embedded={true}/>
         : <>
       <div className="ph">
         <div>
@@ -7973,96 +7974,6 @@ function CloseGeneralModal({ incident, onSave, onClose, lang='es-CO' }) {
 }
 
 // ─── GENERAL INCIDENTS VIEW ───────────────────────────────────────────────────
-function GeneralIncidentsView({ incidents=[], listings=[], user, contactProps={}, isGlobalAdmin=false, canResolveGlobal=false, onIncidentDetail=null, onAssign, onClose: onCloseGeneral, lang='es-CO', embedded=false }) {
-  const isEn = lang==='en';
-  const general = incidents.filter(i=>i.isGeneral).sort((a,b)=>new Date(b.createdAt)-new Date(a.createdAt));
-  const open = general.filter(i=>i.status!=='resolved');
-  const closed = general.filter(i=>i.status==='resolved');
-  const [showClosed,setShowClosed] = useState(false);
-  const canAct = isGlobalAdmin || canResolveGlobal;
-  const inner = (
-    <>
-      <div className="gen-info-banner">
-        {isEn
-          ? '📢 General incidents affect the building or community and are not specific to one unit. Anyone can report them. Admins can assign them to a unit (switching to normal workflow) or close them directly.'
-          : '📢 Los incidentes generales afectan el edificio o la comunidad y no están vinculados a una unidad específica. Cualquier usuario puede reportarlos. Los admins pueden asignarlos a una unidad (flujo normal) o cerrarlos directamente.'}
-      </div>
-
-      {open.length===0 && <EmptyState icon="✅" title={isEn?'No open general incidents':'Sin incidentes generales abiertos'} sub={isEn?'All community incidents have been addressed.':'Todos los incidentes de la comunidad han sido atendidos.'}/>}
-
-      {open.length>0&&<div className="gen-list">
-        {open.map(inc=>(
-          <div key={inc.id} className={`gen-card${inc.status==='resolved'?' gen-card-closed':''}`}>
-            <div className="gen-card-header">
-              <span className={`gen-card-status-dot ${inc.status==='open'?'gen-dot-open':'gen-dot-wait'}`}/>
-              <span className="gen-card-type">{incidentTypeLabel(inc.type,lang)}</span>
-              <span className="gen-card-cat">{categoryLabel(inc.category,lang)}</span>
-              <span className="gen-card-date">📅 {fmtDate(inc.date)}</span>
-              {(()=>{
-                const now = new Date();
-                const deadline = inc.nextSlaReminderAt ? new Date(inc.nextSlaReminderAt) : null;
-                const hoursLeft = deadline ? Math.round((deadline - now) / 3600000) : null;
-                if (inc.slaCycleCount > 0 && hoursLeft !== null && hoursLeft < 0) {
-                  return <span className="gen-card-sla gen-card-sla-breach">🔴 SLA {isEn?'overdue':'vencido'} ×{inc.slaCycleCount}</span>;
-                }
-                if (inc.slaCycleCount > 0) return <span className="gen-card-sla">⏱️ ×{inc.slaCycleCount}</span>;
-                if (hoursLeft !== null && hoursLeft <= 4 && hoursLeft >= 0) return <span className="gen-card-sla gen-card-sla-urgent">🟠 {isEn?`${hoursLeft}h`:`${hoursLeft}h`}</span>;
-                return null;
-              })()}
-              {onIncidentDetail&&<button className="ir-detail-pill" onClick={()=>onIncidentDetail(inc.id)}>{isEn?'Details':'Detalles'} ›</button>}
-            </div>
-            <p className="gen-card-desc">{inc.desc}</p>
-            {inc.reporterName&&<div className="gen-card-reporter">📋 {isEn?'Reported by':'Reportado por'}: {inc.reporterName}</div>}
-            {Array.isArray(inc.photos)&&inc.photos.length>0&&(
-              <div className="inc-photo-row">
-                {inc.photos.map((p,i)=><img key={i} src={p.data} alt={p.name||`photo-${i+1}`} className="inc-photo-thumb" onClick={()=>window.open(p.data,'_blank')}/>)}
-              </div>
-            )}
-            {canAct&&inc.status!=='resolved'&&(
-              <div className="gen-card-acts">
-                <button className="btn-p bsm" onClick={()=>onAssign&&onAssign(inc)}>🏠 {isEn?'Assign to unit':'Asignar a unidad'}</button>
-                <button className="btn-ghost bsm" onClick={()=>onCloseGeneral&&onCloseGeneral(inc)}>✓ {isEn?'Close directly':'Cerrar directamente'}</button>
-              </div>
-            )}
-          </div>
-        ))}
-      </div>}
-
-      {closed.length>0&&(
-        <div style={{marginTop:16}}>
-          <button className="btn-ghost bsm" onClick={()=>setShowClosed(s=>!s)}>
-            {showClosed?(isEn?'▲ Hide closed':'▲ Ocultar cerrados'):(isEn?`▼ Show ${closed.length} closed`:`▼ Ver ${closed.length} cerrados`)}
-          </button>
-          {showClosed&&<div className="gen-list" style={{marginTop:8,opacity:.75}}>
-            {closed.map(inc=>(
-              <div key={inc.id} className="gen-card gen-card-closed">
-                <div className="gen-card-header">
-                  <span className="gen-card-status-dot gen-dot-closed"/>
-                  <span className="gen-card-type">{incidentTypeLabel(inc.type,lang)}</span>
-                  <span className="gen-card-date">📅 {fmtDate(inc.date)}</span>
-                  {onIncidentDetail&&<button className="ir-detail-pill" onClick={()=>onIncidentDetail(inc.id)}>{isEn?'Details':'Detalles'} ›</button>}
-                </div>
-                <p className="gen-card-desc">{inc.desc}</p>
-                {inc.resolutionComments&&<div className="gen-card-resolution">✓ {inc.resolutionComments}</div>}
-              </div>
-            ))}
-          </div>}
-        </div>
-      )}
-    </>
-  );
-  return embedded ? inner : (
-    <div className="fade">
-      <div className="ph">
-        <div>
-          <h1 className="ptitle">📢 {isEn?'General Incidents':'Incidentes Generales'}</h1>
-          <p className="psub">{isEn?`Community-wide incidents not tied to a specific unit · ${open.length} open`:`Incidentes de la comunidad no asociados a una unidad · ${open.length} abiertos`}</p>
-        </div>
-      </div>
-      {inner}
-    </div>
-  );
-}
 
 function AdminFallback({ lang='es-CO', error={} }){
   const saved = (()=>{ try { return localStorage.getItem('kai_last_ui_error') || localStorage.getItem('kai_last_admin_error') || ''; } catch(e) { return ''; } })();
@@ -8102,8 +8013,6 @@ function CommunitySwitch({ communities=[], currentId='', onChange=()=>{}, lang='
 function Overlay({ children, onClose, wide }) {
   return <div className="overlay" onClick={e=>e.target===e.currentTarget&&onClose()}><div className={`modal ${wide?"modal-w":""}`}>{children}<button className="btn-x" onClick={onClose}>✕</button></div></div>;
 }
-function EmptyState({ icon, title, sub }) { return <div className="empty"><div style={{fontSize:"3rem",marginBottom:12}}>{icon}</div><div style={{fontFamily:"'Playfair Display',serif",fontSize:"1.2rem",marginBottom:6}}>{title}</div><div style={{fontSize:"0.82rem",color:"#3a5a6a"}}>{sub}</div></div>; }
-function Empty({ icon, msg }) { return <div style={{textAlign:"center",padding:"20px 0",color:"#2a4a5a",fontSize:"0.82rem"}}>{icon} {msg}</div>; }
 function GoogleIcon() { return <svg width="16" height="16" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>; }
 
 const CSS = `

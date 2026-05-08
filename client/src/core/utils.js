@@ -138,3 +138,24 @@ export const normalizeOwnerGuests = (incident={}) => {
 export const guestFullName = (g={}) => [g.firstName, g.middleName, g.lastName].map(x=>String(x||'').trim()).filter(Boolean).join(' ');
 // Location includes city, state (if present), and country
 export const guestLocation = (g={}) => [g.city, g.state, g.country].map(x=>String(x||'').trim()).filter(Boolean).join(', ');
+
+// ─── Date / time formatting (extracted in stage F7) ──────────────────────────
+
+// "DD MMM YYYY" with Spanish month abbreviations.
+// Accepts ISO date or "YYYY-MM-DD" strings.
+export const fmtDate = d => {
+  if (!d) return "";
+  const [y, m, day] = String(d).split("T")[0].split("-");
+  return `${parseInt(day)} ${["ene","feb","mar","abr","may","jun","jul","ago","sep","oct","nov","dic"][parseInt(m)-1]} ${y}`;
+};
+
+// Locale-aware "DD MMM YYYY HH:MM" via toLocaleString.
+export const fmtDateTime = (iso, lang='es-CO') => {
+  if (!iso) return '';
+  try {
+    return new Date(iso).toLocaleString(lang==='en'?'en-US':'es-CO',{day:'numeric',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'});
+  } catch(e) { return String(iso).slice(0,16).replace('T',' '); }
+};
+
+// Today's date as "YYYY-MM-DD" (UTC).
+export const today = () => new Date().toISOString().split("T")[0];
