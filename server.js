@@ -19,6 +19,7 @@ const {
   notificationFromDb, notificationToDb,
   registrationFromListingRows,
 } = require('./server/core/db-converters');
+const { getCommunityId, sendSupabaseError } = require('./server/core/http');
 const { v4: uuidv4 } = require('uuid');
 const { createClient } = require('@supabase/supabase-js');
 const ws = require('ws');
@@ -110,10 +111,6 @@ const {
 } = require('./server/core/roles')({ supabase, getAppConfig, getEscalationCcEmails });
 // Separate owner-only vs operator-only recipient getters (used by config-aware send functions)
 
-const getCommunityId = (req) => {
-  const val = String(req?.headers?.['x-community-id'] || req?.query?.communityId || '').trim().toLowerCase();
-  return val || 'kai';
-};
 // Returns community admin emails from the DB, falling back to app_config escalation_cc_emails
 // when no community admins have been registered yet (backwards-compatible).
 // Lookup reporter email by UID from app_users (reporter != always listing owner)
@@ -167,11 +164,6 @@ const {
 } = require('./server/platform/registrations/email-senders')(senderDeps);
 
 
-const sendSupabaseError = (res, error, status = 500) => {
-  console.error('Supabase error:', error);
-  const parts = [error?.message, error?.details, error?.hint, error?.code].filter(Boolean);
-  return res.status(status).json({ error: parts.join(' | ') || 'Supabase error' });
-};
 
 // ─── MIDDLEWARE ───────────────────────────────────────────────────────────────
 app.use(cors());
