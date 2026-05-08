@@ -804,7 +804,7 @@ const CHAPTERS = [
 
 const SLIDES = [];
 CHAPTERS.forEach((c,ci)=>c.slides.forEach((s,si)=>SLIDES.push({...s,ci,si,chap:c.title})));
-const TOTAL = SLIDES.reduce((s,x)=>s+x.sec,0);
+let TOTAL = SLIDES.reduce((s,x)=>s+x.sec,0);
 
 const slidesEl=document.getElementById('slides');
 const chapEl  =document.getElementById('chapList');
@@ -934,6 +934,19 @@ function narrateSlide(slide, slideIdx, force){
   const text = (slide.voice ? slide.voice[lang] : null) || (slide.text ? slide.text[lang] : '') || '';
   stopNarration();
   NAR.audio.src = url;
+  // If MP3 loads, stretch the slide's display time to match audio duration so
+  // narration is never cut off. Falls back to original slide.sec for TTS.
+  const onMeta = () => {
+    NAR.audio.removeEventListener('loadedmetadata', onMeta);
+    if(isFinite(NAR.audio.duration) && NAR.audio.duration > 0){
+      const needed = Math.ceil(NAR.audio.duration) + 1;
+      if(needed > slide.sec){
+        slide.sec = needed;
+        TOTAL = SLIDES.reduce((s,x)=>s+x.sec,0);
+      }
+    }
+  };
+  NAR.audio.addEventListener('loadedmetadata', onMeta, { once:true });
   const onCanPlay = () => {
     NAR.audio.removeEventListener('canplay', onCanPlay);
     NAR.audio.removeEventListener('error', onError);

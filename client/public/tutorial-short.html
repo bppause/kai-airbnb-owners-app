@@ -325,7 +325,7 @@ const fill    =document.getElementById('fill');
 const timeEl  =document.getElementById('time');
 const capEl   =document.getElementById('caption');
 const playBtn =document.getElementById('play');
-const total   =SLIDES.reduce((s,x)=>s+x.sec,0);
+let total = SLIDES.reduce((s,x)=>s+x.sec,0);
 
 function hotsHtml(slideIdx, hotspots){
   if(!hotspots || !hotspots.length) return '';
@@ -433,6 +433,17 @@ function narrateSlide(slide, slideIdx, force){
   const text = (slide.voice ? slide.voice[lang] : null) || (slide.text ? slide.text[lang] : '') || '';
   stopNarration();
   NAR.audio.src = url;
+  const onMeta = () => {
+    NAR.audio.removeEventListener('loadedmetadata', onMeta);
+    if(isFinite(NAR.audio.duration) && NAR.audio.duration > 0){
+      const needed = Math.ceil(NAR.audio.duration) + 1;
+      if(needed > slide.sec){
+        slide.sec = needed;
+        total = SLIDES.reduce((s,x)=>s+x.sec,0);
+      }
+    }
+  };
+  NAR.audio.addEventListener('loadedmetadata', onMeta, { once:true });
   const onCanPlay = () => {
     NAR.audio.removeEventListener('canplay', onCanPlay);
     NAR.audio.removeEventListener('error', onError);
