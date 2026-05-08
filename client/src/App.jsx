@@ -196,9 +196,8 @@ import CommunitySwitch from "./core/ui/CommunitySwitch";
 
 // Listings leaf components (extracted in stage F28) — small reusable
 // pieces used by the still-inline listings views (UnitDetailCard,
-// AptDetailPanel, AptCard, BuildingFloor, ListingsView, etc.). Both
-// pull lang via useApp(); other props (l, incidents, callbacks) stay
-// per-instance.
+// BuildingFloor, ListingsView, etc.). Both pull lang via useApp();
+// other props (l, incidents, callbacks) stay per-instance.
 //
 //   AptContactPopup  — hover card with owner/operator/co-owner contacts
 //   AptDoor          — building-view "door" card (incl. aptDoorStatus
@@ -1875,112 +1874,6 @@ function UnitDetailCard({ l, incidents, canEdit=false, canDelete=false, onEdit, 
 
 // AptDoor: only the number plate and "View incidents" footer are interactive.
 // The card body is display-only (hover reveals contact popup).
-function AptDetailPanel({ l, incidents, contactProps={}, canEdit, canDelete, onEdit, onDelete, onReport, onClose, user, isGlobalAdmin, canResolveGlobal, onVerify, onResolve, onAddResolution, lang, isEn }) {
-  const aptInc = [...incidents.filter(i=>i.aptId===l.id)].sort((a,b)=>new Date(b.createdAt)-new Date(a.createdAt));
-  const ownerWa = normalizePhoneForWhatsApp(l.contact);
-  const opWa = normalizePhoneForWhatsApp(l.operatorWhatsapp);
-  const hasOp = !!(l.operator||l.operatorEmail||l.operatorWhatsapp);
-  // Group expand/collapse state for the detail panel
-  const [panelGO, setPanelGO] = useState({open:true, verified:true, resolved:false});
-
-  return (
-    <div className="adp-wrap">
-      {/* ── Unit header ── */}
-      <div className="adp-unit-hero">
-        <div className="adp-unit-plate">
-          <span className="adp-unit-num">{l.apt}</span>
-          {l.tower&&<span className="adp-unit-tower">{l.tower}</span>}
-        </div>
-        <div className="adp-unit-meta">
-          <span className="chip c-teal" title={isEn?`${l.rooms} bedrooms`:`${l.rooms} habitaciones`}>🛏️ {l.rooms}</span>
-          <span className="chip c-blue" title={isEn?`Up to ${l.guests} guests`:`Capacidad ${l.guests} huéspedes`}>👥 {l.guests}</span>
-          {l.airbnb&&<a className="adp-airbnb-lnk" href={l.airbnb} target="_blank" rel="noreferrer" title="Airbnb listing">🔗 Airbnb</a>}
-        </div>
-        <div className="adp-unit-acts">
-          <button className="bsm bs-rep" onClick={onReport}>+ {isEn?'Report':'Reporte'}</button>
-          {canEdit&&<button className="bsm bs-edit" onClick={onEdit} title={isEn?'Edit unit':'Editar unidad'}>✏️</button>}
-          {canDelete&&<button className="bsm bs-del" onClick={onDelete} title={isEn?'Delete unit':'Eliminar unidad'}>🗑️</button>}
-        </div>
-      </div>
-
-      {/* ── People: owner + operator ── */}
-      <div className="adp-section-lbl">👥 {isEn?'People':'Personas'}</div>
-      <div className="adp-contacts">
-        <div className="adp-party">
-          <div className="adp-party-lbl">👤 {isEn?'Owner':'Propietario'}</div>
-          <div className="adp-party-row">
-            <UserContact name={l.owner} uid={l.ownerUid} email={l.userEmail||l.email} whatsapp={l.contact} apartments={l.apt?[aptDisplay(l.apt,lang)]:[]} {...contactProps}/>
-            <div className="adp-party-cbtns">
-              {(l.userEmail||l.email)&&<a href={`mailto:${l.userEmail||l.email}`} className="ac-cbtn" title={l.userEmail||l.email}><IconEmail/></a>}
-              {ownerWa&&<a href={`https://wa.me/${ownerWa}`} className="ac-cbtn ac-cbtn-wa" target="_blank" rel="noreferrer" title="WhatsApp"><IconWhatsApp/></a>}
-            </div>
-          </div>
-        </div>
-        {hasOp ? (
-          <div className="adp-party">
-            <div className="adp-party-lbl">🔧 {isEn?'Operator':'Operador'}</div>
-            <div className="adp-party-row">
-              {l.operator ? <UserContact name={l.operator} email={l.operatorEmail} whatsapp={l.operatorWhatsapp} apartments={[]} {...contactProps}/> : <span style={{fontSize:'.8rem',color:'#8a9fa5'}}>{l.operatorEmail||'—'}</span>}
-              <div className="adp-party-cbtns">
-                {l.operatorEmail&&<a href={`mailto:${l.operatorEmail}`} className="ac-cbtn" title={l.operatorEmail}><IconEmail/></a>}
-                {opWa&&<a href={`https://wa.me/${opWa}`} className="ac-cbtn ac-cbtn-wa" target="_blank" rel="noreferrer" title="WhatsApp"><IconWhatsApp/></a>}
-              </div>
-            </div>
-          </div>
-        ) : (
-          <div className="adp-party adp-party-none">
-            <div className="adp-party-lbl">🔧 {isEn?'Operator':'Operador'}</div>
-            <span className="adp-no-op">{isEn?'No operator assigned':'Sin operador asignado'}</span>
-          </div>
-        )}
-      </div>
-
-      {/* ── Incident history ── */}
-      <div className="adp-section-lbl">📋 {isEn?'Incident history':'Historial de incidentes'} <span className="adp-inc-count">{aptInc.length}</span></div>
-      <div className="adp-incidents">
-        {aptInc.length===0
-          ? <div className="adp-inc-empty">✅ {isEn?'No incidents on record':'Sin incidentes registrados'}</div>
-          : <div className="adp-wfg-list">
-              {[
-                {key:'open',     icon:'⚠️', label:isEn?'Verify required':'Verificación requerida', sublabel:isEn?'Step 1: Owner must verify and document action taken':'Paso 1: El propietario debe verificar y documentar la acción tomada', color:'#d9a030'},
-                {key:'verified', icon:'📝', label:isEn?'In Progress':'En progreso',                sublabel:isEn?'Step 2: Add resolution · or awaiting admin review':'Paso 2: Agrega resolución · o esperando revisión del admin',           color:'#0b7f4f'},
-                {key:'resolved', icon:'✓',  label:isEn?'Closed':'Cerrados',                        sublabel:isEn?'Resolved by management':'Resuelto por administración',                                                                      color:'#6a9a7a'},
-              ].map(g => {
-                const gInc = aptInc.filter(i => i.status === g.key);
-                if (gInc.length === 0) return null;
-                return (
-                  <WorkflowGroup
-                    key={g.key}
-                    statusKey={g.key}
-                    icon={g.icon}
-                    label={g.label}
-                    sublabel={g.sublabel}
-                    color={g.color}
-                    incidents={gInc}
-                    listings={[l]}
-                    isOpen={panelGO[g.key]}
-                    onToggle={()=>setPanelGO(s=>({...s,[g.key]:!s[g.key]}))}
-                    contactProps={contactProps}
-                    isGlobalAdmin={isGlobalAdmin}
-                    canUpdateGlobal={false}
-                    canDeleteGlobal={false}
-                    canResolveGlobal={canResolveGlobal}
-                    onResolve={onResolve}
-                    onDelete={()=>{}}
-                    onVerify={onVerify}
-                    onAddResolution={onAddResolution}
-                    onIncidentDetail={onIncidentDetail}
-                    hideUnit
-                  />
-                );
-              })}
-            </div>
-        }
-      </div>
-    </div>
-  );
-}
-
 function BuildingFloor({ floor, apts, incidents, user, contactProps, isGlobalAdmin, canEditGlobal, canDeleteGlobal, canResolveGlobal, onEdit, onDelete, onReport, onVerify, onResolve, onAddResolution, onFloorFilter, isOpen, onToggle, lang, isEn }) {
   const [unitDetailAptId, setUnitDetailAptId] = useState(null);
   const [unitDetailStep, setUnitDetailStep] = useState('info');
@@ -2056,89 +1949,6 @@ function BuildingFloor({ floor, apts, incidents, user, contactProps, isGlobalAdm
   );
 }
 
-function GeneralListingsSection({ incidents, isGlobalAdmin=false, canResolveGlobal=false, onAssign, onCloseGeneral, onIncidentDetail, lang='es-CO' }) {
-  const isEn = lang === 'en';
-  const canAct = isGlobalAdmin || canResolveGlobal;
-  const generalOpen = incidents.filter(i => i.isGeneral && i.status !== 'resolved')
-    .sort((a,b) => new Date(b.createdAt) - new Date(a.createdAt));
-  const [open, setOpen] = useState(false);
-
-  return (
-    <div className="gen-ls-section">
-      <button className="gen-ls-hdr" onClick={() => setOpen(o => !o)}>
-        <span className="gen-ls-icon">📢</span>
-        <div className="gen-ls-hdr-body">
-          <span className="gen-ls-label">{isEn ? 'General — Unassigned' : 'General — Sin unidad'}</span>
-          {generalOpen.length > 0
-            ? <span className="gen-ls-sublabel">{canAct
-                ? (isEn ? 'Assign to a unit or close directly' : 'Asigna a una unidad o cierra directamente')
-                : (isEn ? 'Community incidents under admin review' : 'Incidentes de comunidad en revisión')}</span>
-            : <span className="gen-ls-sublabel gen-ls-sublabel-ok">{isEn ? 'No open general incidents' : 'Sin incidentes generales abiertos'}</span>
-          }
-        </div>
-        {generalOpen.length > 0 && <span className="gen-ls-badge">{generalOpen.length}</span>}
-        <span className={`fls-chev${open ? ' fls-chev-up' : ''}`}>›</span>
-      </button>
-
-      {open && (
-        <div className="gen-ls-body">
-          {generalOpen.length === 0 ? (
-            <div className="gen-ls-empty">✅ {isEn ? 'All community incidents have been addressed.' : 'Todos los incidentes de la comunidad han sido atendidos.'}</div>
-          ) : (
-            <>
-              {canAct && (
-                <div className="gen-ls-admin-banner">
-                  🔔 {isEn
-                    ? `${generalOpen.length} general incident${generalOpen.length > 1 ? 's' : ''} need${generalOpen.length === 1 ? 's' : ''} admin review — assign to a unit so the owner is notified, or close directly.`
-                    : `${generalOpen.length} incidente${generalOpen.length > 1 ? 's' : ''} general${generalOpen.length > 1 ? 'es' : ''} requiere${generalOpen.length > 1 ? 'n' : ''} revisión — asigna a una unidad para notificar al propietario, o cierra directamente.`}
-                </div>
-              )}
-              <div className="gen-list" style={{marginTop:10}}>
-                {generalOpen.map(inc => (
-                  <div key={inc.id} className="gen-card">
-                    <div className="gen-card-header">
-                      <span className={`gen-card-status-dot ${inc.status === 'open' ? 'gen-dot-open' : 'gen-dot-wait'}`} />
-                      <span className="gen-card-type">{incidentTypeLabel(inc.type, lang)}</span>
-                      <span className="gen-card-cat">{categoryLabel(inc.category, lang)}</span>
-                      <span className="gen-card-date">📅 {fmtDate(inc.date)}</span>
-                      {(()=>{
-                        const now = new Date();
-                        const deadline = inc.nextSlaReminderAt ? new Date(inc.nextSlaReminderAt) : null;
-                        const hoursLeft = deadline ? Math.round((deadline - now) / 3600000) : null;
-                        if (inc.slaCycleCount > 0 && hoursLeft !== null && hoursLeft < 0) {
-                          return <span className="gen-card-sla gen-card-sla-breach">🔴 SLA {isEn?'overdue':'vencido'} ×{inc.slaCycleCount}</span>;
-                        }
-                        if (inc.slaCycleCount > 0) return <span className="gen-card-sla">⏱️ ×{inc.slaCycleCount}</span>;
-                        if (hoursLeft !== null && hoursLeft <= 4 && hoursLeft >= 0) return <span className="gen-card-sla gen-card-sla-urgent">🟠 {isEn?`${hoursLeft}h`:`${hoursLeft}h`}</span>;
-                        return null;
-                      })()}
-                      {onIncidentDetail && <button className="ir-detail-pill" onClick={() => onIncidentDetail(inc.id)}>{isEn ? 'Details' : 'Detalles'} ›</button>}
-                    </div>
-                    <p className="gen-card-desc">{inc.desc}</p>
-                    {inc.reporterName && <div className="gen-card-reporter">📋 {isEn ? 'Reported by' : 'Reportado por'}: {inc.reporterName}</div>}
-                    {Array.isArray(inc.photos) && inc.photos.length > 0 && (
-                      <div className="inc-photo-row">
-                        {inc.photos.slice(0, 3).map((p, i) => <img key={i} src={p.data} alt={p.name || `photo-${i+1}`} className="inc-photo-thumb" onClick={() => window.open(p.data, '_blank')} />)}
-                        {inc.photos.length > 3 && <span className="gen-card-reporter" style={{alignSelf:'center'}}>+{inc.photos.length - 3}</span>}
-                      </div>
-                    )}
-                    {canAct && (
-                      <div className="gen-card-acts">
-                        <button className="btn-p bsm" onClick={() => onAssign && onAssign(inc)}>🏠 {isEn ? 'Assign to unit' : 'Asignar a unidad'}</button>
-                        <button className="btn-ghost bsm" onClick={() => onCloseGeneral && onCloseGeneral(inc)}>✓ {isEn ? 'Close directly' : 'Cerrar directamente'}</button>
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
-
 
 function ListingsView({ listings, incidents, user, contactProps={}, isGlobalAdmin=false, canEditGlobal=false, canDeleteGlobal=false, canResolveGlobal=false, floorOpenState={}, onFloorToggle, onAdd, onEdit, onDelete, onReport, onVerify, onResolve, onAddResolution, onFloorFilter, onAssign, onCloseGeneral, onIncidentDetail, lang="es-CO" }) {
   const [search, setSearch]   = useState('');
@@ -2191,72 +2001,6 @@ function ListingsView({ listings, incidents, user, contactProps={}, isGlobalAdmi
             }
           </>
       }
-    </div>
-  );
-}
-
-function AptCard({ l, incCount, contactProps={}, canEdit=false, canDelete=false, onEdit, onDelete, onReport, showLogin, lang="es-CO" }) {
-  const isEn = lang==='en';
-  const hasOp = !!(l.operator || l.operatorEmail || l.operatorWhatsapp);
-  return (
-    <div className="acard">
-      {/* ── Header: apt number + tower + wave — hover reveals contact popup ── */}
-      <div className="acard-top apt-cpop-wrap">
-        <div>
-          <div className="ac-num">{appText(lang,"listing.apt")} {l.apt}</div>
-          {l.tower && <div className="ac-tower">{appText(lang,"listing.tower")} {l.tower}</div>}
-        </div>
-        <div className="ac-wave">🌊</div>
-        <AptContactPopup
-          ownerName={l.owner}
-          ownerEmail={l.userEmail||l.email}
-          ownerWaRaw={l.contact}
-          operatorName={l.operator}
-          operatorEmail={l.operatorEmail}
-          opWaRaw={l.operatorWhatsapp}
-          coOwners={l.coOwners||[]}
-        />
-      </div>
-
-      {/* ── Stats row ── */}
-      <div className="ac-stats">
-        <span className="chip c-teal">🛏️ {l.rooms} {appText(lang,"listing.roomsShort")}.</span>
-        <span className="chip c-blue">👥 {l.guests} {appText(lang,"listing.guests")}</span>
-      </div>
-
-      {/* ── Owner ── */}
-      <div className="ac-party">
-        <div className="ac-party-lbl">👤 {isEn?'Owner':'Propietario'}</div>
-        <UserContact name={l.owner} uid={l.ownerUid} email={l.userEmail||l.email} whatsapp={l.contact} apartments={l.apt?[aptDisplay(l.apt,lang)]:[]} {...contactProps}/>
-      </div>
-
-      {/* ── Operator (only if any operator info exists) ── */}
-      {hasOp && (
-        <div className="ac-party ac-party-op">
-          <div className="ac-party-lbl">🔧 {isEn?'Operator':'Operador'}</div>
-          {l.operator
-            ? <UserContact name={l.operator} email={l.operatorEmail} whatsapp={l.operatorWhatsapp} apartments={l.apt?[aptDisplay(l.apt,lang)]:[]} {...contactProps}/>
-            : <span className="ac-no-name">{isEn?'No name':'Sin nombre'}</span>}
-        </div>
-      )}
-
-      {/* ── Open incident count ── */}
-      <div className="acard-body">
-        <div className={`inc-b ${incCount>0?"ib-open":"ib-none"}`} onClick={onReport}>
-          {incCount>0
-            ?(incCount>1?appText(lang,"listings.openReportPlural",{count:incCount}):appText(lang,"listings.openReportSingular",{count:incCount}))
-            :appText(lang,"listings.noOpenReports")
-          }
-        </div>
-      </div>
-
-      {/* ── Actions ── */}
-      <div className="acard-foot">
-        <button className="bsm bs-rep" title={localizedTooltips({},lang).reportIncident} onClick={onReport}>{appText(lang,"reports.reportIncident")}</button>
-        {canEdit  && <button className="bsm bs-edit" onClick={onEdit}>{isEn?"✏️ Edit":"✏️ Editar"}</button>}
-        {canDelete && <button className="bsm bs-del"  onClick={onDelete}>🗑️</button>}
-        {showLogin && <span className="lock-tag">{isEn?"🔒 Sign in":"🔒 Inicia sesión"}</span>}
-      </div>
     </div>
   );
 }
