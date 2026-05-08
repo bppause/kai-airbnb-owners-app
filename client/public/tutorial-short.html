@@ -108,6 +108,7 @@ body.lang-en .en-text{display:revert}
           <span style="display:inline-block;width:13px;height:13px;border-radius:50%;background:#fff;color:#1a3c2a;font-size:.6rem;font-weight:900;display:inline-flex;align-items:center;justify-content:center">1</span>
           <span class="es-text">Toca los puntos</span><span class="en-text">Tap the dots</span>
         </span>
+        <button class="speed" id="muteBtn" onclick="setMute(!NAR.muted)" aria-label="Mute narration" title="Mute / unmute narration">🔊</button>
         <button class="speed" id="fsBtn" onclick="toggleFullscreen()" aria-label="Fullscreen" title="Fullscreen">⛶</button>
         <button class="lang-btn active" id="btnEs" onclick="setLang('es')">🇨🇴 ES</button>
         <button class="lang-btn" id="btnEn" onclick="setLang('en')">🇺🇸 EN</button>
@@ -357,6 +358,7 @@ function render(){
   if(hint) hint.style.display=(s.hotspots && s.hotspots.length)?'inline-flex':'none';
   fill.style.width=Math.min(100,(elapsed/total)*100)+'%';
   timeEl.textContent=`${fmt(elapsed)} / ${fmt(total)}`;
+  if(typeof narrateSlide === 'function') narrateSlide(SLIDES[idx], idx, false);
 }
 function tick(){
   if(!playing) return;
@@ -372,10 +374,96 @@ function goto(i){
   let acc=0; for(let k=0;k<idx;k++) acc+=SLIDES[k].sec;
   elapsed=acc; render();
 }
+/* ─── Narration: MP3 if present, else browser TTS ────────────────────── */
+const NAR = {
+  audio: new Audio(),
+  muted: (function(){ try { return localStorage.getItem('kai_tut_mute')==='1'; } catch(e){ return false; } })(),
+  voicesByLang: {es:null, en:null}
+};
+NAR.audio.preload = 'auto';
+const NARRATION_BASE = '/audio/short/';
+
+function pickVoices(){
+  if(!('speechSynthesis' in window)) return;
+  const all = speechSynthesis.getVoices();
+  if(!all.length) return;
+  const score = v => (
+    (/Google/i.test(v.name) ? 30 : 0) +
+    (/Microsoft/i.test(v.name) ? 20 : 0) +
+    (v.localService ? 5 : 0)
+  );
+  const pickFor = (langPrefix) => {
+    const cands = all.filter(v => (v.lang||'').toLowerCase().startsWith(langPrefix));
+    if(!cands.length) return null;
+    cands.sort((a,b)=> score(b) - score(a));
+    return cands[0];
+  };
+  NAR.voicesByLang.es = pickFor('es');
+  NAR.voicesByLang.en = pickFor('en');
+}
+if('speechSynthesis' in window){
+  speechSynthesis.addEventListener('voiceschanged', pickVoices);
+  pickVoices();
+}
+
+function stopNarration(){
+  try { NAR.audio.pause(); NAR.audio.currentTime = 0; } catch(e){}
+  try { if('speechSynthesis' in window) speechSynthesis.cancel(); } catch(e){}
+}
+
+function speakText(text, langCode){
+  if(!('speechSynthesis' in window) || !text) return;
+  try { speechSynthesis.cancel(); } catch(e){}
+  const u = new SpeechSynthesisUtterance(text);
+  u.lang = langCode==='en' ? 'en-US' : 'es-CO';
+  if(NAR.voicesByLang[langCode]) u.voice = NAR.voicesByLang[langCode];
+  u.rate = 1.02;
+  speechSynthesis.speak(u);
+}
+
+let lastNarratedIdx = -1;
+function narrateSlide(slide, slideIdx, force){
+  if(NAR.muted) { stopNarration(); return; }
+  if(!playing && !force) { stopNarration(); return; }
+  if(!force && slideIdx === lastNarratedIdx) return;
+  lastNarratedIdx = slideIdx;
+  const lang = document.body.classList.contains('lang-en') ? 'en' : 'es';
+  const num = String(slideIdx+1).padStart(2,'0');
+  const url = NARRATION_BASE + num + '-' + lang + '.mp3';
+  const text = (slide.voice ? slide.voice[lang] : null) || (slide.text ? slide.text[lang] : '') || '';
+  stopNarration();
+  NAR.audio.src = url;
+  const onCanPlay = () => {
+    NAR.audio.removeEventListener('canplay', onCanPlay);
+    NAR.audio.removeEventListener('error', onError);
+    if(NAR.muted || (!playing && !force)) return;
+    NAR.audio.play().catch(()=>{ speakText(text, lang); });
+  };
+  const onError = () => {
+    NAR.audio.removeEventListener('canplay', onCanPlay);
+    NAR.audio.removeEventListener('error', onError);
+    if(!NAR.muted && (playing || force)) speakText(text, lang);
+  };
+  NAR.audio.addEventListener('canplay', onCanPlay, { once:true });
+  NAR.audio.addEventListener('error', onError, { once:true });
+  try { NAR.audio.load(); } catch(e){ onError(); }
+}
+
+function setMute(m){
+  NAR.muted = !!m;
+  try { localStorage.setItem('kai_tut_mute', NAR.muted ? '1' : '0'); } catch(e){}
+  const btn = document.getElementById('muteBtn');
+  if(btn) btn.textContent = NAR.muted ? '🔇' : '🔊';
+  if(NAR.muted) stopNarration();
+  else if(playing) narrateSlide(SLIDES[idx], idx, true);
+}
+
 function play(){
   if(elapsed>=total){ elapsed=0; idx=0; }
   playing=!playing;
   playBtn.textContent=playing?'⏸':'▶';
+  if(playing) narrateSlide(SLIDES[idx], idx, true);
+  else stopNarration();
 }
 document.getElementById('play').onclick=play;
 document.getElementById('next').onclick=()=>{playing=false;playBtn.textContent='▶';goto(idx+1);};
@@ -399,10 +487,11 @@ function openPop(slideIdx, hotIdx){
   const cont=document.createElement('button');
   cont.className='ghost';
   cont.innerHTML=`<span class="es-text">Continuar tutorial</span><span class="en-text">Continue tutorial</span>`;
-  cont.onclick=()=>{ closePop(); if(wasPlayingBeforePop){ playing=true; playBtn.textContent='⏸'; } };
+  cont.onclick=()=>{ closePop(); if(wasPlayingBeforePop){ playing=true; playBtn.textContent='⏸'; narrateSlide(SLIDES[idx], idx, true); } };
   popActions.appendChild(cont);
   wasPlayingBeforePop=playing;
   playing=false; playBtn.textContent='▶';
+  stopNarration();
   popBackdrop.hidden=false;
 }
 function closePop(){ popBackdrop.hidden=true; }
@@ -425,6 +514,7 @@ function setLang(l){
   document.getElementById('btnEs').classList.toggle('active',l==='es');
   document.getElementById('btnEn').classList.toggle('active',l==='en');
   document.documentElement.lang=l==='en'?'en':'es';
+  if(playing) narrateSlide(SLIDES[idx], idx, true);
 }
 function toggleFullscreen(){
   const on = document.body.classList.toggle('fullscreen');
@@ -463,6 +553,8 @@ if(p.get('lang')==='en') setLang('en');
 })();
 
 playBtn.textContent='⏸';
+const _mb = document.getElementById('muteBtn');
+if(_mb) _mb.textContent = NAR.muted ? '🔇' : '🔊';
 setInterval(tick,250);
 render();
 </script>
