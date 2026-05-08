@@ -907,9 +907,26 @@ if('speechSynthesis' in window){
   pickVoices();
 }
 
-function stopNarration(){
-  try { NAR.audio.pause(); NAR.audio.currentTime = 0; } catch(e){}
+/* Audio is keyed by CHAPTER, not slide. The MP3 plays once when a chapter
+   begins and continues across the slides within that chapter. When the
+   user (or autoplay) crosses into a new chapter we load that chapter's
+   audio. If a chapter has no MP3 we fall back to per-slide TTS reading
+   each slide.text in turn. */
+NAR.activeChapter = -1;
+NAR.activeLang = null;
+NAR.activeMode = null; // 'mp3' | 'tts' | null
+
+function stopNarration(reset){
+  try {
+    if(reset !== false) NAR.audio.currentTime = 0;
+    NAR.audio.pause();
+  } catch(e){}
   try { if('speechSynthesis' in window) speechSynthesis.cancel(); } catch(e){}
+  if(reset !== false){
+    NAR.activeChapter = -1;
+    NAR.activeLang = null;
+    NAR.activeMode = null;
+  }
 }
 
 function speakText(text, langCode){
@@ -922,44 +939,80 @@ function speakText(text, langCode){
   speechSynthesis.speak(u);
 }
 
-let lastNarratedIdx = -1;
 function narrateSlide(slide, slideIdx, force){
   if(NAR.muted) { stopNarration(); return; }
   if(!playing && !force) { stopNarration(); return; }
-  if(!force && slideIdx === lastNarratedIdx) return;
-  lastNarratedIdx = slideIdx;
+  const ci = slide.ci;
   const lang = document.body.classList.contains('lang-en') ? 'en' : 'es';
-  const num = String(slideIdx+1).padStart(2,'0');
+
+  // Same chapter+lang already playing? Don't restart MP3; just keep going.
+  if(!force && NAR.activeChapter === ci && NAR.activeLang === lang){
+    if(NAR.activeMode === 'mp3' && !NAR.audio.ended){
+      // Audio still rolling — leave it alone.
+      return;
+    }
+    if(NAR.activeMode === 'tts'){
+      // No MP3 for this chapter — narrate this slide's text individually.
+      const txt = (slide.voice ? slide.voice[lang] : null) || (slide.text ? slide.text[lang] : '') || '';
+      speakText(txt, lang);
+      return;
+    }
+    // 'mp3' but already ended → fall through and silence the rest of the chapter.
+    return;
+  }
+
+  // Crossing into a new chapter (or forced restart). Try MP3.
+  stopNarration(true);
+  NAR.activeChapter = ci;
+  NAR.activeLang = lang;
+  NAR.activeMode = null;
+  const num = String(ci+1).padStart(2,'0');
   const url = NARRATION_BASE + num + '-' + lang + '.mp3';
-  const text = (slide.voice ? slide.voice[lang] : null) || (slide.text ? slide.text[lang] : '') || '';
-  stopNarration();
   NAR.audio.src = url;
-  // If MP3 loads, stretch the slide's display time to match audio duration so
-  // narration is never cut off. Falls back to original slide.sec for TTS.
-  const onMeta = () => {
+
+  const cleanup = () => {
+    NAR.audio.removeEventListener('canplay', onCanPlay);
+    NAR.audio.removeEventListener('error', onError);
     NAR.audio.removeEventListener('loadedmetadata', onMeta);
+  };
+  const onCanPlay = () => {
+    cleanup();
+    if(NAR.muted || (!playing && !force)) return;
+    if(NAR.activeChapter !== ci || NAR.activeLang !== lang) return; // user moved on
+    NAR.activeMode = 'mp3';
+    NAR.audio.play().catch(()=>{
+      NAR.activeMode = 'tts';
+      const txt = (slide.voice ? slide.voice[lang] : null) || (slide.text ? slide.text[lang] : '') || '';
+      speakText(txt, lang);
+    });
+  };
+  const onError = () => {
+    cleanup();
+    if(NAR.activeChapter !== ci || NAR.activeLang !== lang) return;
+    NAR.activeMode = 'tts';
+    if(!NAR.muted && (playing || force)){
+      const txt = (slide.voice ? slide.voice[lang] : null) || (slide.text ? slide.text[lang] : '') || '';
+      speakText(txt, lang);
+    }
+  };
+  // On metadata, stretch the LAST slide of this chapter to fit the audio so
+  // chapter narration always finishes before crossing into the next chapter.
+  const onMeta = () => {
     if(isFinite(NAR.audio.duration) && NAR.audio.duration > 0){
-      const needed = Math.ceil(NAR.audio.duration) + 1;
-      if(needed > slide.sec){
-        slide.sec = needed;
-        TOTAL = SLIDES.reduce((s,x)=>s+x.sec,0);
+      const chapterSlides = SLIDES.filter(s => s.ci === ci);
+      if(chapterSlides.length){
+        const have = chapterSlides.reduce((s,x)=>s+x.sec,0);
+        const needed = Math.ceil(NAR.audio.duration) + 1;
+        if(needed > have){
+          chapterSlides[chapterSlides.length - 1].sec += (needed - have);
+          TOTAL = SLIDES.reduce((s,x)=>s+x.sec,0);
+        }
       }
     }
   };
-  NAR.audio.addEventListener('loadedmetadata', onMeta, { once:true });
-  const onCanPlay = () => {
-    NAR.audio.removeEventListener('canplay', onCanPlay);
-    NAR.audio.removeEventListener('error', onError);
-    if(NAR.muted || (!playing && !force)) return;
-    NAR.audio.play().catch(()=>{ speakText(text, lang); });
-  };
-  const onError = () => {
-    NAR.audio.removeEventListener('canplay', onCanPlay);
-    NAR.audio.removeEventListener('error', onError);
-    if(!NAR.muted && (playing || force)) speakText(text, lang);
-  };
   NAR.audio.addEventListener('canplay', onCanPlay, { once:true });
   NAR.audio.addEventListener('error', onError, { once:true });
+  NAR.audio.addEventListener('loadedmetadata', onMeta, { once:true });
   try { NAR.audio.load(); } catch(e){ onError(); }
 }
 
@@ -976,8 +1029,17 @@ function play(){
   if(elapsed>=TOTAL){ elapsed=0; idx=0; }
   playing=!playing;
   playBtn.textContent=playing?'⏸':'▶';
-  if(playing) narrateSlide(SLIDES[idx], idx, true);
-  else stopNarration();
+  if(playing){
+    // Resume from paused position if still on the same chapter; else start fresh
+    if(NAR.activeMode === 'mp3' && NAR.audio.paused && !NAR.audio.ended
+        && NAR.activeChapter === SLIDES[idx].ci){
+      NAR.audio.play().catch(()=>{});
+    } else {
+      narrateSlide(SLIDES[idx], idx, true);
+    }
+  } else {
+    stopNarration(false); // pause without resetting position
+  }
 }
 function cycleSpeed(){
   const order=[1,1.25,1.5,2,.75];
@@ -1047,11 +1109,22 @@ function openPop(slideIdx, hotIdx){
   const cont=document.createElement('button');
   cont.className='ghost';
   cont.innerHTML=`<span class="es-text">Continuar tutorial</span><span class="en-text">Continue tutorial</span>`;
-  cont.onclick=()=>{ closePop(); if(wasPlayingBeforePop){ playing=true; playBtn.textContent='⏸'; narrateSlide(SLIDES[idx], idx, true); } };
+  cont.onclick=()=>{
+    closePop();
+    if(wasPlayingBeforePop){
+      playing=true; playBtn.textContent='⏸';
+      if(NAR.activeMode === 'mp3' && NAR.audio.paused && !NAR.audio.ended
+          && NAR.activeChapter === SLIDES[idx].ci){
+        NAR.audio.play().catch(()=>{});
+      } else {
+        narrateSlide(SLIDES[idx], idx, true);
+      }
+    }
+  };
   popActions.appendChild(cont);
   wasPlayingBeforePop=playing;
   playing=false; playBtn.textContent='▶';
-  stopNarration();
+  stopNarration(false); // pause; don't reset chapter position
   popBackdrop.hidden=false;
 }
 function closePop(){ popBackdrop.hidden=true; }
