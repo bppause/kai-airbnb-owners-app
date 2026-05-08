@@ -41,6 +41,13 @@ export const setCustomLabels = (cfg={}) => {
 
 export const getDefaultTower = () => _complexName.tower || 'KAI';
 
+// Resolve the current complex display name for either language. Auth/mission
+// views fall back to this when the per-render config doesn't provide one.
+export const getComplexName = (lang='es-CO') => {
+  const langKey = lang === 'en' ? 'en' : 'es';
+  return _complexName[langKey] || _complexName.es;
+};
+
 export const appText = (lang, key, vars={}) => {
   const langKey = lang === 'en' ? 'en' : 'es';
   // Custom admin override takes priority over built-in defaults
