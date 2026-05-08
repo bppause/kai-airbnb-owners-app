@@ -97,9 +97,11 @@ body.lang-en .en-text{display:revert}
 
   <div class="player" id="player" aria-label="Tutorial player">
     <div class="topbar">
-      <div class="brand"><div class="brand-mark">K</div>
-        <span class="es-text">KAI · Tutorial corto</span>
-        <span class="en-text">KAI · Short tutorial</span>
+      <div class="brand"><div class="brand-mark" id="brandMark">K</div>
+        <span id="brandText">
+          <span class="es-text">KAI · Tutorial corto</span>
+          <span class="en-text">KAI · Short tutorial</span>
+        </span>
       </div>
       <div class="toplinks">
         <span id="hotHint" style="font-size:.7rem;color:#1a3c2a;background:#d9b45a;border:1px solid #fff;padding:3px 9px 3px 7px;border-radius:99px;font-weight:800;display:none;align-items:center;gap:5px;box-shadow:0 3px 8px rgba(0,0,0,.4)">
@@ -437,6 +439,28 @@ document.addEventListener('fullscreenchange',()=>{
 
 const p=new URLSearchParams(location.search);
 if(p.get('lang')==='en') setLang('en');
+
+/* Replace the static "KAI" title with the community the user selected. */
+(function brandFromCommunity(){
+  let cid = p.get('community');
+  if(!cid){ try { cid = localStorage.getItem('kai_community') || ''; } catch(e){} }
+  if(!cid) return;
+  fetch('/api/communities/'+encodeURIComponent(cid)).then(r => r.ok ? r.json() : null).then(d => {
+    if(!d) return;
+    const nameEs = d.name || d.name_en || 'KAI';
+    const nameEn = d.name_en || d.name || 'KAI';
+    const txt = document.getElementById('brandText');
+    if(txt){
+      txt.replaceChildren();
+      const es=document.createElement('span'); es.className='es-text'; es.textContent=nameEs+' · Tutorial corto';
+      const en=document.createElement('span'); en.className='en-text'; en.textContent=nameEn+' · Short tutorial';
+      txt.append(es,en);
+    }
+    const mark = document.getElementById('brandMark');
+    if(mark){ mark.textContent = (nameEs.trim().charAt(0) || 'K').toUpperCase(); }
+    document.title = nameEs + ' · Tutorial corto / Short tutorial';
+  }).catch(()=>{});
+})();
 
 playBtn.textContent='⏸';
 setInterval(tick,250);
