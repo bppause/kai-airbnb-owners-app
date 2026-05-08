@@ -231,6 +231,62 @@ Refactor in place, no behavior change. Stages:
    i18n constants to JSON files.
 7. **Operator-portal as module #2** — first real test of the architecture.
 
+### 11a. Frontend extraction stages (F1-F35) — completed
+
+The client refactor split into 35 byte-identical extractions. App.jsx
+went from **9,488 → ~1,040 lines** (~89% reduction). Every extracted
+file has its own per-file header explaining what was lifted.
+
+| Stage | Target | New folder / file |
+|---|---|---|
+| F1 | i18n locale data + per-screen strings | `core/i18n/` |
+| F2 | Pure utilities (validation, SLA, image compression, floor color, HL) | `core/utils.js` |
+| F3 | API client (`fetchT`, `parseResponse`, `api`, community-id state) | `core/api.js` |
+| F4 | Firebase init + sign-in/out + admin-context fetch | `core/auth.js` |
+| F5 | `<AppStateProvider>` + `useApp()` hook | `core/app-state.jsx` |
+| F6 | `appText` / label override system + `_complexName` state | `core/i18n/app-text.js` (+ `app-strings.json`) |
+| F7 | `EmptyState` / `Empty` + first view (`GeneralIncidentsView`) | `core/ui/EmptyState.jsx` + `modules/incidents/views/` |
+| F8-F11 | Overlay + 4 incident modals + INCIDENT_TYPES/GUEST_CATEGORIES | `core/ui/Overlay.jsx`, `core/ui/Tip.jsx`, `modules/incidents/components/`, `modules/incidents/constants.js` |
+| F12 | `UnitPlate`, `UnitMiniCard` | `platform/units/components/` |
+| F13 | `UserContact` + brand icons + contact directory | `core/contacts.jsx`, `core/ui/Icons.jsx` |
+| F14-F16 | `IRow`, `WorkflowGroup`, `IncidentsView` | `modules/incidents/{components,views}/` |
+| F17 | `NotificationsView` (with co-located `localizeNotification` + `SMART_TONE_COLOR`) | `modules/notifications/views/` |
+| F18 | `OwnerDirectoryView` | `platform/users/views/` |
+| F19 | `AnalyticsDashboard` | `platform/analytics/views/` |
+| F20 | `AuditLogViewer` (with `AUDIT_ENTITIES`) | `platform/audit/views/` |
+| F21 | Registrations cluster (`PendingApprovalsView`, `RegistrationCard` + helpers) | `platform/registrations/{views,components}/` |
+| F22 | `ProfileView` (+ `OWNER_COUNTRIES` to `core/utils.js`) | `platform/users/views/` |
+| F23 | Auth gates cluster (`AuthGate`, `RegistrationGate`, `RegistrationListingForm`, mission), big CSS string, `LanguageSwitch`, `GoogleIcon` | `platform/auth/`, `core/styles.js`, `core/ui/`, `core/i18n/mission.js` |
+| F24 | `HelpView` + `UserTour` (+ `HELP_TOPICS` / `HELP_ACTIONS` data) | `platform/onboarding/` |
+| F25 | `SendUserEmailModal` | `platform/email/components/` |
+| F26 | Dashboard cluster (`Dashboard`, `DashboardFocus`, `DashboardGreeting`) + 4 dead components dropped | `platform/dashboard/{views,components}/` |
+| F27 | `CommunitySwitch` | `core/ui/` |
+| F28 | `AptContactPopup`, `AptDoor` (with `aptDoorStatus`) + 2 dead components dropped | `platform/units/components/` |
+| F29 | 3 dead listings mid-tier components dropped | — |
+| F30 | `UnitDetailCard` (~430 lines) + `BuildingFloor` | `platform/units/components/` |
+| F31 | `ListingsView`, `MyListings` | `platform/units/views/` |
+| F32 | `ListingModal` (with `EMPTY_CO_OWNER`) | `platform/units/components/` |
+| F33 | Admin shells (`AdminSection`, `NavConfigEditor`, `CommunityCrudModal`, `AdminFallback`, `AdminAccessHelp`) | `platform/admin/{views,components}/` |
+| F34 | `AdminSettings` (~1,915 lines, single-file lift) + permission constants | `platform/admin/views/`, `core/permissions.js` |
+| F35 | Final cleanup: prune unused imports, strip orphan comments, regroup imports by area | App.jsx |
+
+**Total dead code removed across the refactor:** 9 components
+(~400 lines) — `ActionStrip`, `ActionNeededBanner`, `RoleOutcomeGuide`,
+`BetaCommandCenter`, `FloorSection`, `AptRow`, `AptCard`,
+`AptDetailPanel`, `GeneralListingsSection` — all defined but never
+referenced.
+
+**Final App.jsx contains:**
+- imports of all extracted views/components/core modules (grouped by
+  area, alphabetized)
+- global `window.error` / `unhandledrejection` logging handlers
+- `BUILD_TIME` constant injected by Vite
+- `<ErrorBoundary>` class wrapper used around `<AdminSettings>`
+- `<App/>` default export with state, effects, role/permission
+  resolution, action handlers, and the view-dispatch JSX wrapped in
+  `<AppStateProvider>` so extracted views read shared state via
+  `useApp()`.
+
 ## 12. Decisions locked, tradeoffs noted
 
 - **`/api/m/<module>/...` URL prefix** — agreed. Old `/api/<resource>` paths get one-release aliases.

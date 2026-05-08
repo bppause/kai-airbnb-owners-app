@@ -15,7 +15,7 @@
 
 import React, { useState } from "react";
 import { useApp } from "../../../core/app-state";
-import EmptyState from "../../../core/ui/EmptyState";
+import { EmptyState } from "../../../core/ui/EmptyState";
 
 export default function OwnerDirectoryView({ listings }) {
   const { lang } = useApp();

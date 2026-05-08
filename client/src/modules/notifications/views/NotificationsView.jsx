@@ -19,7 +19,7 @@
 import React, { useState, useEffect } from "react";
 import { useApp } from "../../../core/app-state";
 import { appText, aptDisplay } from "../../../core/i18n/app-text";
-import EmptyState from "../../../core/ui/EmptyState";
+import { EmptyState } from "../../../core/ui/EmptyState";
 
 const SMART_TONE_COLOR = { owner:'#c49a14', resolve:'#d96c1a', registration:'#2f6fbf', notice:'#6b44b8', serious:'#c0281e' };
 

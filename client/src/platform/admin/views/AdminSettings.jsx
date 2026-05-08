@@ -26,11 +26,12 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { useApp } from "../../../core/app-state";
 import { api } from "../../../core/api";
-import { appText, localizedTooltips, DEFAULT_TOOLTIPS } from "../../../core/i18n/app-text";
+import { APP_I18N, appText, localizedTooltips, DEFAULT_TOOLTIPS } from "../../../core/i18n/app-text";
 import { lt, ui } from "../../../core/i18n";
 import { parseMissionSections, normalizeMissionSections, MISSION_EN_DEFAULTS } from "../../../core/i18n/mission";
 import { parseJsonObject } from "../../../core/utils";
 import { Empty } from "../../../core/ui/EmptyState";
+import { copyText, lookupContact } from "../../../core/contacts";
 import {
   DEFAULT_STANDARD_MENU_PERMISSIONS,
   DEFAULT_DELEGATE_PERMISSIONS,

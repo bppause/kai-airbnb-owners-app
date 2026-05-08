@@ -1,306 +1,93 @@
-import React, { useState, useEffect, useRef, useCallback, Component } from "react";
+// App.jsx — root component for the KAI Airbnb Owners App.
+//
+// After the F1-F35 refactor this file contains only:
+//   - imports of all extracted views / components / core modules
+//   - the global error logging handlers (window.error, unhandledrejection)
+//   - the BUILD_TIME constant injected by Vite at build time
+//   - <ErrorBoundary> — class wrapper used around the AdminSettings tab
+//   - <App/> — default export with state, effects, role/permission
+//     resolution, action handlers, and the view-dispatch JSX (wrapped
+//     in <AppStateProvider> so extracted views read shared state via
+//     useApp()).
+//
+// Every extracted file lives under client/src/{core,modules,platform}/
+// and has its own per-file header explaining what was lifted and why.
+// See docs/PLATFORM_ARCHITECTURE.md §11 for the full extraction history
+// (frontend stages F1-F35).
+
+import { Component, useCallback, useEffect, useRef, useState } from "react";
+
 import { APP_VERSION } from "./version.js";
 
-// ─── i18n (extracted in stage F1) ────────────────────────────────────────────
-// Locale data lives in core/i18n/{es-CO,en}.json. Per-module strings (incident
-// templates) live alongside their module. See docs/PLATFORM_ARCHITECTURE.md §11.
-import { getT, ui, lt, ltf } from "./core/i18n";
-import INCIDENT_TEMPLATES from "./modules/incidents/i18n/templates.json";
-
-// ─── Pure utilities (extracted in stage F2) ──────────────────────────────────
-// Phone/email validation, SLA computation, image compression, owner-guest
-// normalization, floor color/number, the bilingual HL helper. See
-// docs/PLATFORM_ARCHITECTURE.md §11 frontend stage F2.
+// ── Core (cross-cutting platform) ────────────────────────────────────────────
+import { api, getCommunityId, setCommunityId } from "./core/api";
+import { AppStateProvider } from "./core/app-state";
 import {
-  applyDialCode, normalizePhoneForWhatsApp, validateWhatsApp, validateEmail,
-  parseJsonObject, slaResInfo, compressImage, HL,
-  floorColor, getFloorNum,
-  normalizeOwnerGuests, guestFullName, guestLocation,
-  fmtDate, fmtDateTime, today,
-} from "./core/utils";
-
-// ─── UI primitives + first extracted view (stage F7) ─────────────────────────
-// EmptyState/Empty are shared placeholders. GeneralIncidentsView is the first
-// real view extraction — consumes shared state via useApp() and now requires
-// only its action callbacks + presentation flag from the call site.
-// See docs/PLATFORM_ARCHITECTURE.md §11 frontend stage F7.
-import { EmptyState, Empty } from "./core/ui/EmptyState";
-import GeneralIncidentsView from "./modules/incidents/views/GeneralIncidentsView";
-
-// ─── Stage F8 extractions: Overlay + first incident modal ────────────────────
-// Overlay is the shared modal backdrop used by every dialog in the app.
-// AddResolutionModal pulls `lang` via useApp(); other props (incident,
-// onSave, onClose) stay because they're per-instance.
-// See docs/PLATFORM_ARCHITECTURE.md §11 frontend stage F8.
-import Overlay from "./core/ui/Overlay";
-import AddResolutionModal from "./modules/incidents/components/AddResolutionModal";
-
-// ─── Stage F9 extractions: UnitPicker (platform) + AssignToUnitModal ─────────
-// UnitPicker is a platform-level component — units are shared across modules
-// (incidents, registrations, future operator portal). AssignToUnitModal pulls
-// `lang` via useApp(); other props stay per-instance.
-// See docs/PLATFORM_ARCHITECTURE.md §11 frontend stage F9.
-import UnitPicker from "./platform/units/components/UnitPicker";
-import AssignToUnitModal from "./modules/incidents/components/AssignToUnitModal";
-
-// ─── Stage F10 extractions: Tip + tooltip system + 2 incident modals ─────────
-// Tip is a generic UI primitive (ⓘ marker → fixed-position bubble).
-// DEFAULT_TOOLTIPS + localizedTooltips moved to core/i18n/app-text.js.
-// COUNTRIES (form reference data) moved to core/utils.js. CloseGeneralModal
-// + VerifyIncidentModal pull `lang` via useApp(); other props stay per-instance.
-// See docs/PLATFORM_ARCHITECTURE.md §11 frontend stage F10.
-import Tip from "./core/ui/Tip";
-import { COUNTRIES, OWNER_COUNTRIES } from "./core/utils";
-import { DEFAULT_TOOLTIPS, localizedTooltips } from "./core/i18n/app-text";
-import CloseGeneralModal from "./modules/incidents/components/CloseGeneralModal";
-import VerifyIncidentModal from "./modules/incidents/components/VerifyIncidentModal";
-
-// ─── Stage F11 extractions: incident reference data + IncidentModal ──────────
-// INCIDENT_TYPES + GUEST_CATEGORIES move to incidents/constants.js (incident-
-// specific reference data). IncidentModal — the new-incident form — pulls
-// `lang` via useApp(); listings/user/presetApt/onSave/onClose/config stay
-// per-instance. See docs/PLATFORM_ARCHITECTURE.md §11 frontend stage F11.
-import { INCIDENT_TYPES, GUEST_CATEGORIES } from "./modules/incidents/constants";
-import IncidentModal from "./modules/incidents/components/IncidentModal";
-
-// ─── Stage F12 extractions: unit plate + mini card (platform) ────────────────
-// Small platform-units components: the apartment-number plate badge and the
-// compact unit summary card (unit + owner + contact links). Both consumed
-// across modules — IRow uses UnitMiniCard, listing/dashboard widgets use
-// UnitPlate. See docs/PLATFORM_ARCHITECTURE.md §11 frontend stage F12.
-import UnitPlate from "./platform/units/components/UnitPlate";
-import UnitMiniCard from "./platform/units/components/UnitMiniCard";
-
-// ─── Stage F13 extractions: contact directory + UserContact + brand icons ────
-// IconEmail/IconWhatsApp are reusable brand SVGs. The copyText / build- /
-// lookupContact helpers and the UserContact hover-card component all live in
-// core/contacts.jsx — module-internal imports keep the cluster cohesive.
-// See docs/PLATFORM_ARCHITECTURE.md §11 frontend stage F13.
-import { IconEmail, IconWhatsApp } from "./core/ui/Icons";
-import UserContact, { copyText, buildContactDirectory, lookupContact } from "./core/contacts";
-
-// ─── Stage F14 extraction: IRow (single incident row) ────────────────────────
-// 181-line component used by IncidentsView, MyListings dashboard cards, and
-// the dashboard recent-reports feed. Pulls user + lang via useApp(); other
-// props (incident-specific data + permission flags + action callbacks) stay
-// per-instance. See docs/PLATFORM_ARCHITECTURE.md §11 frontend stage F14.
-import IRow from "./modules/incidents/components/IRow";
-
-// ─── Stage F15 extraction: WorkflowGroup ─────────────────────────────────────
-// Collapsible status section that wraps a list of IRows. Pulls user + lang
-// via useApp() (and derives isEn internally — both `lang` and `isEn` were
-// previously redundant props). Other props stay per-instance.
-// See docs/PLATFORM_ARCHITECTURE.md §11 frontend stage F15.
-import WorkflowGroup from "./modules/incidents/components/WorkflowGroup";
-
-// IncidentsView (extracted in stage F16) — top-level /incidents tab.
-// Owns Unit/General tab switcher, all filtering UI (status/category/scope/
-// search/date/floor), wfg group expand state, and the WorkflowGroup list.
-// Pulls user + lang via useApp(); other props stay per-instance.
-// See docs/PLATFORM_ARCHITECTURE.md §11 frontend stage F16.
-import IncidentsView from "./modules/incidents/views/IncidentsView";
-
-// NotificationsView (extracted in stage F17) — top-level /notifications tab.
-// Renders the priority-actions banner (smartAlerts) and the grouped alert
-// history. Co-located helpers `localizeNotification` (ES→EN string mapping)
-// and `SMART_TONE_COLOR` (tone → bg color) moved into the module since
-// they were only referenced here. Pulls lang via useApp().
-// See docs/PLATFORM_ARCHITECTURE.md §11 frontend stage F17.
-import NotificationsView from "./modules/notifications/views/NotificationsView";
-
-// OwnerDirectoryView (extracted in stage F18) — searchable list of owners
-// + co-owners across all listings (used by the Listings directory tab).
-// Pulls lang via useApp(); listings stays as a per-instance prop.
-// Opens platform/users/ for future user-directory views.
-// See docs/PLATFORM_ARCHITECTURE.md §11 frontend stage F18.
-import OwnerDirectoryView from "./platform/users/views/OwnerDirectoryView";
-
-// AnalyticsDashboard (extracted in stage F19) — admin/owner analytics view
-// (KPIs, breach table, rankings) backed by /api/analytics with preset or
-// custom date windows. Pulls lang via useApp().
-// Opens platform/analytics/ for future analytics views.
-// See docs/PLATFORM_ARCHITECTURE.md §11 frontend stage F19.
-import AnalyticsDashboard from "./platform/analytics/views/AnalyticsDashboard";
-
-// AuditLogViewer (extracted in stage F20) — admin view of /api/admin/
-// audit-logs with entity/actor/date filters and pagination. Pulls user
-// + lang via useApp() (isEn derived internally — both `lang` and `isEn`
-// were previously redundant props). AUDIT_ENTITIES moved with it since
-// it was only referenced there.
-// See docs/PLATFORM_ARCHITECTURE.md §11 frontend stage F20.
-import AuditLogViewer from "./platform/audit/views/AuditLogViewer";
-
-// PendingApprovalsView (extracted in stage F21) — top-level /approvals tab
-// for admins to review pending registration requests with filters and
-// approve/decline actions. Co-located components RegistrationCard +
-// ListingDetailsBlock + registrationStatusLabel helper live in the same
-// module. Pulls lang via useApp().
-// See docs/PLATFORM_ARCHITECTURE.md §11 frontend stage F21.
-import PendingApprovalsView from "./platform/registrations/views/PendingApprovalsView";
-
-// ProfileView (extracted in stage F22) — top-level /profile tab. Three
-// editable sections (contact WhatsApp, optional notification email,
-// communities switcher) plus a reputation/trust-score panel. OWNER_-
-// COUNTRIES (still used by RegistrationListingForm in App.jsx) was
-// also moved into core/utils.js. Pulls lang via useApp().
-// See docs/PLATFORM_ARCHITECTURE.md §11 frontend stage F22.
-import ProfileView from "./platform/users/views/ProfileView";
-
-// Auth gates + mission cluster (extracted in stage F23) — full-page sign-in
-// gate, registration gate, mission view, and the embedded multi-listing
-// registration form. Pulls lang via useApp() in each. Mission helpers
-// + defaults (still used by AdminSettings) moved to core/i18n/mission.js.
-// LanguageSwitch + GoogleIcon (used here and in main app shell) moved to
-// core/ui/. Big CSS string moved to core/styles.js.
-// See docs/PLATFORM_ARCHITECTURE.md §11 frontend stage F23.
-import AuthGate from "./platform/auth/views/AuthGate";
-import RegistrationGate from "./platform/auth/views/RegistrationGate";
-import CommunityMissionView from "./platform/auth/views/CommunityMissionView";
-import { parseMissionSections, MISSION_EN_DEFAULTS } from "./core/i18n/mission";
-import LanguageSwitch from "./core/ui/LanguageSwitch";
-import GoogleIcon from "./core/ui/GoogleIcon";
+  auth, fetchAdminContext, firebaseReady,
+  onAuthChanged, provider, signInWithGoogle, signOutUser,
+} from "./core/auth";
+import { buildContactDirectory } from "./core/contacts";
+import { getT } from "./core/i18n";
+import { appText, aptDisplay, setCustomLabels } from "./core/i18n/app-text";
+import {
+  DEFAULT_DELEGATE_PERMISSIONS,
+  DEFAULT_STANDARD_MENU_PERMISSIONS,
+} from "./core/permissions";
 import { CSS } from "./core/styles";
 
-// Onboarding views (extracted in stage F24) — bilingual /help directory
-// (with role-aware topics) and the 7-step interactive UserTour modal.
-// HELP_TOPICS + HELP_ACTIONS data co-located in help-content.js. Both
-// pull lang via useApp().
-// See docs/PLATFORM_ARCHITECTURE.md §11 frontend stage F24.
+// ── Core UI primitives ───────────────────────────────────────────────────────
+import CommunitySwitch from "./core/ui/CommunitySwitch";
+import GoogleIcon from "./core/ui/GoogleIcon";
+import LanguageSwitch from "./core/ui/LanguageSwitch";
+import Overlay from "./core/ui/Overlay";
+
+// ── Module: incidents ────────────────────────────────────────────────────────
+import AddResolutionModal from "./modules/incidents/components/AddResolutionModal";
+import AssignToUnitModal from "./modules/incidents/components/AssignToUnitModal";
+import CloseGeneralModal from "./modules/incidents/components/CloseGeneralModal";
+import IncidentModal from "./modules/incidents/components/IncidentModal";
+import VerifyIncidentModal from "./modules/incidents/components/VerifyIncidentModal";
+import IncidentsView from "./modules/incidents/views/IncidentsView";
+
+// ── Module: notifications ────────────────────────────────────────────────────
+import NotificationsView from "./modules/notifications/views/NotificationsView";
+
+// ── Platform: admin ──────────────────────────────────────────────────────────
+import AdminAccessHelp from "./platform/admin/views/AdminAccessHelp";
+import AdminFallback from "./platform/admin/views/AdminFallback";
+import AdminSettings from "./platform/admin/views/AdminSettings";
+
+// ── Platform: analytics ──────────────────────────────────────────────────────
+import AnalyticsDashboard from "./platform/analytics/views/AnalyticsDashboard";
+
+// ── Platform: auth gates ─────────────────────────────────────────────────────
+import AuthGate from "./platform/auth/views/AuthGate";
+import CommunityMissionView from "./platform/auth/views/CommunityMissionView";
+import RegistrationGate from "./platform/auth/views/RegistrationGate";
+
+// ── Platform: dashboard ──────────────────────────────────────────────────────
+import DashboardGreeting from "./platform/dashboard/components/DashboardGreeting";
+import Dashboard from "./platform/dashboard/views/Dashboard";
+
+// ── Platform: email ──────────────────────────────────────────────────────────
+import SendUserEmailModal from "./platform/email/components/SendUserEmailModal";
+
+// ── Platform: onboarding ─────────────────────────────────────────────────────
 import HelpView from "./platform/onboarding/views/HelpView";
 import UserTour from "./platform/onboarding/views/UserTour";
 
-// SendUserEmailModal (extracted in stage F25) — admin-triggered "send
-// email to user" modal. Pulls lang via useApp(). Opens platform/email/
-// as the client-side peer of server/platform/email/.
-// See docs/PLATFORM_ARCHITECTURE.md §11 frontend stage F25.
-import SendUserEmailModal from "./platform/email/components/SendUserEmailModal";
+// ── Platform: registrations ──────────────────────────────────────────────────
+import PendingApprovalsView from "./platform/registrations/views/PendingApprovalsView";
 
-// Dashboard cluster (extracted in stage F26) — top-level /dashboard view +
-// the role-aware Focus card and the personalized Greeting card (also
-// shown at the top of /my). Pulls lang via useApp() in each.
-//
-// Four sibling components were dropped during this stage as dead code
-// (ActionStrip, ActionNeededBanner, RoleOutcomeGuide, BetaCommandCenter)
-// — none had a JSX call site after F1-F25's view extractions.
-//
-// See docs/PLATFORM_ARCHITECTURE.md §11 frontend stage F26.
-import Dashboard from "./platform/dashboard/views/Dashboard";
-import DashboardGreeting from "./platform/dashboard/components/DashboardGreeting";
-
-// CommunitySwitch (extracted in stage F27) — header dropdown for users in
-// more than one community. Pulls lang via useApp(). Joins LanguageSwitch
-// + GoogleIcon (moved in F23) so all three tiny shared shells live in
-// core/ui/.
-// See docs/PLATFORM_ARCHITECTURE.md §11 frontend stage F27.
-import CommunitySwitch from "./core/ui/CommunitySwitch";
-
-// Listings leaf components (extracted in stage F28) — small reusable
-// pieces used by the still-inline listings views (UnitDetailCard,
-// BuildingFloor, ListingsView, etc.). Both pull lang via useApp();
-// other props (l, incidents, callbacks) stay per-instance.
-//
-//   AptContactPopup  — hover card with owner/operator/co-owner contacts
-//   AptDoor          — building-view "door" card (incl. aptDoorStatus
-//                      helper, co-located)
-//
-// Two sibling components were dropped during this stage as dead code
-// (FloorSection, AptRow) — neither had a JSX call site after F1-F27's
-// view extractions. Mirrors the F26 cleanup pattern.
-//
-// See docs/PLATFORM_ARCHITECTURE.md §11 frontend stage F28.
-import AptContactPopup from "./platform/units/components/AptContactPopup";
-import AptDoor from "./platform/units/components/AptDoor";
-
-// Listings mid-tier (extracted in stage F30) — both pull lang via useApp().
-//   UnitDetailCard — 3-step in-overlay navigator (Unit info → Incident
-//                    list → Incident detail). Used at 4 call sites:
-//                    global unit detail overlay, incident detail overlay,
-//                    MyListings expanded row, and inside BuildingFloor.
-//   BuildingFloor  — collapsible per-floor section in ListingsView's
-//                    building mode; renders the AptDoor grid + its own
-//                    UnitDetailCard overlay.
-// See docs/PLATFORM_ARCHITECTURE.md §11 frontend stage F30.
+// ── Platform: units (listings) ───────────────────────────────────────────────
+import ListingModal from "./platform/units/components/ListingModal";
 import UnitDetailCard from "./platform/units/components/UnitDetailCard";
-import BuildingFloor from "./platform/units/components/BuildingFloor";
-
-// Listings top-level views (extracted in stage F31). Both pull lang via
-// useApp(); other props (listings, incidents, user, contactProps, perm
-// flags, callbacks) stay per-instance.
-//   ListingsView — /listings tab (toolbar + building/directory modes)
-//   MyListings   — /my tab body (workflow stat filters + per-unit
-//                  expand to UnitDetailCard)
-// See docs/PLATFORM_ARCHITECTURE.md §11 frontend stage F31.
+import UnitPlate from "./platform/units/components/UnitPlate";
 import ListingsView from "./platform/units/views/ListingsView";
 import MyListings from "./platform/units/views/MyListings";
 
-// ListingModal (extracted in stage F32) — add/edit unit modal. Pulls
-// lang via useApp(); title, user, initial, onSave, onClose, config
-// stay per-instance. EMPTY_CO_OWNER blank-shape co-located inside the
-// module since it was only referenced there.
-// See docs/PLATFORM_ARCHITECTURE.md §11 frontend stage F32.
-import ListingModal from "./platform/units/components/ListingModal";
-
-// Admin shells (extracted in stage F33). All pull lang via useApp().
-//   AdminSection      — collapsible card wrapper (used dozens of times
-//                       inside AdminSettings)
-//   NavConfigEditor   — per-role nav_config editor (with NAV_CONFIG_-
-//                       ITEMS, NAV_ROLES, DEFAULT_NAV_CONFIG co-located)
-//   CommunityCrudModal — create/edit a community (with logo + bg image
-//                       upload)
-//   AdminFallback     — error-boundary fallback for the /admin tab
-//   AdminAccessHelp   — shown when current user isn't a global admin
-// See docs/PLATFORM_ARCHITECTURE.md §11 frontend stage F33.
-import AdminSection from "./platform/admin/components/AdminSection";
-import NavConfigEditor from "./platform/admin/components/NavConfigEditor";
-import CommunityCrudModal from "./platform/admin/components/CommunityCrudModal";
-import AdminFallback from "./platform/admin/views/AdminFallback";
-import AdminAccessHelp from "./platform/admin/views/AdminAccessHelp";
-
-// AdminSettings (extracted in stage F34) — the giant ~1,900-line /admin
-// view. Moved as a single byte-identical lift; pulls lang via useApp().
-// Permission constants needed by App.jsx role resolution moved to
-// core/permissions.js so both files can import from there.
-// See docs/PLATFORM_ARCHITECTURE.md §11 frontend stage F34.
-import AdminSettings from "./platform/admin/views/AdminSettings";
-import {
-  DEFAULT_STANDARD_MENU_PERMISSIONS,
-  DEFAULT_DELEGATE_PERMISSIONS,
-} from "./core/permissions";
-
-// ─── API client (extracted in stage F3) ──────────────────────────────────────
-// All fetch calls flow through this module so the X-Community-Id header is
-// always set, errors are normalized, and Render cold-start timeouts are
-// handled. The active community id is held inside core/api.js and managed
-// via getCommunityId/setCommunityId. See docs/PLATFORM_ARCHITECTURE.md §11
-// frontend stage F3.
-import { api, checkApartmentUnique, getCommunityId, setCommunityId } from "./core/api";
-
-// ─── Firebase auth + admin context (extracted in stage F4) ───────────────────
-// Firebase init, sign-in/out wrappers, and the GET /api/admin/me resolver
-// live in core/auth.js. App.jsx no longer imports from firebase/* directly.
-// See docs/PLATFORM_ARCHITECTURE.md §11 frontend stage F4.
-import {
-  firebaseReady, auth,
-  signInWithGoogle, signOutUser, onAuthChanged,
-  fetchAdminContext,
-} from "./core/auth";
-
-// ─── Shared app state (extracted in stage F5) ────────────────────────────────
-// Provider + useApp() hook so future extracted views can read App's state
-// without prop-drilling. Plumbing only in F5; App.jsx still uses local
-// closures. See docs/PLATFORM_ARCHITECTURE.md §11 frontend stage F5.
-import { AppStateProvider } from "./core/app-state";
-
-// ─── App text / labels (extracted in stage F6) ───────────────────────────────
-// 307-entry APP_I18N data + the module-scope label/community-name state
-// (_customLabels, _complexName) live in core/i18n/app-text.js. App.jsx still
-// owns the call sites; setCustomLabels(...) is invoked when admin config
-// arrives. See docs/PLATFORM_ARCHITECTURE.md §11 frontend stage F6.
-import {
-  APP_I18N,
-  setCustomLabels, getDefaultTower,
-  appText, aptDisplay, incidentTypeLabel, categoryLabel,
-} from "./core/i18n/app-text";
+// ── Platform: users ──────────────────────────────────────────────────────────
+import ProfileView from "./platform/users/views/ProfileView";
 
 
 // Global client logging: prevents silent blank screens and records the last runtime issue.
@@ -318,25 +105,6 @@ window.addEventListener("unhandledrejection", (event) => {
   try { fetch("/api/client-log", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(payload) }).catch(()=>{}); } catch(e) {}
 });
 
-
-
-
-// v39 lightweight global i18n helper. Spanish (Colombia) remains the source language.
-
-
-
-
-// v41 full-screen i18n labels. Spanish (Colombia) remains default/source.
-
-
-
-// Module-level custom label overrides — populated from adminInfo.config on load
-
-
-// Strip everything except digits. Requires ≥10 digits (country code + subscriber)
-// to produce a usable wa.me link; returns '' for short/missing numbers.
-
-
 // Build timestamp injected by Vite at build time via vite.config.js define.__BUILD_TIME__
 // Falls back gracefully if the constant isn't defined (e.g. older builds or test envs).
 const BUILD_TIME = (() => {
@@ -351,15 +119,6 @@ const BUILD_TIME = (() => {
     });
   } catch(e) { return ''; }
 })();
-
-
-// ─── PHOTO COMPRESSION — client-side, Canvas API ─────────────────────────────
-// Resize to ≤900px, JPEG quality 0.65. Falls back to 0.38 if > 500 KB.
-// Target: ≤400 KB per photo so 3 photos ≤ 1.2 MB base64 — safely under server 15 MB limit.
-// Rejects if file > 10MB or not an image. Returns { data, name, size } where
-// data is a data:image/jpeg;base64,… URI and size is compressed bytes.
-
-
 
 class ErrorBoundary extends Component {
   constructor(props){ super(props); this.state={hasError:false, message:'', stack:'', componentStack:''}; }
@@ -1007,12 +766,9 @@ export default function App() {
     </div>
   );
 
-  if (!user) return <AuthGate onLogin={login} setLang={setLang} complexLogo={complexLogo} complexNameEs={complexNameEs} complexNameEn={complexNameEn} complexLocation={complexLocation} complexBg={complexBg} onCommunitySelect={handleLoginCommunitySelect} />;
-  if (!isApproved) return <RegistrationGate user={user} registration={registration} onSubmit={submitRegistration} onLogout={logout} syncing={syncing} toast={toast} setLang={setLang} complexLogo={complexLogo} complexName={complexName} complexLocation={complexLocation} complexBg={complexBg} />;
-
   // ─── Shared state exposed via Context (stage F5) ───────────────────────────
-  // No consumers in App.jsx yet — the provider below is plumbing for future
-  // extracted views (F6+) that will call useApp().
+  // Built before the early gate returns below so AuthGate / RegistrationGate
+  // (which call useApp() internally) can read lang from the Provider.
   const appState = {
     // Auth + user
     user, lang, t, authLoading,
@@ -1055,6 +811,9 @@ export default function App() {
     loadReputation, loadCommunityGoals,
     openIncidentDetail, toggleListingFloor,
   };
+
+  if (!user) return <AppStateProvider value={appState}><AuthGate onLogin={login} setLang={setLang} complexLogo={complexLogo} complexNameEs={complexNameEs} complexNameEn={complexNameEn} complexLocation={complexLocation} complexBg={complexBg} onCommunitySelect={handleLoginCommunitySelect} /></AppStateProvider>;
+  if (!isApproved) return <AppStateProvider value={appState}><RegistrationGate user={user} registration={registration} onSubmit={submitRegistration} onLogout={logout} syncing={syncing} toast={toast} setLang={setLang} complexLogo={complexLogo} complexName={complexName} complexLocation={complexLocation} complexBg={complexBg} /></AppStateProvider>;
 
   return (
     <AppStateProvider value={appState}>
@@ -1277,32 +1036,3 @@ export default function App() {
     </AppStateProvider>
   );
 }
-
-
-
-
-
-
-
-// Compact unit card shown next to incident rows — hover reveals owner/operator contact links
-// ── UnitPlate — universal dark plate showing unit number + complex name ──────
-// Use for ALL unit number displays across the app for visual consistency.
-// Pass onClick to make it clickable (opens unit detail popup).
-
-
-// LoginModal replaced by Firebase signInWithPopup — no modal needed
-
-// ─── UNIT PICKER ──────────────────────────────────────────────────────────────
-// Searchable, floor-grouped unit selector. Replaces <select> for 100+ units.
-
-
-
-
-
-
-
-// ─── ASSIGN GENERAL INCIDENT TO UNIT ─────────────────────────────────────────
-
-// ─── CLOSE GENERAL INCIDENT (admin direct close) ──────────────────────────────
-
-
