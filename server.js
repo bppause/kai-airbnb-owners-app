@@ -3,6 +3,22 @@ const cors = require('cors');
 const path = require('path');
 const fs = require('fs');
 const { log, warn, error } = require('./logger');
+
+// ─── CORE HELPERS (extracted in stage 4a) ────────────────────────────────────
+// Pure utilities and DB converters live in server/core/. Modules destructure
+// these names from deps; server.js re-binds them at module scope here.
+const {
+  safeJsonObject, normalizeRole, normalizeRecipients,
+  escapeHtml, publicAppUrl, normalizeLanguage, addHoursIso, normalizeApt,
+  isThreeDigitApt, isValidEmail, isValidOptionalUrl,
+  parseCoOwners, validateListingInput,
+} = require('./server/core/utils');
+const {
+  listingFromDb, listingToDb,
+  incidentFromDb, incidentToDb,
+  notificationFromDb, notificationToDb,
+  registrationFromListingRows,
+} = require('./server/core/db-converters');
 const { v4: uuidv4 } = require('uuid');
 const { createClient } = require('@supabase/supabase-js');
 const ws = require('ws');
@@ -85,12 +101,6 @@ const DEFAULT_STANDARD_MENU_PERMISSIONS = {
   my: true,
   analytics: false
 };
-function safeJsonObject(v, fallback={}) {
-  if (!v) return { ...fallback };
-  if (typeof v === 'object' && !Array.isArray(v)) return { ...fallback, ...v };
-  try { const o = JSON.parse(String(v)); return (o && typeof o === 'object' && !Array.isArray(o)) ? { ...fallback, ...o } : { ...fallback }; } catch(e) { return { ...fallback }; }
-}
-function normalizeRole(role='user') { return ['user','delegate_admin','global_admin'].includes(role) ? role : 'user'; }
 async function getAppPermissionsConfig() {
   const cfg = await getAppConfig();
   return {
@@ -139,10 +149,7 @@ async function getDelegateAdminsWithPermission(permission) {
 }
 const DEFAULT_SLA_HOURS = Number(process.env.DEFAULT_SLA_HOURS || 24);
 const DEFAULT_ESCALATION_CC_EMAILS = String(process.env.DEFAULT_ESCALATION_CC_EMAILS || process.env.SLA_CC_EMAILS || '').split(',').map(x=>x.trim().toLowerCase()).filter(Boolean);
-const normalizeRecipients = (emails) => [...new Set((Array.isArray(emails) ? emails : [emails]).map(e => String(e || '').trim()).filter(Boolean).map(e => e.toLowerCase()))];
 
-const escapeHtml = (v) => String(v || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\"/g, '&quot;');
-const publicAppUrl = (req) => (process.env.PUBLIC_APP_URL || process.env.APP_BASE_URL || (req ? `${req.protocol}://${req.get('host')}` : '')).replace(/\/$/, '');
 const buttonHtml = (href, label) => '<p style="margin:18px 0"><a href="' + escapeHtml(href) + '" style="background:#2F4F3A;color:#fff;text-decoration:none;padding:10px 16px;border-radius:10px;display:inline-block;font-weight:700">' + escapeHtml(label) + '</a></p>';
 const getEffectiveEmailFrom = async (lang='es-CO') => {
   try {
@@ -176,7 +183,6 @@ const sendSpanishEmail = async ({ to, subject, text, html, lang='es-CO' }) => {
 // Defaults moved to server/templates/email-defaults.js — see docs/PLATFORM_ARCHITECTURE.md §11.
 const { DEFAULT_EMAIL_TEMPLATES, DEFAULT_EMAIL_TEMPLATES_EN } = require('./server/templates/email-defaults');
 
-const normalizeLanguage = (language='es-CO') => String(language || 'es-CO').toLowerCase().startsWith('en') ? 'en' : 'es-CO';
 
 const getUserLanguageByEmail = async (email='') => {
   const em = String(email || '').trim().toLowerCase();
@@ -422,7 +428,6 @@ const getUserCommunities = async (uid='', email='') => {
     });
   } catch(e) { return []; }
 };
-const addHoursIso = (iso, hours) => new Date(new Date(iso).getTime() + Number(hours || 24)*3600000).toISOString();
 const getIncidentRecipients = async (listing, { includeEscalationCc=false } = {}) => {
   const base = [listing?.email, listing?.user_email, listing?.userEmail, listing?.operator_email, listing?.operatorEmail];
   if (includeEscalationCc) base.push(...await getEscalationCcEmails());
@@ -587,207 +592,15 @@ const sendListingChangeEmail = async ({ listing, action, appUrl }) => {
   return sendSplitEmail({ key, individual, group, vars, relatedEntity:'listing', relatedId:listing.id });
 };
 
-const isThreeDigitApt = (apt) => /^[0-9]{3}$/.test(String(apt || '').trim());
-const isValidEmail = (email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(email || '').trim());
-const isValidOptionalUrl = (url) => !String(url || '').trim() || /^https?:\/\/.+/i.test(String(url || '').trim());
-const isValidWhatsApp = (v) => { const raw = String(v || '').trim(); if (!raw) return true; return raw.startsWith('+') && raw.replace(/[^0-9]/g, '').length >= 10; };
 
 // Validate and sanitize co-owners array (max 3, each needs firstName+lastName, optional whatsapp)
-const parseCoOwners = (raw) => {
-  if (!Array.isArray(raw)) return { ok: true, coOwners: [] };
-  if (raw.length > 3) return { ok: false, error: 'Maximum 3 co-owners allowed.' };
-  const coOwners = [];
-  for (let i = 0; i < raw.length; i++) {
-    const o = raw[i] || {};
-    const firstName = String(o.firstName || '').trim();
-    const middleName = String(o.middleName || '').trim();
-    const lastName = String(o.lastName || '').trim();
-    const wa = String(o.whatsapp || '').trim();
-    if (!firstName) return { ok: false, error: `Co-owner ${i + 1}: first name is required.` };
-    if (!lastName) return { ok: false, error: `Co-owner ${i + 1}: last name is required.` };
-    if (wa && !isValidWhatsApp(wa)) return { ok: false, error: `Co-owner ${i + 1}: WhatsApp must start with + and country code.` };
-    coOwners.push({ firstName, middleName, lastName, whatsapp: wa });
-  }
-  return { ok: true, coOwners };
-};
 
-// ─── FIELD MAPPERS ───────────────────────────────────────────────────────────
-const listingFromDb = (r) => ({
-  id: r.id,
-  communityId: r.community_id || 'kai',
-  ownerUid: r.owner_uid,
-  owner: r.owner,
-  userEmail: r.user_email || '',
-  registrationId: r.registration_id || '',
-  status: r.status || 'approved',
-  reason: r.reason || '',
-  reviewedByUid: r.reviewed_by_uid || '',
-  reviewedByName: r.reviewed_by_name || '',
-  reviewedAt: r.reviewed_at || '',
-  apt: r.apt,
-  tower: r.tower,
-  rooms: r.rooms,
-  guests: r.guests,
-  operator: r.operator || '',
-  operatorEmail: r.operator_email || '',
-  operatorWhatsapp: r.operator_whatsapp || '',
-  contact: r.contact || '',
-  email: r.email || '',
-  airbnb: r.airbnb || '',
-  coOwners: Array.isArray(r.co_owners) ? r.co_owners : [],
-  createdAt: (r.created_at || '').slice(0, 10),
-});
 
-const listingToDb = (l, communityId='kai') => ({
-  id: l.id,
-  community_id: l.communityId || communityId || 'kai',
-  owner_uid: l.ownerUid,
-  owner: l.owner,
-  user_email: String(l.userEmail || l.email || '').trim(),
-  registration_id: l.registrationId || null,
-  status: l.status || 'approved',
-  reason: l.reason || '',
-  reviewed_by_uid: l.reviewedByUid || '',
-  reviewed_by_name: l.reviewedByName || '',
-  reviewed_at: l.reviewedAt || null,
-  apt: String(l.apt || '').trim(),
-  tower: l.tower || 'KAI',
-  rooms: String(l.rooms || ''),
-  guests: Number(l.guests || 0),
-  operator: l.operator || '',
-  operator_email: String(l.operatorEmail || l.operator_email || '').trim(),
-  operator_whatsapp: String(l.operatorWhatsapp || l.operator_whatsapp || '').trim(),
-  contact: String(l.contact || '').trim(),
-  email: String(l.email || l.userEmail || '').trim(),
-  airbnb: String(l.airbnb || '').trim(),
-  co_owners: Array.isArray(l.coOwners) ? l.coOwners : [],
-  created_at: l.createdAt || new Date().toISOString(),
-});
 
-const incidentFromDb = (r) => ({
-  id: r.id,
-  reporterUid: r.reporter_uid,
-  reporterName: r.reporter_name,
-  aptId: r.apt_id,
-  aptLabel: r.apt_label,
-  guestName: r.guest_name,
-  guestCity: r.guest_city || '',
-  guestState: r.guest_state || '',
-  guestCountry: r.guest_country || '',
-  date: r.incident_date,
-  type: r.type,
-  category: r.category,
-  desc: r.description,
-  status: r.status,
-  ownerGuestNames: r.owner_guest_names || '',
-  ownerGuestCity: r.owner_guest_city || '',
-  ownerGuestCountry: r.owner_guest_country || '',
-  ownerGuests: Array.isArray(r.owner_guests) ? r.owner_guests : [],
-  ownerComments: r.owner_comments || '',
-  ownerResolution: r.owner_resolution || '',
-  ownerResolutionAt: r.owner_resolution_at || '',
-  ownerVerifiedAt: r.owner_verified_at || '',
-  resolvedAt: r.resolved_at || '',
-  resolvedBy: r.resolved_by || '',
-  resolutionComments: r.resolution_comments || '',
-  ownerViewedAt: r.owner_viewed_at || '',
-  ownerEmailOpenedAt: r.owner_email_opened_at || '',
-  slaHours: r.sla_hours || 24,
-  nextSlaReminderAt: r.next_sla_reminder_at || '',
-  slaCycleCount: r.sla_cycle_count || 0,
-  createdAt: (r.created_at || '').slice(0, 10),
-  createdAtFull: r.created_at || '',
-  isGeneral: Boolean(r.is_general),
-  photos: Array.isArray(r.photos) ? r.photos : [],
-  communityId: r.community_id || 'kai',
-});
 
-const incidentToDb = (i, communityId='kai') => ({
-  id: i.id,
-  community_id: i.communityId || communityId || 'kai',
-  reporter_uid: i.reporterUid,
-  reporter_name: i.reporterName,
-  apt_id: i.aptId,
-  apt_label: i.aptLabel,
-  guest_name: i.guestName,
-  guest_city: i.guestCity || '',
-  guest_state: i.guestState || '',
-  guest_country: i.guestCountry || '',
-  incident_date: i.date || new Date().toISOString().slice(0, 10),
-  type: i.type || 'other',
-  category: i.category || 'minor',
-  description: i.desc,
-  status: i.status || 'open',
-  owner_guest_names: i.ownerGuestNames || '',
-  owner_guest_city: i.ownerGuestCity || '',
-  owner_guest_country: i.ownerGuestCountry || '',
-  owner_guests: Array.isArray(i.ownerGuests) ? i.ownerGuests : [],
-  owner_comments: i.ownerComments || '',
-  owner_resolution_at: i.ownerResolutionAt || null,
-  owner_verified_at: i.ownerVerifiedAt || null,
-  resolved_at: i.resolvedAt || null,
-  resolved_by: i.resolvedBy || '',
-  resolution_comments: i.resolutionComments || '',
-  owner_viewed_at: i.ownerViewedAt || null,
-  owner_email_opened_at: i.ownerEmailOpenedAt || null,
-  sla_hours: i.slaHours || 24,
-  next_sla_reminder_at: i.nextSlaReminderAt || null,
-  sla_cycle_count: i.slaCycleCount || 0,
-  created_at: i.createdAt || new Date().toISOString(),
-  is_general: Boolean(i.isGeneral),
-  photos: Array.isArray(i.photos) ? i.photos : [],
-});
 
-const notificationFromDb = (r) => ({
-  id: r.id,
-  communityId: r.community_id || 'kai',
-  ownerUid: r.owner_uid,
-  listingId: r.listing_id,
-  incidentId: r.incident_id,
-  title: r.title,
-  message: r.message,
-  isRead: Boolean(r.is_read),
-  emailSent: Boolean(r.email_sent),
-  emailError: r.email_error || '',
-  createdAt: r.created_at,
-  kind: r.kind || 'incident',
-  registrationId: r.registration_id || '',
-});
 
-const notificationToDb = (n, communityId='kai') => ({
-  id: n.id,
-  community_id: n.communityId || communityId || 'kai',
-  owner_uid: n.ownerUid,
-  listing_id: n.listingId || null,
-  incident_id: n.incidentId || null,
-  title: n.title,
-  message: n.message,
-  is_read: Boolean(n.isRead),
-  email_sent: Boolean(n.emailSent),
-  email_error: n.emailError || '',
-  created_at: n.createdAt || new Date().toISOString(),
-  kind: n.kind || 'incident',
-  registration_id: n.registrationId || null,
-});
 
-const registrationFromListingRows = (rows=[]) => {
-  if (!rows.length) return { status:'none' };
-  const first = rows[0];
-  return {
-    id: first.registration_id || first.id,
-    communityId: first.community_id || 'kai',
-    userUid: first.owner_uid,
-    userName: first.owner,
-    userEmail: first.user_email || first.email || '',
-    status: first.status,
-    reason: first.reason || '',
-    reviewedByUid: first.reviewed_by_uid || '',
-    reviewedByName: first.reviewed_by_name || '',
-    reviewedAt: first.reviewed_at || '',
-    createdAt: first.created_at,
-    listings: rows.map(listingFromDb),
-  };
-};
 
 const auditEvent = async ({ listingId, registrationId, actorUid, actorName, action, reason='', before=null, after=null }) => {
   try {
@@ -825,7 +638,6 @@ const auditLog = async ({ entity, entityId='', action, actorUid='', actorEmail='
 };
 
 
-const normalizeApt = (apt) => String(apt || '').trim();
 
 const findApartmentConflict = async (apt, { excludeListingId = '', allowedOwnerUid = '', includePending = true, communityId = 'kai' } = {}) => {
   const normalized = normalizeApt(apt);
@@ -872,13 +684,6 @@ const getApprovedUser = async (uid) => {
   const { data, error } = await supabase.from('listings').select('*').eq('owner_uid', uid).eq('status','approved').order('created_at',{ascending:false}).limit(1).maybeSingle();
   if (error) throw error;
   return data || null;
-};
-const validateListingInput = (l) => {
-  if (!l || !l.apt || !l.rooms || !l.guests) return 'Apartamento, habitaciones y huéspedes son requeridos.';
-  if (!isThreeDigitApt(l.apt)) return 'El apartamento debe tener exactamente 3 dígitos. Ejemplo: 000.';
-  if ((l.operatorEmail || l.operator_email) && !isValidEmail(l.operatorEmail || l.operator_email)) return 'Ingrese un email válido para el operador.';
-  if (!isValidOptionalUrl(l.airbnb)) return 'El URL de Airbnb debe comenzar con http:// o https:// cuando se ingrese.';
-  return '';
 };
 const sendRegistrationSubmittedEmail = async ({ registration, appUrl }) => {
   const notifCfg = await getEmailNotificationConfig();
