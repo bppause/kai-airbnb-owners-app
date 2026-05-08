@@ -21,6 +21,14 @@ import {
   normalizeOwnerGuests, guestFullName, guestLocation,
 } from "./core/utils";
 
+// ─── API client (extracted in stage F3) ──────────────────────────────────────
+// All fetch calls flow through this module so the X-Community-Id header is
+// always set, errors are normalized, and Render cold-start timeouts are
+// handled. The active community id is held inside core/api.js and managed
+// via getCommunityId/setCommunityId. See docs/PLATFORM_ARCHITECTURE.md §11
+// frontend stage F3.
+import { api, checkApartmentUnique, getCommunityId, setCommunityId } from "./core/api";
+
 // ─── FIREBASE CONFIG — replace with your own from Firebase Console ────────────
 const FIREBASE_CONFIG = {
   apiKey:            import.meta.env.VITE_FIREBASE_API_KEY,
@@ -503,7 +511,6 @@ const Tip = ({ text }) => {
 // Module-level custom label overrides — populated from adminInfo.config on load
 let _customLabels = { es: {}, en: {} };
 // Phase 2: current community ID, synced from adminInfo after login
-let _communityId = (() => { try { const urlCid = new URLSearchParams(window.location.search).get('community'); if (urlCid) { localStorage.setItem('kai_community', urlCid); return urlCid; } return localStorage.getItem('kai_community') || 'kai'; } catch(e) { return 'kai'; } })();
 // Phase 3: community display name + tower, synced from adminInfo.config on load
 let _complexName = { es:'Propietarios Airbnb KAI', en:'KAI Airbnb Owners', tower:'KAI' };
 const setCustomLabels = (cfg={}) => {
@@ -734,37 +741,6 @@ const today = () => new Date().toISOString().split("T")[0];
 // Rejects if file > 10MB or not an image. Returns { data, name, size } where
 // data is a data:image/jpeg;base64,… URI and size is compressed bytes.
 
-// ─── API HELPERS (30s timeout handles Render cold starts) ────────────────────
-const fetchT = (url, opts={}, ms=35000) => {
-  const ctrl = new AbortController();
-  const id = setTimeout(() => ctrl.abort(), ms);
-  const headers = { ...(opts.headers||{}), 'X-Community-Id': _communityId };
-  return fetch(url, { ...opts, headers, signal: ctrl.signal }).finally(() => clearTimeout(id));
-};
-const parseResponse = async (r) => {
-  const raw = await r.text().catch(() => '');
-  let data = {};
-  try { data = raw ? JSON.parse(raw) : {}; } catch(e) { data = { raw }; }
-  if (!r.ok || data?.error) {
-    const msg = data?.error || data?.message || raw || `Request failed: ${r.status}`;
-    const err = new Error(msg);
-    err.status = r.status; err.details = data; err.url = r.url;
-    console.error('[KAI_API_ERROR]', { url:r.url, status:r.status, msg, data });
-    throw err;
-  }
-  return data;
-};
-const api = {
-  get:   (p)    => fetchT(p).then(parseResponse),
-  post:  (p, b) => fetchT(p, { method:'POST',   headers:{'Content-Type':'application/json'}, body:JSON.stringify(b) }).then(parseResponse),
-  put:   (p, b) => fetchT(p, { method:'PUT',    headers:{'Content-Type':'application/json'}, body:JSON.stringify(b) }).then(parseResponse),
-  patch: (p, b) => fetchT(p, { method:'PATCH',  headers:{'Content-Type':'application/json'}, body:JSON.stringify(b||{}) }).then(parseResponse),
-  del:   (p, b) => fetchT(p, { method:'DELETE', headers:{'Content-Type':'application/json'}, body:JSON.stringify(b) }).then(parseResponse),
-};
-const checkApartmentUnique = ({ apt, ownerUid, excludeListingId='' }) => {
-  const q = new URLSearchParams({ apt:String(apt||'').trim(), ownerUid:String(ownerUid||''), excludeListingId:String(excludeListingId||'') });
-  return api.get('/api/apartments/check?' + q.toString());
-};
 
 
 class ErrorBoundary extends Component {
@@ -1036,7 +1012,7 @@ export default function App() {
         setAdminInfo(info);
         if (info.config) setCustomLabels(info.config);
         // Confirm community from server before checking registration
-        if (info.communityId) { _communityId = info.communityId; try { localStorage.setItem('kai_community', info.communityId); } catch(e) {} loadCommunityGoals(info.communityId); }
+        if (info.communityId) { setCommunityId(info.communityId); try { localStorage.setItem('kai_community', info.communityId); } catch(e) {} loadCommunityGoals(info.communityId); }
         if (info.languagePreference && info.languagePreference !== lang) {
           const pref = info.languagePreference === 'en' ? 'en' : 'es-CO';
           setLangState(pref);
@@ -1078,7 +1054,7 @@ export default function App() {
 
   const switchCommunity = async (newCommunityId) => {
     if (!newCommunityId || newCommunityId === adminInfo.communityId) return;
-    _communityId = newCommunityId;
+    setCommunityId(newCommunityId);
     try { localStorage.setItem('kai_community', newCommunityId); } catch(e) {}
     setAdminLoading(true);
     setRegistrationLoading(true);
@@ -1143,7 +1119,7 @@ export default function App() {
   };
   const handleLoginCommunitySelect = (communityId, cfg) => {
     if (!communityId) return;
-    _communityId = communityId;
+    setCommunityId(communityId);
     try { localStorage.setItem('kai_community', communityId); } catch(e) {}
     if (cfg) {
       setPreLoginConfig(cfg);
@@ -1161,7 +1137,7 @@ export default function App() {
   const logout = async () => {
     if (auth) await signOut(auth);
     try { localStorage.removeItem('kai_community'); localStorage.removeItem('kai_last_view'); } catch(e) {}
-    _communityId = 'kai';
+    setCommunityId('kai');
     showToast("Sesión cerrada");
   };
 
@@ -1480,7 +1456,7 @@ export default function App() {
             {user && (adminInfo.communities||[]).length > 1 && (
               <CommunitySwitch
                 communities={adminInfo.communities}
-                currentId={adminInfo.communityId || _communityId || ''}
+                currentId={adminInfo.communityId || getCommunityId() || ''}
                 onChange={switchCommunity}
                 lang={lang}
                 loading={adminLoading}
@@ -1541,7 +1517,7 @@ export default function App() {
         {view==="analytics" && user && (effectiveIsGlobalAdmin || analyticsEnabledForAll) && <AnalyticsDashboard lang={lang} user={user} contactProps={contactProps} showToast={showToast} isGlobalAdmin={effectiveIsGlobalAdmin} />}
         {view==="admin" && user && ((effectiveIsGlobalAdmin || effectiveRole === 'delegate_admin' || effectiveIsCommunityAdmin) ? <ErrorBoundary section="admin" fallback={(err)=><AdminFallback lang={lang} error={err}/>}><AdminSettings config={adminInfo.config || {}} user={user} listings={listings} contactProps={contactProps} onSave={saveAdminConfig} showToast={showToast} lang={lang} adminInfo={adminInfo} /></ErrorBoundary> : <AdminAccessHelp user={user} adminInfo={adminInfo} lang={lang} />)}
         {view==="my" && user && <><DashboardGreeting user={user} lang={lang} role={effectiveIsGlobalAdmin?'global':effectiveRole==='delegate_admin'?'delegate':'standard'} pendingOwner={needsOwnerVerification.length} pendingOwnerResolution={needsOwnerResolution.length} pendingResolve={needsAdminResolution.length} pendingRegistrations={effectiveCanManageRegistrations?pendingRegistrations.length:0} myOpenCount={needsOwnerVerification.length} onOwnerClick={()=>{setIncidentQuickFilter('ownerVerification');setView('incidents');}} onResolveClick={()=>{setIncidentQuickFilter('requiresResolution');setView('incidents');}} onRegistrationsClick={()=>setView('approvals')} setView={setView}/><MyListings lang={lang} listings={myListings} allListings={listings} incidents={incidents} user={user} contactProps={contactProps} isGlobalAdmin={effectiveIsGlobalAdmin} canResolveGlobal={canResolveIncidentsNow} onAdd={()=>setModal({type:"addListing"})} onEdit={l=>setModal({type:"editListing",data:l})} onDelete={deleteListing} onReport={l=>setModal({type:"incident",data:{aptId:l.id}})} onVerify={inc=>setModal({type:"verifyIncident",data:inc})} onResolve={resolveIncident} onAddResolution={inc=>setModal({type:"addResolution",data:inc})} onNavigateToIncidents={f=>{setIncidentQuickFilter({type:'floorFilter',aptIds:f.aptIds,status:f.status||'all'});setView('incidents');}} onIncidentDetail={openIncidentDetail} onAssign={inc=>setModal({type:'assignGeneral',data:inc})} onCloseGeneral={inc=>setModal({type:'closeGeneral',data:inc})} /></>}
-        {view==="profile" && user && <ProfileView lang={lang} user={user} userProfile={userProfile} onSave={saveProfile} communities={adminInfo.communities||[]} currentCommunityId={adminInfo.communityId||_communityId} onSwitchCommunity={switchCommunity} reputation={reputation} reputationLoading={reputationLoading} loadReputation={loadReputation} />}
+        {view==="profile" && user && <ProfileView lang={lang} user={user} userProfile={userProfile} onSave={saveProfile} communities={adminInfo.communities||[]} currentCommunityId={adminInfo.communityId||getCommunityId()} onSwitchCommunity={switchCommunity} reputation={reputation} reputationLoading={reputationLoading} loadReputation={loadReputation} />}
         {view==="help" && <HelpView lang={lang} effectiveRole={effectiveRole} effectiveIsGlobalAdmin={effectiveIsGlobalAdmin} delegatePerms={delegatePerms} listings={listings} incidents={incidents} user={user} setView={setView} onReport={()=>{ if(!user){login();return;} setModal({type:'incident'}); }} onAddListing={()=>{ if(!user){login();return;} setModal({type:'addListing'}); }} setIncidentQuickFilter={setIncidentQuickFilter} openMore={()=>setOpenDropdown('more')} onStartTour={()=>setShowTour(true)} />}
       </main>
       {showTour && <UserTour lang={lang} onClose={()=>setShowTour(false)} onGo={v=>{setShowTour(false);setView(v);}} onReport={()=>{setShowTour(false);if(user)setModal({type:'incident'});else login();}} onAddListing={()=>{setShowTour(false);if(user)setModal({type:'addListing'});else login();}} />}
