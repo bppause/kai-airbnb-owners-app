@@ -71,6 +71,14 @@ import IncidentModal from "./modules/incidents/components/IncidentModal";
 import UnitPlate from "./platform/units/components/UnitPlate";
 import UnitMiniCard from "./platform/units/components/UnitMiniCard";
 
+// ─── Stage F13 extractions: contact directory + UserContact + brand icons ────
+// IconEmail/IconWhatsApp are reusable brand SVGs. The copyText / build- /
+// lookupContact helpers and the UserContact hover-card component all live in
+// core/contacts.jsx — module-internal imports keep the cluster cohesive.
+// See docs/PLATFORM_ARCHITECTURE.md §11 frontend stage F13.
+import { IconEmail, IconWhatsApp } from "./core/ui/Icons";
+import UserContact, { copyText, buildContactDirectory, lookupContact } from "./core/contacts";
+
 // ─── API client (extracted in stage F3) ──────────────────────────────────────
 // All fetch calls flow through this module so the X-Community-Id header is
 // always set, errors are normalized, and Render cold-start timeouts are
@@ -182,91 +190,6 @@ const MENU_LABELS = {
 
 // Strip everything except digits. Requires ≥10 digits (country code + subscriber)
 // to produce a usable wa.me link; returns '' for short/missing numbers.
-const copyText = async (text, showToast=()=>{}, lang='es-CO') => {
-  const value = String(text || '').trim();
-  if (!value) return;
-  try {
-    await navigator.clipboard.writeText(value);
-    showToast(lang === 'en' ? 'Copied to clipboard' : 'Copiado al portapapeles');
-  } catch(e) {
-    window.prompt(lang === 'en' ? 'Copy this value:' : 'Copia este valor:', value);
-  }
-};
-const buildContactDirectory = (listings=[]) => {
-  const byKey = new Map();
-  const put = (key, data) => {
-    if (!key) return;
-    const existing = byKey.get(key) || { name:'', email:'', whatsapp:'', apartments:[] };
-    const apartments = Array.from(new Set([...(existing.apartments||[]), ...(data.apartments||[]).filter(Boolean)]));
-    byKey.set(key, { ...existing, ...data, apartments, name:data.name || existing.name, email:data.email || existing.email, whatsapp:data.whatsapp || existing.whatsapp });
-  };
-  listings.forEach(l => {
-    const apt = l?.apt ? `Apt ${l.apt}` : '';
-    const owner = { uid:l.ownerUid, name:l.owner || '', email:l.email || l.ownerEmail || '', whatsapp:l.contact || l.whatsapp || '', apartments:[apt].filter(Boolean) };
-    put(l.ownerUid || '', owner); put(String(owner.email||'').toLowerCase(), owner); put(String(owner.name||'').toLowerCase(), owner);
-    const op = { name:l.operator || '', email:l.operatorEmail || l.operator_email || '', whatsapp:l.operatorWhatsapp || l.operator_whatsapp || '', apartments:[apt].filter(Boolean) };
-    put(String(op.email||'').toLowerCase(), op); put(String(op.name||'').toLowerCase(), op);
-  });
-  return byKey;
-};
-const lookupContact = (directory, { uid='', email='', name='' }={}) => {
-  return directory.get(String(uid||'')) || directory.get(String(email||'').toLowerCase()) || directory.get(String(name||'').toLowerCase()) || { name:name||'', email:email||'', whatsapp:'', apartments:[] };
-};
-
-function UserContact({ name='', email='', whatsapp='', apartments=[], directory, uid='', showToast=()=>{}, onEmail=()=>{}, lang='es-CO', children }) {
-  const [cardPos, setCardPos] = useState(null);
-  const hideTimer = useRef(null);
-  const btnRef = useRef(null);
-  const c = lookupContact(directory || new Map(), { uid, email, name });
-  const finalName = name || c.name || email || (lang === 'en' ? 'User' : 'Usuario');
-  const finalEmail = email || c.email || '';
-  const finalWhatsapp = whatsapp || c.whatsapp || '';
-  const aptList = Array.from(new Set([...(apartments||[]), ...(c.apartments||[])].filter(Boolean)));
-  const waDigits = normalizePhoneForWhatsApp(finalWhatsapp);
-  const schedHide = () => { if (hideTimer.current) clearTimeout(hideTimer.current); hideTimer.current = setTimeout(() => setCardPos(null), 220); };
-  const cancelHide = () => { if (hideTimer.current) clearTimeout(hideTimer.current); };
-  const openCard = () => {
-    cancelHide();
-    if (btnRef.current) {
-      const r = btnRef.current.getBoundingClientRect();
-      const cardW = 296;
-      const x = Math.max(8, Math.min(r.left, window.innerWidth - cardW - 8));
-      const y = Math.min(r.bottom + 6, window.innerHeight - 190);
-      setCardPos({ x, y });
-    }
-  };
-  return (
-    <span className="contact-hover-wrap" onMouseEnter={openCard} onMouseLeave={schedHide}>
-      <button type="button" ref={btnRef} className="contact-name-btn"
-        onFocus={openCard} onBlur={schedHide} onClick={e => e.preventDefault()}>
-        {children || finalName}
-      </button>
-      {cardPos && (
-        <span className="contact-card"
-          style={{display:'flex',flexDirection:'column',gap:'7px',position:'fixed',left:cardPos.x,top:cardPos.y,zIndex:2147483646}}
-          onClick={e => e.stopPropagation()} onMouseEnter={cancelHide} onMouseLeave={schedHide}>
-          <strong style={{color:'#203f2b'}}>{finalName}</strong>
-          {aptList.length > 0 && <span style={{fontSize:'.75rem',color:'#235f72'}}>🏠 {aptList.join(', ')}</span>}
-          {finalEmail && (
-            <span className="contact-line">
-              <span className="contact-line-val">✉️ {finalEmail}</span>
-              <button type="button" title={lang==='en'?'Copy email':'Copiar email'} onClick={() => copyText(finalEmail, showToast, lang)}>📋</button>
-              <a href={`mailto:${finalEmail}`} className="contact-action-link" target="_blank" rel="noreferrer" title={lang==='en'?'Open in email app':'Abrir en app de email'}><IconEmail/> {lang==='en'?'Email':'Email'}</a>
-            </span>
-          )}
-          {finalWhatsapp && (
-            <span className="contact-line">
-              <span className="contact-line-val">📲 {finalWhatsapp}</span>
-              <button type="button" title={lang==='en'?'Copy number':'Copiar número'} onClick={() => copyText(finalWhatsapp, showToast, lang)}>📋</button>
-              {waDigits && <a href={`https://wa.me/${waDigits}`} className="contact-action-link" target="_blank" rel="noreferrer" title={lang==='en'?'Open in WhatsApp':'Abrir en WhatsApp'}><IconWhatsApp/> WhatsApp</a>}
-            </span>
-          )}
-          {!finalEmail && !finalWhatsapp && <span style={{color:'#607063',fontSize:'.75rem'}}>{lang === 'en' ? 'No contact info' : 'Sin info de contacto'}</span>}
-        </span>
-      )}
-    </span>
-  );
-}
 
 function SendUserEmailModal({ contact, fromUser, onSend, onClose, lang='es-CO' }) {
   const [subject,setSubject]=useState('');
@@ -3173,19 +3096,6 @@ function aptDoorStatus(l, incidents) {
 }
 
 // Inline branded SVG icons — small enough to embed directly
-const IconWhatsApp = () => (
-  <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true" style={{flexShrink:0}}>
-    <circle cx="12" cy="12" r="12" fill="#25D366"/>
-    <path d="M17.5 14.4c-.3-.1-1.7-.85-1.97-.95-.27-.1-.46-.1-.66.1-.19.21-.74.95-.9 1.14-.17.2-.33.22-.62.07-.29-.14-1.22-.45-2.33-1.43-.86-.77-1.44-1.72-1.61-2.01-.17-.29 0-.45.13-.59l.42-.49c.12-.14.17-.25.25-.42.08-.17.04-.32-.02-.46-.06-.14-.65-1.57-.9-2.15-.23-.55-.47-.48-.65-.48h-.57c-.19 0-.5.07-.76.37-.26.3-.99.97-.99 2.36 0 1.39.99 2.74 1.13 2.93.14.19 1.95 3 4.73 4.09 2.78 1.08 2.78.72 3.28.68.5-.04 1.61-.66 1.84-1.3.22-.64.22-1.19.16-1.3z" fill="#fff"/>
-  </svg>
-);
-const IconEmail = () => (
-  <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true" style={{flexShrink:0}}>
-    <rect width="24" height="24" rx="3" fill="#EA4335"/>
-    <path d="M4 8l8 5 8-5" stroke="#fff" strokeWidth="1.5" fill="none" strokeLinecap="round"/>
-    <rect x="3" y="7" width="18" height="12" rx="1.5" fill="none" stroke="#fff" strokeWidth="1.3"/>
-  </svg>
-);
 
 // ─── Reusable apartment contact hover popup ───────────────────────────────────
 // Wrap any apt header/row in <div className="apt-cpop-wrap"> to get a hover
