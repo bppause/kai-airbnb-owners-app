@@ -28,6 +28,12 @@ const {
 } = require('./utils');
 const { DEFAULT_EMAIL_TEMPLATES, DEFAULT_EMAIL_TEMPLATES_EN } = require('../templates/email-defaults');
 
+// ─── Shared recipient helpers ────────────────────────────────────────────────
+// Pure functions; exported at module scope (after the factory below) so
+// per-module sender files can import them without going through the factory.
+const getListingOwnerEmails = (listing) => normalizeRecipients([listing?.email, listing?.user_email, listing?.userEmail]);
+const getListingOperatorEmails = (listing) => normalizeRecipients([listing?.operator_email, listing?.operatorEmail]);
+
 module.exports = function createEmailHelpers({ supabase, resend, emailConfigured, EMAIL_FROM, getAppConfig }) {
   const getEffectiveEmailFrom = async (lang='es-CO') => {
     try {
@@ -183,3 +189,7 @@ module.exports = function createEmailHelpers({ supabase, resend, emailConfigured
 
   return { sendSpanishEmail, getEmailTemplates, sendTemplatedEmail, sendSplitEmail };
 };
+
+// Top-level helper exports for per-module sender files (no factory needed).
+module.exports.getListingOwnerEmails = getListingOwnerEmails;
+module.exports.getListingOperatorEmails = getListingOperatorEmails;

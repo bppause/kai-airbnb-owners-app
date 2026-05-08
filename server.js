@@ -68,7 +68,6 @@ const emailConfigured = Boolean(resend && EMAIL_FROM);
 // globalAdmin = env GLOBAL_ADMIN_EMAILS + escalation CC   delegateAdmin  = role-gated platform-wide
 // communityAdmin = community_memberships admins for this community (community-scoped group)
 
-const buttonHtml = (href, label) => '<p style="margin:18px 0"><a href="' + escapeHtml(href) + '" style="background:#2F4F3A;color:#fff;text-decoration:none;padding:10px 16px;border-radius:10px;display:inline-block;font-weight:700">' + escapeHtml(label) + '</a></p>';
 
 
 // ─── EDITABLE EMAIL TEMPLATES ───────────────────────────────────────────────
@@ -79,8 +78,8 @@ const { DEFAULT_EMAIL_TEMPLATES, DEFAULT_EMAIL_TEMPLATES_EN } = require('./serve
 
 // ─── EMAIL HELPERS (extracted in stage 4c) ───────────────────────────────────
 // Generic primitives (sendSpanishEmail, getEmailTemplates, sendTemplatedEmail,
-// sendSplitEmail) live in server/core/email.js. Per-module senders below still
-// live in this file and consume these via local destructure.
+// sendSplitEmail) live in server/core/email.js. Per-module senders moved into
+// each module's email-senders.js in stage 4g (factory binders below).
 
 // ─── CONFIG HELPERS (extracted in stage 4e) ──────────────────────────────────
 // App config + email notification config + SLA defaults + getCommunity lookup
@@ -110,8 +109,6 @@ const {
   getGlobalAdminEmails, isEnvGlobalAdminEmail,
 } = require('./server/core/roles')({ supabase, getAppConfig, getEscalationCcEmails });
 // Separate owner-only vs operator-only recipient getters (used by config-aware send functions)
-const getListingOwnerEmails = (listing) => normalizeRecipients([listing?.email, listing?.user_email, listing?.userEmail]);
-const getListingOperatorEmails = (listing) => normalizeRecipients([listing?.operator_email, listing?.operatorEmail]);
 
 const getCommunityId = (req) => {
   const val = String(req?.headers?.['x-community-id'] || req?.query?.communityId || '').trim().toLowerCase();
@@ -119,121 +116,16 @@ const getCommunityId = (req) => {
 };
 // Returns community admin emails from the DB, falling back to app_config escalation_cc_emails
 // when no community admins have been registered yet (backwards-compatible).
-const getIncidentRecipients = async (listing, { includeEscalationCc=false } = {}) => {
-  const base = [listing?.email, listing?.user_email, listing?.userEmail, listing?.operator_email, listing?.operatorEmail];
-  if (includeEscalationCc) base.push(...await getEscalationCcEmails());
-  return normalizeRecipients(base);
-};
 // Lookup reporter email by UID from app_users (reporter != always listing owner)
 // ── Split recipient builder ─────────────────────────────────────────────────
 // Returns two separate lists so individual recipients (reporter, owner, operator)
 // each receive a private email addressed only to them, while admin groups receive
 // a single combined email.  This prevents any recipient from seeing another's address.
-const buildSplitRecipients = async (typeCfg, listing, reporterEmail='', communityId='kai') => {
-  // Individual recipients — specific people involved in this incident/listing
-  const individual = normalizeRecipients([
-    typeCfg.reporter !== false && reporterEmail ? reporterEmail : '',
-    typeCfg.owner    ? getListingOwnerEmails(listing)    : [],
-    typeCfg.operator ? getListingOperatorEmails(listing) : [],
-  ].flat());
 
-  // Group recipients — admin roles receive together as a coordinating team
-  const groupList = [];
-  if (typeCfg.globalAdmin)   groupList.push(...getGlobalAdminEmails(), ...await getCommunityEscalationEmails(communityId));
-  if (typeCfg.delegateAdmin) groupList.push(...await getDelegateAdminsWithPermission('canResolveIncidents'));
-  // communityAdmin: community-scoped admins for this specific community.
-  // Default true when key is absent (backwards compat with saved configs that predate this field).
-  if (typeCfg.communityAdmin ?? true) groupList.push(...await getCommunityAdminEmails(communityId));
-  const group = normalizeRecipients(groupList);
 
-  return { individual, group };
-};
 
-// Send individual private emails + one group admin email for an incident event.
-// Each individual (reporter/owner/operator) gets their own private email so they
-// cannot see who else was notified.  Admin group receives one combined email.
-const sendIncidentEmail = async ({ listing, incident, appUrl, isEscalation=false }) => {
-  const key = isEscalation ? 'incident_sla' : 'incident_new';
-  const notifCfg = await getEmailNotificationConfig();
-  const typeCfg = notifCfg[key];
-  if (!typeCfg.enabled) return { sent:false, skipped:true, reason:`Email type '${key}' is disabled.` };
-  const communityId = listing.community_id || '__global__';
-  const reporterEmail = await getReporterEmail(incident.reporterUid);
-  const { individual, group } = await buildSplitRecipients(typeCfg, listing, reporterEmail, communityId);
-  if (!individual.length && !group.length) return { sent:false, skipped:true, reason:'No recipients.' };
-  const apt = listing.apt || String(incident.aptLabel || '').replace(/[^0-9]/g,'');
-  const incidentLink = appUrl + '/?view=incidents&incident=' + incident.id;
-  const pendingStepLabel   = incident.pendingStepLabel   || (incident.status==='open' ? 'Step 1: Verify the incident — confirm guest details and document your immediate action' : 'Step 2: Add your resolution — describe how you resolved this so admin can close it');
-  const pendingStepLabelEs = incident.pendingStepLabelEs || (incident.status==='open' ? 'Paso 1: Verifica el incidente — confirma los datos del huésped y documenta tu acción inmediata' : 'Paso 2: Agrega tu respuesta — describe cómo resolviste el incidente para que el admin pueda cerrarlo');
-  const vars = { apt, owner:listing.owner||'', operator:listing.operator||'No indicado', operatorEmail:listing.operatorEmail||listing.operator_email||'', guestName:incident.guestName||'', date:incident.date||'', type:incident.type||'', category:incident.category||'', status:incident.status||'open', desc:incident.desc||'', incidentLink, slaCycleCount:String(incident.slaCycleCount||incident.sla_cycle_count||''), pendingStep:incident.pendingStep||(incident.status==='open'?'step1':'step2'), pendingStepLabel, pendingStepLabelEs };
-  return sendSplitEmail({ key, individual, group, vars, relatedEntity:'incident', relatedId:incident.id, communityId });
-};
 
-const sendIncidentVerifiedEmail = async ({ listing, incident, appUrl }) => {
-  const notifCfg = await getEmailNotificationConfig();
-  const typeCfg = notifCfg['incident_verified'];
-  if (!typeCfg.enabled) return { sent:false, skipped:true, reason:"Email type 'incident_verified' is disabled." };
-  const communityId = listing.community_id || '__global__';
-  const reporterEmail = await getReporterEmail(incident.reporterUid);
-  const { individual, group } = await buildSplitRecipients(typeCfg, listing, reporterEmail, communityId);
-  if (!individual.length && !group.length) return { sent:false, skipped:true, reason:'No recipients.' };
-  const apt = listing.apt || String(incident.aptLabel || '').replace(/[^0-9]/g,'');
-  const incidentLink = appUrl + '/?view=incidents&incident=' + incident.id;
-  const vars = { apt, owner:listing.owner||'', operator:listing.operator||'No indicado', operatorEmail:listing.operatorEmail||listing.operator_email||'', ownerGuestNames:incident.ownerGuestNames||'', ownerGuestCity:incident.ownerGuestCity||'', ownerGuestCountry:incident.ownerGuestCountry||'', ownerComments:incident.ownerComments||'', ownerAnswer:incident.ownerResolution||'', incidentLink };
-  return sendSplitEmail({ key:'incident_verified', individual, group, vars, relatedEntity:'incident', relatedId:incident.id, communityId });
-};
 
-// Step 2 complete: owner added resolution — notifies all parties that incident is ready to close.
-const sendIncidentResolutionAddedEmail = async ({ listing, incident, appUrl }) => {
-  const notifCfg = await getEmailNotificationConfig();
-  const typeCfg = notifCfg['incident_resolution_added'] || { enabled:true, reporter:true, owner:true, operator:true, globalAdmin:true, delegateAdmin:true };
-  if (!typeCfg.enabled) return { sent:false, skipped:true, reason:"Email type 'incident_resolution_added' is disabled." };
-  const communityId = listing.community_id || '__global__';
-  const reporterEmail = await getReporterEmail(incident.reporterUid);
-  const { individual, group } = await buildSplitRecipients(typeCfg, listing, reporterEmail, communityId);
-  if (!individual.length && !group.length) return { sent:false, skipped:true, reason:'No recipients.' };
-  const apt = listing.apt || String(incident.aptLabel || '').replace(/[^0-9]/g,'');
-  const incidentLink = appUrl + '/?view=incidents&incident=' + incident.id;
-  const vars = { apt, owner:listing.owner||'', operator:listing.operator||'No indicado', operatorEmail:listing.operatorEmail||listing.operator_email||'', ownerGuestNames:incident.ownerGuestNames||'', ownerGuestCity:incident.ownerGuestCity||'', ownerGuestCountry:incident.ownerGuestCountry||'', ownerComments:incident.ownerComments||'', ownerAnswer:incident.ownerResolution||'', incidentLink };
-  return sendSplitEmail({ key:'incident_resolution_added', individual, group, vars, relatedEntity:'incident', relatedId:incident.id, communityId });
-};
-
-const sendIncidentResolvedEmail = async ({ listing, incident, appUrl }) => {
-  const notifCfg = await getEmailNotificationConfig();
-  const typeCfg = notifCfg['incident_resolved'];
-  if (!typeCfg.enabled) return { sent:false, skipped:true, reason:"Email type 'incident_resolved' is disabled." };
-  const communityId = listing.community_id || '__global__';
-  const reporterEmail = await getReporterEmail(incident.reporterUid);
-  const reporterName = incident.reporterName || await getReporterName(incident.reporterUid);
-  const { individual, group } = await buildSplitRecipients(typeCfg, listing, reporterEmail, communityId);
-  if (!individual.length && !group.length) return { sent:false, skipped:true, reason:'No recipients.' };
-  const apt = listing.apt || String(incident.aptLabel || '').replace(/[^0-9]/g,'');
-  const incidentLink = appUrl + '/?view=incidents&incident=' + incident.id;
-  const vars = { apt, owner:listing.owner||'', operator:listing.operator||'No indicado', operatorEmail:listing.operatorEmail||listing.operator_email||'', resolvedBy:incident.resolvedBy||incident.resolved_by||'', resolutionComments:incident.resolutionComments||incident.resolution_comments||'', ownerAnswer:incident.ownerResolution||'', date:incident.date||'', type:incident.type||'', category:incident.category||'', incidentLink, reporterName };
-  return sendSplitEmail({ key:'incident_resolved', individual, group, vars, relatedEntity:'incident', relatedId:incident.id, communityId });
-};
-
-const sendListingChangeEmail = async ({ listing, action, appUrl }) => {
-  const key = action === 'created' ? 'listing_created' : action === 'updated' ? 'listing_updated' : 'listing_deleted';
-  const notifCfg = await getEmailNotificationConfig();
-  const typeCfg = notifCfg[key];
-  if (!typeCfg.enabled) return { sent:false, skipped:true, reason:`Email type '${key}' is disabled.` };
-  // Individual: owner + operator of this specific listing (each gets their own email)
-  const individual = normalizeRecipients([
-    typeCfg.owner    ? getListingOwnerEmails(listing)    : [],
-    typeCfg.operator ? getListingOperatorEmails(listing) : [],
-  ].flat());
-  // Group: admin roles
-  const listingCommunityId = listing.communityId || 'kai';
-  const groupList = [];
-  if (typeCfg.globalAdmin)   groupList.push(...getGlobalAdminEmails(), ...await getCommunityEscalationEmails(listingCommunityId));
-  if (typeCfg.delegateAdmin) groupList.push(...await getDelegateAdminsWithPermission('canUpdateGlobalListings'));
-  if (typeCfg.communityAdmin ?? true) groupList.push(...await getCommunityAdminEmails(listingCommunityId));
-  const group = normalizeRecipients(groupList);
-  if (!individual.length && !group.length) return { sent:false, skipped:true, reason:'No recipients for listing change email.' };
-  const vars = { apt:listing.apt||'', owner:listing.owner||'', listingEmail:listing.email||listing.user_email||'', listingLink:appUrl+'/?view=listings' };
-  return sendSplitEmail({ key, individual, group, vars, relatedEntity:'listing', relatedId:listing.id });
-};
 
 
 // Validate and sanitize co-owners array (max 3, each needs firstName+lastName, optional whatsapp)
@@ -252,44 +144,28 @@ const sendListingChangeEmail = async ({ listing, action, appUrl }) => {
 const { findApartmentConflict, validateApartmentUniqueness } =
   require('./server/platform/units/db')(supabase);
 
-const sendRegistrationSubmittedEmail = async ({ registration, appUrl }) => {
-  const notifCfg = await getEmailNotificationConfig();
-  const typeCfg = notifCfg['registration_submitted'];
-  if (!typeCfg.enabled || !typeCfg.owner) return { sent:false, skipped:true, reason:'Registration submitted email is disabled.' };
-  const communityId = registration.communityId || 'kai';
-  const community = await getCommunity(communityId);
-  const communityName = community?.name || communityId;
-  return sendTemplatedEmail({ key:'registration_submitted', to: registration.userEmail, vars: { userName:registration.userName || '', userEmail:registration.userEmail || '', registrationLink: appUrl + '/?view=registration', communityName }, communityId });
+// ─── PER-MODULE EMAIL SENDERS (extracted in stage 4g) ────────────────────────
+// Each module/area owns its event-specific senders. They share a deps bundle
+// because all of them call the same generic primitives + role lookups.
+const senderDeps = {
+  sendSplitEmail, sendTemplatedEmail,
+  getEmailNotificationConfig, getCommunity,
+  getReporterEmail, getReporterName,
+  getCommunityAdminEmails, getCommunityEscalationEmails,
+  getDelegateAdminsWithPermission, getGlobalAdminEmails,
+  emailConfigured,
 };
-const sendRegistrationStatusEmail = async ({ registration, appUrl, communityId='kai' }) => {
-  const approved = registration.status === 'approved';
-  const key = approved ? 'registration_approved' : 'registration_declined';
-  const notifCfg = await getEmailNotificationConfig();
-  const typeCfg = notifCfg[key];
-  if (!typeCfg.enabled || !typeCfg.owner) return { sent:false, skipped:true, reason:`Registration ${key} email is disabled.` };
-  const link = appUrl + (approved ? '/?view=dashboard' : '/?view=registration');
-  const reason = String(registration.reason || '').trim();
-  const community = await getCommunity(communityId);
-  const communityName = community?.name || communityId;
-  // Also notify admins if configured
-  const recips = [registration.userEmail];
-  const admCfg = notifCfg['registration_status_admin'];
-  if (admCfg?.enabled) {
-    if (admCfg.globalAdmin) recips.push(...getGlobalAdminEmails());
-    if (admCfg.delegateAdmin) recips.push(...await getDelegateAdminsWithPermission('canApproveRegistrations'));
-    if (admCfg.communityAdmin ?? true) recips.push(...await getCommunityAdminEmails(communityId));
-  }
-  return sendTemplatedEmail({ key, to: normalizeRecipients(recips), vars: { userName:registration.userName || '', userEmail:registration.userEmail || '', reason, reasonLine: reason ? 'Motivo/nota: ' + reason : '', reasonHtml: reason ? '<p><strong>Motivo/nota:</strong> ' + reason + '</p>' : '', reasonLineEn: reason ? 'Reason/note: ' + reason : '', reasonHtmlEn: reason ? '<p><strong>Reason/note:</strong> ' + reason + '</p>' : '', dashboardLink:link, registrationLink:link, communityName }, communityId });
-};
-const sendRegistrationReviewerEmail = async ({ reviewer, registration, appUrl }) => {
-  const notifCfg = await getEmailNotificationConfig();
-  const typeCfg = notifCfg['registration_reviewer'];
-  if (!typeCfg.enabled || !typeCfg.owner) return { sent:false, skipped:true, reason:'Registration reviewer email is disabled.' };
-  const communityId = registration.communityId || 'kai';
-  const community = await getCommunity(communityId);
-  const communityName = community?.name || communityId;
-  return sendTemplatedEmail({ key:'registration_reviewer', to: reviewer.user_email, vars: { reviewerName: reviewer.user_name || 'propietario', userName:registration.userName || '', userEmail:registration.userEmail || '', approvalsLink: appUrl + '/?view=approvals', communityName }, communityId });
-};
+const {
+  sendIncidentEmail, sendIncidentVerifiedEmail,
+  sendIncidentResolutionAddedEmail, sendIncidentResolvedEmail,
+  sendGeneralIncidentSlaEmail,
+} = require('./server/modules/incidents/email-senders')(senderDeps);
+const { sendListingChangeEmail } =
+  require('./server/platform/units/email-senders')(senderDeps);
+const {
+  sendRegistrationSubmittedEmail, sendRegistrationStatusEmail, sendRegistrationReviewerEmail,
+} = require('./server/platform/registrations/email-senders')(senderDeps);
+
 
 const sendSupabaseError = (res, error, status = 500) => {
   console.error('Supabase error:', error);
@@ -543,27 +419,6 @@ app.use('/api/platform/notifications', notificationsRouter);
 app.use('/api/notifications', notificationsRouter); // legacy alias — drop after client migrates
 
 
-const sendGeneralIncidentSlaEmail = async (inc, slaHours, appUrl, communityId='kai') => {
-  if (!emailConfigured) return;
-  const notifCfg = await getEmailNotificationConfig();
-  const typeCfg = notifCfg['incident_general_sla'] || { enabled:true, globalAdmin:true, delegateAdmin:true };
-  if (!typeCfg.enabled) return;
-  const recips = [];
-  if (typeCfg.globalAdmin  !== false) recips.push(...getGlobalAdminEmails(), ...await getCommunityEscalationEmails(communityId));
-  if (typeCfg.delegateAdmin !== false) recips.push(...await getDelegateAdminsWithPermission('canResolveIncidents'));
-  if (typeCfg.communityAdmin ?? true) recips.push(...await getCommunityAdminEmails(communityId));
-  const recipients = normalizeRecipients(recips);
-  if (!recipients.length) return;
-  const incidentLink = appUrl + '/?view=incidents&incident=' + inc.id;
-  // Use incident_sla template if incident_general_sla template not set; fallback to inline text
-  return sendTemplatedEmail({
-    key: 'incident_general_sla',
-    to: recipients,
-    vars: { apt:'General', owner:'', operator:'No indicado', operatorEmail:'', guestName:'', date:inc.date||'', type:inc.type||'', category:inc.category||'', status:'open', desc:inc.desc||'', incidentLink, slaCycleCount:String(inc.slaCycleCount||0), slaHours:String(slaHours), pendingStep:'assign-or-close', pendingStepLabel:'Assign this general incident to a unit or close it directly', pendingStepLabelEs:'Asigna este incidente general a una unidad o ciérralo directamente' },
-    relatedEntity: 'incident',
-    relatedId: inc.id,
-  });
-};
 
 const runSlaEscalations = async () => {
   if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY || !emailConfigured) return;
