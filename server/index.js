@@ -44,9 +44,11 @@ const supabase = createClient(
   { auth: { persistSession: false, autoRefreshToken: false }, realtime: { transport: ws } }
 );
 
-// Audit helpers (extracted in stage 4b) — bound to the supabase client created above.
+// Audit helpers (extracted in stage 4b) — bound to supabase + getAppConfig
+// (so the kill-switch can short-circuit before insert). getAppConfig is built
+// further down at the CONFIG HELPERS block; audit no longer depends on it
+// at construction so we can use a late-binding factory pattern.
 // See server/core/audit.js and docs/PLATFORM_ARCHITECTURE.md §11.
-const { auditEvent, auditLog } = require('./core/audit')(supabase);
 
 const requireSupabaseEnv = (res) => {
   if (SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY) return true;
@@ -89,8 +91,10 @@ const { DEFAULT_EMAIL_TEMPLATES, DEFAULT_EMAIL_TEMPLATES_EN } = require('./templ
 const {
   DEFAULT_EMAIL_NOTIFICATION_CONFIG, DEFAULT_SLA_HOURS, DEFAULT_ESCALATION_CC_EMAILS,
   OVERRIDABLE_COMMUNITY_KEYS,
+  KNOWN_AUDIT_EVENT_TYPES,
   getCommunity, getAppConfig, getSlaHours, getEscalationCcEmails, getEmailNotificationConfig,
 } = require('./core/config')(supabase, { EMAIL_FROM });
+const { auditEvent, auditLog } = require('./core/audit')(supabase, { getAppConfig });
 const { sendSpanishEmail, getEmailTemplates, sendTemplatedEmail, sendSplitEmail } =
   require('./core/email')({ supabase, resend, emailConfigured, EMAIL_FROM, getAppConfig });
 
@@ -305,6 +309,7 @@ const platformAdminRouter = platformAdminModule.createRouter({
   getGlobalAdminEmails, getApprovedUser,
   auditLog,
   DEFAULT_DELEGATE_PERMISSIONS, DEFAULT_STANDARD_MENU_PERMISSIONS, COMMUNITY_ADMIN_PERM_DEFAULTS,
+  KNOWN_AUDIT_EVENT_TYPES,
 });
 app.use('/api/platform/admin', platformAdminRouter);
 function forwardToPlatformAdminRouter(targetPath) {

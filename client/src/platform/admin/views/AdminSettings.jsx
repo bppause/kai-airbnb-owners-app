@@ -96,6 +96,7 @@ export default function AdminSettings({ config={}, user, listings=[], contactPro
   // Master switches — emergency kill-switches that halt email/audit subsystems
   // platform-wide. Server-side gates live in core/email.js + core/audit.js.
   const [emailKillSwitch,setEmailKillSwitch]=useState(String(config?.email_kill_switch||'false')==='true');
+  const [auditKillSwitch,setAuditKillSwitch]=useState(String(config?.audit_kill_switch||'false')==='true');
   // Phase 4 — community management state
   const [communityFeatureEnabled, setCommunityFeatureEnabled] = useState(String(config?.community_feature_enabled ?? 'true') !== 'false');
   const [defaultCommunityId, setDefaultCommunityId] = useState(config?.default_community_id || 'kai');
@@ -165,8 +166,9 @@ export default function AdminSettings({ config={}, user, listings=[], contactPro
     setCommunityFeatureEnabled(String(config?.community_feature_enabled ?? 'true') !== 'false');
     setDefaultCommunityId(config?.default_community_id || 'kai');
     setEmailKillSwitch(String(config?.email_kill_switch || 'false') === 'true');
+    setAuditKillSwitch(String(config?.audit_kill_switch || 'false') === 'true');
     try { setLastUiError(localStorage.getItem('kai_last_ui_error') || localStorage.getItem('kai_last_admin_error') || ''); } catch(e) {}
-  }, [config?.mission_sections_es, config?.mission_sections_en, config?.sla_hours, config?.escalation_cc_emails, config?.analytics_enabled, config?.community_feature_enabled, config?.default_community_id, config?.email_kill_switch, lang, user?.email]);
+  }, [config?.mission_sections_es, config?.mission_sections_en, config?.sla_hours, config?.escalation_cc_emails, config?.analytics_enabled, config?.community_feature_enabled, config?.default_community_id, config?.email_kill_switch, config?.audit_kill_switch, lang, user?.email]);
   const templateEntries = Object.entries((templates && typeof templates==='object') ? templates : {}).filter(([k,v])=>k && v && typeof v==='object');
   const selectedKey = (templates && templates[selectedTemplate]) ? selectedTemplate : (templateEntries[0]?.[0] || '');
   const selected = selectedKey ? (templates[selectedKey] || {}) : {};
@@ -273,7 +275,7 @@ export default function AdminSettings({ config={}, user, listings=[], contactPro
   const saveEmailSender = () => { if (!emailFromAddress.trim() || !emailFromAddressEn.trim()) { showToast(isEn?'Both email addresses are required':'Ambos emails son requeridos', true); return; } onSave({ emailFromName, emailFromAddress, emailFromNameEn, emailFromAddressEn }); };
   // Master switches save — values stored as strings in app_config so the
   // server can read them with String(cfg.x||'false')==='true' without JSON.parse.
-  const saveMasterSwitches = () => onSave({ emailKillSwitch:String(emailKillSwitch) });
+  const saveMasterSwitches = () => onSave({ emailKillSwitch:String(emailKillSwitch), auditKillSwitch:String(auditKillSwitch) });
   const toggleMenuPermission = (key) => setStandardMenuPermissions(p => ({ ...p, [key]: key === 'dashboard' ? true : !p[key] }));
   const toggleDefaultDelegatePermission = (key) => setDefaultDelegatePermissions(p => ({ ...p, [key]: !p[key] }));
   const toggleDefaultCommunityAdminPermission = (key) => setDefaultCommunityAdminPermissions(p => ({ ...p, [key]: !p[key] }));
@@ -1384,6 +1386,20 @@ export default function AdminSettings({ config={}, user, listings=[], contactPro
             {isEn
               ? 'When ON, sendTemplatedEmail() and sendSplitEmail() short-circuit and log every attempt as "skipped: Global email kill-switch is ON". No incident notifications, SLA reminders, or registration emails are sent.'
               : 'Cuando está activo, sendTemplatedEmail() y sendSplitEmail() se cortocircuitan y registran cada intento como "skipped: Global email kill-switch is ON". No se envían notificaciones de incidentes, recordatorios SLA, ni emails de registro.'}
+          </div>
+        </div>
+      </label>
+      <label style={{display:'flex',alignItems:'flex-start',gap:10,padding:'12px 14px',background:auditKillSwitch?'#fff5f5':'#f8f9fa',border:`1.5px solid ${auditKillSwitch?'#e53935':'#e8eaed'}`,borderRadius:8,cursor:'pointer'}}>
+        <input type="checkbox" checked={auditKillSwitch} onChange={e=>setAuditKillSwitch(e.target.checked)} style={{marginTop:3,width:18,height:18,flexShrink:0}}/>
+        <div style={{flex:1}}>
+          <div style={{fontWeight:700,fontSize:'.92rem',color:auditKillSwitch?'#c62828':'#17313a'}}>
+            🕵️ {isEn?'Halt all audit log writes':'Detener toda la escritura del log de auditoría'}
+            {auditKillSwitch && <span style={{marginLeft:8,fontSize:'.7rem',background:'#c62828',color:'#fff',padding:'1px 8px',borderRadius:999}}>ON</span>}
+          </div>
+          <div style={{fontSize:'.78rem',color:'#496674',marginTop:4,lineHeight:1.45}}>
+            {isEn
+              ? 'When ON, auditLog() returns early without writing to audit_logs. Every action (incident state changes, role updates, config edits, listing CRUD, …) silently skips the audit trail. The legacy listing_audit_events table is unaffected.'
+              : 'Cuando está activo, auditLog() retorna sin escribir en audit_logs. Cada acción (cambios de estado de incidentes, actualizaciones de roles, edición de configuración, CRUD de listings, …) salta el registro silenciosamente. La tabla legacy listing_audit_events no se ve afectada.'}
           </div>
         </div>
       </label>

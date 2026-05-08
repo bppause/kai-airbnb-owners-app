@@ -47,6 +47,27 @@ const DEFAULT_ESCALATION_CC_EMAILS = String(process.env.DEFAULT_ESCALATION_CC_EM
 
 const OVERRIDABLE_COMMUNITY_KEYS = ['mission_title_es','mission_body_es','mission_title_en','mission_body_en','mission_sections_es','mission_sections_en','escalation_cc_emails','community_admin_default_permissions','tooltips_es','tooltips_en','ui_labels_es','ui_labels_en','email_enabled'];
 
+// Canonical list of every audit event type the platform writes. Built by
+// scanning every auditLog({entity:'X', action:'Y'}) call site. The admin UI
+// renders a checkbox per entry so admins can disable individual event types
+// without flipping the global audit kill-switch.
+//
+// Adding a new event type: append `<entity>.<action>` here AND make sure
+// somewhere in server/ does `auditLog({entity, action, ...})` with the same
+// strings. The grid auto-picks it up after a server restart.
+const KNOWN_AUDIT_EVENT_TYPES = [
+  'app_config.update',
+  'community.create', 'community.update', 'community.delete',
+  'community_config.set_overrides_enabled', 'community_config.update_overrides',
+  'community_email_routing.update',
+  'community_membership.promote_admin', 'community_membership.demote_admin', 'community_membership.update_permissions',
+  'contact_email.send',
+  'email_templates.update',
+  'incident.create', 'incident.verify', 'incident.add-resolution', 'incident.assign', 'incident.close-general', 'incident.resolve', 'incident.delete',
+  'listing.create', 'listing.update', 'listing.delete',
+  'user_role.delegate_update',
+];
+
 module.exports = function createConfigHelpers(supabase, { EMAIL_FROM }) {
   const getCommunity = async (communityId='kai') => {
     try {
@@ -64,6 +85,13 @@ module.exports = function createConfigHelpers(supabase, { EMAIL_FROM }) {
       // Used by sendTemplatedEmail/sendSplitEmail (core/email.js) and auditLog
       // (core/audit.js) to short-circuit when the kill-switch is engaged.
       email_kill_switch:'false',
+      audit_kill_switch:'false',
+      // Per-event-type audit toggles. Stored as a JSON string in app_config to
+      // keep the table key/value-typed. Missing entries default to ENABLED;
+      // explicit `false` for an "<entity>.<action>" key disables that single
+      // event type. The full canonical event list is KNOWN_AUDIT_EVENT_TYPES
+      // below — the admin UI builds its checkbox grid from that list.
+      audit_event_toggles:'{}',
       // Per-community email enable flag — defaults to true. Listed in
       // OVERRIDABLE_COMMUNITY_KEYS so each community can opt out of email
       // delivery without affecting other communities. The global kill-switch
@@ -131,6 +159,7 @@ module.exports = function createConfigHelpers(supabase, { EMAIL_FROM }) {
     DEFAULT_SLA_HOURS,
     DEFAULT_ESCALATION_CC_EMAILS,
     OVERRIDABLE_COMMUNITY_KEYS,
+    KNOWN_AUDIT_EVENT_TYPES,
     getCommunity,
     getAppConfig,
     getSlaHours,
@@ -144,3 +173,4 @@ module.exports.DEFAULT_EMAIL_NOTIFICATION_CONFIG = DEFAULT_EMAIL_NOTIFICATION_CO
 module.exports.DEFAULT_SLA_HOURS = DEFAULT_SLA_HOURS;
 module.exports.DEFAULT_ESCALATION_CC_EMAILS = DEFAULT_ESCALATION_CC_EMAILS;
 module.exports.OVERRIDABLE_COMMUNITY_KEYS = OVERRIDABLE_COMMUNITY_KEYS;
+module.exports.KNOWN_AUDIT_EVENT_TYPES = KNOWN_AUDIT_EVENT_TYPES;

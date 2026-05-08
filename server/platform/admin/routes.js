@@ -29,6 +29,7 @@ module.exports = function createAdminRouter(deps) {
     getGlobalAdminEmails, getApprovedUser,
     auditLog,
     DEFAULT_DELEGATE_PERMISSIONS, DEFAULT_STANDARD_MENU_PERMISSIONS, COMMUNITY_ADMIN_PERM_DEFAULTS,
+    KNOWN_AUDIT_EVENT_TYPES,
   } = deps;
 
   const router = express.Router();
@@ -77,13 +78,13 @@ module.exports = function createAdminRouter(deps) {
     const isCommunityAdminFlag = communityAdminOf.length > 0;
     const canManageRegs = role === 'global_admin' || !!permissions.delegate?.canApproveRegistrations ||
       await hasCommunityAdminPerm(uid, email, communityId, 'canApproveRegistrations');
-    res.json({ role, isGlobalAdmin: role === 'global_admin', canManageRegistrations: canManageRegs, languagePreference, config, permissions, communityId, communities, communityAdminOf, isCommunityAdmin: isCommunityAdminFlag });
+    res.json({ role, isGlobalAdmin: role === 'global_admin', canManageRegistrations: canManageRegs, languagePreference, config, permissions, communityId, communities, communityAdminOf, isCommunityAdmin: isCommunityAdminFlag, auditEventTypes: KNOWN_AUDIT_EVENT_TYPES });
   });
 
   // PUT /config          — global admin config writer
   router.put('/config', async (req, res) => {
     if (!requireSupabaseEnv(res)) return;
-    const { actorUid, actorEmail, slaHours, escalationCcEmails, analyticsEnabled, missionTitle, missionBody, missionTitleEs, missionBodyEs, missionTitleEn, missionBodyEn, missionSectionsEs, missionSectionsEn, standardMenuPermissions, defaultDelegatePermissions, communityAdminDefaultPermissions, tooltipsEs, tooltipsEn, uiLabelsEs, uiLabelsEn, complexNameEs, complexNameEn, complexLocation, complexLogo, complexBg, emailFromName, emailFromAddress, emailFromNameEn, emailFromAddressEn, nav_config, communityFeatureEnabled, defaultCommunityId, emailKillSwitch } = req.body || {};
+    const { actorUid, actorEmail, slaHours, escalationCcEmails, analyticsEnabled, missionTitle, missionBody, missionTitleEs, missionBodyEs, missionTitleEn, missionBodyEn, missionSectionsEs, missionSectionsEn, standardMenuPermissions, defaultDelegatePermissions, communityAdminDefaultPermissions, tooltipsEs, tooltipsEn, uiLabelsEs, uiLabelsEn, complexNameEs, complexNameEn, complexLocation, complexLogo, complexBg, emailFromName, emailFromAddress, emailFromNameEn, emailFromAddressEn, nav_config, communityFeatureEnabled, defaultCommunityId, emailKillSwitch, auditKillSwitch, auditEventToggles } = req.body || {};
     if (!(await isGlobalAdmin(actorUid, actorEmail))) return res.status(403).json({ error:'Solo un administrador global puede cambiar la configuración.' });
     const before = await getAppConfig();
     const rows = [];
@@ -118,6 +119,8 @@ module.exports = function createAdminRouter(deps) {
     if (communityFeatureEnabled !== undefined) rows.push({ key:'community_feature_enabled', value: communityFeatureEnabled === true || String(communityFeatureEnabled) === 'true' ? 'true' : 'false' });
     if (defaultCommunityId !== undefined) rows.push({ key:'default_community_id', value: String(defaultCommunityId||'kai') });
     if (emailKillSwitch !== undefined) rows.push({ key:'email_kill_switch', value: emailKillSwitch === true || String(emailKillSwitch) === 'true' ? 'true' : 'false' });
+    if (auditKillSwitch !== undefined) rows.push({ key:'audit_kill_switch', value: auditKillSwitch === true || String(auditKillSwitch) === 'true' ? 'true' : 'false' });
+    if (auditEventToggles !== undefined) rows.push({ key:'audit_event_toggles', value: typeof auditEventToggles === 'string' ? auditEventToggles : JSON.stringify(safeJsonObject(auditEventToggles, {})) });
     for (const row of rows) {
       const { error } = await supabase.from('app_config').upsert(row, { onConflict:'key' });
       if (error) return sendSupabaseError(res, error);
