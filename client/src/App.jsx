@@ -194,6 +194,24 @@ import DashboardGreeting from "./platform/dashboard/components/DashboardGreeting
 // See docs/PLATFORM_ARCHITECTURE.md §11 frontend stage F27.
 import CommunitySwitch from "./core/ui/CommunitySwitch";
 
+// Listings leaf components (extracted in stage F28) — small reusable
+// pieces used by the still-inline listings views (UnitDetailCard,
+// AptDetailPanel, AptCard, BuildingFloor, ListingsView, etc.). Both
+// pull lang via useApp(); other props (l, incidents, callbacks) stay
+// per-instance.
+//
+//   AptContactPopup  — hover card with owner/operator/co-owner contacts
+//   AptDoor          — building-view "door" card (incl. aptDoorStatus
+//                      helper, co-located)
+//
+// Two sibling components were dropped during this stage as dead code
+// (FloorSection, AptRow) — neither had a JSX call site after F1-F27's
+// view extractions. Mirrors the F26 cleanup pattern.
+//
+// See docs/PLATFORM_ARCHITECTURE.md §11 frontend stage F28.
+import AptContactPopup from "./platform/units/components/AptContactPopup";
+import AptDoor from "./platform/units/components/AptDoor";
+
 // ─── API client (extracted in stage F3) ──────────────────────────────────────
 // All fetch calls flow through this module so the X-Community-Id header is
 // always set, errors are normalized, and Render cold-start timeouts are
@@ -1373,7 +1391,7 @@ function MyListings({ listings, allListings=listings, incidents, user, contactPr
                       <button className="bsm bs-del" onClick={()=>onDelete(l)}>🗑️</button>
                     </div>
                     <span className={`fls-chev${isSel?' fls-chev-up':''}`} style={{marginLeft:'auto',flexShrink:0}}>›</span>
-                    <AptContactPopup ownerName={l.owner} ownerEmail={l.userEmail||l.email} ownerWaRaw={l.contact} coOwners={l.coOwners||[]} isEn={isEn}/>
+                    <AptContactPopup ownerName={l.owner} ownerEmail={l.userEmail||l.email} ownerWaRaw={l.contact} coOwners={l.coOwners||[]}/>
                   </div>
                   {isSel&&(
                     <div className="ml-listing-detail" onClick={e=>e.stopPropagation()}>
@@ -1417,66 +1435,6 @@ function MyListings({ listings, allListings=listings, incidents, user, contactPr
 }
 
 // ── Building-view helpers
-
-function aptDoorStatus(l, incidents) {
-  const open = incidents.filter(i=>i.aptId===l.id&&i.status==='open');
-  if (open.some(i=>i.category==='serious')) return 'alert';
-  if (open.length>0) return 'warn';
-  return 'clean';
-}
-
-// Inline branded SVG icons — small enough to embed directly
-
-// ─── Reusable apartment contact hover popup ───────────────────────────────────
-// Wrap any apt header/row in <div className="apt-cpop-wrap"> to get a hover
-// card showing owner email + WhatsApp (+ operator if present) with branded icons
-// and direct mailto / wa.me external links.  Popup has pointer-events:none on
-// the shell so the underlying click target still fires; links have auto.
-function AptContactPopup({ ownerName='', ownerEmail='', ownerWaRaw='', operatorName='', operatorEmail='', opWaRaw='', coOwners=[], isEn=false }) {
-  const ownerWaDigits = normalizePhoneForWhatsApp(ownerWaRaw);
-  const opWaDigits    = normalizePhoneForWhatsApp(opWaRaw);
-  const ownerWaOk     = !ownerWaRaw || ownerWaRaw.trim().startsWith('+');
-  const hasOperator   = !!(operatorEmail || opWaDigits);
-  return (
-    <div className="apt-cpop" onClick={e=>e.stopPropagation()}>
-      {/* Owner */}
-      <div className="apt-cpop-section">
-        <span className="apt-cpop-lbl">👤 {isEn?'Owner':'Propietario'}{ownerName ? ` · ${ownerName}` : ''}</span>
-        {ownerEmail
-          ? <a className="apt-cpop-link" href={`mailto:${ownerEmail}`}><IconEmail/><span>{ownerEmail}</span></a>
-          : <span className="apt-cpop-miss">{isEn?'No email':'Sin email'}</span>}
-        {ownerWaDigits
-          ? <a className="apt-cpop-link" href={`https://wa.me/${ownerWaDigits}`} target="_blank" rel="noreferrer"><IconWhatsApp/><span>{ownerWaRaw}{!ownerWaOk&&<span style={{color:'#f0c040'}}> ⚠️</span>}</span></a>
-          : <span className="apt-cpop-miss">{isEn?'No WhatsApp':'Sin WhatsApp'}</span>}
-      </div>
-      {/* Co-owners */}
-      {coOwners.filter(co=>co.firstName||co.lastName).map((co,i)=>{
-        const coName=[co.firstName,co.middleName,co.lastName].filter(Boolean).join(' ');
-        const coWaDigits=normalizePhoneForWhatsApp(co.whatsapp);
-        return (
-          <div key={i} className="apt-cpop-section">
-            <span className="apt-cpop-lbl">👤 {isEn?'Co-owner':'Copropietario'}{coName?` · ${coName}`:''}</span>
-            {coWaDigits
-              ? <a className="apt-cpop-link" href={`https://wa.me/${coWaDigits}`} target="_blank" rel="noreferrer"><IconWhatsApp/><span>{co.whatsapp}</span></a>
-              : <span className="apt-cpop-miss">{isEn?'No WhatsApp':'Sin WhatsApp'}</span>}
-          </div>
-        );
-      })}
-      {/* Operator — only if any contact info exists */}
-      {hasOperator && (
-        <div className="apt-cpop-section">
-          <span className="apt-cpop-lbl">🔧 {isEn?'Operator':'Operador'}{operatorName ? ` · ${operatorName}` : ''}</span>
-          {operatorEmail
-            ? <a className="apt-cpop-link" href={`mailto:${operatorEmail}`}><IconEmail/><span>{operatorEmail}</span></a>
-            : null}
-          {opWaDigits
-            ? <a className="apt-cpop-link" href={`https://wa.me/${opWaDigits}`} target="_blank" rel="noreferrer"><IconWhatsApp/><span>{opWaRaw}</span></a>
-            : null}
-        </div>
-      )}
-    </div>
-  );
-}
 
 // ── UnitDetailCard ────────────────────────────────────────────────────────
 // 3-step in-overlay navigator: Unit info → Incident list → Incident detail
@@ -1917,70 +1875,6 @@ function UnitDetailCard({ l, incidents, canEdit=false, canDelete=false, onEdit, 
 
 // AptDoor: only the number plate and "View incidents" footer are interactive.
 // The card body is display-only (hover reveals contact popup).
-function AptDoor({ l, incidents, onUnitDetail, onViewIncidents, onPillFilter, lang, isEn }) {
-  const status = aptDoorStatus(l, incidents);
-  const aptInc         = incidents.filter(i => i.aptId === l.id);
-  const openCount      = aptInc.filter(i => i.status === 'open').length;
-  const pendingResCount= aptInc.filter(i => i.status === 'verified' && !String(i.ownerResolution||'').trim()).length;
-  const awaitingCount  = aptInc.filter(i => i.status === 'verified' &&  String(i.ownerResolution||'').trim()).length;
-  const resolvedCount  = aptInc.filter(i => i.status === 'resolved').length;
-  const totalCount     = aptInc.length;
-  const ownerEmail = l.userEmail || l.email || '';
-  const ownerWaRaw = l.contact || '';
-  return (
-    <div className={`apt-door apt-door-${status} apt-cpop-wrap`}>
-      {/* Status colour bar */}
-      <div className={`door-status-bar door-sb-${status}`}/>
-
-      {/* ★ CLICKABLE: Number plate — uses UnitPlate for consistent style */}
-      <UnitPlate
-        apt={l.apt}
-        tower={l.tower||getDefaultTower()}
-        size="door"
-        onClick={()=>onUnitDetail&&onUnitDetail(l.id)}
-        title={isEn?'View unit details':'Ver detalles de la unidad'}
-        className="door-num-plate door-num-plate-btn"
-      />
-
-      {/* Display-only card body — hover reveals contact popup */}
-      <div className="door-body">
-        <div className="door-owner" title={l.owner}>{l.owner||'—'}</div>
-        {l.operator&&<div className="door-op" title={l.operator}>🔧 {l.operator}</div>}
-        <div className="door-chips">
-          <span className="door-chip">🛏️ {l.rooms}</span>
-          <span className="door-chip">👥 {l.guests}</span>
-        </div>
-      </div>
-
-      {/* ★ CLICKABLE: Incident count pills → navigate to filtered incidents */}
-      <div className="door-inc-summary">
-        {totalCount===0
-          ? <span className="dis-clean">✅ {isEn?'No incidents':'Sin incidentes'}</span>
-          : <>
-              {openCount>0      &&<button type="button" className="dis-pill dis-open"        onClick={()=>onPillFilter&&onPillFilter({aptIds:[l.id],status:'open'})}          title={isEn?`${openCount} open — click to filter`:`${openCount} abierto${openCount>1?'s':''} — clic para filtrar`}>⚠️ {openCount}</button>}
-              {pendingResCount>0&&<button type="button" className="dis-pill dis-pending-res" onClick={()=>onPillFilter&&onPillFilter({aptIds:[l.id],status:'pendingResolution'})} title={isEn?`${pendingResCount} add resolution — click to filter`:`${pendingResCount} agregar resolución — clic para filtrar`}>📝 {pendingResCount}</button>}
-              {awaitingCount>0  &&<button type="button" className="dis-pill dis-ver"         onClick={()=>onPillFilter&&onPillFilter({aptIds:[l.id],status:'awaitingAdmin'})}  title={isEn?`${awaitingCount} awaiting admin — click to filter`:`${awaitingCount} esperando admin — clic para filtrar`}>⏳ {awaitingCount}</button>}
-              {resolvedCount>0  &&<button type="button" className="dis-pill dis-res"         onClick={()=>onPillFilter&&onPillFilter({aptIds:[l.id],status:'resolved'})}      title={isEn?`${resolvedCount} closed — click to filter`:`${resolvedCount} cerrado${resolvedCount>1?'s':''} — clic para filtrar`}>✓ {resolvedCount}</button>}
-            </>
-        }
-      </div>
-
-      {/* Contact popup — hover only, not a click target */}
-      <AptContactPopup ownerName={l.owner} ownerEmail={ownerEmail} ownerWaRaw={ownerWaRaw} operatorName={l.operator} operatorEmail={l.operatorEmail} opWaRaw={l.operatorWhatsapp} coOwners={l.coOwners||[]} isEn={isEn}/>
-
-      {/* ★ CLICKABLE: Footer → open incident popup for this unit */}
-      <button
-        type="button"
-        className="door-footer door-footer-btn"
-        onClick={()=>onViewIncidents&&onViewIncidents(l.id)}
-        title={isEn?'View incidents for this unit':'Ver incidentes de esta unidad'}
-      >
-        👆 {isEn?'View incidents':'Ver incidentes'}
-      </button>
-    </div>
-  );
-}
-
 function AptDetailPanel({ l, incidents, contactProps={}, canEdit, canDelete, onEdit, onDelete, onReport, onClose, user, isGlobalAdmin, canResolveGlobal, onVerify, onResolve, onAddResolution, lang, isEn }) {
   const aptInc = [...incidents.filter(i=>i.aptId===l.id)].sort((a,b)=>new Date(b.createdAt)-new Date(a.createdAt));
   const ownerWa = normalizePhoneForWhatsApp(l.contact);
@@ -2124,8 +2018,6 @@ function BuildingFloor({ floor, apts, incidents, user, contactProps, isGlobalAdm
                 onUnitDetail={id=>{setUnitDetailAptId(id);setUnitDetailStep('info');}}
                 onViewIncidents={id=>{setUnitDetailAptId(id);setUnitDetailStep('incidents');}}
                 onPillFilter={f=>{onFloorFilter&&onFloorFilter(f);}}
-                lang={lang}
-                isEn={isEn}
               />
             ))}
           </div>
@@ -2160,62 +2052,6 @@ function BuildingFloor({ floor, apts, incidents, user, contactProps, isGlobalAdm
           </Overlay>
         );
       })()}
-    </div>
-  );
-}
-
-// Keep old FloorSection + AptRow for list-mode compatibility
-function AptRow({ l, incCount, user, contactProps={}, isGlobalAdmin=false, canEditGlobal=false, canDeleteGlobal=false, onEdit, onDelete, onReport, lang, isEn }) {
-  const [expanded, setExpanded] = useState(false);
-  const hasOp   = !!(l.operator||l.operatorEmail||l.operatorWhatsapp);
-  const canEdit   = user?.uid===l.ownerUid||isGlobalAdmin||canEditGlobal;
-  const canDelete = user?.uid===l.ownerUid||isGlobalAdmin||canDeleteGlobal;
-  return (
-    <div className={`fls-row${expanded?' fls-row-open':''}`}>
-      <div className="fls-row-main apt-cpop-wrap" onClick={()=>setExpanded(x=>!x)} role="button" aria-expanded={expanded}>
-        <span className="fls-apt-num">{isEn?'Apt.':'Apto.'} {l.apt}</span>
-        <span className="fls-owner-wrap"><UserContact name={l.owner} uid={l.ownerUid} email={l.userEmail||l.email} whatsapp={l.contact} apartments={l.apt?[aptDisplay(l.apt,lang)]:[]} {...contactProps}/></span>
-        {hasOp&&<span className="fls-op-pill">🔧 {l.operator||'—'}</span>}
-        <span className="fls-row-chips"><span className="chip c-teal">🛏️ {l.rooms}</span><span className="chip c-blue">👥 {l.guests}</span></span>
-        {incCount>0&&<span className="fls-inc-pill">⚠️ {incCount}</span>}
-        <span className={`fls-chev${expanded?' fls-chev-up':''}`}>›</span>
-        <AptContactPopup
-          ownerName={l.owner}
-          ownerEmail={l.userEmail||l.email}
-          ownerWaRaw={l.contact}
-          operatorName={l.operator}
-          operatorEmail={l.operatorEmail}
-          opWaRaw={l.operatorWhatsapp}
-          coOwners={l.coOwners||[]}
-          isEn={isEn}
-        />
-      </div>
-      {expanded&&(
-        <div className="fls-row-detail" onClick={e=>e.stopPropagation()}>
-          {hasOp&&<div className="fls-det-row"><span className="fls-det-lbl">🔧 {isEn?'Operator':'Operador'}</span><span className="fls-det-val">{l.operator?<UserContact name={l.operator} email={l.operatorEmail} whatsapp={l.operatorWhatsapp} apartments={[]} {...contactProps}/>:<span style={{fontSize:'.8rem',color:'#8a9fa5'}}>{isEn?'No name':'Sin nombre'}</span>}<span className="fls-det-acts">{l.operatorEmail&&<a href={`mailto:${l.operatorEmail}`} className="ac-cbtn" title={l.operatorEmail}><IconEmail/></a>}{opWa&&<a href={`https://wa.me/${opWa}`} className="ac-cbtn ac-cbtn-wa" target="_blank" rel="noreferrer" title="WhatsApp"><IconWhatsApp/></a>}</span></span></div>}
-          <div className="fls-det-row"><span className="fls-det-lbl">Airbnb</span><span className="fls-det-val">{l.airbnb?<a className="airbnb-lnk" href={l.airbnb} target="_blank" rel="noreferrer">{isEn?'View listing':'Ver listing'}</a>:<span style={{fontSize:'.8rem',color:'#8a9fa5'}}>{isEn?'No link':'Sin enlace'}</span>}</span></div>
-          <div className="fls-det-acts-row"><button className="bsm bs-rep" onClick={e=>{e.stopPropagation();onReport();}}>+ {isEn?'Report':'Reporte'}</button>{canEdit&&<button className="bsm bs-edit" onClick={e=>{e.stopPropagation();onEdit();}}>✏️</button>}{canDelete&&<button className="bsm bs-del" onClick={e=>{e.stopPropagation();onDelete();}}>🗑️</button>}<span className={`inc-b ${incCount>0?'ib-open':'ib-none'}`} style={{cursor:'default',display:'inline-flex',alignItems:'center'}}>{incCount>0?(incCount>1?appText(lang,'listings.openReportPlural',{count:incCount}):appText(lang,'listings.openReportSingular',{count:incCount})):appText(lang,'listings.noOpenReports')}</span></div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function FloorSection({ floor, apts, openCount, incidents, user, contactProps, isGlobalAdmin, canEditGlobal, canDeleteGlobal, onEdit, onDelete, onReport, lang, isEn }) {
-  const [open, setOpen] = useState(true);
-  const color = floorColor(floor);
-  return (
-    <div className="fls-floor">
-      <button className="fls-floor-hdr" style={{borderLeftColor:color}} onClick={()=>setOpen(o=>!o)}>
-        <span className="fls-floor-badge" style={{background:color}}>F{floor}</span>
-        <span className="fls-floor-label">{isEn?`Floor ${floor}`:`Piso ${floor}`}</span>
-        <span className="fls-floor-meta">
-          <span className="fls-floor-units">{apts.length} {isEn?(apts.length===1?'unit':'units'):'apto'+(apts.length>1?'s':'')}</span>
-          {openCount>0&&<span className="fls-floor-open">⚠️ {openCount}</span>}
-        </span>
-        <span className={`fls-chev${open?' fls-chev-up':''}`} style={{marginLeft:'auto'}}>›</span>
-      </button>
-      {open&&<div className="fls-floor-body">{apts.map(l=><AptRow key={l.id} l={l} incCount={incidents.filter(i=>i.aptId===l.id&&i.status==='open').length} user={user} contactProps={contactProps} isGlobalAdmin={isGlobalAdmin} canEditGlobal={canEditGlobal} canDeleteGlobal={canDeleteGlobal} onEdit={()=>onEdit(l)} onDelete={()=>onDelete(l)} onReport={()=>onReport(l)} lang={lang} isEn={isEn}/>)}</div>}
     </div>
   );
 }
@@ -2379,7 +2215,6 @@ function AptCard({ l, incCount, contactProps={}, canEdit=false, canDelete=false,
           operatorEmail={l.operatorEmail}
           opWaRaw={l.operatorWhatsapp}
           coOwners={l.coOwners||[]}
-          isEn={isEn}
         />
       </div>
 
