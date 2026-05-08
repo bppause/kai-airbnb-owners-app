@@ -97,6 +97,12 @@ export default function AdminSettings({ config={}, user, listings=[], contactPro
   // platform-wide. Server-side gates live in core/email.js + core/audit.js.
   const [emailKillSwitch,setEmailKillSwitch]=useState(String(config?.email_kill_switch||'false')==='true');
   const [auditKillSwitch,setAuditKillSwitch]=useState(String(config?.audit_kill_switch||'false')==='true');
+  // Per-event-type audit toggles. The JSON in app_config has the form
+  // { "incident.create": false, ... } where missing keys default to enabled.
+  // We hydrate state with that exact shape; the save function sends the same
+  // object back. The list of keys to render in the UI grid comes from the
+  // server (adminInfo.auditEventTypes — built from KNOWN_AUDIT_EVENT_TYPES).
+  const [auditEventToggles,setAuditEventToggles]=useState(()=>parseJsonObject(config?.audit_event_toggles, {}));
   // Phase 4 — community management state
   const [communityFeatureEnabled, setCommunityFeatureEnabled] = useState(String(config?.community_feature_enabled ?? 'true') !== 'false');
   const [defaultCommunityId, setDefaultCommunityId] = useState(config?.default_community_id || 'kai');
@@ -167,8 +173,9 @@ export default function AdminSettings({ config={}, user, listings=[], contactPro
     setDefaultCommunityId(config?.default_community_id || 'kai');
     setEmailKillSwitch(String(config?.email_kill_switch || 'false') === 'true');
     setAuditKillSwitch(String(config?.audit_kill_switch || 'false') === 'true');
+    setAuditEventToggles(parseJsonObject(config?.audit_event_toggles, {}));
     try { setLastUiError(localStorage.getItem('kai_last_ui_error') || localStorage.getItem('kai_last_admin_error') || ''); } catch(e) {}
-  }, [config?.mission_sections_es, config?.mission_sections_en, config?.sla_hours, config?.escalation_cc_emails, config?.analytics_enabled, config?.community_feature_enabled, config?.default_community_id, config?.email_kill_switch, config?.audit_kill_switch, lang, user?.email]);
+  }, [config?.mission_sections_es, config?.mission_sections_en, config?.sla_hours, config?.escalation_cc_emails, config?.analytics_enabled, config?.community_feature_enabled, config?.default_community_id, config?.email_kill_switch, config?.audit_kill_switch, config?.audit_event_toggles, lang, user?.email]);
   const templateEntries = Object.entries((templates && typeof templates==='object') ? templates : {}).filter(([k,v])=>k && v && typeof v==='object');
   const selectedKey = (templates && templates[selectedTemplate]) ? selectedTemplate : (templateEntries[0]?.[0] || '');
   const selected = selectedKey ? (templates[selectedKey] || {}) : {};
@@ -275,7 +282,19 @@ export default function AdminSettings({ config={}, user, listings=[], contactPro
   const saveEmailSender = () => { if (!emailFromAddress.trim() || !emailFromAddressEn.trim()) { showToast(isEn?'Both email addresses are required':'Ambos emails son requeridos', true); return; } onSave({ emailFromName, emailFromAddress, emailFromNameEn, emailFromAddressEn }); };
   // Master switches save — values stored as strings in app_config so the
   // server can read them with String(cfg.x||'false')==='true' without JSON.parse.
-  const saveMasterSwitches = () => onSave({ emailKillSwitch:String(emailKillSwitch), auditKillSwitch:String(auditKillSwitch) });
+  const saveMasterSwitches = () => onSave({
+    emailKillSwitch:String(emailKillSwitch),
+    auditKillSwitch:String(auditKillSwitch),
+    auditEventToggles, // posted as a plain object; server JSON.stringifies
+  });
+  // Helper for the per-event grid: setting `enabled=true` means "remove the
+  // override" (back to the implicit-enabled default), keeping the JSON small.
+  const setAuditEventEnabled = (eventKey, enabled) => setAuditEventToggles(prev => {
+    const next = { ...prev };
+    if (enabled) delete next[eventKey];
+    else next[eventKey] = false;
+    return next;
+  });
   const toggleMenuPermission = (key) => setStandardMenuPermissions(p => ({ ...p, [key]: key === 'dashboard' ? true : !p[key] }));
   const toggleDefaultDelegatePermission = (key) => setDefaultDelegatePermissions(p => ({ ...p, [key]: !p[key] }));
   const toggleDefaultCommunityAdminPermission = (key) => setDefaultCommunityAdminPermissions(p => ({ ...p, [key]: !p[key] }));
@@ -1403,6 +1422,53 @@ export default function AdminSettings({ config={}, user, listings=[], contactPro
           </div>
         </div>
       </label>
+
+      {/* Per-event-type audit toggles — grouped by entity for readability. */}
+      {(() => {
+        const types = adminInfo.auditEventTypes || [];
+        if (!types.length) return null;
+        const disabled = auditKillSwitch;
+        // Group by entity prefix
+        const groups = {};
+        for (const t of types) {
+          const [entity, action] = t.split('.');
+          if (!groups[entity]) groups[entity] = [];
+          groups[entity].push(action);
+        }
+        const disabledCount = Object.values(auditEventToggles).filter(v => v === false).length;
+        return (
+          <div style={{padding:'12px 14px',background:'#f8f9fa',border:'1px solid #e8eaed',borderRadius:8,opacity:disabled?0.5:1}}>
+            <div style={{fontWeight:700,fontSize:'.88rem',color:'#17313a',marginBottom:4}}>
+              🎚️ {isEn?'Per-event audit toggles':'Activación por tipo de evento'}
+              {disabledCount > 0 && <span style={{marginLeft:8,fontSize:'.7rem',background:'#fff3cd',color:'#856404',border:'1px solid #ffe082',padding:'1px 8px',borderRadius:999}}>{disabledCount} {isEn?'disabled':'desactivado'+(disabledCount===1?'':'s')}</span>}
+            </div>
+            <div style={{fontSize:'.76rem',color:'#496674',marginBottom:10,lineHeight:1.45}}>
+              {isEn
+                ? 'Uncheck individual events to skip writing them to audit_logs. The global kill-switch above takes precedence: when it is ON these checkboxes have no effect.'
+                : 'Desmarca eventos individuales para no escribirlos en audit_logs. El interruptor maestro arriba tiene prioridad: cuando está activo estas casillas no tienen efecto.'}
+            </div>
+            <div style={{display:'flex',flexDirection:'column',gap:8}}>
+              {Object.keys(groups).sort().map(entity => (
+                <div key={entity}>
+                  <div style={{fontSize:'.72rem',fontWeight:700,color:'#496674',marginBottom:4,textTransform:'uppercase',letterSpacing:'.04em'}}>{entity}</div>
+                  <div style={{display:'flex',flexWrap:'wrap',gap:6}}>
+                    {groups[entity].sort().map(action => {
+                      const key = `${entity}.${action}`;
+                      const enabled = auditEventToggles[key] !== false;
+                      return (
+                        <label key={key} style={{display:'inline-flex',alignItems:'center',gap:5,padding:'4px 10px',borderRadius:999,background:enabled?'#fff':'#fff3cd',border:`1px solid ${enabled?'#cce7ee':'#ffe082'}`,fontSize:'.74rem',color:enabled?'#17313a':'#856404',cursor:disabled?'not-allowed':'pointer'}}>
+                          <input type="checkbox" disabled={disabled} checked={enabled} onChange={e=>setAuditEventEnabled(key, e.target.checked)} style={{margin:0,cursor:disabled?'not-allowed':'pointer'}}/>
+                          {action}
+                        </label>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      })()}
     </div>
   </AdminSection>
 
