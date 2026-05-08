@@ -130,6 +130,14 @@ import AnalyticsDashboard from "./platform/analytics/views/AnalyticsDashboard";
 // See docs/PLATFORM_ARCHITECTURE.md §11 frontend stage F20.
 import AuditLogViewer from "./platform/audit/views/AuditLogViewer";
 
+// PendingApprovalsView (extracted in stage F21) — top-level /approvals tab
+// for admins to review pending registration requests with filters and
+// approve/decline actions. Co-located components RegistrationCard +
+// ListingDetailsBlock + registrationStatusLabel helper live in the same
+// module. Pulls lang via useApp().
+// See docs/PLATFORM_ARCHITECTURE.md §11 frontend stage F21.
+import PendingApprovalsView from "./platform/registrations/views/PendingApprovalsView";
+
 // ─── API client (extracted in stage F3) ──────────────────────────────────────
 // All fetch calls flow through this module so the X-Community-Id header is
 // always set, errors are normalized, and Render cold-start timeouts are
@@ -1170,7 +1178,7 @@ export default function App() {
 
         {(view==="incidents"||view==="general") && <IncidentsView key={view} defaultTab={view==='general'?'general':'unit'} incidents={incidents} listings={listings} quickFilter={incidentQuickFilter} onQuickFilterApplied={()=>setIncidentQuickFilter(null)} contactProps={contactProps} isGlobalAdmin={effectiveIsGlobalAdmin} canUpdateGlobal={delegatePerms.canUpdateGlobalIncidents} canDeleteGlobal={delegatePerms.canDeleteGlobalIncidents} canResolveGlobal={canResolveIncidentsNow} onAdd={()=>{ if(!user){login();return;} setModal({type:"incident"}); }} onResolve={resolveIncident} onDelete={deleteIncident} onVerify={inc=>setModal({type:"verifyIncident",data:inc})} onAddResolution={inc=>setModal({type:"addResolution",data:inc})} onUnitDetail={id=>setUnitDetailOverlay({listingId:id})} onIncidentDetail={openIncidentDetail} onAssign={inc=>setModal({type:'assignGeneral',data:inc})} onCloseGeneral={inc=>setModal({type:'closeGeneral',data:inc})} />}
         {view==="notifications" && user && <NotificationsView notifications={notifications} incidents={incidents} listings={listings} contactProps={contactProps} onRead={markNotificationRead} onReadAll={markAllNotificationsRead} smartAlerts={smartAlerts} onIncidentDetail={openIncidentDetail} />}
-        {view==="approvals" && user && effectiveCanManageRegistrations && <PendingApprovalsView lang={lang} pending={pendingRegistrations} onApprove={id=>reviewRegistrationAction(id,'approve')} onDecline={id=>reviewRegistrationAction(id,'decline')} active={activeRegistrations} />}
+        {view==="approvals" && user && effectiveCanManageRegistrations && <PendingApprovalsView pending={pendingRegistrations} onApprove={id=>reviewRegistrationAction(id,'approve')} onDecline={id=>reviewRegistrationAction(id,'decline')} active={activeRegistrations} />}
         {view==="analytics" && user && (effectiveIsGlobalAdmin || analyticsEnabledForAll) && <AnalyticsDashboard user={user} contactProps={contactProps} showToast={showToast} isGlobalAdmin={effectiveIsGlobalAdmin} />}
         {view==="admin" && user && ((effectiveIsGlobalAdmin || effectiveRole === 'delegate_admin' || effectiveIsCommunityAdmin) ? <ErrorBoundary section="admin" fallback={(err)=><AdminFallback lang={lang} error={err}/>}><AdminSettings config={adminInfo.config || {}} user={user} listings={listings} contactProps={contactProps} onSave={saveAdminConfig} showToast={showToast} lang={lang} adminInfo={adminInfo} /></ErrorBoundary> : <AdminAccessHelp user={user} adminInfo={adminInfo} lang={lang} />)}
         {view==="my" && user && <><DashboardGreeting user={user} lang={lang} role={effectiveIsGlobalAdmin?'global':effectiveRole==='delegate_admin'?'delegate':'standard'} pendingOwner={needsOwnerVerification.length} pendingOwnerResolution={needsOwnerResolution.length} pendingResolve={needsAdminResolution.length} pendingRegistrations={effectiveCanManageRegistrations?pendingRegistrations.length:0} myOpenCount={needsOwnerVerification.length} onOwnerClick={()=>{setIncidentQuickFilter('ownerVerification');setView('incidents');}} onResolveClick={()=>{setIncidentQuickFilter('requiresResolution');setView('incidents');}} onRegistrationsClick={()=>setView('approvals')} setView={setView}/><MyListings lang={lang} listings={myListings} allListings={listings} incidents={incidents} user={user} contactProps={contactProps} isGlobalAdmin={effectiveIsGlobalAdmin} canResolveGlobal={canResolveIncidentsNow} onAdd={()=>setModal({type:"addListing"})} onEdit={l=>setModal({type:"editListing",data:l})} onDelete={deleteListing} onReport={l=>setModal({type:"incident",data:{aptId:l.id}})} onVerify={inc=>setModal({type:"verifyIncident",data:inc})} onResolve={resolveIncident} onAddResolution={inc=>setModal({type:"addResolution",data:inc})} onNavigateToIncidents={f=>{setIncidentQuickFilter({type:'floorFilter',aptIds:f.aptIds,status:f.status||'all'});setView('incidents');}} onIncidentDetail={openIncidentDetail} onAssign={inc=>setModal({type:'assignGeneral',data:inc})} onCloseGeneral={inc=>setModal({type:'closeGeneral',data:inc})} /></>}
@@ -2335,84 +2343,6 @@ function RegistrationListingForm({ user, onSubmit, submitText, lang="es-CO" }) {
   </div>;
 }
 
-function ListingDetailsBlock({ listings=[], lang="es-CO" }) {
-  return <div className="listing-detail-grid">{listings.map(l=><div key={l.id} className="listing-detail-card">
-    <div className="ld-title">🏠 {appText(lang,"listing.apt")} {l.apt} · {appText(lang,"listing.tower")} {l.tower||getDefaultTower()}</div>
-    <div className="ld-row"><strong>{appText(lang,"listing.owner")}:</strong> {l.owner || 'N/A'}</div>
-    <div className="ld-row"><strong>{appText(lang,"listing.googleEmail")}:</strong> {l.userEmail || 'N/A'}</div>
-    <div className="ld-row"><strong>{appText(lang,"listing.listingEmail")}:</strong> {l.email || l.userEmail || 'N/A'}</div>
-    <div className="ld-row"><strong>{appText(lang,"listing.ownerWhatsapp")}:</strong> {l.contact || 'N/A'}</div>
-    <div className="ld-row"><strong>{appText(lang,"listing.roomsGuests")}:</strong> {l.rooms || 'N/A'} {appText(lang,"listing.roomsShort")} · {l.guests || 'N/A'} {appText(lang,"listing.guests")}</div>
-    <div className="ld-row"><strong>{appText(lang,"listing.operator")}:</strong> {l.operator || 'N/A'}</div>
-    <div className="ld-row"><strong>{appText(lang,"listing.operatorEmail")}:</strong> {l.operatorEmail || 'N/A'}</div>
-    <div className="ld-row"><strong>{appText(lang,"listing.operatorWhatsapp")}:</strong> {l.operatorWhatsapp || 'N/A'}</div>
-    {l.airbnb && <div className="ld-row"><strong>Airbnb:</strong> <a href={l.airbnb} target="_blank" rel="noreferrer">{appText(lang,"listing.openLink")}</a></div>}
-  </div>)}</div>;
-}
-
-function RegistrationCard({ r, actions=false, onApprove, onDecline, lang="es-CO" }) {
-  return <div className="notice-card notice-new reg-card reg-detail-card">
-    <div style={{flex:1}}>
-      <div className="notice-title">{r.userName || appText(lang,'registrations.userNoName')}</div>
-      <div className="notice-meta">{r.userEmail || appText(lang,'registrations.noEmail')} · {r.listings?.length || 0} {lang === 'en' ? 'apartment(s)' : 'apartamento(s)'} · {r.createdAt ? new Date(r.createdAt).toLocaleString(lang === 'en' ? 'en-US' : 'es-CO') : ''}</div>
-      <div className="notice-meta"><strong>{appText(lang,'registrations.status')}:</strong> {registrationStatusLabel(r.status || (actions ? 'pending' : 'approved'), lang)}</div>
-      {r.reviewedAt && <div className="notice-meta">{appText(lang,'registrations.approvedBy')} {r.reviewedByName || 'N/A'} · {new Date(r.reviewedAt).toLocaleString(lang === 'en' ? 'en-US' : 'es-CO')}</div>}
-      <ListingDetailsBlock listings={r.listings || []} lang={lang}/>
-    </div>
-    {actions && <div className="ir-acts"><button className="bsm bs-resolve" onClick={()=>onApprove(r.id)}>{appText(lang,"registrations.approve")}</button><button className="bsm bs-del" onClick={()=>onDecline(r.id)}>{appText(lang,"registrations.decline")}</button></div>}
-  </div>;
-}
-
-function registrationStatusLabel(status, lang="es-CO") {
-  if (status === 'approved') return appText(lang,'registrations.statusApproved');
-  if (status === 'declined') return appText(lang,'registrations.statusDeclined');
-  return appText(lang,'registrations.statusPending');
-}
-
-function PendingApprovalsView({ pending, active=[], onApprove, onDecline, lang="es-CO" }) {
-  const [dateFilter,setDateFilter]=useState('');
-  const [ownerFilter,setOwnerFilter]=useState('');
-  const [aptFilter,setAptFilter]=useState('');
-  const [statusFilter,setStatusFilter]=useState('all');
-  const applyFilters = (items=[]) => items.filter(r => {
-    const created = r.createdAt ? new Date(r.createdAt) : null;
-    const d = created && !Number.isNaN(created.getTime()) ? created.toISOString().slice(0,10) : '';
-    const ownerText = `${r.userName || ''} ${r.userEmail || ''}`.toLowerCase();
-    const aptText = (r.listings || []).map(l => l.apt || l.apartment || '').join(' ').toLowerCase();
-    const st = r.status || 'pending';
-    return (!dateFilter || d === dateFilter)
-      && (!ownerFilter || ownerText.includes(ownerFilter.toLowerCase()))
-      && (!aptFilter || aptText.includes(aptFilter.toLowerCase()))
-      && (statusFilter === 'all' || st === statusFilter);
-  });
-  const pendingFiltered = applyFilters(pending.map(r=>({...r,status:r.status || 'pending'})));
-  const historyFiltered = applyFilters(active.map(r=>({...r,status:r.status || 'approved'})));
-  const clear=()=>{setDateFilter('');setOwnerFilter('');setAptFilter('');setStatusFilter('all');};
-  return <div className="fade">
-    <div className="ph"><div><h1 className="ptitle">{appText(lang,"registrations.title")}</h1><p className="psub">{appText(lang,"registrations.subtitle")}</p></div></div>
-
-    <div className="card reg-filters" style={{marginBottom:18}}>
-      <div className="card-title">🔎 {appText(lang,'registrations.filtersTitle')}</div>
-      <div className="reg-filter-grid">
-        <div className="fg"><label>{appText(lang,'registrations.filterDate')}</label><input type="date" value={dateFilter} onChange={e=>setDateFilter(e.target.value)} /></div>
-        <div className="fg"><label>{appText(lang,'registrations.filterOwner')}</label><input value={ownerFilter} onChange={e=>setOwnerFilter(e.target.value)} placeholder={appText(lang,'registrations.filterOwner')} /></div>
-        <div className="fg"><label>{appText(lang,'registrations.filterApartment')}</label><input value={aptFilter} onChange={e=>setAptFilter(e.target.value)} placeholder="000" /></div>
-        <div className="fg"><label>{appText(lang,'registrations.filterStatus')}</label><select value={statusFilter} onChange={e=>setStatusFilter(e.target.value)}><option value="all">{appText(lang,'registrations.filterAll')}</option><option value="pending">{appText(lang,'registrations.statusPending')}</option><option value="approved">{appText(lang,'registrations.statusApproved')}</option><option value="declined">{appText(lang,'registrations.statusDeclined')}</option></select></div>
-        <button className="btn-ghost reg-clear" onClick={clear}>{appText(lang,'registrations.clearFilters')}</button>
-      </div>
-    </div>
-
-    <div className="card" style={{marginBottom:18}}>
-      <div className="card-hdr"><div><div className="card-title">{appText(lang,"registrations.pendingTitle")}</div><div className="psub">{appText(lang,"registrations.pendingSub",{count:pendingFiltered.length})}</div></div></div>
-      {pendingFiltered.length===0?<EmptyState icon="✅" title={appText(lang,"registrations.nonePending")} sub={appText(lang,"registrations.nonePendingSub")}/>:<div className="notice-list">{pendingFiltered.map(r=><RegistrationCard key={r.id} r={r} actions onApprove={onApprove} onDecline={onDecline} lang={lang}/>)}</div>}
-    </div>
-
-    <div className="card">
-      <div className="card-hdr"><div><div className="card-title">{appText(lang,"registrations.activeTitle")}</div><div className="psub">{appText(lang,"registrations.activeSub",{count:historyFiltered.length})}</div></div></div>
-      {historyFiltered.length===0?<EmptyState icon="🏠" title={appText(lang,"registrations.noneActive")} sub={appText(lang,"registrations.noneActiveSub")}/>:<div className="notice-list">{historyFiltered.map(r=><RegistrationCard key={r.id} r={r} lang={lang}/>)}</div>}
-    </div>
-  </div>;
-}
 
 function BetaCommandCenter({ lang="es-CO", alerts=[], pendingOwner=0, pendingResolve=0, pendingRegistrations=0, openCount=0, isAdmin=false, onGo=()=>{} }) {
   const items = [
