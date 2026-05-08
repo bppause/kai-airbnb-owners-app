@@ -187,6 +187,13 @@ import SendUserEmailModal from "./platform/email/components/SendUserEmailModal";
 import Dashboard from "./platform/dashboard/views/Dashboard";
 import DashboardGreeting from "./platform/dashboard/components/DashboardGreeting";
 
+// CommunitySwitch (extracted in stage F27) — header dropdown for users in
+// more than one community. Pulls lang via useApp(). Joins LanguageSwitch
+// + GoogleIcon (moved in F23) so all three tiny shared shells live in
+// core/ui/.
+// See docs/PLATFORM_ARCHITECTURE.md §11 frontend stage F27.
+import CommunitySwitch from "./core/ui/CommunitySwitch";
+
 // ─── API client (extracted in stage F3) ──────────────────────────────────────
 // All fetch calls flow through this module so the X-Community-Id header is
 // always set, errors are normalized, and Render cold-start timeouts are
@@ -1066,7 +1073,6 @@ export default function App() {
                 communities={adminInfo.communities}
                 currentId={adminInfo.communityId || getCommunityId() || ''}
                 onChange={switchCommunity}
-                lang={lang}
                 loading={adminLoading}
               />
             )}
@@ -4728,24 +4734,4 @@ function AdminAccessHelp({ user, adminInfo, lang='es-CO' }) {
   return <div className="fade"><div className="card"><h1 className="ptitle">⚙️ Admin</h1><p className="psub">{isEn ? 'This account is not being recognized as a global admin yet.' : 'Esta cuenta no está siendo reconocida como administrador global todavía.'}</p><div className="form-alert"><strong>{isEn ? 'Current email' : 'Email actual'}:</strong> {user?.email || 'No disponible'}<br/><strong>{isEn ? 'Detected role' : 'Rol detectado'}:</strong> {adminInfo?.role || 'user'}</div><p className="psub">{isEn ? 'In Render, add this email to GLOBAL_ADMIN_EMAILS, save changes, and redeploy. You can use several emails separated by commas.' : 'En Render agrega este email en GLOBAL_ADMIN_EMAILS, guarda cambios y redeploy. Puedes usar varios separados por coma.'}</p><pre className="codebox">GLOBAL_ADMIN_EMAILS={user?.email || 'tuemail@gmail.com'}</pre><button className="btn-p" onClick={()=>window.location.reload()}>{isEn ? 'Check again' : 'Volver a verificar'}</button></div></div>;
 }
 
-function CommunitySwitch({ communities=[], currentId='', onChange=()=>{}, lang='es-CO', loading=false }) {
-  if (!communities || communities.length <= 1) return null;
-  const label = lang === 'en' ? 'Switch community' : 'Cambiar comunidad';
-  const current = communities.find(c => c.id === currentId);
-  return (
-    <select
-      className="lang-switch community-switch"
-      value={currentId || ''}
-      onChange={e => e.target.value && e.target.value !== currentId && onChange(e.target.value)}
-      title={label}
-      aria-label={label}
-      disabled={loading}
-    >
-      {!current && <option value="">— {label} —</option>}
-      {communities.map(c => (
-        <option key={c.id} value={c.id}>{lang === 'en' ? (c.name_en || c.name || c.id) : (c.name || c.id)}</option>
-      ))}
-    </select>
-  );
-}
 
