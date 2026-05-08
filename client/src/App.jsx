@@ -4,6 +4,12 @@ import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChang
   from "firebase/auth";
 import { APP_VERSION } from "./version.js";
 
+// ─── i18n (extracted in stage F1) ────────────────────────────────────────────
+// Locale data lives in core/i18n/{es-CO,en}.json. Per-module strings (incident
+// templates) live alongside their module. See docs/PLATFORM_ARCHITECTURE.md §11.
+import { getT, ui, lt, ltf } from "./core/i18n";
+import INCIDENT_TEMPLATES from "./modules/incidents/i18n/templates.json";
+
 // ─── FIREBASE CONFIG — replace with your own from Firebase Console ────────────
 const FIREBASE_CONFIG = {
   apiKey:            import.meta.env.VITE_FIREBASE_API_KEY,
@@ -61,96 +67,6 @@ const GUEST_CATEGORIES = [
   { value:"watch",   label:"En Observación",   icon:"👁️", color:"#4527a0", bg:"#ede7f6" },
   { value:"minor",   label:"Incidente Menor",  icon:"📝", color:"#1565c0", bg:"#bbdefb" },
 ];
-// ─── INCIDENT TEMPLATES ─────────────────────────────────────────────────────
-// Short description templates shown when opening a new incident.
-// Key format: `${type}_${category}`. Each entry has es + en versions.
-const INCIDENT_TEMPLATES = {
-  noise_serious: {
-    es: "Huéspedes generando ruido extremo. Múltiples vecinos afectados. Se solicitó parar y continúa el problema.",
-    en: "Guests generating extreme noise. Multiple neighbors affected. Requested to stop but the problem continues.",
-  },
-  noise_watch: {
-    es: "Nivel de ruido por encima de lo permitido reportado por vecinos.",
-    en: "Noise level above allowed limit reported by neighbors.",
-  },
-  noise_minor: {
-    es: "Nivel de ruido ligeramente elevado en horario normal.",
-    en: "Slightly elevated noise level during normal hours.",
-  },
-  damage_serious: {
-    es: "Daños mayores al apartamento: muebles rotos, paredes rayadas, electrodomésticos dañados. Se requiere peritaje.",
-    en: "Major damage to the apartment: broken furniture, scratched walls, damaged appliances. Expert assessment required.",
-  },
-  damage_watch: {
-    es: "Daño moderado observado al salir el huésped. En proceso de evaluación con fotos.",
-    en: "Moderate damage found upon guest checkout. Under assessment with photos.",
-  },
-  damage_minor: {
-    es: "Pequeño daño (roto/rasgado/manchado). Sin impacto operacional inmediato.",
-    en: "Minor damage (broken/torn/stained). No immediate operational impact.",
-  },
-  rules_serious: {
-    es: "Incumplimiento grave de normas de convivencia: evento no autorizado, número de huéspedes excedido, o actividad prohibida.",
-    en: "Serious breach of community rules: unauthorized event, guest count exceeded, or prohibited activity.",
-  },
-  rules_watch: {
-    es: "Infracción de normas de convivencia observada. Propietario y operador notificados.",
-    en: "Community rule infraction observed. Owner and operator notified.",
-  },
-  rules_minor: {
-    es: "Norma menor incumplida (ej. basura no clasificada, uso indebido de amenidades).",
-    en: "Minor rule not followed (e.g. unsorted trash, improper amenity use).",
-  },
-  payment_serious: {
-    es: "Disputa de cobro iniciada por Airbnb o huésped. Posible reversión de pago. Requiere atención urgente.",
-    en: "Payment dispute initiated by Airbnb or guest. Possible charge reversal. Urgent attention required.",
-  },
-  payment_watch: {
-    es: "Pago pendiente o cuestionado por el huésped. En seguimiento con Airbnb.",
-    en: "Payment pending or disputed by guest. Following up with Airbnb.",
-  },
-  payment_minor: {
-    es: "Cargo menor en disputa. Caso abierto con soporte Airbnb.",
-    en: "Minor charge in dispute. Support case opened with Airbnb.",
-  },
-  unauthorized_serious: {
-    es: "Personas no autorizadas en el apartamento. Se requirió desalojo. Posible fiesta o subarrendamiento.",
-    en: "Unauthorized persons in the apartment. Eviction requested. Possible party or sub-rental.",
-  },
-  unauthorized_watch: {
-    es: "Personas adicionales no registradas en la reserva identificadas en las áreas comunes.",
-    en: "Additional unregistered persons identified in common areas.",
-  },
-  unauthorized_minor: {
-    es: "Posible visita no autorizada de corta duración. En verificación con el operador.",
-    en: "Possible short unauthorized visit. Verifying with operator.",
-  },
-  cleanliness_serious: {
-    es: "Apartamento en estado de suciedad extrema al final de la estadía. Requiere limpieza profunda y revisión de daños.",
-    en: "Apartment in extremely dirty condition at end of stay. Deep cleaning and damage assessment required.",
-  },
-  cleanliness_watch: {
-    es: "Problemas de limpieza moderados al salir el huésped. Servicio de limpieza extra requerido.",
-    en: "Moderate cleanliness issues upon checkout. Extra cleaning service required.",
-  },
-  cleanliness_minor: {
-    es: "Pequeñas observaciones de limpieza al final de la estadía (ropa de cama, cocina).",
-    en: "Minor cleanliness notes at end of stay (bedding, kitchen).",
-  },
-  other_serious: {
-    es: "Incidente grave que requiere atención inmediata: ",
-    en: "Serious incident requiring immediate attention: ",
-  },
-  other_watch: {
-    es: "Situación en observación que puede escalar: ",
-    en: "Situation under observation that may escalate: ",
-  },
-  other_minor: {
-    es: "Asunto menor registrado para seguimiento: ",
-    en: "Minor matter recorded for follow-up: ",
-  },
-};
-
 const COUNTRIES = ["Colombia","USA","Venezuela","Ecuador","Perú","México","Brasil","España","Argentina","Chile","Panamá","Costa Rica","Canadá","UK","Francia","Alemania","Italia","Otro"];
 const OWNER_COUNTRIES = [
   { name:'Colombia',    code:'+57'  },
@@ -177,7 +93,6 @@ const applyDialCode = (current='', newCode='') => {
   const stripped = String(current || '').trim().replace(/^\+\d+\s*/, '');
   return newCode ? (newCode + (stripped ? ' ' + stripped : '')).trim() : stripped;
 };
-const LANGS = { "es-CO": { label:"Español 🇨🇴", short:"ES" }, en:{ label:"English 🇺🇸", short:"EN" } };
 
 const DEFAULT_STANDARD_MENU_PERMISSIONS = { dashboard:true, listings:true, incidents:true, notifications:true, about:true, my:true, analytics:false };
 const DEFAULT_DELEGATE_PERMISSIONS = { canApproveRegistrations:true, canResolveIncidents:true, canUpdateGlobalListings:false, canDeleteGlobalListings:false, canUpdateGlobalIncidents:false, canDeleteGlobalIncidents:false };
@@ -201,62 +116,10 @@ const PERMISSION_LABELS = {
 const MENU_LABELS = {
   dashboard:{es:'Dashboard',en:'Dashboard'}, listings:{es:'Inventario',en:'Inventory'}, incidents:{es:'Incidentes',en:'Incidents'}, notifications:{es:'Alertas',en:'Alerts'}, about:{es:'Misión',en:'Mission'}, my:{es:'Mis Unidades',en:'My Units'}, analytics:{es:'Analíticas',en:'Analytics'}
 };
-const TXT = {
-  "es-CO": {
-    appName:"Propietarios Airbnb KAI", location:"Serena del Mar · Cartagena 🇨🇴", loginTitle:"Bienvenido a la Comunidad Morros KAI",
-    loginSub:"Propietarios Airbnb KAI · Serena del Mar · Cartagena 🇨🇴",
-    loginHero:"Estamos construyendo una comunidad de propietarios comprometidos con la excelencia en la operación, el cuidado de nuestras propiedades y una mejor experiencia para nuestros huéspedes.",
-    rulesTitle:"📌 Normas de uso de la comunidad", firstAccess:"⏳ Primer acceso:", firstAccessText:"al iniciar sesión por primera vez deberás registrar al menos una propiedad. Tu solicitud quedará pendiente de aprobación antes de acceder a la plataforma.",
-    secure:"🔐 Para proteger la información de la comunidad, primero debes iniciar sesión con Google.", google:"Continuar con Google",
-    nav:{dashboard:"Dashboard",about:"Misión",listings:"Inventario",incidents:"Incidentes",notifications:"Alertas",approvals:"Registros",admin:"Admin",analytics:"Analíticas",my:"Mis Unidades",help:"Ayuda"},
-    cards:[['🏡','Gestión centralizada','Organizar apartamentos, contactos, emails de notificación y enlaces importantes en un solo lugar.'],['⚠️','Reportes transparentes','Documentar incidentes de manera rápida para que el propietario correcto reciba aviso y pueda tomar acción.'],['🤝','Colaboración comunitaria','Compartir información útil entre propietarios aprobados para operar mejor y prevenir problemas repetidos.'],['📊','Mejora continua','Usar datos y tendencias para elevar la calidad del servicio, la comunicación y la experiencia del huésped.']],
-    rules:['Reporta incidentes con información clara, objetiva y verificable.','Usa la plataforma con respeto, responsabilidad y enfoque constructivo.','Evita contenido innecesario, ofensivo o no relacionado con la operación.','Colabora para proteger el valor de nuestras propiedades y mejorar el servicio.'],
-    missionTitle:"🌊 Misión y normas de la comunidad", missionSub:"Referencia para propietarios aprobados · Propietarios Airbnb KAI", missionHeading:"Crear una comunidad organizada, informada y proactiva.", missionBody:"La aplicación ayuda a proteger el valor de nuestras propiedades, mejorar la coordinación entre propietarios y elevar la experiencia de los huéspedes en Morros KAI."
-  },
-  en: {
-    appName:"KAI Airbnb Owners", location:"Serena del Mar · Cartagena 🇨🇴", loginTitle:"Welcome to the Morros KAI Community",
-    loginSub:"KAI Airbnb Owners · Serena del Mar · Cartagena 🇨🇴",
-    loginHero:"We are building a community of owners committed to operational excellence, property care, and a better guest experience.",
-    rulesTitle:"📌 Community engagement rules", firstAccess:"⏳ First access:", firstAccessText:"when you sign in for the first time, you must register at least one property. Your request will remain pending approval before you can access the platform.",
-    secure:"🔐 To protect community information, you must first sign in with Google.", google:"Continue with Google",
-    nav:{dashboard:"Dashboard",about:"Mission",listings:"Inventory",incidents:"Incidents",notifications:"Alerts",approvals:"Registrations",admin:"Admin",analytics:"Analytics",my:"My Units",help:"Help"},
-    cards:[['🏡','Centralized management','Organize apartments, contacts, notification emails, and important links in one place.'],['⚠️','Transparent reports','Document incidents quickly so the correct owner receives notice and can take action.'],['🤝','Community collaboration','Share useful information among approved owners to operate better and prevent repeated issues.'],['📊','Continuous improvement','Use data and trends to improve service quality, communication, and guest experience.']],
-    rules:['Report incidents with clear, objective, and verifiable information.','Use the platform respectfully, responsibly, and constructively.','Avoid unnecessary, offensive, or non-operational content.','Collaborate to protect property value and improve service.'],
-    missionTitle:"🌊 Mission and community rules", missionSub:"Reference for approved owners · KAI Airbnb Owners", missionHeading:"Create an organized, informed, and proactive community.", missionBody:"The app helps protect the value of our properties, improve coordination among owners, and elevate the guest experience at Morros KAI."
-  }
-};
-const getT = (lang) => TXT[lang] || TXT["es-CO"];
 
-const UI={
-'es-CO':{adminCouldNotLoad:'⚙️ Admin no pudo cargar',adminErrorHelp:'La página Admin encontró un error de interfaz. Esta versión muestra este mensaje en lugar de una pantalla en blanco.',reload:'Recargar',templatesEmpty:'No hay plantillas disponibles. Ejecuta el schema y revisa /api/health.'},
-en:{adminCouldNotLoad:'⚙️ Admin could not load',adminErrorHelp:'The Admin page found an interface error. This message appears instead of a blank screen.',reload:'Reload',templatesEmpty:'No templates available. Run schema and check /api/health.'}
-};
-const ui=(lang,key)=>(UI[lang]||UI['es-CO'])[key]||UI['es-CO'][key]||key;
 
 
 // v39 lightweight global i18n helper. Spanish (Colombia) remains the source language.
-const I18N = {
-  'Configuración global':'Global settings','Solo administradores globales · SLA, copias, misión y plantillas de email':'Global admins only · SLA, CC list, mission, and email templates',
-  'SLA y escalaciones':'SLA and escalations','El recordatorio se repite cada ciclo hasta que el propietario verifique.':'The reminder repeats each cycle until the owner verifies.',
-  'SLA en horas':'SLA in hours','Default: 24 horas.':'Default: 24 hours.','Emails en copia para escalaciones':'CC emails for escalations','Se copian en cada recordatorio SLA, además del propietario y operador.':'Copied on every SLA reminder, in addition to the owner and operator.',
-  'Visibilidad de analíticas':'Analytics visibility','Solo administrador global':'Global admin only','Todos los usuarios aprobados':'All approved users','El administrador global puede activar o desactivar las analíticas para toda la comunidad.':'The global admin can turn analytics on or off for the whole community.',
-  'Misión y reglas de participación':'Mission and engagement rules','Mantén Español Colombia como base. También puedes editar textos visibles en inglés cuando aplique.':'Keep Colombian Spanish as the base. You can also edit visible English text where applicable.',
-  'Título':'Title','Subtítulo':'Subtitle','Etiqueta de sección':'Section label','Encabezado principal':'Main heading','Texto principal':'Main text','Tarjetas de propósito':'Purpose cards','Icono':'Icon','Título tarjeta':'Card title','Texto tarjeta':'Card text',
-  'Título reglas de participación':'Participation rules title','Título acceso y responsabilidad':'Access and responsibility title','Regla':'Rule','Agregar regla':'Add rule','Guardar misión y configuración':'Save mission and settings',
-  'Delegar aprobación de registros':'Delegate registration approvals','Solo usuarios registrados y aprobados pueden recibir rol de delegado para aprobar o rechazar registros.':'Only registered and approved users can receive delegate role to approve or deny registrations.',
-  'Actualizar':'Refresh','Cargando...':'Loading...','No hay usuarios aprobados todavía.':'There are no approved users yet.','Usuario':'User','Email':'Email','Rol':'Role','Acción':'Action','Sin nombre':'No name','Administrador global':'Global admin','Quitar delegado':'Remove delegate','Hacer delegado':'Make delegate','Hacer global admin':'Make global admin',
-  'Plantillas de emails':'Email templates','Edita y guarda la versión en Español e Inglés por separado. El sistema envía según la preferencia del destinatario.':'Edit and save the Spanish and English versions separately. The system sends based on the recipient language preference.',
-  'Tipo de notificación':'Notification type','Variables disponibles':'Available variables','Asunto (Español)':'Subject (Spanish)','Texto plano (Español)':'Plain text (Spanish)','HTML del email (Español)':'Email HTML (Spanish)','Conserva variables como href="{{incidentLink}}".':'Keep variables such as href="{{incidentLink}}".','Guardar plantillas de email':'Save email templates',
-  'Página Admin cargó correctamente.':'Admin page loaded successfully.','Diagnóstico':'Diagnostics','Último error de interfaz':'Last interface error','Limpiar error guardado':'Clear saved error','Ver consola del navegador para más detalles.':'Check the browser console for more details.',
-  'Error cargando plantillas de email':'Error loading email templates','Error cargando usuarios':'Error loading users','Error actualizando delegado':'Error updating delegate','Error al guardar plantillas':'Error saving templates',
-  'Plantillas guardadas. Inglés se genera automáticamente según preferencia del usuario.':'Templates saved. English is generated automatically based on the user preference.','Plantillas guardadas.':'Templates saved.','Idioma de plantilla':'Template language','Español':'Spanish','Inglés':'English','Asunto':'Subject','Texto plano':'Plain text','HTML del email':'Email HTML','Roles y permisos de usuarios':'User roles and permissions','Define global admins, delegates and standard users. Delegate admins inherit the global delegate permissions configured above.':'Define global admins, delegates, and standard users. Delegate admins inherit the global delegate permissions configured above.',
-  'Permisos estándar de menú':'Standard menu permissions','Activa o desactiva qué menús ven los usuarios estándar. Dashboard siempre queda disponible.':'Enable or disable which menus standard users can view. Dashboard always remains available.',
-  'Permisos del delegado':'Delegate permissions','Los delegados siempre mantienen permisos de usuario estándar y solo reciben permisos adicionales habilitados aquí.':'Delegates always keep standard user permissions and only receive additional permissions enabled here.',
-  'Usuario estándar':'Standard user','Administrador delegado':'Delegate admin','Guardar permisos de menú':'Save menu permissions','Permisos guardados':'Permissions saved','Actualizar rol/permisos':'Update role/permissions',
-  'Permisos predeterminados del delegado':'Default delegate permissions','Define qué permisos recibe un administrador delegado nuevo por defecto.':'Define which permissions a new delegate admin receives by default.','Guardar permisos predeterminados':'Save default permissions','Permisos predeterminados guardados':'Default permissions saved','Los permisos estándar siempre se heredan.':'Standard user permissions are always inherited.'
-};
-const lt = (lang, es) => lang === 'en' ? (I18N[es] || es) : es;
-const ltf = (lang, es, en) => lang === 'en' ? (en || I18N[es] || es) : es;
 
 
 
