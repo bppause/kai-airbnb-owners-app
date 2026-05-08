@@ -1,7 +1,4 @@
 import React, { useState, useEffect, useRef, useCallback, Component } from "react";
-import { initializeApp } from "firebase/app";
-import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged }
-  from "firebase/auth";
 import { APP_VERSION } from "./version.js";
 
 // ─── i18n (extracted in stage F1) ────────────────────────────────────────────
@@ -29,33 +26,17 @@ import {
 // frontend stage F3.
 import { api, checkApartmentUnique, getCommunityId, setCommunityId } from "./core/api";
 
-// ─── FIREBASE CONFIG — replace with your own from Firebase Console ────────────
-const FIREBASE_CONFIG = {
-  apiKey:            import.meta.env.VITE_FIREBASE_API_KEY,
-  authDomain:        import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
-  projectId:         import.meta.env.VITE_FIREBASE_PROJECT_ID,
-  storageBucket:     import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-  appId:             import.meta.env.VITE_FIREBASE_APP_ID,
-};
+// ─── Firebase auth + admin context (extracted in stage F4) ───────────────────
+// Firebase init, sign-in/out wrappers, and the GET /api/admin/me resolver
+// live in core/auth.js. App.jsx no longer imports from firebase/* directly.
+// See docs/PLATFORM_ARCHITECTURE.md §11 frontend stage F4.
+import {
+  firebaseReady, auth,
+  signInWithGoogle, signOutUser, onAuthChanged,
+  fetchAdminContext,
+} from "./core/auth";
 
-const firebaseReady = Object.values(FIREBASE_CONFIG).every(Boolean);
-let firebaseApp = null;
-let auth = null;
-let provider = null;
-try {
-  if (firebaseReady) {
-    firebaseApp = initializeApp(FIREBASE_CONFIG);
-    auth = getAuth(firebaseApp);
-    provider = new GoogleAuthProvider();
-    // Always show Google account chooser so users can switch accounts on shared devices.
-    provider.setCustomParameters({ prompt: "select_account" });
-  } else {
-    console.warn('[KAI_FIREBASE_CONFIG_MISSING]', Object.keys(FIREBASE_CONFIG).filter(k => !FIREBASE_CONFIG[k]));
-  }
-} catch (e) {
-  console.error('[KAI_FIREBASE_INIT_ERROR]', e);
-}
+
 
 // Global client logging: prevents silent blank screens and records the last runtime issue.
 window.addEventListener("error", (event) => {
@@ -972,7 +953,7 @@ export default function App() {
       setRegistrationLoading(false);
       return;
     }
-    const unsub = onAuthStateChanged(auth, (firebaseUser) => {
+    const unsub = onAuthChanged((firebaseUser) => {
       if (firebaseUser) {
         setAdminLoading(true);
         setRegistrationLoading(true);
@@ -1006,7 +987,7 @@ export default function App() {
     }
     setAdminLoading(true);
     setRegistrationLoading(true);
-    api.get('/api/admin/me?uid=' + encodeURIComponent(user.uid) + '&email=' + encodeURIComponent(user.email || '') + '&name=' + encodeURIComponent(user.name || '') + '&lang=' + encodeURIComponent(lang))
+    fetchAdminContext({ uid: user.uid, email: user.email, name: user.name, lang })
       .then(adminResponse => {
         const info = adminResponse || {role:'user', isGlobalAdmin:false, canManageRegistrations:false, config:{}};
         setAdminInfo(info);
@@ -1062,7 +1043,7 @@ export default function App() {
     // (avoids the "community is empty" flash while data is loading)
     setNotifications([]); setPendingRegistrations([]); setActiveRegistrations([]);
     try {
-      const info = await api.get('/api/admin/me?uid=' + encodeURIComponent(user.uid) + '&email=' + encodeURIComponent(user.email || '') + '&name=' + encodeURIComponent(user.name || '') + '&lang=' + encodeURIComponent(lang));
+      const info = await fetchAdminContext({ uid: user.uid, email: user.email, name: user.name, lang });
       const adminData = info || {role:'user', isGlobalAdmin:false, canManageRegistrations:false, config:{}};
       setAdminInfo(adminData);
       if (adminData.config) setCustomLabels(adminData.config);
@@ -1110,7 +1091,7 @@ export default function App() {
     }
     setAuthLoading(true);
     try {
-      await signInWithPopup(auth, provider);
+      await signInWithGoogle();
       setLoginOpen(false);
     } catch(e) {
       setAuthLoading(false);
@@ -1135,7 +1116,7 @@ export default function App() {
   }, [view, user]);
 
   const logout = async () => {
-    if (auth) await signOut(auth);
+    if (auth) await signOutUser();
     try { localStorage.removeItem('kai_community'); localStorage.removeItem('kai_last_view'); } catch(e) {}
     setCommunityId('kai');
     showToast("Sesión cerrada");
