@@ -1,0 +1,136 @@
+// App config + email notification config + SLA defaults + the small
+// `getCommunity` lookup. Lifted byte-identical from server.js stage 4e.
+//
+// Public exports (returned by the factory):
+//   constants — DEFAULT_EMAIL_NOTIFICATION_CONFIG, DEFAULT_SLA_HOURS,
+//               DEFAULT_ESCALATION_CC_EMAILS, OVERRIDABLE_COMMUNITY_KEYS
+//   getCommunity              — single-row lookup against the communities table
+//   getAppConfig              — defaults + global overrides + community overlay
+//                               + community-branding overlay (calls getCommunity)
+//   getSlaHours               — SLA hours scalar reader
+//   getEscalationCcEmails     — escalation CC emails reader
+//   getEmailNotificationConfig — merged routing matrix
+//
+// `getCommunity` lives here (not in core/roles.js) because getAppConfig
+// calls it for the layer-3 branding overlay; keeping both in one file
+// avoids a circular dep between config and roles.
+//
+// See docs/PLATFORM_ARCHITECTURE.md §11.
+
+'use strict';
+
+const { warn } = require('../../logger');
+const { safeJsonObject, normalizeRecipients } = require('./utils');
+
+// ─── Constants ───────────────────────────────────────────────────────────────
+const DEFAULT_EMAIL_NOTIFICATION_CONFIG = {
+  incident_new:              { enabled:true,  reporter:true,  owner:true,  operator:true,  globalAdmin:true,  delegateAdmin:true,  communityAdmin:true  },
+  incident_sla_notification: { enabled:true,  reporter:true,  owner:true,  operator:true,  globalAdmin:true,  delegateAdmin:true,  communityAdmin:true  },
+  incident_sla_reminder:     { enabled:true,  reporter:true,  owner:true,  operator:true,  globalAdmin:true,  delegateAdmin:true,  communityAdmin:true  },
+  incident_sla:              { enabled:true,  reporter:true,  owner:true,  operator:true,  globalAdmin:true,  delegateAdmin:true,  communityAdmin:true  },
+  incident_verified:         { enabled:true,  reporter:true,  owner:true,  operator:true,  globalAdmin:true,  delegateAdmin:true,  communityAdmin:true  },
+  incident_resolution_added: { enabled:true,  reporter:true,  owner:true,  operator:true,  globalAdmin:true,  delegateAdmin:true,  communityAdmin:true  },
+  incident_resolved:         { enabled:true,  reporter:true,  owner:true,  operator:true,  globalAdmin:true,  delegateAdmin:true,  communityAdmin:true  },
+  incident_general_sla:      { enabled:true,  reporter:false, owner:false, operator:false, globalAdmin:true,  delegateAdmin:true,  communityAdmin:true  },
+  registration_submitted:    { enabled:true,  owner:true,  operator:false, globalAdmin:true,  delegateAdmin:true,  communityAdmin:true  },
+  registration_approved:     { enabled:true,  owner:true,  operator:false, globalAdmin:true,  delegateAdmin:true,  communityAdmin:true  },
+  registration_declined:     { enabled:true,  owner:true,  operator:false, globalAdmin:true,  delegateAdmin:true,  communityAdmin:true  },
+  registration_status_admin: { enabled:true,  owner:false, operator:false, globalAdmin:true,  delegateAdmin:true,  communityAdmin:true  },
+  registration_reviewer:     { enabled:true,  owner:true,  operator:false, globalAdmin:true,  delegateAdmin:true,  communityAdmin:true  },
+  listing_created:           { enabled:true,  owner:true,  operator:false, globalAdmin:true,  delegateAdmin:true,  communityAdmin:true  },
+  listing_updated:           { enabled:true,  owner:true,  operator:false, globalAdmin:true,  delegateAdmin:true,  communityAdmin:true  },
+  listing_deleted:           { enabled:true,  owner:true,  operator:false, globalAdmin:true,  delegateAdmin:true,  communityAdmin:true  },
+};
+
+const DEFAULT_SLA_HOURS = Number(process.env.DEFAULT_SLA_HOURS || 24);
+const DEFAULT_ESCALATION_CC_EMAILS = String(process.env.DEFAULT_ESCALATION_CC_EMAILS || process.env.SLA_CC_EMAILS || '').split(',').map(x=>x.trim().toLowerCase()).filter(Boolean);
+
+const OVERRIDABLE_COMMUNITY_KEYS = ['mission_title_es','mission_body_es','mission_title_en','mission_body_en','mission_sections_es','mission_sections_en','escalation_cc_emails','community_admin_default_permissions','tooltips_es','tooltips_en','ui_labels_es','ui_labels_en'];
+
+module.exports = function createConfigHelpers(supabase, { EMAIL_FROM }) {
+  const getCommunity = async (communityId='kai') => {
+    try {
+      const { data } = await supabase.from('communities').select('*').eq('id', communityId).maybeSingle();
+      return data || null;
+    } catch(e) { warn('getCommunity failed: ' + (e?.message || e)); return null; }
+  };
+
+  const getAppConfig = async (communityId='kai') => {
+    const cfg = {
+      sla_hours:String(DEFAULT_SLA_HOURS||24),
+      escalation_cc_emails:DEFAULT_ESCALATION_CC_EMAILS.join(','),
+      complex_name_es: 'Propietarios Airbnb KAI',
+      complex_name_en: 'KAI Airbnb Owners',
+      complex_location: 'Serena del Mar · Cartagena 🇨🇴',
+      complex_logo: '',
+      complex_bg: '/morros-kai-bg.jpg',
+      email_from_name: 'Comunidad Morros KAI',
+      email_from_address: (EMAIL_FROM.match(/<([^>]+)>/) || [])[1]?.trim() || EMAIL_FROM,
+      email_from_name_en: 'Morros KAI Community',
+      email_from_address_en: (EMAIL_FROM.match(/<([^>]+)>/) || [])[1]?.trim() || EMAIL_FROM,
+      mission_title_es:'Misión y normas de la comunidad',
+      mission_body_es:'Crear una comunidad organizada, informada y proactiva que proteja el valor de nuestras propiedades y eleve la experiencia en Morros KAI.',
+      mission_title_en:'Mission and community rules',
+      mission_body_en:'Create an organized, informed, and proactive community that protects property value and improves the Morros KAI guest experience.',
+      mission_sections_es:'{"title": "Misión y normas de la comunidad", "subtitle": "Referencia para propietarios aprobados · Propietarios Airbnb KAI", "sectionLabel": "Nuestra misión", "heading": "Crear una comunidad organizada, informada y proactiva.", "body": "La aplicación ayuda a proteger el valor de nuestras propiedades, mejorar la coordinación entre propietarios y elevar la experiencia de los huéspedes en Morros KAI.", "cards": [{"icon": "🏡", "title": "Gestión centralizada", "text": "Organizar apartamentos, contactos, emails de notificación y enlaces importantes en un solo lugar."}, {"icon": "⚠️", "title": "Reportes transparentes", "text": "Documentar incidentes de manera rápida para que el propietario correcto reciba aviso y pueda tomar acción."}, {"icon": "🤝", "title": "Colaboración comunitaria", "text": "Compartir información útil entre propietarios aprobados para operar mejor y prevenir problemas repetidos."}, {"icon": "📊", "title": "Mejora continua", "text": "Usar datos y tendencias para elevar la calidad del servicio, la comunicación y la experiencia del huésped."}], "participationTitle": "📌 Reglas de participación", "participationRules": ["Reportar incidentes con información clara, objetiva y verificable.", "Incluir detalles útiles: apartamento, huésped, fecha, tipo de incidente y descripción.", "Mantener respeto y confidencialidad en los comentarios.", "No publicar contenido ofensivo, especulativo o no relacionado con la operación.", "Usar los reportes para prevenir, corregir y mejorar; no para conflictos personales."], "accessTitle": "🔐 Acceso y responsabilidad", "accessRules": ["El acceso requiere Google Sign-In.", "Cada apartamento solo puede pertenecer a una cuenta aprobada.", "Los nuevos registros quedan pendientes hasta revisión.", "Los propietarios aprobados pueden revisar solicitudes pendientes y aprobar o rechazar con motivo.", "Las notificaciones se envían al email de Google y al email del listing cuando son diferentes."]}'
+    };
+    // Layer 1: global app_config overrides
+    try { const { data, error } = await supabase.from('app_config').select('key,value'); if (!error) (data||[]).forEach(r=>cfg[r.key]=r.value); }
+    catch(e) { warn('App config read failed: ' + (e?.message || e)); }
+    // Layer 2: per-community config overrides (community_config table)
+    if (communityId) {
+      try {
+        const { data } = await supabase.from('community_config').select('key,value').eq('community_id', communityId);
+        (data||[]).forEach(r=>cfg[r.key]=r.value);
+      } catch(e) { warn('Community config read failed: ' + (e?.message || e)); }
+      // Layer 3: community table branding fields override matching config keys
+      try {
+        const community = await getCommunity(communityId);
+        if (community) {
+          if (community.name) cfg.complex_name_es = community.name;
+          if (community.name_en) cfg.complex_name_en = community.name_en;
+          if (community.logo_url) cfg.complex_logo = community.logo_url;
+          if (community.background_url) cfg.complex_bg = community.background_url;
+          if (community.city && community.country) cfg.complex_location = `${community.city} · ${community.country}`;
+          if (community.tower) cfg.community_tower = community.tower;
+        }
+      } catch(e) { warn('Community branding override failed: ' + (e?.message || e)); }
+    }
+    cfg.mission_title = cfg.mission_title_es;
+    cfg.mission_body = cfg.mission_body_es;
+    return cfg;
+  };
+
+  const getSlaHours = async () => { const cfg = await getAppConfig(); const h = Number(cfg.sla_hours || DEFAULT_SLA_HOURS || 24); return Number.isFinite(h) && h > 0 ? h : 24; };
+
+  const getEscalationCcEmails = async () => normalizeRecipients(String((await getAppConfig()).escalation_cc_emails || '').split(','));
+
+  const getEmailNotificationConfig = async () => {
+    const cfg = await getAppConfig();
+    const raw = safeJsonObject(cfg.email_notification_config, {});
+    const result = {};
+    for (const [key, def] of Object.entries(DEFAULT_EMAIL_NOTIFICATION_CONFIG)) {
+      const stored = (raw[key] && typeof raw[key] === 'object') ? raw[key] : {};
+      result[key] = { ...def, ...stored };
+    }
+    return result;
+  };
+
+  return {
+    DEFAULT_EMAIL_NOTIFICATION_CONFIG,
+    DEFAULT_SLA_HOURS,
+    DEFAULT_ESCALATION_CC_EMAILS,
+    OVERRIDABLE_COMMUNITY_KEYS,
+    getCommunity,
+    getAppConfig,
+    getSlaHours,
+    getEscalationCcEmails,
+    getEmailNotificationConfig,
+  };
+};
+
+// Top-level constant exports for callers that don't need the supabase-bound factory.
+module.exports.DEFAULT_EMAIL_NOTIFICATION_CONFIG = DEFAULT_EMAIL_NOTIFICATION_CONFIG;
+module.exports.DEFAULT_SLA_HOURS = DEFAULT_SLA_HOURS;
+module.exports.DEFAULT_ESCALATION_CC_EMAILS = DEFAULT_ESCALATION_CC_EMAILS;
+module.exports.OVERRIDABLE_COMMUNITY_KEYS = OVERRIDABLE_COMMUNITY_KEYS;

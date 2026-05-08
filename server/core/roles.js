@@ -10,8 +10,8 @@
 //                        canUpdateGlobalListing, canDeleteGlobalListing,
 //                        canUpdateGlobalIncident, canDeleteGlobalIncident,
 //                        getAppPermissionsConfig, getDelegateAdminsWithPermission
-//   community lookups — getCommunity, getCommunityAdminEmails,
-//                       getCommunityEscalationEmails, getUserCommunities
+//   community lookups — getCommunityAdminEmails, getCommunityEscalationEmails,
+//                       getUserCommunities (getCommunity moved to core/config)
 //   user lookups — getApprovedUser, getReporterEmail, getReporterName
 //   env helpers — getGlobalAdminEmails, isEnvGlobalAdminEmail
 //
@@ -124,13 +124,6 @@ module.exports = function createRoleHelpers({ supabase, getAppConfig, getEscalat
 
   const isGlobalAdmin = async (uid, email='') => (await getUserRole({uid,email})) === 'global_admin';
 
-  const getCommunity = async (communityId='kai') => {
-    try {
-      const { data } = await supabase.from('communities').select('*').eq('id', communityId).maybeSingle();
-      return data || null;
-    } catch(e) { warn('getCommunity failed: ' + (e?.message || e)); return null; }
-  };
-
   const getCommunityAdminEmails = async (communityId='kai') => {
     try {
       const { data } = await supabase.from('community_memberships').select('user_email').eq('community_id', communityId).eq('role','community_admin');
@@ -223,8 +216,8 @@ module.exports = function createRoleHelpers({ supabase, getAppConfig, getEscalat
     getUserPermissions, hasDelegatePermission,
     canUpdateGlobalListing, canDeleteGlobalListing, canUpdateGlobalIncident, canDeleteGlobalIncident,
     getAppPermissionsConfig, getDelegateAdminsWithPermission,
-    // community lookups
-    getCommunity, getCommunityAdminEmails, getCommunityEscalationEmails, getUserCommunities,
+    // community lookups (getCommunity moved to core/config.js — see stage 4e)
+    getCommunityAdminEmails, getCommunityEscalationEmails, getUserCommunities,
     // user lookups
     getApprovedUser, getReporterEmail, getReporterName,
     // env helpers
