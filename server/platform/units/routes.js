@@ -4,11 +4,12 @@
 //   /api/platform/units/*    (canonical, see docs/PLATFORM_ARCHITECTURE.md §5)
 //   /api/listings/*          (legacy alias — drop after frontend migrates)
 //
-// /api/apartments/check stays inline in server.js for stage 3a; it will move
-// into this module in a follow-up stage. Handler bodies were lifted verbatim
-// from server.js during stage 3a; only path strings and dep injection
-// changed. The DB column is still named `listings` — rename lands in a later
-// stage.
+// The uniqueness check lives at GET /check (canonical: /api/platform/units/check;
+// legacy alias: /api/apartments/check, forwarded by server.js).
+//
+// Handler bodies were lifted verbatim from server.js; only path strings and
+// dep injection changed. The DB column is still named `listings` — rename
+// lands in a later stage.
 
 const express = require('express');
 const { v4: uuidv4 } = require('uuid');
@@ -19,12 +20,28 @@ module.exports = function createUnitsRouter(deps) {
     supabase, requireSupabaseEnv, sendSupabaseError, getCommunityId,
     listingFromDb, listingToDb,
     isThreeDigitApt, isValidEmail, isValidOptionalUrl, parseCoOwners,
-    validateApartmentUniqueness,
+    findApartmentConflict, validateApartmentUniqueness,
     getCommunity, auditEvent, auditLog, publicAppUrl, sendListingChangeEmail,
     canUpdateGlobalListing, canDeleteGlobalListing, hasCommunityAdminPerm,
   } = deps;
 
   const router = express.Router();
+
+  // GET /check           — apartment-uniqueness check (legacy: /api/apartments/check)
+  router.get('/check', async (req, res) => {
+    if (!requireSupabaseEnv(res)) return;
+    const apt = String(req.query.apt || '').trim();
+    const ownerUid = String(req.query.ownerUid || '').trim();
+    const excludeListingId = String(req.query.excludeListingId || '').trim();
+    const communityId = getCommunityId(req);
+    if (!apt) return res.status(400).json({ error:'apt is required.' });
+    if (!isThreeDigitApt(apt)) return res.json({ available:false, valid:false, message:'El apartamento debe tener exactamente 3 dígitos. Ejemplo: 000.' });
+    try {
+      const conflict = await findApartmentConflict(apt, { allowedOwnerUid: ownerUid, excludeListingId, includePending: true, communityId });
+      if (conflict) return res.json({ available:false, valid:true, conflict, message: conflict.message });
+      res.json({ available:true, valid:true, message:'Apartamento disponible.' });
+    } catch(e) { return sendSupabaseError(res, e); }
+  });
 
   // GET /                — list approved units in the active community
   router.get('/', async (req, res) => {
