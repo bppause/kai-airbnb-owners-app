@@ -110,6 +110,15 @@ module.exports = function createEmailHelpers({ supabase, resend, emailConfigured
       await logEmailDelivery({ eventType:key, recipients, subject:'', status:'skipped', errorMessage:'No recipient email provided', relatedEntity, relatedId });
       return { sent:false, skipped:true, reason:'Recipient email is missing.' };
     }
+    // Master kill-switch — read from app_config(). When ON, no emails go out
+    // platform-wide. Logged so admins can audit how many sends were skipped.
+    try {
+      const cfg = await getAppConfig();
+      if (String(cfg.email_kill_switch || 'false') === 'true') {
+        await logEmailDelivery({ eventType:key, recipients, subject:'', status:'skipped', errorMessage:'Global email kill-switch is ON', relatedEntity, relatedId });
+        return { sent:false, skipped:true, reason:'Global email kill-switch is ON.' };
+      }
+    } catch(e) { warn('email_kill_switch read failed: ' + (e?.message || e)); }
     const groups = {};
     if (language && language !== 'auto') {
       groups[normalizeLanguage(language)] = [...recipients];
@@ -157,6 +166,17 @@ module.exports = function createEmailHelpers({ supabase, resend, emailConfigured
 
   const sendSplitEmail = async ({ key, individual, group, vars, relatedEntity, relatedId, communityId='__global__' }) => {
     if (!emailConfigured) return { sent:false, skipped:true, reason:'Resend email is not configured.' };
+    // sendSplitEmail funnels its group hop through sendTemplatedEmail (which
+    // already honors the kill-switch), but the per-individual hops below call
+    // sendSpanishEmail directly so we gate them here too. One read per call.
+    try {
+      const cfg = await getAppConfig();
+      if (String(cfg.email_kill_switch || 'false') === 'true') {
+        const allRecipients = [...individual, ...group];
+        await logEmailDelivery({ eventType:key, recipients:allRecipients, subject:'', status:'skipped', errorMessage:'Global email kill-switch is ON', relatedEntity, relatedId });
+        return { sent:false, skipped:true, reason:'Global email kill-switch is ON.' };
+      }
+    } catch(e) { warn('email_kill_switch read failed: ' + (e?.message || e)); }
     const results = [];
 
     for (const email of individual) {

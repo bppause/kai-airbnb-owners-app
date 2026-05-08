@@ -83,7 +83,7 @@ module.exports = function createAdminRouter(deps) {
   // PUT /config          — global admin config writer
   router.put('/config', async (req, res) => {
     if (!requireSupabaseEnv(res)) return;
-    const { actorUid, actorEmail, slaHours, escalationCcEmails, analyticsEnabled, missionTitle, missionBody, missionTitleEs, missionBodyEs, missionTitleEn, missionBodyEn, missionSectionsEs, missionSectionsEn, standardMenuPermissions, defaultDelegatePermissions, communityAdminDefaultPermissions, tooltipsEs, tooltipsEn, uiLabelsEs, uiLabelsEn, complexNameEs, complexNameEn, complexLocation, complexLogo, complexBg, emailFromName, emailFromAddress, emailFromNameEn, emailFromAddressEn, nav_config, communityFeatureEnabled, defaultCommunityId } = req.body || {};
+    const { actorUid, actorEmail, slaHours, escalationCcEmails, analyticsEnabled, missionTitle, missionBody, missionTitleEs, missionBodyEs, missionTitleEn, missionBodyEn, missionSectionsEs, missionSectionsEn, standardMenuPermissions, defaultDelegatePermissions, communityAdminDefaultPermissions, tooltipsEs, tooltipsEn, uiLabelsEs, uiLabelsEn, complexNameEs, complexNameEn, complexLocation, complexLogo, complexBg, emailFromName, emailFromAddress, emailFromNameEn, emailFromAddressEn, nav_config, communityFeatureEnabled, defaultCommunityId, emailKillSwitch } = req.body || {};
     if (!(await isGlobalAdmin(actorUid, actorEmail))) return res.status(403).json({ error:'Solo un administrador global puede cambiar la configuración.' });
     const before = await getAppConfig();
     const rows = [];
@@ -117,6 +117,7 @@ module.exports = function createAdminRouter(deps) {
     if (nav_config !== undefined) rows.push({ key:'nav_config', value: typeof nav_config === 'string' ? nav_config : JSON.stringify(safeJsonObject(nav_config, {})) });
     if (communityFeatureEnabled !== undefined) rows.push({ key:'community_feature_enabled', value: communityFeatureEnabled === true || String(communityFeatureEnabled) === 'true' ? 'true' : 'false' });
     if (defaultCommunityId !== undefined) rows.push({ key:'default_community_id', value: String(defaultCommunityId||'kai') });
+    if (emailKillSwitch !== undefined) rows.push({ key:'email_kill_switch', value: emailKillSwitch === true || String(emailKillSwitch) === 'true' ? 'true' : 'false' });
     for (const row of rows) {
       const { error } = await supabase.from('app_config').upsert(row, { onConflict:'key' });
       if (error) return sendSupabaseError(res, error);

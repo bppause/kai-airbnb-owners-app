@@ -45,7 +45,7 @@ const DEFAULT_EMAIL_NOTIFICATION_CONFIG = {
 const DEFAULT_SLA_HOURS = Number(process.env.DEFAULT_SLA_HOURS || 24);
 const DEFAULT_ESCALATION_CC_EMAILS = String(process.env.DEFAULT_ESCALATION_CC_EMAILS || process.env.SLA_CC_EMAILS || '').split(',').map(x=>x.trim().toLowerCase()).filter(Boolean);
 
-const OVERRIDABLE_COMMUNITY_KEYS = ['mission_title_es','mission_body_es','mission_title_en','mission_body_en','mission_sections_es','mission_sections_en','escalation_cc_emails','community_admin_default_permissions','tooltips_es','tooltips_en','ui_labels_es','ui_labels_en'];
+const OVERRIDABLE_COMMUNITY_KEYS = ['mission_title_es','mission_body_es','mission_title_en','mission_body_en','mission_sections_es','mission_sections_en','escalation_cc_emails','community_admin_default_permissions','tooltips_es','tooltips_en','ui_labels_es','ui_labels_en','email_enabled'];
 
 module.exports = function createConfigHelpers(supabase, { EMAIL_FROM }) {
   const getCommunity = async (communityId='kai') => {
@@ -59,6 +59,16 @@ module.exports = function createConfigHelpers(supabase, { EMAIL_FROM }) {
     const cfg = {
       sla_hours:String(DEFAULT_SLA_HOURS||24),
       escalation_cc_emails:DEFAULT_ESCALATION_CC_EMAILS.join(','),
+      // Master switches — both default to off (transmission allowed). Toggle ON in
+      // admin UI to halt all outbound emails / audit-log writes platform-wide.
+      // Used by sendTemplatedEmail/sendSplitEmail (core/email.js) and auditLog
+      // (core/audit.js) to short-circuit when the kill-switch is engaged.
+      email_kill_switch:'false',
+      // Per-community email enable flag — defaults to true. Listed in
+      // OVERRIDABLE_COMMUNITY_KEYS so each community can opt out of email
+      // delivery without affecting other communities. The global kill-switch
+      // takes precedence: if email_kill_switch is true, no community sends.
+      email_enabled:'true',
       complex_name_es: 'Propietarios Airbnb KAI',
       complex_name_en: 'KAI Airbnb Owners',
       complex_location: 'Serena del Mar · Cartagena 🇨🇴',

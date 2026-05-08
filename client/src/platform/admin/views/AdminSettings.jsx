@@ -93,6 +93,9 @@ export default function AdminSettings({ config={}, user, listings=[], contactPro
   const [emailFromAddress,setEmailFromAddress]=useState(config?.email_from_address||'');
   const [emailFromNameEn,setEmailFromNameEn]=useState(config?.email_from_name_en||'KAI Airbnb Owners');
   const [emailFromAddressEn,setEmailFromAddressEn]=useState(config?.email_from_address_en||'');
+  // Master switches — emergency kill-switches that halt email/audit subsystems
+  // platform-wide. Server-side gates live in core/email.js + core/audit.js.
+  const [emailKillSwitch,setEmailKillSwitch]=useState(String(config?.email_kill_switch||'false')==='true');
   // Phase 4 — community management state
   const [communityFeatureEnabled, setCommunityFeatureEnabled] = useState(String(config?.community_feature_enabled ?? 'true') !== 'false');
   const [defaultCommunityId, setDefaultCommunityId] = useState(config?.default_community_id || 'kai');
@@ -133,7 +136,7 @@ export default function AdminSettings({ config={}, user, listings=[], contactPro
       return adminInfo.communityAdminOf[0].communityId;
     return '';
   });
-  const ADMIN_SEC_DEFAULT = {communities:false,branding:false,emailSender:false,roles:true,sla:false,mission:false,menu:false,delegate:false,communityAdminPerms:false,users:true,tooltips:false,uiLabels:false,email:false,emailNotif:false,auditLog:false,commMembers:false,commMission:false,commLabels:false,commTooltips:false,commTpl:false};
+  const ADMIN_SEC_DEFAULT = {communities:false,branding:false,masterSwitches:false,emailSender:false,roles:true,sla:false,mission:false,menu:false,delegate:false,communityAdminPerms:false,users:true,tooltips:false,uiLabels:false,email:false,emailNotif:false,auditLog:false,commMembers:false,commMission:false,commLabels:false,commTooltips:false,commTpl:false};
   const [openSections,setOpenSections] = useState(()=>{
     try{ const s=JSON.parse(localStorage.getItem('kai_admin_open')||'null'); return s&&typeof s==='object'?{...ADMIN_SEC_DEFAULT,...s}:ADMIN_SEC_DEFAULT; }catch{ return ADMIN_SEC_DEFAULT; }
   });
@@ -161,8 +164,9 @@ export default function AdminSettings({ config={}, user, listings=[], contactPro
     setUiLabelsEn(parseJsonObject(config?.ui_labels_en,{}));
     setCommunityFeatureEnabled(String(config?.community_feature_enabled ?? 'true') !== 'false');
     setDefaultCommunityId(config?.default_community_id || 'kai');
+    setEmailKillSwitch(String(config?.email_kill_switch || 'false') === 'true');
     try { setLastUiError(localStorage.getItem('kai_last_ui_error') || localStorage.getItem('kai_last_admin_error') || ''); } catch(e) {}
-  }, [config?.mission_sections_es, config?.mission_sections_en, config?.sla_hours, config?.escalation_cc_emails, config?.analytics_enabled, config?.community_feature_enabled, config?.default_community_id, lang, user?.email]);
+  }, [config?.mission_sections_es, config?.mission_sections_en, config?.sla_hours, config?.escalation_cc_emails, config?.analytics_enabled, config?.community_feature_enabled, config?.default_community_id, config?.email_kill_switch, lang, user?.email]);
   const templateEntries = Object.entries((templates && typeof templates==='object') ? templates : {}).filter(([k,v])=>k && v && typeof v==='object');
   const selectedKey = (templates && templates[selectedTemplate]) ? selectedTemplate : (templateEntries[0]?.[0] || '');
   const selected = selectedKey ? (templates[selectedKey] || {}) : {};
@@ -267,6 +271,9 @@ export default function AdminSettings({ config={}, user, listings=[], contactPro
   };
   const saveBranding = () => onSave({ complexNameEs:brandingNameEs, complexNameEn:brandingNameEn, complexLocation:brandingLocation, complexLogo:brandingLogo, complexBg:brandingBg });
   const saveEmailSender = () => { if (!emailFromAddress.trim() || !emailFromAddressEn.trim()) { showToast(isEn?'Both email addresses are required':'Ambos emails son requeridos', true); return; } onSave({ emailFromName, emailFromAddress, emailFromNameEn, emailFromAddressEn }); };
+  // Master switches save — values stored as strings in app_config so the
+  // server can read them with String(cfg.x||'false')==='true' without JSON.parse.
+  const saveMasterSwitches = () => onSave({ emailKillSwitch:String(emailKillSwitch) });
   const toggleMenuPermission = (key) => setStandardMenuPermissions(p => ({ ...p, [key]: key === 'dashboard' ? true : !p[key] }));
   const toggleDefaultDelegatePermission = (key) => setDefaultDelegatePermissions(p => ({ ...p, [key]: !p[key] }));
   const toggleDefaultCommunityAdminPermission = (key) => setDefaultCommunityAdminPermissions(p => ({ ...p, [key]: !p[key] }));
@@ -1353,6 +1360,33 @@ export default function AdminSettings({ config={}, user, listings=[], contactPro
         <button type="button" className="btn-ghost" style={{fontSize:'.75rem',padding:'3px 10px'}} onClick={()=>setBrandingBg('/morros-kai-bg.jpg')}>{isEn?'Reset to default':'Restablecer por defecto'}</button>
       </div>}
       {!brandingBg && <div style={{marginTop:8,fontSize:'.78rem',color:'#888'}}>{isEn?'No background — solid color fallback.':'Sin fondo — se usa color sólido como alternativa.'}</div>}
+    </div>
+  </AdminSection>
+
+  {/* ── Master switches — emergency kill-switches ───────────────── */}
+  <AdminSection
+    title={`🚦 ${isEn?'Master switches':'Interruptores maestros'}`}
+    subtitle={isEn
+      ? 'Emergency kill-switches that halt subsystems platform-wide. Use sparingly — toggling ON stops every community from sending email or writing audit log entries.'
+      : 'Interruptores de emergencia que detienen subsistemas a nivel plataforma. Úsalos con cuidado — activarlos detiene los emails y la auditoría de TODAS las comunidades.'}
+    action={<button className="btn-p" style={{minHeight:36,padding:'6px 14px'}} onClick={saveMasterSwitches}>💾 {isEn?'Save':'Guardar'}</button>}
+    open={openSections.masterSwitches}
+    onToggle={()=>toggleSection('masterSwitches')}>
+    <div style={{display:'flex',flexDirection:'column',gap:14}}>
+      <label style={{display:'flex',alignItems:'flex-start',gap:10,padding:'12px 14px',background:emailKillSwitch?'#fff5f5':'#f8f9fa',border:`1.5px solid ${emailKillSwitch?'#e53935':'#e8eaed'}`,borderRadius:8,cursor:'pointer'}}>
+        <input type="checkbox" checked={emailKillSwitch} onChange={e=>setEmailKillSwitch(e.target.checked)} style={{marginTop:3,width:18,height:18,flexShrink:0}}/>
+        <div style={{flex:1}}>
+          <div style={{fontWeight:700,fontSize:'.92rem',color:emailKillSwitch?'#c62828':'#17313a'}}>
+            📧 {isEn?'Halt all outbound emails':'Detener todos los emails salientes'}
+            {emailKillSwitch && <span style={{marginLeft:8,fontSize:'.7rem',background:'#c62828',color:'#fff',padding:'1px 8px',borderRadius:999}}>ON</span>}
+          </div>
+          <div style={{fontSize:'.78rem',color:'#496674',marginTop:4,lineHeight:1.45}}>
+            {isEn
+              ? 'When ON, sendTemplatedEmail() and sendSplitEmail() short-circuit and log every attempt as "skipped: Global email kill-switch is ON". No incident notifications, SLA reminders, or registration emails are sent.'
+              : 'Cuando está activo, sendTemplatedEmail() y sendSplitEmail() se cortocircuitan y registran cada intento como "skipped: Global email kill-switch is ON". No se envían notificaciones de incidentes, recordatorios SLA, ni emails de registro.'}
+          </div>
+        </div>
+      </label>
     </div>
   </AdminSection>
 
