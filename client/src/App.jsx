@@ -240,6 +240,22 @@ import MyListings from "./platform/units/views/MyListings";
 // See docs/PLATFORM_ARCHITECTURE.md §11 frontend stage F32.
 import ListingModal from "./platform/units/components/ListingModal";
 
+// Admin shells (extracted in stage F33). All pull lang via useApp().
+//   AdminSection      — collapsible card wrapper (used dozens of times
+//                       inside AdminSettings)
+//   NavConfigEditor   — per-role nav_config editor (with NAV_CONFIG_-
+//                       ITEMS, NAV_ROLES, DEFAULT_NAV_CONFIG co-located)
+//   CommunityCrudModal — create/edit a community (with logo + bg image
+//                       upload)
+//   AdminFallback     — error-boundary fallback for the /admin tab
+//   AdminAccessHelp   — shown when current user isn't a global admin
+// See docs/PLATFORM_ARCHITECTURE.md §11 frontend stage F33.
+import AdminSection from "./platform/admin/components/AdminSection";
+import NavConfigEditor from "./platform/admin/components/NavConfigEditor";
+import CommunityCrudModal from "./platform/admin/components/CommunityCrudModal";
+import AdminFallback from "./platform/admin/views/AdminFallback";
+import AdminAccessHelp from "./platform/admin/views/AdminAccessHelp";
+
 // ─── API client (extracted in stage F3) ──────────────────────────────────────
 // All fetch calls flow through this module so the X-Community-Id header is
 // always set, errors are normalized, and Render cold-start timeouts are
@@ -1175,7 +1191,7 @@ export default function App() {
         {view==="notifications" && user && <NotificationsView notifications={notifications} incidents={incidents} listings={listings} contactProps={contactProps} onRead={markNotificationRead} onReadAll={markAllNotificationsRead} smartAlerts={smartAlerts} onIncidentDetail={openIncidentDetail} />}
         {view==="approvals" && user && effectiveCanManageRegistrations && <PendingApprovalsView pending={pendingRegistrations} onApprove={id=>reviewRegistrationAction(id,'approve')} onDecline={id=>reviewRegistrationAction(id,'decline')} active={activeRegistrations} />}
         {view==="analytics" && user && (effectiveIsGlobalAdmin || analyticsEnabledForAll) && <AnalyticsDashboard user={user} contactProps={contactProps} showToast={showToast} isGlobalAdmin={effectiveIsGlobalAdmin} />}
-        {view==="admin" && user && ((effectiveIsGlobalAdmin || effectiveRole === 'delegate_admin' || effectiveIsCommunityAdmin) ? <ErrorBoundary section="admin" fallback={(err)=><AdminFallback lang={lang} error={err}/>}><AdminSettings config={adminInfo.config || {}} user={user} listings={listings} contactProps={contactProps} onSave={saveAdminConfig} showToast={showToast} lang={lang} adminInfo={adminInfo} /></ErrorBoundary> : <AdminAccessHelp user={user} adminInfo={adminInfo} lang={lang} />)}
+        {view==="admin" && user && ((effectiveIsGlobalAdmin || effectiveRole === 'delegate_admin' || effectiveIsCommunityAdmin) ? <ErrorBoundary section="admin" fallback={(err)=><AdminFallback error={err}/>}><AdminSettings config={adminInfo.config || {}} user={user} listings={listings} contactProps={contactProps} onSave={saveAdminConfig} showToast={showToast} lang={lang} adminInfo={adminInfo} /></ErrorBoundary> : <AdminAccessHelp user={user} adminInfo={adminInfo} />)}
         {view==="my" && user && <><DashboardGreeting user={user} role={effectiveIsGlobalAdmin?'global':effectiveRole==='delegate_admin'?'delegate':'standard'} pendingOwner={needsOwnerVerification.length} pendingOwnerResolution={needsOwnerResolution.length} pendingResolve={needsAdminResolution.length} pendingRegistrations={effectiveCanManageRegistrations?pendingRegistrations.length:0} myOpenCount={needsOwnerVerification.length} onOwnerClick={()=>{setIncidentQuickFilter('ownerVerification');setView('incidents');}} onResolveClick={()=>{setIncidentQuickFilter('requiresResolution');setView('incidents');}} onRegistrationsClick={()=>setView('approvals')} setView={setView}/><MyListings listings={myListings} allListings={listings} incidents={incidents} user={user} contactProps={contactProps} isGlobalAdmin={effectiveIsGlobalAdmin} canResolveGlobal={canResolveIncidentsNow} onAdd={()=>setModal({type:"addListing"})} onEdit={l=>setModal({type:"editListing",data:l})} onDelete={deleteListing} onReport={l=>setModal({type:"incident",data:{aptId:l.id}})} onVerify={inc=>setModal({type:"verifyIncident",data:inc})} onResolve={resolveIncident} onAddResolution={inc=>setModal({type:"addResolution",data:inc})} onNavigateToIncidents={f=>{setIncidentQuickFilter({type:'floorFilter',aptIds:f.aptIds,status:f.status||'all'});setView('incidents');}} onIncidentDetail={openIncidentDetail} onAssign={inc=>setModal({type:'assignGeneral',data:inc})} onCloseGeneral={inc=>setModal({type:'closeGeneral',data:inc})} /></>}
         {view==="profile" && user && <ProfileView user={user} userProfile={userProfile} onSave={saveProfile} communities={adminInfo.communities||[]} currentCommunityId={adminInfo.communityId||getCommunityId()} onSwitchCommunity={switchCommunity} reputation={reputation} reputationLoading={reputationLoading} loadReputation={loadReputation} />}
         {view==="help" && <HelpView effectiveRole={effectiveRole} effectiveIsGlobalAdmin={effectiveIsGlobalAdmin} delegatePerms={delegatePerms} listings={listings} incidents={incidents} user={user} setView={setView} onReport={()=>{ if(!user){login();return;} setModal({type:'incident'}); }} onAddListing={()=>{ if(!user){login();return;} setModal({type:'addListing'}); }} setIncidentQuickFilter={setIncidentQuickFilter} openMore={()=>setOpenDropdown('more')} onStartTour={()=>setShowTour(true)} />}
@@ -1295,245 +1311,6 @@ export default function App() {
 
 
 
-
-// All navigable views and their labels (bilingual)
-const NAV_CONFIG_ITEMS = [
-  { id:'my',        labelEs:'Mis Unidades',        labelEn:'My Units' },
-  { id:'incidents', labelEs:'Incidentes', labelEn:'Incidents' },
-  { id:'general',   labelEs:'Incidentes Generales', labelEn:'General Incidents' },
-  { id:'listings',  labelEs:'Inventario',    labelEn:'Inventory' },
-  { id:'dashboard', labelEs:'Dashboard',     labelEn:'Dashboard' },
-  { id:'notifications',labelEs:'Alertas',   labelEn:'Alerts' },
-  { id:'about',     labelEs:'Misión',        labelEn:'Mission' },
-  { id:'analytics', labelEs:'Analíticas',   labelEn:'Analytics' },
-  { id:'approvals', labelEs:'Registros',    labelEn:'Registrations' },
-  { id:'admin',     labelEs:'Admin',         labelEn:'Admin' },
-];
-const NAV_ROLES = [
-  { key:'user',     labelEs:'Propietario',   labelEn:'Owner / User' },
-  { key:'delegate', labelEs:'Admin Delegado',labelEn:'Delegate Admin' },
-  { key:'global',   labelEs:'Admin Global',  labelEn:'Global Admin' },
-];
-const DEFAULT_NAV_CONFIG = {
-  user:     { landing:'incidents', primary:['incidents','my','listings','dashboard'] },
-  delegate: { landing:'incidents', primary:['incidents','my','listings','dashboard'] },
-  global:   { landing:'incidents', primary:['incidents','my','listings','dashboard'] },
-};
-
-function NavConfigEditor({ lang, isEn, config, onSave, showToast=()=>{}, defaultRole='global' }) {
-  const [activeRole, setActiveRole] = useState(defaultRole);
-  const [cfg, setCfg] = useState(()=>{
-    try { return { ...DEFAULT_NAV_CONFIG, ...JSON.parse(config?.nav_config||'{}') }; }
-    catch(e) { return { ...DEFAULT_NAV_CONFIG }; }
-  });
-  const [saving, setSaving] = useState(false);
-
-  const roleCfg = cfg[activeRole] || DEFAULT_NAV_CONFIG[activeRole];
-
-  const togglePrimary = (id) => {
-    const cur = roleCfg.primary || [];
-    const next = cur.includes(id) ? cur.filter(x=>x!==id) : [...cur, id];
-    setCfg(c=>({...c, [activeRole]:{...c[activeRole], primary:next}}));
-  };
-  const movePrimary = (id, dir) => {
-    const cur = [...(roleCfg.primary||[])];
-    const i = cur.indexOf(id); if(i<0) return;
-    const j = i+dir; if(j<0||j>=cur.length) return;
-    [cur[i],cur[j]] = [cur[j],cur[i]];
-    setCfg(c=>({...c, [activeRole]:{...c[activeRole], primary:cur}}));
-  };
-  const setLanding = (v) => setCfg(c=>({...c, [activeRole]:{...c[activeRole], landing:v}}));
-
-  const save = async () => {
-    setSaving(true);
-    await onSave(cfg);
-    setSaving(false);
-  };
-
-  return (
-    <div style={{display:'flex',flexDirection:'column',gap:16}}>
-      {/* Role tabs */}
-      <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
-        {NAV_ROLES.map(r=>(
-          <button key={r.key} type="button"
-            style={{padding:'6px 14px',borderRadius:999,fontWeight:800,fontSize:'.78rem',border:'1.5px solid',cursor:'pointer',
-              background:activeRole===r.key?'linear-gradient(135deg,#0b7f4f,#0b7f8c)':'rgba(255,255,255,.8)',
-              color:activeRole===r.key?'#fff':'#17313a',borderColor:activeRole===r.key?'transparent':'rgba(47,79,58,.2)'}}
-            onClick={()=>setActiveRole(r.key)}>
-            {isEn?r.labelEn:r.labelEs}
-          </button>
-        ))}
-      </div>
-      {/* Landing page */}
-      <div className="fg">
-        <label>{isEn?'Default landing page':'Página de inicio por defecto'}</label>
-        <select value={roleCfg.landing||'my'} onChange={e=>setLanding(e.target.value)}>
-          {NAV_CONFIG_ITEMS.map(n=><option key={n.id} value={n.id}>{isEn?n.labelEn:n.labelEs}</option>)}
-        </select>
-      </div>
-      {/* Primary nav items */}
-      <div>
-        <div style={{fontSize:'.78rem',fontWeight:900,color:'#17313a',marginBottom:8}}>{isEn?'Primary nav (shown in top bar)':'Nav principal (visible en la barra superior)'}</div>
-        <div style={{display:'flex',flexDirection:'column',gap:6}}>
-          {NAV_CONFIG_ITEMS.map(n=>{
-            const inPrimary = (roleCfg.primary||[]).includes(n.id);
-            const idx = (roleCfg.primary||[]).indexOf(n.id);
-            return (
-              <div key={n.id} style={{display:'flex',alignItems:'center',gap:8,padding:'6px 10px',background:inPrimary?'rgba(11,127,140,.06)':'rgba(47,79,58,.03)',borderRadius:8,border:'1px solid',borderColor:inPrimary?'rgba(11,127,140,.2)':'rgba(47,79,58,.1)'}}>
-                <input type="checkbox" checked={inPrimary} onChange={()=>togglePrimary(n.id)} id={`ncp-${n.id}-${activeRole}`} style={{width:16,height:16,flexShrink:0,cursor:'pointer'}}/>
-                <label htmlFor={`ncp-${n.id}-${activeRole}`} style={{flex:1,fontSize:'.82rem',fontWeight:700,color:'#17313a',cursor:'pointer'}}>{isEn?n.labelEn:n.labelEs}</label>
-                {inPrimary&&<span style={{fontSize:'.7rem',color:'#496674',background:'rgba(47,79,58,.08)',padding:'2px 7px',borderRadius:999}}>#{idx+1}</span>}
-                {inPrimary&&<button type="button" onClick={()=>movePrimary(n.id,-1)} disabled={idx===0} style={{background:'none',border:'none',cursor:'pointer',fontSize:'.9rem',opacity:idx===0?.3:1,padding:'0 2px'}}>↑</button>}
-                {inPrimary&&<button type="button" onClick={()=>movePrimary(n.id,1)} disabled={idx>=(roleCfg.primary||[]).length-1} style={{background:'none',border:'none',cursor:'pointer',fontSize:'.9rem',opacity:idx>=(roleCfg.primary||[]).length-1?.3:1,padding:'0 2px'}}>↓</button>}
-                {!inPrimary&&<span style={{fontSize:'.7rem',color:'#8a9fa5',fontStyle:'italic'}}>{isEn?'More menu':'Menú más'}</span>}
-              </div>
-            );
-          })}
-        </div>
-      </div>
-      <button className="btn-p" onClick={save} disabled={saving} style={{alignSelf:'flex-start'}}>
-        {saving?(isEn?'Saving…':'Guardando…'):(isEn?'Save navigation config':'Guardar configuración de navegación')}
-      </button>
-    </div>
-  );
-}
-
-// ─── COMMUNITY CRUD MODAL ────────────────────────────────────────────────────
-function CommunityCrudModal({ mode='create', initial={}, onSave, onClose, lang='es-CO' }) {
-  const isEn = lang === 'en';
-  const isEdit = mode === 'edit';
-  const [f, setF] = useState({
-    id: initial.id || '',
-    name: initial.name || '',
-    nameEn: initial.name_en || '',
-    tower: initial.tower || '',
-    city: initial.city || '',
-    state: initial.state || '',
-    country: initial.country || 'Colombia',
-    logoUrl: initial.logo_url || '',
-    backgroundUrl: initial.background_url || '',
-    description: initial.description || '',
-    descriptionEn: initial.description_en || '',
-    isActive: initial.is_active !== false,
-  });
-  const [logoMode, setLogoMode] = useState('url');
-  const [bgMode, setBgMode] = useState('url');
-  const [saving, setSaving] = useState(false);
-  const [errors, setErrors] = useState({});
-  const s = (k, v) => setF(p => ({...p, [k]: v}));
-
-  const validate = () => {
-    const e = {};
-    if (!isEdit && !String(f.id||'').trim()) e.id = isEn ? 'ID is required' : 'ID es requerido';
-    else if (!isEdit && f.id && !/^[a-z0-9-]+$/.test(f.id)) e.id = isEn ? 'Lowercase letters, numbers, and hyphens only' : 'Solo letras minúsculas, números y guiones';
-    if (!String(f.name||'').trim()) e.name = isEn ? 'Name (Spanish) is required' : 'Nombre (Español) es requerido';
-    setErrors(e);
-    return Object.keys(e).length === 0;
-  };
-
-  const handleSave = async () => {
-    if (!validate()) return;
-    setSaving(true);
-    try { await onSave(f); } catch(e) { setSaving(false); }
-  };
-
-  const imgField = (label, urlKey, mode, setMode) => (
-    <div className="fg full">
-      <label>{label}</label>
-      <div style={{display:'flex',gap:8,marginBottom:6}}>
-        <button type="button" className={`chip ${mode==='url'?'chip-active':''}`} onClick={()=>setMode('url')}>URL</button>
-        <button type="button" className={`chip ${mode==='file'?'chip-active':''}`} onClick={()=>setMode('file')}>{isEn?'Upload':'Subir'}</button>
-      </div>
-      {mode==='url' && <input value={f[urlKey]} onChange={e=>s(urlKey,e.target.value)} placeholder="https://..." className="input" style={{marginBottom:6}}/>}
-      {mode==='file' && <input type="file" accept="image/*" style={{marginBottom:6}} onChange={e=>{const file=e.target.files?.[0];if(!file)return;const r=new FileReader();r.onload=ev=>s(urlKey,ev.target?.result||'');r.readAsDataURL(file);}}/>}
-      {f[urlKey] && <div style={{marginTop:4,padding:6,background:'#f5fbfd',borderRadius:6,display:'inline-block'}}>
-        <img src={f[urlKey]} alt="preview" style={{maxHeight:48,maxWidth:180,objectFit:'contain',display:'block'}} onError={e=>{e.target.style.display='none';}}/>
-      </div>}
-      {f[urlKey] && <button type="button" className="btn-ghost" style={{fontSize:'.72rem',padding:'2px 8px',marginTop:4}} onClick={()=>s(urlKey,'')}>{isEn?'Remove':'Quitar'}</button>}
-    </div>
-  );
-
-  return (
-    <Overlay onClose={onClose}>
-      <div className="modal-title">{isEdit?(isEn?'✏️ Edit community':'✏️ Editar comunidad'):(isEn?'＋ New community':'＋ Nueva comunidad')}</div>
-      <div className="fg2">
-        {!isEdit && (
-          <div className="fg full">
-            <label>{isEn?'Community ID (slug)':'ID de comunidad (slug)'} <span style={{color:'#e53935',fontSize:'.75rem'}}>*</span></label>
-            <input value={f.id} onChange={e=>s('id',e.target.value.toLowerCase().replace(/[^a-z0-9-]/g,''))} placeholder="my-community" className={errors.id?'field-error':''}/>
-            <span className="help-msg">{isEn?'Lowercase letters, numbers, hyphens. Cannot be changed after creation.':'Letras minúsculas, números, guiones. No se puede cambiar luego.'}</span>
-            {errors.id && <span className="err-msg">{errors.id}</span>}
-          </div>
-        )}
-        <div className="fg">
-          <label>{isEn?'Name (Spanish)':'Nombre (Español)'} <span style={{color:'#e53935',fontSize:'.75rem'}}>*</span></label>
-          <input value={f.name} onChange={e=>s('name',e.target.value)} className={errors.name?'field-error':''}/>
-          {errors.name && <span className="err-msg">{errors.name}</span>}
-        </div>
-        <div className="fg">
-          <label>{isEn?'Name (English)':'Nombre (Inglés)'}</label>
-          <input value={f.nameEn} onChange={e=>s('nameEn',e.target.value)}/>
-        </div>
-        <div className="fg">
-          <label>{isEn?'Tower label':'Etiqueta de torre'}</label>
-          <input value={f.tower} onChange={e=>s('tower',e.target.value)} placeholder="KAI"/>
-          <span className="help-msg">{isEn?'Short label shown on unit plates (e.g. KAI, OLAS, NORTE).':'Etiqueta corta en fichas de unidad (ej. KAI, OLAS, NORTE).'}</span>
-        </div>
-        <div className="fg">
-          <label>{isEn?'City':'Ciudad'}</label>
-          <input value={f.city} onChange={e=>s('city',e.target.value)} placeholder="Cartagena"/>
-        </div>
-        <div className="fg">
-          <label>{isEn?'State / Province':'Departamento / Provincia'}</label>
-          <input value={f.state} onChange={e=>s('state',e.target.value)} placeholder={isEn?'e.g. Bolívar':'ej. Bolívar'}/>
-        </div>
-        <div className="fg">
-          <label>{isEn?'Country':'País'}</label>
-          <input value={f.country} onChange={e=>s('country',e.target.value)} placeholder="Colombia"/>
-        </div>
-        {imgField(isEn?'Logo':'Logo', 'logoUrl', logoMode, setLogoMode)}
-        {imgField(isEn?'Background image (login / registration screens)':'Imagen de fondo (login y registro)', 'backgroundUrl', bgMode, setBgMode)}
-        <div className="fg full">
-          <label>{isEn?'Description (Spanish)':'Descripción (Español)'}</label>
-          <textarea className="admin-textarea" rows={2} value={f.description} onChange={e=>s('description',e.target.value)}/>
-        </div>
-        <div className="fg full">
-          <label>{isEn?'Description (English)':'Descripción (Inglés)'}</label>
-          <textarea className="admin-textarea" rows={2} value={f.descriptionEn} onChange={e=>s('descriptionEn',e.target.value)}/>
-        </div>
-        {isEdit && (
-          <div className="fg full">
-            <label style={{display:'flex',alignItems:'center',gap:8,cursor:'pointer',userSelect:'none'}}>
-              <input type="checkbox" checked={f.isActive} onChange={e=>s('isActive',e.target.checked)} style={{width:16,height:16}}/>
-              {isEn?'Active (visible and accessible to users)':'Activa (visible y accesible para usuarios)'}
-            </label>
-          </div>
-        )}
-      </div>
-      <div className="mact">
-        <button className="btn-ghost" onClick={onClose}>{isEn?'Cancel':'Cancelar'}</button>
-        <button className="btn-p" onClick={handleSave} disabled={saving}>{saving?(isEn?'Saving...':'Guardando...'):`💾 ${isEn?'Save':'Guardar'}`}</button>
-      </div>
-    </Overlay>
-  );
-}
-
-function AdminSection({ title, subtitle, action, open, onToggle, children }) {
-  return (
-    <div className="card admin-section" style={{marginBottom:18}}>
-      <div className="admin-sec-hdr" onClick={onToggle} role="button" tabIndex={0}
-        onKeyDown={e=>{if(e.key==='Enter'||e.key===' ')onToggle();}} aria-expanded={String(!!open)}>
-        <div className="admin-sec-info">
-          <span className="card-title">{title}</span>
-          {subtitle && <div className="psub" style={{margin:'3px 0 0',fontWeight:400}}>{subtitle}</div>}
-        </div>
-        {action && <div className="admin-sec-action" onClick={e=>e.stopPropagation()}>{action}</div>}
-        <span className={`admin-sec-chevron${open?' asc-up':''}`}>{open?'▲':'▼'}</span>
-      </div>
-      {open && <div className="admin-sec-body">{children}</div>}
-    </div>
-  );
-}
 
 
 function AdminSettings({ config={}, user, listings=[], contactProps={}, onSave, showToast=()=>{}, lang="es-CO", adminInfo={} }) {
@@ -2794,7 +2571,6 @@ function AdminSettings({ config={}, user, listings=[], contactProps={}, onSave, 
         initial={communityModal.data||{}}
         onSave={saveCommunity}
         onClose={()=>setCommunityModal(null)}
-        lang={lang}
       />
     )}
   </AdminSection>
@@ -3134,7 +2910,7 @@ function AdminSettings({ config={}, user, listings=[], contactProps={}, onSave, 
 
         {/* ── Navigation order & landing ── */}
         <AdminSection title={isEn?'🗺️ Navigation & Landing':'🗺️ Navegación y página de inicio'} subtitle={isEn?'Set the default landing page and primary nav items per role.':'Configura la página de inicio y los ítems de navegación por rol.'} open={openSections['navConfig']} onToggle={()=>toggleSection('navConfig')}>
-          <NavConfigEditor lang={lang} isEn={isEn} config={config} onSave={cfg=>onSave({nav_config:JSON.stringify(cfg)})} showToast={showToast}/>
+          <NavConfigEditor config={config} onSave={cfg=>onSave({nav_config:JSON.stringify(cfg)})} showToast={showToast}/>
         </AdminSection>
 
         {/* ── UI Labels — organized by page/section with expand/collapse ── */}
@@ -3456,17 +3232,5 @@ function AdminSettings({ config={}, user, listings=[], contactProps={}, onSave, 
 // ─── ASSIGN GENERAL INCIDENT TO UNIT ─────────────────────────────────────────
 
 // ─── CLOSE GENERAL INCIDENT (admin direct close) ──────────────────────────────
-
-// ─── GENERAL INCIDENTS VIEW ───────────────────────────────────────────────────
-
-function AdminFallback({ lang='es-CO', error={} }){
-  const saved = (()=>{ try { return localStorage.getItem('kai_last_ui_error') || localStorage.getItem('kai_last_admin_error') || ''; } catch(e) { return ''; } })();
-  return <div className="fade"><div className="card" style={{borderLeft:'4px solid #d4634a'}}><h1 className="ptitle">{ui(lang,'adminCouldNotLoad')}</h1><p className="psub">{ui(lang,'adminErrorHelp')}</p>{error?.message && <div className="form-alert"><strong>Error:</strong> {error.message}</div>}{error?.stack && <pre className="codebox" style={{whiteSpace:'pre-wrap',marginTop:10}}>{error.stack}</pre>}{saved && <><div className="section-label" style={{marginTop:12}}>{lt(lang,'Último error de interfaz')}</div><pre className="codebox" style={{whiteSpace:'pre-wrap'}}>{saved}</pre></>}<div style={{display:'flex',gap:10,flexWrap:'wrap',marginTop:12}}><button className="btn-p" onClick={()=>window.location.reload()}>{ui(lang,'reload')}</button><button className="btn-ghost" onClick={()=>{try{localStorage.removeItem('kai_last_ui_error');localStorage.removeItem('kai_last_admin_error')}catch(e){};window.location.reload();}}>{lt(lang,'Limpiar error guardado')}</button></div></div></div>;
-}
-
-function AdminAccessHelp({ user, adminInfo, lang='es-CO' }) {
-  const isEn = lang === 'en';
-  return <div className="fade"><div className="card"><h1 className="ptitle">⚙️ Admin</h1><p className="psub">{isEn ? 'This account is not being recognized as a global admin yet.' : 'Esta cuenta no está siendo reconocida como administrador global todavía.'}</p><div className="form-alert"><strong>{isEn ? 'Current email' : 'Email actual'}:</strong> {user?.email || 'No disponible'}<br/><strong>{isEn ? 'Detected role' : 'Rol detectado'}:</strong> {adminInfo?.role || 'user'}</div><p className="psub">{isEn ? 'In Render, add this email to GLOBAL_ADMIN_EMAILS, save changes, and redeploy. You can use several emails separated by commas.' : 'En Render agrega este email en GLOBAL_ADMIN_EMAILS, guarda cambios y redeploy. Puedes usar varios separados por coma.'}</p><pre className="codebox">GLOBAL_ADMIN_EMAILS={user?.email || 'tuemail@gmail.com'}</pre><button className="btn-p" onClick={()=>window.location.reload()}>{isEn ? 'Check again' : 'Volver a verificar'}</button></div></div>;
-}
 
 
