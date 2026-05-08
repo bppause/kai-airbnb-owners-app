@@ -169,6 +169,12 @@ import { CSS } from "./core/styles";
 import HelpView from "./platform/onboarding/views/HelpView";
 import UserTour from "./platform/onboarding/views/UserTour";
 
+// SendUserEmailModal (extracted in stage F25) — admin-triggered "send
+// email to user" modal. Pulls lang via useApp(). Opens platform/email/
+// as the client-side peer of server/platform/email/.
+// See docs/PLATFORM_ARCHITECTURE.md §11 frontend stage F25.
+import SendUserEmailModal from "./platform/email/components/SendUserEmailModal";
+
 // ─── API client (extracted in stage F3) ──────────────────────────────────────
 // All fetch calls flow through this module so the X-Community-Id header is
 // always set, errors are normalized, and Render cold-start timeouts are
@@ -261,19 +267,6 @@ const MENU_LABELS = {
 // Strip everything except digits. Requires ≥10 digits (country code + subscriber)
 // to produce a usable wa.me link; returns '' for short/missing numbers.
 
-function SendUserEmailModal({ contact, fromUser, onSend, onClose, lang='es-CO' }) {
-  const [subject,setSubject]=useState('');
-  const [message,setMessage]=useState('');
-  const [err,setErr]=useState('');
-  return <Overlay onClose={onClose} wide>
-    <div className="modal-title">{lang==='en'?'Send email':'Enviar email'}</div>
-    <div className="modal-sub">{contact?.name || contact?.email} · {contact?.email}</div>
-    <div className="fg full"><label>{lang==='en'?'Subject *':'Asunto *'}</label><input value={subject} onChange={e=>{setSubject(e.target.value);setErr('');}} placeholder={lang==='en'?'Message subject':'Asunto del mensaje'} /> </div>
-    <div className="fg full"><label>{lang==='en'?'Message *':'Mensaje *'}</label><textarea value={message} onChange={e=>{setMessage(e.target.value);setErr('');}} rows={6} placeholder={lang==='en'?'Write your message...':'Escribe tu mensaje...'} /></div>
-    {err && <div className="err-msg">{err}</div>}
-    <div className="mact"><button className="btn-ghost" onClick={onClose}>{appText(lang,'form.cancel')}</button><button className="btn-p" onClick={()=>{ if(!subject.trim() || !message.trim()){setErr(lang==='en'?'Subject and message are required.':'Asunto y mensaje son requeridos.'); return;} onSend({ to:contact.email, toName:contact.name, subject, message }); }}>{lang==='en'?'Send':'Enviar'}</button></div>
-  </Overlay>;
-}
 
 // Build timestamp injected by Vite at build time via vite.config.js define.__BUILD_TIME__
 // Falls back gracefully if the constant isn't defined (e.g. older builds or test envs).
@@ -1212,7 +1205,7 @@ export default function App() {
       {modal?.type==="addResolution" && <AddResolutionModal incident={modal.data} onSave={text=>addResolution(modal.data.id,text)} onClose={()=>{setModal(null);loadAll(false);}} />}
       {modal?.type==="assignGeneral" && <AssignToUnitModal incident={modal.data} listings={listings} onSave={aptId=>assignIncident(modal.data.id,aptId)} onClose={()=>{setModal(null);loadAll(false);}} />}
       {modal?.type==="closeGeneral" && <CloseGeneralModal incident={modal.data} onSave={data=>closeGeneralIncident(modal.data.id,data)} onClose={()=>{setModal(null);loadAll(false);}} />}
-      {modal?.type==="sendUserEmail" && <SendUserEmailModal lang={lang} contact={modal.data} fromUser={user} onSend={sendUserEmail} onClose={()=>setModal(null)} />}
+      {modal?.type==="sendUserEmail" && <SendUserEmailModal contact={modal.data} fromUser={user} onSend={sendUserEmail} onClose={()=>setModal(null)} />}
 
       {syncing && <div className="sync-overlay"><div className="spinner-sm"/><span>{lang === "en" ? "Saving to server..." : "Guardando en servidor..."}</span></div>}
       {toast && <div className={`toast ${toast.err?"toast-err":""}`}>{toast.msg}</div>}
