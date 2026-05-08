@@ -179,6 +179,27 @@ const applyDialCode = (current='', newCode='') => {
 };
 const LANGS = { "es-CO": { label:"Español 🇨🇴", short:"ES" }, en:{ label:"English 🇺🇸", short:"EN" } };
 
+// Audit event types — keep in sync with AUDIT_EVENT_TYPES in server.js
+const AUDIT_EVENT_TYPES = [
+  { key:'listing.create',                         es:'Crear apartamento',                  en:'Create listing' },
+  { key:'listing.update',                         es:'Actualizar apartamento',             en:'Update listing' },
+  { key:'listing.delete',                         es:'Eliminar apartamento',               en:'Delete listing' },
+  { key:'incident.create',                        es:'Crear incidente',                    en:'Create incident' },
+  { key:'incident.verify',                        es:'Verificar incidente',                en:'Verify incident' },
+  { key:'incident.add-resolution',                es:'Agregar respuesta a incidente',      en:'Add resolution to incident' },
+  { key:'incident.assign',                        es:'Asignar incidente a unidad',         en:'Assign incident to unit' },
+  { key:'incident.close-general',                 es:'Cerrar incidente general',           en:'Close general incident' },
+  { key:'incident.resolve',                       es:'Resolver incidente',                 en:'Resolve incident' },
+  { key:'incident.delete',                        es:'Eliminar incidente',                 en:'Delete incident' },
+  { key:'app_config.update',                      es:'Actualizar configuración global',    en:'Update global config' },
+  { key:'app_config.email_notification_config',   es:'Cambiar matriz de emails',           en:'Change email matrix' },
+  { key:'community.create',                       es:'Crear comunidad',                    en:'Create community' },
+  { key:'community.update',                       es:'Actualizar comunidad',               en:'Update community' },
+  { key:'community.delete',                       es:'Eliminar comunidad',                 en:'Delete community' },
+  { key:'community_config.update_overrides',      es:'Actualizar overrides de comunidad',  en:'Update community overrides' },
+  { key:'community_config.set_overrides_enabled', es:'Activar overrides de comunidad',     en:'Toggle community overrides' },
+  { key:'user_role.delegate_update',              es:'Cambiar permisos de delegado',       en:'Change delegate permissions' },
+];
 const DEFAULT_STANDARD_MENU_PERMISSIONS = { dashboard:true, listings:true, incidents:true, notifications:true, about:true, my:true, analytics:false };
 const DEFAULT_DELEGATE_PERMISSIONS = { canApproveRegistrations:true, canResolveIncidents:true, canUpdateGlobalListings:false, canDeleteGlobalListings:false, canUpdateGlobalIncidents:false, canDeleteGlobalIncidents:false };
 const DEFAULT_COMMUNITY_ADMIN_PERMISSIONS = { canApproveRegistrations:true, canResolveIncidents:true, canManageListings:false, canEditMission:true, canEditUiLabels:true, canEditTooltips:true };
@@ -6563,6 +6584,9 @@ function AdminSettings({ config={}, user, listings=[], contactProps={}, onSave, 
   const [emailNotifConfig,setEmailNotifConfig]=useState({});
   const [emailNotifLoading,setEmailNotifLoading]=useState(false);
   const [emailNotifSaving,setEmailNotifSaving]=useState(false);
+  const [emailsEnabled, setEmailsEnabled] = useState(true);
+  const [auditEnabled, setAuditEnabled] = useState(true);
+  const [auditEventTypes, setAuditEventTypes] = useState({});
   const [adminErrors,setAdminErrors]=useState([]);
   const [lastUiError,setLastUiError]=useState('');
   const [brandingNameEs,setBrandingNameEs]=useState(config?.complex_name_es||'Propietarios Airbnb KAI');
@@ -6616,7 +6640,7 @@ function AdminSettings({ config={}, user, listings=[], contactProps={}, onSave, 
       return adminInfo.communityAdminOf[0].communityId;
     return '';
   });
-  const ADMIN_SEC_DEFAULT = {communities:false,branding:false,emailSender:false,roles:true,sla:false,mission:false,menu:false,delegate:false,communityAdminPerms:false,users:true,tooltips:false,uiLabels:false,email:false,emailNotif:false,auditLog:false,commMembers:false,commMission:false,commLabels:false,commTooltips:false,commTpl:false};
+  const ADMIN_SEC_DEFAULT = {communities:false,branding:false,emailSender:false,roles:true,sla:false,mission:false,menu:false,delegate:false,communityAdminPerms:false,users:true,tooltips:false,uiLabels:false,email:false,emailNotif:false,notifAudit:false,auditLog:false,commMembers:false,commMission:false,commLabels:false,commTooltips:false,commNotifAudit:false,commTpl:false};
   const [openSections,setOpenSections] = useState(()=>{
     try{ const s=JSON.parse(localStorage.getItem('kai_admin_open')||'null'); return s&&typeof s==='object'?{...ADMIN_SEC_DEFAULT,...s}:ADMIN_SEC_DEFAULT; }catch{ return ADMIN_SEC_DEFAULT; }
   });
@@ -6644,8 +6668,11 @@ function AdminSettings({ config={}, user, listings=[], contactProps={}, onSave, 
     setUiLabelsEn(parseJsonObject(config?.ui_labels_en,{}));
     setCommunityFeatureEnabled(String(config?.community_feature_enabled ?? 'true') !== 'false');
     setDefaultCommunityId(config?.default_community_id || 'kai');
+    setEmailsEnabled(String(config?.emails_enabled ?? 'true') !== 'false');
+    setAuditEnabled(String(config?.audit_enabled ?? 'true') !== 'false');
+    setAuditEventTypes(parseJsonObject(config?.audit_event_types, {}));
     try { setLastUiError(localStorage.getItem('kai_last_ui_error') || localStorage.getItem('kai_last_admin_error') || ''); } catch(e) {}
-  }, [config?.mission_sections_es, config?.mission_sections_en, config?.sla_hours, config?.escalation_cc_emails, config?.analytics_enabled, config?.community_feature_enabled, config?.default_community_id, lang, user?.email]);
+  }, [config?.mission_sections_es, config?.mission_sections_en, config?.sla_hours, config?.escalation_cc_emails, config?.analytics_enabled, config?.community_feature_enabled, config?.default_community_id, config?.emails_enabled, config?.audit_enabled, config?.audit_event_types, lang, user?.email]);
   const templateEntries = Object.entries((templates && typeof templates==='object') ? templates : {}).filter(([k,v])=>k && v && typeof v==='object');
   const selectedKey = (templates && templates[selectedTemplate]) ? selectedTemplate : (templateEntries[0]?.[0] || '');
   const selected = selectedKey ? (templates[selectedKey] || {}) : {};
@@ -6738,6 +6765,13 @@ function AdminSettings({ config={}, user, listings=[], contactProps={}, onSave, 
   const saveConfig = () => onSave({slaHours, escalationCcEmails, analyticsEnabled, missionSectionsEs:mission, missionSectionsEn:missionEn, defaultDelegatePermissions, tooltipsEs, tooltipsEn});
   const saveTooltips = () => onSave({ tooltipsEs, tooltipsEn });
   const saveUiLabels = () => onSave({ uiLabelsEs, uiLabelsEn });
+  const saveNotifAudit = () => {
+    const types = {};
+    AUDIT_EVENT_TYPES.forEach(t => { types[t.key] = auditEventTypes[t.key] !== false; });
+    onSave({ emailsEnabled, auditEnabled, auditEventTypes: types });
+  };
+  const toggleAuditType = (key) => setAuditEventTypes(p => ({...p, [key]: p[key] === false ? true : false }));
+  const setAllAuditTypes = (val) => setAuditEventTypes(Object.fromEntries(AUDIT_EVENT_TYPES.map(t => [t.key, val])));
   const saveCommunitySection = async (cid, keys) => {
     try {
       const draft = communityConfigDraft[cid] || {};
@@ -7396,6 +7430,41 @@ function AdminSettings({ config={}, user, listings=[], contactProps={}, onSave, 
                 );
               })()}
             </AdminSection>
+
+            {/* ── Notifications (community-scoped email kill-switch) ── */}
+            {(()=>{
+              const overrideVal = commData?.communityOverrides?.emails_enabled;
+              const draftVal = commDraft.emails_enabled;
+              const hasOv = hasOverride('emails_enabled');
+              const effectiveOn = (() => {
+                if (draftVal !== undefined) return String(draftVal) !== 'false';
+                if (overrideVal !== undefined) return String(overrideVal) !== 'false';
+                return String(commData?.globalValues?.emails_enabled ?? 'true') !== 'false';
+              })();
+              return (
+                <AdminSection
+                  title={`🔕 ${isEn?'Notifications':'Notificaciones'}`}
+                  subtitle={isEn?'Override the platform email kill-switch for this community. When unset the global setting applies.':'Sobreescribe el interruptor maestro de emails para esta comunidad. Si no se define, aplica el ajuste global.'}
+                  action={!commOverridesOn?null:<button className="btn-p" style={{minHeight:36,padding:'6px 14px'}} onClick={()=>saveCommunitySection(activeCommId,['emails_enabled'])} disabled={!commData}>💾 {isEn?'Save':'Guardar'}</button>}
+                  open={openSections.commNotifAudit}
+                  onToggle={()=>toggleSection('commNotifAudit')}
+                >
+                  {!commData ? <div style={{color:'#6b9ba8',fontSize:'.82rem'}}><span className="spinner-sm"/> {isEn?'Loading…':'Cargando…'}</div> :
+                  <div style={!commOverridesOn?{pointerEvents:'none',opacity:0.5}:{}}>
+                    <label style={{display:'flex',alignItems:'center',gap:10,padding:'10px 12px',background:'rgba(255,255,255,.7)',border:'1px solid rgba(47,79,58,.16)',borderRadius:12}}>
+                      <input type="checkbox" checked={effectiveOn} onChange={e=>setCommVal('emails_enabled', e.target.checked ? 'true' : 'false')} />
+                      <span style={{fontWeight:900,color:'#203f2b'}}>{isEn?'📧 Send email notifications for this community':'📧 Enviar notificaciones por email para esta comunidad'}</span>
+                      <span style={{marginLeft:'auto',fontSize:'.78rem',color:'#235f72'}}>{effectiveOn?(isEn?'On':'Activo'):(isEn?'Off — outgoing email is suppressed':'Apagado — emails suprimidos')}</span>
+                    </label>
+                    <div style={{marginTop:8,fontSize:'.78rem',color:'#496674',display:'flex',alignItems:'center',gap:10,flexWrap:'wrap'}}>
+                      <span>{isEn?'Global default:':'Default global:'} <strong>{String(commData?.globalValues?.emails_enabled ?? 'true') !== 'false' ? (isEn?'On':'Activo') : (isEn?'Off':'Apagado')}</strong></span>
+                      {hasOv && <span style={{padding:'2px 8px',background:'#fff5d6',border:'1px solid #d9b45a',borderRadius:999,fontWeight:800,color:'#7a5a00'}}>{isEn?'Override active':'Override activo'}</span>}
+                      {hasOv && <button className="bsm" type="button" onClick={()=>setCommVal('emails_enabled','')}>{isEn?'Clear override':'Quitar override'}</button>}
+                    </div>
+                  </div>}
+                </AdminSection>
+              );
+            })()}
 
             {/* ── Email Templates (community) ── */}
             <AdminSection title={`📨 ${isEn?'Email Templates':'Plantillas de email'}`} subtitle={isEn?'Override email notification templates for this community.':'Sobreescribe las plantillas de email para esta comunidad.'} action={!commOverridesOn?<span style={{fontSize:'.72rem',color:'#7a5a00'}}>🔒 {isEn?'Read-only':'Solo lectura'}</span>:null} open={openSections.commTpl} onToggle={()=>{ toggleSection('commTpl'); if(!communityTplData[activeCommId])loadCommunityTemplates(activeCommId); }}>
@@ -8436,6 +8505,51 @@ function AdminSettings({ config={}, user, listings=[], contactProps={}, onSave, 
       </AdminSection>
     );
   })()}
+
+  {/* ── Notifications & Audit master switches ──────────────────────────── */}
+  <AdminSection
+    title={`🔕 ${isEn?'Notifications & Audit':'Notificaciones y Auditoría'}`}
+    subtitle={isEn?'Master switches for email notifications and audit logging. Per-event-type toggles let you silence specific audit categories.':'Interruptores maestros para emails y auditoría. Los toggles por tipo permiten silenciar categorías específicas.'}
+    action={<button className="btn-p" style={{minHeight:36,padding:'6px 14px'}} onClick={saveNotifAudit}>💾 {isEn?'Save':'Guardar'}</button>}
+    open={openSections.notifAudit}
+    onToggle={()=>toggleSection('notifAudit')}
+  >
+    <div className="fg" style={{marginBottom:14}}>
+      <label className="enc-pill-toggle" style={{display:'flex',alignItems:'center',gap:10,padding:'10px 12px',background:'rgba(255,255,255,.7)',border:'1px solid rgba(47,79,58,.16)',borderRadius:12}}>
+        <input type="checkbox" checked={!!emailsEnabled} onChange={e=>setEmailsEnabled(e.target.checked)} />
+        <span style={{fontWeight:900,color:'#203f2b'}}>{isEn?'📧 Send email notifications':'📧 Enviar notificaciones por email'}</span>
+        <span style={{marginLeft:'auto',fontSize:'.78rem',color:'#235f72'}}>{emailsEnabled?(isEn?'On':'Activo'):(isEn?'Off — all outgoing email is suppressed':'Apagado — todos los emails están suprimidos')}</span>
+      </label>
+    </div>
+    <div className="fg" style={{marginBottom:14}}>
+      <label className="enc-pill-toggle" style={{display:'flex',alignItems:'center',gap:10,padding:'10px 12px',background:'rgba(255,255,255,.7)',border:'1px solid rgba(47,79,58,.16)',borderRadius:12}}>
+        <input type="checkbox" checked={!!auditEnabled} onChange={e=>setAuditEnabled(e.target.checked)} />
+        <span style={{fontWeight:900,color:'#203f2b'}}>{isEn?'🕵️ Record audit events':'🕵️ Registrar eventos de auditoría'}</span>
+        <span style={{marginLeft:'auto',fontSize:'.78rem',color:'#235f72'}}>{auditEnabled?(isEn?'On':'Activo'):(isEn?'Off — no audit rows will be written':'Apagado — no se escribirán filas de auditoría')}</span>
+      </label>
+    </div>
+    <div className={`fg${!auditEnabled?' enc-cb-dim':''}`} style={{marginTop:8}}>
+      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:8,gap:8,flexWrap:'wrap'}}>
+        <strong style={{color:'#203f2b'}}>{isEn?'Audit event types':'Tipos de eventos de auditoría'}</strong>
+        <div style={{display:'flex',gap:6}}>
+          <button className="bsm" type="button" disabled={!auditEnabled} onClick={()=>setAllAuditTypes(true)}>{isEn?'Enable all':'Activar todos'}</button>
+          <button className="bsm" type="button" disabled={!auditEnabled} onClick={()=>setAllAuditTypes(false)}>{isEn?'Disable all':'Desactivar todos'}</button>
+        </div>
+      </div>
+      <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(260px,1fr))',gap:8}}>
+        {AUDIT_EVENT_TYPES.map(t=>{
+          const on = auditEventTypes[t.key] !== false;
+          return (
+            <label key={t.key} style={{display:'flex',alignItems:'center',gap:8,padding:'8px 10px',background:on?'rgba(255,255,255,.85)':'rgba(245,239,225,.6)',border:'1px solid rgba(47,79,58,.14)',borderRadius:10,cursor:auditEnabled?'pointer':'not-allowed'}}>
+              <input type="checkbox" disabled={!auditEnabled} checked={on} onChange={()=>toggleAuditType(t.key)} />
+              <span style={{fontSize:'.84rem',fontWeight:700,color:'#17313a'}}>{isEn?t.en:t.es}</span>
+              <code style={{marginLeft:'auto',fontSize:'.66rem',color:'#6b8a8c'}}>{t.key}</code>
+            </label>
+          );
+        })}
+      </div>
+    </div>
+  </AdminSection>
 
   {/* ── Audit Log Viewer ───────────────────────────────────────────────── */}
   <AdminSection title={`🕵️ ${isEn?'Audit Log':'Log de auditoría'}`} subtitle={isEn?'Full activity history for listings, incidents, roles, and config changes.':'Historial completo de actividad: listings, incidentes, roles y configuración.'} open={openSections.auditLog} onToggle={()=>toggleSection('auditLog')}>

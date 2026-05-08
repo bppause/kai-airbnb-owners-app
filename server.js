@@ -228,6 +228,14 @@ const sendTemplatedEmail = async ({ key, to, vars={}, language='auto', relatedEn
     await logEmailDelivery({ eventType:key, recipients, subject:'', status:'skipped', errorMessage:'No recipient email provided', relatedEntity, relatedId });
     return { sent:false, skipped:true, reason:'Recipient email is missing.' };
   }
+  // Master kill-switch: community override (if set) wins over the global flag.
+  try {
+    const effCfg = await getAppConfig(communityId && communityId !== '__global__' ? communityId : 'kai');
+    if (isFalsyFlag(effCfg.emails_enabled)) {
+      await logEmailDelivery({ eventType:key, recipients, subject:'', status:'skipped', errorMessage:'Emails disabled by admin', relatedEntity, relatedId });
+      return { sent:false, skipped:true, reason:'Emails disabled by admin configuration.' };
+    }
+  } catch(e) { warn('Email kill-switch read failed: ' + (e?.message || e)); }
   const groups = {};
   if (language && language !== 'auto') {
     groups[normalizeLanguage(language)] = [...recipients];
@@ -287,6 +295,9 @@ const getAppConfig = async (communityId='kai') => {
     email_from_address: (EMAIL_FROM.match(/<([^>]+)>/) || [])[1]?.trim() || EMAIL_FROM,
     email_from_name_en: 'Morros KAI Community',
     email_from_address_en: (EMAIL_FROM.match(/<([^>]+)>/) || [])[1]?.trim() || EMAIL_FROM,
+    emails_enabled: 'true',
+    audit_enabled: 'true',
+    audit_event_types: '{}', // empty = all enabled by default; explicit false disables a type
     mission_title_es:'Misión y normas de la comunidad',
     mission_body_es:'Crear una comunidad organizada, informada y proactiva que proteja el valor de nuestras propiedades y eleve la experiencia en Morros KAI.',
     mission_title_en:'Mission and community rules',
@@ -387,7 +398,20 @@ const isCommunityAdmin = async (uid='', email='', communityId='kai') => {
   } catch(e) { return false; }
 };
 const COMMUNITY_ADMIN_PERM_DEFAULTS = { canApproveRegistrations:true, canResolveIncidents:true, canManageListings:false };
-const OVERRIDABLE_COMMUNITY_KEYS = ['mission_title_es','mission_body_es','mission_title_en','mission_body_en','mission_sections_es','mission_sections_en','escalation_cc_emails','community_admin_default_permissions','tooltips_es','tooltips_en','ui_labels_es','ui_labels_en'];
+const OVERRIDABLE_COMMUNITY_KEYS = ['mission_title_es','mission_body_es','mission_title_en','mission_body_en','mission_sections_es','mission_sections_en','escalation_cc_emails','community_admin_default_permissions','tooltips_es','tooltips_en','ui_labels_es','ui_labels_en','emails_enabled'];
+
+// Audit event types that can be individually toggled via app_config.audit_event_types.
+// Format: "<entity>.<action>". Keep this list in sync with auditLog() callsites.
+const AUDIT_EVENT_TYPES = [
+  'listing.create','listing.update','listing.delete',
+  'incident.create','incident.verify','incident.add-resolution','incident.assign','incident.close-general','incident.resolve','incident.delete',
+  'app_config.update','app_config.email_notification_config',
+  'community.create','community.update','community.delete',
+  'community_config.update_overrides','community_config.set_overrides_enabled',
+  'user_role.delegate_update',
+];
+const isTruthyFlag = (v) => v === undefined || v === null ? true : (v === true || String(v).toLowerCase() === 'true');
+const isFalsyFlag  = (v) => v === false || String(v).toLowerCase() === 'false';
 const hasCommunityAdminPerm = async (uid='', email='', communityId='kai', permKey='') => {
   if (!uid && !email) return false;
   try {
@@ -811,6 +835,14 @@ const auditEvent = async ({ listingId, registrationId, actorUid, actorName, acti
 
 const auditLog = async ({ entity, entityId='', action, actorUid='', actorEmail='', actorName='', before=null, after=null, reason='' }) => {
   try {
+    // Master kill-switch + per-event-type toggle (global only for now).
+    try {
+      const cfg = await getAppConfig();
+      if (isFalsyFlag(cfg.audit_enabled)) return;
+      const types = safeJsonObject(cfg.audit_event_types, {});
+      const evtKey = `${entity || ''}.${action || ''}`;
+      if (Object.prototype.hasOwnProperty.call(types, evtKey) && types[evtKey] === false) return;
+    } catch(e) { warn('Audit kill-switch read failed: ' + (e?.message || e)); }
     await supabase.from('audit_logs').insert({
       id: 'log_' + uuidv4().slice(0,10),
       entity: String(entity || ''),
@@ -1645,7 +1677,7 @@ app.get('/api/admin/me', async (req, res) => {
 
 app.put('/api/admin/config', async (req, res) => {
   if (!requireSupabaseEnv(res)) return;
-  const { actorUid, actorEmail, slaHours, escalationCcEmails, analyticsEnabled, missionTitle, missionBody, missionTitleEs, missionBodyEs, missionTitleEn, missionBodyEn, missionSectionsEs, missionSectionsEn, standardMenuPermissions, defaultDelegatePermissions, communityAdminDefaultPermissions, tooltipsEs, tooltipsEn, uiLabelsEs, uiLabelsEn, complexNameEs, complexNameEn, complexLocation, complexLogo, complexBg, emailFromName, emailFromAddress, emailFromNameEn, emailFromAddressEn, nav_config, communityFeatureEnabled, defaultCommunityId } = req.body || {};
+  const { actorUid, actorEmail, slaHours, escalationCcEmails, analyticsEnabled, missionTitle, missionBody, missionTitleEs, missionBodyEs, missionTitleEn, missionBodyEn, missionSectionsEs, missionSectionsEn, standardMenuPermissions, defaultDelegatePermissions, communityAdminDefaultPermissions, tooltipsEs, tooltipsEn, uiLabelsEs, uiLabelsEn, complexNameEs, complexNameEn, complexLocation, complexLogo, complexBg, emailFromName, emailFromAddress, emailFromNameEn, emailFromAddressEn, nav_config, communityFeatureEnabled, defaultCommunityId, emailsEnabled, auditEnabled, auditEventTypes } = req.body || {};
   if (!(await isGlobalAdmin(actorUid, actorEmail))) return res.status(403).json({ error:'Solo un administrador global puede cambiar la configuración.' });
   const before = await getAppConfig();
   const rows = [];
@@ -1679,6 +1711,14 @@ app.put('/api/admin/config', async (req, res) => {
   if (nav_config !== undefined) rows.push({ key:'nav_config', value: typeof nav_config === 'string' ? nav_config : JSON.stringify(safeJsonObject(nav_config, {})) });
   if (communityFeatureEnabled !== undefined) rows.push({ key:'community_feature_enabled', value: communityFeatureEnabled === true || String(communityFeatureEnabled) === 'true' ? 'true' : 'false' });
   if (defaultCommunityId !== undefined) rows.push({ key:'default_community_id', value: String(defaultCommunityId||'kai') });
+  if (emailsEnabled !== undefined) rows.push({ key:'emails_enabled', value: isFalsyFlag(emailsEnabled) ? 'false' : 'true' });
+  if (auditEnabled !== undefined) rows.push({ key:'audit_enabled', value: isFalsyFlag(auditEnabled) ? 'false' : 'true' });
+  if (auditEventTypes !== undefined) {
+    const incoming = typeof auditEventTypes === 'string' ? safeJsonObject(auditEventTypes, {}) : safeJsonObject(auditEventTypes, {});
+    const sanitized = {};
+    for (const t of AUDIT_EVENT_TYPES) sanitized[t] = !isFalsyFlag(incoming[t]);
+    rows.push({ key:'audit_event_types', value: JSON.stringify(sanitized) });
+  }
   for (const row of rows) {
     const { error } = await supabase.from('app_config').upsert(row, { onConflict:'key' });
     if (error) return sendSupabaseError(res, error);
