@@ -1374,54 +1374,34 @@ app.post('/api/admin/delegate', async (req, res) => {
 });
 
 // ── Audit log viewer (global admin only) ─────────────────────────────────────
-app.get('/api/admin/audit-logs', async (req, res) => {
-  log('[ADMIN] audit-logs requested by ' + String(req.query?.email || ''));
-  if (!requireSupabaseEnv(res)) return;
-  const { uid, email, entity, actor, dateFrom, dateTo, limit: limitParam, offset: offsetParam } = req.query || {};
-  if (!(await isGlobalAdmin(uid, email))) return res.status(403).json({ error: 'Solo un administrador global puede ver los logs de auditoría.' });
-  let query = supabase.from('audit_logs').select('*', { count: 'exact' }).order('created_at', { ascending: false });
-  if (entity && entity !== 'all') query = query.eq('entity', entity);
-  if (actor) query = query.ilike('actor_email', `%${actor}%`);
-  if (dateFrom) query = query.gte('created_at', dateFrom);
-  if (dateTo) query = query.lte('created_at', dateTo + 'T23:59:59Z');
-  const pageLimit = Math.min(parseInt(limitParam) || 50, 200);
-  const pageOffset = parseInt(offsetParam) || 0;
-  query = query.range(pageOffset, pageOffset + pageLimit - 1);
-  const { data, error, count } = await query;
-  if (error) return sendSupabaseError(res, error);
-  res.json({ logs: data || [], total: count || 0 });
+// ─── API: AUDIT LOGS (mounted from server/platform/audit) ────────────────────
+// Canonical: /api/platform/audit/logs   Legacy alias: /api/admin/audit-logs
+// See docs/PLATFORM_ARCHITECTURE.md §11 stage 3c.
+const auditModule = require('./server/platform/audit');
+const auditRouter = auditModule.createRouter({
+  supabase, requireSupabaseEnv, sendSupabaseError,
+  isGlobalAdmin, log,
+});
+app.use('/api/platform/audit', auditRouter);
+// Legacy alias: /api/admin/audit-logs → /api/platform/audit/logs
+app.get('/api/admin/audit-logs', (req, res, next) => {
+  const queryIdx = req.url.indexOf('?');
+  req.url = '/logs' + (queryIdx >= 0 ? req.url.slice(queryIdx) : '');
+  auditRouter(req, res, next);
 });
 
 
 
-// ─── API: OWNER NOTIFICATIONS ────────────────────────────────────────────────
-app.get('/api/notifications', async (req, res) => {
-  if (!requireSupabaseEnv(res)) return;
-  const ownerUid = String(req.query.ownerUid || '').trim();
-  const communityId = getCommunityId(req);
-  if (!ownerUid) return res.status(400).json({ error: 'ownerUid is required.' });
-  const { data, error } = await supabase.from('notifications').select('*').eq('community_id', communityId).eq('owner_uid', ownerUid).order('created_at', { ascending: false });
-  if (error) return sendSupabaseError(res, error);
-  res.json((data || []).map(notificationFromDb));
+// ─── API: NOTIFICATIONS (mounted from server/platform/notifications) ─────────
+// Canonical: /api/platform/notifications/*   Legacy alias: /api/notifications/*
+// See docs/PLATFORM_ARCHITECTURE.md §11 stage 3c.
+const notificationsModule = require('./server/platform/notifications');
+const notificationsRouter = notificationsModule.createRouter({
+  supabase, requireSupabaseEnv, sendSupabaseError, getCommunityId,
+  notificationFromDb,
 });
-
-app.patch('/api/notifications/:id/read', async (req, res) => {
-  if (!requireSupabaseEnv(res)) return;
-  const { ownerUid } = req.body || {};
-  if (!ownerUid) return res.status(400).json({ error: 'ownerUid is required.' });
-  const { data, error } = await supabase.from('notifications').update({ is_read: true }).eq('id', req.params.id).eq('owner_uid', ownerUid).select('*').single();
-  if (error) return sendSupabaseError(res, error);
-  res.json(notificationFromDb(data));
-});
-
-app.patch('/api/notifications/read-all', async (req, res) => {
-  if (!requireSupabaseEnv(res)) return;
-  const { ownerUid } = req.body || {};
-  if (!ownerUid) return res.status(400).json({ error: 'ownerUid is required.' });
-  const { error } = await supabase.from('notifications').update({ is_read: true }).eq('owner_uid', ownerUid).eq('is_read', false);
-  if (error) return sendSupabaseError(res, error);
-  res.json({ ok: true });
-});
+app.use('/api/platform/notifications', notificationsRouter);
+app.use('/api/notifications', notificationsRouter); // legacy alias — drop after client migrates
 
 
 const sendGeneralIncidentSlaEmail = async (inc, slaHours, appUrl, communityId='kai') => {
