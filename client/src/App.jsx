@@ -86,6 +86,13 @@ import UserContact, { copyText, buildContactDirectory, lookupContact } from "./c
 // per-instance. See docs/PLATFORM_ARCHITECTURE.md §11 frontend stage F14.
 import IRow from "./modules/incidents/components/IRow";
 
+// ─── Stage F15 extraction: WorkflowGroup ─────────────────────────────────────
+// Collapsible status section that wraps a list of IRows. Pulls user + lang
+// via useApp() (and derives isEn internally — both `lang` and `isEn` were
+// previously redundant props). Other props stay per-instance.
+// See docs/PLATFORM_ARCHITECTURE.md §11 frontend stage F15.
+import WorkflowGroup from "./modules/incidents/components/WorkflowGroup";
+
 // ─── API client (extracted in stage F3) ──────────────────────────────────────
 // All fetch calls flow through this module so the X-Community-Id header is
 // always set, errors are normalized, and Render cold-start timeouts are
@@ -3743,7 +3750,6 @@ function AptDetailPanel({ l, incidents, contactProps={}, canEdit, canDelete, onE
                     listings={[l]}
                     isOpen={panelGO[g.key]}
                     onToggle={()=>setPanelGO(s=>({...s,[g.key]:!s[g.key]}))}
-                    user={user}
                     contactProps={contactProps}
                     isGlobalAdmin={isGlobalAdmin}
                     canUpdateGlobal={false}
@@ -3755,8 +3761,6 @@ function AptDetailPanel({ l, incidents, contactProps={}, canEdit, canDelete, onE
                     onAddResolution={onAddResolution}
                     onIncidentDetail={onIncidentDetail}
                     hideUnit
-                    lang={lang}
-                    isEn={isEn}
                   />
                 );
               })}
@@ -4171,41 +4175,6 @@ function AptCard({ l, incCount, contactProps={}, canEdit=false, canDelete=false,
 
 
 
-function WorkflowGroup({ statusKey, icon, label, sublabel, color, incidents, listings, isOpen, onToggle, user, contactProps, isGlobalAdmin, canUpdateGlobal, canDeleteGlobal, canResolveGlobal, onResolve, onDelete, onVerify, onAddResolution, onUnitDetail, onIncidentDetail, onAssign, onCloseGeneral, hideUnit=false, lang, isEn }) {
-  const count = incidents.length;
-  const myActionCount = !user?.uid ? 0 : incidents.filter(inc => {
-    const isMyListing = listings.find(l=>l.id===inc.aptId)?.ownerUid === user.uid;
-    const hasPendingRes = inc.status==='verified' && !String(inc.ownerResolution||'').trim();
-    return (inc.status==='open' || hasPendingRes) && isMyListing;
-  }).length;
-  return (
-    <div className={`wfg-section${statusKey==='resolved'?' wfg-section-resolved':''}`}>
-      <button className={`wfg-hdr${myActionCount>0?' wfg-hdr-urgent':''}`} style={{borderLeftColor:color}} onClick={onToggle}>
-        <span className="wfg-icon">{icon}</span>
-        <div className="wfg-hdr-body">
-          <span className="wfg-label">{label}</span>
-          {sublabel&&<span className="wfg-sublabel">{sublabel}</span>}
-        </div>
-        {myActionCount>0&&<span className="wfg-my-badge">{myActionCount} {isEn?'need your action':'necesitan tu acción'}</span>}
-        <span className="wfg-badge" style={{background:color+'22',color}}>{count}</span>
-        <span className={`fls-chev${isOpen?' fls-chev-up':''}`}>›</span>
-      </button>
-      {isOpen&&(
-        <div className="wfg-body">
-          {count===0
-            ? <div className="wfg-empty">✓ {isEn?'None here':'Nada aquí'}</div>
-            : incidents.map(inc => {
-                const isMyListing = !!(user?.uid && listings.find(l=>l.id===inc.aptId)?.ownerUid === user.uid);
-                const hasPendingRes = inc.status==='verified' && !String(inc.ownerResolution||'').trim();
-                const actionNeeded = (inc.status==='open' || hasPendingRes) && isMyListing;
-                return <IRow key={inc.id} inc={inc} listings={listings} contactProps={contactProps} isGlobalAdmin={isGlobalAdmin} canUpdateGlobal={canUpdateGlobal} canDeleteGlobal={canDeleteGlobal} canResolveGlobal={canResolveGlobal} onResolve={onResolve} onDelete={onDelete} onVerify={onVerify} onAddResolution={onAddResolution} onUnitDetail={onUnitDetail} onIncidentDetail={onIncidentDetail} onAssign={onAssign} onCloseGeneral={onCloseGeneral} hideUnit={hideUnit} actionNeeded={actionNeeded}/>;
-              })
-          }
-        </div>
-      )}
-    </div>
-  );
-}
 
 function IncidentsView({ incidents, listings, user, quickFilter=null, onQuickFilterApplied=()=>{}, contactProps={}, isGlobalAdmin=false, canUpdateGlobal=false, canDeleteGlobal=false, canResolveGlobal=false, onAdd, onResolve, onDelete, onVerify, onAddResolution, onUnitDetail, onIncidentDetail, onAssign, onCloseGeneral, lang="es-CO", defaultTab='unit' }) {
   const [sf,setSf]=useState("all"), [cf,setCf]=useState("all"), [scope,setScope]=useState("all"), [search,setSearch]=useState("");
@@ -4468,7 +4437,6 @@ function IncidentsView({ incidents, listings, user, quickFilter=null, onQuickFil
             listings={listings}
             isOpen={groupOpen[g.key]}
             onToggle={()=>toggleGroup(g.key)}
-            user={user}
             contactProps={contactProps}
             isGlobalAdmin={isGlobalAdmin}
             canUpdateGlobal={canUpdateGlobal}
@@ -4482,8 +4450,6 @@ function IncidentsView({ incidents, listings, user, quickFilter=null, onQuickFil
             onIncidentDetail={onIncidentDetail}
             onAssign={onAssign}
             onCloseGeneral={onCloseGeneral}
-            lang={lang}
-            isEn={isEn}
           />
         ))}
       </div>
