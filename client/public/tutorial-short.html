@@ -14,103 +14,55 @@
 html,body{height:100%}
 body{font-family:'Segoe UI',system-ui,sans-serif;background:radial-gradient(circle at 20% 0%,#11364a,var(--bg) 60%);color:#f6fbf8;line-height:1.5;font-size:15px;overflow:hidden}
 
-/* ─── Stage / video frame ─── */
 .stage{height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:18px;gap:14px}
-.player{width:min(960px,100%);height:min(540px,calc(100vh - 170px));position:relative;border-radius:18px;background:#0a1620;box-shadow:0 30px 80px rgba(0,0,0,.55),inset 0 0 0 1px rgba(255,255,255,.06);overflow:hidden;transition:width .25s ease,height .25s ease,border-radius .25s ease}
+.player{width:min(1080px,100%);height:min(620px,calc(100vh - 170px));position:relative;border-radius:18px;background:#0a1620;box-shadow:0 30px 80px rgba(0,0,0,.55),inset 0 0 0 1px rgba(255,255,255,.06);overflow:hidden;transition:width .25s ease,height .25s ease,border-radius .25s ease}
 body.fullscreen .stage{padding:0;gap:0;height:100vh}
 body.fullscreen .player{width:100vw;height:100vh;border-radius:0;max-width:none;max-height:none}
 body.fullscreen .actions{display:none}
 
-/* Top bar */
-.topbar{position:absolute;top:0;left:0;right:0;display:flex;align-items:center;gap:10px;padding:10px 14px;background:linear-gradient(180deg,rgba(0,0,0,.55),transparent);z-index:5}
+.topbar{position:absolute;top:0;left:0;right:0;display:flex;align-items:center;gap:10px;padding:10px 14px;background:linear-gradient(180deg,rgba(0,0,0,.7),transparent);z-index:5}
 .brand{display:flex;align-items:center;gap:8px;font-weight:800;font-size:.86rem;color:#eafff5}
 .brand-mark{width:26px;height:26px;border-radius:8px;background:linear-gradient(135deg,#e7fff7,#d8f2f5);color:var(--green);display:flex;align-items:center;justify-content:center;font-weight:900}
 .toplinks{margin-left:auto;display:flex;gap:6px;align-items:center}
 .lang-btn,.speed{padding:4px 10px;border:1px solid var(--border);border-radius:99px;background:rgba(255,255,255,.06);color:#eafff5;cursor:pointer;font-size:.74rem;font-weight:700}
 .lang-btn.active{background:var(--grad);border-color:transparent;color:#fff}
 
-/* Slide area */
 .slides{position:absolute;inset:0}
-.slide{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:60px 40px 90px;opacity:0;transform:translateY(8px);transition:opacity .5s ease,transform .5s ease;text-align:center}
+.slide{position:absolute;inset:0;padding:54px 24px 78px;display:flex;flex-direction:column;align-items:center;opacity:0;transform:translateY(8px);transition:opacity .45s ease,transform .45s ease;text-align:center}
 .slide.active{opacity:1;transform:none}
-.slide h2{font-size:clamp(1.2rem,2.6vw,1.8rem);font-weight:900;color:#fff;margin-bottom:8px;letter-spacing:-.01em}
-.slide p{font-size:clamp(.85rem,1.6vw,1rem);color:#cfe6dc;max-width:640px;margin:0 auto}
-.slide .chip{display:inline-block;font-size:.72rem;font-weight:800;letter-spacing:.08em;text-transform:uppercase;padding:5px 12px;border-radius:99px;background:rgba(11,127,140,.25);color:#9ce5d6;margin-bottom:14px;border:1px solid rgba(156,229,214,.25)}
-.slide .visual{margin:18px 0 10px;width:min(620px,100%);position:relative}
-body.fullscreen .slide{padding:80px 40px 100px}
-body.fullscreen .slide .visual{width:min(880px,100%)}
-body.fullscreen .slide h2{font-size:clamp(1.3rem,2.4vw,1.9rem)}
+.slide .chip{display:inline-block;font-size:.7rem;font-weight:800;letter-spacing:.08em;text-transform:uppercase;padding:5px 12px;border-radius:99px;background:rgba(11,127,140,.25);color:#9ce5d6;margin-bottom:8px;border:1px solid rgba(156,229,214,.25)}
+.slide h2{font-size:clamp(1.1rem,2.2vw,1.5rem);font-weight:900;color:#fff;margin-bottom:4px;letter-spacing:-.01em}
+.slide p.lede{font-size:clamp(.8rem,1.4vw,.95rem);color:#cfe6dc;max-width:780px;margin:0 auto 8px}
 
-/* ─── Production-accurate replicas (mirror App.jsx tokens) ───────────────── */
-.a-card{background:linear-gradient(180deg,rgba(255,255,255,.98),rgba(248,244,235,.98));border:1px solid rgba(47,79,58,.18);border-radius:18px;box-shadow:0 14px 40px rgba(32,46,38,.18);padding:18px 20px;color:#17313a;text-align:left;font-family:'DM Sans','Segoe UI',system-ui,sans-serif;position:relative;overflow:hidden}
-.a-card.wide{padding:20px 22px}
-.a-hdr{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:12px}
-.a-title{font-family:'Playfair Display',Georgia,serif;color:#203f2b;font-size:1.05rem;margin:0 0 3px;font-weight:900;line-height:1.2}
-.a-sub{color:#235f72;font-size:.76rem;margin:0;line-height:1.4}
-.a-btn-p{background:linear-gradient(135deg,#0b7f4f,#0b7f8c);color:#fff;border:0;border-radius:14px;padding:9px 14px;font-weight:900;font-size:.82rem;box-shadow:0 8px 18px rgba(11,127,140,.22);cursor:pointer;display:inline-flex;align-items:center;gap:6px;font-family:inherit}
-.a-btn-ghost{background:rgba(255,255,255,.86);color:#17313a;border:1px solid rgba(47,79,58,.18);border-radius:14px;padding:9px 14px;font-weight:800;font-size:.82rem;cursor:pointer;display:inline-flex;align-items:center;gap:6px;font-family:inherit}
-.a-btn-google{background:#fff;color:#17313a;border:1px solid rgba(47,79,58,.18);border-radius:14px;padding:11px 18px;font-weight:900;display:inline-flex;align-items:center;gap:9px;cursor:pointer;font-family:inherit;box-shadow:0 8px 18px rgba(32,46,38,.1)}
-.a-tip{display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:50%;background:#e8f6f4;color:#0b7f8c;font-size:.66rem;font-weight:900;cursor:pointer;font-family:inherit;border:none}
-.a-tip:hover{background:#0b7f8c;color:#fff}
-.a-action-banner{display:flex;align-items:center;justify-content:space-between;gap:14px;background:#fff;border:1px solid rgba(47,79,58,.18);border-left:6px solid #d9b45a;border-radius:16px;padding:12px 14px;box-shadow:0 12px 28px rgba(32,46,38,.12)}
-.a-action-banner.resolve{border-left-color:#2f8f46}
-.a-action-banner strong{display:block;color:#203f2b;font-size:.86rem;font-weight:900}
-.a-action-banner small{display:block;color:#235f72;font-size:.74rem;margin-top:2px}
-.a-list-card{background:#fff;border:1px solid rgba(47,79,58,.16);border-radius:14px;padding:10px 12px;box-shadow:0 6px 16px rgba(32,46,38,.06);display:flex;align-items:center;gap:10px;margin-bottom:8px}
-.a-list-card .meta{flex:1;min-width:0}
-.a-list-card .apt{font-family:'Playfair Display',Georgia,serif;font-weight:900;color:#203f2b;font-size:.95rem}
-.a-list-card .det{font-size:.72rem;color:#235f72;line-height:1.4}
-.a-bsm{padding:6px 9px;border-radius:10px;font-weight:900;font-size:.72rem;border:1px solid rgba(47,79,58,.16);background:rgba(255,255,255,.84);color:#17313a;cursor:pointer;display:inline-flex;align-items:center;gap:4px;font-family:inherit}
-.a-bsm.bs-rep{background:linear-gradient(135deg,#0b7f4f,#0b7f8c);color:#fff;border:0;box-shadow:0 6px 14px rgba(11,127,140,.22)}
-.a-chip{display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:99px;background:#f0f8fb;color:#0b7f8c;border:1px solid #cce7ee;font-weight:800;font-size:.7rem}
-.a-chip.warn{background:#fff8e1;color:#7a5a00;border-color:#f0d68a}
-.a-chip.ok{background:#e8f5ec;color:#2F4F3A;border-color:#b9dec3}
-.a-flow{display:flex;align-items:center;gap:6px;flex-wrap:wrap;justify-content:center;padding:10px;background:#f5fbfd;border-radius:10px;border:1px solid rgba(47,79,58,.1)}
-.a-flow-node{padding:7px 10px;border-radius:8px;background:#fff;color:#203f2b;font-size:.72rem;font-weight:900;border:1px solid rgba(47,79,58,.16)}
-.a-flow-node.on{background:linear-gradient(135deg,#0b7f4f,#0b7f8c);color:#fff;border-color:transparent}
-.a-flow-arr{color:#0b7f8c;font-weight:900}
-.a-email-list{display:flex;flex-direction:column;gap:6px}
-.a-email-item{display:flex;gap:10px;padding:8px 10px;border-radius:10px;background:#fff;border:1px solid rgba(47,79,58,.12);align-items:flex-start}
-.a-email-item.unread{background:#f5fbfc;border-color:#9ce5d6}
-.a-email-item .ico{width:28px;height:28px;border-radius:8px;background:#e8f5ec;color:#2F4F3A;display:flex;align-items:center;justify-content:center;font-size:.95rem;flex-shrink:0}
-.a-email-item strong{display:block;color:#203f2b;font-size:.78rem;font-weight:800;margin-bottom:1px}
-.a-email-item span{font-size:.7rem;color:#235f72;line-height:1.3}
+.visual{flex:1;width:100%;max-width:960px;margin:6px auto 0;position:relative;display:flex;align-items:center;justify-content:center;min-height:0}
+.visual .frame{position:relative;display:inline-block;max-width:100%;max-height:100%;border-radius:10px;overflow:hidden;box-shadow:0 16px 40px rgba(0,0,0,.5),0 0 0 1px rgba(255,255,255,.08)}
+.visual img{display:block;max-width:100%;max-height:100%;width:auto;height:auto;object-fit:contain}
 
-/* ─── Hotspots — anchor-driven, numbered, with hover tooltip ──────────── */
-.hotspot{position:absolute;width:26px;height:26px;border-radius:50%;background:#d9b45a;border:2px solid #fff;cursor:pointer;transform:translate(-50%,-50%);z-index:3;color:#1a3c2a;font-weight:900;font-size:.78rem;display:flex;align-items:center;justify-content:center;box-shadow:0 0 0 0 rgba(217,180,90,.6),0 3px 8px rgba(0,0,0,.35);animation:hotpulse 1.8s infinite;padding:0;line-height:1}
-.hotspot:hover{background:#e8c878;transform:translate(-50%,-50%) scale(1.18);box-shadow:0 0 0 0 rgba(217,180,90,0),0 6px 14px rgba(0,0,0,.45)}
+.hotspot{position:absolute;width:28px;height:28px;border-radius:50%;background:#d9b45a;border:2px solid #fff;cursor:pointer;transform:translate(-50%,-50%);z-index:3;color:#1a3c2a;font-weight:900;font-size:.84rem;display:flex;align-items:center;justify-content:center;box-shadow:0 0 0 0 rgba(217,180,90,.6),0 3px 8px rgba(0,0,0,.45);animation:hotpulse 1.8s infinite;padding:0;line-height:1}
+.hotspot:hover{background:#e8c878;transform:translate(-50%,-50%) scale(1.18);box-shadow:0 0 0 0 rgba(217,180,90,0),0 6px 14px rgba(0,0,0,.55)}
 .hotspot:focus{outline:3px solid #9ce5d6;outline-offset:3px}
-@keyframes hotpulse{0%{box-shadow:0 0 0 0 rgba(217,180,90,.6),0 3px 8px rgba(0,0,0,.35)}70%{box-shadow:0 0 0 13px rgba(217,180,90,0),0 3px 8px rgba(0,0,0,.35)}100%{box-shadow:0 0 0 0 rgba(217,180,90,0),0 3px 8px rgba(0,0,0,.35)}}
-.hotspot .hot-tip{position:absolute;bottom:calc(100% + 8px);left:50%;transform:translateX(-50%);background:#0a1620;color:#fff;font-size:.68rem;font-weight:700;padding:5px 9px;border-radius:6px;white-space:nowrap;opacity:0;pointer-events:none;transition:opacity .15s;border:1px solid rgba(156,229,214,.3);box-shadow:0 4px 12px rgba(0,0,0,.5)}
+@keyframes hotpulse{0%{box-shadow:0 0 0 0 rgba(217,180,90,.6),0 3px 8px rgba(0,0,0,.45)}70%{box-shadow:0 0 0 14px rgba(217,180,90,0),0 3px 8px rgba(0,0,0,.45)}100%{box-shadow:0 0 0 0 rgba(217,180,90,0),0 3px 8px rgba(0,0,0,.45)}}
+.hotspot .hot-tip{position:absolute;bottom:calc(100% + 8px);left:50%;transform:translateX(-50%);background:#0a1620;color:#fff;font-size:.7rem;font-weight:700;padding:5px 9px;border-radius:6px;opacity:0;pointer-events:none;transition:opacity .15s;border:1px solid rgba(156,229,214,.3);box-shadow:0 4px 12px rgba(0,0,0,.5);max-width:240px;white-space:normal;text-align:center}
 .hotspot .hot-tip::after{content:'';position:absolute;top:100%;left:50%;transform:translateX(-50%);border:5px solid transparent;border-top-color:#0a1620}
 .hotspot:hover .hot-tip,.hotspot:focus .hot-tip{opacity:1}
 
-/* ─── Hotspot popover ─── */
-.pop-backdrop{position:absolute;inset:0;background:rgba(8,16,22,.72);z-index:9;display:flex;align-items:center;justify-content:center;padding:24px;animation:popfade .18s ease}
+.pop-backdrop{position:absolute;inset:0;background:rgba(8,16,22,.78);z-index:9;display:flex;align-items:center;justify-content:center;padding:24px;animation:popfade .18s ease}
 .pop-backdrop[hidden]{display:none}
 @keyframes popfade{from{opacity:0}to{opacity:1}}
-.pop{background:#fff;color:var(--ink);border-radius:14px;padding:18px 20px 16px;max-width:420px;width:100%;box-shadow:0 30px 80px rgba(0,0,0,.5);position:relative;animation:poprise .25s cubic-bezier(.2,.8,.3,1)}
+.pop{background:#fff;color:var(--ink);border-radius:14px;padding:18px 20px 16px;max-width:440px;width:100%;box-shadow:0 30px 80px rgba(0,0,0,.55);position:relative;animation:poprise .25s cubic-bezier(.2,.8,.3,1)}
 @keyframes poprise{from{transform:translateY(8px);opacity:0}to{transform:none;opacity:1}}
 .pop h4{font-size:1rem;font-weight:900;color:#203f2b;margin:0 22px 6px 0;line-height:1.3}
-.pop p{font-size:.85rem;color:var(--ink2);line-height:1.5;margin-bottom:10px}
-.pop .pop-mail{font-size:.76rem;background:#f0f8fb;border-left:3px solid #0b7f8c;padding:8px 10px;border-radius:6px;color:#0b7f8c;font-weight:700;margin-bottom:10px}
+.pop p{font-size:.86rem;color:var(--ink2);line-height:1.5;margin-bottom:10px}
+.pop .pop-mail{font-size:.78rem;background:#f0f8fb;border-left:3px solid #0b7f8c;padding:8px 10px;border-radius:6px;color:#0b7f8c;font-weight:700;margin-bottom:10px}
 .pop .pop-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:4px}
 .pop .pop-actions button{padding:7px 12px;border-radius:8px;font-weight:800;font-size:.78rem;background:linear-gradient(135deg,#0b7f4f,#0b7f8c);color:#fff;border:none;cursor:pointer;font-family:inherit}
 .pop .pop-actions button.ghost{background:#eef6f4;color:#0b7f4f;border:1px solid rgba(11,127,79,.25)}
 .pop-close{position:absolute;top:6px;right:8px;background:transparent;border:none;font-size:1.3rem;cursor:pointer;color:#9aada8;line-height:1;padding:4px 8px}
 .pop-close:hover{color:#235f72}
 
-/* Email notification — compact chip row */
-.mailbar{margin:8px auto 0;max-width:620px;display:flex;flex-wrap:wrap;align-items:center;gap:6px;font-size:.72rem;line-height:1.3;justify-content:center}
-.mailbar .pill{display:inline-flex;align-items:center;gap:4px;padding:4px 9px;border-radius:99px;background:rgba(11,127,140,.22);color:#9ce5d6;border:1px solid rgba(156,229,214,.28);font-weight:700;white-space:nowrap}
-.mailbar .pill.dest{background:#0f2a30;color:#fff;border-color:rgba(156,229,214,.45)}
-.mailbar .pill.kind{background:rgba(255,255,255,.06);color:#cfe6dc;border-color:rgba(255,255,255,.14)}
+.caption{position:absolute;left:0;right:0;bottom:60px;text-align:center;padding:0 24px;font-size:.82rem;color:#cfe6dc;opacity:.95}
 
-/* Caption ribbon */
-.caption{position:absolute;left:0;right:0;bottom:60px;text-align:center;padding:0 24px;font-size:.84rem;color:#cfe6dc;opacity:.95}
-
-/* Controls / progress */
-.controls{position:absolute;left:0;right:0;bottom:0;display:flex;align-items:center;gap:12px;padding:10px 14px;background:linear-gradient(0deg,rgba(0,0,0,.7),transparent);z-index:5}
+.controls{position:absolute;left:0;right:0;bottom:0;display:flex;align-items:center;gap:12px;padding:10px 14px;background:linear-gradient(0deg,rgba(0,0,0,.78),transparent);z-index:5}
 .ctrl-btn{background:rgba(255,255,255,.1);border:1px solid var(--border);color:#eafff5;width:36px;height:36px;border-radius:50%;cursor:pointer;font-size:.95rem;display:flex;align-items:center;justify-content:center}
 .ctrl-btn:hover{background:rgba(255,255,255,.18)}
 .ctrl-btn.primary{background:var(--grad);border-color:transparent;color:#fff;width:42px;height:42px;font-size:1.1rem}
@@ -121,13 +73,11 @@ body.fullscreen .slide h2{font-size:clamp(1.3rem,2.4vw,1.9rem)}
 .dot{width:7px;height:7px;border-radius:50%;background:rgba(255,255,255,.25);cursor:pointer;transition:.18s}
 .dot.active{background:#9ce5d6;transform:scale(1.4)}
 
-/* Bottom action row (under player) */
 .actions{display:flex;gap:10px;flex-wrap:wrap;justify-content:center;align-items:center}
 .act-btn{padding:10px 18px;border-radius:11px;border:1px solid var(--border);background:rgba(255,255,255,.06);color:#f6fbf8;cursor:pointer;font-size:.84rem;font-weight:700;text-decoration:none;display:inline-flex;align-items:center;gap:6px}
 .act-btn:hover{background:rgba(255,255,255,.12)}
 .act-btn.primary{background:var(--grad);border-color:transparent}
 
-/* Language visibility */
 .es-text,.en-text{display:none}
 body.lang-es .es-text{display:revert}
 body.lang-en .en-text{display:revert}
@@ -135,7 +85,7 @@ body.lang-en .en-text{display:revert}
 @media (max-width:600px){
   .stage{padding:10px;gap:8px}
   .player{height:min(580px,calc(100vh - 200px))}
-  .slide{padding:56px 18px 84px}
+  .slide{padding:50px 12px 78px}
   .caption{bottom:54px;font-size:.78rem}
   .timecode{min-width:54px;font-size:.7rem}
 }
@@ -152,7 +102,7 @@ body.lang-en .en-text{display:revert}
         <span class="en-text">KAI · Short tutorial</span>
       </div>
       <div class="toplinks">
-        <span id="hotHint" style="font-size:.7rem;color:#1a3c2a;background:#d9b45a;border:1px solid #fff;padding:3px 9px 3px 7px;border-radius:99px;font-weight:800;display:none;align-items:center;gap:5px;box-shadow:0 3px 8px rgba(0,0,0,.3)">
+        <span id="hotHint" style="font-size:.7rem;color:#1a3c2a;background:#d9b45a;border:1px solid #fff;padding:3px 9px 3px 7px;border-radius:99px;font-weight:800;display:none;align-items:center;gap:5px;box-shadow:0 3px 8px rgba(0,0,0,.4)">
           <span style="display:inline-block;width:13px;height:13px;border-radius:50%;background:#fff;color:#1a3c2a;font-size:.6rem;font-weight:900;display:inline-flex;align-items:center;justify-content:center">1</span>
           <span class="es-text">Toca los puntos</span><span class="en-text">Tap the dots</span>
         </span>
@@ -200,249 +150,172 @@ body.lang-en .en-text{display:revert}
 </div>
 
 <script>
-/* In-app tooltip text — copied verbatim from App.jsx DEFAULT_TOOLTIPS */
-const TIP_TEXT = {
-  aptNumber:           {label:{es:"🏠 Apartamento",en:"🏠 Apartment"},                  body:{es:"Ingresa 3 dígitos (ej: 705). Solo un propietario puede registrar cada unidad.",                                                                                       en:"Enter 3 digits (e.g. 705). Each unit can only be registered to one owner."}},
-  operatorEmail:       {label:{es:"📧 Email del operador",en:"📧 Operator email"},      body:{es:"Email del operador para incidentes y recordatorios SLA. Opcional.",                                                                                                       en:"Operator email for incidents and SLA reminders. Optional."}},
-  verifyIncident:      {label:{es:"✅ Verificar incidente",en:"✅ Verify incident"},     body:{es:"Paso 1: El propietario verifica y documenta la acción inmediata tomada. Paso 2 (por separado): El propietario agrega su respuesta — requerida antes de que el admin pueda cerrar.", en:"Step 1: Owner verifies and documents immediate action taken. Step 2 (separate): Owner adds their resolution — required before admin can close."}}
-};
-
-/* ─── Slide content (~7 short slides ≈ 90 s) ─────────────────────────────── */
+/* 7-slide basic flow: login → my units → report incident → verify → resolve → view → logout */
 const SLIDES = [
   {
-    chip:{es:"1 · Bienvenida", en:"1 · Welcome"},
-    title:{es:"En 90 segundos: KAI Airbnb Owners",
-           en:"In 90 seconds: KAI Airbnb Owners"},
-    text:{es:"Una app para gestionar tus apartamentos, reportar incidentes y mantener informada a tu comunidad.",
-          en:"One app to manage your apartments, report incidents, and keep your community informed."},
-    cap:{es:"Inicia sesión con Google · sin contraseñas separadas.",
-         en:"Sign in with Google · no separate passwords."},
-    visual:`<div class="a-card wide">
-      <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px">
-        <div style="width:42px;height:42px;border-radius:12px;background:linear-gradient(135deg,#e7fff7,#d8f2f5);display:flex;align-items:center;justify-content:center;color:#0b7f4f;font-family:'Playfair Display',Georgia,serif;font-weight:900;font-size:1.2rem">K</div>
-        <div>
-          <h3 class="a-title"><span class="es-text">Bienvenido a Morros KAI</span><span class="en-text">Welcome to Morros KAI</span></h3>
-          <p class="a-sub">Serena del Mar · Cartagena 🇨🇴</p>
-        </div>
-      </div>
-      <button class="a-btn-google" data-h="googleBtn" style="width:100%;justify-content:center">
-        <svg width="16" height="16" viewBox="0 0 18 18"><path fill="#4285F4" d="M17.64 9.2c0-.6-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 0 1-1.8 2.72v2.26h2.91c1.7-1.57 2.69-3.88 2.69-6.62z"/><path fill="#34A853" d="M9 18c2.43 0 4.47-.81 5.96-2.18l-2.91-2.26c-.8.54-1.84.86-3.05.86-2.34 0-4.33-1.58-5.04-3.71H.96v2.33A8.997 8.997 0 0 0 9 18z"/><path fill="#FBBC05" d="M3.96 10.71A5.4 5.4 0 0 1 3.68 9c0-.59.1-1.17.28-1.71V4.96H.96A8.99 8.99 0 0 0 0 9c0 1.45.35 2.83.96 4.04l3-2.33z"/><path fill="#EA4335" d="M9 3.58c1.32 0 2.51.45 3.44 1.35l2.58-2.58C13.46.89 11.43 0 9 0A8.997 8.997 0 0 0 .96 4.96l3 2.33C4.67 5.16 6.66 3.58 9 3.58z"/></svg>
-        <span class="es-text">Continuar con Google</span><span class="en-text">Continue with Google</span>
-      </button>
-    </div>`,
-    email:null,
+    chip:{es:"1 · Login", en:"1 · Login"},
+    title:{es:"Inicia sesión con Google",en:"Sign in with Google"},
+    text:{es:"Pantalla de bienvenida. Botón verde \"Continue with Google\" abre el selector de cuenta de Google. KAI usa solo Google Sign-In — sin contraseñas.",
+          en:"Welcome screen. The green \"Continue with Google\" button opens Google's account chooser. KAI uses Google Sign-In only — no passwords."},
+    cap:{es:"Iniciar sesión NO envía email.",en:"Signing in sends NO email."},
+    img:'/screens/01-login.png',
     hotspots:[
-      { anchor:'googleBtn', at:'tr',
-        title:{es:"Iniciar sesión con Google",en:"Sign in with Google"},
-        body:{es:"KAI usa exclusivamente Google Sign-In: no hay contraseñas separadas. Si el selector no aparece, cierra sesión en Google o usa una ventana incógnita.",
-              en:"KAI uses Google Sign-In only: no separate passwords. If the chooser doesn't appear, sign out of Google or use an incognito window."},
-        mail:{es:"📧 Iniciar sesión NO envía email.",en:"📧 Signing in sends NO email."}
+      { x:50, y:84,
+        title:{es:"🎬 Tutoriales antes de entrar",en:"🎬 Tutorials before signing in"},
+        body:{es:"Los botones de tutorial corto, completo y guía escrita están aquí — disponibles SIN cuenta. Cualquier persona puede aprender la app antes de registrarse.",
+              en:"The short tutorial, full tutorial, and written guide buttons live here — available WITHOUT an account. Anyone can learn the app before registering."}
       }
     ],
-    sec:11
+    sec:12
   },
   {
-    chip:{es:"2 · Registro", en:"2 · Registration"},
-    title:{es:"Registra tu primera unidad",
-           en:"Register your first unit"},
-    text:{es:"Ve a Mis Unidades → + Agregar unidad. Tu solicitud queda pendiente de aprobación.",
-          en:"Go to My Units → + Add unit. Your request stays pending approval."},
-    cap:{es:"📧 Recibirás un email cuando un admin apruebe o rechace tu registro.",
-         en:"📧 You'll get an email when an admin approves or declines your registration."},
-    visual:`<div class="a-card wide">
-      <div class="a-hdr">
-        <div>
-          <h3 class="a-title">🏢 <span class="es-text">Inventario de Unidades</span><span class="en-text">Unit Inventory</span></h3>
-          <p class="a-sub">Morros KAI · 2 <span class="es-text">unidades</span><span class="en-text">units</span></p>
-        </div>
-        <button class="a-btn-p" data-h="addUnit"><span class="es-text">＋ Agregar unidad</span><span class="en-text">＋ Add unit</span></button>
-      </div>
-      <div class="a-list-card">
-        <div class="meta"><div class="apt">Apt 502 · <span style="font-size:.74rem;color:#235f72;font-family:'DM Sans',system-ui,sans-serif">Torre 5</span></div><div class="det">opt@example.com · <span class="a-chip ok">✅ <span class="es-text">Sin reportes</span><span class="en-text">No reports</span></span></div></div>
-      </div>
-      <div class="a-list-card">
-        <div class="meta"><div class="apt">Apt 1203 · <span style="font-size:.74rem;color:#235f72;font-family:'DM Sans',system-ui,sans-serif">Torre 12</span></div><div class="det"><span class="a-chip warn">⚠️ 1 <span class="es-text">abierto</span><span class="en-text">open</span></span></div></div>
-      </div>
-    </div>`,
-    email:{
-      dest:{es:"Tu Gmail + email del operador",en:"Your Gmail + operator email"},
-      kinds:[
-        {es:"📩 Recibido",en:"📩 Received"},
-        {es:"✅ Aprobado",en:"✅ Approved"},
-        {es:"🚫 Rechazado",en:"🚫 Declined"}
-      ]
-    },
+    chip:{es:"2 · Mis Unidades", en:"2 · My Units"},
+    title:{es:"Tu inventario",en:"Your inventory"},
+    text:{es:"Una vez aprobado, en \"Mis Unidades\" ves cada apartamento con su operador, su estado y atajos a Reportar / Editar / View incidents.",
+          en:"Once approved, \"My Units\" shows each apartment with its operator, status and shortcuts to Report / Edit / View incidents."},
+    cap:{es:"📧 Cualquier edición dispara \"Listing actualizado\" a ti + operador.",en:"📧 Any edit fires \"Listing updated\" to you + operator."},
+    img:'/screens/06-my-units-expanded.png',
     hotspots:[
-      { anchor:'addUnit', at:'tr',
-        title:{es:"＋ Agregar unidad",en:"＋ Add unit"},
-        body:{es:"Registra una nueva unidad. El número debe ser único y quedará asociado a tu cuenta Google. Cada nueva unidad pasa por aprobación del admin.",
-              en:"Register a new unit. The number must be unique and will be linked to your Google account. Each new unit goes through admin approval."},
-        mail:{es:"📧 Dispara: 📩 \"Registro recibido\" + admin recibe aviso",en:"📧 Triggers: 📩 \"Registration received\" + admin gets a notice"}
+      { x:78, y:18,
+        title:{es:"+ Reportar incidente",en:"+ Report incident"},
+        body:{es:"Atajo desde la tarjeta — abre el modal de reporte ya con el apartamento pre-seleccionado.",
+              en:"Card shortcut — opens the report modal with the apartment pre-selected."}
+      },
+      { x:88, y:18,
+        title:{es:"✏️ Editar unidad",en:"✏️ Edit unit"},
+        body:{es:"Abre el modal de edición. Cambia operador, email, WhatsApp, URL de Airbnb, co-propietarios.",
+              en:"Opens the edit modal. Change operator, email, WhatsApp, Airbnb URL, co-owners."},
+        mail:{es:"📧 Al guardar: ✏️ \"Listing actualizado\"",en:"📧 On save: ✏️ \"Listing updated\""}
+      },
+      { x:50, y:96,
+        title:{es:"🔗 View incidents",en:"🔗 View incidents"},
+        body:{es:"Click para ver TODOS los incidentes históricos de esta unidad — abiertos y cerrados.",
+              en:"Click to see ALL historical incidents for this unit — open and closed."}
       }
     ],
     sec:13
   },
   {
-    chip:{es:"3 · Incidentes", en:"3 · Incidents"},
-    title:{es:"Reporta un incidente en 3 pasos",
-           en:"Report an incident in 3 steps"},
-    text:{es:"Reportar → Verificar (Paso 1) → Resolver (Paso 2). El admin puede revisar entre pasos.",
-          en:"Report → Verify (Step 1) → Resolve (Step 2). Admin reviews between steps."},
-    cap:{es:"📧 Emails: nuevo incidente · recordatorio SLA · resolución.",
-         en:"📧 Emails: new incident · SLA reminder · resolution."},
-    visual:`<div class="a-card wide">
-      <h3 class="a-title">⚠️ <span class="es-text">Flujo de incidente</span><span class="en-text">Incident flow</span></h3>
-      <p class="a-sub" style="margin-bottom:10px"><span class="es-text">Apt 502 · 🔊 Ruido · ⚠️ Grave</span><span class="en-text">Apt 502 · 🔊 Noise · ⚠️ Serious</span></p>
-      <div class="a-flow">
-        <div class="a-flow-node">📝 <span class="es-text">Reporte</span><span class="en-text">Report</span></div>
-        <span class="a-flow-arr">→</span>
-        <div data-h="step1" class="a-flow-node on">1️⃣ <span class="es-text">Verificar</span><span class="en-text">Verify</span></div>
-        <span class="a-flow-arr">→</span>
-        <div class="a-flow-node">🔍 Admin</div>
-        <span class="a-flow-arr">→</span>
-        <div data-h="step2" class="a-flow-node on">2️⃣ <span class="es-text">Resolver</span><span class="en-text">Resolve</span></div>
-        <span class="a-flow-arr">→</span>
-        <div class="a-flow-node">✅ <span class="es-text">Cerrado</span><span class="en-text">Closed</span></div>
-      </div>
-    </div>`,
-    email:{
-      dest:{es:"Tu Gmail + email del operador",en:"Your Gmail + operator email"},
-      kinds:[
-        {es:"⚠️ Nuevo · Paso 1",en:"⚠️ New · Step 1"},
-        {es:"🔴 SLA 24 h",en:"🔴 SLA 24 h"},
-        {es:"✅ Verificado",en:"✅ Verified"},
-        {es:"🎯 Resuelto · Paso 2",en:"🎯 Resolved · Step 2"}
-      ]
-    },
+    chip:{es:"3 · Reportar", en:"3 · Report"},
+    title:{es:"Crear un reporte de incidente",en:"File an incident report"},
+    text:{es:"Selecciona unidad afectada, tipo, categoría y descripción. Las plantillas amarillas pre-llenan ejemplos según el tipo.",
+          en:"Pick affected unit, type, category, and description. Yellow templates pre-fill examples per type."},
+    cap:{es:"📧 Al enviar: el propietario afectado recibe email de Paso 1. Si no responde en 24 h, llega recordatorio rojo. Si tampoco resuelve a tiempo, segundo recordatorio.",en:"📧 On submit: the affected owner gets a Step 1 email. If they don't respond in 24 h, a red reminder follows. If they also miss the resolve deadline, a second reminder."},
+    img:'/screens/10-new-incident.png',
     hotspots:[
-      { anchor:'step1', at:'t',
-        title:{es:"Paso 1 — Verificar (propietario)",en:"Step 1 — Verify (owner)"},
-        body:{es:"Paso 1: el propietario verifica y documenta la acción inmediata tomada. Paso 2 (por separado): el propietario agrega su respuesta — requerida antes de que el admin pueda cerrar.",
-              en:"Step 1: Owner verifies and documents immediate action taken. Step 2 (separate): Owner adds their resolution — required before admin can close."},
-        mail:{es:"📧 Email con botón \"Verificar ahora\" + recordatorio SLA si pasa 24 h",en:"📧 Email with \"Verify now\" button + SLA reminder if 24 h pass"}
+      { x:50, y:18,
+        title:{es:"🏘 Incidente general",en:"🏘 General incident"},
+        body:{es:"Si activas la casilla, el incidente NO va al Paso 1/Paso 2 del propietario. El admin lo asigna o cierra directamente.",
+              en:"If toggled, the incident skips Owner Step 1/Step 2. Admin assigns or closes it directly."}
       },
-      { anchor:'step2', at:'t',
-        title:{es:"Paso 2 — Resolver (propietario)",en:"Step 2 — Resolve (owner)"},
-        body:{es:"Documentas tu respuesta al incidente. Una vez agregada, el admin puede cerrar formalmente.",
-              en:"You document your resolution. Once added, the admin can formally close."},
-        mail:{es:"📧 Dispara: 🎯 \"Respuesta agregada — listo para cerrar\"",en:"📧 Triggers: 🎯 \"Resolution added — ready to close\""}
+      { x:50, y:55,
+        title:{es:"💡 Plantillas rápidas",en:"💡 Quick-fill templates"},
+        body:{es:"Cada chip rellena el tipo + descripción ejemplo. Edita el texto antes de enviar para reflejar lo real.",
+              en:"Each chip fills type + sample description. Edit the text before submitting to reflect reality."}
+      },
+      { x:50, y:95,
+        title:{es:"⚠️ Reloj SLA",en:"⚠️ SLA clock"},
+        body:{es:"Al enviar, el propietario afectado tiene 24 h para verificar (Paso 1) y otras 24 h para resolver (Paso 2). Si vence cualquiera, llega recordatorio rojo.",
+              en:"On submit, the affected owner has 24 h to verify (Step 1) and another 24 h to resolve (Step 2). Either deadline → red reminder."},
+        mail:{es:"📧 ⚠️ incident_new + 🔴 incident_sla_reminder por cada SLA vencido",en:"📧 ⚠️ incident_new + 🔴 incident_sla_reminder per missed SLA"}
+      }
+    ],
+    sec:15
+  },
+  {
+    chip:{es:"4 · Verificar", en:"4 · Verify"},
+    title:{es:"Paso 1 — Verificar (propietario afectado)",en:"Step 1 — Verify (affected owner)"},
+    text:{es:"Captura datos del huésped, ciudad y país, y describe la acción inmediata tomada. \"Save verification\" mueve el incidente al Paso 2.",
+          en:"Capture guest data, city and country, and describe the immediate action taken. \"Save verification\" moves the incident to Step 2."},
+    cap:{es:"📧 Recibirás email con botón \"Verificar ahora\" cuando se cree el incidente.",en:"📧 You'll get an email with \"Verify now\" button when the incident is created."},
+    img:'/screens/14-verify-form.png',
+    hotspots:[
+      { x:50, y:8,
+        title:{es:"Aviso del flujo",en:"Flow notice"},
+        body:{es:"Recordatorio: este es el Paso 1 de 2. Después necesitas agregar la respuesta (Paso 2) para que el admin cierre.",
+              en:"Reminder: this is Step 1 of 2. Next you need to add your resolution (Step 2) for the admin to close."}
+      },
+      { x:50, y:60,
+        title:{es:"💡 Acción inmediata (requerida)",en:"💡 Immediate action (required)"},
+        body:{es:"¿Qué hiciste de inmediato? Llamar al huésped, contactar al operador, presentar queja en Airbnb, etc.",
+              en:"What did you do immediately? Called the guest, contacted the operator, filed an Airbnb complaint, etc."}
+      },
+      { x:75, y:96,
+        title:{es:"💾 Save verification",en:"💾 Save verification"},
+        body:{es:"Guarda y notifica al admin. El incidente avanza al Paso 2.",
+              en:"Saves and notifies the admin. Incident moves to Step 2."},
+        mail:{es:"📧 Dispara: ✅ incident_verified a admins",en:"📧 Triggers: ✅ incident_verified to admins"}
       }
     ],
     sec:14
   },
   {
-    chip:{es:"4 · Dashboard", en:"4 · Dashboard"},
-    title:{es:"El Dashboard te dice qué hacer hoy",
-           en:"The Dashboard tells you what to do today"},
-    text:{es:"Banner de acción: incidentes pendientes de verificar o resolver, registros pendientes.",
-          en:"Action banner: incidents pending verification or resolution, pending registrations."},
-    cap:{es:"Un clic en el banner te lleva al filtro correcto.",
-         en:"One click on the banner takes you to the right filter."},
-    visual:`<div class="a-card wide">
-      <div class="a-hdr"><div>
-        <h3 class="a-title"><span class="es-text">Dashboard Comunal</span><span class="en-text">Community Dashboard</span></h3>
-        <p class="a-sub"><span class="es-text">Vista compartida en tiempo real</span><span class="en-text">Shared real-time view</span></p>
-      </div></div>
-      <div data-h="ownerBanner" class="a-action-banner"><div><strong>⚡ <span class="es-text">¿Qué debes hacer ahora?</span><span class="en-text">What do you need to do now?</span></strong><small><span class="es-text">2 esperan verificación · 1 espera resolución</span><span class="en-text">2 await verification · 1 awaits resolution</span></small></div><button class="a-btn-p">→</button></div>
-    </div>`,
-    email:null,
+    chip:{es:"5 · Resolver", en:"5 · Resolve"},
+    title:{es:"Paso 2 — Agregar respuesta",en:"Step 2 — Add resolution"},
+    text:{es:"Modal pequeño. Describe cómo resolviste — coordinación con operador, contacto al huésped, queja en Airbnb. Guardar habilita el cierre del admin.",
+          en:"Small modal. Describe how you resolved — operator coordination, guest contact, Airbnb complaint. Saving unlocks admin closure."},
+    cap:{es:"📧 Si no respondes a tiempo recibes recordatorio rojo a las 24 h.",en:"📧 If you don't respond in time you get a red reminder at 24 h."},
+    img:'/screens/16-resolution-modal.png',
     hotspots:[
-      { anchor:'ownerBanner', at:'tr',
-        title:{es:"⚡ Banner de acción",en:"⚡ Action banner"},
-        body:{es:"Aparece cuando hay incidentes esperando tu Paso 1 o Paso 2. Un clic te lleva al filtro correcto en Incidentes.",
-              en:"Appears when incidents await your Step 1 or Step 2. One click takes you to the right filter in Incidents."}
-      }
-    ],
-    sec:11
-  },
-  {
-    chip:{es:"5 · Notificaciones", en:"5 · Notifications"},
-    title:{es:"Te mantenemos al día por email",
-           en:"We keep you up-to-date by email"},
-    text:{es:"Te enviamos correos automáticos a tu Google y al email del operador (si es distinto).",
-          en:"Automatic emails to your Google address and the operator email (if different)."},
-    cap:{es:"Idioma del email = idioma de tu cuenta. Cambia en Perfil.",
-         en:"Email language = account language. Change in Profile."},
-    visual:`<div class="a-card wide">
-      <h3 class="a-title">🔔 <span class="es-text">Alertas</span><span class="en-text">Alerts</span></h3>
-      <div class="a-email-list" style="margin-top:8px">
-        <div data-h="emApr" class="a-email-item unread"><div class="ico">✅</div><div><strong><span class="es-text">Registro aprobado</span><span class="en-text">Registration approved</span></strong><span><span class="es-text">Tu unidad fue aprobada · link para entrar</span><span class="en-text">Your unit was approved · link to enter</span></span></div></div>
-        <div data-h="emInc" class="a-email-item"><div class="ico">⚠️</div><div><strong><span class="es-text">Acción requerida — Paso 1</span><span class="en-text">Action required — Step 1</span></strong><span><span class="es-text">Por favor verifica el reporte (Apt 502)</span><span class="en-text">Please verify the report (Apt 502)</span></span></div></div>
-        <div data-h="emSla" class="a-email-item"><div class="ico" style="background:#fde8e4;color:#c62828">🔴</div><div><strong><span class="es-text">Recordatorio SLA · 24 h</span><span class="en-text">SLA reminder · 24 h</span></strong><span><span class="es-text">Acción pendiente — Paso 1 ó Paso 2</span><span class="en-text">Pending action — Step 1 or Step 2</span></span></div></div>
-      </div>
-    </div>`,
-    email:{
-      dest:{es:"Tu Gmail + email del operador",en:"Your Gmail + operator email"},
-      kinds:[
-        {es:"🌐 ES / EN",en:"🌐 ES / EN"},
-        {es:"🔔 También en Alertas",en:"🔔 Also in Alerts"}
-      ]
-    },
-    hotspots:[
-      { anchor:'emInc', at:'tr',
-        title:{es:"⚠️ Acción requerida — Paso 1",en:"⚠️ Action required — Step 1"},
-        body:{es:"Llega al PROPIETARIO de la unidad afectada (no al que reportó). Tiene un botón verde \"Verificar ahora\" que abre el formulario directo.",
-              en:"Arrives to the OWNER of the affected unit (not the reporter). It has a green \"Verify now\" button that opens the form directly."},
-        mail:{es:"📧 Llega a: tu Gmail + operador. Idioma = idioma de tu cuenta.",en:"📧 Sent to: your Gmail + operator. Language = your account language."}
+      { x:50, y:55,
+        title:{es:"📝 Tu respuesta",en:"📝 Your resolution"},
+        body:{es:"Texto libre. El admin lo necesita para cerrar formalmente — sin esto, el caso queda bloqueado.",
+              en:"Free text. The admin needs this to formally close — without it, the case stays blocked."}
+      },
+      { x:75, y:80,
+        title:{es:"💾 Save resolution",en:"💾 Save resolution"},
+        body:{es:"Guarda y notifica al admin global. Tú recibirás copia del email final cuando se cierre.",
+              en:"Saves and notifies the global admin. You'll get a copy of the final email when it closes."},
+        mail:{es:"📧 Dispara: 🎯 incident_resolution_added al admin · luego 📬 cierre final a todas las partes",en:"📧 Triggers: 🎯 incident_resolution_added to admin · then 📬 final closure to all parties"}
       }
     ],
     sec:14
   },
   {
-    chip:{es:"6 · Ayuda", en:"6 · Help"},
-    title:{es:"Ayuda + tour interactivo",
-           en:"Help + interactive tour"},
-    text:{es:"En ❓ Ayuda encontrarás preguntas frecuentes y un tour por funciones clave.",
-          en:"In ❓ Help you'll find FAQs and a tour of key features."},
-    cap:{es:"También puedes volver a este video desde Ayuda.",
-         en:"You can also re-watch this video from Help."},
-    visual:`<div class="a-card wide">
-      <h3 class="a-title">❓ <span class="es-text">Ayuda y guía</span><span class="en-text">Help &amp; Guide</span></h3>
-      <div class="a-email-list" style="margin-top:8px">
-        <div data-h="tour" class="a-email-item"><div class="ico">🎯</div><div><strong><span class="es-text">Tour interactivo</span><span class="en-text">Interactive tour</span></strong><span><span class="es-text">Recorre la app paso a paso dentro del producto</span><span class="en-text">Walk through the app step by step inside the product</span></span></div></div>
-        <div class="a-email-item"><div class="ico">🎬</div><div><strong><span class="es-text">Tutorial corto · completo · escrito</span><span class="en-text">Short · full · written</span></strong><span><span class="es-text">Vuelve a verlos cuando quieras</span><span class="en-text">Re-watch any time</span></span></div></div>
-      </div>
-    </div>`,
-    email:null,
+    chip:{es:"6 · Ver incidentes", en:"6 · View incidents"},
+    title:{es:"Bandeja de incidentes — 3 estados",en:"Incidents inbox — 3 states"},
+    text:{es:"Pestañas: Verify (Paso 1 pendiente) · In Progress (Paso 2 pendiente) · Closed (cerrado por admin). Filtros por unidad, dueño, fecha.",
+          en:"Tabs: Verify (Step 1 pending) · In Progress (Step 2 pending) · Closed (admin-closed). Filters by unit, owner, date."},
+    cap:{es:"Cada estado corresponde a una etapa del SLA — y a un email diferente.",en:"Each state matches a stage of the SLA — and a different email."},
+    img:'/screens/17-incidents-closed.png',
     hotspots:[
-      { anchor:'tour', at:'tr',
-        title:{es:"🎯 Tour interactivo (dentro de la app)",en:"🎯 Interactive tour (inside the app)"},
-        body:{es:"Una vez que ingreses, este tour resalta áreas reales de la app: Dashboard, Incidentes, Mis Unidades, etc. Distinto a este video — corre sobre la app real.",
-              en:"Once you sign in, this tour highlights real app areas: Dashboard, Incidents, My Units, etc. Different from this video — runs on the real app."}
+      { x:14, y:38,
+        title:{es:"1 · Verify",en:"1 · Verify"},
+        body:{es:"Incidentes recién reportados que esperan tu Paso 1. Si tu unidad fue afectada, te llega email con botón \"Verificar ahora\".",
+              en:"Newly reported incidents awaiting your Step 1. If your unit was affected you get an email with \"Verify now\" button."}
+      },
+      { x:14, y:50,
+        title:{es:"2 · In Progress",en:"2 · In Progress"},
+        body:{es:"Incidentes ya verificados, esperando tu Paso 2 (respuesta). Botón verde \"+ Add resolution\".",
+              en:"Verified incidents waiting for your Step 2 (resolution). Green \"+ Add resolution\" button."}
+      },
+      { x:14, y:62,
+        title:{es:"3 · Closed",en:"3 · Closed"},
+        body:{es:"Cerrado por la administración. Histórico con datos del huésped, acción tomada y respuesta.",
+              en:"Closed by management. Archived history with guest data, action taken, and resolution."},
+        mail:{es:"📧 Email final \"Cierre\" llega a propietario + operador + admin",en:"📧 Final \"Closure\" email goes to owner + operator + admin"}
       }
     ],
-    sec:11
+    sec:13
   },
   {
-    chip:{es:"7 · Cerrar sesión", en:"7 · Logout"},
-    title:{es:"¿Cómo cerrar sesión?",
-           en:"How to log out?"},
-    text:{es:"Menú de perfil (esquina superior derecha) → Cerrar sesión. Tus datos se quedan a salvo.",
-          en:"Profile menu (top-right corner) → Sign out. Your data stays safe."},
-    cap:{es:"¡Listo! Ya puedes usar KAI Airbnb Owners.",
-         en:"That's it! You're ready to use KAI Airbnb Owners."},
-    visual:`<div class="a-card wide">
-      <h3 class="a-title">👤 <span class="es-text">Tu perfil</span><span class="en-text">Your profile</span></h3>
-      <div style="display:flex;flex-direction:column;gap:6px;margin-top:8px">
-        <div style="display:flex;justify-content:space-between;padding:8px 10px;background:#fff;border:1px solid rgba(47,79,58,.12);border-radius:10px;font-size:.78rem;color:#17313a">🌐 <span class="es-text">Idioma</span><span class="en-text">Language</span><span style="color:#235f72">ES / EN</span></div>
-        <div style="display:flex;justify-content:space-between;padding:8px 10px;background:#fff;border:1px solid rgba(47,79,58,.12);border-radius:10px;font-size:.78rem;color:#17313a">🏘️ <span class="es-text">Comunidad activa</span><span class="en-text">Active community</span><span style="color:#235f72">Morros KAI</span></div>
-        <button data-h="signOut" class="a-btn-ghost" style="background:#fde8e4;color:#c62828;border-color:#f4b7b1;font-weight:900;justify-content:center">↩ <span class="es-text">Cerrar sesión</span><span class="en-text">Sign out</span></button>
-      </div>
-    </div>`,
-    email:null,
+    chip:{es:"7 · Cerrar sesión", en:"7 · Log out"},
+    title:{es:"Menú de perfil → Log out",en:"Profile menu → Log out"},
+    text:{es:"Click en tu avatar (arriba derecha) abre el menú con: Mi perfil, Tour interactivo, Mis Unidades, Misión y Log out.",
+          en:"Click your avatar (top right) opens the menu with: My profile, Interactive tour, My Units, Mission and Log out."},
+    cap:{es:"Cerrar sesión NO envía email. En equipos compartidos cierra también en Google.",en:"Signing out sends NO email. On shared devices sign out of Google too."},
+    img:'/screens/22-profile-menu.png',
     hotspots:[
-      { anchor:'signOut', at:'tr',
-        title:{es:"↩ Cerrar sesión",en:"↩ Sign out"},
-        body:{es:"Cerrar sesión termina tu sesión en este navegador. Tus datos se quedan a salvo en la nube. En equipos compartidos cierra sesión también en Google.",
-              en:"Signing out ends your session in this browser. Your data stays safe in the cloud. On shared devices sign out of Google too."},
-        mail:{es:"📧 Cerrar sesión NO envía email.",en:"📧 Signing out sends NO email."}
+      { x:50, y:88,
+        title:{es:"↩ Log out",en:"↩ Log out"},
+        body:{es:"Termina tu sesión en este navegador. Tus datos se quedan a salvo en la nube — al volver a entrar verás todo igual.",
+              en:"Ends your session in this browser. Your data stays safe in the cloud — sign back in and everything is as you left it."}
       }
     ],
-    sec:11
+    sec:10
   }
 ];
 
-/* ─── Player engine ─── */
 const slidesEl=document.getElementById('slides');
 const dotsEl  =document.getElementById('dots');
 const fill    =document.getElementById('fill');
@@ -451,21 +324,11 @@ const capEl   =document.getElementById('caption');
 const playBtn =document.getElementById('play');
 const total   =SLIDES.reduce((s,x)=>s+x.sec,0);
 
-function mailHtml(em){
-  if(!em) return '';
-  const kinds=(em.kinds||[]).map(k=>`<span class="pill kind"><span class="es-text">${k.es}</span><span class="en-text">${k.en}</span></span>`).join('');
-  return `<div class="mailbar">
-    <span class="pill dest">📧 <span class="es-text">${em.dest.es}</span><span class="en-text">${em.dest.en}</span></span>
-    ${kinds}
-  </div>`;
-}
 function hotsHtml(slideIdx, hotspots){
   if(!hotspots || !hotspots.length) return '';
   return hotspots.map((h,hi)=>{
     const tipEn=(h.title.en||'').replace(/"/g,'&quot;');
-    const pos = h.anchor ? '' : `left:${h.x}%;top:${h.y}%`;
-    const dataAnchor = h.anchor ? ` data-anchor="${h.anchor}" data-at="${h.at||'tr'}"` : '';
-    return `<button class="hotspot" data-slide="${slideIdx}" data-hot="${hi}"${dataAnchor} style="${pos}" aria-label="${tipEn}">${hi+1}<span class="hot-tip"><span class="es-text">Toca: ${h.title.es}</span><span class="en-text">Tap: ${h.title.en}</span></span></button>`;
+    return `<button class="hotspot" data-slide="${slideIdx}" data-hot="${hi}" style="left:${h.x}%;top:${h.y}%" aria-label="${tipEn}">${hi+1}<span class="hot-tip"><span class="es-text">Toca: ${h.title.es}</span><span class="en-text">Tap: ${h.title.en}</span></span></button>`;
   }).join('');
 }
 
@@ -474,59 +337,25 @@ SLIDES.forEach((s,i)=>{
   d.innerHTML=`
     <span class="chip"><span class="es-text">${s.chip.es}</span><span class="en-text">${s.chip.en}</span></span>
     <h2><span class="es-text">${s.title.es}</span><span class="en-text">${s.title.en}</span></h2>
-    <p><span class="es-text">${s.text.es}</span><span class="en-text">${s.text.en}</span></p>
-    <div class="visual">${s.visual}${hotsHtml(i, s.hotspots)}</div>
-    ${mailHtml(s.email)}`;
+    <p class="lede"><span class="es-text">${s.text.es}</span><span class="en-text">${s.text.en}</span></p>
+    <div class="visual"><div class="frame"><img src="${s.img}" alt="" loading="lazy"/>${hotsHtml(i, s.hotspots)}</div></div>`;
   slidesEl.appendChild(d);
   const dot=document.createElement('div'); dot.className='dot'; dot.onclick=()=>goto(i); dotsEl.appendChild(dot);
 });
 
-let idx=0, elapsed=0, playing=true, timer=null;
+let idx=0, elapsed=0, playing=true;
 
 function fmt(sec){const m=Math.floor(sec/60),s=Math.floor(sec%60);return `${m}:${String(s).padStart(2,'0')}`}
 function render(){
   document.querySelectorAll('.slide').forEach((el,i)=>el.classList.toggle('active',i===idx));
   document.querySelectorAll('.dot').forEach((el,i)=>el.classList.toggle('active',i===idx));
   const s=SLIDES[idx];
-  if(s.email){ capEl.innerHTML=''; capEl.style.display='none'; }
-  else { capEl.style.display=''; capEl.innerHTML=`<span class="es-text">${s.cap.es}</span><span class="en-text">${s.cap.en}</span>`; }
+  capEl.innerHTML=`<span class="es-text">${s.cap.es}</span><span class="en-text">${s.cap.en}</span>`;
   const hint=document.getElementById('hotHint');
   if(hint) hint.style.display=(s.hotspots && s.hotspots.length)?'inline-flex':'none';
   fill.style.width=Math.min(100,(elapsed/total)*100)+'%';
   timeEl.textContent=`${fmt(elapsed)} / ${fmt(total)}`;
-  requestAnimationFrame(()=>requestAnimationFrame(placeAnchoredHotspots));
 }
-
-function placeAnchoredHotspots(){
-  const slide = document.querySelector('.slide.active');
-  if(!slide) return;
-  const visual = slide.querySelector('.visual');
-  if(!visual) return;
-  const v = visual.getBoundingClientRect();
-  if(!v.width || !v.height) return;
-  visual.querySelectorAll('.hotspot[data-anchor]').forEach(dot => {
-    const target = visual.querySelector('[data-h="'+dot.dataset.anchor+'"]');
-    if(!target) return;
-    const t = target.getBoundingClientRect();
-    const at = dot.dataset.at || 'tr';
-    const inset = 6;
-    let cx, cy;
-    if(at==='tr'){ cx = t.right - inset; cy = t.top + inset; }
-    else if(at==='tl'){ cx = t.left + inset; cy = t.top + inset; }
-    else if(at==='br'){ cx = t.right - inset; cy = t.bottom - inset; }
-    else if(at==='bl'){ cx = t.left + inset; cy = t.bottom - inset; }
-    else if(at==='r' ){ cx = t.right - inset; cy = t.top + t.height/2; }
-    else if(at==='l' ){ cx = t.left + inset; cy = t.top + t.height/2; }
-    else if(at==='t' ){ cx = t.left + t.width/2; cy = t.top + inset; }
-    else if(at==='b' ){ cx = t.left + t.width/2; cy = t.bottom - inset; }
-    else { cx = t.left + t.width/2; cy = t.top + t.height/2; }
-    dot.style.left = ((cx - v.left) / v.width * 100) + '%';
-    dot.style.top  = ((cy - v.top)  / v.height * 100) + '%';
-  });
-}
-window.addEventListener('resize', placeAnchoredHotspots);
-document.addEventListener('fullscreenchange', ()=>setTimeout(placeAnchoredHotspots, 60));
-
 function tick(){
   if(!playing) return;
   elapsed += .25;
@@ -550,7 +379,6 @@ document.getElementById('play').onclick=play;
 document.getElementById('next').onclick=()=>{playing=false;playBtn.textContent='▶';goto(idx+1);};
 document.getElementById('prev').onclick=()=>{playing=false;playBtn.textContent='▶';goto(idx-1);};
 
-/* Hotspot popover wiring */
 const popBackdrop=document.getElementById('popBackdrop');
 const popTitle=document.getElementById('popTitle');
 const popBody=document.getElementById('popBody');
@@ -562,7 +390,7 @@ function openPop(slideIdx, hotIdx){
   const h=SLIDES[slideIdx]?.hotspots?.[hotIdx];
   if(!h) return;
   popTitle.innerHTML=`<span class="es-text">${h.title.es}</span><span class="en-text">${h.title.en}</span>`;
-  popBody.innerHTML=`<span class="es-text">${h.body.es}</span><span class="en-text">${h.body.en}</span>`;
+  popBody.innerHTML=h.body ? `<span class="es-text">${h.body.es}</span><span class="en-text">${h.body.en}</span>` : '';
   if(h.mail){ popMail.hidden=false; popMail.innerHTML=`<span class="es-text">${h.mail.es}</span><span class="en-text">${h.mail.en}</span>`; }
   else { popMail.hidden=true; popMail.innerHTML=''; }
   popActions.innerHTML='';
@@ -575,27 +403,8 @@ function openPop(slideIdx, hotIdx){
   playing=false; playBtn.textContent='▶';
   popBackdrop.hidden=false;
 }
-function openTip(key){
-  const t=TIP_TEXT[key];
-  if(!t) return;
-  popTitle.innerHTML=`<span class="es-text">${t.label.es}</span><span class="en-text">${t.label.en}</span>`;
-  popBody.innerHTML=`<span class="es-text">${t.body.es}</span><span class="en-text">${t.body.en}</span>`;
-  popMail.hidden=false;
-  popMail.innerHTML=`<span class="es-text">ⓘ Este es el mismo tooltip que aparece en la app al pasar el cursor sobre ⓘ.</span><span class="en-text">ⓘ This is the same tooltip you'll see in the app when hovering ⓘ.</span>`;
-  popActions.innerHTML='';
-  const cont=document.createElement('button');
-  cont.className='ghost';
-  cont.innerHTML=`<span class="es-text">Continuar tutorial</span><span class="en-text">Continue tutorial</span>`;
-  cont.onclick=()=>{ closePop(); if(wasPlayingBeforePop){ playing=true; playBtn.textContent='⏸'; } };
-  popActions.appendChild(cont);
-  wasPlayingBeforePop=playing;
-  playing=false; playBtn.textContent='▶';
-  popBackdrop.hidden=false;
-}
 function closePop(){ popBackdrop.hidden=true; }
 slidesEl.addEventListener('click',e=>{
-  const tip=e.target.closest('.a-tip[data-tipkey]');
-  if(tip){ e.preventDefault(); e.stopPropagation(); openTip(tip.dataset.tipkey); return; }
   const btn=e.target.closest('.hotspot');
   if(!btn) return;
   e.stopPropagation();
@@ -610,7 +419,7 @@ document.addEventListener('keydown',e=>{
 });
 
 function setLang(l){
-  document.body.className='lang-'+l + (document.body.classList.contains('fullscreen')?' fullscreen':'');
+  document.body.className=document.body.className.replace(/\blang-\w+\b/g,'').trim()+' lang-'+l;
   document.getElementById('btnEs').classList.toggle('active',l==='es');
   document.getElementById('btnEn').classList.toggle('active',l==='en');
   document.documentElement.lang=l==='en'?'en':'es';
@@ -625,11 +434,12 @@ document.addEventListener('fullscreenchange',()=>{
     document.body.classList.remove('fullscreen');
   }
 });
+
 const p=new URLSearchParams(location.search);
 if(p.get('lang')==='en') setLang('en');
 
 playBtn.textContent='⏸';
-timer=setInterval(tick,250);
+setInterval(tick,250);
 render();
 </script>
 </body>

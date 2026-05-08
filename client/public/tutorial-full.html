@@ -344,7 +344,13 @@ const CHAPTERS = [
           }
         ],
         sec:15
-      },
+      }
+    ]
+  },
+  {
+    title:{es:"4. Agregar unidad", en:"4. Add unit"},
+    sub:{es:"Registrar más apartamentos", en:"Register more apartments"},
+    slides:[
       { img:'/screens/07-add-unit.png',
         title:{es:"Modal: Agregar unidad",en:"Modal: Add unit"},
         text:{es:"Modal para registrar una unidad nueva después de la aprobación inicial. Mismos campos que el registro.",
@@ -352,19 +358,39 @@ const CHAPTERS = [
         cap:{es:"📧 La unidad se enviará a aprobación del admin antes de quedar activa.",en:"📧 The unit goes to admin approval before becoming active."},
         hotspots:[
           { x:25, y:30, tipkey:'aptNumber',
-            title:{es:"🏠 Unit number",en:"🏠 Unit number"} },
+            title:{es:"🏠 Unit number",en:"🏠 Unit number"},
+            body:{es:"Ingresa 3 dígitos (ej: 705). Solo un propietario puede registrar cada unidad.",
+                  en:"Enter 3 digits (e.g. 705). Each unit can only be registered to one owner."},
+            mail:{es:"📧 Al guardar dispara: 🏠 \"Listing creado\" a tu Gmail + admin recibe \"Nuevo listing pendiente\"",en:"📧 On save fires: 🏠 \"Listing created\" to your Gmail + admin gets \"New listing pending\""}
+          },
           { x:25, y:78, tipkey:'operator',
             title:{es:"🧑‍💼 Operador (opcional)",en:"🧑‍💼 Operator (optional)"} },
           { x:75, y:78, tipkey:'operatorEmail',
-            title:{es:"📧 Email del operador",en:"📧 Operator email"} }
+            title:{es:"📧 Email del operador",en:"📧 Operator email"},
+            body:{es:"Si lo llenas, el operador recibirá copia de cada incidente y recordatorio SLA. Si está vacío, solo tú recibes los emails.",
+                  en:"If filled, the operator gets a copy of every incident and SLA reminder. If empty, only you receive the emails."},
+            mail:{es:"📧 Aplica a TODOS los emails de incidente y recordatorios SLA",en:"📧 Applies to ALL incident emails and SLA reminders"}
+          },
+          { x:78, y:96,
+            title:{es:"💾 Guardar",en:"💾 Save"},
+            body:{es:"Envía la unidad a aprobación. Mientras esté pendiente no aparecerá en el inventario público de la comunidad.",
+                  en:"Submits the unit for approval. While pending it won't appear in the community's public inventory."},
+            mail:{es:"📧 Aprobado: 🏠 \"Listing creado\" · Rechazado: 🚫 \"Listing rechazado\" con motivo",en:"📧 Approved: 🏠 \"Listing created\" · Declined: 🚫 \"Listing declined\" with reason"}
+          }
         ],
-        sec:13
-      },
+        sec:14
+      }
+    ]
+  },
+  {
+    title:{es:"5. Editar unidad", en:"5. Edit unit"},
+    sub:{es:"Operador, Airbnb, co-owners", en:"Operator, Airbnb, co-owners"},
+    slides:[
       { img:'/screens/08-edit-unit.png',
         title:{es:"Modal: Editar unidad",en:"Modal: Edit unit"},
         text:{es:"Edita cualquier campo del listing. El número de unidad y la torre pueden estar bloqueados según los permisos.",
               en:"Edit any listing field. Unit number and tower may be locked depending on permissions."},
-        cap:{es:"Cualquier cambio dispara un email \"Listing actualizado\".",en:"Any change triggers a \"Listing updated\" email."},
+        cap:{es:"📧 Cualquier cambio dispara un email \"Listing actualizado\" a ti + operador.",en:"📧 Any change triggers a \"Listing updated\" email to you + operator."},
         hotspots:[
           { x:50, y:38,
             title:{es:"🔗 URL de Airbnb",en:"🔗 Airbnb URL"},
@@ -372,7 +398,11 @@ const CHAPTERS = [
                   en:"Optional. If pasted, a \"View on Airbnb\" button appears on the listing card and dashboard."}
           },
           { x:75, y:55, tipkey:'operatorEmail',
-            title:{es:"📧 Email del operador",en:"📧 Operator email"} },
+            title:{es:"📧 Email del operador",en:"📧 Operator email"},
+            body:{es:"Cambiar este email actualiza inmediatamente quién recibe las notificaciones de la unidad.",
+                  en:"Changing this email immediately updates who receives the unit's notifications."},
+            mail:{es:"📧 Dispara: ✏️ \"Listing actualizado\" a propietario + operador (anterior y nuevo)",en:"📧 Triggers: ✏️ \"Listing updated\" to owner + operator (old and new)"}
+          },
           { x:30, y:55, tipkey:'operator',
             title:{es:"🧑‍💼 Operador",en:"🧑‍💼 Operator"} }
         ],
@@ -382,7 +412,7 @@ const CHAPTERS = [
         title:{es:"Co-propietarios (opcional)",en:"Co-owners (optional)"},
         text:{es:"Hasta 3 co-propietarios adicionales pueden ser asociados a una unidad. Útil cuando el apartamento es de varios.",
               en:"Up to 3 additional co-owners can be linked to a unit. Useful when the apartment is shared."},
-        cap:{es:"Los co-propietarios verán la unidad en \"Mis Unidades\" pero no reciben emails directos.",en:"Co-owners see the unit in \"My Units\" but don't receive direct emails."},
+        cap:{es:"📧 Los co-propietarios NO reciben emails directos — solo el propietario principal y el operador.",en:"📧 Co-owners DO NOT receive direct emails — only the primary owner and operator do."},
         hotspots:[
           { x:50, y:55,
             title:{es:"+ Add co-owner",en:"+ Add co-owner"},
@@ -392,7 +422,8 @@ const CHAPTERS = [
           { x:80, y:90,
             title:{es:"💾 Save",en:"💾 Save"},
             body:{es:"Guarda los cambios y dispara el email \"Listing actualizado\" al propietario y al operador.",
-                  en:"Saves the changes and triggers \"Listing updated\" email to the owner and operator."}
+                  en:"Saves the changes and triggers \"Listing updated\" email to the owner and operator."},
+            mail:{es:"📧 Dispara: ✏️ \"Listing actualizado\"",en:"📧 Triggers: ✏️ \"Listing updated\""}
           }
         ],
         sec:11
@@ -400,14 +431,14 @@ const CHAPTERS = [
     ]
   },
   {
-    title:{es:"4. Reportar incidente", en:"4. Report incident"},
+    title:{es:"6. Reportar incidente", en:"6. Report incident"},
     sub:{es:"Crear nuevo reporte", en:"Create new report"},
     slides:[
       { img:'/screens/10-new-incident.png',
         title:{es:"Modal: File an Incident Report",en:"Modal: File an Incident Report"},
         text:{es:"Selecciona la unidad afectada (no puede ser una tuya), tipo, categoría y descripción. Las fichas amarillas son plantillas — un clic las pre-rellena.",
               en:"Select the affected unit (cannot be one of yours), type, category, and description. The yellow chips are templates — one click pre-fills them."},
-        cap:{es:"Para áreas comunes activa el switch \"general community incident\".",en:"For common areas toggle \"general community incident\"."},
+        cap:{es:"📧 Al enviar: el propietario afectado recibe email de Paso 1. El SLA empieza — si no responde, llega recordatorio a las 24 h.",en:"📧 On submit: the affected owner gets a Step 1 email. SLA starts — if no response, a reminder follows at 24 h."},
         hotspots:[
           { x:50, y:18,
             title:{es:"🏘 Incidente general",en:"🏘 General community incident"},
@@ -426,14 +457,18 @@ const CHAPTERS = [
           { x:30, y:80, tipkey:'incidentType',
             title:{es:"🏷 Tipo",en:"🏷 Type"} },
           { x:50, y:95, tipkey:'incidentDescription',
-            title:{es:"📝 Descripción",en:"📝 Description"} }
+            title:{es:"📝 Descripción",en:"📝 Description"},
+            body:{es:"Después de enviar el reporte arranca el SLA (default 24 h). Si el propietario afectado no verifica a tiempo recibe recordatorio rojo. Si tampoco resuelve a tiempo, segundo recordatorio antes de escalación al admin.",
+                  en:"After submitting the SLA clock starts (default 24 h). If the affected owner doesn't verify in time they get a red reminder. If they don't resolve in time either, a second reminder before escalation to admin."},
+            mail:{es:"📧 Inmediato: ⚠️ incident_new al propietario afectado · SLA: 🔴 incident_sla_reminder a 24 h sin verificar · 🔴 segundo recordatorio si Paso 2 vence",en:"📧 Immediate: ⚠️ incident_new to affected owner · SLA: 🔴 incident_sla_reminder at 24 h without verification · 🔴 second reminder if Step 2 elapses"}
+          }
         ],
         sec:18
       }
     ]
   },
   {
-    title:{es:"5. Verificar (Paso 1)", en:"5. Verify (Step 1)"},
+    title:{es:"7. Verificar (Paso 1)", en:"7. Verify (Step 1)"},
     sub:{es:"Acción del propietario afectado", en:"Affected owner's action"},
     slides:[
       { img:'/screens/11-incidents-verify-needed.png',
@@ -515,7 +550,7 @@ const CHAPTERS = [
     ]
   },
   {
-    title:{es:"6. Resolver (Paso 2)", en:"6. Resolve (Step 2)"},
+    title:{es:"8. Resolver (Paso 2)", en:"8. Resolve (Step 2)"},
     sub:{es:"Respuesta del propietario", en:"Owner resolution"},
     slides:[
       { img:'/screens/15-incidents-add-resolution.png',
@@ -579,7 +614,7 @@ const CHAPTERS = [
     ]
   },
   {
-    title:{es:"7. Dashboard", en:"7. Dashboard"},
+    title:{es:"9. Dashboard", en:"9. Dashboard"},
     sub:{es:"Tu día de un vistazo", en:"Your day at a glance"},
     slides:[
       { img:'/screens/18-dashboard.png',
@@ -625,7 +660,7 @@ const CHAPTERS = [
     ]
   },
   {
-    title:{es:"8. Notificaciones", en:"8. Notifications"},
+    title:{es:"10. Notificaciones", en:"10. Notifications"},
     sub:{es:"Bandeja de alertas", en:"Alerts inbox"},
     slides:[
       { img:'/screens/19-notifications.png',
@@ -661,7 +696,7 @@ const CHAPTERS = [
     ]
   },
   {
-    title:{es:"9. Ayuda", en:"9. Help"},
+    title:{es:"11. Ayuda", en:"11. Help"},
     sub:{es:"Centro de ayuda", en:"Help center"},
     slides:[
       { img:'/screens/20-help.png',
@@ -701,7 +736,7 @@ const CHAPTERS = [
     ]
   },
   {
-    title:{es:"10. Mi Perfil", en:"10. My Profile"},
+    title:{es:"12. Mi Perfil", en:"12. My Profile"},
     sub:{es:"Ajustes personales", en:"Personal settings"},
     slides:[
       { img:'/screens/21-profile.png',
@@ -732,7 +767,7 @@ const CHAPTERS = [
     ]
   },
   {
-    title:{es:"11. Cerrar sesión", en:"11. Log out"},
+    title:{es:"13. Cerrar sesión", en:"13. Log out"},
     sub:{es:"Menú de perfil", en:"Profile menu"},
     slides:[
       { img:'/screens/22-profile-menu.png',
