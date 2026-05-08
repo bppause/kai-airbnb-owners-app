@@ -172,81 +172,19 @@ app.use(express.json({ limit: '15mb' })); // photos stored as base64: 3 × ≤60
 // Serve built React app
 const DIST = path.join(__dirname, 'client', 'dist');
 app.use(express.static(DIST));
-
-
-// v39 client-side diagnostics endpoint: logs UI/Admin errors from browser to Render logs.
-app.post('/api/client-log', (req, res) => {
-  try {
-    const body = req.body || {};
-    warn('[CLIENT_LOG] ' + JSON.stringify({ section:body.section, message:body.message, status:body.status, url:body.url, ts:body.ts || new Date().toISOString() }).slice(0, 2000));
-    if (body.stack) warn('[CLIENT_LOG_STACK] ' + String(body.stack).slice(0, 3000));
-  } catch(e) { warn('[CLIENT_LOG_ERROR] ' + (e?.message || e)); }
-  res.json({ ok:true });
+// ─── API: META (mounted from server/platform/meta) ──────────────────────────
+// /api/client-log, /api/health, /api/version, /api/branding
+// See docs/PLATFORM_ARCHITECTURE.md §11 stage 4k.
+const metaModule = require('./server/platform/meta');
+const metaRouter = metaModule.createRouter({
+  supabase,
+  isSupabaseConfigured: Boolean(SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY),
+  emailConfigured, emailProvider: EMAIL_PROVIDER, emailFrom: EMAIL_FROM,
+  distPath: DIST,
+  getCommunityId, getAppConfig,
 });
+app.use('/api', metaRouter);
 
-
-// ─── HEALTH CHECK ────────────────────────────────────────────────────────────
-app.get('/api/health', async (req, res) => {
-  const configured = Boolean(SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY);
-  const result = { ok: false, configured, storage: 'supabase', tables: ['listings', 'incidents', 'notifications', 'listing_audit_events', 'audit_logs'], time: new Date().toISOString() };
-
-  if (!configured) {
-    result.error = 'Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY in Render Environment.';
-    return res.status(500).json(result);
-  }
-
-  const listingsCheck = await supabase.from('listings').select('id', { count: 'exact', head: true });
-  const incidentsCheck = await supabase.from('incidents').select('id', { count: 'exact', head: true });
-  const notificationsCheck = await supabase.from('notifications').select('id', { count: 'exact', head: true });
-  const auditCheck = await supabase.from('listing_audit_events').select('id', { count: 'exact', head: true });
-  const auditLogsCheck = await supabase.from('audit_logs').select('id', { count: 'exact', head: true });
-
-  if (listingsCheck.error || incidentsCheck.error || notificationsCheck.error || auditCheck.error || auditLogsCheck.error) {
-    result.error = listingsCheck.error?.message || incidentsCheck.error?.message || notificationsCheck.error?.message || auditCheck.error?.message || auditLogsCheck.error?.message;
-    result.listings = listingsCheck.error ? 'error' : 'ok';
-    result.incidents = incidentsCheck.error ? 'error' : 'ok';
-    result.notifications = notificationsCheck.error ? 'error' : 'ok';
-    result.auditTrail = auditCheck.error ? 'error' : 'ok';
-    return res.status(500).json(result);
-  }
-
-  result.ok = true;
-  result.listings = 'ok';
-  result.incidents = 'ok';
-  result.notifications = 'ok';
-  result.auditTrail = 'ok';
-  result.emailProvider = EMAIL_PROVIDER;
-  result.emailConfigured = emailConfigured;
-  result.emailFrom = EMAIL_FROM;
-  result.counts = { listings: listingsCheck.count || 0, incidents: incidentsCheck.count || 0, notifications: notificationsCheck.count || 0, auditEvents: auditCheck.count || 0 };
-  res.json(result);
-});
-
-app.get('/api/version', (req, res) => {
-  try {
-    const meta = JSON.parse(fs.readFileSync(path.join(DIST, 'build-meta.json'), 'utf8'));
-    res.json({ buildTime: meta.buildTime || '' });
-  } catch(e) {
-    res.json({ buildTime: '' });
-  }
-});
-
-app.get('/api/branding', async (req, res) => {
-  try {
-    const communityId = getCommunityId(req);
-    const cfg = await getAppConfig(communityId);
-    res.json({
-      communityId,
-      complexNameEs: cfg.complex_name_es || 'Propietarios Airbnb KAI',
-      complexNameEn: cfg.complex_name_en || 'KAI Airbnb Owners',
-      complexLocation: cfg.complex_location || 'Serena del Mar · Cartagena 🇨🇴',
-      complexLogo: cfg.complex_logo || '',
-      complexBg: cfg.complex_bg || '/morros-kai-bg.jpg',
-    });
-  } catch(e) { res.json({ communityId:'kai', complexNameEs:'Propietarios Airbnb KAI', complexNameEn:'KAI Airbnb Owners', complexLocation:'Serena del Mar · Cartagena 🇨🇴', complexLogo:'', complexBg:'/morros-kai-bg.jpg' }); }
-});
-
-// ─── API: REGISTRATION / APPROVAL WORKFLOW ──────────────────────────────────
 
 // Legacy alias: /api/apartments/check → /api/platform/units/check
 // (canonical handler lives in server/platform/units/routes.js)
