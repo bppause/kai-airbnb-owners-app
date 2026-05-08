@@ -164,3 +164,25 @@ export const today = () => new Date().toISOString().split("T")[0];
 
 // Country options used by guest/owner forms.
 export const COUNTRIES = ["Colombia","USA","Venezuela","Ecuador","Perú","México","Brasil","España","Argentina","Chile","Panamá","Costa Rica","Canadá","UK","Francia","Alemania","Italia","Otro"];
+
+// Same set with WhatsApp dial codes — used by owner/registration WhatsApp inputs.
+export const OWNER_COUNTRIES = [
+  { name:'Colombia',    code:'+57'  },
+  { name:'USA',         code:'+1'   },
+  { name:'Venezuela',   code:'+58'  },
+  { name:'Ecuador',     code:'+593' },
+  { name:'Perú',        code:'+51'  },
+  { name:'México',      code:'+52'  },
+  { name:'Brasil',      code:'+55'  },
+  { name:'España',      code:'+34'  },
+  { name:'Argentina',   code:'+54'  },
+  { name:'Chile',       code:'+56'  },
+  { name:'Panamá',      code:'+507' },
+  { name:'Costa Rica',  code:'+506' },
+  { name:'Canadá',      code:'+1'   },
+  { name:'UK',          code:'+44'  },
+  { name:'Francia',     code:'+33'  },
+  { name:'Alemania',    code:'+49'  },
+  { name:'Italia',      code:'+39'  },
+  { name:'Otro',        code:''     },
+];
