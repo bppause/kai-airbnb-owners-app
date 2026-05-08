@@ -34,6 +34,25 @@ platform. The seven design principles drawn from that WhatsApp transcript
 (sales, facilities, building admin, tourism) need their own discovery and
 will not necessarily inherit the same operating model.
 
+### Terminology (locked)
+
+The word *operator* is used in a specific, narrow sense throughout this
+document and the platform's UI:
+
+| Term | Means | Owns |
+|---|---|---|
+| **Airbnb operator** (often shortened to **operator**) | The Airbnb listing manager / co-host who runs an STR unit on behalf of one or more owners | The listing, guest relationship, unit-level service requests, owner tasks/issues/requests arising from STR operation |
+| **Building admin** (HOA admin / community admin / property manager) | The party that runs the building or complex itself | Operations of the facility/complex: front desk, access control, common areas, facilities, residents, fees, governance, building-wide incidents |
+
+There is **no** "building operator" role. The building's operations belong to
+the **building admin**. When this document says *operator*, it always means
+the Airbnb operator. When it discusses the building's day-to-day, the actor is
+the building admin, the facilities team, or the front desk — never an
+"operator".
+
+The two are independent: a unit can have an Airbnb operator, none, or several
+over time, while the building admin remains constant for the complex.
+
 ---
 
 ## 2. North star
@@ -155,13 +174,13 @@ That means many more personas than "owner / admin / operator".
 | 3 | **Owner — Payout** (1 per unit, financial approval rights) | Ownership + STR | Operator-Owner, Building Admin |
 | 4 | **Owner — Calendar** (0+ per unit, no financial visibility) | Ownership + STR | Operator-Owner |
 | 5 | **Resident / renter** (long-term tenant, not owner) | Ownership phase | Building Admin, Operations |
-| 6 | **Building / HOA admin** (delegate or global) | Ownership phase | Building Admin, Operations, Facilities |
+| 6 | **Building admin** (HOA / community admin — delegate or global; owns facility operations) | Ownership phase | Building Admin, Front Desk, Facilities |
 | 7 | **Board / committee member** | Ownership phase | Building Admin, Communications |
-| 8 | **Facilities team** (engineer, building maintenance, common-area cleaners) | Ownership phase | Facilities |
-| 9 | **Guard / front desk / concierge** | Ownership phase | Operations, Access Control |
+| 8 | **Facilities team** (building engineer, common-area maintenance, common-area cleaners — reports to building admin) | Ownership phase | Facilities |
+| 9 | **Guard / front desk / concierge** (reports to building admin) | Ownership phase | Front Desk |
 | 10 | **Vendor / contractor** | All stages | Facilities, Operator-Owner |
-| 11 | **Airbnb operator / co-host** (one per unit, may operate many) | STR operation | Operator-Owner |
-| 12 | **Operator's team** (cleaning, supervision, logistics, guest support) | STR operation | Operator-Owner |
+| 11 | **Airbnb operator** (listing manager / co-host — one per unit; may operate many across buildings) | STR operation | Operator-Owner |
+| 12 | **Airbnb operator's team** (cleaning, supervision, logistics, guest support — reports to the Airbnb operator, not the building admin) | STR operation | Operator-Owner |
 | 13 | **Long-term guest / Airbnb guest** (impact-only persona inside KAI) | STR operation | Operator-Owner, Tourism, Operations |
 | 14 | **Visitor / delivery** (one-shot guest of a resident) | Ownership phase | Operations |
 | 15 | **Tourism authority / regulator** (consumer of structured reports) | STR operation | Tourism |
@@ -194,7 +213,9 @@ For new construction phase and unit resale.
 
 ### 6.2 Building Administration & Governance
 
-The HOA / community admin's day-to-day.
+The building admin's day-to-day. The building admin owns the operations of
+the facility/complex itself — distinct from the Airbnb operator (§6.7), who
+owns STR operations *inside* a unit.
 
 | Module | Problem it solves |
 |---|---|
@@ -220,9 +241,11 @@ Distinct from unit-level maintenance (which lives in Operator-Owner).
 | Energy & Utilities | Common-area consumption, sub-metering, anomaly flags, cost allocation |
 | Smart Building / IoT | Common-area sensors (leak, smoke, occupancy, CCTV events) feeding into incidents and work orders |
 
-### 6.4 Operations & Access Control
+### 6.4 Front Desk, Access & Visitor Management
 
-The front desk / guard's surface.
+The guard / concierge / front-desk surface. Sits under the building admin's
+ownership (§6.2). Not to be confused with the Airbnb operator's unit-level
+operations (§6.7) — different actor, different scope.
 
 | Module | Problem it solves |
 |---|---|
@@ -258,11 +281,21 @@ Different from §6.4 because it includes Airbnb guests and longer stays.
 | In-Stay Issue Routing | Guest impact ticket → operator first, building admin only on escalation |
 | Guest Departure & Inspection | Linked to operator-portal photo log when STR; otherwise owner-handled |
 
-### 6.7 Operator–Owner Governance (the Airbnb operator portal)
+### 6.7 Airbnb Operator–Owner Governance (STR Listing Portal)
 
 This is the pillar described in `USE_CASE_DISCOVERY.md`. **The seven design
 principles in §4.1 apply specifically here.** Detailed module list is in
-`OPERATOR_PORTAL_PROPOSAL.md`. Headline modules:
+`OPERATOR_PORTAL_PROPOSAL.md`.
+
+**Scope (locked):** the Airbnb operator's role is to manage the listing, the
+guest relationship, and the unit-owner tasks/issues/requests that arise from
+STR operation. The Airbnb operator does **not** own the building's operations
+— that is the building admin's pillar (§6.2). When unit-level activity
+intersects building rules (e.g. a guest violates quiet hours), the typed
+request flows through the operator-owner inbox *and* surfaces to the building
+admin via the incident pillar (§6.9).
+
+Headline modules:
 
 | Module | Problem it solves |
 |---|---|
@@ -345,17 +378,17 @@ different operating patterns and shouldn't be force-fitted:
 
 | Pillar | Primary operating pattern |
 |---|---|
-| Operator-Owner | **Typed requests + attention inbox** (chat replacement) |
-| Sales & Development | **Pipeline / stage-gates** + document signing + buyer comms |
-| Building Admin | **Recurring billing cycle** + governance calendar + fines workflow |
-| Facilities | **Asset-centric work orders** + preventive schedules + IoT events |
-| Operations / Access | **Real-time event stream** (visitor in, package in, gate event) |
-| Resident Experience | **Self-service portal** + reservation calendar |
-| Guest & Visitor | **Pre-arrival flow** + access provisioning timer |
-| Compliance & Tourism | **Calendar of obligations** (filings, renewals, taxes due) |
-| Incidents | **Open/verify/close ticket workflow** (already live) |
-| Communications | **Broadcast / targeted send** with delivery tracking |
-| Analytics & AI | **Pull / dashboard** + push alerts on anomaly |
+| Airbnb Operator–Owner (§6.7) | **Typed requests + attention inbox** (chat replacement) |
+| Sales & Development (§6.1) | **Pipeline / stage-gates** + document signing + buyer comms |
+| Building Admin (§6.2) | **Recurring billing cycle** + governance calendar + fines workflow |
+| Facilities (§6.3) | **Asset-centric work orders** + preventive schedules + IoT events |
+| Front Desk, Access & Visitor (§6.4) | **Real-time event stream** (visitor in, package in, gate event) |
+| Resident Experience (§6.5) | **Self-service portal** + reservation calendar |
+| Guest & Visitor (§6.6) | **Pre-arrival flow** + access provisioning timer |
+| Compliance & Tourism (§6.8) | **Calendar of obligations** (filings, renewals, taxes due) |
+| Incidents & Emergency (§6.9) | **Open/verify/close ticket workflow** (already live) |
+| Communications (§6.10) | **Broadcast / targeted send** with delivery tracking |
+| Analytics & AI (§6.11) | **Pull / dashboard** + push alerts on anomaly |
 
 A typed-request inbox can sit *under* several pillars (tasks, approvals,
 escalations) — but it isn't the universal operating model. Not every domain
@@ -464,28 +497,28 @@ Indicative scope:
 `●` primary  `◐` secondary / read or assist  `.` not involved
 
 ```
-                          Sales  Bldg-Adm  Fac  Ops  Res  Guest  Op-Own  Compl  Inc  Comms  AI
-Developer / sales team      ●       ◐       .    .    .    .      .       ◐    .    ●      ◐
-Buyer / pre-owner           ●       .       .    .    .    .      .       .    .    ◐      .
-Payout Owner                ◐       ●       ◐    ◐    ●    ◐      ●       ◐    ●    ●      ●
-Calendar Owner              .       ◐       .    .    ◐    ◐      ●       .    ◐    ◐      ◐
-Resident / renter           .       ●       ◐    ●    ●    ◐      .       ◐    ●    ●      .
-Building / HOA admin        ◐       ●       ●    ●    ◐    ◐      ◐       ●    ●    ●      ●
-Board member                ◐       ●       ◐    .    .    .      .       ●    ◐    ●      ●
-Facilities team             .       ◐       ●    ◐    .    .      .       ◐    ◐    ◐      .
-Guard / front desk          .       ◐       .    ●    ◐    ●      .       .    ●    ◐      .
-Vendor / contractor         .       .       ●    ◐    .    .      ◐       ◐    .    .      .
-Operator / co-host          .       ◐       ◐    .    .    ◐      ●       ●    ◐    ◐      ●
-Operator's team             .       .       .    .    .    ◐      ●       .    .    .      .
-Guest (impact only)         .       .       .    ◐    .    ●      ◐       ◐    ◐    .      .
-Visitor / delivery          .       .       .    ●    .    ●      .       .    .    .      .
-Tourism authority           .       .       .    .    .    .      .       ●    .    .      ◐
-External buyer / agent      ●       ◐       .    .    .    .      .       ◐    .    ◐      .
+                          Sales  Bldg-Adm  Fac  FrontD  Res  Guest  AbnbOp  Compl  Inc  Comms  AI
+Developer / sales team      ●       ◐       .     .     .    .      .       ◐    .    ●      ◐
+Buyer / pre-owner           ●       .       .     .     .    .      .       .    .    ◐      .
+Payout Owner                ◐       ●       ◐     ◐     ●    ◐      ●       ◐    ●    ●      ●
+Calendar Owner              .       ◐       .     .     ◐    ◐      ●       .    ◐    ◐      ◐
+Resident / renter           .       ●       ◐     ●     ●    ◐      .       ◐    ●    ●      .
+Building admin              ◐       ●       ●     ●     ◐    ◐      ◐       ●    ●    ●      ●
+Board member                ◐       ●       ◐     .     .    .      .       ●    ◐    ●      ●
+Facilities team             .       ◐       ●     ◐     .    .      .       ◐    ◐    ◐      .
+Guard / front desk          .       ◐       .     ●     ◐    ●      .       .    ●    ◐      .
+Vendor / contractor         .       .       ●     ◐     .    .      ◐       ◐    .    .      .
+Airbnb operator             .       ◐       ◐     .     .    ◐      ●       ●    ◐    ◐      ●
+Airbnb operator's team      .       .       .     .     .    ◐      ●       .    .    .      .
+Guest (impact only)         .       .       .     ◐     .    ●      ◐       ◐    ◐    .      .
+Visitor / delivery          .       .       .     ●     .    ●      .       .    .    .      .
+Tourism authority           .       .       .     .     .    .      .       ●    .    .      ◐
+External buyer / agent      ●       ◐       .     .     .    .      .       ◐    .    ◐      .
 ```
 
-Pillars: Sales (§6.1) · Bldg-Adm (§6.2) · Fac (§6.3) · Ops (§6.4) ·
-Res (§6.5) · Guest (§6.6) · Op-Own (§6.7) · Compl (§6.8) · Inc (§6.9) ·
-Comms (§6.10) · AI (§6.11).
+Pillars: Sales (§6.1) · Bldg-Adm (§6.2) · Fac (§6.3) · FrontD (§6.4) ·
+Res (§6.5) · Guest (§6.6) · AbnbOp (§6.7 Airbnb operator–owner) ·
+Compl (§6.8) · Inc (§6.9) · Comms (§6.10) · AI (§6.11).
 
 ---
 
@@ -588,6 +621,11 @@ D, CONTRACT-1..5). See that document for full text. Plus:
   (inbox-first, enforced approval gates, zero-credentials-in-chat) as
   universal across all pillars produces wrong UX for sales, facilities,
   amenity reservations, etc. Each pillar deserves its own discovery.
+- **Role-name conflation.** Calling building front-desk staff or facilities
+  leads "operators" — or talking about "the building operator" — collapses
+  two completely different roles (Airbnb listing manager vs. building admin)
+  into one bucket. Enforce the §1 terminology lock in UI copy, role names,
+  permission keys, and email templates.
 - **Scope creep into specialist tools.** Channel manager, full ERP, full
   CRM, e-sign, banking are huge products. Integrate; don't replace.
 - **Persona expansion outpacing RBAC.** Going from 3 roles to ~12 without a
