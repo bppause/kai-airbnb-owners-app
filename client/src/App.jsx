@@ -1158,6 +1158,18 @@ export default function App() {
     return () => clearInterval(pollRef.current);
   }, [loadAll, isApproved]);
 
+  // Close header dropdowns (profile, more) on outside click or Escape
+  useEffect(() => {
+    if (!openDropdown) return;
+    const onDown = (e) => {
+      if (!e.target.closest('.profile-dd, .nav-dd')) setOpenDropdown(null);
+    };
+    const onKey = (e) => { if (e.key === 'Escape') setOpenDropdown(null); };
+    document.addEventListener('mousedown', onDown);
+    document.addEventListener('keydown', onKey);
+    return () => { document.removeEventListener('mousedown', onDown); document.removeEventListener('keydown', onKey); };
+  }, [openDropdown]);
+
   // Reset to dashboard when preview role is activated so the simulated role's view is coherent
   useEffect(() => {
     if (previewRole) setView('dashboard');
