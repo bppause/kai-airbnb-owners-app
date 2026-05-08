@@ -36,6 +36,12 @@ import {
   fetchAdminContext,
 } from "./core/auth";
 
+// ─── Shared app state (extracted in stage F5) ────────────────────────────────
+// Provider + useApp() hook so future extracted views can read App's state
+// without prop-drilling. Plumbing only in F5; App.jsx still uses local
+// closures. See docs/PLATFORM_ARCHITECTURE.md §11 frontend stage F5.
+import { AppStateProvider } from "./core/app-state";
+
 
 
 // Global client logging: prevents silent blank screens and records the last runtime issue.
@@ -1373,7 +1379,54 @@ export default function App() {
   if (!user) return <AuthGate onLogin={login} lang={lang} setLang={setLang} complexLogo={complexLogo} complexNameEs={complexNameEs} complexNameEn={complexNameEn} complexLocation={complexLocation} complexBg={complexBg} onCommunitySelect={handleLoginCommunitySelect} />;
   if (!isApproved) return <RegistrationGate user={user} registration={registration} onSubmit={submitRegistration} onLogout={logout} syncing={syncing} toast={toast} lang={lang} setLang={setLang} complexLogo={complexLogo} complexName={complexName} complexLocation={complexLocation} complexBg={complexBg} />;
 
+  // ─── Shared state exposed via Context (stage F5) ───────────────────────────
+  // No consumers in App.jsx yet — the provider below is plumbing for future
+  // extracted views (F6+) that will call useApp().
+  const appState = {
+    // Auth + user
+    user, lang, t, authLoading,
+    // Domain data
+    listings, incidents, notifications, registration,
+    pendingRegistrations, activeRegistrations,
+    // Admin context
+    adminInfo, effectiveRole, effectiveIsGlobalAdmin,
+    // Loading / sync flags
+    adminLoading, registrationLoading, loading, syncing, lastSync,
+    // Reputation + community goals
+    reputation, reputationLoading, communityGoals, communityGoalsLoading,
+    // Profile
+    userProfile,
+    // Branding (derived)
+    complexName, complexNameEs, complexNameEn, complexLocation,
+    complexLogo, complexBg, complexTower,
+    // Derived flags
+    isApproved, analyticsEnabledForAll,
+    // UI state
+    view, modal, toast, openDropdown, showTour,
+    unitDetailOverlay, incidentDetailOverlay,
+    incidentQuickFilter, listingFloorOpen,
+    preLoginConfig, previewRole,
+    // Actions / setters
+    setLang, setView, setModal, setToast, setOpenDropdown, setShowTour,
+    setUnitDetailOverlay, setIncidentDetailOverlay,
+    setIncidentQuickFilter, setListingFloorOpen,
+    setUserProfile, setPreLoginConfig, setPreviewRole,
+    setLoading, setSyncing, setLastSync,
+    setRegistration, setRegistrationLoading,
+    setListings, setIncidents, setNotifications,
+    setPendingRegistrations, setActiveRegistrations,
+    setAdminInfo, setAdminLoading,
+    setUser, setAuthLoading, setLoginOpen,
+    setReputation, setCommunityGoals,
+    setLoadError, setLoadErrorMsg,
+    // Composite actions
+    login, logout,
+    loadReputation, loadCommunityGoals,
+    openIncidentDetail, toggleListingFloor,
+  };
+
   return (
+    <AppStateProvider value={appState}>
     <div className="app-shell">
       <style>{CSS}</style>
 
@@ -1595,6 +1648,7 @@ export default function App() {
       {syncing && <div className="sync-overlay"><div className="spinner-sm"/><span>{lang === "en" ? "Saving to server..." : "Guardando en servidor..."}</span></div>}
       {toast && <div className={`toast ${toast.err?"toast-err":""}`}>{toast.msg}</div>}
     </div>
+    </AppStateProvider>
   );
 }
 
