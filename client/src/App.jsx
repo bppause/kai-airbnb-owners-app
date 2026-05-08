@@ -63,6 +63,14 @@ import VerifyIncidentModal from "./modules/incidents/components/VerifyIncidentMo
 import { INCIDENT_TYPES, GUEST_CATEGORIES } from "./modules/incidents/constants";
 import IncidentModal from "./modules/incidents/components/IncidentModal";
 
+// ─── Stage F12 extractions: unit plate + mini card (platform) ────────────────
+// Small platform-units components: the apartment-number plate badge and the
+// compact unit summary card (unit + owner + contact links). Both consumed
+// across modules — IRow uses UnitMiniCard, listing/dashboard widgets use
+// UnitPlate. See docs/PLATFORM_ARCHITECTURE.md §11 frontend stage F12.
+import UnitPlate from "./platform/units/components/UnitPlate";
+import UnitMiniCard from "./platform/units/components/UnitMiniCard";
+
 // ─── API client (extracted in stage F3) ──────────────────────────────────────
 // All fetch calls flow through this module so the X-Community-Id header is
 // always set, errors are normalized, and Render cold-start timeouts are
@@ -4723,54 +4731,6 @@ function NotificationsView({ notifications, incidents, listings=[], contactProps
 // ── UnitPlate — universal dark plate showing unit number + complex name ──────
 // Use for ALL unit number displays across the app for visual consistency.
 // Pass onClick to make it clickable (opens unit detail popup).
-function UnitPlate({ apt, tower=getDefaultTower(), size='md', onClick, title, className='' }) {
-  const Tag = onClick ? 'button' : 'div';
-  return (
-    <Tag
-      type={onClick?'button':undefined}
-      className={`unit-plate unit-plate-${size}${className?' '+className:''}`}
-      onClick={onClick}
-      title={title}
-      onKeyDown={onClick?e=>{if(e.key==='Enter'||e.key===' ')onClick(e);}:undefined}
-    >
-      <span className="unit-plate-num">{apt}</span>
-      {tower&&<span className="unit-plate-tower">{tower}</span>}
-    </Tag>
-  );
-}
-
-// Compact unit card — styled like a mini AptDoor with dark plate header.
-// Hover reveals AptContactPopup (branded email + WhatsApp links).
-function UnitMiniCard({ listing, onUnitDetail, isEn=false }) {
-  if (!listing) return null;
-  const ownerEmail = listing.userEmail || listing.email || '';
-  const ownerWaRaw = listing.contact || '';
-  const ownerWa    = normalizePhoneForWhatsApp(ownerWaRaw);
-  const opWa       = normalizePhoneForWhatsApp(listing.operatorWhatsapp);
-  return (
-    <div className="unit-mini-card">
-      <UnitPlate
-        apt={listing.apt}
-        tower={listing.tower||getDefaultTower()}
-        size="sm"
-        onClick={onUnitDetail ? ()=>onUnitDetail(listing.id) : undefined}
-        title={onUnitDetail?(isEn?'View unit details':'Ver detalles de la unidad'):undefined}
-        className="umc-plate-unit"
-      />
-      <div className="umc-body">
-        <div className="umc-party">
-          <div className="umc-owner" title={listing.owner||'—'}><span className="umc-role-lbl">{isEn?'Owner':'Propietario'}</span> {listing.owner||'—'}</div>
-          {(ownerEmail||ownerWa)&&(
-            <div className="umc-contacts">
-              {ownerEmail&&<a href={`mailto:${ownerEmail}`} className="idd-pi-link" onClick={e=>e.stopPropagation()}>✉️ {ownerEmail}</a>}
-              {ownerWa&&<a href={`https://wa.me/${ownerWa}`} target="_blank" rel="noopener noreferrer" className="idd-pi-link idd-pi-wa" onClick={e=>e.stopPropagation()}>💬 WhatsApp</a>}
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
 
 function IRow({ inc, user, listings=[], contactProps={}, isGlobalAdmin=false, canUpdateGlobal=false, canDeleteGlobal=false, canResolveGlobal=false, onResolve, onDelete, onVerify, onAddResolution, onUnitDetail, onIncidentDetail, onAssign, onCloseGeneral, compact, naughtyMode, hideUnit=false, lang="es-CO", actionNeeded=false }) {
   const listing    = listings.find(l=>l.id===inc.aptId);
