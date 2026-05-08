@@ -43,6 +43,18 @@ import AddResolutionModal from "./modules/incidents/components/AddResolutionModa
 import UnitPicker from "./platform/units/components/UnitPicker";
 import AssignToUnitModal from "./modules/incidents/components/AssignToUnitModal";
 
+// ─── Stage F10 extractions: Tip + tooltip system + 2 incident modals ─────────
+// Tip is a generic UI primitive (ⓘ marker → fixed-position bubble).
+// DEFAULT_TOOLTIPS + localizedTooltips moved to core/i18n/app-text.js.
+// COUNTRIES (form reference data) moved to core/utils.js. CloseGeneralModal
+// + VerifyIncidentModal pull `lang` via useApp(); other props stay per-instance.
+// See docs/PLATFORM_ARCHITECTURE.md §11 frontend stage F10.
+import Tip from "./core/ui/Tip";
+import { COUNTRIES } from "./core/utils";
+import { DEFAULT_TOOLTIPS, localizedTooltips } from "./core/i18n/app-text";
+import CloseGeneralModal from "./modules/incidents/components/CloseGeneralModal";
+import VerifyIncidentModal from "./modules/incidents/components/VerifyIncidentModal";
+
 // ─── API client (extracted in stage F3) ──────────────────────────────────────
 // All fetch calls flow through this module so the X-Community-Id header is
 // always set, errors are normalized, and Render cold-start timeouts are
@@ -108,7 +120,6 @@ const GUEST_CATEGORIES = [
   { value:"watch",   label:"En Observación",   icon:"👁️", color:"#4527a0", bg:"#ede7f6" },
   { value:"minor",   label:"Incidente Menor",  icon:"📝", color:"#1565c0", bg:"#bbdefb" },
 ];
-const COUNTRIES = ["Colombia","USA","Venezuela","Ecuador","Perú","México","Brasil","España","Argentina","Chile","Panamá","Costa Rica","Canadá","UK","Francia","Alemania","Italia","Otro"];
 const OWNER_COUNTRIES = [
   { name:'Colombia',    code:'+57'  },
   { name:'USA',         code:'+1'   },
@@ -162,51 +173,7 @@ const MENU_LABELS = {
 
 // v41 full-screen i18n labels. Spanish (Colombia) remains default/source.
 
-const DEFAULT_TOOLTIPS = {
-  reportIncident: { es: APP_I18N["tooltip.reportIncident"].es, en: APP_I18N["tooltip.reportIncident"].en },
-  addListing: { es: APP_I18N["tooltip.addListing"].es, en: APP_I18N["tooltip.addListing"].en },
-  aptNumber: { es: APP_I18N["tooltip.aptNumber"].es, en: APP_I18N["tooltip.aptNumber"].en },
-  listingEmail: { es: APP_I18N["tooltip.listingEmail"].es, en: APP_I18N["tooltip.listingEmail"].en },
-  ownerWhatsapp: { es: APP_I18N["tooltip.ownerWhatsapp"].es, en: APP_I18N["tooltip.ownerWhatsapp"].en },
-  operator: { es: APP_I18N["tooltip.operator"].es, en: APP_I18N["tooltip.operator"].en },
-  operatorEmail: { es: APP_I18N["tooltip.operatorEmail"].es, en: APP_I18N["tooltip.operatorEmail"].en },
-  operatorWhatsapp: { es: APP_I18N["tooltip.operatorWhatsapp"].es, en: APP_I18N["tooltip.operatorWhatsapp"].en },
-  incidentApartment: { es: APP_I18N["tooltip.incidentApartment"].es, en: APP_I18N["tooltip.incidentApartment"].en },
-  incidentType: { es: APP_I18N["tooltip.incidentType"].es, en: APP_I18N["tooltip.incidentType"].en },
-  incidentCategory: { es: APP_I18N["tooltip.incidentCategory"].es, en: APP_I18N["tooltip.incidentCategory"].en },
-  incidentDescription: { es: APP_I18N["tooltip.incidentDescription"].es, en: APP_I18N["tooltip.incidentDescription"].en },
-  verifyIncident: { es: APP_I18N["tooltip.verifyIncident"].es, en: APP_I18N["tooltip.verifyIncident"].en },
-  resolveIncident: { es: APP_I18N["tooltip.resolveIncident"].es, en: APP_I18N["tooltip.resolveIncident"].en }
-};
-const localizedTooltips = (config={}, lang='es-CO') => {
-  const esOverrides = parseJsonObject(config?.tooltips_es, {});
-  const enOverrides = parseJsonObject(config?.tooltips_en, {});
-  const isEn = lang === 'en';
-  const out = {};
-  Object.keys(DEFAULT_TOOLTIPS).forEach(k => { out[k] = (isEn ? enOverrides[k] : esOverrides[k]) || DEFAULT_TOOLTIPS[k][isEn ? 'en' : 'es'] || ''; });
-  return out;
-};
 
-// Returns SLA urgency info for a step-2 pending resolution incident, or null if not applicable.
-
-const Tip = ({ text }) => {
-  const [tp, setTp] = useState(null);
-  if (!text) return null;
-  const show = e => {
-    const r = e.currentTarget.getBoundingClientRect();
-    const mw = Math.min(300, window.innerWidth - 24);
-    const cx = r.left + r.width / 2;
-    setTp({ x: Math.max(mw / 2 + 8, Math.min(cx, window.innerWidth - mw / 2 - 8)), y: r.bottom + 8, mw });
-  };
-  const hide = () => setTp(null);
-  return (
-    <span className="tip" tabIndex="0" aria-label={text}
-      onMouseEnter={show} onMouseLeave={hide} onFocus={show} onBlur={hide}>
-      ⓘ
-      {tp && <span style={{position:'fixed',left:tp.x,top:tp.y,transform:'translateX(-50%)',maxWidth:tp.mw+'px',background:'#17313a',color:'#fff',borderRadius:'12px',padding:'10px 12px',fontSize:'.78rem',fontWeight:700,lineHeight:'1.35',boxShadow:'0 14px 34px rgba(0,0,0,.28)',whiteSpace:'normal',pointerEvents:'none',zIndex:2147483647,textAlign:'left'}}>{text}</span>}
-    </span>
-  );
-};
 
 // Module-level custom label overrides — populated from adminInfo.config on load
 
@@ -1319,10 +1286,10 @@ export default function App() {
       {modal?.type==="addListing" && <ListingModal title={appText(lang,"listings.add")} lang={lang} config={adminInfo.config} user={user} onSave={addListing} onClose={()=>setModal(null)} />}
       {modal?.type==="editListing" && <ListingModal title={appText(lang,"modal.listing.editTitle")} lang={lang} config={adminInfo.config} user={user} initial={modal.data} onSave={d=>editListing(modal.data.id, modal.data.ownerUid, d)} onClose={()=>setModal(null)} />}
       {modal?.type==="incident" && <IncidentModal lang={lang} config={adminInfo.config} listings={listings} user={user} presetApt={modal.data?.aptId} onSave={addIncident} onClose={()=>{setModal(null);loadAll(false);}} />}
-      {modal?.type==="verifyIncident" && <VerifyIncidentModal lang={lang} config={adminInfo.config} incident={modal.data} onSave={payload=>verifyIncident(modal.data.id,payload)} onClose={()=>{setModal(null);loadAll(false);}} />}
+      {modal?.type==="verifyIncident" && <VerifyIncidentModal config={adminInfo.config} incident={modal.data} onSave={payload=>verifyIncident(modal.data.id,payload)} onClose={()=>{setModal(null);loadAll(false);}} />}
       {modal?.type==="addResolution" && <AddResolutionModal incident={modal.data} onSave={text=>addResolution(modal.data.id,text)} onClose={()=>{setModal(null);loadAll(false);}} />}
       {modal?.type==="assignGeneral" && <AssignToUnitModal incident={modal.data} listings={listings} onSave={aptId=>assignIncident(modal.data.id,aptId)} onClose={()=>{setModal(null);loadAll(false);}} />}
-      {modal?.type==="closeGeneral" && <CloseGeneralModal lang={lang} incident={modal.data} onSave={data=>closeGeneralIncident(modal.data.id,data)} onClose={()=>{setModal(null);loadAll(false);}} />}
+      {modal?.type==="closeGeneral" && <CloseGeneralModal incident={modal.data} onSave={data=>closeGeneralIncident(modal.data.id,data)} onClose={()=>{setModal(null);loadAll(false);}} />}
       {modal?.type==="sendUserEmail" && <SendUserEmailModal lang={lang} contact={modal.data} fromUser={user} onSend={sendUserEmail} onClose={()=>setModal(null)} />}
 
       {syncing && <div className="sync-overlay"><div className="spinner-sm"/><span>{lang === "en" ? "Saving to server..." : "Guardando en servidor..."}</span></div>}
@@ -5348,67 +5315,6 @@ function IncidentModal({ listings, user, presetApt, onSave, onClose, lang="es-CO
 }
 
 
-function VerifyIncidentModal({ incident, onSave, onClose, lang="es-CO", config={} }) {
-  const tips = localizedTooltips(config, lang);
-  const isEn = lang==='en';
-  const blankGuest = () => ({ firstName:'', middleName:'', lastName:'', city:'', state:'', country:'Colombia' });
-  const initialGuests = normalizeOwnerGuests(incident);
-  const [guests,setGuests]=useState(initialGuests.length ? initialGuests : [blankGuest()]);
-  const [ownerComments,setOwnerComments]=useState(incident?.ownerComments || '');
-  const [ownerResolution,setOwnerResolution]=useState(incident?.ownerResolution || '');
-  const [errors,setErrors]=useState({});
-  const setGuest = (idx, field, value) => {
-    setGuests(gs => gs.map((g,i)=>i===idx?{...g,[field]:value}:g));
-    setErrors(e => ({...e, [`${field}_${idx}`]:undefined}));
-  };
-  const addGuest = () => setGuests(gs => [...gs, blankGuest()]);
-  const removeGuest = (idx) => setGuests(gs => gs.length <= 1 ? gs : gs.filter((_,i)=>i!==idx));
-  const validate=()=>{
-    const e={};
-    guests.forEach((g,i)=>{
-      if(!String(g.firstName||'').trim()) e[`firstName_${i}`]=appText(lang,'validation.guestFirstName');
-      if(!String(g.lastName||'').trim()) e[`lastName_${i}`]=appText(lang,'validation.guestLastName');
-      if(!String(g.city||'').trim()) e[`city_${i}`]=appText(lang,'validation.city');
-      if(!String(g.country||'').trim()) e[`country_${i}`]=appText(lang,'validation.country');
-    });
-    if(!String(ownerComments||'').trim()) e.ownerComments=appText(lang,'validation.ownerComments');
-    setErrors(e);
-    return Object.keys(e).length===0;
-  };
-  return <Overlay onClose={onClose} wide>
-    <div className="modal-title">{appText(lang,"modal.verify.title")}</div>
-    <div className="modal-sub">{appText(lang,"modal.verify.sub",{apt:incident?.aptLabel||""})}</div>
-    <div className="form-alert">{appText(lang,"modal.verify.help")}</div>
-    <div className="guest-editor-list">
-      {guests.map((g,idx)=><div key={idx} className="guest-editor-card">
-        <div className="guest-editor-title"><strong>{appText(lang,'form.guestNumber',{count:idx+1})}</strong>{guests.length>1&&<button type="button" className="btn-mini-danger" onClick={()=>removeGuest(idx)}>🗑️ {appText(lang,'form.removeGuest')}</button>}</div>
-        <div className="fg2 guest-grid">
-          <div className="fg"><label>{appText(lang,'form.guestFirstName')} *</label><input className={errors[`firstName_${idx}`]?'field-error':''} value={g.firstName} onChange={e=>setGuest(idx,'firstName',e.target.value)} autoComplete="given-name"/>{errors[`firstName_${idx}`]&&<span className="err-msg">{errors[`firstName_${idx}`]}</span>}</div>
-          <div className="fg"><label>{appText(lang,'form.guestLastName')} *</label><input className={errors[`lastName_${idx}`]?'field-error':''} value={g.lastName} onChange={e=>setGuest(idx,'lastName',e.target.value)} autoComplete="family-name"/>{errors[`lastName_${idx}`]&&<span className="err-msg">{errors[`lastName_${idx}`]}</span>}</div>
-          <div className="fg"><label>{appText(lang,'form.guestMiddleName')} <span style={{fontSize:'.65rem',color:'#8a9fa5',fontWeight:400}}>{isEn?'(optional)':'(opcional)'}</span></label><input value={g.middleName} onChange={e=>setGuest(idx,'middleName',e.target.value)} /></div>
-          <div className="fg"><label>{appText(lang,"form.city")} *</label><input className={errors[`city_${idx}`]?'field-error':''} value={g.city} onChange={e=>setGuest(idx,'city',e.target.value)} placeholder="Bogotá" autoComplete="address-level2"/>{errors[`city_${idx}`]&&<span className="err-msg">{errors[`city_${idx}`]}</span>}</div>
-          <div className="fg"><label>{isEn?'State / Province':'Departamento / Estado'} <span style={{fontSize:'.65rem',color:'#8a9fa5',fontWeight:400}}>{isEn?'(optional)':'(opcional)'}</span></label><input value={g.state||''} onChange={e=>setGuest(idx,'state',e.target.value)} placeholder={isEn?'e.g. Cundinamarca':'ej. Cundinamarca'} autoComplete="address-level1"/></div>
-          <div className="fg full"><label>{appText(lang,"form.country")} *</label><select className={errors[`country_${idx}`]?'field-error':''} value={g.country} onChange={e=>setGuest(idx,'country',e.target.value)}>{COUNTRIES.map(c=><option key={c}>{c}</option>)}</select>{errors[`country_${idx}`]&&<span className="err-msg">{errors[`country_${idx}`]}</span>}</div>
-        </div>
-      </div>)}
-      <button type="button" className="btn-ghost" onClick={addGuest}>{appText(lang,'form.addGuest')}</button>
-    </div>
-    {/* Immediate action — REQUIRED */}
-    <div className="fg full">
-      <label>{appText(lang,"form.immediateAction")} <Tip text={tips.verifyIncident}/></label>
-      <textarea className={errors.ownerComments?'field-error':''} value={ownerComments} onChange={e=>{setOwnerComments(e.target.value);setErrors(er=>({...er,ownerComments:undefined}));}} rows={3} placeholder={appText(lang,"form.immediateActionPlaceholder")}/>
-      {errors.ownerComments&&<span className="err-msg">{errors.ownerComments}</span>}
-    </div>
-    {/* Your answer — OPTIONAL now, required later before admin can close */}
-    <div className="fg full">
-      <label>{appText(lang,"form.ownerResolution")}</label>
-      <div className="verify-resolution-hint">{isEn?'Optional now — admin cannot close the incident until your resolution is provided.':'Opcional ahora — el admin no puede cerrar el incidente hasta que agregues tu respuesta.'}</div>
-      <textarea value={ownerResolution} onChange={e=>setOwnerResolution(e.target.value)} rows={3} placeholder={appText(lang,"form.ownerResolutionPlaceholder")}/>
-    </div>
-    <div className="mact"><button className="btn-ghost" onClick={onClose}>{appText(lang,"form.cancel")}</button><button className="btn-p" title={tips.verifyIncident} onClick={()=>{ if(validate()) onSave({guests, ownerComments, ownerResolution});}}>{appText(lang,"form.saveVerification")}</button></div>
-  </Overlay>;
-}
-
 
 
 function AnalyticsDashboard({ user, contactProps={}, showToast=()=>{}, isGlobalAdmin=false, lang="es-CO" }) {
@@ -7791,46 +7697,6 @@ function AdminSettings({ config={}, user, listings=[], contactProps={}, onSave, 
 // ─── ASSIGN GENERAL INCIDENT TO UNIT ─────────────────────────────────────────
 
 // ─── CLOSE GENERAL INCIDENT (admin direct close) ──────────────────────────────
-function CloseGeneralModal({ incident, onSave, onClose, lang='es-CO' }) {
-  const isEn = lang==='en';
-  const [action,setAction] = useState('');
-  const [resolution,setResolution] = useState('');
-  const [comments,setComments] = useState('');
-  const canSave = String(action||'').trim().length>3 && String(resolution||'').trim().length>3;
-  return (
-    <Overlay onClose={onClose} wide>
-      <div className="modal-title">✓ {isEn?'Close general incident':'Cerrar incidente general'}</div>
-      <div className="modal-sub">{isEn?'Provide the action taken and resolution. This closes the incident without assigning it to a unit.':'Indica la acción tomada y la resolución. Esto cierra el incidente sin asignarlo a una unidad.'}</div>
-      <div className="fg2">
-        <div className="fg full">
-          <div className="gen-inc-preview">
-            <span style={{fontSize:'.72rem',fontWeight:800,color:'#496674',textTransform:'uppercase',letterSpacing:'.06em'}}>{isEn?'Incident':'Incidente'}</span>
-            <div style={{fontSize:'.84rem',color:'#17313a',marginTop:4,lineHeight:1.4}}>{String(incident.desc||'').slice(0,160)}</div>
-            <div style={{fontSize:'.72rem',color:'#8a9fa5',marginTop:4}}>{incident.type} · {incident.date}</div>
-          </div>
-        </div>
-        <div className="fg full">
-          <label>✅ {isEn?'Action taken *':'Acción tomada *'}</label>
-          <textarea rows={3} value={action} onChange={e=>setAction(e.target.value)} placeholder={isEn?'Describe the action taken to address this incident...':'Describe la acción tomada para atender este incidente...'}/>
-        </div>
-        <div className="fg full">
-          <label>🔍 {isEn?'Resolution *':'Resolución *'}</label>
-          <textarea rows={3} value={resolution} onChange={e=>setResolution(e.target.value)} placeholder={isEn?'How was this resolved? What is the outcome?':'¿Cómo se resolvió? ¿Cuál es el resultado?'}/>
-        </div>
-        <div className="fg full">
-          <label>💬 {isEn?'Closing notes (optional)':'Notas de cierre (opcional)'}</label>
-          <textarea rows={2} value={comments} onChange={e=>setComments(e.target.value)} placeholder={isEn?'Any additional closing notes...':'Notas adicionales de cierre...'}/>
-        </div>
-      </div>
-      <div className="mact">
-        <button className="btn-ghost" onClick={onClose}>{isEn?'Cancel':'Cancelar'}</button>
-        <button className="btn-p" disabled={!canSave} onClick={()=>canSave&&onSave({action:action.trim(),resolution:resolution.trim(),resolutionComments:comments.trim()})}>
-          ✓ {isEn?'Close incident':'Cerrar incidente'}
-        </button>
-      </div>
-    </Overlay>
-  );
-}
 
 // ─── GENERAL INCIDENTS VIEW ───────────────────────────────────────────────────
 

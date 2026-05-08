@@ -159,3 +159,8 @@ export const fmtDateTime = (iso, lang='es-CO') => {
 
 // Today's date as "YYYY-MM-DD" (UTC).
 export const today = () => new Date().toISOString().split("T")[0];
+
+// ─── Reference data (extracted in stage F10) ─────────────────────────────────
+
+// Country options used by guest/owner forms.
+export const COUNTRIES = ["Colombia","USA","Venezuela","Ecuador","Perú","México","Brasil","España","Argentina","Chile","Panamá","Costa Rica","Canadá","UK","Francia","Alemania","Italia","Otro"];
