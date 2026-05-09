@@ -2,7 +2,7 @@
 # KAI Operator Portal
 
 > Reference document — May 2026  
-> Companion to: `OPERATOR_PORTAL_PROPOSAL.md`, `GTM_AND_PRICING.md`
+> Companion to: `PROPOSAL.md`, `GTM_AND_PRICING.md`
 
 ---
 
