@@ -203,9 +203,10 @@ these. Each module renders different views per persona using the same record.
 
 ### 6.1 Property Development Lifecycle
 
+**Module folder:** [`../modules/property-development-lifecycle/`](../modules/property-development-lifecycle/README.md)
+· **Detailed placeholder proposal:** [`PROPOSAL.md`](../modules/property-development-lifecycle/PROPOSAL.md)
+
 For new construction phase, handover, post-sale warranty, and unit resale.
-**Detailed placeholder proposal:**
-[`../modules/property-development-lifecycle/PROPOSAL.md`](../modules/property-development-lifecycle/PROPOSAL.md).
 
 | Module | Problem it solves |
 |---|---|
@@ -218,6 +219,8 @@ For new construction phase, handover, post-sale warranty, and unit resale.
 | Resale support | Owner lists for sale, brokers granted scoped access, handover to new owner |
 
 ### 6.2 Building Administration & Governance
+
+**Module folder:** [`../modules/building-admin/`](../modules/building-admin/README.md)
 
 The building admin's day-to-day. The building admin owns the operations of
 the facility/complex itself — distinct from the Airbnb operator (§6.7), who
@@ -235,6 +238,8 @@ owns STR operations *inside* a unit.
 
 ### 6.3 Facilities & Common-Area Maintenance
 
+**Module folder:** [`../modules/facilities/`](../modules/facilities/README.md)
+
 Distinct from unit-level maintenance (which lives in Operator-Owner).
 
 | Module | Problem it solves |
@@ -248,6 +253,8 @@ Distinct from unit-level maintenance (which lives in Operator-Owner).
 | Smart Building / IoT | Common-area sensors (leak, smoke, occupancy, CCTV events) feeding into incidents and work orders |
 
 ### 6.4 Front Desk, Access & Visitor Management
+
+**Module folder:** [`../modules/front-desk/`](../modules/front-desk/README.md)
 
 The guard / concierge / front-desk surface. Sits under the building admin's
 ownership (§6.2). Not to be confused with the Airbnb operator's unit-level
@@ -265,6 +272,8 @@ operations (§6.7) — different actor, different scope.
 
 ### 6.5 Resident Experience
 
+**Module folder:** [`../modules/resident-experience/`](../modules/resident-experience/README.md)
+
 Owner / renter as a *resident* — separate from owner-as-co-host.
 
 | Module | Problem it solves |
@@ -277,6 +286,8 @@ Owner / renter as a *resident* — separate from owner-as-co-host.
 
 ### 6.6 Guest & Visitor Management
 
+**Module folder:** [`../modules/guest-mgmt/`](../modules/guest-mgmt/README.md)
+
 Different from §6.4 because it includes Airbnb guests and longer stays.
 
 | Module | Problem it solves |
@@ -288,6 +299,8 @@ Different from §6.4 because it includes Airbnb guests and longer stays.
 | Guest Departure & Inspection | Linked to operator-portal photo log when STR; otherwise owner-handled |
 
 ### 6.7 Airbnb Operator–Owner Governance (STR Listing Portal)
+
+**Module folder:** [`../modules/operator-portal/`](../modules/operator-portal/README.md)
 
 This is the pillar described in `../modules/operator-portal/USE_CASE_DISCOVERY.md`. **The seven design
 principles in §4.1 apply specifically here.** Detailed module list is in
@@ -322,6 +335,9 @@ guest profiles, AirCover filing UI. See §2 scope edges.
 
 ### 6.8 Compliance & Tourism
 
+**Module folders:** [`../modules/compliance/`](../modules/compliance/README.md) (regulatory side)
+· [`../modules/tourism/`](../modules/tourism/README.md) (guest-facing content side)
+
 Where the building meets the regulator.
 
 | Module | Problem it solves |
@@ -336,6 +352,8 @@ Where the building meets the regulator.
 
 ### 6.9 Incident & Emergency Management
 
+**Module folder:** [`../modules/incidents/`](../modules/incidents/README.md)
+
 The pillar that exists today.
 
 | Module | Problem it solves |
@@ -349,6 +367,8 @@ The pillar that exists today.
 
 ### 6.10 Communications
 
+**Module folder:** [`../modules/communications/`](../modules/communications/README.md)
+
 Cross-pillar layer; many modules in §6.2/§6.4/§6.7 push events through here.
 
 | Module | Problem it solves |
@@ -361,6 +381,8 @@ Cross-pillar layer; many modules in §6.2/§6.4/§6.7 push events through here.
 | Targeted Comms with Consent | Sales-lead nurture, owner mailers, with opt-out |
 
 ### 6.11 Analytics, Reporting & AI
+
+**Module folder:** [`../modules/analytics/`](../modules/analytics/README.md)
 
 | Module | Problem it solves |
 |---|---|
