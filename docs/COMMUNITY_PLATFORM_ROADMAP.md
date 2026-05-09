@@ -2,7 +2,8 @@
 
 > Strategy document — May 2026
 > Companions: `OPERATOR_PORTAL_PROPOSAL.md`, `OPERATOR_PORTAL_DESIGN.md`,
-> `PROTOTYPE_READINESS.md`, `USE_CASE_DISCOVERY.md`, `GTM_AND_PRICING.md`
+> `PROTOTYPE_READINESS.md`, `USE_CASE_DISCOVERY.md`, `GTM_AND_PRICING.md`,
+> `PROPERTY_DEVELOPMENT_LIFECYCLE_PROPOSAL.md`, `PITCH.md`
 
 ---
 
@@ -109,7 +110,7 @@ The rule: if a specialised system already owns it, integrate; don't replace.
 | Per-stay inspection photo log + two-path damage workflow | **Designed, not built** |
 | Building Operations modules (visitors, packages, amenities, fees) | **Not yet designed** |
 | Facilities & Common-Area Maintenance | **Not yet designed** |
-| Property Development / Sales / Handover / Warranty | **Not yet designed** |
+| Property Development Lifecycle (pre-sale → handover → warranty → resale) | **Placeholder proposal** — see `PROPERTY_DEVELOPMENT_LIFECYCLE_PROPOSAL.md` |
 | Tourism authority reporting (SIRE / RNT / tax) | **Not yet designed** |
 | Communications hub (announcements, polls, minutes) | **Not yet designed** |
 
@@ -197,9 +198,11 @@ Plan it once (see §8) instead of re-doing the permissions layer per pillar.
 Eleven pillars. The user-supplied module table from the brainstorm slots into
 these. Each module renders different views per persona using the same record.
 
-### 6.1 Property Development & Sales
+### 6.1 Property Development Lifecycle
 
-For new construction phase and unit resale.
+For new construction phase, handover, post-sale warranty, and unit resale.
+**Detailed placeholder proposal:**
+[`PROPERTY_DEVELOPMENT_LIFECYCLE_PROPOSAL.md`](./PROPERTY_DEVELOPMENT_LIFECYCLE_PROPOSAL.md).
 
 | Module | Problem it solves |
 |---|---|

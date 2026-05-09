@@ -200,3 +200,13 @@ Do not commit:
 - backup files such as `*.bak`, `*.old`, or `*.v64-base`
 
 Historical version notes live in `docs/CHANGELOG_ARCHIVE.md`.
+
+## Vision and roadmap
+
+For the broader product story:
+
+- `docs/PITCH.md` — pitch overview for investors, clients, and friends/family (ES + EN).
+- `docs/COMMUNITY_PLATFORM_ROADMAP.md` — conceptual roadmap across all pillars (operator, building admin, facilities, sales/development, compliance).
+- `docs/OPERATOR_PORTAL_PROPOSAL.md` — Airbnb Operator Portal proposal (ES + EN).
+- `docs/PROPERTY_DEVELOPMENT_LIFECYCLE_PROPOSAL.md` — Property Development Lifecycle module placeholder (ES + EN).
+- `docs/USE_CASE_DISCOVERY.md` — discovery work grounding the operator portal.
