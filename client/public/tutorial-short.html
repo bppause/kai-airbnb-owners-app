@@ -32,11 +32,13 @@ body.fullscreen .actions{display:none}
 .slide.active{opacity:1;transform:none}
 .slide .chip{display:inline-block;font-size:.7rem;font-weight:800;letter-spacing:.08em;text-transform:uppercase;padding:5px 12px;border-radius:99px;background:rgba(11,127,140,.25);color:#9ce5d6;margin-bottom:8px;border:1px solid rgba(156,229,214,.25)}
 .slide h2{font-size:clamp(1.1rem,2.2vw,1.5rem);font-weight:900;color:#fff;margin-bottom:4px;letter-spacing:-.01em}
-.slide p.lede{font-size:clamp(.8rem,1.4vw,.95rem);color:#cfe6dc;max-width:780px;margin:0 auto 8px}
+.slide p.lede{font-size:clamp(.8rem,1.4vw,.95rem);color:#cfe6dc;max-width:780px;margin:0 auto 8px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;width:100%;padding:0 12px}
 
-.visual{flex:1;width:100%;max-width:960px;margin:6px auto 0;position:relative;display:flex;align-items:center;justify-content:center;min-height:0}
-.visual .frame{position:relative;display:inline-block;max-width:100%;max-height:100%;border-radius:10px;overflow:hidden;box-shadow:0 16px 40px rgba(0,0,0,.5),0 0 0 1px rgba(255,255,255,.08)}
-.visual img{display:block;max-width:100%;max-height:100%;width:auto;height:auto;object-fit:contain}
+/* Frame is sized via JS to match the actual rendered image bounds
+   (object-fit:contain) so hotspot %s align exactly. */
+.visual{flex:1;width:100%;max-width:880px;margin:6px auto 0;position:relative;display:flex;align-items:center;justify-content:center;min-height:0}
+.visual .frame{position:relative;display:block;line-height:0;box-shadow:0 16px 40px rgba(0,0,0,.5),0 0 0 1px rgba(255,255,255,.08);border-radius:10px}
+.visual img{display:block;width:100%;height:100%;object-fit:contain;border-radius:10px}
 
 .hotspot{position:absolute;width:28px;height:28px;border-radius:50%;background:#d9b45a;border:2px solid #fff;cursor:pointer;transform:translate(-50%,-50%);z-index:3;color:#1a3c2a;font-weight:900;font-size:.84rem;display:flex;align-items:center;justify-content:center;box-shadow:0 0 0 0 rgba(217,180,90,.6),0 3px 8px rgba(0,0,0,.45);animation:hotpulse 1.8s infinite;padding:0;line-height:1}
 .hotspot:hover{background:#e8c878;transform:translate(-50%,-50%) scale(1.18);box-shadow:0 0 0 0 rgba(217,180,90,0),0 6px 14px rgba(0,0,0,.55)}
@@ -158,8 +160,8 @@ const SLIDES = [
   {
     chip:{es:"1 · Login", en:"1 · Login"},
     title:{es:"Inicia sesión con Google",en:"Sign in with Google"},
-    text:{es:"Pantalla de bienvenida. Botón verde \"Continue with Google\" abre el selector de cuenta de Google. KAI usa solo Google Sign-In — sin contraseñas.",
-          en:"Welcome screen. The green \"Continue with Google\" button opens Google's account chooser. KAI uses Google Sign-In only — no passwords."},
+    text:{es:"Pantalla de bienvenida. Botón verde \"Continue with Google\" para entrar.",
+          en:"Welcome screen. Green \"Continue with Google\" button to sign in."},
     cap:{es:"Iniciar sesión NO envía email.",en:"Signing in sends NO email."},
     img:'/screens/01-login.png',
     hotspots:[
@@ -174,9 +176,9 @@ const SLIDES = [
   {
     chip:{es:"2 · Mis Unidades", en:"2 · My Units"},
     title:{es:"Tu inventario",en:"Your inventory"},
-    text:{es:"Una vez aprobado, en \"Mis Unidades\" ves cada apartamento con su operador, su estado y atajos a Reportar / Editar / View incidents.",
-          en:"Once approved, \"My Units\" shows each apartment with its operator, status and shortcuts to Report / Edit / View incidents."},
-    cap:{es:"📧 Cualquier edición dispara \"Listing actualizado\" a ti + operador.",en:"📧 Any edit fires \"Listing updated\" to you + operator."},
+    text:{es:"Cada apartamento con operador, estado y atajos rápidos.",
+          en:"Each apartment with operator, status, and quick shortcuts."},
+    cap:{es:"📧 Cualquier edición dispara \"Listing actualizado\".",en:"📧 Any edit triggers \"Listing updated\"."},
     img:'/screens/06-my-units-expanded.png',
     hotspots:[
       { x:78, y:18,
@@ -201,9 +203,9 @@ const SLIDES = [
   {
     chip:{es:"3 · Reportar", en:"3 · Report"},
     title:{es:"Crear un reporte de incidente",en:"File an incident report"},
-    text:{es:"Selecciona unidad afectada, tipo, categoría y descripción. Las plantillas amarillas pre-llenan ejemplos según el tipo.",
-          en:"Pick affected unit, type, category, and description. Yellow templates pre-fill examples per type."},
-    cap:{es:"📧 Al enviar: el propietario afectado recibe email de Paso 1. Si no responde en 24 h, llega recordatorio rojo. Si tampoco resuelve a tiempo, segundo recordatorio.",en:"📧 On submit: the affected owner gets a Step 1 email. If they don't respond in 24 h, a red reminder follows. If they also miss the resolve deadline, a second reminder."},
+    text:{es:"Elige unidad, tipo y descripción. Las plantillas pre-llenan.",
+          en:"Pick unit, type, and description. Templates pre-fill."},
+    cap:{es:"📧 El SLA del propietario empieza al enviar.",en:"📧 Owner SLA starts on submit."},
     img:'/screens/10-new-incident.png',
     hotspots:[
       { x:50, y:18,
@@ -228,9 +230,9 @@ const SLIDES = [
   {
     chip:{es:"4 · Verificar", en:"4 · Verify"},
     title:{es:"Paso 1 — Verificar (propietario afectado)",en:"Step 1 — Verify (affected owner)"},
-    text:{es:"Captura datos del huésped, ciudad y país, y describe la acción inmediata tomada. \"Save verification\" mueve el incidente al Paso 2.",
-          en:"Capture guest data, city and country, and describe the immediate action taken. \"Save verification\" moves the incident to Step 2."},
-    cap:{es:"📧 Recibirás email con botón \"Verificar ahora\" cuando se cree el incidente.",en:"📧 You'll get an email with \"Verify now\" button when the incident is created."},
+    text:{es:"Captura datos del huésped y la acción tomada.",
+          en:"Capture guest data and the action taken."},
+    cap:{es:"📧 Recibirás email para verificar.",en:"📧 You'll get an email to verify."},
     img:'/screens/14-verify-form.png',
     hotspots:[
       { x:50, y:8,
@@ -255,9 +257,9 @@ const SLIDES = [
   {
     chip:{es:"5 · Resolver", en:"5 · Resolve"},
     title:{es:"Paso 2 — Agregar respuesta",en:"Step 2 — Add resolution"},
-    text:{es:"Modal pequeño. Describe cómo resolviste — coordinación con operador, contacto al huésped, queja en Airbnb. Guardar habilita el cierre del admin.",
-          en:"Small modal. Describe how you resolved — operator coordination, guest contact, Airbnb complaint. Saving unlocks admin closure."},
-    cap:{es:"📧 Si no respondes a tiempo recibes recordatorio rojo a las 24 h.",en:"📧 If you don't respond in time you get a red reminder at 24 h."},
+    text:{es:"Modal pequeño. Describe cómo resolviste y guarda.",
+          en:"Small modal. Describe how you resolved and save."},
+    cap:{es:"📧 Recordatorio si no respondes en 24 h.",en:"📧 Reminder if you don't respond in 24 h."},
     img:'/screens/16-resolution-modal.png',
     hotspots:[
       { x:50, y:55,
@@ -277,9 +279,9 @@ const SLIDES = [
   {
     chip:{es:"6 · Ver incidentes", en:"6 · View incidents"},
     title:{es:"Bandeja de incidentes — 3 estados",en:"Incidents inbox — 3 states"},
-    text:{es:"Pestañas: Verify (Paso 1 pendiente) · In Progress (Paso 2 pendiente) · Closed (cerrado por admin). Filtros por unidad, dueño, fecha.",
-          en:"Tabs: Verify (Step 1 pending) · In Progress (Step 2 pending) · Closed (admin-closed). Filters by unit, owner, date."},
-    cap:{es:"Cada estado corresponde a una etapa del SLA — y a un email diferente.",en:"Each state matches a stage of the SLA — and a different email."},
+    text:{es:"Pestañas Verify · In Progress · Closed con filtros.",
+          en:"Verify · In Progress · Closed tabs with filters."},
+    cap:{es:"Cada estado = una etapa del SLA.",en:"Each state = a stage of the SLA."},
     img:'/screens/17-incidents-closed.png',
     hotspots:[
       { x:14, y:38,
@@ -304,9 +306,9 @@ const SLIDES = [
   {
     chip:{es:"7 · Cerrar sesión", en:"7 · Log out"},
     title:{es:"Menú de perfil → Log out",en:"Profile menu → Log out"},
-    text:{es:"Click en tu avatar (arriba derecha) abre el menú con: Mi perfil, Tour interactivo, Mis Unidades, Misión y Log out.",
-          en:"Click your avatar (top right) opens the menu with: My profile, Interactive tour, My Units, Mission and Log out."},
-    cap:{es:"Cerrar sesión NO envía email. En equipos compartidos cierra también en Google.",en:"Signing out sends NO email. On shared devices sign out of Google too."},
+    text:{es:"Click en el avatar para abrir el menú con Log out.",
+          en:"Click the avatar to open the menu with Log out."},
+    cap:{es:"En equipos compartidos cierra también en Google.",en:"On shared devices sign out of Google too."},
     img:'/screens/22-profile-menu.png',
     hotspots:[
       { x:50, y:88,
@@ -341,10 +343,36 @@ SLIDES.forEach((s,i)=>{
     <span class="chip"><span class="es-text">${s.chip.es}</span><span class="en-text">${s.chip.en}</span></span>
     <h2><span class="es-text">${s.title.es}</span><span class="en-text">${s.title.en}</span></h2>
     <p class="lede"><span class="es-text">${s.text.es}</span><span class="en-text">${s.text.en}</span></p>
-    <div class="visual"><div class="frame"><img src="${s.img}" alt="" loading="lazy"/>${hotsHtml(i, s.hotspots)}</div></div>`;
+    <div class="visual"><div class="frame"><img src="${s.img}" alt=""/>${hotsHtml(i, s.hotspots)}</div></div>`;
   slidesEl.appendChild(d);
   const dot=document.createElement('div'); dot.className='dot'; dot.onclick=()=>goto(i); dotsEl.appendChild(dot);
 });
+
+/* Size each .frame to match the actual rendered image bounds inside its
+   .visual container so hotspot %s align exactly. */
+function fitFrame(slideEl){
+  const visual=slideEl.querySelector('.visual');
+  const frame =slideEl.querySelector('.frame');
+  const img   =slideEl.querySelector('.frame img');
+  if(!visual || !frame || !img) return;
+  const apply=()=>{
+    const cw=visual.clientWidth, ch=visual.clientHeight;
+    const nw=img.naturalWidth, nh=img.naturalHeight;
+    if(!cw || !ch || !nw || !nh) return;
+    const cAR=cw/ch, iAR=nw/nh;
+    let dw,dh;
+    if(iAR>cAR){ dw=cw; dh=cw/iAR; } else { dh=ch; dw=ch*iAR; }
+    frame.style.width =Math.round(dw)+'px';
+    frame.style.height=Math.round(dh)+'px';
+  };
+  if(img.complete && img.naturalWidth) apply();
+  else img.addEventListener('load', apply, { once:true });
+  return apply;
+}
+const _fitters = Array.from(document.querySelectorAll('.slide')).map(fitFrame);
+function fitAll(){ _fitters.forEach(fn => fn && fn()); }
+window.addEventListener('resize', fitAll);
+window.addEventListener('load', fitAll);
 
 let idx=0, elapsed=0, playing=true;
 
@@ -531,11 +559,13 @@ function toggleFullscreen(){
   const on = document.body.classList.toggle('fullscreen');
   if(on && document.documentElement.requestFullscreen){ document.documentElement.requestFullscreen().catch(()=>{}); }
   else if(!on && document.fullscreenElement){ document.exitFullscreen().catch(()=>{}); }
+  setTimeout(fitAll, 50);
 }
 document.addEventListener('fullscreenchange',()=>{
   if(!document.fullscreenElement && document.body.classList.contains('fullscreen')){
     document.body.classList.remove('fullscreen');
   }
+  setTimeout(fitAll, 50);
 });
 
 const p=new URLSearchParams(location.search);

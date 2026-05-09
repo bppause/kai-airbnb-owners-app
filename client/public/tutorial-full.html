@@ -45,12 +45,13 @@ body.fullscreen .actions{display:none}
 .slide.active{opacity:1;transform:none}
 .slide .chip{display:inline-block;font-size:.7rem;font-weight:800;letter-spacing:.08em;text-transform:uppercase;padding:5px 12px;border-radius:99px;background:rgba(11,127,140,.25);color:#9ce5d6;margin-bottom:8px;border:1px solid rgba(156,229,214,.25)}
 .slide h2{font-size:clamp(1rem,2.1vw,1.4rem);font-weight:900;color:#fff;margin-bottom:4px;letter-spacing:-.01em}
-.slide p.lede{font-size:clamp(.78rem,1.3vw,.92rem);color:#cfe6dc;max-width:780px;margin:0 auto 8px}
+.slide p.lede{font-size:clamp(.78rem,1.3vw,.92rem);color:#cfe6dc;max-width:780px;margin:0 auto 8px;display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;width:100%;padding:0 12px}
 
-/* Visual = screenshot frame */
-.visual{flex:1;width:100%;max-width:1000px;margin:6px auto 0;position:relative;display:flex;align-items:center;justify-content:center;min-height:0}
-.visual .frame{position:relative;display:inline-block;max-width:100%;max-height:100%;border-radius:10px;overflow:hidden;box-shadow:0 16px 40px rgba(0,0,0,.5),0 0 0 1px rgba(255,255,255,.08)}
-.visual img{display:block;max-width:100%;max-height:100%;width:auto;height:auto;object-fit:contain}
+/* Visual = screenshot frame. Frame is sized via JS to match the actual
+   rendered image bounds (object-fit:contain) so hotspot %s align exactly. */
+.visual{flex:1;width:100%;max-width:920px;margin:6px auto 0;position:relative;display:flex;align-items:center;justify-content:center;min-height:0}
+.visual .frame{position:relative;display:block;line-height:0;box-shadow:0 16px 40px rgba(0,0,0,.5),0 0 0 1px rgba(255,255,255,.08);border-radius:10px}
+.visual img{display:block;width:100%;height:100%;object-fit:contain;border-radius:10px}
 
 /* Hotspots overlaid on screenshots */
 .hotspot{position:absolute;width:28px;height:28px;border-radius:50%;background:#d9b45a;border:2px solid #fff;cursor:pointer;transform:translate(-50%,-50%);z-index:3;color:#1a3c2a;font-weight:900;font-size:.84rem;display:flex;align-items:center;justify-content:center;box-shadow:0 0 0 0 rgba(217,180,90,.6),0 3px 8px rgba(0,0,0,.45);animation:hotpulse 1.8s infinite;padding:0;line-height:1}
@@ -213,9 +214,9 @@ const CHAPTERS = [
     slides:[
       { img:'/screens/01-login.png',
         title:{es:"Pantalla de bienvenida",en:"Welcome screen"},
-        text:{es:"Esta es la primera pantalla. Verás la misión de la comunidad, las reglas, y los videos disponibles. Usa el botón verde de abajo para iniciar sesión con Google.",
-              en:"This is the first screen. You'll see the community mission, rules, and the available videos. Use the green button below to sign in with Google."},
-        cap:{es:"También puedes ver tutoriales antes de entrar.",en:"You can also watch tutorials before signing in."},
+        text:{es:"Misión, reglas y videos. Botón verde para entrar con Google.",
+              en:"Mission, rules and videos. Green button to sign in with Google."},
+        cap:{es:"Tutoriales disponibles antes de entrar.",en:"Tutorials available before signing in."},
         hotspots:[
           { x:50, y:84,
             title:{es:"🎬 Tutoriales y guía",en:"🎬 Tutorials and guide"},
@@ -226,9 +227,9 @@ const CHAPTERS = [
       },
       { img:'/screens/02-google-chooser.png',
         title:{es:"Selector de cuenta de Google",en:"Google account chooser"},
-        text:{es:"Al hacer clic, Google te pide elegir cuenta. Selecciona el Gmail con el que quieres gestionar tus apartamentos.",
-              en:"On click, Google asks you to pick an account. Select the Gmail you want to use to manage your apartments."},
-        cap:{es:"KAI usa SOLO Google Sign-In — no hay contraseñas separadas.",en:"KAI uses Google Sign-In ONLY — no separate passwords."},
+        text:{es:"Google te pide elegir cuenta. Selecciona el Gmail correcto.",
+              en:"Google asks you to pick an account. Choose the right Gmail."},
+        cap:{es:"Solo Google Sign-In — sin contraseñas.",en:"Google Sign-In only — no passwords."},
         hotspots:[
           { x:50, y:55,
             title:{es:"Cuentas disponibles",en:"Available accounts"},
@@ -247,9 +248,9 @@ const CHAPTERS = [
     slides:[
       { img:'/screens/03-registration.png',
         title:{es:"Registro de propietario",en:"Owner registration"},
-        text:{es:"Al ingresar por primera vez, completa este formulario para registrar uno o más apartamentos. Tu solicitud queda pendiente de aprobación.",
-              en:"On first sign-in, fill out this form to register one or more apartments. Your request stays pending approval."},
-        cap:{es:"Pasa el cursor sobre los ⓘ para ver ayuda contextual.",en:"Hover the ⓘ icons for contextual help."},
+        text:{es:"Llena el formulario para registrar tu unidad. Queda pendiente de aprobación.",
+              en:"Fill the form to register your unit. It awaits approval."},
+        cap:{es:"Pasa el cursor sobre ⓘ para ayuda.",en:"Hover ⓘ for help."},
         hotspots:[
           { x:14, y:38,
             title:{es:"📞 WhatsApp con código de país",en:"📞 WhatsApp with country code"},
@@ -273,9 +274,9 @@ const CHAPTERS = [
       },
       { img:'/screens/04-registration-pending.png',
         title:{es:"Pendiente de aprobación",en:"Pending approval"},
-        text:{es:"Después de enviar verás este banner. Un admin de la comunidad revisará tu solicitud — recibirás un email cuando cambie el estado.",
-              en:"After submit you'll see this banner. A community admin will review your request — you'll receive an email when the status changes."},
-        cap:{es:"📧 Tu Gmail recibe el aviso de aprobación o rechazo.",en:"📧 Your Gmail receives the approval/decline email."},
+        text:{es:"Mientras un admin revisa, solo verás este banner.",
+              en:"While an admin reviews, you'll only see this banner."},
+        cap:{es:"📧 Tu Gmail recibe el aviso de aprobación.",en:"📧 Your Gmail receives the approval notice."},
         hotspots:[
           { x:50, y:65,
             title:{es:"⏳ Estado pendiente",en:"⏳ Pending status"},
@@ -299,9 +300,9 @@ const CHAPTERS = [
     slides:[
       { img:'/screens/05-my-units.png',
         title:{es:"Resumen de Mis Unidades",en:"My Units summary"},
-        text:{es:"Una vez aprobado, en \"Mis Unidades\" ves un resumen de tus apartamentos: cuántos tienes, cuántos esperan verificación, cuántos esperan resolución, etc.",
-              en:"Once approved, \"My Units\" shows a summary of your apartments: total count, how many await verification, how many await resolution, etc."},
-        cap:{es:"Las tarjetas son chips de filtro — un clic te lleva a Incidentes ya filtrado.",en:"The cards are filter chips — one click takes you to Incidents pre-filtered."},
+        text:{es:"Resumen de tus apartamentos: total, pendientes y filtros rápidos.",
+              en:"Summary of your apartments: total, pending, and quick filters."},
+        cap:{es:"Las tarjetas son chips de filtro.",en:"The cards act as filter chips."},
         hotspots:[
           { x:90, y:30,
             title:{es:"＋ Agregar unidad",en:"＋ Add unit"},
@@ -319,8 +320,8 @@ const CHAPTERS = [
       },
       { img:'/screens/06-my-units-expanded.png',
         title:{es:"Detalle de unidad expandida",en:"Expanded unit detail"},
-        text:{es:"Al expandir una unidad ves: Apt #, Torre, Habitaciones, Capacidad, fecha de alta, propietarios, operador, e incidentes asociados.",
-              en:"Expanding a unit shows: Apt #, Tower, Bedrooms, Capacity, date added, owners, operator, and associated incidents."},
+        text:{es:"Expande para ver datos, propietarios e incidentes de la unidad.",
+              en:"Expand to see unit data, owners, and incidents."},
         cap:{es:"El botón ✏️ abre el formulario de edición.",en:"The ✏️ button opens the edit form."},
         hotspots:[
           { x:78, y:18,
@@ -356,9 +357,9 @@ const CHAPTERS = [
     slides:[
       { img:'/screens/07-add-unit.png',
         title:{es:"Modal: Agregar unidad",en:"Modal: Add unit"},
-        text:{es:"Modal para registrar una unidad nueva después de la aprobación inicial. Mismos campos que el registro.",
-              en:"Modal to register a new unit after initial approval. Same fields as registration."},
-        cap:{es:"📧 La unidad se enviará a aprobación del admin antes de quedar activa.",en:"📧 The unit goes to admin approval before becoming active."},
+        text:{es:"Modal para registrar otra unidad después de la aprobación inicial.",
+              en:"Modal to register another unit after initial approval."},
+        cap:{es:"📧 La unidad pasa a aprobación del admin.",en:"📧 The unit goes to admin approval."},
         hotspots:[
           { x:25, y:30, tipkey:'aptNumber',
             title:{es:"🏠 Unit number",en:"🏠 Unit number"},
@@ -391,9 +392,9 @@ const CHAPTERS = [
     slides:[
       { img:'/screens/08-edit-unit.png',
         title:{es:"Modal: Editar unidad",en:"Modal: Edit unit"},
-        text:{es:"Edita cualquier campo del listing. El número de unidad y la torre pueden estar bloqueados según los permisos.",
-              en:"Edit any listing field. Unit number and tower may be locked depending on permissions."},
-        cap:{es:"📧 Cualquier cambio dispara un email \"Listing actualizado\" a ti + operador.",en:"📧 Any change triggers a \"Listing updated\" email to you + operator."},
+        text:{es:"Edita campos del listing. Algunos pueden estar bloqueados.",
+              en:"Edit listing fields. Some may be locked."},
+        cap:{es:"📧 Cualquier cambio dispara \"Listing actualizado\".",en:"📧 Any change triggers \"Listing updated\"."},
         hotspots:[
           { x:50, y:38,
             title:{es:"🔗 URL de Airbnb",en:"🔗 Airbnb URL"},
@@ -413,9 +414,9 @@ const CHAPTERS = [
       },
       { img:'/screens/09-edit-unit-coowner.png',
         title:{es:"Co-propietarios (opcional)",en:"Co-owners (optional)"},
-        text:{es:"Hasta 3 co-propietarios adicionales pueden ser asociados a una unidad. Útil cuando el apartamento es de varios.",
-              en:"Up to 3 additional co-owners can be linked to a unit. Useful when the apartment is shared."},
-        cap:{es:"📧 Los co-propietarios NO reciben emails directos — solo el propietario principal y el operador.",en:"📧 Co-owners DO NOT receive direct emails — only the primary owner and operator do."},
+        text:{es:"Vincula hasta 3 co-propietarios a la unidad.",
+              en:"Link up to 3 co-owners to the unit."},
+        cap:{es:"📧 Solo el propietario principal recibe emails.",en:"📧 Only the primary owner receives emails."},
         hotspots:[
           { x:50, y:55,
             title:{es:"+ Add co-owner",en:"+ Add co-owner"},
@@ -439,9 +440,9 @@ const CHAPTERS = [
     slides:[
       { img:'/screens/10-new-incident.png',
         title:{es:"Modal: File an Incident Report",en:"Modal: File an Incident Report"},
-        text:{es:"Selecciona la unidad afectada (no puede ser una tuya), tipo, categoría y descripción. Las fichas amarillas son plantillas — un clic las pre-rellena.",
-              en:"Select the affected unit (cannot be one of yours), type, category, and description. The yellow chips are templates — one click pre-fills them."},
-        cap:{es:"📧 Al enviar: el propietario afectado recibe email de Paso 1. El SLA empieza — si no responde, llega recordatorio a las 24 h.",en:"📧 On submit: the affected owner gets a Step 1 email. SLA starts — if no response, a reminder follows at 24 h."},
+        text:{es:"Elige unidad, tipo y descripción. Las plantillas amarillas pre-llenan.",
+              en:"Pick unit, type, and description. Yellow templates pre-fill."},
+        cap:{es:"📧 Al enviar arranca el SLA del propietario afectado.",en:"📧 On submit, the affected owner's SLA starts."},
         hotspots:[
           { x:50, y:18,
             title:{es:"🏘 Incidente general",en:"🏘 General community incident"},
@@ -476,9 +477,9 @@ const CHAPTERS = [
     slides:[
       { img:'/screens/11-incidents-verify-needed.png',
         title:{es:"Bandeja de Incidentes — \"Verify\"",en:"Incidents inbox — \"Verify\""},
-        text:{es:"El propietario de la unidad afectada ve el incidente en la pestaña \"Verify\" con badge de prioridad. La acción es OBLIGATORIA antes de avanzar.",
-              en:"The owner of the affected unit sees the incident in the \"Verify\" tab with a priority badge. Action is REQUIRED before moving on."},
-        cap:{es:"📧 También recibió email con botón \"Verificar ahora\" + recordatorio SLA si pasa 24 h.",en:"📧 Also received email with \"Verify now\" button + SLA reminder if 24 h elapse."},
+        text:{es:"El propietario afectado ve el incidente en la pestaña \"Verify\".",
+              en:"The affected owner sees the incident in the \"Verify\" tab."},
+        cap:{es:"📧 Recibió email + recordatorio si pasan 24 h.",en:"📧 They got email + 24 h reminder."},
         hotspots:[
           { x:14, y:55,
             title:{es:"1 — Verify · Owner action required",en:"1 — Verify · Owner action required"},
@@ -491,9 +492,9 @@ const CHAPTERS = [
       },
       { img:'/screens/12-incident-verify-cta.png',
         title:{es:"Detalle del incidente",en:"Incident detail"},
-        text:{es:"Al expandir el incidente ves los detalles del reporte (apartment, daño, descripción) y el botón verde grande \"Verify\" para empezar.",
-              en:"Expanding the incident shows the report details (apartment, damage, description) and the big green \"Verify\" button to start."},
-        cap:{es:"El reporter es el propietario que reportó el incidente — el verifier eres tú (propietario afectado).",en:"The reporter is the owner who filed the incident — the verifier is you (affected owner)."},
+        text:{es:"Expande para ver detalles y el botón verde \"Verify\".",
+              en:"Expand to see details and the big green \"Verify\" button."},
+        cap:{es:"Tú eres el verifier (propietario afectado).",en:"You are the verifier (affected owner)."},
         hotspots:[
           { x:88, y:60,
             title:{es:"⊕ Verify · Owner action",en:"⊕ Verify · Owner action"},
@@ -505,9 +506,9 @@ const CHAPTERS = [
       },
       { img:'/screens/13-incident-verify-button.png',
         title:{es:"Botón verde \"Verify — add guest info & action\"",en:"Green button \"Verify — add guest info & action\""},
-        text:{es:"Vista expandida del incidente lista para verificar. Click en el botón verde grande para abrir el formulario.",
-              en:"Expanded incident view ready to verify. Click the big green button to open the form."},
-        cap:{es:"Paso 1 de 2 — la verificación es obligatoria antes de cerrar el caso.",en:"Step 1 of 2 — verification is required before closing the case."},
+        text:{es:"Click en el botón verde para abrir el formulario.",
+              en:"Click the green button to open the form."},
+        cap:{es:"Paso 1 de 2 — verificación obligatoria.",en:"Step 1 of 2 — verification required."},
         hotspots:[
           { x:50, y:55,
             title:{es:"✅ Verify — Step 1 of 2",en:"✅ Verify — Step 1 of 2"},
@@ -520,9 +521,9 @@ const CHAPTERS = [
       },
       { img:'/screens/14-verify-form.png',
         title:{es:"Formulario de verificación",en:"Verification form"},
-        text:{es:"Captura datos del huésped (nombres, ciudad, país) y describe qué hiciste de inmediato. Opcionalmente puedes agregar tu respuesta del Paso 2 aquí mismo.",
-              en:"Capture guest details (names, city, country) and describe what you did immediately. Optionally you can add your Step 2 response here too."},
-        cap:{es:"Si dejas \"Proposed resolution\" vacío, podrás agregarlo después desde la bandeja.",en:"If you leave \"Proposed resolution\" empty, you can add it later from the inbox."},
+        text:{es:"Captura datos del huésped y la acción inmediata tomada.",
+              en:"Capture guest details and the immediate action taken."},
+        cap:{es:"Puedes agregar el Paso 2 ahora o después.",en:"You can add Step 2 now or later."},
         hotspots:[
           { x:50, y:8,
             title:{es:"Banner azul de instrucción",en:"Blue instruction banner"},
@@ -558,9 +559,9 @@ const CHAPTERS = [
     slides:[
       { img:'/screens/15-incidents-add-resolution.png',
         title:{es:"Bandeja: \"Add resolution\"",en:"Inbox: \"Add resolution\""},
-        text:{es:"Tras Paso 1 verificado, el incidente queda en \"In Progress\" esperando tu respuesta del Paso 2.",
-              en:"After Step 1 is verified, the incident sits in \"In Progress\" awaiting your Step 2 response."},
-        cap:{es:"📧 Recibirás recordatorio SLA si no respondes en 24 h.",en:"📧 You'll get an SLA reminder if you don't respond in 24 h."},
+        text:{es:"Tras Paso 1, el incidente espera tu respuesta del Paso 2.",
+              en:"After Step 1, the incident awaits your Step 2 response."},
+        cap:{es:"📧 Recordatorio si no respondes en 24 h.",en:"📧 Reminder if you don't respond in 24 h."},
         hotspots:[
           { x:88, y:60,
             title:{es:"+ Add resolution",en:"+ Add resolution"},
@@ -577,9 +578,9 @@ const CHAPTERS = [
       },
       { img:'/screens/16-resolution-modal.png',
         title:{es:"Modal: Add resolution",en:"Modal: Add resolution"},
-        text:{es:"Modal pequeño con un solo campo: \"Proposed resolution\". Escribe tu respuesta y haz clic en Save resolution.",
-              en:"Small modal with a single field: \"Proposed resolution\". Write your response and click Save resolution."},
-        cap:{es:"📧 El admin recibe email \"Respuesta agregada — listo para cerrar\".",en:"📧 The admin receives \"Resolution added — ready to close\" email."},
+        text:{es:"Modal pequeño con un campo. Escribe la respuesta y guarda.",
+              en:"Small modal with one field. Write the response and save."},
+        cap:{es:"📧 El admin recibe \"Respuesta agregada\".",en:"📧 The admin gets \"Resolution added\"."},
         hotspots:[
           { x:50, y:18,
             title:{es:"ℹ️ Aviso",en:"ℹ️ Notice"},
@@ -602,9 +603,9 @@ const CHAPTERS = [
       },
       { img:'/screens/17-incidents-closed.png',
         title:{es:"Pestaña 3 · Closed",en:"Tab 3 · Closed"},
-        text:{es:"Cuando el admin formaliza el cierre, el incidente aparece en la pestaña \"Closed\" con el sello \"Resolved and filed by management\".",
-              en:"When the admin finalizes the closure, the incident shows in the \"Closed\" tab with the \"Resolved and filed by management\" stamp."},
-        cap:{es:"📧 Email final \"Cierre\" llega a todas las partes.",en:"📧 Final \"Closure\" email goes to all parties."},
+        text:{es:"El admin formaliza el cierre y el incidente pasa a Closed.",
+              en:"The admin finalizes closure and the incident moves to Closed."},
+        cap:{es:"📧 Email final llega a todas las partes.",en:"📧 Final email goes to all parties."},
         hotspots:[
           { x:14, y:62,
             title:{es:"3 · Closed",en:"3 · Closed"},
@@ -622,9 +623,9 @@ const CHAPTERS = [
     slides:[
       { img:'/screens/18-dashboard.png',
         title:{es:"Community Dashboard",en:"Community Dashboard"},
-        text:{es:"Vista compartida en tiempo real con todas las acciones pendientes, métricas de la comunidad y reportes recientes.",
-              en:"Shared real-time view with all pending actions, community metrics, and recent reports."},
-        cap:{es:"Cada chip del banner es un atajo a Incidentes filtrado por ese estado.",en:"Each chip in the banner is a shortcut to Incidents filtered by that state."},
+        text:{es:"Acciones pendientes, métricas y reportes recientes.",
+              en:"Pending actions, metrics, and recent reports."},
+        cap:{es:"Cada chip es un atajo a Incidentes filtrado.",en:"Each chip is a filtered Incidents shortcut."},
         hotspots:[
           { x:88, y:9,
             title:{es:"⚠️ Report incident",en:"⚠️ Report incident"},
@@ -668,9 +669,9 @@ const CHAPTERS = [
     slides:[
       { img:'/screens/19-notifications.png',
         title:{es:"🔔 Notifications · alertas en la app",en:"🔔 Notifications · in-app alerts"},
-        text:{es:"Cada email automático también queda registrado en esta vista. \"Mark as read\" no afecta el correo — solo el estado dentro de la app.",
-              en:"Every automatic email is also logged in this view. \"Mark as read\" doesn't affect the email — only the in-app status."},
-        cap:{es:"📧 Llegan a tu Gmail + email del operador (si está registrado).",en:"📧 Sent to your Gmail + operator email (if registered)."},
+        text:{es:"Cada email automático queda registrado aquí.",
+              en:"Every automatic email is logged here."},
+        cap:{es:"📧 También llega a tu Gmail + operador.",en:"📧 Also sent to your Gmail + operator."},
         hotspots:[
           { x:14, y:38,
             title:{es:"Priority actions",en:"Priority actions"},
@@ -704,9 +705,9 @@ const CHAPTERS = [
     slides:[
       { img:'/screens/20-help.png',
         title:{es:"❓ Help & Guide",en:"❓ Help & Guide"},
-        text:{es:"Centro de ayuda con búsqueda, filtros por sección, y atajos a los tutoriales (corto / completo / escrito) y al tour interactivo.",
-              en:"Help center with search, section filters, and shortcuts to the tutorials (short / full / written) and the interactive tour."},
-        cap:{es:"Cada tarjeta abre una sub-vista con FAQ + ejemplos.",en:"Each card opens a sub-view with FAQ + examples."},
+        text:{es:"Búsqueda, secciones y atajos a tutoriales y al tour.",
+              en:"Search, sections, and shortcuts to tutorials and the tour."},
+        cap:{es:"Cada tarjeta abre un FAQ + ejemplos.",en:"Each card opens FAQ + examples."},
         hotspots:[
           { x:65, y:15,
             title:{es:"🎯 Interactive Tour",en:"🎯 Interactive Tour"},
@@ -744,9 +745,9 @@ const CHAPTERS = [
     slides:[
       { img:'/screens/21-profile.png',
         title:{es:"👤 My profile",en:"👤 My profile"},
-        text:{es:"Tu información de contacto: nombre, email Google, WhatsApp con código de país y opcionalmente un \"Notification email\" distinto.",
-              en:"Your contact info: name, Google email, WhatsApp with country code and optionally a separate \"Notification email\"."},
-        cap:{es:"WhatsApp y Notification email aplican a TODOS tus listings.",en:"WhatsApp and Notification email apply to ALL your listings."},
+        text:{es:"Nombre, email, WhatsApp y email de notificación opcional.",
+              en:"Name, email, WhatsApp, and optional notification email."},
+        cap:{es:"Aplica a todos tus listings.",en:"Applies to all your listings."},
         hotspots:[
           { x:50, y:18,
             title:{es:"📨 Account (Google)",en:"📨 Account (Google)"},
@@ -775,9 +776,9 @@ const CHAPTERS = [
     slides:[
       { img:'/screens/22-profile-menu.png',
         title:{es:"Menú del perfil",en:"Profile menu"},
-        text:{es:"Click en tu avatar (arriba derecha) abre este menú. Desde aquí accedes a Mi perfil, Tour interactivo, Mis Unidades, Misión, y Log out.",
-              en:"Click your avatar (top right) opens this menu. From here you reach My profile, Interactive tour, My Units, Mission, and Log out."},
-        cap:{es:"En equipos compartidos cierra sesión también en Google.",en:"On shared devices sign out of Google too."},
+        text:{es:"Click en el avatar (arriba derecha) abre el menú.",
+              en:"Click the avatar (top right) opens the menu."},
+        cap:{es:"En equipos compartidos cierra también en Google.",en:"On shared devices sign out of Google too."},
         hotspots:[
           { x:50, y:20,
             title:{es:"Identidad de cuenta",en:"Account identity"},
@@ -829,9 +830,37 @@ SLIDES.forEach((s,i)=>{
     <span class="chip"><span class="es-text">${s.chap.es}</span><span class="en-text">${s.chap.en}</span></span>
     <h2><span class="es-text">${s.title.es}</span><span class="en-text">${s.title.en}</span></h2>
     <p class="lede"><span class="es-text">${s.text.es}</span><span class="en-text">${s.text.en}</span></p>
-    <div class="visual"><div class="frame"><img src="${s.img}" alt="" loading="lazy"/>${hotsHtml(i, s.hotspots)}</div></div>`;
+    <div class="visual"><div class="frame"><img src="${s.img}" alt=""/>${hotsHtml(i, s.hotspots)}</div></div>`;
   slidesEl.appendChild(d);
 });
+
+/* Size each .frame to match the actual rendered image bounds inside its
+   .visual container (object-fit:contain). Hotspots are positioned by % of
+   the .frame, so frame == visible image rect keeps them perfectly aligned. */
+function fitFrame(slideEl){
+  const visual=slideEl.querySelector('.visual');
+  const frame =slideEl.querySelector('.frame');
+  const img   =slideEl.querySelector('.frame img');
+  if(!visual || !frame || !img) return;
+  const apply=()=>{
+    const cw=visual.clientWidth, ch=visual.clientHeight;
+    const nw=img.naturalWidth, nh=img.naturalHeight;
+    if(!cw || !ch || !nw || !nh) return;
+    const cAR=cw/ch, iAR=nw/nh;
+    let dw,dh;
+    if(iAR>cAR){ dw=cw; dh=cw/iAR; } else { dh=ch; dw=ch*iAR; }
+    frame.style.width =Math.round(dw)+'px';
+    frame.style.height=Math.round(dh)+'px';
+  };
+  if(img.complete && img.naturalWidth) apply();
+  else img.addEventListener('load', apply, { once:true });
+  // Also re-apply once container has real dimensions (slide becomes active).
+  return apply;
+}
+const _fitters = Array.from(document.querySelectorAll('.slide')).map(fitFrame);
+function fitAll(){ _fitters.forEach(fn => fn && fn()); }
+window.addEventListener('resize', fitAll);
+window.addEventListener('load', fitAll);
 
 CHAPTERS.forEach((c,ci)=>{
   const node=document.createElement('div');
@@ -1050,11 +1079,13 @@ function toggleFullscreen(){
   const on = document.body.classList.toggle('fullscreen');
   if(on && document.documentElement.requestFullscreen){ document.documentElement.requestFullscreen().catch(()=>{}); }
   else if(!on && document.fullscreenElement){ document.exitFullscreen().catch(()=>{}); }
+  setTimeout(fitAll, 50);
 }
 document.addEventListener('fullscreenchange',()=>{
   if(!document.fullscreenElement && document.body.classList.contains('fullscreen')){
     document.body.classList.remove('fullscreen');
   }
+  setTimeout(fitAll, 50);
 });
 
 document.getElementById('play').onclick=play;
