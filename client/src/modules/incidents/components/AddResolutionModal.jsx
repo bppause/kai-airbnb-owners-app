@@ -5,7 +5,7 @@
 // useApp() instead of receiving it as a prop, matching the pattern set
 // in F7 (GeneralIncidentsView).
 //
-// See docs/PLATFORM_ARCHITECTURE.md §11 frontend stage F8.
+// See docs/platform/PLATFORM_ARCHITECTURE.md §11 frontend stage F8.
 
 import React, { useState } from "react";
 import Overlay from "../../../core/ui/Overlay";

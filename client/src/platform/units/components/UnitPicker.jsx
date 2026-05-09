@@ -8,7 +8,7 @@
 // Inputs: listings, value, onChange, lang, error, disabled.
 // Self-contained except for `aptDisplay` from core/i18n/app-text.
 //
-// See docs/PLATFORM_ARCHITECTURE.md §11 frontend stage F9.
+// See docs/platform/PLATFORM_ARCHITECTURE.md §11 frontend stage F9.
 
 import React from "react";
 import { aptDisplay } from "../../../core/i18n/app-text";

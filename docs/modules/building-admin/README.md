@@ -81,6 +81,6 @@ relation), `hoa_documents`.
 ## Status next steps
 
 When promoted from `idea` → `concept`, add `DESIGN.md` and update
-status here and in `../../PLATFORM_ARCHITECTURE.md` §3 in the same
+status here and in `../../platform/PLATFORM_ARCHITECTURE.md` §3 in the same
 change. A discovery cycle with the building admin who runs at least
 one pilot community is the precondition for that work.

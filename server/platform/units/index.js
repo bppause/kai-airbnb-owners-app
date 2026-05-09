@@ -1,5 +1,5 @@
 // Units (apartments) — platform module manifest.
-// Platform-level (cross-module) entity. See docs/PLATFORM_ARCHITECTURE.md §4.
+// Platform-level (cross-module) entity. See docs/platform/PLATFORM_ARCHITECTURE.md §4.
 
 const createRouter = require('./routes');
 const { PERMISSIONS, LEGACY_ALIASES } = require('./permissions');

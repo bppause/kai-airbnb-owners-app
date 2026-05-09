@@ -2,7 +2,7 @@
 // in stage F13. Both are 14×14 inline SVGs with brand colors baked in
 // (Email = Gmail red, WhatsApp = brand green).
 //
-// See docs/PLATFORM_ARCHITECTURE.md §11 frontend stage F13.
+// See docs/platform/PLATFORM_ARCHITECTURE.md §11 frontend stage F13.
 
 import React from "react";
 

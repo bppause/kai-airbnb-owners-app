@@ -9,7 +9,7 @@
 // Three previously-unused props (listings, user, contactProps) were dropped
 // because the body never referenced them.
 //
-// See docs/PLATFORM_ARCHITECTURE.md §11 frontend stage F7.
+// See docs/platform/PLATFORM_ARCHITECTURE.md §11 frontend stage F7.
 
 import React, { useState } from "react";
 import { useApp } from "../../../core/app-state";

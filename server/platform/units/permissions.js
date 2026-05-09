@@ -1,7 +1,7 @@
 // Capability keys for the units (apartments) area.
 // "Units" is the platform-level term (a unit lives in a community). The DB
 // column is currently `listings`; rename will land in a later stage. See
-// docs/PLATFORM_ARCHITECTURE.md §4 and §11.
+// docs/platform/PLATFORM_ARCHITECTURE.md §4 and §11.
 
 const PERMISSIONS = Object.freeze({
   MANAGE: 'units:manage',

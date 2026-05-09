@@ -1,7 +1,7 @@
 # server/
 
 Modular structure for the platform backend, replacing the monolithic
-`/server.js` at the repo root. See `docs/PLATFORM_ARCHITECTURE.md` for the
+`/server.js` at the repo root. See `docs/platform/PLATFORM_ARCHITECTURE.md` for the
 contract.
 
 Status: **mid-migration.** The legacy `server.js` is still authoritative;

@@ -15,7 +15,7 @@
 // firebase/app or firebase/auth directly — everything goes through
 // core/auth.
 //
-// See docs/PLATFORM_ARCHITECTURE.md §11 frontend stage F4.
+// See docs/platform/PLATFORM_ARCHITECTURE.md §11 frontend stage F4.
 
 import { initializeApp } from "firebase/app";
 import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from "firebase/auth";

@@ -7,7 +7,7 @@
 // reputation/reputationLoading/loadReputation, and onSave stay as
 // per-instance props.
 //
-// See docs/PLATFORM_ARCHITECTURE.md §11 frontend stage F22.
+// See docs/platform/PLATFORM_ARCHITECTURE.md §11 frontend stage F22.
 
 import React, { useState, useEffect } from "react";
 import { useApp } from "../../../core/app-state";

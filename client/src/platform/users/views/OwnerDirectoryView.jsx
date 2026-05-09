@@ -11,7 +11,7 @@
 // Opens the platform/users/ folder for future user-directory views
 // (admin user list, role assignment UI, etc.).
 //
-// See docs/PLATFORM_ARCHITECTURE.md §11 frontend stage F18.
+// See docs/platform/PLATFORM_ARCHITECTURE.md §11 frontend stage F18.
 
 import React, { useState } from "react";
 import { useApp } from "../../../core/app-state";

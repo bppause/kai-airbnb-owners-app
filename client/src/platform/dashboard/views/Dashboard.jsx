@@ -9,7 +9,7 @@
 // listings, incidents, user, contactProps, setView, onReport, role flags,
 // counts, click handlers, communityGoals stay per-instance.
 //
-// See docs/PLATFORM_ARCHITECTURE.md §11 frontend stage F26.
+// See docs/platform/PLATFORM_ARCHITECTURE.md §11 frontend stage F26.
 
 import React from "react";
 import { useApp } from "../../../core/app-state";

@@ -1,7 +1,7 @@
 // Units (apartments) — platform-level HTTP routes.
 //
 // Mounted by server.js at:
-//   /api/platform/units/*    (canonical, see docs/PLATFORM_ARCHITECTURE.md §5)
+//   /api/platform/units/*    (canonical, see docs/platform/PLATFORM_ARCHITECTURE.md §5)
 //   /api/listings/*          (legacy alias — drop after frontend migrates)
 //
 // The uniqueness check lives at GET /check (canonical: /api/platform/units/check;

@@ -48,7 +48,7 @@ const supabase = createClient(
 // (so the kill-switch can short-circuit before insert). getAppConfig is built
 // further down at the CONFIG HELPERS block; audit no longer depends on it
 // at construction so we can use a late-binding factory pattern.
-// See server/core/audit.js and docs/PLATFORM_ARCHITECTURE.md §11.
+// See server/core/audit.js and docs/platform/PLATFORM_ARCHITECTURE.md §11.
 
 const requireSupabaseEnv = (res) => {
   if (SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY) return true;
@@ -74,7 +74,7 @@ const emailConfigured = Boolean(resend && EMAIL_FROM);
 
 
 // ─── EDITABLE EMAIL TEMPLATES ───────────────────────────────────────────────
-// Defaults moved to server/templates/email-defaults.js — see docs/PLATFORM_ARCHITECTURE.md §11.
+// Defaults moved to server/templates/email-defaults.js — see docs/platform/PLATFORM_ARCHITECTURE.md §11.
 const { DEFAULT_EMAIL_TEMPLATES, DEFAULT_EMAIL_TEMPLATES_EN } = require('./templates/email-defaults');
 
 
@@ -87,7 +87,7 @@ const { DEFAULT_EMAIL_TEMPLATES, DEFAULT_EMAIL_TEMPLATES_EN } = require('./templ
 // ─── CONFIG HELPERS (extracted in stage 4e) ──────────────────────────────────
 // App config + email notification config + SLA defaults + getCommunity lookup
 // live in server/core/config.js. Module-mount blocks below pull constants from
-// here too. See docs/PLATFORM_ARCHITECTURE.md §11.
+// here too. See docs/platform/PLATFORM_ARCHITECTURE.md §11.
 const {
   DEFAULT_EMAIL_NOTIFICATION_CONFIG, DEFAULT_SLA_HOURS, DEFAULT_ESCALATION_CC_EMAILS,
   OVERRIDABLE_COMMUNITY_KEYS,
@@ -141,7 +141,7 @@ const {
 
 // ─── UNITS DB HELPERS (extracted in stage 4f) ────────────────────────────────
 // findApartmentConflict + validateApartmentUniqueness live in
-// server/platform/units/db.js. See docs/PLATFORM_ARCHITECTURE.md §11.
+// server/platform/units/db.js. See docs/platform/PLATFORM_ARCHITECTURE.md §11.
 const { findApartmentConflict, validateApartmentUniqueness } =
   require('./platform/units/db')(supabase);
 
@@ -178,7 +178,7 @@ const DIST = path.join(__dirname, '..', 'client', 'dist');
 app.use(express.static(DIST));
 // ─── API: META (mounted from server/platform/meta) ──────────────────────────
 // /api/client-log, /api/health, /api/version, /api/branding
-// See docs/PLATFORM_ARCHITECTURE.md §11 stage 4k.
+// See docs/platform/PLATFORM_ARCHITECTURE.md §11 stage 4k.
 const metaModule = require('./platform/meta');
 const metaRouter = metaModule.createRouter({
   supabase,
@@ -201,7 +201,7 @@ app.get('/api/apartments/check', (req, res, next) => {
 // ─── API: REGISTRATIONS (mounted from server/platform/registrations) ─────────
 // Canonical: /api/platform/registrations/*   Legacy alias: /api/registrations/*
 // Handler bodies live in server/platform/registrations/routes.js — see
-// docs/PLATFORM_ARCHITECTURE.md §11 stage 3b.
+// docs/platform/PLATFORM_ARCHITECTURE.md §11 stage 3b.
 const registrationsModule = require('./platform/registrations');
 const registrationsRouter = registrationsModule.createRouter({
   supabase, requireSupabaseEnv, sendSupabaseError, getCommunityId,
@@ -221,7 +221,7 @@ app.use('/api/registrations', registrationsRouter); // legacy alias — drop aft
 // Canonical: /api/platform/units/*   Legacy alias: /api/listings/*
 // /api/apartments/check forwards to /check on this router (registered above).
 // Handler bodies live in server/platform/units/routes.js — see
-// docs/PLATFORM_ARCHITECTURE.md §11 stages 3a–3b.
+// docs/platform/PLATFORM_ARCHITECTURE.md §11 stages 3a–3b.
 const unitsModule = require('./platform/units');
 const unitsRouter = unitsModule.createRouter({
   supabase, requireSupabaseEnv, sendSupabaseError, getCommunityId,
@@ -237,7 +237,7 @@ app.use('/api/listings', unitsRouter); // legacy alias — drop after client mig
 // ─── API: INCIDENTS (mounted from server/modules/incidents) ──────────────────
 // Canonical: /api/m/incidents/*   Legacy alias: /api/incidents/*
 // Handler bodies live in server/modules/incidents/routes.js — see
-// docs/PLATFORM_ARCHITECTURE.md §11 stage 2.
+// docs/platform/PLATFORM_ARCHITECTURE.md §11 stage 2.
 const incidentsModule = require('./modules/incidents');
 const incidentsRouter = incidentsModule.createRouter({
   supabase, requireSupabaseEnv, sendSupabaseError, getCommunityId,
@@ -259,7 +259,7 @@ app.use('/api/incidents', incidentsRouter); // legacy alias — drop after clien
 // ─── API: USERS (mounted from server/platform/users) ────────────────────────
 // Canonical: /api/platform/users/*   Legacy alias: /api/users/*
 // Includes: /preference, /profile (GET+PUT), /reputation. See
-// docs/PLATFORM_ARCHITECTURE.md §11 stage 3d.
+// docs/platform/PLATFORM_ARCHITECTURE.md §11 stage 3d.
 const usersModule = require('./platform/users');
 const usersRouter = usersModule.createRouter({
   supabase, requireSupabaseEnv, sendSupabaseError,
@@ -326,7 +326,7 @@ app.post('/api/admin/delegate', forwardToPlatformAdminRouter('/delegate'));
 
 // ─── API: AUDIT LOGS (mounted from server/platform/audit) ────────────────────
 // Canonical: /api/platform/audit/logs   Legacy alias: /api/admin/audit-logs
-// See docs/PLATFORM_ARCHITECTURE.md §11 stage 3c.
+// See docs/platform/PLATFORM_ARCHITECTURE.md §11 stage 3c.
 const auditModule = require('./platform/audit');
 const auditRouter = auditModule.createRouter({
   supabase, requireSupabaseEnv, sendSupabaseError,
@@ -344,7 +344,7 @@ app.get('/api/admin/audit-logs', (req, res, next) => {
 
 // ─── API: NOTIFICATIONS (mounted from server/platform/notifications) ─────────
 // Canonical: /api/platform/notifications/*   Legacy alias: /api/notifications/*
-// See docs/PLATFORM_ARCHITECTURE.md §11 stage 3c.
+// See docs/platform/PLATFORM_ARCHITECTURE.md §11 stage 3c.
 const notificationsModule = require('./platform/notifications');
 const notificationsRouter = notificationsModule.createRouter({
   supabase, requireSupabaseEnv, sendSupabaseError, getCommunityId,
@@ -358,7 +358,7 @@ app.use('/api/notifications', notificationsRouter); // legacy alias — drop aft
 // ─── INCIDENTS SLA CRON (extracted in stage 4j) ──────────────────────────────
 // Walks pending incidents whose next_sla_reminder_at has elapsed and fires the
 // appropriate escalation email. Body lives in
-// server/modules/incidents/sla-cron.js — see docs/PLATFORM_ARCHITECTURE.md §11.
+// server/modules/incidents/sla-cron.js — see docs/platform/PLATFORM_ARCHITECTURE.md §11.
 require('./modules/incidents/sla-cron')({
   supabase,
   emailConfigured,
@@ -373,7 +373,7 @@ require('./modules/incidents/sla-cron')({
 // Legacy aliases (URL-rewrite below):
 //   /api/analytics, /api/admin/analytics → /
 //   /api/communities/:id/goals          → /goals/:id
-// See docs/PLATFORM_ARCHITECTURE.md §11 stage 4h.
+// See docs/platform/PLATFORM_ARCHITECTURE.md §11 stage 4h.
 const analyticsModule = require('./platform/analytics');
 const analyticsRouter = analyticsModule.createRouter({
   supabase, requireSupabaseEnv, sendSupabaseError, getCommunityId,
@@ -400,7 +400,7 @@ app.get('/api/communities/:id/goals', (req, res, next) => {
 // Canonical: /api/platform/communities/*
 // Legacy aliases: /api/communities/*, plus URL-rewrite forwarders for
 //   /api/admin/communities, /api/admin/communities/filter-options,
-//   /api/me/communities. See docs/PLATFORM_ARCHITECTURE.md §11 stage 3e.
+//   /api/me/communities. See docs/platform/PLATFORM_ARCHITECTURE.md §11 stage 3e.
 const communitiesModule = require('./platform/communities');
 const communitiesRouter = communitiesModule.createRouter({
   supabase, requireSupabaseEnv, sendSupabaseError,

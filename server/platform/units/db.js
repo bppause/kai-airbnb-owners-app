@@ -2,7 +2,7 @@
 //
 // Lifted byte-identical from server.js stage 4f. These two helpers are tied
 // to the `listings` table (which represents units; see
-// docs/PLATFORM_ARCHITECTURE.md §4) and conceptually belong to the units
+// docs/platform/PLATFORM_ARCHITECTURE.md §4) and conceptually belong to the units
 // platform area, NOT to a generic core. Long-term this file will absorb
 // other unit-specific queries.
 //

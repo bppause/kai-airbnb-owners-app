@@ -8,7 +8,7 @@
 // auth gates needed them. CommunitySwitch lands here too so all three
 // tiny shared shells live in core/ui/.
 //
-// See docs/PLATFORM_ARCHITECTURE.md §11 frontend stage F27.
+// See docs/platform/PLATFORM_ARCHITECTURE.md §11 frontend stage F27.
 
 import React from "react";
 import { useApp } from "../app-state";

@@ -6,7 +6,7 @@
 // (statusKey, icon, label, color, sublabel), the filtered incidents +
 // listings slice, and the IRow callbacks all stay as per-instance props.
 //
-// See docs/PLATFORM_ARCHITECTURE.md §11 frontend stage F15.
+// See docs/platform/PLATFORM_ARCHITECTURE.md §11 frontend stage F15.
 
 import React from "react";
 import { useApp } from "../../../core/app-state";

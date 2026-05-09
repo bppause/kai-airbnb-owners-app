@@ -11,7 +11,7 @@
 //
 // Lifted byte-identical from App.jsx in stage F23.
 //
-// See docs/PLATFORM_ARCHITECTURE.md §11 frontend stage F23.
+// See docs/platform/PLATFORM_ARCHITECTURE.md §11 frontend stage F23.
 
 export const DEFAULT_MISSION_SECTIONS = {
   title: 'Misión y normas de la comunidad',

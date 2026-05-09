@@ -10,9 +10,9 @@ without restructuring.
 ```
 docs/
 ├── README.md                  ← you are here
-├── PLATFORM_ARCHITECTURE.md   ← the platform contract; referenced by code
 ├── CHANGELOG_ARCHIVE.md       ← historical version notes
 ├── platform/                  ← platform-wide (cross-module) docs
+│   ├── PLATFORM_ARCHITECTURE.md   ← the platform contract; referenced by code
 │   ├── DESIGN.md
 │   ├── DIAGRAMS.md
 │   ├── ROADMAP.md             ← multi-horizon conceptual roadmap
@@ -37,7 +37,7 @@ links to its design / proposal / use-case / operational documents.
 
 ## Status legend
 
-The same legend used in `PLATFORM_ARCHITECTURE.md` §3 and surfaced in every
+The same legend used in `platform/PLATFORM_ARCHITECTURE.md` §3 and surfaced in every
 module's `README.md`:
 
 | Status | Meaning |
@@ -54,12 +54,12 @@ files or breaking links.
 
 - **New to the platform?** Read `platform/DESIGN.md` first — it is the
   cross-module overview of why each module exists and how they fit
-  together. Then read `PLATFORM_ARCHITECTURE.md` for the technical
+  together. Then read `platform/PLATFORM_ARCHITECTURE.md` for the technical
   contract every module must follow.
 - **Adding a feature to a live module?** Start in that module's folder.
 - **Proposing a new module?** Create `modules/<new-slug>/README.md` using
   the same shape as the existing module READMEs. Register the slug in
-  `PLATFORM_ARCHITECTURE.md` §3 in the same change.
+  `platform/PLATFORM_ARCHITECTURE.md` §3 in the same change.
 
 ## Modules at a glance
 
@@ -80,10 +80,11 @@ files or breaking links.
 
 ## Cross-cutting documents
 
-- **`PLATFORM_ARCHITECTURE.md`** — the locked architectural contract every
+- **`platform/PLATFORM_ARCHITECTURE.md`** — the locked architectural contract every
   module follows (the three orthogonal axes, the module contract, naming
   conventions, permissions resolution, migration plan). Heavily referenced
-  from code comments; do not move.
+  from code comments across `server/` and `client/src/` — when moving or
+  renaming, update those references in the same change.
 - **`platform/DESIGN.md`** — the high-level platform design that frames
   every module as a vertical slice on top of a shared platform layer and
   describes inter-module integration patterns.

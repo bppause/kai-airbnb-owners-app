@@ -80,7 +80,7 @@ DocuSign / FirmaYa / Signio).
 When promoted from `idea` → `concept`, the placeholder
 [`PROPOSAL.md`](./PROPOSAL.md) is replaced with (or supplemented by) a
 proper `DESIGN.md`. Update status here and in
-`../../PLATFORM_ARCHITECTURE.md` §3 in the same change. Detailed design
+`../../platform/PLATFORM_ARCHITECTURE.md` §3 in the same change. Detailed design
 requires a discovery cycle with at least one developer partner —
 analogous to the WhatsApp-transcript work that grounded the operator
 portal in `../operator-portal/USE_CASE_DISCOVERY.md`.

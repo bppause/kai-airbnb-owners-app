@@ -5,7 +5,7 @@
 //
 // Lifted byte-identical from App.jsx in stage F34.
 //
-// See docs/PLATFORM_ARCHITECTURE.md §11 frontend stage F34.
+// See docs/platform/PLATFORM_ARCHITECTURE.md §11 frontend stage F34.
 
 export const DEFAULT_STANDARD_MENU_PERMISSIONS = { dashboard:true, listings:true, incidents:true, notifications:true, about:true, my:true, analytics:false };
 export const DEFAULT_DELEGATE_PERMISSIONS = { canApproveRegistrations:true, canResolveIncidents:true, canUpdateGlobalListings:false, canDeleteGlobalListings:false, canUpdateGlobalIncidents:false, canDeleteGlobalIncidents:false };

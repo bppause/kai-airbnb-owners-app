@@ -5,7 +5,7 @@
 > **Server code:** `server/modules/incidents/`
 > **Client code:** `client/src/modules/incidents/`
 > **Audit entity:** `incidents.incident`
-> **Companion docs:** `README.md` (this folder), `UAT_SCRIPT.md`, `../../PLATFORM_ARCHITECTURE.md`, `../../platform/DESIGN.md` §3
+> **Companion docs:** `README.md` (this folder), `UAT_SCRIPT.md`, `../../platform/PLATFORM_ARCHITECTURE.md`, `../../platform/DESIGN.md` §3
 
 This is the design reference for the live incident-management module. It
 describes what the module does today (current state), how it is wired up
@@ -48,7 +48,7 @@ Out of scope (deferred to other modules — see §12):
 ## 2. Roles and Actors
 
 The module respects the platform role model
-(`../../PLATFORM_ARCHITECTURE.md` §6) with no module-specific overlays. The
+(`../../platform/PLATFORM_ARCHITECTURE.md` §6) with no module-specific overlays. The
 roles that touch an incident:
 
 | Role | What they do |
@@ -288,7 +288,7 @@ the cron loop ignores it; this is a capacity-already-there roadmap item
 
 All routes are mounted under `/api/m/incidents/*` (canonical) with
 `/api/incidents/*` aliased for the migration window
-(`../../PLATFORM_ARCHITECTURE.md` §5).
+(`../../platform/PLATFORM_ARCHITECTURE.md` §5).
 
 | Method | Path | Purpose |
 | --- | --- | --- |
@@ -353,7 +353,7 @@ Every email links to the in-app incident view via
 
 Templates have hardcoded defaults in `server/templates/email-defaults.js`
 (es-CO and en) that are overridden by rows in the `email_templates` table
-when present (`../../PLATFORM_ARCHITECTURE.md` §11 stage 2).
+when present (`../../platform/PLATFORM_ARCHITECTURE.md` §11 stage 2).
 
 ---
 

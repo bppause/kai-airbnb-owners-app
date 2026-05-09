@@ -3,7 +3,7 @@
 // management, role delegation). The naming is "admin" because that's how
 // the legacy URL space named them (/api/admin/*); long-term this folder
 // could split into app-config/ and user-admin/. See
-// docs/PLATFORM_ARCHITECTURE.md §4.
+// docs/platform/PLATFORM_ARCHITECTURE.md §4.
 
 const createRouter = require('./routes');
 

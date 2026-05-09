@@ -87,7 +87,7 @@ by other modules, plus a thin layer of cached scores + alert state.
 ## Status next steps
 
 When promoted from `idea` → `concept`, add `DESIGN.md` and update
-status here and in `../../PLATFORM_ARCHITECTURE.md` §3. Two upstream
+status here and in `../../platform/PLATFORM_ARCHITECTURE.md` §3. Two upstream
 decisions are required first:
 
 - AI provider choice (Claude API / OpenAI / on-prem) and the PII

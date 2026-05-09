@@ -1,6 +1,6 @@
 # Platform — Architecture Diagrams
 
-> Companion to [`DESIGN.md`](DESIGN.md) and [`../PLATFORM_ARCHITECTURE.md`](../PLATFORM_ARCHITECTURE.md).
+> Companion to [`DESIGN.md`](DESIGN.md) and [`./PLATFORM_ARCHITECTURE.md`](./PLATFORM_ARCHITECTURE.md).
 > All diagrams are Mermaid so they render natively on GitHub.
 
 ---
@@ -58,7 +58,7 @@ flowchart TB
 
 ## 3. Repository layout
 
-The agreed target shape from [`../PLATFORM_ARCHITECTURE.md`](../PLATFORM_ARCHITECTURE.md) §9.
+The agreed target shape from [`./PLATFORM_ARCHITECTURE.md`](./PLATFORM_ARCHITECTURE.md) §9.
 
 ```mermaid
 flowchart TB

@@ -79,7 +79,7 @@ A more detailed sketch lives in `../../platform/ROADMAP.md` §6.10.
 ## Status next steps
 
 When promoted from `idea` → `concept`, add `DESIGN.md` and update
-status here and in `../../PLATFORM_ARCHITECTURE.md` §3. A key open
+status here and in `../../platform/PLATFORM_ARCHITECTURE.md` §3. A key open
 question is whether the notification engine is implemented as a
 shared platform service used by every module, or as this module
 exposing services that other modules depend on. The latter is the

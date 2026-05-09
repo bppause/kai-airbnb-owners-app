@@ -6,7 +6,7 @@
 //   • path strings: '/api/incidents/...' → relative ('/...') for the router
 //   • all server-scope helpers are now received via the `deps` object
 //
-// See docs/PLATFORM_ARCHITECTURE.md §11 stage 2.
+// See docs/platform/PLATFORM_ARCHITECTURE.md §11 stage 2.
 
 'use strict';
 

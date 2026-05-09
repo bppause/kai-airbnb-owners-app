@@ -14,7 +14,7 @@
 //   - localizeNotification(n, lang) — light ES→EN string mapping
 //   - SMART_TONE_COLOR              — tone → bg color map for badges
 //
-// See docs/PLATFORM_ARCHITECTURE.md §11 frontend stage F17.
+// See docs/platform/PLATFORM_ARCHITECTURE.md §11 frontend stage F17.
 
 import React, { useState, useEffect } from "react";
 import { useApp } from "../../../core/app-state";

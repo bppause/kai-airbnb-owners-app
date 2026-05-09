@@ -12,7 +12,7 @@
 //
 // Every extracted file lives under client/src/{core,modules,platform}/
 // and has its own per-file header explaining what was lifted and why.
-// See docs/PLATFORM_ARCHITECTURE.md §11 for the full extraction history
+// See docs/platform/PLATFORM_ARCHITECTURE.md §11 for the full extraction history
 // (frontend stages F1-F35).
 
 import { Component, useCallback, useEffect, useRef, useState } from "react";

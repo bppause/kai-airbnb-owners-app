@@ -11,7 +11,7 @@
 //   - Category chip + bilingual quick-fill template chips.
 //   - Up to 3 photos with client-side compression.
 //
-// See docs/PLATFORM_ARCHITECTURE.md §11 frontend stage F11.
+// See docs/platform/PLATFORM_ARCHITECTURE.md §11 frontend stage F11.
 
 import React, { useState, useEffect, useMemo } from "react";
 import Overlay from "../../../core/ui/Overlay";

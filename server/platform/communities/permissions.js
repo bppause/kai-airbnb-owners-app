@@ -1,6 +1,6 @@
 // Capability keys for the communities area.
 // "Communities" are platform tenants — every module operates within a
-// community. See docs/PLATFORM_ARCHITECTURE.md §2.
+// community. See docs/platform/PLATFORM_ARCHITECTURE.md §2.
 
 const PERMISSIONS = Object.freeze({
   CREATE: 'communities:create',

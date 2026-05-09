@@ -17,7 +17,7 @@
 //     bag, or every view re-rendering on every tick), split this into
 //     scoped contexts (auth/data/ui). Don't optimize early.
 //
-// See docs/PLATFORM_ARCHITECTURE.md §11 frontend stage F5.
+// See docs/platform/PLATFORM_ARCHITECTURE.md §11 frontend stage F5.
 
 import React, { createContext, useContext } from "react";
 

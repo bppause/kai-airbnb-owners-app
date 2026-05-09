@@ -10,7 +10,7 @@
 // for future email-related views (delivery log viewer, template preview,
 // etc.).
 //
-// See docs/PLATFORM_ARCHITECTURE.md §11 frontend stage F25.
+// See docs/platform/PLATFORM_ARCHITECTURE.md §11 frontend stage F25.
 
 import React, { useState } from "react";
 import { useApp } from "../../../core/app-state";

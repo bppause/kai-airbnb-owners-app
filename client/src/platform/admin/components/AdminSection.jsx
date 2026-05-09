@@ -8,7 +8,7 @@
 // Lifted byte-identical from App.jsx in stage F33. Pure presentational
 // — no lang dependency.
 //
-// See docs/PLATFORM_ARCHITECTURE.md §11 frontend stage F33.
+// See docs/platform/PLATFORM_ARCHITECTURE.md §11 frontend stage F33.
 
 import React from "react";
 

@@ -5,7 +5,7 @@ API client, auth, layout shell, utilities. Mirrors the server-side
 `server/core/` pattern.
 
 Status: **mid-extraction.** App.jsx still owns most of the UI; pieces move
-here stage by stage. See `docs/PLATFORM_ARCHITECTURE.md` §11.
+here stage by stage. See `docs/platform/PLATFORM_ARCHITECTURE.md` §11.
 
 ## Layout
 

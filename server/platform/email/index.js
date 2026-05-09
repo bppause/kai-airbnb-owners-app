@@ -2,7 +2,7 @@
 // Owns the admin-facing email surface: template editor, notification routing
 // config, contact-form. The actual send helpers (sendTemplatedEmail etc.)
 // stay in server.js for now and are passed into modules via deps. See
-// docs/PLATFORM_ARCHITECTURE.md §4.
+// docs/platform/PLATFORM_ARCHITECTURE.md §4.
 
 const createRouter = require('./routes');
 

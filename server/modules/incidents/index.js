@@ -1,5 +1,5 @@
 // Incidents module manifest.
-// See docs/PLATFORM_ARCHITECTURE.md §8.
+// See docs/platform/PLATFORM_ARCHITECTURE.md §8.
 
 'use strict';
 

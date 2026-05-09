@@ -5,7 +5,7 @@
 // Click outside the modal box closes it; the X button also closes it.
 // `wide` prop opts into the wider (`modal-w`) layout.
 //
-// See docs/PLATFORM_ARCHITECTURE.md §11 frontend stage F8.
+// See docs/platform/PLATFORM_ARCHITECTURE.md §11 frontend stage F8.
 
 import React from "react";
 

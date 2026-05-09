@@ -4,7 +4,7 @@
 //
 // Lifted byte-identical from App.jsx in stage F23.
 //
-// See docs/PLATFORM_ARCHITECTURE.md §11 frontend stage F23.
+// See docs/platform/PLATFORM_ARCHITECTURE.md §11 frontend stage F23.
 
 export const CSS = `
 .workflow-card{background:rgba(255,255,255,.74);border:1px solid rgba(47,79,58,.12);border-radius:18px;padding:12px 16px;margin:8px 0 14px;box-shadow:0 8px 22px rgba(0,0,0,.045);overflow:visible;position:relative;z-index:2}

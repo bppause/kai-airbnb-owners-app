@@ -7,7 +7,7 @@
 // The auditLog/auditEvent helpers (write side) currently live in server.js;
 // they are passed into every module via deps. Moving the write helpers into
 // this folder is deferred until a `core/` extraction stage so that all
-// modules can import them directly. See docs/PLATFORM_ARCHITECTURE.md §11.
+// modules can import them directly. See docs/platform/PLATFORM_ARCHITECTURE.md §11.
 
 const express = require('express');
 

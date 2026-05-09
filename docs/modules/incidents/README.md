@@ -42,7 +42,7 @@ shape:
 
 ## Companion documents
 
-- `../../PLATFORM_ARCHITECTURE.md` — module contract and platform
+- `../../platform/PLATFORM_ARCHITECTURE.md` — module contract and platform
   conventions.
 - `../../platform/DESIGN.md` §3 — incidents module summary in the
   platform-wide design.
