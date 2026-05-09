@@ -1,9 +1,12 @@
 # Community Management Platform — Conceptual Roadmap
 
 > Strategy document — May 2026
-> Companions: `OPERATOR_PORTAL_PROPOSAL.md`, `OPERATOR_PORTAL_DESIGN.md`,
-> `PROTOTYPE_READINESS.md`, `USE_CASE_DISCOVERY.md`, `GTM_AND_PRICING.md`,
-> `PROPERTY_DEVELOPMENT_LIFECYCLE_PROPOSAL.md`, `PITCH.md`
+> Companions: `../modules/operator-portal/PROPOSAL.md`,
+> `../modules/operator-portal/DESIGN.md`,
+> `../modules/operator-portal/PROTOTYPE_READINESS.md`,
+> `../modules/operator-portal/USE_CASE_DISCOVERY.md`,
+> `../modules/operator-portal/GTM_AND_PRICING.md`,
+> `../modules/property-development-lifecycle/PROPOSAL.md`, `./PITCH.md`
 
 ---
 
@@ -110,7 +113,7 @@ The rule: if a specialised system already owns it, integrate; don't replace.
 | Per-stay inspection photo log + two-path damage workflow | **Designed, not built** |
 | Building Operations modules (visitors, packages, amenities, fees) | **Not yet designed** |
 | Facilities & Common-Area Maintenance | **Not yet designed** |
-| Property Development Lifecycle (pre-sale → handover → warranty → resale) | **Placeholder proposal** — see `PROPERTY_DEVELOPMENT_LIFECYCLE_PROPOSAL.md` |
+| Property Development Lifecycle (pre-sale → handover → warranty → resale) | **Placeholder proposal** — see `../modules/property-development-lifecycle/PROPOSAL.md` |
 | Tourism authority reporting (SIRE / RNT / tax) | **Not yet designed** |
 | Communications hub (announcements, polls, minutes) | **Not yet designed** |
 
@@ -131,7 +134,7 @@ Technical constraints to keep in mind across all pillars:
 
 ### 4.1 Operator-Owner pillar — from the real-chat findings
 
-Seven behavioural findings from `USE_CASE_DISCOVERY.md`. Authoritative inside
+Seven behavioural findings from `../modules/operator-portal/USE_CASE_DISCOVERY.md`. Authoritative inside
 the operator portal; informative elsewhere.
 
 1. **Owners are engaged, not passive.** Treat them as power users.
@@ -202,7 +205,7 @@ these. Each module renders different views per persona using the same record.
 
 For new construction phase, handover, post-sale warranty, and unit resale.
 **Detailed placeholder proposal:**
-[`PROPERTY_DEVELOPMENT_LIFECYCLE_PROPOSAL.md`](./PROPERTY_DEVELOPMENT_LIFECYCLE_PROPOSAL.md).
+[`../modules/property-development-lifecycle/PROPOSAL.md`](../modules/property-development-lifecycle/PROPOSAL.md).
 
 | Module | Problem it solves |
 |---|---|
@@ -286,9 +289,9 @@ Different from §6.4 because it includes Airbnb guests and longer stays.
 
 ### 6.7 Airbnb Operator–Owner Governance (STR Listing Portal)
 
-This is the pillar described in `USE_CASE_DISCOVERY.md`. **The seven design
+This is the pillar described in `../modules/operator-portal/USE_CASE_DISCOVERY.md`. **The seven design
 principles in §4.1 apply specifically here.** Detailed module list is in
-`OPERATOR_PORTAL_PROPOSAL.md`.
+`../modules/operator-portal/PROPOSAL.md`.
 
 **Scope (locked):** the Airbnb operator's role is to manage the listing, the
 guest relationship, and the unit-owner tasks/issues/requests that arise from
@@ -375,7 +378,7 @@ Cross-pillar layer; many modules in §6.2/§6.4/§6.7 push events through here.
 
 ## 7. Where the operator-portal "inbox-first" pattern applies
 
-The typed-request + unified-inbox + SLA pattern (`USE_CASE_DISCOVERY.md`) is
+The typed-request + unified-inbox + SLA pattern (`../modules/operator-portal/USE_CASE_DISCOVERY.md`) is
 the operating model **inside the Operator-Owner pillar**. Other pillars have
 different operating patterns and shouldn't be force-fitted:
 
@@ -412,11 +415,11 @@ Production. Bilingual UI. Audit + email working.
 
 ### H1 — Operator–Owner Relationship Layer
 
-The Airbnb operator portal as designed in `OPERATOR_PORTAL_PROPOSAL.md` and
-`USE_CASE_DISCOVERY.md`. Phases 0–7. Inbox-first.
+The Airbnb operator portal as designed in `../modules/operator-portal/PROPOSAL.md` and
+`../modules/operator-portal/USE_CASE_DISCOVERY.md`. Phases 0–7. Inbox-first.
 
 **Why first:** highest-friction daily flow, designed already, money follows
-it (operator-paid model in `GTM_AND_PRICING.md`), and it forces multi-building
+it (operator-paid model in `../modules/operator-portal/GTM_AND_PRICING.md`), and it forces multi-building
 tenancy — the precondition for everything below.
 
 ### H2 — Building Operations Suite
@@ -566,7 +569,7 @@ Plan once, not per pillar. These get harder the later we touch them.
 ### Before H1 ships
 
 Multi-owner / inbox / pricing / contract — the blocking question lists from
-`USE_CASE_DISCOVERY.md` (MO-1..5, SLA-1/2, TEAM-1, THREAD-1, PRICE-1, G, I,
+`../modules/operator-portal/USE_CASE_DISCOVERY.md` (MO-1..5, SLA-1/2, TEAM-1, THREAD-1, PRICE-1, G, I,
 D, CONTRACT-1..5). See that document for full text. Plus:
 
 - [ ] Operator billing model (operator-paid, off by default until wired).
@@ -659,12 +662,12 @@ D, CONTRACT-1..5). See that document for full text. Plus:
 ## 13. What this document is not
 
 - It is not a release plan with dates. The phase weeks in
-  `OPERATOR_PORTAL_PROPOSAL.md` and the token estimates in
-  `USE_CASE_DISCOVERY.md` are still the source of truth for H1.
+  `../modules/operator-portal/PROPOSAL.md` and the token estimates in
+  `../modules/operator-portal/USE_CASE_DISCOVERY.md` are still the source of truth for H1.
 - It is not a commitment to build every module listed in §6. Many will turn
   into "buy/integrate" or "wontbuild" once we get closer.
 - It is not a UI spec. UI work for each horizon is owned by the design docs
-  for that scope (today: `OPERATOR_PORTAL_DESIGN.md`).
+  for that scope (today: `../modules/operator-portal/DESIGN.md`).
 - The seven design principles in §4.1 are operator-portal-specific. Other
   pillars need their own discovery.
 

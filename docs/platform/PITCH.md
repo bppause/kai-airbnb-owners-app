@@ -102,7 +102,7 @@ en cada complejo turístico de Latinoamérica.
 - **Portal del Operador Airbnb** — el reemplazo estructurado del grupo de
   WhatsApp entre operador y propietario. Documentación completa, basada en
   un análisis de un chat real de 7 meses entre dueños y operador.
-  Detalles: `OPERATOR_PORTAL_PROPOSAL.md`.
+  Detalles: `../modules/operator-portal/PROPOSAL.md`.
 
 ## Lo que viene después
 
@@ -110,12 +110,12 @@ en cada complejo turístico de Latinoamérica.
   reservas de amenidades, cuotas, mantenimiento de áreas comunes, emergencia.
 - **Ciclo de vida del desarrollo inmobiliario:** preventa, contratos,
   avance de obra, acta de entrega, garantía 1/5/10 años, reventa.
-  Detalles: `PROPERTY_DEVELOPMENT_LIFECYCLE_PROPOSAL.md`.
+  Detalles: `../modules/property-development-lifecycle/PROPOSAL.md`.
 - **Cumplimiento turístico:** SIRE, RNT, impuestos, Habeas Data.
 - **Inteligencia y escala:** análisis, IA, multi-edificio, multi-moneda,
   integraciones (PMS, contabilidad, banca).
 
-Hoja de ruta completa: `COMMUNITY_PLATFORM_ROADMAP.md`.
+Hoja de ruta completa: `./ROADMAP.md`.
 
 ---
 
@@ -131,7 +131,7 @@ Hoja de ruta completa: `COMMUNITY_PLATFORM_ROADMAP.md`.
 - **Documentación obsesiva.** Antes de codificar el portal del operador
   hicimos un análisis cuantitativo de un chat real (frecuencia por tipo de
   interacción, fallas de seguimiento, tiempos de respuesta). Ese rigor está
-  en `USE_CASE_DISCOVERY.md` y guía cada decisión de producto.
+  en `../modules/operator-portal/USE_CASE_DISCOVERY.md` y guía cada decisión de producto.
 
 ---
 
@@ -239,7 +239,7 @@ exists in every tourist complex in Latin America.
 - **Airbnb Operator Portal** — the structured replacement for the
   WhatsApp group between operator and owner. Fully documented, based on
   analysis of a real 7-month chat between owners and operator.
-  Details: `OPERATOR_PORTAL_PROPOSAL.md`.
+  Details: `../modules/operator-portal/PROPOSAL.md`.
 
 ## What's coming after that
 
@@ -247,12 +247,12 @@ exists in every tourist complex in Latin America.
   amenity reservations, fees, common-area maintenance, emergency.
 - **Property development lifecycle:** pre-sale, contracts, construction
   progress, acta de entrega, 1/5/10-year warranty, resale. Details:
-  `PROPERTY_DEVELOPMENT_LIFECYCLE_PROPOSAL.md`.
+  `../modules/property-development-lifecycle/PROPOSAL.md`.
 - **Tourism compliance:** SIRE, RNT, taxes, Habeas Data.
 - **Intelligence and scale:** analytics, AI, multi-building,
   multi-currency, integrations (PMS, accounting, banking).
 
-Full roadmap: `COMMUNITY_PLATFORM_ROADMAP.md`.
+Full roadmap: `./ROADMAP.md`.
 
 ---
 
@@ -268,7 +268,7 @@ Full roadmap: `COMMUNITY_PLATFORM_ROADMAP.md`.
 - **Obsessive documentation.** Before coding the operator portal we did
   a quantitative analysis of a real chat (frequency by interaction type,
   follow-up failures, response times). That rigour is in
-  `USE_CASE_DISCOVERY.md` and drives every product decision.
+  `../modules/operator-portal/USE_CASE_DISCOVERY.md` and drives every product decision.
 
 ---
 

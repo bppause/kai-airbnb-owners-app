@@ -4,9 +4,9 @@
 > **Estado / Status:** Placeholder — pendiente de descubrimiento con desarrolladores
 > y compradores reales. Este documento captura el alcance y las preguntas a
 > resolver antes de un diseño detallado, en el mismo formato que
-> `OPERATOR_PORTAL_PROPOSAL.md`.
+> `../operator-portal/PROPOSAL.md`.
 >
-> Companion: `COMMUNITY_PLATFORM_ROADMAP.md` §6.1, Horizon H3.
+> Companion: `../../platform/ROADMAP.md` §6.1, Horizon H3.
 
 ---
 
@@ -375,8 +375,8 @@ ones because no existing CRM covers them.
 ## What this document is not
 
 This is a **placeholder proposal**, parallel to
-`OPERATOR_PORTAL_PROPOSAL.md`. It captures scope and the open questions to
-resolve before detailed design. Concrete UI, data model, and effort
+`../operator-portal/PROPOSAL.md`. It captures scope and the open questions
+to resolve before detailed design. Concrete UI, data model, and effort
 estimates require a discovery cycle with at least one developer partner —
 analogous to the WhatsApp transcript work that grounded the operator
-portal in `USE_CASE_DISCOVERY.md`.
+portal in `../operator-portal/USE_CASE_DISCOVERY.md`.

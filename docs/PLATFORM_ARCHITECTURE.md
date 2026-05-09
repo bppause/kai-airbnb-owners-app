@@ -53,6 +53,7 @@ Live and planned modules:
 | --- | --- | --- |
 | `incidents` | live | Community / property incident management |
 | `operator-portal` | concept (`docs/modules/operator-portal/DESIGN.md`) | Operator work management; owner ↔ operator relationship lifecycle |
+| `property-development-lifecycle` | idea (`docs/modules/property-development-lifecycle/PROPOSAL.md`) | Pre-sale → contracts → construction comms → handover → 1/5/10-year warranty → resale |
 | `guest-mgmt` | idea | Guest stays, check-in/out, guest history |
 | `tourism` | idea | Local tourism integration |
 | `facilities` | idea | Shared amenity / facilities operations |
