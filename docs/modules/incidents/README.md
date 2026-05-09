@@ -37,6 +37,7 @@ shape:
 | --- | --- |
 | [`README.md`](README.md) | This index. |
 | [`DESIGN.md`](DESIGN.md) | Full module design: architecture, data model, workflow, API, UI, known gaps, roadmap. |
+| [`DIAGRAMS.md`](DIAGRAMS.md) | Mermaid architecture diagrams: state machines, ER, end-to-end sequence, SLA cron flow, email fan-out, roadmap shape. |
 | [`UAT_SCRIPT.md`](UAT_SCRIPT.md) | User acceptance test script for the incident management portal. |
 
 ## Companion documents
