@@ -2,7 +2,7 @@
 # KAI Operator Portal
 
 > Reference document — May 2026  
-> Companion to: `PROTOTYPE_READINESS.md`, `OPERATOR_PORTAL_PROPOSAL.md`
+> Companion to: `PROTOTYPE_READINESS.md`, `PROPOSAL.md`
 
 ---
 

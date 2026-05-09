@@ -2,7 +2,7 @@
 
 > Status: design reference — May 2026
 > Owner: platform team
-> Companion docs: `PLATFORM_ARCHITECTURE.md` (contract), `OPERATOR_PORTAL_DESIGN.md` (operator-portal spec), `OPERATOR_PORTAL_PROPOSAL.md` (client-facing proposal), `USE_CASE_DISCOVERY.md` (operator/owner use cases grounded in real WhatsApp data)
+> Companion docs: `../PLATFORM_ARCHITECTURE.md` (contract), `../modules/operator-portal/DESIGN.md` (operator-portal spec), `../modules/operator-portal/PROPOSAL.md` (client-facing proposal), `../modules/operator-portal/USE_CASE_DISCOVERY.md` (operator/owner use cases grounded in real WhatsApp data)
 
 This document is the high-level design of the community property management
 platform: the live incident-management module, the operator-portal module
@@ -51,7 +51,7 @@ Two things are intentionally **out of scope**:
 ## 2. Platform Fundamentals
 
 The platform is structured around the **three orthogonal axes** locked in
-`PLATFORM_ARCHITECTURE.md`:
+`../PLATFORM_ARCHITECTURE.md`:
 
 | Axis | Question it answers |
 | --- | --- |
@@ -227,9 +227,9 @@ These are explicitly addressed in Section 4.
 ## 4. Module: `operator-portal` (concept)
 
 Status: **approved design, pending implementation**. Full spec in
-`docs/OPERATOR_PORTAL_DESIGN.md`; client-facing pitch in
-`docs/OPERATOR_PORTAL_PROPOSAL.md`; use-case grounding in
-`docs/USE_CASE_DISCOVERY.md`.
+`docs/modules/operator-portal/DESIGN.md`; client-facing pitch in
+`docs/modules/operator-portal/PROPOSAL.md`; use-case grounding in
+`docs/modules/operator-portal/USE_CASE_DISCOVERY.md`.
 
 ### 4.1 What it does
 
@@ -313,7 +313,7 @@ inspection request, access-code change, building-notice relay.
 AirCover window prompt (12 days post-checkout), Superhost risk prompt.
 
 The full table with WhatsApp-equivalent examples and Calendar-Owner
-visibility lives in `USE_CASE_DISCOVERY.md` §"Request Type Taxonomy".
+visibility lives in `../modules/operator-portal/USE_CASE_DISCOVERY.md` §"Request Type Taxonomy".
 
 ### 4.6 The unified attention inbox
 
@@ -356,7 +356,7 @@ Reporter identity remains protected.
 
 ### 4.9 New tables (summary)
 
-Full DDL is in `OPERATOR_PORTAL_DESIGN.md` §"Database — New Tables /
+Full DDL is in `../modules/operator-portal/DESIGN.md` §"Database — New Tables /
 Columns". The shape:
 
 - `operator_profiles`, `operator_communities`, `operator_staff`
@@ -388,7 +388,7 @@ Pulled from the design doc; recommended MVP is Phases 1–3.
 ### 4.11 Open questions blocking implementation
 
 These need answers before code lands; full list in
-`USE_CASE_DISCOVERY.md` §"Questions That Must Be Answered Before Building":
+`../modules/operator-portal/USE_CASE_DISCOVERY.md` §"Questions That Must Be Answered Before Building":
 
 - Multi-owner approval semantics (Payout vs. Calendar Owner approval rights).
 - Pricing-proposal expiry: silent expire vs. auto-approve at 48h.
@@ -400,7 +400,7 @@ These need answers before code lands; full list in
 
 ## 5. Future Roadmap Modules
 
-The slugs and statuses below are locked in `PLATFORM_ARCHITECTURE.md` §3 so
+The slugs and statuses below are locked in `../PLATFORM_ARCHITECTURE.md` §3 so
 they can be reasoned about today even though they are not implementation
 commitments.
 
@@ -649,7 +649,7 @@ Open questions blocking start:
 
 ### 7.4 Module enablement per community
 
-Per `PLATFORM_ARCHITECTURE.md` §10, the `community_modules` table lands
+Per `../PLATFORM_ARCHITECTURE.md` §10, the `community_modules` table lands
 when module #2 (operator-portal) ships. Default backfill: every existing
 community has every then-available module enabled. Global admin toggles
 per-community thereafter; community admin assigns who admins what within
@@ -681,7 +681,7 @@ don't accidentally drift into them:
 ---
 
 *This document is the design contract for the platform as a whole; per-
-module specifications (`OPERATOR_PORTAL_DESIGN.md`, future
+module specifications (`../modules/operator-portal/DESIGN.md`, future
 `GUEST_MGMT_DESIGN.md`, etc.) live next to it and override it on details
 within their slice. Update this file when the inter-module surface
 changes; do not let drift accumulate.*

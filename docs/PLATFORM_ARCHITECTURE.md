@@ -52,7 +52,7 @@ Live and planned modules:
 | Slug | Status | Purpose |
 | --- | --- | --- |
 | `incidents` | live | Community / property incident management |
-| `operator-portal` | concept (`docs/OPERATOR_PORTAL_DESIGN.md`) | Operator work management; owner ↔ operator relationship lifecycle |
+| `operator-portal` | concept (`docs/modules/operator-portal/DESIGN.md`) | Operator work management; owner ↔ operator relationship lifecycle |
 | `guest-mgmt` | idea | Guest stays, check-in/out, guest history |
 | `tourism` | idea | Local tourism integration |
 | `facilities` | idea | Shared amenity / facilities operations |

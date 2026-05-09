@@ -2,7 +2,7 @@
 # KAI Operator Portal
 
 > Reference document — updated May 2026  
-> Companion to: `OPERATOR_PORTAL_PROPOSAL.md`
+> Companion to: `PROPOSAL.md`
 
 ---
 
