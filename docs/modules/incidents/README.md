@@ -12,9 +12,12 @@ community-or-property-level issue — guest complaint, noise, damage, common-
 area problem, regulatory or building notice — and runs it through a
 two-step resolution workflow with SLA pressure.
 
-## Design summary
+## Design
 
-A summary lives in `../../platform/DESIGN.md` §3. The key shape:
+The full design — current architecture, data model, workflow, API, UI,
+known gaps, and roadmap — lives in [`DESIGN.md`](DESIGN.md). A
+cross-module summary lives in `../../platform/DESIGN.md` §3. The key
+shape:
 
 - **Two-step workflow**: `Reported → Step 1 (verify + immediate action) →
   Step 2 (owner resolution) → Closed`.
@@ -33,6 +36,7 @@ A summary lives in `../../platform/DESIGN.md` §3. The key shape:
 | File | Purpose |
 | --- | --- |
 | [`README.md`](README.md) | This index. |
+| [`DESIGN.md`](DESIGN.md) | Full module design: architecture, data model, workflow, API, UI, known gaps, roadmap. |
 | [`UAT_SCRIPT.md`](UAT_SCRIPT.md) | User acceptance test script for the incident management portal. |
 
 ## Companion documents
@@ -43,8 +47,11 @@ A summary lives in `../../platform/DESIGN.md` §3. The key shape:
   platform-wide design.
 - `server/modules/incidents/README.md` — server-side code-level notes.
 
-## Known gaps
+## Known gaps and roadmap
 
-Captured in `../../platform/DESIGN.md` §3.7. They are addressed by the
-operator-portal module (delegation, structured repair record, per-stay
-inspection baseline).
+Captured in [`DESIGN.md`](DESIGN.md) §13 (gaps) and §14 (roadmap, grouped
+into near-term polish, schema-additive items, photos-as-attachments,
+cross-module integrations, and longer-horizon reshapes). The biggest
+near-term gaps — operator delegation, structured repair record, per-stay
+inspection baseline — are addressed by the operator-portal and
+guest-mgmt modules respectively.
