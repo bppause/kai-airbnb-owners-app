@@ -28,21 +28,17 @@ body.fullscreen .actions{display:none}
 .lang-btn.active{background:var(--grad);border-color:transparent;color:#fff}
 
 .slides{position:absolute;inset:0}
-.slide{position:absolute;inset:0;padding:54px 24px 78px;display:flex;flex-direction:column;align-items:center;opacity:0;transform:translateY(8px);transition:opacity .45s ease,transform .45s ease;text-align:center}
+.slide{position:absolute;inset:0;padding:46px 16px 64px;display:flex;flex-direction:column;align-items:center;opacity:0;transform:translateY(8px);transition:opacity .45s ease,transform .45s ease;text-align:center}
 .slide.active{opacity:1;transform:none}
-.slide .chip{display:inline-block;font-size:.7rem;font-weight:800;letter-spacing:.08em;text-transform:uppercase;padding:5px 12px;border-radius:99px;background:rgba(11,127,140,.25);color:#9ce5d6;margin-bottom:8px;border:1px solid rgba(156,229,214,.25)}
-.slide h2{font-size:clamp(1.1rem,2.2vw,1.5rem);font-weight:900;color:#fff;margin-bottom:4px;letter-spacing:-.01em}
-.slide p.lede{font-size:clamp(.8rem,1.4vw,.95rem);color:#cfe6dc;max-width:780px;margin:0 auto 8px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;width:100%;padding:0 12px}
+.slide .chip{display:inline-block;font-size:.7rem;font-weight:800;letter-spacing:.08em;text-transform:uppercase;padding:4px 11px;border-radius:99px;background:rgba(11,127,140,.25);color:#9ce5d6;margin-bottom:4px;border:1px solid rgba(156,229,214,.25)}
+.slide h2{font-size:clamp(1.05rem,2.2vw,1.4rem);font-weight:900;color:#fff;margin-bottom:6px;letter-spacing:-.01em}
+.slide p.lede{display:none}
 
-/* Visual = scrollable screenshot viewport. Image renders at natural size
-   so every pixel is legible; viewport scrolls when image > frame. */
-.visual{flex:1;width:100%;max-width:900px;margin:6px auto 0;position:relative;display:flex;align-items:safe center;justify-content:safe center;min-height:0;overflow:auto;scrollbar-color:rgba(255,255,255,.35) rgba(255,255,255,.06);scrollbar-width:thin}
-.visual::-webkit-scrollbar{width:10px;height:10px}
-.visual::-webkit-scrollbar-track{background:rgba(255,255,255,.06);border-radius:5px}
-.visual::-webkit-scrollbar-thumb{background:rgba(255,255,255,.28);border-radius:5px}
-.visual::-webkit-scrollbar-thumb:hover{background:rgba(255,255,255,.45)}
-.visual .frame{position:relative;display:inline-block;flex-shrink:0;line-height:0;box-shadow:0 16px 40px rgba(0,0,0,.5),0 0 0 1px rgba(255,255,255,.08);border-radius:10px}
-.visual img{display:block;width:auto;height:auto;max-width:none;max-height:none;border-radius:10px}
+/* Visual = screenshot frame. Fills almost the entire slide so the
+   screenshot is as large as possible while staying fully visible. */
+.visual{flex:1;width:100%;max-width:none;margin:2px auto 0;position:relative;display:flex;align-items:center;justify-content:center;min-height:0}
+.visual .frame{position:relative;display:block;line-height:0;box-shadow:0 16px 40px rgba(0,0,0,.5),0 0 0 1px rgba(255,255,255,.08);border-radius:10px}
+.visual img{display:block;width:100%;height:100%;object-fit:contain;border-radius:10px}
 
 .hotspot{position:absolute;width:28px;height:28px;border-radius:50%;background:#d9b45a;border:2px solid #fff;cursor:pointer;transform:translate(-50%,-50%);z-index:3;color:#1a3c2a;font-weight:900;font-size:.84rem;display:flex;align-items:center;justify-content:center;box-shadow:0 0 0 0 rgba(217,180,90,.6),0 3px 8px rgba(0,0,0,.45);animation:hotpulse 1.8s infinite;padding:0;line-height:1}
 .hotspot:hover{background:#e8c878;transform:translate(-50%,-50%) scale(1.18);box-shadow:0 0 0 0 rgba(217,180,90,0),0 6px 14px rgba(0,0,0,.55)}
@@ -352,10 +348,31 @@ SLIDES.forEach((s,i)=>{
   const dot=document.createElement('div'); dot.className='dot'; dot.onclick=()=>goto(i); dotsEl.appendChild(dot);
 });
 
-/* .frame is display:inline-block so it shrinkwraps to natural image size;
-   .visual scrolls when image > frame. Hotspot %s of .frame align with
-   the image because frame == image. */
-function fitAll(){ /* no-op kept for fullscreen handler */ }
+/* Size each .frame to match the actual rendered image bounds inside its
+   .visual container so hotspot %s align exactly. */
+function fitFrame(slideEl){
+  const visual=slideEl.querySelector('.visual');
+  const frame =slideEl.querySelector('.frame');
+  const img   =slideEl.querySelector('.frame img');
+  if(!visual || !frame || !img) return;
+  const apply=()=>{
+    const cw=visual.clientWidth, ch=visual.clientHeight;
+    const nw=img.naturalWidth, nh=img.naturalHeight;
+    if(!cw || !ch || !nw || !nh) return;
+    const cAR=cw/ch, iAR=nw/nh;
+    let dw,dh;
+    if(iAR>cAR){ dw=cw; dh=cw/iAR; } else { dh=ch; dw=ch*iAR; }
+    frame.style.width =Math.round(dw)+'px';
+    frame.style.height=Math.round(dh)+'px';
+  };
+  if(img.complete && img.naturalWidth) apply();
+  else img.addEventListener('load', apply, { once:true });
+  return apply;
+}
+const _fitters = Array.from(document.querySelectorAll('.slide')).map(fitFrame);
+function fitAll(){ _fitters.forEach(fn => fn && fn()); }
+window.addEventListener('resize', fitAll);
+window.addEventListener('load', fitAll);
 
 let idx=0, elapsed=0, playing=true;
 
