@@ -49,6 +49,7 @@ module.exports = function createAdminRouter(deps) {
       const policy = {};
       if (Number.isFinite(hours) && hours >= 1) policy.hours = hours;
       if (Number.isFinite(maxReminders) && maxReminders >= 0) policy.maxReminders = maxReminders;
+      if (typeof src.enabled === 'boolean') policy.enabled = src.enabled;
       if (Object.keys(policy).length) out[event] = policy;
     }
     return out;

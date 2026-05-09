@@ -70,6 +70,11 @@ module.exports = function createSlaCron(deps) {
         if (!event) { await supabase.from('incidents').update({ next_sla_reminder_at: null }).eq('id', row.id); continue; }
         const policy = await getSlaPolicy(event, row.community_id || 'kai');
         const slaHours = Number(row.sla_hours || policy.hours || await getSlaHours() || 24);
+        // Disabled at the policy level → halt the clock.
+        if (policy?.enabled === false) {
+          await supabase.from('incidents').update({ next_sla_reminder_at: null }).eq('id', row.id);
+          continue;
+        }
         if (await enforceCap(row, policy)) continue;
         if (!listing) {
           // General incident — no unit owner; alert admins to assign or close it.

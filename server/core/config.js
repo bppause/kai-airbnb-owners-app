@@ -47,10 +47,11 @@ const DEFAULT_ESCALATION_CC_EMAILS = String(process.env.DEFAULT_ESCALATION_CC_EM
 
 // Per-event SLA policy defaults. Used when app_config.sla_policies is missing
 // a key, or as the fallback when sla_policies itself isn't set yet.
+// `enabled:false` halts the SLA clock for that event entirely.
 const DEFAULT_SLA_POLICIES = {
-  step1_verify:  { hours: DEFAULT_SLA_HOURS, maxReminders: 3 },
-  step2_resolve: { hours: DEFAULT_SLA_HOURS, maxReminders: 3 },
-  admin_close:   { hours: 48,                maxReminders: 3 },
+  step1_verify:  { enabled: true, hours: DEFAULT_SLA_HOURS, maxReminders: 3 },
+  step2_resolve: { enabled: true, hours: DEFAULT_SLA_HOURS, maxReminders: 3 },
+  admin_close:   { enabled: true, hours: 48,                maxReminders: 3 },
 };
 // Owner-facing events the community admin is allowed to override via
 // community_config. admin_close is platform-only.
@@ -172,6 +173,7 @@ module.exports = function createConfigHelpers(supabase, { EMAIL_FROM }) {
       const maxReminders = Number(policy?.maxReminders);
       if (Number.isFinite(hours) && hours > 0) result[event].hours = hours;
       if (Number.isFinite(maxReminders) && maxReminders >= 0) result[event].maxReminders = maxReminders;
+      if (typeof policy?.enabled === 'boolean') result[event].enabled = policy.enabled;
     }
     // Re-fetch the platform-only sla_policies so we can ignore community
     // overrides on platform-only events (admin_close).
@@ -185,6 +187,7 @@ module.exports = function createConfigHelpers(supabase, { EMAIL_FROM }) {
           const maxReminders = Number(adminPolicy.maxReminders);
           if (Number.isFinite(hours) && hours > 0) result.admin_close.hours = hours;
           if (Number.isFinite(maxReminders) && maxReminders >= 0) result.admin_close.maxReminders = maxReminders;
+          if (typeof adminPolicy.enabled === 'boolean') result.admin_close.enabled = adminPolicy.enabled;
         }
       } catch(e) { warn('SLA platform-only re-read failed: ' + (e?.message || e)); }
     }

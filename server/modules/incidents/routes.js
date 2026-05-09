@@ -69,9 +69,10 @@ module.exports = function createIncidentsRouter(deps) {
     const step1Policy = await getSlaPolicy('step1_verify', communityId);
     const slaHours = step1Policy.hours;
     const nowIso = new Date().toISOString();
+    const step1NextReminder = step1Policy.enabled === false ? null : addHoursIso(nowIso, slaHours);
 
     if (isGeneral) {
-      const item = { id:'inc_'+uuidv4().slice(0,8), communityId, reporterUid, reporterName, aptId:null, aptLabel:'', guestName:'', guestCity:'', guestState:'', guestCountry:'', date, type, category, desc, status:'open', isGeneral:true, photos, slaHours, slaEvent:'step1_verify', nextSlaReminderAt:addHoursIso(nowIso, slaHours), slaCycleCount:0, createdAt:nowIso };
+      const item = { id:'inc_'+uuidv4().slice(0,8), communityId, reporterUid, reporterName, aptId:null, aptLabel:'', guestName:'', guestCity:'', guestState:'', guestCountry:'', date, type, category, desc, status:'open', isGeneral:true, photos, slaHours, slaEvent:'step1_verify', nextSlaReminderAt: step1NextReminder, slaCycleCount:0, createdAt:nowIso };
       const { data, error } = await supabase.from('incidents').insert(incidentToDb(item, communityId)).select('*').single();
       if (error) return sendSupabaseError(res, error);
       const savedIncident = incidentFromDb(data);
@@ -117,7 +118,8 @@ module.exports = function createIncidentsRouter(deps) {
     // Re-resolve policy with the listing's community in case it differs from the request's.
     const incStep1Policy = incCommunityId === communityId ? step1Policy : await getSlaPolicy('step1_verify', incCommunityId);
     const incSlaHours = incStep1Policy.hours;
-    const item = { id:'inc_'+uuidv4().slice(0,8), communityId:incCommunityId, reporterUid, reporterName, aptId, aptLabel: aptLabel || ('Apto ' + listing.apt), guestName:'', guestCity:'', guestState:'', guestCountry:'', date, type, category, desc, status:'open', isGeneral:false, photos, slaHours: incSlaHours, slaEvent:'step1_verify', nextSlaReminderAt:addHoursIso(nowIso, incSlaHours), slaCycleCount:0, createdAt:nowIso };
+    const incNextReminder = incStep1Policy.enabled === false ? null : addHoursIso(nowIso, incSlaHours);
+    const item = { id:'inc_'+uuidv4().slice(0,8), communityId:incCommunityId, reporterUid, reporterName, aptId, aptLabel: aptLabel || ('Apto ' + listing.apt), guestName:'', guestCity:'', guestState:'', guestCountry:'', date, type, category, desc, status:'open', isGeneral:false, photos, slaHours: incSlaHours, slaEvent:'step1_verify', nextSlaReminderAt: incNextReminder, slaCycleCount:0, createdAt:nowIso };
     const { data, error } = await supabase.from('incidents').insert(incidentToDb(item, incCommunityId)).select('*').single();
     if (error) return sendSupabaseError(res, error);
     const savedIncident = incidentFromDb(data);
@@ -191,7 +193,8 @@ module.exports = function createIncidentsRouter(deps) {
     // the admin_close clock; otherwise wait on step2_resolve.
     const nextSlaEvent = ownerResolutionText ? 'admin_close' : 'step2_resolve';
     const nextSlaPolicy = await getSlaPolicy(nextSlaEvent, incCommunityId);
-    const upd = { status:'verified', owner_guests: ownerGuests, owner_guest_names:names, owner_guest_city:cities, owner_guest_country:countries, owner_comments:ownerCommentText, owner_resolution:ownerResolutionText, owner_resolution_at: ownerResolutionText ? nowIso : null, owner_verified_at:nowIso, sla_event: nextSlaEvent, sla_hours: nextSlaPolicy.hours, sla_cycle_count: 0, next_sla_reminder_at: addHoursIso(nowIso, nextSlaPolicy.hours) };
+    const verifyNextReminder = nextSlaPolicy.enabled === false ? null : addHoursIso(nowIso, nextSlaPolicy.hours);
+    const upd = { status:'verified', owner_guests: ownerGuests, owner_guest_names:names, owner_guest_city:cities, owner_guest_country:countries, owner_comments:ownerCommentText, owner_resolution:ownerResolutionText, owner_resolution_at: ownerResolutionText ? nowIso : null, owner_verified_at:nowIso, sla_event: nextSlaEvent, sla_hours: nextSlaPolicy.hours, sla_cycle_count: 0, next_sla_reminder_at: verifyNextReminder };
     const { data, error } = await supabase.from('incidents').update(upd).eq('id', req.params.id).select('*').single();
     if (error) return sendSupabaseError(res, error);
     await auditLog({ entity:'incident', entityId:data.id, action:'verify', actorUid:ownerUid, before:inc, after:data });
@@ -215,7 +218,8 @@ module.exports = function createIncidentsRouter(deps) {
     const arNowIso = new Date().toISOString();
     const arCommunityId = inc.community_id || 'kai';
     const adminClosePolicy = await getSlaPolicy('admin_close', arCommunityId);
-    const { data, error } = await supabase.from('incidents').update({ owner_resolution: resText, owner_resolution_at: arNowIso, sla_event: 'admin_close', sla_hours: adminClosePolicy.hours, sla_cycle_count: 0, next_sla_reminder_at: addHoursIso(arNowIso, adminClosePolicy.hours) }).eq('id', req.params.id).select('*').single();
+    const adminCloseNextReminder = adminClosePolicy.enabled === false ? null : addHoursIso(arNowIso, adminClosePolicy.hours);
+    const { data, error } = await supabase.from('incidents').update({ owner_resolution: resText, owner_resolution_at: arNowIso, sla_event: 'admin_close', sla_hours: adminClosePolicy.hours, sla_cycle_count: 0, next_sla_reminder_at: adminCloseNextReminder }).eq('id', req.params.id).select('*').single();
     if (error) return sendSupabaseError(res, error);
     await auditLog({ entity:'incident', entityId:data.id, action:'add-resolution', actorUid:ownerUid, before:inc, after:data });
     const updatedIncident = incidentFromDb(data);
