@@ -53,9 +53,16 @@ Live and planned modules:
 | --- | --- | --- |
 | `incidents` | live | Community / property incident management |
 | `operator-portal` | concept (`docs/modules/operator-portal/DESIGN.md`) | Operator work management; owner ↔ operator relationship lifecycle |
+| `building-admin` | idea (`docs/modules/building-admin/README.md`) | HOA / community admin: residents, fees, fines, governance, board minutes |
+| `front-desk` | idea (`docs/modules/front-desk/README.md`) | Guard / concierge: visitors, packages, access, parking, shift log |
+| `resident-experience` | idea (`docs/modules/resident-experience/README.md`) | Owner / renter self-service portal: amenities, fees due, packages, move-in/out |
+| `facilities` | idea | Shared amenity / facilities operations |
+| `property-development-lifecycle` | idea (`docs/modules/property-development-lifecycle/PROPOSAL.md`) | Pre-sale → contracts → construction comms → handover → 1/5/10-year warranty → resale |
 | `guest-mgmt` | idea | Guest stays, check-in/out, guest history |
 | `tourism` | idea | Local tourism integration |
-| `facilities` | idea | Shared amenity / facilities operations |
+| `compliance` | idea (`docs/modules/compliance/README.md`) | Regulatory: SIRE / RNT / tourism tax / building rules / insurance / Habeas Data |
+| `communications` | idea (`docs/modules/communications/README.md`) | Targeted announcements, polls, minutes; cross-module notifications backplane |
+| `analytics` | idea (`docs/modules/analytics/README.md`) | Cross-module KPIs, scorecards, anomaly detection, AI triage / drafting |
 
 Planned modules are not implementation commitments — they exist here so the
 naming and architectural fit can be reasoned about today.
