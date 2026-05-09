@@ -287,7 +287,7 @@ const CHAPTERS = [
             mail:{es:"📧 Email \"Registro recibido\" + email \"Aprobado / Rechazado\" cuando un admin actúe",en:"📧 \"Registration received\" email + \"Approved / Declined\" email when an admin acts"}
           },
           { x:91, y:25,
-            title:{es:"↩ Sign out",en:"↩ Sign out"},
+            title:{es:"↩ Cerrar sesión",en:"↩ Sign out"},
             body:{es:"Si registraste con la cuenta equivocada, puedes cerrar sesión aquí y volver a empezar con la cuenta correcta.",
                   en:"If you registered with the wrong account, you can sign out here and restart with the right one."}
           }
@@ -344,7 +344,7 @@ const CHAPTERS = [
             mail:{es:"📧 Aplica a TODOS los emails de incidente y recordatorios SLA",en:"📧 Applies to ALL incident emails and SLA reminders"}
           },
           { x:50, y:96,
-            title:{es:"🔗 View incidents",en:"🔗 View incidents"},
+            title:{es:"🔗 Ver incidentes",en:"🔗 View incidents"},
             body:{es:"Click para ver todos los incidentes históricos de esta unidad — los abiertos y los cerrados.",
                   en:"Click to view all historical incidents for this unit — both open and closed."}
           }
@@ -364,7 +364,7 @@ const CHAPTERS = [
         cap:{es:"📧 La unidad pasa a aprobación del admin.",en:"📧 The unit goes to admin approval."},
         hotspots:[
           { x:25, y:30, tipkey:'aptNumber',
-            title:{es:"🏠 Unit number",en:"🏠 Unit number"},
+            title:{es:"🏠 Número de unidad",en:"🏠 Unit number"},
             body:{es:"Ingresa 3 dígitos (ej: 705). Solo un propietario puede registrar cada unidad.",
                   en:"Enter 3 digits (e.g. 705). Each unit can only be registered to one owner."},
             mail:{es:"📧 Al guardar dispara: 🏠 \"Listing creado\" a tu Gmail + admin recibe \"Nuevo listing pendiente\"",en:"📧 On save fires: 🏠 \"Listing created\" to your Gmail + admin gets \"New listing pending\""}
@@ -421,12 +421,12 @@ const CHAPTERS = [
         cap:{es:"📧 Solo el propietario principal recibe emails.",en:"📧 Only the primary owner receives emails."},
         hotspots:[
           { x:50, y:55,
-            title:{es:"+ Add co-owner",en:"+ Add co-owner"},
+            title:{es:"+ Agregar co-propietario",en:"+ Add co-owner"},
             body:{es:"Agrega nombre, apellido y WhatsApp del co-propietario. Solo el propietario principal recibe los emails de la unidad.",
                   en:"Add the co-owner's first name, last name, and WhatsApp. Only the primary owner receives the unit's emails."}
           },
           { x:80, y:90,
-            title:{es:"💾 Save",en:"💾 Save"},
+            title:{es:"💾 Guardar",en:"💾 Save"},
             body:{es:"Guarda los cambios y dispara el email \"Listing actualizado\" al propietario y al operador.",
                   en:"Saves the changes and triggers \"Listing updated\" email to the owner and operator."},
             mail:{es:"📧 Dispara: ✏️ \"Listing actualizado\"",en:"📧 Triggers: ✏️ \"Listing updated\""}
@@ -441,7 +441,7 @@ const CHAPTERS = [
     sub:{es:"Crear nuevo reporte", en:"Create new report"},
     slides:[
       { img:'/screens/10-new-incident.png',
-        title:{es:"Modal: File an Incident Report",en:"Modal: File an Incident Report"},
+        title:{es:"Modal: Reportar incidente",en:"Modal: File an Incident Report"},
         text:{es:"Elige unidad, tipo y descripción. Las plantillas amarillas pre-llenan.",
               en:"Pick unit, type, and description. Yellow templates pre-fill."},
         cap:{es:"📧 Al enviar arranca el SLA del propietario afectado.",en:"📧 On submit, the affected owner's SLA starts."},
@@ -484,7 +484,7 @@ const CHAPTERS = [
         cap:{es:"📧 Recibió email + recordatorio si pasan 24 h.",en:"📧 They got email + 24 h reminder."},
         hotspots:[
           { x:14, y:55,
-            title:{es:"1 — Verify · Owner action required",en:"1 — Verify · Owner action required"},
+            title:{es:"1 — Verificar · Acción del propietario requerida",en:"1 — Verify · Owner action required"},
             body:{es:"Esta sección agrupa los incidentes que requieren tu Paso 1. El badge naranja indica que tu acción está pendiente y el SLA está corriendo.",
                   en:"This section groups incidents needing your Step 1. The orange badge means your action is pending and the SLA is running."},
             mail:{es:"📧 Recibiste: ⚠️ \"Acción requerida — incidente nuevo\". A las 24 h: 🔴 recordatorio urgente.",en:"📧 You got: ⚠️ \"Action required — new incident\". At 24 h: 🔴 urgent reminder."}
@@ -499,7 +499,7 @@ const CHAPTERS = [
         cap:{es:"Tú eres el verifier (propietario afectado).",en:"You are the verifier (affected owner)."},
         hotspots:[
           { x:88, y:60,
-            title:{es:"⊕ Verify · Owner action",en:"⊕ Verify · Owner action"},
+            title:{es:"⊕ Verificar · Acción del propietario",en:"⊕ Verify · Owner action"},
             body:{es:"Click para abrir el formulario donde confirmas el huésped y describes la acción inmediata tomada.",
                   en:"Click to open the form where you confirm the guest and describe the immediate action taken."}
           }
@@ -507,13 +507,13 @@ const CHAPTERS = [
         sec:9
       },
       { img:'/screens/13-incident-verify-button.png',
-        title:{es:"Botón verde \"Verify — add guest info & action\"",en:"Green button \"Verify — add guest info & action\""},
+        title:{es:"Botón verde \"Verificar — datos del huésped y acción\"",en:"Green button \"Verify — add guest info & action\""},
         text:{es:"Click en el botón verde para abrir el formulario.",
               en:"Click the green button to open the form."},
         cap:{es:"Paso 1 de 2 — verificación obligatoria.",en:"Step 1 of 2 — verification required."},
         hotspots:[
           { x:50, y:55,
-            title:{es:"✅ Verify — Step 1 of 2",en:"✅ Verify — Step 1 of 2"},
+            title:{es:"✅ Verificar — Paso 1 de 2",en:"✅ Verify — Step 1 of 2"},
             body:{es:"Paso 1: el propietario verifica y documenta la acción inmediata tomada. Paso 2 (por separado): el propietario agrega su respuesta — requerida antes de que el admin pueda cerrar.",
                   en:"Step 1: Owner verifies and documents immediate action taken. Step 2 (separate): Owner adds their resolution — required before admin can close."},
             tipkey:'verifyIncident'
@@ -540,12 +540,12 @@ const CHAPTERS = [
           { x:50, y:60, tipkey:'verifyIncident',
             title:{es:"💡 Acción inmediata (requerida)",en:"💡 Immediate action (required)"} },
           { x:50, y:80,
-            title:{es:"🔍 Proposed resolution",en:"🔍 Proposed resolution"},
+            title:{es:"🔍 Respuesta propuesta",en:"🔍 Proposed resolution"},
             body:{es:"Opcional aquí — el admin no puede cerrar hasta que esté lleno. Si lo dejas vacío, lo agregas después en el Paso 2.",
                   en:"Optional here — the admin can't close until it's filled. If empty, you add it later in Step 2."}
           },
           { x:75, y:96,
-            title:{es:"💾 Save verification",en:"💾 Save verification"},
+            title:{es:"💾 Guardar verificación",en:"💾 Save verification"},
             body:{es:"Guarda y dispara email a los admins (\"Incidente verificado\"). El incidente avanza al Paso 2.",
                   en:"Saves and sends email to admins (\"Incident verified\"). The incident moves to Step 2."},
             mail:{es:"📧 Dispara: ✅ incident_verified a admins",en:"📧 Triggers: ✅ incident_verified to admins"}
@@ -560,18 +560,18 @@ const CHAPTERS = [
     sub:{es:"Respuesta del propietario", en:"Owner resolution"},
     slides:[
       { img:'/screens/15-incidents-add-resolution.png',
-        title:{es:"Bandeja: \"Add resolution\"",en:"Inbox: \"Add resolution\""},
+        title:{es:"Bandeja: \"Agregar respuesta\"",en:"Inbox: \"Add resolution\""},
         text:{es:"Tras Paso 1, el incidente espera tu respuesta del Paso 2.",
               en:"After Step 1, the incident awaits your Step 2 response."},
         cap:{es:"📧 Recordatorio si no respondes en 24 h.",en:"📧 Reminder if you don't respond in 24 h."},
         hotspots:[
           { x:88, y:60,
-            title:{es:"+ Add resolution",en:"+ Add resolution"},
+            title:{es:"+ Agregar respuesta",en:"+ Add resolution"},
             body:{es:"Click para abrir el modal donde escribes tu respuesta al incidente. Una vez agregada el admin puede cerrarlo.",
                   en:"Click to open the modal where you write your resolution. Once added the admin can close it."}
           },
           { x:14, y:38,
-            title:{es:"Pestaña 2 · In Progress",en:"Tab 2 · In Progress"},
+            title:{es:"Pestaña 2 · En progreso",en:"Tab 2 · In Progress"},
             body:{es:"Aquí van los incidentes que ya verificaste (Paso 1) pero aún esperan tu respuesta (Paso 2).",
                   en:"Incidents you've verified (Step 1) but still need your resolution (Step 2)."}
           }
@@ -579,7 +579,7 @@ const CHAPTERS = [
         sec:10
       },
       { img:'/screens/16-resolution-modal.png',
-        title:{es:"Modal: Add resolution",en:"Modal: Add resolution"},
+        title:{es:"Modal: Agregar respuesta",en:"Modal: Add resolution"},
         text:{es:"Modal pequeño con un campo. Escribe la respuesta y guarda.",
               en:"Small modal with one field. Write the response and save."},
         cap:{es:"📧 El admin recibe \"Respuesta agregada\".",en:"📧 The admin gets \"Resolution added\"."},
@@ -595,7 +595,7 @@ const CHAPTERS = [
                   en:"Describe what you did to resolve: contacted the guest, coordinated with operator, involved Airbnb, etc."}
           },
           { x:75, y:80,
-            title:{es:"💾 Save resolution",en:"💾 Save resolution"},
+            title:{es:"💾 Guardar respuesta",en:"💾 Save resolution"},
             body:{es:"Guarda y notifica al admin. El incidente cambia a estado \"ready to close\".",
                   en:"Saves and notifies the admin. The incident moves to \"ready to close\" state."},
             mail:{es:"📧 Dispara: 🎯 incident_resolution_added al admin",en:"📧 Triggers: 🎯 incident_resolution_added to admin"}
@@ -604,13 +604,13 @@ const CHAPTERS = [
         sec:14
       },
       { img:'/screens/17-incidents-closed.png',
-        title:{es:"Pestaña 3 · Closed",en:"Tab 3 · Closed"},
+        title:{es:"Pestaña 3 · Cerrado",en:"Tab 3 · Closed"},
         text:{es:"El admin formaliza el cierre y el incidente pasa a Closed.",
               en:"The admin finalizes closure and the incident moves to Closed."},
         cap:{es:"📧 Email final llega a todas las partes.",en:"📧 Final email goes to all parties."},
         hotspots:[
           { x:14, y:62,
-            title:{es:"3 · Closed",en:"3 · Closed"},
+            title:{es:"3 · Cerrado",en:"3 · Closed"},
             body:{es:"Histórico cerrado por la administración. Los detalles del huésped y la respuesta quedan archivados para referencia.",
                   en:"Closed history filed by management. Guest details and the resolution are archived for reference."}
           }
@@ -624,34 +624,34 @@ const CHAPTERS = [
     sub:{es:"Tu día de un vistazo", en:"Your day at a glance"},
     slides:[
       { img:'/screens/18-dashboard.png',
-        title:{es:"Community Dashboard",en:"Community Dashboard"},
+        title:{es:"Panel de la comunidad",en:"Community Dashboard"},
         text:{es:"Acciones pendientes, métricas y reportes recientes.",
               en:"Pending actions, metrics, and recent reports."},
         cap:{es:"Cada chip es un atajo a Incidentes filtrado.",en:"Each chip is a filtered Incidents shortcut."},
         hotspots:[
           { x:88, y:9,
-            title:{es:"⚠️ Report incident",en:"⚠️ Report incident"},
+            title:{es:"⚠️ Reportar incidente",en:"⚠️ Report incident"},
             body:{es:"Botón principal del dashboard. Abre el modal \"File an Incident Report\".",
                   en:"Primary dashboard button. Opens the \"File an Incident Report\" modal."},
             tipkey:'reportIncident'
           },
           { x:25, y:32,
-            title:{es:"📂 Open Incidents",en:"📂 Open Incidents"},
+            title:{es:"📂 Incidentes abiertos",en:"📂 Open Incidents"},
             body:{es:"Total de incidentes abiertos en la comunidad. Click → vas a Incidentes con filtro \"abiertos\".",
                   en:"Total open incidents in the community. Click → go to Incidents filtered to \"open\"."}
           },
           { x:25, y:47,
-            title:{es:"⚡ Ready to resolve",en:"⚡ Ready to resolve"},
+            title:{es:"⚡ Listo para resolver",en:"⚡ Ready to resolve"},
             body:{es:"Incidentes verificados, esperando tu respuesta del Paso 2 (o del admin para cerrar).",
                   en:"Verified incidents waiting for your Step 2 response (or for the admin to close)."}
           },
           { x:75, y:32,
-            title:{es:"✅ Need verification",en:"✅ Need verification"},
+            title:{es:"✅ Requiere verificación",en:"✅ Need verification"},
             body:{es:"Incidentes esperando tu Paso 1 (verificar). Acción urgente si tu unidad está afectada.",
                   en:"Incidents waiting for your Step 1 (verify). Urgent if your unit is affected."}
           },
           { x:75, y:47,
-            title:{es:"📋 Pending registrations",en:"📋 Pending registrations"},
+            title:{es:"📋 Registros pendientes",en:"📋 Pending registrations"},
             body:{es:"Solo visible para admins de comunidad — solicitudes de nuevos propietarios pendientes de aprobación.",
                   en:"Only visible to community admins — new owner registration requests pending approval."}
           },
@@ -670,28 +670,28 @@ const CHAPTERS = [
     sub:{es:"Bandeja de alertas", en:"Alerts inbox"},
     slides:[
       { img:'/screens/19-notifications.png',
-        title:{es:"🔔 Notifications · alertas en la app",en:"🔔 Notifications · in-app alerts"},
+        title:{es:"🔔 Notificaciones · alertas en la app",en:"🔔 Notifications · in-app alerts"},
         text:{es:"Cada email automático queda registrado aquí.",
               en:"Every automatic email is logged here."},
         cap:{es:"📧 También llega a tu Gmail + operador.",en:"📧 Also sent to your Gmail + operator."},
         hotspots:[
           { x:14, y:38,
-            title:{es:"Priority actions",en:"Priority actions"},
+            title:{es:"Acciones prioritarias",en:"Priority actions"},
             body:{es:"Sección destacada con las alertas que requieren tu acción (verificar, resolver). Se quitan al completar el flujo.",
                   en:"Featured section with alerts that require your action (verify, resolve). They clear when you complete the flow."}
           },
           { x:88, y:55,
-            title:{es:"✓ Mark as read",en:"✓ Mark as read"},
+            title:{es:"✓ Marcar como leído",en:"✓ Mark as read"},
             body:{es:"Mueve la alerta a histórico. No afecta el email, solo limpia tu bandeja in-app.",
                   en:"Moves the alert to history. Doesn't affect the email, just clears your in-app inbox."}
           },
           { x:88, y:18,
-            title:{es:"Mark all as read",en:"Mark all as read"},
+            title:{es:"Marcar todo como leído",en:"Mark all as read"},
             body:{es:"Limpia todas las alertas activas a la vez.",
                   en:"Clears all active alerts at once."}
           },
           { x:30, y:65,
-            title:{es:"📧 \"Verification needed\" / \"New incident\"",en:"📧 \"Verification needed\" / \"New incident\""},
+            title:{es:"📧 \"Verificación requerida\" / \"Incidente nuevo\"",en:"📧 \"Verification needed\" / \"New incident\""},
             body:{es:"Estas alertas corresponden 1-a-1 con los emails que recibe el propietario afectado. Click sobre el detalle para abrir el incidente.",
                   en:"These alerts correspond 1-to-1 with the emails the affected owner receives. Click the detail to open the incident."},
             mail:{es:"📧 Catálogo de emails: registration_submitted · incident_new · incident_sla_reminder · incident_verified · incident_resolution_added",en:"📧 Email catalog: registration_submitted · incident_new · incident_sla_reminder · incident_verified · incident_resolution_added"}
@@ -706,33 +706,33 @@ const CHAPTERS = [
     sub:{es:"Centro de ayuda", en:"Help center"},
     slides:[
       { img:'/screens/20-help.png',
-        title:{es:"❓ Help & Guide",en:"❓ Help & Guide"},
+        title:{es:"❓ Ayuda y guía",en:"❓ Help & Guide"},
         text:{es:"Búsqueda, secciones y atajos a tutoriales y al tour.",
               en:"Search, sections, and shortcuts to tutorials and the tour."},
         cap:{es:"Cada tarjeta abre un FAQ + ejemplos.",en:"Each card opens FAQ + examples."},
         hotspots:[
           { x:65, y:15,
-            title:{es:"🎯 Interactive Tour",en:"🎯 Interactive Tour"},
+            title:{es:"🎯 Tour interactivo",en:"🎯 Interactive Tour"},
             body:{es:"Tour guiado dentro de la app — distinto a este video. Resalta áreas reales con tooltips paso a paso.",
                   en:"Guided tour inside the real app — different from this video. Highlights real areas with step-by-step tooltips."}
           },
           { x:78, y:15,
-            title:{es:"⏱ Short tutorial",en:"⏱ Short tutorial"},
+            title:{es:"⏱ Tutorial corto",en:"⏱ Short tutorial"},
             body:{es:"Versión 90 segundos con lo esencial. Buena para volver a refrescar conceptos.",
                   en:"90-second version with the essentials. Good for refreshing concepts."}
           },
           { x:88, y:15,
-            title:{es:"🎬 Full tutorial",en:"🎬 Full tutorial"},
+            title:{es:"🎬 Tutorial completo",en:"🎬 Full tutorial"},
             body:{es:"Este video — 9 capítulos con screenshots reales y hotspots interactivos.",
                   en:"This video — 9 chapters with real screenshots and interactive hotspots."}
           },
           { x:18, y:50,
-            title:{es:"🚀 Getting started",en:"🚀 Getting started"},
+            title:{es:"🚀 Empezar",en:"🚀 Getting started"},
             body:{es:"Para nuevos usuarios: cómo entrar, registrar, ser aprobado, y dar el primer reporte.",
                   en:"For new users: how to sign in, register, get approved, and file the first report."}
           },
           { x:50, y:50,
-            title:{es:"⚠️ Reporting an incident · Incident lifecycle",en:"⚠️ Reporting an incident · Incident lifecycle"},
+            title:{es:"⚠️ Reportar incidente · Ciclo del incidente",en:"⚠️ Reporting an incident · Incident lifecycle"},
             body:{es:"Cubre el flujo completo: reportar → verificar (Paso 1) → admin → resolver (Paso 2) → cerrar.",
                   en:"Covers the full flow: report → verify (Step 1) → admin → resolve (Step 2) → close."}
           }
@@ -746,18 +746,18 @@ const CHAPTERS = [
     sub:{es:"Ajustes personales", en:"Personal settings"},
     slides:[
       { img:'/screens/21-profile.png',
-        title:{es:"👤 My profile",en:"👤 My profile"},
+        title:{es:"👤 Mi perfil",en:"👤 My profile"},
         text:{es:"Nombre, email, WhatsApp y email de notificación opcional.",
               en:"Name, email, WhatsApp, and optional notification email."},
         cap:{es:"Aplica a todos tus listings.",en:"Applies to all your listings."},
         hotspots:[
           { x:50, y:18,
-            title:{es:"📨 Account (Google)",en:"📨 Account (Google)"},
+            title:{es:"📨 Cuenta (Google)",en:"📨 Account (Google)"},
             body:{es:"Tu nombre y email de Google. Estos no se editan aquí — vienen de la cuenta con la que iniciaste sesión.",
                   en:"Your Google name and email. Not editable here — come from the account you signed in with."}
           },
           { x:50, y:50,
-            title:{es:"🌎 Country + 📱 WhatsApp",en:"🌎 Country + 📱 WhatsApp"},
+            title:{es:"🌎 País + 📱 WhatsApp",en:"🌎 Country + 📱 WhatsApp"},
             body:{es:"Selecciona país; el prefijo (+57, +52, etc.) se actualiza solo. Este WhatsApp aparece en todos tus listings como contacto operativo.",
                   en:"Pick a country; the prefix (+57, +52, etc.) auto-updates. This WhatsApp shows on all your listings as operational contact."}
           },
@@ -788,12 +788,12 @@ const CHAPTERS = [
                   en:"Confirms which account you signed in with and how many units you own. The \"Unit Owner\" badge shows your role."}
           },
           { x:50, y:55,
-            title:{es:"🎯 Interactive tour",en:"🎯 Interactive tour"},
+            title:{es:"🎯 Tour interactivo",en:"🎯 Interactive tour"},
             body:{es:"Lanza el tour guiado dentro de la app real (distinto a este video).",
                   en:"Launches the guided tour inside the real app (different from this video)."}
           },
           { x:50, y:88,
-            title:{es:"↩ Log out",en:"↩ Log out"},
+            title:{es:"↩ Cerrar sesión",en:"↩ Log out"},
             body:{es:"Termina tu sesión en este navegador. Tus datos se quedan a salvo en la nube — al volver a entrar verás todo igual.",
                   en:"Ends your session in this browser. Your data stays safe in the cloud — sign back in and everything is as you left it."},
             mail:{es:"📧 Cerrar sesión NO envía email.",en:"📧 Signing out sends NO email."}
