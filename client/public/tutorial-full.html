@@ -45,7 +45,7 @@ body.fullscreen .actions{display:none}
 .slide.active{opacity:1;transform:none}
 .slide .chip{display:inline-block;font-size:.7rem;font-weight:800;letter-spacing:.08em;text-transform:uppercase;padding:5px 12px;border-radius:99px;background:rgba(11,127,140,.25);color:#9ce5d6;margin-bottom:8px;border:1px solid rgba(156,229,214,.25)}
 .slide h2{font-size:clamp(1rem,2.1vw,1.4rem);font-weight:900;color:#fff;margin-bottom:4px;letter-spacing:-.01em}
-.slide p.lede{font-size:clamp(.78rem,1.3vw,.92rem);color:#cfe6dc;max-width:780px;margin:0 auto 8px}
+.slide p.lede{font-size:clamp(.78rem,1.3vw,.92rem);color:#cfe6dc;max-width:780px;margin:0 auto 8px;display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;width:100%;padding:0 12px}
 
 /* Visual = screenshot frame. Frame is sized via JS to match the actual
    rendered image bounds (object-fit:contain) so hotspot %s align exactly. */
