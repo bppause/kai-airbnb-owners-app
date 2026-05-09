@@ -166,7 +166,7 @@ export default function AdminSettings({ config={}, user, listings=[], contactPro
       return adminInfo.communityAdminOf[0].communityId;
     return '';
   });
-  const ADMIN_SEC_DEFAULT = {communities:false,branding:false,masterSwitches:false,emailSender:false,roles:true,sla:false,mission:false,menu:false,delegate:false,communityAdminPerms:false,users:true,tooltips:false,uiLabels:false,email:false,emailNotif:false,auditLog:false,commMembers:false,commEmail:false,commMission:false,commLabels:false,commTooltips:false,commTpl:false};
+  const ADMIN_SEC_DEFAULT = {communities:false,branding:false,masterSwitches:false,emailSender:false,roles:true,sla:false,mission:false,menu:false,delegate:false,communityAdminPerms:false,users:true,tooltips:false,uiLabels:false,email:false,emailNotif:false,auditLog:false,commMembers:false,commEmail:false,commMission:false,commLabels:false,commTooltips:false,commSla:false,commTpl:false};
   const [openSections,setOpenSections] = useState(()=>{
     try{ const s=JSON.parse(localStorage.getItem('kai_admin_open')||'null'); return s&&typeof s==='object'?{...ADMIN_SEC_DEFAULT,...s}:ADMIN_SEC_DEFAULT; }catch{ return ADMIN_SEC_DEFAULT; }
   });
@@ -998,6 +998,59 @@ export default function AdminSettings({ config={}, user, listings=[], contactPro
                         ))}
                       </tbody>
                     </table>
+                  </div>
+                );
+              })()}
+            </AdminSection>
+
+            {/* ── SLA (community override, owner events only) ── */}
+            <AdminSection title={`⏱️ ${isEn?'SLA per event':'SLA por evento'}`} subtitle={isEn?'Override step1_verify and step2_resolve for this community. admin_close stays platform-wide.':'Sobreescribe step1_verify y step2_resolve para esta comunidad. admin_close es global.'} action={!commOverridesOn?<span style={{fontSize:'.72rem',color:'#7a5a00'}}>🔒 {isEn?'Read-only':'Solo lectura'}</span>:<button className="btn-p" style={{minHeight:36,padding:'6px 14px'}} onClick={()=>saveCommunitySection(activeCommId,['sla_policies'])}>💾 {isEn?'Save':'Guardar'}</button>} open={openSections.commSla} onToggle={()=>toggleSection('commSla')}>
+              {(()=>{
+                const OWNER_EVENTS = ['step1_verify','step2_resolve'];
+                const evtLabels = {
+                  step1_verify:  { es:'Paso 1 · Verificar (propietario)',         en:'Step 1 · Verify (owner)' },
+                  step2_resolve: { es:'Paso 2 · Agregar respuesta (propietario)', en:'Step 2 · Add resolution (owner)' },
+                };
+                const parsePol = (raw) => { try { return (typeof raw==='string'&&raw)?JSON.parse(raw):(raw||{}); } catch { return {}; } };
+                const draft = communityConfigDraft[activeCommId] || {};
+                const cfgData = communityConfigData[activeCommId] || {};
+                const globalPol   = parsePol(cfgData.globalValues?.sla_policies);
+                const overridePol = parsePol(draft.sla_policies ?? cfgData.communityOverrides?.sla_policies);
+                const writeEvt = (evt, field, val) => {
+                  const next = { ...overridePol, [evt]: { ...(overridePol[evt]||{}), [field]: val } };
+                  setCommunityConfigDraft(p => ({...p,[activeCommId]:{...(p[activeCommId]||{}),sla_policies: JSON.stringify(next)}}));
+                };
+                return (
+                  <div style={!commOverridesOn?{pointerEvents:'none',opacity:0.5,userSelect:'none'}:{}}>
+                    <div style={{display:'grid',gridTemplateColumns:'90px 1fr 110px 110px',gap:8,alignItems:'center',marginBottom:8,fontSize:'.72rem',fontWeight:800,color:'#56707b',textTransform:'uppercase',letterSpacing:'.06em'}}>
+                      <div style={{textAlign:'center'}}>{isEn?'Active':'Activo'}</div>
+                      <div>{isEn?'Event':'Evento'}</div>
+                      <div style={{textAlign:'center'}}>{isEn?'Hours':'Horas'}</div>
+                      <div style={{textAlign:'center'}}>{isEn?'Max reminders':'Máx. recordatorios'}</div>
+                    </div>
+                    {OWNER_EVENTS.map(evt => {
+                      const o = overridePol[evt] || {};
+                      const g = globalPol[evt] || {};
+                      const enabled = o.enabled !== undefined ? o.enabled : (g.enabled !== false);
+                      const hours = o.hours ?? g.hours ?? 24;
+                      const maxR = o.maxReminders ?? g.maxReminders ?? 3;
+                      const evtHasOverride = evt in overridePol;
+                      return (
+                        <div key={evt} style={{display:'grid',gridTemplateColumns:'90px 1fr 110px 110px',gap:8,alignItems:'center',marginBottom:8,opacity: enabled ? 1 : 0.55}}>
+                          <div style={{textAlign:'center'}}>
+                            <input type="checkbox" checked={enabled} onChange={e=>writeEvt(evt,'enabled',e.target.checked)} style={{accentColor:'#0b7f4f',width:18,height:18,cursor:'pointer'}}/>
+                          </div>
+                          <div style={{fontWeight:700,fontSize:'.92rem'}}>
+                            {evtLabels[evt][lang==='en'?'en':'es']}
+                            {evtHasOverride && <span style={{marginLeft:8,fontSize:'.65rem',background:'#d9b45a22',color:'#7a5a00',padding:'1px 6px',borderRadius:4,fontWeight:600}}>{isEn?'community override':'valor comunidad'}</span>}
+                            {!evtHasOverride && <span style={{marginLeft:8,fontSize:'.65rem',background:'#e8f5ec',color:'#2F4F3A',padding:'1px 6px',borderRadius:4}}>🌐 {isEn?'using global':'usando global'}</span>}
+                          </div>
+                          <input type="number" min="1" value={hours} disabled={!enabled} onChange={e=>writeEvt(evt,'hours',Math.max(1,Number(e.target.value)||1))} style={{textAlign:'center'}}/>
+                          <input type="number" min="0" value={maxR} disabled={!enabled} onChange={e=>writeEvt(evt,'maxReminders',Math.max(0,Number(e.target.value)||0))} style={{textAlign:'center'}}/>
+                        </div>
+                      );
+                    })}
+                    <div style={{fontSize:'.72rem',color:'#6b9ba8',marginTop:6}}>{isEn?'Admin close SLA is platform-wide and not editable per community.':'El SLA de cierre del admin es global y no editable por comunidad.'}</div>
                   </div>
                 );
               })()}
