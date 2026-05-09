@@ -30,7 +30,29 @@ module.exports = function createAdminRouter(deps) {
     auditLog,
     DEFAULT_DELEGATE_PERMISSIONS, DEFAULT_STANDARD_MENU_PERMISSIONS, COMMUNITY_ADMIN_PERM_DEFAULTS,
     KNOWN_AUDIT_EVENT_TYPES,
+    DEFAULT_SLA_POLICIES, COMMUNITY_OVERRIDABLE_SLA_EVENTS,
   } = deps;
+
+  // Validate + clamp an incoming sla_policies JSON. Drops unknown event keys
+  // and unknown fields; clamps hours to ≥1 and maxReminders to ≥0. The
+  // optional `allowedEvents` arg restricts which event keys may be written
+  // (used for community-scoped writes — see PUT /community-config).
+  function sanitizeSlaPolicies(input, allowedEvents) {
+    const allowed = allowedEvents || Object.keys(DEFAULT_SLA_POLICIES);
+    const raw = (typeof input === 'string') ? safeJsonObject(input, {}) : (input && typeof input === 'object' ? input : {});
+    const out = {};
+    for (const event of allowed) {
+      const src = raw[event];
+      if (!src || typeof src !== 'object') continue;
+      const hours = Math.max(1, Math.round(Number(src.hours)));
+      const maxReminders = Math.max(0, Math.round(Number(src.maxReminders)));
+      const policy = {};
+      if (Number.isFinite(hours) && hours >= 1) policy.hours = hours;
+      if (Number.isFinite(maxReminders) && maxReminders >= 0) policy.maxReminders = maxReminders;
+      if (Object.keys(policy).length) out[event] = policy;
+    }
+    return out;
+  }
 
   const router = express.Router();
 
@@ -89,6 +111,14 @@ module.exports = function createAdminRouter(deps) {
     const before = await getAppConfig();
     const rows = [];
     if (slaHours !== undefined) rows.push({ key:'sla_hours', value:String(Math.max(1, Number(slaHours || 24))) });
+    if (req.body?.slaPolicies !== undefined) {
+      const sanitized = sanitizeSlaPolicies(req.body.slaPolicies);
+      // Merge over current platform value so partial PUTs are safe (caller
+      // can send just one event without wiping the others).
+      const current = safeJsonObject(before.sla_policies, DEFAULT_SLA_POLICIES);
+      const merged = { ...current, ...sanitized };
+      rows.push({ key:'sla_policies', value: JSON.stringify(merged) });
+    }
     if (escalationCcEmails !== undefined) rows.push({ key:'escalation_cc_emails', value:normalizeRecipients(String(escalationCcEmails || '').split(',')).join(',') });
     if (analyticsEnabled !== undefined) rows.push({ key:'analytics_enabled', value:(analyticsEnabled === true || String(analyticsEnabled) === 'true') ? 'true' : 'false' });
     if (missionTitle !== undefined) rows.push({ key:'mission_title_es', value:String(missionTitle || '') });

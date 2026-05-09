@@ -45,7 +45,18 @@ const DEFAULT_EMAIL_NOTIFICATION_CONFIG = {
 const DEFAULT_SLA_HOURS = Number(process.env.DEFAULT_SLA_HOURS || 24);
 const DEFAULT_ESCALATION_CC_EMAILS = String(process.env.DEFAULT_ESCALATION_CC_EMAILS || process.env.SLA_CC_EMAILS || '').split(',').map(x=>x.trim().toLowerCase()).filter(Boolean);
 
-const OVERRIDABLE_COMMUNITY_KEYS = ['mission_title_es','mission_body_es','mission_title_en','mission_body_en','mission_sections_es','mission_sections_en','escalation_cc_emails','community_admin_default_permissions','tooltips_es','tooltips_en','ui_labels_es','ui_labels_en','email_enabled'];
+// Per-event SLA policy defaults. Used when app_config.sla_policies is missing
+// a key, or as the fallback when sla_policies itself isn't set yet.
+const DEFAULT_SLA_POLICIES = {
+  step1_verify:  { hours: DEFAULT_SLA_HOURS, maxReminders: 3 },
+  step2_resolve: { hours: DEFAULT_SLA_HOURS, maxReminders: 3 },
+  admin_close:   { hours: 48,                maxReminders: 3 },
+};
+// Owner-facing events the community admin is allowed to override via
+// community_config. admin_close is platform-only.
+const COMMUNITY_OVERRIDABLE_SLA_EVENTS = ['step1_verify', 'step2_resolve'];
+
+const OVERRIDABLE_COMMUNITY_KEYS = ['mission_title_es','mission_body_es','mission_title_en','mission_body_en','mission_sections_es','mission_sections_en','escalation_cc_emails','community_admin_default_permissions','tooltips_es','tooltips_en','ui_labels_es','ui_labels_en','email_enabled','sla_policies'];
 
 // Canonical list of every audit event type the platform writes. Built by
 // scanning every auditLog({entity:'X', action:'Y'}) call site. The admin UI
@@ -141,6 +152,52 @@ module.exports = function createConfigHelpers(supabase, { EMAIL_FROM }) {
 
   const getSlaHours = async () => { const cfg = await getAppConfig(); const h = Number(cfg.sla_hours || DEFAULT_SLA_HOURS || 24); return Number.isFinite(h) && h > 0 ? h : 24; };
 
+  // Resolved per-event SLA policy. Layers:
+  //   1) DEFAULT_SLA_POLICIES (constant fallback)
+  //   2) app_config.sla_policies (platform-wide JSON)
+  //   3) community_config.sla_policies (per-community, owner events only)
+  //
+  // Returns the fully-merged policies object. Callers can index by event
+  // name. Unknown event names fall back to the step1_verify policy.
+  const getSlaPolicies = async (communityId='kai') => {
+    const cfg = await getAppConfig(communityId);
+    const result = JSON.parse(JSON.stringify(DEFAULT_SLA_POLICIES));
+    // Layer 1→2: platform JSON. cfg already has community_config overlaid on
+    // top of app_config (see getAppConfig), so we read sla_policies once and
+    // then strip out any admin_close override that came from community_config.
+    const platformRaw = safeJsonObject(cfg.sla_policies, {});
+    for (const [event, policy] of Object.entries(platformRaw)) {
+      if (!result[event]) continue;
+      const hours = Number(policy?.hours);
+      const maxReminders = Number(policy?.maxReminders);
+      if (Number.isFinite(hours) && hours > 0) result[event].hours = hours;
+      if (Number.isFinite(maxReminders) && maxReminders >= 0) result[event].maxReminders = maxReminders;
+    }
+    // Re-fetch the platform-only sla_policies so we can ignore community
+    // overrides on platform-only events (admin_close).
+    if (communityId && communityId !== 'kai') {
+      try {
+        const { data: gRow } = await supabase.from('app_config').select('value').eq('key','sla_policies').maybeSingle();
+        const platformOnly = safeJsonObject(gRow?.value, {});
+        const adminPolicy = platformOnly.admin_close;
+        if (adminPolicy && typeof adminPolicy === 'object') {
+          const hours = Number(adminPolicy.hours);
+          const maxReminders = Number(adminPolicy.maxReminders);
+          if (Number.isFinite(hours) && hours > 0) result.admin_close.hours = hours;
+          if (Number.isFinite(maxReminders) && maxReminders >= 0) result.admin_close.maxReminders = maxReminders;
+        }
+      } catch(e) { warn('SLA platform-only re-read failed: ' + (e?.message || e)); }
+    }
+    return result;
+  };
+
+  // Convenience: resolve a single event's policy. Defaults to step1_verify
+  // if an unknown event name is passed.
+  const getSlaPolicy = async (event='step1_verify', communityId='kai') => {
+    const policies = await getSlaPolicies(communityId);
+    return policies[event] || policies.step1_verify;
+  };
+
   const getEscalationCcEmails = async () => normalizeRecipients(String((await getAppConfig()).escalation_cc_emails || '').split(','));
 
   const getEmailNotificationConfig = async () => {
@@ -157,12 +214,16 @@ module.exports = function createConfigHelpers(supabase, { EMAIL_FROM }) {
   return {
     DEFAULT_EMAIL_NOTIFICATION_CONFIG,
     DEFAULT_SLA_HOURS,
+    DEFAULT_SLA_POLICIES,
+    COMMUNITY_OVERRIDABLE_SLA_EVENTS,
     DEFAULT_ESCALATION_CC_EMAILS,
     OVERRIDABLE_COMMUNITY_KEYS,
     KNOWN_AUDIT_EVENT_TYPES,
     getCommunity,
     getAppConfig,
     getSlaHours,
+    getSlaPolicies,
+    getSlaPolicy,
     getEscalationCcEmails,
     getEmailNotificationConfig,
   };
@@ -171,6 +232,8 @@ module.exports = function createConfigHelpers(supabase, { EMAIL_FROM }) {
 // Top-level constant exports for callers that don't need the supabase-bound factory.
 module.exports.DEFAULT_EMAIL_NOTIFICATION_CONFIG = DEFAULT_EMAIL_NOTIFICATION_CONFIG;
 module.exports.DEFAULT_SLA_HOURS = DEFAULT_SLA_HOURS;
+module.exports.DEFAULT_SLA_POLICIES = DEFAULT_SLA_POLICIES;
+module.exports.COMMUNITY_OVERRIDABLE_SLA_EVENTS = COMMUNITY_OVERRIDABLE_SLA_EVENTS;
 module.exports.DEFAULT_ESCALATION_CC_EMAILS = DEFAULT_ESCALATION_CC_EMAILS;
 module.exports.OVERRIDABLE_COMMUNITY_KEYS = OVERRIDABLE_COMMUNITY_KEYS;
 module.exports.KNOWN_AUDIT_EVENT_TYPES = KNOWN_AUDIT_EVENT_TYPES;

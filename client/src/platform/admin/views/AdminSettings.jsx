@@ -50,6 +50,28 @@ export default function AdminSettings({ config={}, user, listings=[], contactPro
   const isEn = lang === 'en';
   const tips = localizedTooltips(config || {}, lang);
   const [slaHours,setSlaHours]=useState(config?.sla_hours || '24');
+  // Per-event SLA policies (event → { hours, maxReminders }). The grid below
+  // edits these. Falls back to legacy single sla_hours if sla_policies isn't
+  // populated yet.
+  const DEFAULT_SLA_POLICIES_LOCAL = {
+    step1_verify:  { hours: Number(config?.sla_hours || 24), maxReminders: 3 },
+    step2_resolve: { hours: Number(config?.sla_hours || 24), maxReminders: 3 },
+    admin_close:   { hours: 48,                              maxReminders: 3 },
+  };
+  const parseSlaPolicies = (raw) => {
+    try {
+      const parsed = (typeof raw === 'string' && raw) ? JSON.parse(raw) : (raw || {});
+      const out = JSON.parse(JSON.stringify(DEFAULT_SLA_POLICIES_LOCAL));
+      for (const evt of Object.keys(out)) {
+        const src = parsed[evt];
+        if (!src || typeof src !== 'object') continue;
+        const h = Number(src.hours); if (Number.isFinite(h) && h > 0) out[evt].hours = h;
+        const m = Number(src.maxReminders); if (Number.isFinite(m) && m >= 0) out[evt].maxReminders = m;
+      }
+      return out;
+    } catch { return DEFAULT_SLA_POLICIES_LOCAL; }
+  };
+  const [slaPolicies,setSlaPolicies]=useState(()=>parseSlaPolicies(config?.sla_policies));
   const [escalationCcEmails,setEscalationCcEmails]=useState(config?.escalation_cc_emails || '');
   const [analyticsEnabled,setAnalyticsEnabled]=useState(String(config?.analytics_enabled || 'false') === 'true');
   const [users,setUsers]=useState([]);
@@ -163,6 +185,7 @@ export default function AdminSettings({ config={}, user, listings=[], contactPro
     setMission(parseMissionSections(config || {}));
     try{ const v=JSON.parse(config?.mission_sections_en||'{}'); setMissionEn({...MISSION_EN_DEFAULTS,...(v&&typeof v==='object'?v:{})}); }catch{ setMissionEn({...MISSION_EN_DEFAULTS}); }
     setSlaHours(config?.sla_hours || '24');
+    setSlaPolicies(parseSlaPolicies(config?.sla_policies));
     setEscalationCcEmails(config?.escalation_cc_emails || '');
     setAnalyticsEnabled(String(config?.analytics_enabled || 'false') === 'true');
     setTooltipsEs({...Object.fromEntries(Object.entries(DEFAULT_TOOLTIPS).map(([k,v])=>[k,v.es])), ...parseJsonObject(config?.tooltips_es,{})});
@@ -265,7 +288,7 @@ export default function AdminSettings({ config={}, user, listings=[], contactPro
   const setMissionEnRule = (group, idx, value) => setMissionEn(m => ({...(m||{}), [group]:((m||{})[group]||[]).map((r,i)=>i===idx?value:r)}));
   const addEnRule = (group) => setMissionEn(m => ({...(m||{}), [group]:[...(((m||{})[group])||[]), '']}));
   const removeEnRule = (group, idx) => setMissionEn(m => ({...(m||{}), [group]:(((m||{})[group])||[]).filter((_,i)=>i!==idx)}));
-  const saveConfig = () => onSave({slaHours, escalationCcEmails, analyticsEnabled, missionSectionsEs:mission, missionSectionsEn:missionEn, defaultDelegatePermissions, tooltipsEs, tooltipsEn});
+  const saveConfig = () => onSave({slaHours, slaPolicies, escalationCcEmails, analyticsEnabled, missionSectionsEs:mission, missionSectionsEn:missionEn, defaultDelegatePermissions, tooltipsEs, tooltipsEn});
   const saveTooltips = () => onSave({ tooltipsEs, tooltipsEn });
   const saveUiLabels = () => onSave({ uiLabelsEs, uiLabelsEn });
   const saveCommunitySection = async (cid, keys) => {
@@ -1565,8 +1588,32 @@ export default function AdminSettings({ config={}, user, listings=[], contactPro
     })()}
   </AdminSection>
 
-  <AdminSection title={`⏱️ ${lt(lang,'SLA y escalaciones')}`} subtitle={lt(lang,'El recordatorio se repite cada ciclo hasta que el propietario verifique.')} action={<button className="btn-p" style={{minHeight:36,padding:'6px 14px'}} onClick={saveConfig}>💾 {isEn?'Save':'Guardar'}</button>} open={openSections.sla} onToggle={()=>toggleSection('sla')}>
-    <div className="fg2"><div className="fg"><label>⏱️ {lt(lang,'SLA en horas')}</label><input type="number" min="1" value={slaHours} onChange={e=>setSlaHours(e.target.value)}/><span className="help-msg">{lt(lang,'Default: 24 horas.')}</span></div><div className="fg full"><label>✉️ {lt(lang,'Emails en copia para escalaciones')}</label><input value={escalationCcEmails} onChange={e=>setEscalationCcEmails(e.target.value)} placeholder="admin1@email.com, admin2@email.com"/><span className="help-msg">{lt(lang,'Se copian en cada recordatorio SLA, además del propietario y operador.')}</span></div><div className="fg full"><label>📈 {lt(lang,'Visibilidad de analíticas')}</label><select value={analyticsEnabled?"true":"false"} onChange={e=>setAnalyticsEnabled(e.target.value==="true")}><option value="false">{lt(lang,'Solo administrador global')}</option><option value="true">{lt(lang,'Todos los usuarios aprobados')}</option></select><span className="help-msg">{lt(lang,'El administrador global puede activar o desactivar las analíticas para toda la comunidad.')}</span></div></div>
+  <AdminSection title={`⏱️ ${lt(lang,'SLA y escalaciones')}`} subtitle={lt(lang,'Por evento: horas hasta el recordatorio + máximo de recordatorios antes de detener.')} action={<button className="btn-p" style={{minHeight:36,padding:'6px 14px'}} onClick={saveConfig}>💾 {isEn?'Save':'Guardar'}</button>} open={openSections.sla} onToggle={()=>toggleSection('sla')}>
+    {(() => {
+      const slaEventLabels = {
+        step1_verify:  { es:'Paso 1 · Verificar (propietario)',          en:'Step 1 · Verify (owner)' },
+        step2_resolve: { es:'Paso 2 · Agregar respuesta (propietario)',  en:'Step 2 · Add resolution (owner)' },
+        admin_close:   { es:'Cierre del admin',                          en:'Admin close' },
+      };
+      const setEvt = (evt, field, val) => setSlaPolicies(prev => ({ ...prev, [evt]: { ...prev[evt], [field]: val } }));
+      return (<>
+        <div style={{display:'grid',gridTemplateColumns:'1fr 110px 110px',gap:8,alignItems:'center',marginBottom:10,fontSize:'.78rem',fontWeight:800,color:'#56707b',textTransform:'uppercase',letterSpacing:'.06em'}}>
+          <div>{isEn?'Event':'Evento'}</div>
+          <div style={{textAlign:'center'}}>{isEn?'Hours':'Horas'}</div>
+          <div style={{textAlign:'center'}}>{isEn?'Max reminders':'Máx. recordatorios'}</div>
+        </div>
+        {Object.keys(slaEventLabels).map(evt => (
+          <div key={evt} style={{display:'grid',gridTemplateColumns:'1fr 110px 110px',gap:8,alignItems:'center',marginBottom:8}}>
+            <div style={{fontWeight:700,fontSize:'.92rem'}}>{slaEventLabels[evt][lang==='en'?'en':'es']}</div>
+            <input type="number" min="1" value={slaPolicies[evt]?.hours ?? 24} onChange={e=>setEvt(evt,'hours',Math.max(1,Number(e.target.value)||1))} style={{textAlign:'center'}}/>
+            <input type="number" min="0" value={slaPolicies[evt]?.maxReminders ?? 3} onChange={e=>setEvt(evt,'maxReminders',Math.max(0,Number(e.target.value)||0))} style={{textAlign:'center'}}/>
+          </div>
+        ))}
+        <span className="help-msg" style={{display:'block',marginTop:6}}>{lt(lang,'\"Máx. recordatorios\" = 0 detiene los reminders inmediatamente. Cuando el propietario completa el Paso 2, el SLA del Cierre del admin arranca automáticamente.')}</span>
+        <div className="fg full" style={{marginTop:14}}><label>✉️ {lt(lang,'Emails en copia para escalaciones')}</label><input value={escalationCcEmails} onChange={e=>setEscalationCcEmails(e.target.value)} placeholder="admin1@email.com, admin2@email.com"/><span className="help-msg">{lt(lang,'Se copian en cada recordatorio SLA, además del propietario y operador.')}</span></div>
+        <div className="fg full"><label>📈 {lt(lang,'Visibilidad de analíticas')}</label><select value={analyticsEnabled?"true":"false"} onChange={e=>setAnalyticsEnabled(e.target.value==="true")}><option value="false">{lt(lang,'Solo administrador global')}</option><option value="true">{lt(lang,'Todos los usuarios aprobados')}</option></select><span className="help-msg">{lt(lang,'El administrador global puede activar o desactivar las analíticas para toda la comunidad.')}</span></div>
+      </>);
+    })()}
   </AdminSection>
 
   <AdminSection title={`🌊 ${lt(lang,'Misión y reglas de participación')}`} subtitle={lt(lang,'Edita la misión en Español e Inglés de forma independiente.')} action={<button className="btn-p" style={{minHeight:36,padding:'6px 14px'}} onClick={saveConfig}>💾 {isEn?'Save':'Guardar'}</button>} open={openSections.mission} onToggle={()=>toggleSection('mission')}>
