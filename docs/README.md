@@ -70,5 +70,9 @@ files or breaking links.
 - **`platform/DESIGN.md`** — the high-level platform design that frames
   every module as a vertical slice on top of a shared platform layer and
   describes inter-module integration patterns.
+- **`platform/DIAGRAMS.md`** — Mermaid architecture diagrams: the three
+  orthogonal axes, module dependency graph, repository layout, module
+  contract, request lifecycle, permissions resolution, tenant model, and
+  shared platform services.
 - **`CHANGELOG_ARCHIVE.md`** — historical release notes from earlier
   versions, kept out of the root README to keep production setup clear.

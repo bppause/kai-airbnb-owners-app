@@ -41,6 +41,7 @@ A summary lives in `../../platform/DESIGN.md` §4. The key shape:
 | --- | --- |
 | [`README.md`](README.md) | This index. |
 | [`DESIGN.md`](DESIGN.md) | Full technical design — roles, lifecycle, tables, endpoints, phases. |
+| [`DIAGRAMS.md`](DIAGRAMS.md) | Mermaid architecture diagrams: relationship lifecycle, role model, request taxonomy direction, service-request state machine, pricing proposal sequence, delegation matrix, ER, attention inbox, phasing. |
 | [`PROPOSAL.md`](PROPOSAL.md) | Client-facing proposal (Spanish + English). |
 | [`USE_CASE_DISCOVERY.md`](USE_CASE_DISCOVERY.md) | Use cases grounded in real WhatsApp chat data, request taxonomy, SLA reference, comprehensive question set, priority matrix, blocking questions. |
 | [`PROTOTYPE_READINESS.md`](PROTOTYPE_READINESS.md) | Decisions locked, role model, MVP scope, Claude Max cost reference. |
