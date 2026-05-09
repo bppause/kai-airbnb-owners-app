@@ -281,15 +281,18 @@ create table if not exists public.app_config (
 insert into public.app_config(key, value) values
   ('sla_hours', '24'),
   -- Per-event SLA policies. JSON shape:
-  --   { "step1_verify": {"hours":24,"maxReminders":3},
-  --     "step2_resolve": {"hours":24,"maxReminders":3},
-  --     "admin_close":  {"hours":48,"maxReminders":3} }
-  -- maxReminders caps how many escalation cycles the SLA cron will fire
-  -- before clearing next_sla_reminder_at — prevents indefinite reminders.
+  --   { "step1_verify": {"enabled":true,"hours":24,"maxReminders":3},
+  --     "step2_resolve": {"enabled":true,"hours":24,"maxReminders":3},
+  --     "admin_close":  {"enabled":true,"hours":48,"maxReminders":3} }
+  -- enabled=false halts the SLA clock for that event entirely (no reminder
+  -- is scheduled at the transition; existing rows with that event clear
+  -- next_sla_reminder_at on the next cron pass). maxReminders caps how
+  -- many escalation cycles the SLA cron will fire before clearing
+  -- next_sla_reminder_at — prevents indefinite reminders.
   -- Per-community overrides (community_config table) may override only the
   -- owner-facing events: step1_verify and step2_resolve. admin_close is
   -- platform-wide and ignored from community_config.
-  ('sla_policies', '{"step1_verify":{"hours":24,"maxReminders":3},"step2_resolve":{"hours":24,"maxReminders":3},"admin_close":{"hours":48,"maxReminders":3}}'),
+  ('sla_policies', '{"step1_verify":{"enabled":true,"hours":24,"maxReminders":3},"step2_resolve":{"enabled":true,"hours":24,"maxReminders":3},"admin_close":{"enabled":true,"hours":48,"maxReminders":3}}'),
   ('escalation_cc_emails', ''),
   ('mission_title', 'Misión y normas de la comunidad'),
   ('mission_body', 'Crear una comunidad organizada, informada y proactiva que proteja el valor de nuestras propiedades y eleve la experiencia en Morros KAI.'),

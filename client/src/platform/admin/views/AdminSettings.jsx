@@ -54,9 +54,9 @@ export default function AdminSettings({ config={}, user, listings=[], contactPro
   // edits these. Falls back to legacy single sla_hours if sla_policies isn't
   // populated yet.
   const DEFAULT_SLA_POLICIES_LOCAL = {
-    step1_verify:  { hours: Number(config?.sla_hours || 24), maxReminders: 3 },
-    step2_resolve: { hours: Number(config?.sla_hours || 24), maxReminders: 3 },
-    admin_close:   { hours: 48,                              maxReminders: 3 },
+    step1_verify:  { enabled: true, hours: Number(config?.sla_hours || 24), maxReminders: 3 },
+    step2_resolve: { enabled: true, hours: Number(config?.sla_hours || 24), maxReminders: 3 },
+    admin_close:   { enabled: true, hours: 48,                              maxReminders: 3 },
   };
   const parseSlaPolicies = (raw) => {
     try {
@@ -67,6 +67,7 @@ export default function AdminSettings({ config={}, user, listings=[], contactPro
         if (!src || typeof src !== 'object') continue;
         const h = Number(src.hours); if (Number.isFinite(h) && h > 0) out[evt].hours = h;
         const m = Number(src.maxReminders); if (Number.isFinite(m) && m >= 0) out[evt].maxReminders = m;
+        if (typeof src.enabled === 'boolean') out[evt].enabled = src.enabled;
       }
       return out;
     } catch { return DEFAULT_SLA_POLICIES_LOCAL; }
@@ -1289,6 +1290,7 @@ export default function AdminSettings({ config={}, user, listings=[], contactPro
                   { id:'mission',  icon:'🌊', label: isEn?'Mission':'Misión',   keys:['mission_title_es','mission_body_es','mission_title_en','mission_body_en'] },
                   { id:'ui',       icon:'🏷️', label: isEn?'UI Labels':'Etiquetas', keys:['ui_labels_es','ui_labels_en'] },
                   { id:'tooltips', icon:'💡', label: isEn?'Tooltips':'Tooltips',  keys:['tooltips_es','tooltips_en'] },
+                  { id:'sla',      icon:'⏱️', label: isEn?'SLA':'SLA',           keys:['sla_policies'] },
                   { id:'other',    icon:'⚙️', label: isEn?'Other':'Otro',        keys:['escalation_cc_emails','community_admin_default_permissions'] },
                 ];
                 const KEY_LABELS = {
@@ -1332,6 +1334,57 @@ export default function AdminSettings({ config={}, user, listings=[], contactPro
                       const overrideVal = draft[key] ?? cfg.communityOverrides?.[key] ?? globalVal;
                       const hasOverride = key in (cfg.communityOverrides||{}) || key in draft;
                       const isTextarea = key.includes('body') || key.includes('labels') || key.includes('tooltips') || key.includes('permissions');
+                      // Custom renderer for sla_policies — owner events only.
+                      if (key === 'sla_policies') {
+                        const OWNER_EVENTS = ['step1_verify','step2_resolve'];
+                        const evtLabels = {
+                          step1_verify:  { es:'Paso 1 · Verificar (propietario)',         en:'Step 1 · Verify (owner)' },
+                          step2_resolve: { es:'Paso 2 · Agregar respuesta (propietario)', en:'Step 2 · Add resolution (owner)' },
+                        };
+                        const parsePol = (raw) => { try { return (typeof raw==='string'&&raw)?JSON.parse(raw):(raw||{}); } catch { return {}; } };
+                        const globalPol = parsePol(globalVal);
+                        const overridePol = parsePol(overrideVal);
+                        const writeEvt = (evt, field, val) => {
+                          const next = { ...overridePol, [evt]: { ...(overridePol[evt]||{}), [field]: val } };
+                          setCommunityConfigDraft(p => ({...p,[c.id]:{...(p[c.id]||{}),sla_policies: JSON.stringify(next)}}));
+                        };
+                        return (
+                          <div key={key} style={{marginBottom:12,paddingBottom:12,borderBottom:'1px solid #f0f8fb'}}>
+                            <div style={{fontSize:'.75rem',fontWeight:700,color:'#2F4F3A',marginBottom:8,display:'flex',alignItems:'center',gap:6}}>
+                              {isEn?'SLA per owner event':'SLA por evento del propietario'}
+                              {hasOverride && <span style={{fontSize:'.65rem',background:'#d9b45a22',color:'#7a5a00',padding:'1px 6px',borderRadius:4,fontWeight:600}}>{isEn?'community override':'valor comunidad'}</span>}
+                              {!hasOverride && <span style={{fontSize:'.65rem',background:'#e8f5ec',color:'#2F4F3A',padding:'1px 6px',borderRadius:4}}>🌐 {isEn?'using global':'usando global'}</span>}
+                            </div>
+                            {!overridesOn && (
+                              <div style={{fontSize:'.74rem',color:'#56707b',marginBottom:6}}>{isEn?'Override not enabled — global values shown.':'Override no habilitado — se muestran valores globales.'}</div>
+                            )}
+                            <div style={{display:'grid',gridTemplateColumns:'70px 1fr 90px 90px',gap:6,alignItems:'center',fontSize:'.7rem',fontWeight:800,color:'#56707b',textTransform:'uppercase',letterSpacing:'.05em',marginBottom:4}}>
+                              <div style={{textAlign:'center'}}>{isEn?'Active':'Activo'}</div>
+                              <div>{isEn?'Event':'Evento'}</div>
+                              <div style={{textAlign:'center'}}>{isEn?'Hours':'Horas'}</div>
+                              <div style={{textAlign:'center'}}>{isEn?'Max':'Máx.'}</div>
+                            </div>
+                            {OWNER_EVENTS.map(evt => {
+                              const o = overridePol[evt] || {};
+                              const g = globalPol[evt] || {};
+                              const enabled = o.enabled !== undefined ? o.enabled : (g.enabled !== false);
+                              const hours = o.hours ?? g.hours ?? 24;
+                              const maxR = o.maxReminders ?? g.maxReminders ?? 3;
+                              return (
+                                <div key={evt} style={{display:'grid',gridTemplateColumns:'70px 1fr 90px 90px',gap:6,alignItems:'center',marginBottom:6,opacity: enabled ? 1 : 0.55}}>
+                                  <div style={{textAlign:'center'}}>
+                                    <input type="checkbox" disabled={!overridesOn} checked={enabled} onChange={e=>writeEvt(evt,'enabled',e.target.checked)} style={{accentColor:'#0b7f4f',width:16,height:16,cursor:overridesOn?'pointer':'default'}}/>
+                                  </div>
+                                  <div style={{fontSize:'.84rem',fontWeight:700}}>{evtLabels[evt][lang==='en'?'en':'es']}</div>
+                                  <input type="number" min="1" value={hours} disabled={!overridesOn||!enabled} onChange={e=>writeEvt(evt,'hours',Math.max(1,Number(e.target.value)||1))} style={{textAlign:'center',fontSize:'.78rem',padding:'4px 6px',borderRadius:6,border:'1px solid #cce7ee'}}/>
+                                  <input type="number" min="0" value={maxR} disabled={!overridesOn||!enabled} onChange={e=>writeEvt(evt,'maxReminders',Math.max(0,Number(e.target.value)||0))} style={{textAlign:'center',fontSize:'.78rem',padding:'4px 6px',borderRadius:6,border:'1px solid #cce7ee'}}/>
+                                </div>
+                              );
+                            })}
+                            <div style={{fontSize:'.7rem',color:'#6b9ba8',marginTop:4}}>{isEn?'Admin close SLA is platform-wide — not editable per community.':'El SLA de cierre del admin es global — no editable por comunidad.'}</div>
+                          </div>
+                        );
+                      }
                       return (
                         <div key={key} style={{marginBottom:12,paddingBottom:12,borderBottom:'1px solid #f0f8fb'}}>
                           <div style={{fontSize:'.75rem',fontWeight:700,color:'#2F4F3A',marginBottom:4,display:'flex',alignItems:'center',gap:6}}>
@@ -1597,19 +1650,26 @@ export default function AdminSettings({ config={}, user, listings=[], contactPro
       };
       const setEvt = (evt, field, val) => setSlaPolicies(prev => ({ ...prev, [evt]: { ...prev[evt], [field]: val } }));
       return (<>
-        <div style={{display:'grid',gridTemplateColumns:'1fr 110px 110px',gap:8,alignItems:'center',marginBottom:10,fontSize:'.78rem',fontWeight:800,color:'#56707b',textTransform:'uppercase',letterSpacing:'.06em'}}>
+        <div style={{display:'grid',gridTemplateColumns:'90px 1fr 110px 110px',gap:8,alignItems:'center',marginBottom:10,fontSize:'.78rem',fontWeight:800,color:'#56707b',textTransform:'uppercase',letterSpacing:'.06em'}}>
+          <div style={{textAlign:'center'}}>{isEn?'Enabled':'Activo'}</div>
           <div>{isEn?'Event':'Evento'}</div>
           <div style={{textAlign:'center'}}>{isEn?'Hours':'Horas'}</div>
           <div style={{textAlign:'center'}}>{isEn?'Max reminders':'Máx. recordatorios'}</div>
         </div>
-        {Object.keys(slaEventLabels).map(evt => (
-          <div key={evt} style={{display:'grid',gridTemplateColumns:'1fr 110px 110px',gap:8,alignItems:'center',marginBottom:8}}>
-            <div style={{fontWeight:700,fontSize:'.92rem'}}>{slaEventLabels[evt][lang==='en'?'en':'es']}</div>
-            <input type="number" min="1" value={slaPolicies[evt]?.hours ?? 24} onChange={e=>setEvt(evt,'hours',Math.max(1,Number(e.target.value)||1))} style={{textAlign:'center'}}/>
-            <input type="number" min="0" value={slaPolicies[evt]?.maxReminders ?? 3} onChange={e=>setEvt(evt,'maxReminders',Math.max(0,Number(e.target.value)||0))} style={{textAlign:'center'}}/>
-          </div>
-        ))}
-        <span className="help-msg" style={{display:'block',marginTop:6}}>{lt(lang,'\"Máx. recordatorios\" = 0 detiene los reminders inmediatamente. Cuando el propietario completa el Paso 2, el SLA del Cierre del admin arranca automáticamente.')}</span>
+        {Object.keys(slaEventLabels).map(evt => {
+          const isEnabled = slaPolicies[evt]?.enabled !== false;
+          return (
+            <div key={evt} style={{display:'grid',gridTemplateColumns:'90px 1fr 110px 110px',gap:8,alignItems:'center',marginBottom:8,opacity: isEnabled ? 1 : 0.55}}>
+              <div style={{textAlign:'center'}}>
+                <input type="checkbox" checked={isEnabled} onChange={e=>setEvt(evt,'enabled',e.target.checked)} style={{accentColor:'#0b7f4f',width:18,height:18,cursor:'pointer'}}/>
+              </div>
+              <div style={{fontWeight:700,fontSize:'.92rem'}}>{slaEventLabels[evt][lang==='en'?'en':'es']}</div>
+              <input type="number" min="1" value={slaPolicies[evt]?.hours ?? 24} onChange={e=>setEvt(evt,'hours',Math.max(1,Number(e.target.value)||1))} disabled={!isEnabled} style={{textAlign:'center'}}/>
+              <input type="number" min="0" value={slaPolicies[evt]?.maxReminders ?? 3} onChange={e=>setEvt(evt,'maxReminders',Math.max(0,Number(e.target.value)||0))} disabled={!isEnabled} style={{textAlign:'center'}}/>
+            </div>
+          );
+        })}
+        <span className="help-msg" style={{display:'block',marginTop:6}}>{lt(lang,'Desactiva un evento para detener su reloj de SLA por completo. \"Máx. recordatorios\" = 0 también detiene los reminders. Cuando el propietario completa el Paso 2, el SLA del Cierre del admin arranca automáticamente.')}</span>
         <div className="fg full" style={{marginTop:14}}><label>✉️ {lt(lang,'Emails en copia para escalaciones')}</label><input value={escalationCcEmails} onChange={e=>setEscalationCcEmails(e.target.value)} placeholder="admin1@email.com, admin2@email.com"/><span className="help-msg">{lt(lang,'Se copian en cada recordatorio SLA, además del propietario y operador.')}</span></div>
         <div className="fg full"><label>📈 {lt(lang,'Visibilidad de analíticas')}</label><select value={analyticsEnabled?"true":"false"} onChange={e=>setAnalyticsEnabled(e.target.value==="true")}><option value="false">{lt(lang,'Solo administrador global')}</option><option value="true">{lt(lang,'Todos los usuarios aprobados')}</option></select><span className="help-msg">{lt(lang,'El administrador global puede activar o desactivar las analíticas para toda la comunidad.')}</span></div>
       </>);
