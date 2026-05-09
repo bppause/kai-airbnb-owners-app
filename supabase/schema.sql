@@ -250,6 +250,19 @@ alter table public.incidents add column if not exists owner_guests jsonb not nul
 -- v80: photo attachments (up to 3, base64-compressed) and general (non-unit) incident flag
 alter table public.incidents add column if not exists photos jsonb not null default '[]'::jsonb;
 alter table public.incidents add column if not exists is_general boolean not null default false;
+-- Per-event SLA: which clock is currently active on this incident.
+-- NULL = no clock (terminal). Values: 'step1_verify' (open, awaiting owner verify),
+-- 'step2_resolve' (verified, awaiting owner resolution), 'admin_close' (resolution
+-- added, awaiting admin close).
+alter table public.incidents add column if not exists sla_event text;
+update public.incidents set sla_event =
+  case
+    when status = 'resolved' then null
+    when status = 'verified' and coalesce(owner_resolution,'') = '' then 'step2_resolve'
+    when status = 'verified' and coalesce(owner_resolution,'') <> '' then 'admin_close'
+    else 'step1_verify'
+  end
+where sla_event is null;
 
 -- Status constraint (drop old, add updated)
 alter table public.incidents drop constraint if exists incidents_status_check;
@@ -267,6 +280,16 @@ create table if not exists public.app_config (
 
 insert into public.app_config(key, value) values
   ('sla_hours', '24'),
+  -- Per-event SLA policies. JSON shape:
+  --   { "step1_verify": {"hours":24,"maxReminders":3},
+  --     "step2_resolve": {"hours":24,"maxReminders":3},
+  --     "admin_close":  {"hours":48,"maxReminders":3} }
+  -- maxReminders caps how many escalation cycles the SLA cron will fire
+  -- before clearing next_sla_reminder_at — prevents indefinite reminders.
+  -- Per-community overrides (community_config table) may override only the
+  -- owner-facing events: step1_verify and step2_resolve. admin_close is
+  -- platform-wide and ignored from community_config.
+  ('sla_policies', '{"step1_verify":{"hours":24,"maxReminders":3},"step2_resolve":{"hours":24,"maxReminders":3},"admin_close":{"hours":48,"maxReminders":3}}'),
   ('escalation_cc_emails', ''),
   ('mission_title', 'Misión y normas de la comunidad'),
   ('mission_body', 'Crear una comunidad organizada, informada y proactiva que proteja el valor de nuestras propiedades y eleve la experiencia en Morros KAI.'),

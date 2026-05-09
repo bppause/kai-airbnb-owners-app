@@ -92,7 +92,7 @@ const {
   DEFAULT_EMAIL_NOTIFICATION_CONFIG, DEFAULT_SLA_HOURS, DEFAULT_ESCALATION_CC_EMAILS,
   OVERRIDABLE_COMMUNITY_KEYS,
   KNOWN_AUDIT_EVENT_TYPES,
-  getCommunity, getAppConfig, getSlaHours, getEscalationCcEmails, getEmailNotificationConfig,
+  getCommunity, getAppConfig, getSlaHours, getSlaPolicy, getSlaPolicies, getEscalationCcEmails, getEmailNotificationConfig,
 } = require('./core/config')(supabase, { EMAIL_FROM });
 const { auditEvent, auditLog } = require('./core/audit')(supabase, { getAppConfig });
 const { sendSpanishEmail, getEmailTemplates, sendTemplatedEmail, sendSplitEmail } =
@@ -242,7 +242,7 @@ const incidentsModule = require('./modules/incidents');
 const incidentsRouter = incidentsModule.createRouter({
   supabase, requireSupabaseEnv, sendSupabaseError, getCommunityId,
   incidentFromDb, incidentToDb, listingFromDb, notificationToDb,
-  publicAppUrl, getSlaHours, addHoursIso, auditLog,
+  publicAppUrl, getSlaHours, getSlaPolicy, addHoursIso, auditLog,
   getGlobalAdminEmails, getEmailNotificationConfig, getReporterEmail, getReporterName,
   getCommunityEscalationEmails, getDelegateAdminsWithPermission, getCommunityAdminEmails,
   normalizeRecipients, sendTemplatedEmail,
@@ -310,6 +310,8 @@ const platformAdminRouter = platformAdminModule.createRouter({
   auditLog,
   DEFAULT_DELEGATE_PERMISSIONS, DEFAULT_STANDARD_MENU_PERMISSIONS, COMMUNITY_ADMIN_PERM_DEFAULTS,
   KNOWN_AUDIT_EVENT_TYPES,
+  DEFAULT_SLA_POLICIES: require('./core/config').DEFAULT_SLA_POLICIES,
+  COMMUNITY_OVERRIDABLE_SLA_EVENTS: require('./core/config').COMMUNITY_OVERRIDABLE_SLA_EVENTS,
 });
 app.use('/api/platform/admin', platformAdminRouter);
 function forwardToPlatformAdminRouter(targetPath) {
@@ -363,7 +365,7 @@ require('./modules/incidents/sla-cron')({
   supabase,
   emailConfigured,
   isSupabaseConfigured: Boolean(SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY),
-  getSlaHours,
+  getSlaHours, getSlaPolicy,
   sendIncidentEmail, sendGeneralIncidentSlaEmail,
 }).start();
 

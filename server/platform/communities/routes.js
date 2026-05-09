@@ -215,9 +215,31 @@ module.exports = function createCommunitiesRouter(deps) {
       if (flagRow?.value !== 'true') return res.status(403).json({ error:'Config overrides are not enabled for this community.' });
     }
     const allowedKeys = new Set(OVERRIDABLE_COMMUNITY_KEYS);
+    const { COMMUNITY_OVERRIDABLE_SLA_EVENTS } = require('../../core/config');
     for (const [key, value] of Object.entries(overrides || {})) {
       if (!allowedKeys.has(key)) continue;
-      const strVal = typeof value === 'string' ? value : JSON.stringify(value);
+      let strVal;
+      if (key === 'sla_policies') {
+        // Strip events the community is not allowed to override (admin_close
+        // is platform-only). Applies to global admins too — community-scoped
+        // admin_close override doesn't do anything because getSlaPolicies()
+        // re-reads the platform value, so disallow writing it for clarity.
+        const raw = (typeof value === 'string') ? safeJsonObject(value, {}) : (value && typeof value === 'object' ? value : {});
+        const filtered = {};
+        for (const evt of COMMUNITY_OVERRIDABLE_SLA_EVENTS) {
+          const src = raw[evt];
+          if (!src || typeof src !== 'object') continue;
+          const hours = Math.max(1, Math.round(Number(src.hours)));
+          const maxReminders = Math.max(0, Math.round(Number(src.maxReminders)));
+          const policy = {};
+          if (Number.isFinite(hours) && hours >= 1) policy.hours = hours;
+          if (Number.isFinite(maxReminders) && maxReminders >= 0) policy.maxReminders = maxReminders;
+          if (Object.keys(policy).length) filtered[evt] = policy;
+        }
+        strVal = Object.keys(filtered).length ? JSON.stringify(filtered) : '';
+      } else {
+        strVal = typeof value === 'string' ? value : JSON.stringify(value);
+      }
       if (strVal === '') {
         await supabase.from('community_config').delete().eq('community_id', req.params.id).eq('key', key);
       } else {
