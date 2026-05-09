@@ -5,7 +5,7 @@
 // Lifted byte-identical from App.jsx in stage F9. Pulls `lang` from useApp();
 // incident / listings / onSave / onClose stay as per-instance props.
 //
-// See docs/PLATFORM_ARCHITECTURE.md §11 frontend stage F9.
+// See docs/platform/PLATFORM_ARCHITECTURE.md §11 frontend stage F9.
 
 import React, { useState } from "react";
 import Overlay from "../../../core/ui/Overlay";

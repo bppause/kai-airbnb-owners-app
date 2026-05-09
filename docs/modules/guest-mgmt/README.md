@@ -74,4 +74,4 @@ direct guest messaging — all stay on Airbnb.
 When promoted from `idea` → `concept`, add `DESIGN.md` and
 `USE_CASE_DISCOVERY.md` to this folder following the same shape as
 `../operator-portal/`. Update status here and in
-`../../PLATFORM_ARCHITECTURE.md` §3 in the same change.
+`../../platform/PLATFORM_ARCHITECTURE.md` §3 in the same change.

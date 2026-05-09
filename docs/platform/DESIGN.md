@@ -2,7 +2,7 @@
 
 > Status: design reference — May 2026
 > Owner: platform team
-> Companion docs: `../PLATFORM_ARCHITECTURE.md` (contract), `../modules/operator-portal/DESIGN.md` (operator-portal spec), `../modules/operator-portal/PROPOSAL.md` (client-facing proposal), `../modules/operator-portal/USE_CASE_DISCOVERY.md` (operator/owner use cases grounded in real WhatsApp data)
+> Companion docs: `./PLATFORM_ARCHITECTURE.md` (contract), `../modules/operator-portal/DESIGN.md` (operator-portal spec), `../modules/operator-portal/PROPOSAL.md` (client-facing proposal), `../modules/operator-portal/USE_CASE_DISCOVERY.md` (operator/owner use cases grounded in real WhatsApp data)
 
 This document is the high-level design of the community property management
 platform: the live incident-management module, the operator-portal module
@@ -51,7 +51,7 @@ Two things are intentionally **out of scope**:
 ## 2. Platform Fundamentals
 
 The platform is structured around the **three orthogonal axes** locked in
-`../PLATFORM_ARCHITECTURE.md`:
+`./PLATFORM_ARCHITECTURE.md`:
 
 | Axis | Question it answers |
 | --- | --- |
@@ -400,7 +400,7 @@ These need answers before code lands; full list in
 
 ## 5. Future Roadmap Modules
 
-The slugs and statuses below are locked in `../PLATFORM_ARCHITECTURE.md` §3 so
+The slugs and statuses below are locked in `./PLATFORM_ARCHITECTURE.md` §3 so
 they can be reasoned about today even though they are not implementation
 commitments.
 
@@ -649,7 +649,7 @@ Open questions blocking start:
 
 ### 7.4 Module enablement per community
 
-Per `../PLATFORM_ARCHITECTURE.md` §10, the `community_modules` table lands
+Per `./PLATFORM_ARCHITECTURE.md` §10, the `community_modules` table lands
 when module #2 (operator-portal) ships. Default backfill: every existing
 community has every then-available module enabled. Global admin toggles
 per-community thereafter; community admin assigns who admins what within

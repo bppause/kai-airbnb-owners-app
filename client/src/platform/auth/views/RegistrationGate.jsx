@@ -7,7 +7,7 @@
 // user, registration, onSubmit, onLogout, syncing, toast, setLang, complex-
 // Logo/Name/Location/Bg stay as per-instance props.
 //
-// See docs/PLATFORM_ARCHITECTURE.md §11 frontend stage F23.
+// See docs/platform/PLATFORM_ARCHITECTURE.md §11 frontend stage F23.
 
 import React from "react";
 import { useApp } from "../../../core/app-state";

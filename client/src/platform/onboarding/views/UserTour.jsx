@@ -10,7 +10,7 @@
 // useApp() (used to seed tourLang); onClose, onGo, onReport, onAddListing
 // stay as per-instance props.
 //
-// See docs/PLATFORM_ARCHITECTURE.md §11 frontend stage F24.
+// See docs/platform/PLATFORM_ARCHITECTURE.md §11 frontend stage F24.
 
 import React, { useState } from "react";
 import { useApp } from "../../../core/app-state";

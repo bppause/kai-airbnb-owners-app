@@ -82,7 +82,7 @@ A more detailed sketch lives in `../../platform/ROADMAP.md` §6.4.
 ## Status next steps
 
 When promoted from `idea` → `concept`, add `DESIGN.md` and update
-status here and in `../../PLATFORM_ARCHITECTURE.md` §3. The guard
+status here and in `../../platform/PLATFORM_ARCHITECTURE.md` §3. The guard
 persona does not use Gmail in most buildings, so Phase 0 of any
 detailed design must answer the auth-mode question (kiosk PIN /
 magic-link / shared-tablet) flagged in `../../platform/ROADMAP.md` §11.

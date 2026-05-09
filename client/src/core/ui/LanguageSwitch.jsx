@@ -2,7 +2,7 @@
 // Gate, and the main app header. Lifted byte-identical from App.jsx in
 // stage F23.
 //
-// See docs/PLATFORM_ARCHITECTURE.md §11 frontend stage F23.
+// See docs/platform/PLATFORM_ARCHITECTURE.md §11 frontend stage F23.
 
 import React from "react";
 

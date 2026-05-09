@@ -15,7 +15,7 @@
 // calls it for the layer-3 branding overlay; keeping both in one file
 // avoids a circular dep between config and roles.
 //
-// See docs/PLATFORM_ARCHITECTURE.md §11.
+// See docs/platform/PLATFORM_ARCHITECTURE.md §11.
 
 'use strict';
 

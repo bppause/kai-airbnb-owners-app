@@ -18,7 +18,7 @@
 // Lifted byte-identical from App.jsx in stage F6. The 271-entry APP_I18N
 // data block moved into ./app-strings.json.
 //
-// See docs/PLATFORM_ARCHITECTURE.md §11 frontend stage F6.
+// See docs/platform/PLATFORM_ARCHITECTURE.md §11 frontend stage F6.
 
 import APP_I18N from "./app-strings.json";
 import { parseJsonObject } from "../utils";

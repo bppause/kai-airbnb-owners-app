@@ -5,7 +5,7 @@
 // Lifted byte-identical from App.jsx in stage F23. Pulls lang via useApp();
 // config stays per-instance.
 //
-// See docs/PLATFORM_ARCHITECTURE.md §11 frontend stage F23.
+// See docs/platform/PLATFORM_ARCHITECTURE.md §11 frontend stage F23.
 
 import React from "react";
 import { useApp } from "../../../core/app-state";

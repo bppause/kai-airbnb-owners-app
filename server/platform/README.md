@@ -14,4 +14,4 @@ needs lives here, not inside any single module.
 | `app-config/` | platform-wide runtime settings |
 | `email/` | email send + delivery logging |
 
-See `docs/PLATFORM_ARCHITECTURE.md` §4 for the platform-vs-module-entity rule.
+See `docs/platform/PLATFORM_ARCHITECTURE.md` §4 for the platform-vs-module-entity rule.

@@ -5,7 +5,7 @@
 // Lifted byte-identical from App.jsx in stage F26. Pulls lang via
 // useApp(); user, role, counts, and click handlers stay per-instance.
 //
-// See docs/PLATFORM_ARCHITECTURE.md §11 frontend stage F26.
+// See docs/platform/PLATFORM_ARCHITECTURE.md §11 frontend stage F26.
 
 import React from "react";
 import { useApp } from "../../../core/app-state";

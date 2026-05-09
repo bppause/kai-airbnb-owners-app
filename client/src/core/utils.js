@@ -5,7 +5,7 @@
 // they're still pure functions that take inputs and return outputs without
 // touching app state.
 //
-// See docs/PLATFORM_ARCHITECTURE.md §11 frontend stage F2.
+// See docs/platform/PLATFORM_ARCHITECTURE.md §11 frontend stage F2.
 
 // ─── Phone / contact ─────────────────────────────────────────────────────────
 

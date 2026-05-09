@@ -5,7 +5,7 @@
 // Lifted byte-identical from App.jsx in stage F12. Lives under platform/
 // units/ because units are platform-level (multiple modules consume this).
 //
-// See docs/PLATFORM_ARCHITECTURE.md §11 frontend stage F12.
+// See docs/platform/PLATFORM_ARCHITECTURE.md §11 frontend stage F12.
 
 import React from "react";
 import { normalizePhoneForWhatsApp } from "../../../core/utils";

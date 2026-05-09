@@ -8,7 +8,7 @@
 // useApp(); listings, allListings, incidents, user, contactProps,
 // permission flags, and all callbacks stay per-instance.
 //
-// See docs/PLATFORM_ARCHITECTURE.md §11 frontend stage F31.
+// See docs/platform/PLATFORM_ARCHITECTURE.md §11 frontend stage F31.
 
 import React, { useState } from "react";
 import { useApp } from "../../../core/app-state";

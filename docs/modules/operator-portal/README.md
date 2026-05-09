@@ -66,7 +66,7 @@ Building" and summarized in `../../platform/DESIGN.md` §4.11:
 
 ## Companion documents
 
-- `../../PLATFORM_ARCHITECTURE.md` — module contract every new module
+- `../../platform/PLATFORM_ARCHITECTURE.md` — module contract every new module
   must follow.
 - `../../platform/DESIGN.md` §4 — operator-portal summary in the
   platform-wide design.

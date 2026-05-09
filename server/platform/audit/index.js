@@ -1,5 +1,5 @@
 // Audit — platform module manifest.
-// See docs/PLATFORM_ARCHITECTURE.md §4 and §9.
+// See docs/platform/PLATFORM_ARCHITECTURE.md §4 and §9.
 
 const createRouter = require('./routes');
 

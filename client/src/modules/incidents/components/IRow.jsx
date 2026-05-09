@@ -14,7 +14,7 @@
 //   - normalizeOwnerGuests, slaResInfo, fmtDate from core/utils (F2/F7)
 //   - appText, incidentTypeLabel, categoryLabel from core/i18n/app-text (F6)
 //
-// See docs/PLATFORM_ARCHITECTURE.md §11 frontend stage F14.
+// See docs/platform/PLATFORM_ARCHITECTURE.md §11 frontend stage F14.
 
 import React from "react";
 import { useApp } from "../../../core/app-state";

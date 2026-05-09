@@ -1,6 +1,6 @@
 // Communities — platform module manifest.
 // A community is a single physical place; every module operates within one.
-// See docs/PLATFORM_ARCHITECTURE.md §2 and §4.
+// See docs/platform/PLATFORM_ARCHITECTURE.md §2 and §4.
 
 const createRouter = require('./routes');
 const { PERMISSIONS } = require('./permissions');

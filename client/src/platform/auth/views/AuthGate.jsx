@@ -8,7 +8,7 @@
 // onLogin, setLang, complexLogo/NameEs/NameEn/Location/Bg, onCommunity-
 // Select stay as per-instance props.
 //
-// See docs/PLATFORM_ARCHITECTURE.md §11 frontend stage F23.
+// See docs/platform/PLATFORM_ARCHITECTURE.md §11 frontend stage F23.
 
 import React, { useState, useEffect } from "react";
 import { APP_VERSION } from "../../../version.js";

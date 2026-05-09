@@ -12,7 +12,7 @@
 // Opens platform/audit/ for future audit views (per-entity history,
 // actor activity, etc.).
 //
-// See docs/PLATFORM_ARCHITECTURE.md §11 frontend stage F20.
+// See docs/platform/PLATFORM_ARCHITECTURE.md §11 frontend stage F20.
 
 import React, { useState, useEffect, useCallback } from "react";
 import { useApp } from "../../../core/app-state";

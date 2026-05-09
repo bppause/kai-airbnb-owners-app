@@ -9,7 +9,7 @@
 // Lifted byte-identical from App.jsx in stage F21. Pulls lang via useApp();
 // r, actions, onApprove, onDecline stay as per-instance props.
 //
-// See docs/PLATFORM_ARCHITECTURE.md §11 frontend stage F21.
+// See docs/platform/PLATFORM_ARCHITECTURE.md §11 frontend stage F21.
 
 import React from "react";
 import { useApp } from "../../../core/app-state";

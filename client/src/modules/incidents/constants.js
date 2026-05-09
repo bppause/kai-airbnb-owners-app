@@ -6,7 +6,7 @@
 // Labels here are the Spanish defaults; localized labels at render time
 // come through incidentTypeLabel / categoryLabel from core/i18n/app-text.
 //
-// See docs/PLATFORM_ARCHITECTURE.md §11 frontend stage F11.
+// See docs/platform/PLATFORM_ARCHITECTURE.md §11 frontend stage F11.
 
 export const INCIDENT_TYPES = [
   { value:"noise",        label:"🔊 Ruido excesivo",           color:"#e65100", bg:"#fff3e0" },

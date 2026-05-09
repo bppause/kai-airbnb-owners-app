@@ -6,7 +6,7 @@
 //   <EmptyState> — large placeholder with icon + title + sub
 //   <Empty>      — compact one-line placeholder (icon + msg)
 //
-// See docs/PLATFORM_ARCHITECTURE.md §11 frontend stage F7.
+// See docs/platform/PLATFORM_ARCHITECTURE.md §11 frontend stage F7.
 
 import React from "react";
 

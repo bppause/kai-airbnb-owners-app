@@ -1,7 +1,7 @@
 // Communities — platform-level tenant routes.
 //
 // A community is a single physical place (building, condo tower, gated
-// neighborhood, resort, …) — see docs/PLATFORM_ARCHITECTURE.md §2.
+// neighborhood, resort, …) — see docs/platform/PLATFORM_ARCHITECTURE.md §2.
 //
 // Mounted by server.js at:
 //   /api/platform/communities/*    (canonical, includes admin/* sub-paths)

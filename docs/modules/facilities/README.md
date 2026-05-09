@@ -76,5 +76,5 @@ system; full PMS replacement (this is operations only).
 ## Status next steps
 
 When promoted from `idea` → `concept`, add `DESIGN.md` to this folder.
-Update status here and in `../../PLATFORM_ARCHITECTURE.md` §3 in the
+Update status here and in `../../platform/PLATFORM_ARCHITECTURE.md` §3 in the
 same change.

@@ -93,6 +93,6 @@ the H4 horizon plan.
 ## Status next steps
 
 When promoted from `idea` → `concept`, add `DESIGN.md` and update
-status here and in `../../PLATFORM_ARCHITECTURE.md` §3. Detailed
+status here and in `../../platform/PLATFORM_ARCHITECTURE.md` §3. Detailed
 design must be reviewed by counsel before shipping (Habeas Data
 exposure, tourism-tax remittance correctness).

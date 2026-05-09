@@ -7,7 +7,7 @@
 // (config flows through from adminInfo and powers the per-community
 // tooltip overrides).
 //
-// See docs/PLATFORM_ARCHITECTURE.md §11 frontend stage F10.
+// See docs/platform/PLATFORM_ARCHITECTURE.md §11 frontend stage F10.
 
 import React, { useState } from "react";
 import Overlay from "../../../core/ui/Overlay";

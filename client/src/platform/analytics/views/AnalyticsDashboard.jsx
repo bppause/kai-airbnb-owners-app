@@ -10,7 +10,7 @@
 // Opens the platform/analytics/ folder for future analytics views
 // (per-listing trends, owner reports, SLA dashboards, etc.).
 //
-// See docs/PLATFORM_ARCHITECTURE.md §11 frontend stage F19.
+// See docs/platform/PLATFORM_ARCHITECTURE.md §11 frontend stage F19.
 
 import React, { useState, useEffect, useCallback } from "react";
 import { useApp } from "../../../core/app-state";

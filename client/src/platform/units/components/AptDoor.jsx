@@ -13,7 +13,7 @@
 // previously redundant props). Other props (l, incidents, callbacks)
 // stay per-instance.
 //
-// See docs/PLATFORM_ARCHITECTURE.md §11 frontend stage F28.
+// See docs/platform/PLATFORM_ARCHITECTURE.md §11 frontend stage F28.
 
 import React from "react";
 import { useApp } from "../../../core/app-state";

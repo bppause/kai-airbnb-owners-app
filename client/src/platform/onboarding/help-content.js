@@ -9,7 +9,7 @@
 //
 // Lifted byte-identical from App.jsx in stage F24.
 //
-// See docs/PLATFORM_ARCHITECTURE.md §11 frontend stage F24.
+// See docs/platform/PLATFORM_ARCHITECTURE.md §11 frontend stage F24.
 
 import { HL } from "../../core/utils";
 

@@ -1,7 +1,7 @@
 // Users — platform module manifest.
 // Owns the end-user side of `app_users`: profile, language preference,
 // reputation score. Admin-side user management lives in
-// server/platform/admin/. See docs/PLATFORM_ARCHITECTURE.md §4.
+// server/platform/admin/. See docs/platform/PLATFORM_ARCHITECTURE.md §4.
 
 const createRouter = require('./routes');
 

@@ -7,7 +7,7 @@
 // from core/i18n/app-text — that returns the current community's tower
 // label (e.g. "KAI", "Tower-A") and updates when admin config changes.
 //
-// See docs/PLATFORM_ARCHITECTURE.md §11 frontend stage F12.
+// See docs/platform/PLATFORM_ARCHITECTURE.md §11 frontend stage F12.
 
 import React from "react";
 import { getDefaultTower } from "../../../core/i18n/app-text";

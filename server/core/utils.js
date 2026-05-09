@@ -1,6 +1,6 @@
 // Pure utilities — no DB, no I/O, no closures over server-scope state.
 // Lifted byte-identical from server.js stage 4a. Safe to require from any
-// module without dep injection. See docs/PLATFORM_ARCHITECTURE.md §11.
+// module without dep injection. See docs/platform/PLATFORM_ARCHITECTURE.md §11.
 
 'use strict';
 

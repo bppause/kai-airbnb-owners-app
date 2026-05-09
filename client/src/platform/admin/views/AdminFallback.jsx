@@ -5,7 +5,7 @@
 // Lifted byte-identical from App.jsx in stage F33. Pulls lang via
 // useApp(); error stays per-instance.
 //
-// See docs/PLATFORM_ARCHITECTURE.md §11 frontend stage F33.
+// See docs/platform/PLATFORM_ARCHITECTURE.md §11 frontend stage F33.
 
 import React from "react";
 import { useApp } from "../../../core/app-state";

@@ -6,7 +6,7 @@
 // Lifted byte-identical from App.jsx in stage F33. Pulls lang via
 // useApp(); mode, initial, onSave, onClose stay per-instance.
 //
-// See docs/PLATFORM_ARCHITECTURE.md §11 frontend stage F33.
+// See docs/platform/PLATFORM_ARCHITECTURE.md §11 frontend stage F33.
 
 import React, { useState } from "react";
 import { useApp } from "../../../core/app-state";

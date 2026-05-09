@@ -1,5 +1,5 @@
 // Capability keys for registrations (community-membership applications).
-// See docs/PLATFORM_ARCHITECTURE.md §5.
+// See docs/platform/PLATFORM_ARCHITECTURE.md §5.
 
 const PERMISSIONS = Object.freeze({
   APPROVE: 'registrations:approve',

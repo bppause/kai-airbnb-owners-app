@@ -13,7 +13,7 @@
 // (IconEmail, IconWhatsApp) live in core/ui/Icons.jsx so other places can
 // reuse them.
 //
-// See docs/PLATFORM_ARCHITECTURE.md §11 frontend stage F13.
+// See docs/platform/PLATFORM_ARCHITECTURE.md §11 frontend stage F13.
 
 import React, { useState, useRef } from "react";
 import { normalizePhoneForWhatsApp } from "./utils";

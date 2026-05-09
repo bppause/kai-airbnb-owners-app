@@ -10,7 +10,7 @@
 //
 // Co-located: EMPTY_CO_OWNER blank shape (only used here).
 //
-// See docs/PLATFORM_ARCHITECTURE.md §11 frontend stage F32.
+// See docs/platform/PLATFORM_ARCHITECTURE.md §11 frontend stage F32.
 
 import React, { useState } from "react";
 import { useApp } from "../../../core/app-state";

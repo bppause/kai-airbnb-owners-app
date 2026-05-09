@@ -75,6 +75,6 @@ A more detailed sketch lives in `../../platform/ROADMAP.md` §6.5.
 ## Status next steps
 
 When promoted from `idea` → `concept`, add `DESIGN.md` and update
-status here and in `../../PLATFORM_ARCHITECTURE.md` §3. Auth-mode
+status here and in `../../platform/PLATFORM_ARCHITECTURE.md` §3. Auth-mode
 question for residents who do not use Gmail (renters in particular)
 applies here as it does for `front-desk`.

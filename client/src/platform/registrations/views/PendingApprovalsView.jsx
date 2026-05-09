@@ -7,7 +7,7 @@
 // useApp(); pending/active lists and approve/decline callbacks stay as
 // per-instance props.
 //
-// See docs/PLATFORM_ARCHITECTURE.md §11 frontend stage F21.
+// See docs/platform/PLATFORM_ARCHITECTURE.md §11 frontend stage F21.
 
 import React, { useState } from "react";
 import { useApp } from "../../../core/app-state";

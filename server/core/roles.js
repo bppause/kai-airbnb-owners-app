@@ -20,7 +20,7 @@
 // because they overlap with general app configuration. Stage 4e will
 // push those into core/config.js too.
 //
-// See docs/PLATFORM_ARCHITECTURE.md §11.
+// See docs/platform/PLATFORM_ARCHITECTURE.md §11.
 
 'use strict';
 

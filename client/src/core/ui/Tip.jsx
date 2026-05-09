@@ -5,7 +5,7 @@
 // Lifted byte-identical from App.jsx in stage F10. Self-contained — no
 // shared state, no Context.
 //
-// See docs/PLATFORM_ARCHITECTURE.md §11 frontend stage F10.
+// See docs/platform/PLATFORM_ARCHITECTURE.md §11 frontend stage F10.
 
 import React, { useState } from "react";
 

@@ -17,7 +17,7 @@
 //   - GUEST_CATEGORIES (F11)
 //   - appText, categoryLabel (F6)
 //
-// See docs/PLATFORM_ARCHITECTURE.md §11 frontend stage F16.
+// See docs/platform/PLATFORM_ARCHITECTURE.md §11 frontend stage F16.
 
 import React, { useState, useEffect } from "react";
 import { useApp } from "../../../core/app-state";

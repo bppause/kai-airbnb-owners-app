@@ -1,5 +1,5 @@
 // Capability keys declared by the incidents module.
-// New format: namespaced "incidents:<verb>" — see docs/PLATFORM_ARCHITECTURE.md §5.
+// New format: namespaced "incidents:<verb>" — see docs/platform/PLATFORM_ARCHITECTURE.md §5.
 // Old flat keys (canResolveIncidents, canUpdateGlobalIncidents, canDeleteGlobalIncidents)
 // remain in server.js helpers for now and are aliased to these during the
 // migration window. Stage 4 will collapse them.

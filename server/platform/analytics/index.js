@@ -1,6 +1,6 @@
 // Analytics — platform module manifest.
 // Cross-cutting: SLA breach dashboard, ranking views, quarterly community
-// goals. See docs/PLATFORM_ARCHITECTURE.md §4.
+// goals. See docs/platform/PLATFORM_ARCHITECTURE.md §4.
 
 const createRouter = require('./routes');
 

@@ -15,7 +15,7 @@
 // sendRegistrationStatusEmail, …) still live in server.js for now and
 // consume the factory output via dep injection. They will move into their
 // respective modules in a later sub-stage. See
-// docs/PLATFORM_ARCHITECTURE.md §11.
+// docs/platform/PLATFORM_ARCHITECTURE.md §11.
 //
 // Lifted byte-identical from server.js stage 4c.
 

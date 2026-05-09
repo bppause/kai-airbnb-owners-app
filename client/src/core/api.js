@@ -14,7 +14,7 @@
 // aliases for those; the future "switch to canonical /api/platform/*"
 // migration is a single-file change here when ready.
 //
-// See docs/PLATFORM_ARCHITECTURE.md §11 frontend stage F3.
+// See docs/platform/PLATFORM_ARCHITECTURE.md §11 frontend stage F3.
 
 let _communityId = (() => {
   try {

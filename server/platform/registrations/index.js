@@ -1,5 +1,5 @@
 // Registrations — platform module manifest.
-// See docs/PLATFORM_ARCHITECTURE.md §4.
+// See docs/platform/PLATFORM_ARCHITECTURE.md §4.
 
 const createRouter = require('./routes');
 const { PERMISSIONS, LEGACY_ALIASES } = require('./permissions');

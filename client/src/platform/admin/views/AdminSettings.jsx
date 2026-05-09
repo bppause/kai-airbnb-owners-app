@@ -21,7 +21,7 @@
 // state graph is dense (~80 useState hooks all mutually referenced)
 // so for now the single-file lift is the pragmatic choice.
 //
-// See docs/PLATFORM_ARCHITECTURE.md §11 frontend stage F34.
+// See docs/platform/PLATFORM_ARCHITECTURE.md §11 frontend stage F34.
 
 import React, { useState, useEffect, useCallback } from "react";
 import { useApp } from "../../../core/app-state";
