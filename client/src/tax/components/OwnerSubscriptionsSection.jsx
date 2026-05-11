@@ -69,6 +69,15 @@ function SubscriptionRow({ sub, product, auth, onChange, locale, t }) {
   const [editing, setEditing] = useState(false);
   const [status, setStatus] = useState(sub.status || 'active');
   const [activeSlugs, setActiveSlugs] = useState(Array.isArray(sub.active_schedule_slugs) ? sub.active_schedule_slugs : []);
+  // Phase 4d: reminder offsets + channels are now editable from the panel.
+  // Offsets render as a CSV (-14, -7, -3) for easy reading and entry.
+  const initialOffsets = Array.isArray(sub.reminder_offsets_days) && sub.reminder_offsets_days.length
+    ? sub.reminder_offsets_days : [-14, -7, -3];
+  const initialChannels = Array.isArray(sub.reminder_channels) && sub.reminder_channels.length
+    ? sub.reminder_channels : ['email', 'in_app'];
+  const [offsetsCsv, setOffsetsCsv] = useState(initialOffsets.join(', '));
+  const [chEmail, setChEmail] = useState(initialChannels.includes('email'));
+  const [chInApp, setChInApp] = useState(initialChannels.includes('in_app'));
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
 
@@ -80,12 +89,31 @@ function SubscriptionRow({ sub, product, auth, onChange, locale, t }) {
 
   const onSave = async () => {
     setBusy(true); setErr('');
+
+    // Parse offsets CSV → integer array. Server re-validates the range.
+    const offsetTokens = offsetsCsv.split(',').map(s => s.trim()).filter(Boolean);
+    const offsets = offsetTokens.map(n => Number(n)).filter(Number.isFinite).map(n => Math.trunc(n));
+    if (offsetTokens.length && offsets.length !== offsetTokens.length) {
+      setErr(t('owner.customer.subscription.errOffsets')); setBusy(false); return;
+    }
+    if (!offsets.length) {
+      setErr(t('owner.customer.subscription.errOffsetsEmpty')); setBusy(false); return;
+    }
+    const channels = [];
+    if (chInApp) channels.push('in_app');
+    if (chEmail) channels.push('email');
+    if (!channels.length) {
+      setErr(t('owner.customer.subscription.errChannels')); setBusy(false); return;
+    }
+
     try {
       await taxApi.adminUpdateSubscription(auth, sub.id, {
         status,
         // Empty array tells the server to treat as "all schedules"
         // (active_schedule_slugs = NULL).
         activeScheduleSlugs: activeSlugs,
+        reminderOffsetsDays: offsets,
+        reminderChannels: channels,
       });
       setEditing(false);
       onChange();
@@ -182,6 +210,39 @@ function SubscriptionRow({ sub, product, auth, onChange, locale, t }) {
                 </div>
               </div>
             )}
+
+            <div>
+              <label htmlFor={`sub-offsets-${sub.id}`} style={{ fontSize: 13, fontWeight: 600, marginBottom: 6, display: 'block' }}>
+                {t('owner.customer.subscription.offsets')}
+              </label>
+              <p style={{ fontSize: 12, color: 'var(--tax-muted)', margin: '0 0 8px' }}>
+                {t('owner.customer.subscription.offsetsHint')}
+              </p>
+              <input id={`sub-offsets-${sub.id}`} type="text" value={offsetsCsv}
+                     onChange={e => setOffsetsCsv(e.target.value)}
+                     placeholder="-14, -7, -3" maxLength={80}
+                     style={{ padding: '8px 10px', border: '1px solid var(--tax-border)',
+                              borderRadius: 8, font: 'inherit', fontSize: 14, maxWidth: 240 }} />
+            </div>
+
+            <div>
+              <label style={{ fontSize: 13, fontWeight: 600, marginBottom: 6, display: 'block' }}>
+                {t('owner.customer.subscription.channels')}
+              </label>
+              <p style={{ fontSize: 12, color: 'var(--tax-muted)', margin: '0 0 8px' }}>
+                {t('owner.customer.subscription.channelsHint')}
+              </p>
+              <div style={{ display: 'grid', gap: 6 }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 14 }}>
+                  <input type="checkbox" checked={chEmail} onChange={e => setChEmail(e.target.checked)} />
+                  <span>{t('portal.profile.channel.email')}</span>
+                </label>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 14 }}>
+                  <input type="checkbox" checked={chInApp} onChange={e => setChInApp(e.target.checked)} />
+                  <span>{t('portal.profile.channel.inApp')}</span>
+                </label>
+              </div>
+            </div>
 
             {err && <div className="tax-msg tax-msg--error">{err}</div>}
 
