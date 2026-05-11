@@ -64,8 +64,76 @@ function generatePeriods(anchorRule, fromDate, limit = 6, opts = {}) {
 
   if (rule.type === 'fixed_quarterly') return fixedQuarterly(rule, refIso, refYear, limit, lang);
   if (rule.type === 'monthly_following') return monthlyFollowing(rule, ref, refYear, limit, lang);
+  if (rule.type === 'quarterly_following') return quarterlyFollowing(rule, ref, refYear, limit, lang);
+  if (rule.type === 'weekly_following') return weeklyFollowing(rule, ref, limit, lang);
   if (rule.type === 'annual') return annual(rule, refIso, refYear, limit, lang);
   return [];
+}
+
+// Phase 4n.3: generic quarterly cadence — period is a calendar quarter, due
+// date is `day` of the month immediately following the quarter end. So with
+// day=15 the dues are Apr 15, Jul 15, Oct 15, Jan 15 (the typical 1040-ES
+// pattern — useful when owners want generic quarterly without listing fixed
+// dates).
+function quarterlyFollowing(rule, ref, refYear, limit, lang) {
+  const day = Math.max(1, Math.min(28, parseInt(rule.day, 10) || 15));
+  const refIso = toYmd(ref);
+  const out = [];
+  const quarters = [
+    { startMonth: 1,  endMonth: 3,  dueMonth: 4  },
+    { startMonth: 4,  endMonth: 6,  dueMonth: 7  },
+    { startMonth: 7,  endMonth: 9,  dueMonth: 10 },
+    { startMonth: 10, endMonth: 12, dueMonth: 1, dueYearOffset: 1 },
+  ];
+  for (let y = refYear - 1; y < refYear + 4 && out.length < limit + 4; y++) {
+    for (let q = 0; q < quarters.length; q++) {
+      const cfg = quarters[q];
+      const dueYear = y + (cfg.dueYearOffset || 0);
+      const dueDay = Math.min(day, lastDayOfMonth(dueYear, cfg.dueMonth));
+      const due = ymd(dueYear, cfg.dueMonth, dueDay);
+      if (due >= refIso) {
+        out.push({
+          dueDate: due,
+          periodStart: ymd(y, cfg.startMonth, 1),
+          periodEnd: ymd(y, cfg.endMonth, lastDayOfMonth(y, cfg.endMonth)),
+          periodLabel: quarterLabel(q, y, lang),
+        });
+      }
+    }
+  }
+  return out.sort((a, b) => a.dueDate.localeCompare(b.dueDate)).slice(0, limit);
+}
+
+// Weekly cadence — due every 7 days on `dayOfWeek` (1=Mon … 7=Sun, ISO).
+// Period covers the 7 days ending at the due date.
+function weeklyFollowing(rule, ref, limit, lang) {
+  const dow = Math.max(1, Math.min(7, parseInt(rule.dayOfWeek, 10) || 5));
+  const refIso = toYmd(ref);
+  const out = [];
+  // Start from refDate, walk forward day by day until we hit the target dow,
+  // then add weekly. Use UTC to avoid tz drift.
+  const d = new Date(Date.UTC(ref.getUTCFullYear(), ref.getUTCMonth(), ref.getUTCDate()));
+  // JS getUTCDay: 0=Sun..6=Sat. Convert to ISO 1..7.
+  function isoDay(date) {
+    const js = date.getUTCDay();
+    return js === 0 ? 7 : js;
+  }
+  while (isoDay(d) !== dow) d.setUTCDate(d.getUTCDate() + 1);
+  for (let i = 0; i < limit; i++) {
+    const due = toYmd(d);
+    if (due >= refIso) {
+      const start = new Date(d);
+      start.setUTCDate(start.getUTCDate() - 6);
+      out.push({
+        dueDate: due,
+        periodStart: toYmd(start),
+        periodEnd: due,
+        periodLabel: lang === 'en' ? `Week of ${toYmd(start)}` : `Semana del ${toYmd(start)}`,
+      });
+    }
+    d.setUTCDate(d.getUTCDate() + 7);
+  }
+  return out;
 }
 
 function fixedQuarterly(rule, refIso, refYear, limit, lang) {

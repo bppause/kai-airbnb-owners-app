@@ -424,7 +424,7 @@ const {
   sendTaxLeadEmail, sendTaxReminderEmail, sendTaxDocumentEmail,
   sendTaxMessageEmail, sendTaxMessagePracticeEmail, sendTaxMessageEmployeeEmail,
   sendTaxWelcomeEmail, sendTaxStaffWelcomeEmail,
-  previewTaxEmail,
+  previewTaxEmail, getTemplateDefaults,
 } = require('./modules/tax/email-senders')({ sendSpanishEmail, emailConfigured, loadTaxEmailTemplate, logTaxEmailDelivery });
 const taxRemindersCron = require('./modules/tax/reminders')({
   supabase,
@@ -445,6 +445,7 @@ const taxRouter = taxModule.createRouter({
   sendTaxWelcomeEmail,
   sendTaxStaffWelcomeEmail,
   previewTaxEmail,
+  getTemplateDefaults,
   publicAppUrl: () => publicAppUrl(),
   isGlobalAdmin,
   isEnvGlobalAdminEmail,

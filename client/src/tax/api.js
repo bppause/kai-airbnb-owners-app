@@ -186,8 +186,10 @@ export const taxApi = {
   adminUpdateEmailTemplate(auth, key, lang, payload) { return request('PUT', `/admin/email-templates/${encodeURIComponent(key)}/${encodeURIComponent(lang)}`, payload, auth, { admin: true }); },
   adminResetEmailTemplate(auth, key, lang, communitySlug) { return request('DELETE', `/admin/email-templates/${encodeURIComponent(key)}/${encodeURIComponent(lang)}?communitySlug=${encodeURIComponent(communitySlug)}`, undefined, auth, { admin: true }); },
   adminPreviewEmailTemplate(auth, payload) { return request('POST', '/admin/email-templates/preview', payload, auth, { admin: true }); },
+  adminGetEmailTemplateDefaults(auth, key, lang) { return request('GET', `/admin/email-templates/defaults?key=${encodeURIComponent(key)}&lang=${encodeURIComponent(lang)}`, undefined, auth, { admin: true }); },
 
   adminListFilingSchedules(auth, communitySlug)  { return request('GET', `/admin/filing-schedules?communitySlug=${encodeURIComponent(communitySlug)}`, undefined, auth, { admin: true }); },
+  adminCreateFilingSchedule(auth, payload) { return request('POST', '/admin/filing-schedules', payload, auth, { admin: true }); },
   adminListRelationshipWorkflowRules(auth, communitySlug) { return request('GET', `/admin/relationship-workflow-rules?communitySlug=${encodeURIComponent(communitySlug)}`, undefined, auth, { admin: true }); },
   adminUpdateRelationshipWorkflowRule(auth, relTypeId, scheduleSlug, payload) { return request('PUT', `/admin/relationship-workflow-rules/${encodeURIComponent(relTypeId)}/${encodeURIComponent(scheduleSlug)}`, payload, auth, { admin: true }); },
   adminDeleteRelationshipWorkflowRule(auth, relTypeId, scheduleSlug, communitySlug) { return request('DELETE', `/admin/relationship-workflow-rules/${encodeURIComponent(relTypeId)}/${encodeURIComponent(scheduleSlug)}?communitySlug=${encodeURIComponent(communitySlug)}`, undefined, auth, { admin: true }); },

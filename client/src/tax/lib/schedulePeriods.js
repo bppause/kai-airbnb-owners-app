@@ -69,6 +69,39 @@ function annual(rule, refIso, refYear, limit) {
   return out;
 }
 
+function quarterlyFollowing(rule, ref, refYear, limit) {
+  const day = Math.max(1, Math.min(28, parseInt(rule.day, 10) || 15));
+  const refIso = toYmd(ref);
+  const out = [];
+  const quarters = [
+    { dueMonth: 4 }, { dueMonth: 7 }, { dueMonth: 10 }, { dueMonth: 1, off: 1 },
+  ];
+  for (let y = refYear - 1; y < refYear + 4 && out.length < limit + 4; y++) {
+    quarters.forEach((cfg) => {
+      const dueYear = y + (cfg.off || 0);
+      const dueDay = Math.min(day, lastDayOfMonth(dueYear, cfg.dueMonth));
+      const due = ymd(dueYear, cfg.dueMonth, dueDay);
+      if (due >= refIso) out.push({ dueDate: due });
+    });
+  }
+  return out.sort((a, b) => a.dueDate.localeCompare(b.dueDate)).slice(0, limit);
+}
+
+function weeklyFollowing(rule, ref, limit) {
+  const dow = Math.max(1, Math.min(7, parseInt(rule.dayOfWeek, 10) || 5));
+  const refIso = toYmd(ref);
+  const out = [];
+  const d = new Date(Date.UTC(ref.getUTCFullYear(), ref.getUTCMonth(), ref.getUTCDate()));
+  const isoDay = (date) => { const js = date.getUTCDay(); return js === 0 ? 7 : js; };
+  while (isoDay(d) !== dow) d.setUTCDate(d.getUTCDate() + 1);
+  for (let i = 0; i < limit; i++) {
+    const due = toYmd(d);
+    if (due >= refIso) out.push({ dueDate: due });
+    d.setUTCDate(d.getUTCDate() + 7);
+  }
+  return out;
+}
+
 export function generatePeriods(anchorRule, fromDate, limit = 8) {
   const ref = fromDate instanceof Date ? fromDate : new Date(fromDate || Date.now());
   const refIso = toYmd(ref);
@@ -76,6 +109,8 @@ export function generatePeriods(anchorRule, fromDate, limit = 8) {
   const rule = anchorRule || {};
   if (rule.type === 'fixed_quarterly') return fixedQuarterly(rule, refIso, refYear, limit);
   if (rule.type === 'monthly_following') return monthlyFollowing(rule, ref, refYear, limit);
+  if (rule.type === 'quarterly_following') return quarterlyFollowing(rule, ref, refYear, limit);
+  if (rule.type === 'weekly_following') return weeklyFollowing(rule, ref, limit);
   if (rule.type === 'annual') return annual(rule, refIso, refYear, limit);
   return [];
 }

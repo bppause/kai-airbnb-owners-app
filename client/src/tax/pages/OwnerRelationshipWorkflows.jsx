@@ -59,6 +59,29 @@ export default function OwnerRelationshipWorkflows() {
   const enabledSchedules = useMemo(() =>
     schedules.filter(s => s.enabled !== false), [schedules]);
 
+  // Phase 4n.3: "configured" = there's a rule binding this schedule slug to
+  // the active relationship. Hides schedules the owner hasn't explicitly
+  // chosen for this relationship — answers "what workflows does Payroll
+  // actually run on?" rather than "every schedule in the catalog".
+  const configuredSchedules = useMemo(() => {
+    if (!activeRel) return [];
+    const slugs = new Set(rules
+      .filter(r => r.relationship_type_id === activeRel && r.active !== false)
+      .map(r => r.filing_schedule_slug));
+    return enabledSchedules.filter(s => slugs.has(s.slug));
+  }, [enabledSchedules, rules, activeRel]);
+
+  const unconfiguredSchedules = useMemo(() => {
+    if (!activeRel) return enabledSchedules;
+    const slugs = new Set(rules
+      .filter(r => r.relationship_type_id === activeRel && r.active !== false)
+      .map(r => r.filing_schedule_slug));
+    return enabledSchedules.filter(s => !slugs.has(s.slug));
+  }, [enabledSchedules, rules, activeRel]);
+
+  const [showAddPicker, setShowAddPicker] = useState(false);
+  const [showCreateModal, setShowCreateModal] = useState(false);
+
   // System default — kept in sync with reminders.js' fallback. Used for the
   // preview when the user hasn't typed any custom offsets yet.
   const SYSTEM_DEFAULT_OFFSETS = [14, 7, 3];
@@ -200,8 +223,27 @@ export default function OwnerRelationshipWorkflows() {
             <p style={{ color: 'var(--tax-muted)' }}>{t('owner.workflows.noSchedules')}</p>
           )}
 
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', margin: '12px 0' }}>
+            {unconfiguredSchedules.length > 0 && (
+              <button type="button" className="tax-btn tax-btn--ghost tax-btn--sm"
+                      onClick={() => setShowAddPicker(true)}>
+                + {t('owner.workflows.addExistingBtn')}
+              </button>
+            )}
+            <button type="button" className="tax-btn tax-btn--primary tax-btn--sm"
+                    onClick={() => setShowCreateModal(true)}>
+              + {t('owner.workflows.createNewBtn')}
+            </button>
+          </div>
+
+          {configuredSchedules.length === 0 && enabledSchedules.length > 0 && (
+            <p style={{ color: 'var(--tax-muted)' }}>
+              {t('owner.workflows.noConfiguredForRel')}
+            </p>
+          )}
+
           <div style={{ display: 'grid', gap: 16 }}>
-            {enabledSchedules.map(sch => {
+            {configuredSchedules.map(sch => {
               const k = `${activeRel}|${sch.slug}`;
               const st = getEditState(activeRel, sch.slug);
               const r = ruleFor(activeRel, sch.slug);
@@ -384,6 +426,332 @@ export default function OwnerRelationshipWorkflows() {
         extraDocs={preview?.extraDocs || null}
         offsetDays={preview?.offsetDays || 14}
       />
+
+      <AddExistingSchedulePicker
+        open={showAddPicker}
+        onClose={() => setShowAddPicker(false)}
+        schedules={unconfiguredSchedules}
+        locale={locale}
+        t={t}
+        onEnable={async (sch) => {
+          // Create an inactive-by-default rule so the schedule shows up on
+          // this relationship's page. Owner can then tune offsets / docs.
+          try {
+            await taxApi.adminUpdateRelationshipWorkflowRule(auth, activeRel, sch.slug, {
+              communitySlug: community.id,
+              reminderOffsetsDays: [],     // empty → falls back to schedule default
+              requiredDocuments: [],
+              active: true,
+            });
+            setShowAddPicker(false);
+            load();
+          } catch (e) {
+            window.alert(e?.message || t('respond.error.generic'));
+          }
+        }}
+      />
+
+      <CreateWorkflowModal
+        open={showCreateModal}
+        onClose={() => setShowCreateModal(false)}
+        t={t}
+        onCreate={async (payload) => {
+          try {
+            await taxApi.adminCreateFilingSchedule(auth, {
+              ...payload,
+              communitySlug: community.id,
+              relationshipTypeId: activeRel,
+            });
+            setShowCreateModal(false);
+            load();
+          } catch (e) {
+            window.alert(e?.message || t('respond.error.generic'));
+          }
+        }}
+      />
     </EmployeeShell>
+  );
+}
+
+// Phase 4n.3: simple list picker — shows community schedules the active
+// relationship hasn't enabled yet. Click one to create a default rule.
+function AddExistingSchedulePicker({ open, onClose, schedules, locale, t, onEnable }) {
+  if (!open) return null;
+  return (
+    <div onClick={onClose} style={{
+      position: 'fixed', inset: 0, background: 'rgba(15,23,42,.55)',
+      zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16,
+    }}>
+      <div onClick={e => e.stopPropagation()} style={{
+        background: 'var(--tax-bg)', borderRadius: 12, maxWidth: 560, width: '100%',
+        maxHeight: '85vh', overflow: 'auto', border: '1px solid var(--tax-border)',
+      }}>
+        <div style={{ padding: '14px 18px', borderBottom: '1px solid var(--tax-border)',
+                      display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <strong>{t('owner.workflows.addExistingTitle')}</strong>
+          <button type="button" className="tax-btn tax-btn--ghost tax-btn--sm" onClick={onClose}>
+            {t('preview.close')}
+          </button>
+        </div>
+        <div style={{ padding: 18 }}>
+          {schedules.length === 0 ? (
+            <p style={{ color: 'var(--tax-muted)' }}>{t('owner.workflows.addExistingEmpty')}</p>
+          ) : (
+            <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'grid', gap: 8 }}>
+              {schedules.map(sch => (
+                <li key={sch.id} style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                  gap: 12, padding: 10, border: '1px solid var(--tax-border)', borderRadius: 8,
+                }}>
+                  <div>
+                    <div style={{ fontWeight: 600 }}>{pickI18n(sch.name_i18n, locale).value || sch.slug}</div>
+                    <div style={{ fontSize: 12, color: 'var(--tax-muted)' }}>
+                      <code>{sch.slug}</code> · {sch.cadence}
+                    </div>
+                  </div>
+                  <button type="button" className="tax-btn tax-btn--primary tax-btn--sm"
+                          onClick={() => onEnable(sch)}>
+                    {t('owner.workflows.enableBtn')}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Phase 4n.3: full create-workflow form. Owner picks cadence (weekly /
+// monthly / quarterly / annual), an optional day override (default = end
+// of period), reminder offsets, and required docs. Saves a new
+// tax_filing_schedule and auto-binds it to the active relationship.
+function CreateWorkflowModal({ open, onClose, t, onCreate }) {
+  const [form, setForm] = useState(initialFormState);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+  function initialFormState() {
+    return {
+      cadence: 'monthly',
+      nameEn: '', nameEs: '',
+      descriptionEn: '', descriptionEs: '',
+      dayOfMonth: '',     // empty → server defaults (28 monthly, 15 quarterly)
+      dayOfWeek: '5',     // Friday default for weekly
+      date: '12-31',      // annual default
+      jurisdiction: 'federal',
+      offsetsInput: '14, 7, 3',
+      docs: [],
+    };
+  }
+  // Reset form whenever the modal opens.
+  useEffect(() => { if (open) { setForm(initialFormState()); setErr(''); } }, [open]);
+
+  if (!open) return null;
+
+  const addDoc = () => setForm(p => ({
+    ...p,
+    docs: [...p.docs, { key: '', label_i18n: { en: '', es: '' }, type: 'text', required: true }],
+  }));
+  const updateDoc = (i, patch) => setForm(p => ({
+    ...p,
+    docs: p.docs.map((d, idx) => idx === i ? { ...d, ...patch } : d),
+  }));
+  const removeDoc = (i) => setForm(p => ({ ...p, docs: p.docs.filter((_, idx) => idx !== i) }));
+
+  async function submit() {
+    setErr('');
+    if (!form.nameEn && !form.nameEs) { setErr(t('owner.workflows.create.errName')); return; }
+    const offsets = String(form.offsetsInput || '')
+      .split(/[\s,;]+/).map(s => parseInt(s, 10))
+      .filter(n => Number.isFinite(n) && n >= 0 && n <= 365);
+    const payload = {
+      cadence: form.cadence,
+      nameEn: form.nameEn, nameEs: form.nameEs,
+      descriptionEn: form.descriptionEn, descriptionEs: form.descriptionEs,
+      jurisdiction: form.jurisdiction || 'federal',
+      reminderOffsetsDays: offsets,
+      extraDocs: [], // doc set lives in the schedule's info_checklist below
+      infoChecklist: form.docs,
+    };
+    if (form.cadence === 'weekly') payload.dayOfWeek = parseInt(form.dayOfWeek, 10);
+    else if (form.cadence === 'monthly') {
+      if (form.dayOfMonth) payload.dayOfMonth = parseInt(form.dayOfMonth, 10);
+    } else if (form.cadence === 'quarterly') {
+      if (form.dayOfMonth) payload.dayOfMonth = parseInt(form.dayOfMonth, 10);
+    } else if (form.cadence === 'annual') {
+      payload.date = form.date || '12-31';
+    }
+    setBusy(true);
+    try {
+      await onCreate(payload);
+    } catch (e) { setErr(e?.message || t('respond.error.generic')); }
+    finally { setBusy(false); }
+  }
+
+  return (
+    <div onClick={onClose} style={{
+      position: 'fixed', inset: 0, background: 'rgba(15,23,42,.55)',
+      zIndex: 1000, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: 16,
+      overflow: 'auto',
+    }}>
+      <div onClick={e => e.stopPropagation()} style={{
+        background: 'var(--tax-bg)', borderRadius: 12, maxWidth: 720, width: '100%',
+        margin: '40px 0', border: '1px solid var(--tax-border)',
+      }}>
+        <div style={{ padding: '14px 18px', borderBottom: '1px solid var(--tax-border)',
+                      display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <strong>{t('owner.workflows.create.title')}</strong>
+          <button type="button" className="tax-btn tax-btn--ghost tax-btn--sm" onClick={onClose}>
+            {t('preview.close')}
+          </button>
+        </div>
+        <div style={{ padding: 18, display: 'grid', gap: 12 }}>
+          {err && <div className="tax-msg tax-msg--error">{err}</div>}
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            <div>
+              <label htmlFor="cw-name-en" style={{ display: 'block', fontSize: 13, marginBottom: 4 }}>
+                {t('owner.workflows.create.nameEn')}
+              </label>
+              <input id="cw-name-en" type="text" value={form.nameEn}
+                     onChange={e => setForm(p => ({ ...p, nameEn: e.target.value }))}
+                     style={{ width: '100%' }} maxLength={200} />
+            </div>
+            <div>
+              <label htmlFor="cw-name-es" style={{ display: 'block', fontSize: 13, marginBottom: 4 }}>
+                {t('owner.workflows.create.nameEs')}
+              </label>
+              <input id="cw-name-es" type="text" value={form.nameEs}
+                     onChange={e => setForm(p => ({ ...p, nameEs: e.target.value }))}
+                     style={{ width: '100%' }} maxLength={200} />
+            </div>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: 12, alignItems: 'end' }}>
+            <div>
+              <label htmlFor="cw-cadence" style={{ display: 'block', fontSize: 13, marginBottom: 4 }}>
+                {t('owner.workflows.create.cadence')}
+              </label>
+              <select id="cw-cadence" value={form.cadence}
+                      onChange={e => setForm(p => ({ ...p, cadence: e.target.value }))}>
+                <option value="weekly">{t('owner.workflows.create.cadence.weekly')}</option>
+                <option value="monthly">{t('owner.workflows.create.cadence.monthly')}</option>
+                <option value="quarterly">{t('owner.workflows.create.cadence.quarterly')}</option>
+                <option value="annual">{t('owner.workflows.create.cadence.annual')}</option>
+              </select>
+            </div>
+            <div>
+              {form.cadence === 'weekly' && (
+                <>
+                  <label htmlFor="cw-dow" style={{ display: 'block', fontSize: 13, marginBottom: 4 }}>
+                    {t('owner.workflows.create.dayOfWeek')}
+                  </label>
+                  <select id="cw-dow" value={form.dayOfWeek}
+                          onChange={e => setForm(p => ({ ...p, dayOfWeek: e.target.value }))}>
+                    <option value="1">{t('owner.workflows.create.dow.mon')}</option>
+                    <option value="2">{t('owner.workflows.create.dow.tue')}</option>
+                    <option value="3">{t('owner.workflows.create.dow.wed')}</option>
+                    <option value="4">{t('owner.workflows.create.dow.thu')}</option>
+                    <option value="5">{t('owner.workflows.create.dow.fri')}</option>
+                    <option value="6">{t('owner.workflows.create.dow.sat')}</option>
+                    <option value="7">{t('owner.workflows.create.dow.sun')}</option>
+                  </select>
+                </>
+              )}
+              {(form.cadence === 'monthly' || form.cadence === 'quarterly') && (
+                <>
+                  <label htmlFor="cw-dom" style={{ display: 'block', fontSize: 13, marginBottom: 4 }}>
+                    {t('owner.workflows.create.dayOfMonth')}
+                  </label>
+                  <input id="cw-dom" type="number" min={1} max={28}
+                         value={form.dayOfMonth}
+                         placeholder={form.cadence === 'monthly' ? '20' : '15'}
+                         onChange={e => setForm(p => ({ ...p, dayOfMonth: e.target.value }))}
+                         style={{ width: 120 }} />
+                  <p style={{ margin: '4px 0 0', fontSize: 12, color: 'var(--tax-muted)' }}>
+                    {t('owner.workflows.create.dayOfMonthHint')}
+                  </p>
+                </>
+              )}
+              {form.cadence === 'annual' && (
+                <>
+                  <label htmlFor="cw-date" style={{ display: 'block', fontSize: 13, marginBottom: 4 }}>
+                    {t('owner.workflows.create.annualDate')}
+                  </label>
+                  <input id="cw-date" type="text" placeholder="MM-DD"
+                         value={form.date} pattern="^\d{1,2}-\d{1,2}$"
+                         onChange={e => setForm(p => ({ ...p, date: e.target.value }))}
+                         style={{ width: 120 }} />
+                </>
+              )}
+            </div>
+          </div>
+
+          <div>
+            <label htmlFor="cw-offsets" style={{ display: 'block', fontSize: 13, marginBottom: 4 }}>
+              {t('owner.workflows.create.offsets')}
+            </label>
+            <input id="cw-offsets" type="text" value={form.offsetsInput}
+                   placeholder="14, 7, 3"
+                   onChange={e => setForm(p => ({ ...p, offsetsInput: e.target.value }))}
+                   style={{ width: 220 }} />
+            <p style={{ margin: '4px 0 0', fontSize: 12, color: 'var(--tax-muted)' }}>
+              {t('owner.workflows.create.offsetsHint')}
+            </p>
+          </div>
+
+          <div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+              <span style={{ fontSize: 13, fontWeight: 600 }}>{t('owner.workflows.create.docsLabel')}</span>
+              <button type="button" className="tax-btn tax-btn--ghost tax-btn--sm" onClick={addDoc}>
+                + {t('owner.workflows.addDoc')}
+              </button>
+            </div>
+            {form.docs.length === 0 && (
+              <p style={{ color: 'var(--tax-muted)', fontSize: 13, margin: '4px 0 0' }}>
+                {t('owner.workflows.docsEmpty')}
+              </p>
+            )}
+            {form.docs.map((d, i) => (
+              <div key={i} style={{
+                display: 'grid', gap: 8, padding: 8, marginTop: 8,
+                gridTemplateColumns: '1fr 1fr 1fr 110px 60px 32px',
+                alignItems: 'center', border: '1px dashed var(--tax-border)', borderRadius: 6,
+              }}>
+                <input type="text" value={d.key} placeholder={t('owner.workflows.docKey')}
+                       onChange={e => updateDoc(i, { key: e.target.value })} />
+                <input type="text" value={d.label_i18n?.en || ''} placeholder={t('owner.workflows.docLabelEn')}
+                       onChange={e => updateDoc(i, { label_i18n: { ...(d.label_i18n || {}), en: e.target.value } })} />
+                <input type="text" value={d.label_i18n?.es || ''} placeholder={t('owner.workflows.docLabelEs')}
+                       onChange={e => updateDoc(i, { label_i18n: { ...(d.label_i18n || {}), es: e.target.value } })} />
+                <select value={d.type || 'text'} onChange={e => updateDoc(i, { type: e.target.value })}>
+                  <option value="text">text</option><option value="amount">amount</option>
+                  <option value="date">date</option><option value="file">file</option>
+                  <option value="note">note</option>
+                </select>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12 }}>
+                  <input type="checkbox" checked={d.required !== false}
+                         onChange={e => updateDoc(i, { required: e.target.checked })} />
+                  {t('owner.workflows.docRequired')}
+                </label>
+                <button type="button" className="tax-btn tax-btn--ghost tax-btn--sm"
+                        onClick={() => removeDoc(i)} aria-label={t('owner.workflows.removeDoc')}>×</button>
+              </div>
+            ))}
+          </div>
+
+          <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 8 }}>
+            <button type="button" className="tax-btn tax-btn--ghost tax-btn--sm" onClick={onClose}>
+              {t('preview.close')}
+            </button>
+            <button type="button" className="tax-btn tax-btn--primary tax-btn--sm"
+                    disabled={busy} onClick={submit}>
+              {busy ? t('lead.submitting') : t('owner.workflows.create.saveBtn')}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }

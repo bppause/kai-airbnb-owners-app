@@ -242,6 +242,54 @@ module.exports = function createTaxSenders(deps) {
     return result;
   };
 
+  // Phase 4n.2: editable defaults for the Email Templates form. Returns the
+  // raw template the owner edits — uses `{{var}}` placeholders instead of
+  // substituted stub values, so the persisted text stays live (Maria García
+  // doesn't get baked into every customer's email). Lives alongside
+  // buildReminderEmail so the placeholder set stays in sync with the vars
+  // map the sender builds at send time.
+  function buildReminderTemplate(lang) {
+    const useEn = lang === 'en';
+    const formalGreeting = useEn ? 'Dear {{customer_name}},' : 'Estimado/a {{customer_name}}:';
+    const closing = useEn ? 'Sincerely,\n{{practice_name}}' : 'Atentamente,\n{{practice_name}}';
+    const subject = useEn
+      ? 'Reminder: {{filing_name}} due {{due_date}} ({{offset_days}} days away)'
+      : 'Recordatorio: {{filing_name}} vence el {{due_date}} ({{offset_days}} días restantes)';
+
+    const introBody = useEn
+      ? `This is a reminder that the filing "{{filing_name}}" for the period {{period_label}} is due on {{due_date}}.\n\n{{filing_description}}\n\nIn order to prepare and submit this filing on your behalf, we will need the information requested in your secure portal.`
+      : `Le escribimos para recordarle que la declaración "{{filing_name}}" correspondiente al período {{period_label}} vence el {{due_date}}.\n\n{{filing_description}}\n\nPara poder preparar y presentar esta declaración en su nombre, necesitamos la información solicitada en su portal seguro.`;
+    const ctaText = useEn
+      ? 'Please submit your information via the secure link below. The link is unique to this filing and will expire after the due date.'
+      : 'Por favor envíe su información usando el enlace seguro a continuación. El enlace es único para esta declaración y expirará después de la fecha de vencimiento.';
+    const ctaLabel = useEn ? 'Submit information' : 'Enviar información';
+
+    const text = [formalGreeting, '', introBody, '', ctaText, '{{magic_url}}', '', closing].join('\n');
+    const html = `
+      <div style="font-family:Arial,sans-serif;max-width:640px;color:#111">
+        <p>${formalGreeting}</p>
+        <p style="white-space:pre-line">${introBody}</p>
+        <p>${ctaText}</p>
+        <p style="margin:24px 0">
+          <a href="{{magic_url}}" style="background:#1d3a6d;color:#fff;text-decoration:none;padding:12px 22px;border-radius:8px;font-weight:600;display:inline-block">${ctaLabel}</a>
+        </p>
+        <p style="color:#666;font-size:13px">{{magic_url}}</p>
+        <p style="white-space:pre-line">${closing}</p>
+      </div>
+    `.trim();
+
+    return { subject, text, html };
+  }
+
+  // Returns the editable defaults for any known template_key. Today only the
+  // reminder template has a factored placeholder version; for other keys we
+  // return empty strings (the form starts blank) — same behavior as before.
+  function getTemplateDefaults({ key, lang }) {
+    const useLang = lang === 'en' ? 'en' : 'es';
+    if (key === 'reminder') return buildReminderTemplate(useLang);
+    return { subject: '', text: '', html: '' };
+  }
+
   // Phase 4n: pure helper for the admin preview route. Accepts an optional
   // unsaved override (subject/body_text/body_html) so the owner can preview
   // exactly what they're about to save. When `override` is null, the route
@@ -846,5 +894,6 @@ module.exports = function createTaxSenders(deps) {
     sendTaxWelcomeEmail,
     sendTaxStaffWelcomeEmail,
     previewTaxEmail,
+    getTemplateDefaults,
   };
 };
