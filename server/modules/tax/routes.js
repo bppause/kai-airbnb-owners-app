@@ -573,6 +573,45 @@ module.exports = function createTaxRouter(deps) {
     res.json({ ok: true });
   });
 
+  // ── GET /admin/audit?communitySlug=&entity=&action=&actor=&from=&to=&offset=
+  //
+  // Tax-scoped audit log viewer. Filters audit_logs to rows where
+  //   entity LIKE 'tax.%'  AND
+  //   (optional) entity matches exactly,
+  //   (optional) action ilike,
+  //   (optional) actor_email ilike,
+  //   (optional) created_at >= dateFrom + dateTo+'T23:59:59Z'
+  // Returns up to 100 rows per page; total count for pagination UI.
+  //
+  // NOTE: audit_logs is platform-wide and has no community_id column, so we
+  // can't strictly scope by community. In practice every tax row has its
+  // actor in the same community via tax_customers/tax_employees, and entity
+  // ids are community-scoped. For multi-community deployments, Phase 5 will
+  // add explicit per-community filtering.
+  router.get('/admin/audit', async (req, res) => {
+    if (!(await requireOwnerAdmin(req, res))) return;
+    const { entity, action, actor, dateFrom, dateTo, limit: limitParam, offset: offsetParam } = req.query || {};
+
+    let q = supabase.from('audit_logs')
+      .select('id, entity, entity_id, action, actor_uid, actor_email, actor_name, before_data, after_data, reason, created_at',
+              { count: 'exact' })
+      .like('entity', 'tax.%')
+      .order('created_at', { ascending: false });
+
+    if (entity && entity !== 'all') q = q.eq('entity', String(entity));
+    if (action) q = q.ilike('action', `%${String(action)}%`);
+    if (actor)  q = q.ilike('actor_email', `%${String(actor)}%`);
+    if (dateFrom) q = q.gte('created_at', String(dateFrom));
+    if (dateTo)   q = q.lte('created_at', String(dateTo) + 'T23:59:59Z');
+
+    const pageLimit  = Math.min(parseInt(limitParam) || 50, 100);
+    const pageOffset = parseInt(offsetParam) || 0;
+    q = q.range(pageOffset, pageOffset + pageLimit - 1);
+    const { data, error, count } = await q;
+    if (error) return sendSupabaseError(res, error);
+    res.json({ logs: data || [], total: count || 0, limit: pageLimit, offset: pageOffset });
+  });
+
   router.put('/admin/community-settings/notif-lock', async (req, res) => {
     if (!(await requireOwnerAdmin(req, res))) return;
     const communitySlug = trim(req.body?.communitySlug, 200);
