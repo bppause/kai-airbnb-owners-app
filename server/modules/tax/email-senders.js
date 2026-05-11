@@ -240,5 +240,120 @@ module.exports = function createTaxSenders(deps) {
     return sendSpanishEmail({ to, subject, text, html, lang: langTag });
   };
 
-  return { sendTaxLeadEmail, sendTaxReminderEmail, sendTaxDocumentEmail };
+  // ── Customer message email (Phase 2f) ────────────────────────────────────
+  // Sent when the practice posts a reply to a thread. Includes a short
+  // preview of the message body and a CTA back to the customer's portal.
+  // Routes to cust.preferred_communication_email when set (Phase 2e).
+  const sendTaxMessageEmail = async ({ cust, community, thread, message, portalUrl }) => {
+    if (!emailConfigured) return { sent: false, skipped: true, reason: 'email_not_configured' };
+    const to = String(cust?.preferred_communication_email || cust?.email || '').trim();
+    if (!to) return { sent: false, skipped: true, reason: 'customer_email_missing' };
+
+    const lang = cust.locale === 'en' ? 'en' : 'es';
+    const langTag = lang === 'en' ? 'en' : 'es-CO';
+    const practiceName = community?.name || 'Tax America Services';
+    const subject = lang === 'en'
+      ? `New message from ${practiceName}${thread?.subject ? `: ${thread.subject}` : ''}`
+      : `Nuevo mensaje de ${practiceName}${thread?.subject ? `: ${thread.subject}` : ''}`;
+
+    const formalGreeting = formalSalutation(cust.name, lang);
+    const intro = lang === 'en'
+      ? `${practiceName} has sent you a new message through your portal:`
+      : `${practiceName} le ha enviado un nuevo mensaje a través de su portal:`;
+    const ctaText = lang === 'en'
+      ? `Sign in to view the full thread and reply.`
+      : `Inicie sesión para ver la conversación completa y responder.`;
+    const ctaLabel = lang === 'en' ? 'Open my portal' : 'Abrir mi portal';
+    const closing = lang === 'en'
+      ? `Sincerely,\n${practiceName}`
+      : `Atentamente,\n${practiceName}`;
+
+    // Truncate preview for emails — full body lives in the portal.
+    const preview = String(message?.body || '').slice(0, 500);
+    const truncated = (message?.body || '').length > 500;
+    const previewLine = preview + (truncated ? '…' : '');
+
+    const text = [
+      formalGreeting, '', intro,
+      thread?.subject ? `\n${lang === 'en' ? 'Subject' : 'Asunto'}: ${thread.subject}` : '',
+      '',
+      previewLine,
+      '',
+      ctaText,
+      portalUrl || '',
+      '',
+      closing,
+    ].filter(Boolean).join('\n');
+
+    const html = `
+      <div style="font-family:Arial,sans-serif;max-width:640px;color:#111">
+        <p>${escapeHtml(formalGreeting)}</p>
+        <p>${escapeHtml(intro)}</p>
+        ${thread?.subject ? `<p style="color:#444"><strong>${lang === 'en' ? 'Subject' : 'Asunto'}:</strong> ${escapeHtml(thread.subject)}</p>` : ''}
+        <blockquote style="margin:16px 0;padding:12px 16px;background:#f4f7fb;border-left:3px solid #1d3a6d;border-radius:6px;white-space:pre-wrap">${escapeHtml(previewLine)}</blockquote>
+        <p>${escapeHtml(ctaText)}</p>
+        ${portalUrl ? `
+          <p style="margin:24px 0">
+            <a href="${portalUrl}" style="background:#1d3a6d;color:#fff;text-decoration:none;padding:12px 22px;border-radius:8px;font-weight:600;display:inline-block">${escapeHtml(ctaLabel)}</a>
+          </p>
+          <p style="color:#666;font-size:13px">${escapeHtml(portalUrl)}</p>
+        ` : ''}
+        <p style="white-space:pre-line">${escapeHtml(closing)}</p>
+      </div>
+    `;
+
+    return sendSpanishEmail({ to, subject, text, html, lang: langTag });
+  };
+
+  // ── Practice notification email (Phase 2f) ───────────────────────────────
+  // Sent to the community's contact_email when a CUSTOMER posts a message.
+  // English-only for v1 since it goes to the practice operator, not the
+  // customer. Full thread lives in the (future) owner dashboard; the email
+  // is a "go check it" signal.
+  const sendTaxMessagePracticeEmail = async ({ community, customer, thread, message }) => {
+    if (!emailConfigured) return { sent: false, skipped: true, reason: 'email_not_configured' };
+    const to = String(community?.contact_email || '').trim();
+    if (!to) return { sent: false, skipped: true, reason: 'community_contact_email_missing' };
+
+    const subject = `[${community.name}] New customer message from ${customer?.name || customer?.email || 'a customer'}`;
+    const preview = String(message?.body || '').slice(0, 500);
+    const truncated = (message?.body || '').length > 500;
+    const previewLine = preview + (truncated ? '…' : '');
+
+    const lines = [
+      `New customer message via ${community.name} portal:`,
+      '',
+      `From:     ${customer?.name || ''} <${customer?.email || ''}>`,
+      thread?.subject ? `Subject:  ${thread.subject}` : '',
+      `Thread:   ${thread?.id || ''}`,
+      `Posted:   ${message?.created_at || ''}`,
+      '',
+      'Message:',
+      previewLine,
+    ].filter(Boolean);
+    const text = lines.join('\n');
+
+    const html = `
+      <div style="font-family:Arial,sans-serif;max-width:640px;color:#111">
+        <h3 style="margin:0 0 12px">New customer message — ${escapeHtml(community.name)}</h3>
+        <table style="border-collapse:collapse;width:100%">
+          <tr><td style="padding:6px 8px;color:#555">From</td><td style="padding:6px 8px"><strong>${escapeHtml(customer?.name || '')}</strong> &lt;${escapeHtml(customer?.email || '')}&gt;</td></tr>
+          ${thread?.subject ? `<tr><td style="padding:6px 8px;color:#555">Subject</td><td style="padding:6px 8px">${escapeHtml(thread.subject)}</td></tr>` : ''}
+          <tr><td style="padding:6px 8px;color:#555">Thread ID</td><td style="padding:6px 8px;color:#666;font-family:monospace;font-size:12px">${escapeHtml(thread?.id || '')}</td></tr>
+        </table>
+        <h4>Message</h4>
+        <blockquote style="margin:8px 0;padding:12px 16px;background:#f7f7f7;border-radius:8px;white-space:pre-wrap">${escapeHtml(previewLine)}</blockquote>
+      </div>
+    `;
+
+    return sendSpanishEmail({ to, subject, text, html, lang: 'en' });
+  };
+
+  return {
+    sendTaxLeadEmail,
+    sendTaxReminderEmail,
+    sendTaxDocumentEmail,
+    sendTaxMessageEmail,
+    sendTaxMessagePracticeEmail,
+  };
 };

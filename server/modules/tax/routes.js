@@ -39,6 +39,8 @@ module.exports = function createTaxRouter(deps) {
     auditLog,
     sendTaxLeadEmail,
     sendTaxDocumentEmail,
+    sendTaxMessageEmail,
+    sendTaxMessagePracticeEmail,
     publicAppUrl,
     isGlobalAdmin,
     runReminderCron,
@@ -1199,6 +1201,303 @@ module.exports = function createTaxRouter(deps) {
     if (typeof sendTaxDocumentEmail === 'function') {
       try { await sendTaxDocumentEmail({ cust, community, doc, portalUrl }); }
       catch (e) { warn('[tax-docs] document email failed', e?.message || e); }
+    }
+  }
+
+  // ────────────────────────────────────────────────────────────────────────────
+  // Phase 2f: customer ↔ practice messaging
+  //
+  // Thread-per-conversation, denormalized last_message_* + unread flags on the
+  // thread row so the list query is O(1). Customer endpoints are auth-gated;
+  // owner endpoints sit behind requireGlobalAdmin. The owner UI lands with
+  // Phase 4a — until then, the practice replies via these endpoints directly.
+  // ────────────────────────────────────────────────────────────────────────────
+  const MAX_MESSAGE_BODY = 4000;
+  const MAX_SUBJECT_LEN  = 240;
+  const PREVIEW_LEN      = 200;
+
+  function previewOf(body) {
+    const s = String(body || '').replace(/\s+/g, ' ').trim();
+    return s.length > PREVIEW_LEN ? (s.slice(0, PREVIEW_LEN - 1) + '…') : s;
+  }
+
+  // ── GET /portal/threads ── (customer)
+  router.get('/portal/threads', async (req, res) => {
+    const customer = await requireTaxCustomer(req, res); if (!customer) return;
+    const { data, error } = await supabase.from('tax_message_threads')
+      .select('id, subject, status, last_message_at, last_message_preview, last_message_by_role, customer_unread, created_at')
+      .eq('customer_id', customer.id)
+      .order('last_message_at', { ascending: false, nullsFirst: false })
+      .limit(200);
+    if (error) return sendSupabaseError(res, error);
+    res.json({ threads: data || [] });
+  });
+
+  // ── POST /portal/threads ── (customer creates thread + sends first message)
+  // Body: { subject, body, relatedPeriodId?, relatedDocumentId? }
+  router.post('/portal/threads', async (req, res) => {
+    const customer = await requireTaxCustomer(req, res); if (!customer) return;
+    const body = req.body || {};
+    const subject = trim(body.subject, MAX_SUBJECT_LEN);
+    const messageBody = trim(body.body, MAX_MESSAGE_BODY);
+    if (!messageBody) return res.status(400).json({ error: 'Message body required.' });
+
+    const threadId = 'tthr_' + uuidv4().slice(0, 16);
+    const now = new Date().toISOString();
+    const { error: tErr } = await supabase.from('tax_message_threads').insert({
+      id: threadId,
+      community_id: customer.community_id,
+      customer_id: customer.id,
+      subject: subject || (lang => lang === 'en' ? 'Question for your tax practice' : 'Pregunta para su contador')(customer.locale),
+      related_period_id: trim(body.relatedPeriodId, 200) || null,
+      related_document_id: trim(body.relatedDocumentId, 200) || null,
+      status: 'open',
+      created_by_role: 'customer',
+      created_by_email: customer.email,
+      last_message_at: now,
+      last_message_preview: previewOf(messageBody),
+      last_message_by_role: 'customer',
+      customer_unread: false,
+      practice_unread: true,
+    });
+    if (tErr) return sendSupabaseError(res, tErr);
+
+    const msgId = await insertMessage({
+      threadId,
+      communityId: customer.community_id,
+      customerId: customer.id,
+      role: 'customer',
+      email: customer.email,
+      name: customer.name,
+      body: messageBody,
+    });
+
+    notifyPracticeOfCustomerMessage(threadId, customer.id).catch(e => warn('[tax-msg] practice notify failed', e?.message || e));
+    try {
+      await auditLog({ entity: 'tax.message_thread', entityId: threadId, action: 'create_customer',
+        actorEmail: customer.email, actorName: customer.name });
+    } catch (_e) {}
+    res.json({ ok: true, threadId, messageId: msgId });
+  });
+
+  // ── GET /portal/threads/:id ── (customer; returns + flips customer_unread to false)
+  router.get('/portal/threads/:id', async (req, res) => {
+    const customer = await requireTaxCustomer(req, res); if (!customer) return;
+    const id = trim(req.params.id, 200);
+    const { data: thread } = await supabase.from('tax_message_threads')
+      .select('id, customer_id, subject, status, related_period_id, related_document_id, last_message_at, customer_unread, created_at')
+      .eq('id', id).maybeSingle();
+    if (!thread || thread.customer_id !== customer.id) return res.status(404).json({ error: 'Thread not found.' });
+
+    const { data: messages, error } = await supabase.from('tax_messages')
+      .select('id, author_role, author_email, author_name, body, attachments, created_at')
+      .eq('thread_id', id).order('created_at', { ascending: true });
+    if (error) return sendSupabaseError(res, error);
+
+    if (thread.customer_unread) {
+      await supabase.from('tax_message_threads')
+        .update({ customer_unread: false, updated_at: new Date().toISOString() })
+        .eq('id', id);
+    }
+    res.json({ thread, messages: messages || [] });
+  });
+
+  // ── POST /portal/threads/:id/messages ── (customer reply)
+  router.post('/portal/threads/:id/messages', async (req, res) => {
+    const customer = await requireTaxCustomer(req, res); if (!customer) return;
+    const id = trim(req.params.id, 200);
+    const messageBody = trim(req.body?.body, MAX_MESSAGE_BODY);
+    if (!messageBody) return res.status(400).json({ error: 'Message body required.' });
+
+    const { data: thread } = await supabase.from('tax_message_threads')
+      .select('id, customer_id, community_id, status').eq('id', id).maybeSingle();
+    if (!thread || thread.customer_id !== customer.id) return res.status(404).json({ error: 'Thread not found.' });
+    if (thread.status === 'closed') return res.status(409).json({ error: 'This thread is closed.' });
+
+    const msgId = await insertMessage({
+      threadId: id,
+      communityId: thread.community_id,
+      customerId: customer.id,
+      role: 'customer',
+      email: customer.email,
+      name: customer.name,
+      body: messageBody,
+    });
+    notifyPracticeOfCustomerMessage(id, customer.id).catch(e => warn('[tax-msg] practice notify failed', e?.message || e));
+    res.json({ ok: true, messageId: msgId });
+  });
+
+  // ── POST /portal/threads/:id/read ── (customer mark-as-read)
+  router.post('/portal/threads/:id/read', async (req, res) => {
+    const customer = await requireTaxCustomer(req, res); if (!customer) return;
+    const id = trim(req.params.id, 200);
+    const { error } = await supabase.from('tax_message_threads')
+      .update({ customer_unread: false, updated_at: new Date().toISOString() })
+      .eq('id', id).eq('customer_id', customer.id);
+    if (error) return sendSupabaseError(res, error);
+    res.json({ ok: true });
+  });
+
+  // ── ADMIN: GET /admin/threads ── (owner; optionally filtered)
+  router.get('/admin/threads', async (req, res) => {
+    if (!requireGlobalAdmin(req, res)) return;
+    if (!requireSupabaseEnv(res)) return;
+    const communitySlug = trim(req.query.communitySlug, 200);
+    let q = supabase.from('tax_message_threads')
+      .select(`
+        id, subject, status, last_message_at, last_message_preview, last_message_by_role,
+        practice_unread, customer_unread, created_at, customer_id, related_period_id, related_document_id,
+        customer:tax_customers ( id, email, name )
+      `)
+      .order('last_message_at', { ascending: false, nullsFirst: false })
+      .limit(500);
+    if (communitySlug) q = q.eq('community_id', communitySlug);
+    if (req.query.unreadOnly === 'true') q = q.eq('practice_unread', true);
+    const { data, error } = await q;
+    if (error) return sendSupabaseError(res, error);
+    res.json({ threads: data || [] });
+  });
+
+  // ── ADMIN: GET /admin/threads/:id ── (owner; returns + flips practice_unread to false)
+  router.get('/admin/threads/:id', async (req, res) => {
+    if (!requireGlobalAdmin(req, res)) return;
+    if (!requireSupabaseEnv(res)) return;
+    const id = trim(req.params.id, 200);
+    const { data: thread } = await supabase.from('tax_message_threads')
+      .select(`
+        id, customer_id, community_id, subject, status, related_period_id, related_document_id,
+        last_message_at, practice_unread, customer_unread, created_at,
+        customer:tax_customers ( id, email, name, locale, phone, whatsapp, preferred_communication_email )
+      `).eq('id', id).maybeSingle();
+    if (!thread) return res.status(404).json({ error: 'Thread not found.' });
+
+    const { data: messages, error } = await supabase.from('tax_messages')
+      .select('id, author_role, author_email, author_name, body, attachments, created_at')
+      .eq('thread_id', id).order('created_at', { ascending: true });
+    if (error) return sendSupabaseError(res, error);
+
+    if (thread.practice_unread) {
+      await supabase.from('tax_message_threads')
+        .update({ practice_unread: false, updated_at: new Date().toISOString() }).eq('id', id);
+    }
+    res.json({ thread, messages: messages || [] });
+  });
+
+  // ── ADMIN: POST /admin/threads/:id/messages ── (owner reply)
+  router.post('/admin/threads/:id/messages', async (req, res) => {
+    if (!requireGlobalAdmin(req, res)) return;
+    if (!requireSupabaseEnv(res)) return;
+    const id = trim(req.params.id, 200);
+    const messageBody = trim(req.body?.body, MAX_MESSAGE_BODY);
+    if (!messageBody) return res.status(400).json({ error: 'Message body required.' });
+
+    const { data: thread } = await supabase.from('tax_message_threads')
+      .select('id, customer_id, community_id, status').eq('id', id).maybeSingle();
+    if (!thread) return res.status(404).json({ error: 'Thread not found.' });
+    if (thread.status === 'closed') return res.status(409).json({ error: 'This thread is closed.' });
+
+    const actor = trim(req.get('x-admin-email') || '', 200).toLowerCase();
+    const msgId = await insertMessage({
+      threadId: id,
+      communityId: thread.community_id,
+      customerId: thread.customer_id,
+      role: 'practice',
+      email: actor,
+      name: '',
+      body: messageBody,
+    });
+    notifyCustomerOfPracticeMessage(id, thread.customer_id, msgId).catch(e => warn('[tax-msg] customer notify failed', e?.message || e));
+    res.json({ ok: true, messageId: msgId });
+  });
+
+  // ── ADMIN: POST /admin/threads/:id/read ──
+  router.post('/admin/threads/:id/read', async (req, res) => {
+    if (!requireGlobalAdmin(req, res)) return;
+    if (!requireSupabaseEnv(res)) return;
+    const id = trim(req.params.id, 200);
+    const { error } = await supabase.from('tax_message_threads')
+      .update({ practice_unread: false, updated_at: new Date().toISOString() }).eq('id', id);
+    if (error) return sendSupabaseError(res, error);
+    res.json({ ok: true });
+  });
+
+  // ── Messaging helpers ──────────────────────────────────────────────────
+  // Inserts a row in tax_messages and updates the thread's denormalized
+  // last_message_* + opposite-party unread flag. Returns the new message id.
+  async function insertMessage({ threadId, communityId, customerId, role, email, name, body }) {
+    const id = 'tmsg_' + uuidv4().slice(0, 16);
+    const now = new Date().toISOString();
+    await supabase.from('tax_messages').insert({
+      id, thread_id: threadId, community_id: communityId, customer_id: customerId,
+      author_role: role, author_email: email || '', author_name: name || '',
+      body, attachments: [], created_at: now,
+    });
+    const threadPatch = {
+      last_message_at: now,
+      last_message_preview: previewOf(body),
+      last_message_by_role: role,
+      updated_at: now,
+    };
+    if (role === 'practice') threadPatch.customer_unread = true;
+    else threadPatch.practice_unread = true;
+    await supabase.from('tax_message_threads').update(threadPatch).eq('id', threadId);
+    return id;
+  }
+
+  async function notifyCustomerOfPracticeMessage(threadId, customerId, messageId) {
+    const [{ data: thread }, { data: cust }, { data: msg }] = await Promise.all([
+      supabase.from('tax_message_threads')
+        .select('id, subject, community_id').eq('id', threadId).maybeSingle(),
+      supabase.from('tax_customers')
+        .select('id, email, name, locale, preferred_communication_email').eq('id', customerId).maybeSingle(),
+      supabase.from('tax_messages')
+        .select('id, body, created_at').eq('id', messageId).maybeSingle(),
+    ]);
+    if (!thread || !cust || !msg) return;
+    const { data: community } = await supabase.from('communities')
+      .select('id, name, contact_email').eq('id', thread.community_id).maybeSingle();
+
+    await supabase.from('tax_notifications').insert({
+      id: 'tnotif_' + uuidv4().slice(0, 12),
+      community_id: thread.community_id,
+      customer_id: cust.id,
+      type: 'message',
+      title_i18n: {
+        es: `Nuevo mensaje${thread.subject ? `: ${thread.subject}` : ''}`,
+        en: `New message${thread.subject ? `: ${thread.subject}` : ''}`,
+      },
+      body_i18n: {
+        es: previewOf(msg.body),
+        en: previewOf(msg.body),
+      },
+      payload: { threadId: thread.id, messageId: msg.id },
+    });
+
+    if (typeof sendTaxMessageEmail === 'function') {
+      const portalUrl = `${(typeof publicAppUrl === 'function' ? publicAppUrl() : '')}/tax/${thread.community_id}/portal/messages/${encodeURIComponent(thread.id)}`;
+      try { await sendTaxMessageEmail({ cust, community, thread, message: msg, portalUrl }); }
+      catch (e) { warn('[tax-msg] customer email failed', e?.message || e); }
+    }
+  }
+
+  async function notifyPracticeOfCustomerMessage(threadId, customerId) {
+    const [{ data: thread }, { data: cust }] = await Promise.all([
+      supabase.from('tax_message_threads')
+        .select('id, subject, community_id, last_message_at, last_message_preview').eq('id', threadId).maybeSingle(),
+      supabase.from('tax_customers')
+        .select('id, email, name').eq('id', customerId).maybeSingle(),
+    ]);
+    if (!thread || !cust) return;
+    const { data: community } = await supabase.from('communities')
+      .select('id, name, contact_email').eq('id', thread.community_id).maybeSingle();
+
+    if (typeof sendTaxMessagePracticeEmail === 'function') {
+      try {
+        await sendTaxMessagePracticeEmail({
+          community, customer: cust, thread,
+          message: { body: thread.last_message_preview, created_at: thread.last_message_at },
+        });
+      } catch (e) { warn('[tax-msg] practice email failed', e?.message || e); }
     }
   }
 

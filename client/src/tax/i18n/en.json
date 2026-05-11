@@ -70,6 +70,7 @@
   "respond.error.generic": "We could not save your information. Please try again or contact us.",
 
   "portal.nav.dashboard": "Dashboard",
+  "portal.nav.messages": "Messages",
   "portal.nav.documents": "Documents",
   "portal.nav.faqs": "FAQs",
   "portal.nav.profile": "Profile",
@@ -172,5 +173,29 @@
   "portal.documents.confirmDelete": "Delete \"{name}\"? This cannot be undone.",
   "portal.documents.errUnsupported": "That file type is not supported.",
   "portal.documents.errTooLarge": "That file exceeds the 25 MB size limit.",
-  "portal.documents.errGeneric": "Something went wrong. Please try again or contact your tax practice."
+  "portal.documents.errGeneric": "Something went wrong. Please try again or contact your tax practice.",
+
+  "portal.messages.title": "Messages",
+  "portal.messages.subtitle": "Direct conversation with your tax practice. Replies from your practice trigger an email to you and an in-portal notification.",
+  "portal.messages.newBtn": "Start a new conversation",
+  "portal.messages.newTitle": "New conversation",
+  "portal.messages.newSubtitle": "Tell us how we can help. Your tax practice will be notified by email and will reply through this thread.",
+  "portal.messages.fieldSubject": "Subject (optional)",
+  "portal.messages.subjectPlaceholder": "Short summary, e.g. \"Question about my Q3 sales tax\"",
+  "portal.messages.fieldBody": "Message",
+  "portal.messages.bodyPlaceholder": "Type your question or comment…",
+  "portal.messages.sendBtn": "Send message",
+  "portal.messages.empty": "No conversations yet. Start one whenever you need to reach us.",
+  "portal.messages.fromPractice": "From your tax practice",
+  "portal.messages.fromYou": "From you",
+  "portal.messages.you": "You",
+  "portal.messages.practice": "Your tax practice",
+  "portal.messages.untitled": "(no subject)",
+  "portal.messages.backToList": "Back to messages",
+  "portal.messages.opened": "Opened",
+  "portal.messages.closed": "This conversation has been closed. Please start a new one if you have additional questions.",
+  "portal.messages.fieldReply": "Your reply",
+  "portal.messages.replyPlaceholder": "Type your reply…",
+  "portal.messages.notFound": "We could not find that conversation.",
+  "portal.messages.errBody": "Please write a message before sending."
 }

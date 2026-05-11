@@ -59,6 +59,13 @@ export const taxApi = {
   // Portal (Phase 2c) — relationship-tailored tips
   getTips(auth)                   { return request('GET',  '/portal/tips', undefined, auth); },
 
+  // Portal (Phase 2f) — messaging
+  getThreads(auth)                              { return request('GET',  '/portal/threads', undefined, auth); },
+  createThread(auth, payload)                   { return request('POST', '/portal/threads', payload, auth); },
+  getThread(auth, id)                           { return request('GET',  `/portal/threads/${encodeURIComponent(id)}`, undefined, auth); },
+  postMessage(auth, id, payload)                { return request('POST', `/portal/threads/${encodeURIComponent(id)}/messages`, payload, auth); },
+  markThreadRead(auth, id)                      { return request('POST', `/portal/threads/${encodeURIComponent(id)}/read`, {}, auth); },
+
   // Portal (Phase 2d) — customer documents
   getDocuments(auth)                            { return request('GET',  '/portal/documents', undefined, auth); },
   createDocumentUploadUrl(auth, payload)        { return request('POST', '/portal/documents/upload-url', payload, auth); },
