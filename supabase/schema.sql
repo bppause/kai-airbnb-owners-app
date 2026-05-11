@@ -867,6 +867,21 @@ create table if not exists public.tax_filing_periods (
 create index if not exists idx_tax_periods_due on public.tax_filing_periods(community_id, status, due_date);
 create index if not exists idx_tax_periods_customer on public.tax_filing_periods(customer_id, due_date desc);
 
+-- Phase 4n.6: relationship-driven period generation. Periods now reference
+-- the workflow rule directly (so the cron can read cadence / anchor_rule /
+-- info_checklist without joining tax_filing_schedules). subscription_id +
+-- schedule_id become optional — periods can exist for customers who have a
+-- relationship but no active subscription.
+alter table public.tax_filing_periods
+  add column if not exists workflow_rule_id text references public.tax_relationship_workflow_rules(id) on delete set null,
+  add column if not exists relationship_type_id text references public.tax_relationship_types(id) on delete set null;
+alter table public.tax_filing_periods alter column subscription_id drop not null;
+alter table public.tax_filing_periods alter column schedule_id drop not null;
+create index if not exists idx_tax_periods_workflow_rule
+  on public.tax_filing_periods(customer_id, workflow_rule_id, due_date);
+create index if not exists idx_tax_periods_relationship
+  on public.tax_filing_periods(customer_id, relationship_type_id, due_date desc);
+
 -- Magic-link tokens for customer info submissions. Token stored hashed
 -- (sha-256 hex). Single-use OR until the period reaches info_received.
 create table if not exists public.tax_response_tokens (

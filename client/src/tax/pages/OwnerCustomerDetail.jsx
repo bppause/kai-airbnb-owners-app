@@ -756,7 +756,8 @@ function FilingRow({ period: p, statuses, auth, onChange, locale, t }) {
     finally { setBusy(false); }
   };
 
-  const filingName = pickI18n(p.schedule?.name_i18n, locale).value || p.schedule?.slug || '—';
+  const filingName = pickI18n(p.workflow?.name_i18n || p.schedule?.name_i18n, locale).value
+    || p.workflow?.filing_schedule_slug || p.schedule?.slug || '—';
 
   return (
     <div className="tax-contact-item" style={{

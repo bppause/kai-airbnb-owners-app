@@ -1142,7 +1142,9 @@ module.exports = function createTaxRouter(deps) {
         .select(`
           id, period_label, period_start, period_end, due_date,
           status, info_received_at, filed_at, created_at,
-          schedule:tax_filing_schedules ( id, slug, jurisdiction, cadence, name_i18n )
+          workflow_rule_id, relationship_type_id,
+          schedule:tax_filing_schedules ( id, slug, jurisdiction, cadence, name_i18n ),
+          workflow:tax_relationship_workflow_rules ( id, filing_schedule_slug, cadence, name_i18n )
         `)
         .eq('customer_id', id)
         .order('due_date', { ascending: false }).limit(24),
@@ -1713,10 +1715,16 @@ module.exports = function createTaxRouter(deps) {
   // ── GET /portal/filings ──
   router.get('/portal/filings', async (req, res) => {
     const customer = await requireTaxCustomer(req, res); if (!customer) return;
+    // Phase 4n.6: include the workflow rule + relationship type so the
+    // dashboard can prefer the owner's editable name/description when set,
+    // group by relationship, and show which relationship drove each item.
     const { data, error } = await supabase.from('tax_filing_periods')
       .select(`
         id, period_label, period_start, period_end, due_date, status, info_received_at, filed_at,
-        schedule:tax_filing_schedules ( id, slug, jurisdiction, cadence, name_i18n, description_i18n )
+        workflow_rule_id, relationship_type_id,
+        schedule:tax_filing_schedules ( id, slug, jurisdiction, cadence, name_i18n, description_i18n ),
+        workflow:tax_relationship_workflow_rules ( id, filing_schedule_slug, cadence, name_i18n, description_i18n, info_checklist ),
+        relationship:tax_relationship_types ( id, slug, category, name_i18n )
       `)
       .eq('customer_id', customer.id)
       .order('due_date', { ascending: true })
@@ -1730,23 +1738,43 @@ module.exports = function createTaxRouter(deps) {
     const customer = await requireTaxCustomer(req, res); if (!customer) return;
     const id = trim(req.params.id, 200);
     const { data: period, error } = await supabase.from('tax_filing_periods')
-      .select('id, community_id, subscription_id, schedule_id, customer_id, status, period_label, period_start, period_end, due_date, info_received_at, filed_at')
+      .select('id, community_id, subscription_id, schedule_id, workflow_rule_id, customer_id, status, period_label, period_start, period_end, due_date, info_received_at, filed_at')
       .eq('id', id).maybeSingle();
     if (error) return sendSupabaseError(res, error);
     if (!period || period.customer_id !== customer.id) {
       return res.status(404).json({ error: 'Filing not found.' });
     }
-    const [{ data: schedule }, { data: subscription }] = await Promise.all([
-      supabase.from('tax_filing_schedules')
-        .select('id, slug, jurisdiction, cadence, info_checklist, name_i18n, description_i18n')
-        .eq('id', period.schedule_id).maybeSingle(),
-      supabase.from('tax_subscriptions').select('id, custom_info_checklist').eq('id', period.subscription_id).maybeSingle(),
+    // Phase 4n.6: workflow rule wins when present — owners edit a workflow's
+    // name + info_checklist there. Falls back to the legacy schedule path
+    // (subscription override still trumps both, as before).
+    const [{ data: rule }, { data: schedule }, { data: subscription }] = await Promise.all([
+      period.workflow_rule_id
+        ? supabase.from('tax_relationship_workflow_rules')
+            .select('id, filing_schedule_slug, cadence, info_checklist, name_i18n, description_i18n')
+            .eq('id', period.workflow_rule_id).maybeSingle()
+        : Promise.resolve({ data: null }),
+      period.schedule_id
+        ? supabase.from('tax_filing_schedules')
+            .select('id, slug, jurisdiction, cadence, info_checklist, name_i18n, description_i18n')
+            .eq('id', period.schedule_id).maybeSingle()
+        : Promise.resolve({ data: null }),
+      period.subscription_id
+        ? supabase.from('tax_subscriptions').select('id, custom_info_checklist').eq('id', period.subscription_id).maybeSingle()
+        : Promise.resolve({ data: null }),
     ]);
+    const ruleChecklist = Array.isArray(rule?.info_checklist) && rule.info_checklist.length ? rule.info_checklist : null;
+    const scheduleChecklist = Array.isArray(schedule?.info_checklist) && schedule.info_checklist.length ? schedule.info_checklist : null;
     const checklist = (Array.isArray(subscription?.custom_info_checklist) && subscription.custom_info_checklist.length)
       ? subscription.custom_info_checklist
-      : (Array.isArray(schedule?.info_checklist) ? schedule.info_checklist : []);
+      : (ruleChecklist || scheduleChecklist || []);
+    // Build a unified `schedule` shape the frontend already reads.
+    const effectiveSchedule = schedule || (rule ? {
+      id: rule.id, slug: rule.filing_schedule_slug, cadence: rule.cadence,
+      name_i18n: rule.name_i18n || {}, description_i18n: rule.description_i18n || {},
+      info_checklist: rule.info_checklist || [],
+    } : null);
     res.json({
-      period, schedule, checklist,
+      period, schedule: effectiveSchedule, checklist,
       alreadyReceived: ['info_received', 'in_prep', 'filed'].includes(period.status),
     });
   });

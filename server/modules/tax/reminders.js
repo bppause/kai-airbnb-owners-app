@@ -36,51 +36,98 @@ module.exports = function createTaxRemindersCron(deps) {
 
   const todayUtc = () => toYmd(new Date());
 
-  // ── Step 1: generate upcoming filing periods for each active subscription ──
+  // Phase 4n.6: relationship-driven period generation.
+  //
+  // For every active (customer × relationship) pair, walk the relationship's
+  // workflow rules and generate the next N periods from `rule.anchor_rule`.
+  // Rows are keyed by customer_id|rule.id|due_date so duplicates are silently
+  // dropped — same idempotency story as v1, different index.
+  //
+  // Schedule lookups happen once per (community, slug) and only to populate
+  // the now-optional `schedule_id` column for portal/sender backwards-compat.
+  // Customers without an active subscription still get periods through their
+  // relationship. Customers with a subscription whose product slug DOES match
+  // are not double-counted because rules are the source of truth.
   async function ensureUpcomingPeriods() {
-    const { data: subs, error } = await supabase
-      .from('tax_subscriptions')
-      .select('id, community_id, customer_id, product_id, active_schedule_slugs, status, start_date')
-      .eq('status', 'active');
-    if (error) { warn('[tax-cron] fetch subscriptions failed', error.message); return 0; }
+    // Pull every active (customer, relationship_type_id) tuple. Inner-join
+    // the customer to get community_id without an extra round trip per row.
+    const { data: rels, error: relErr } = await supabase
+      .from('tax_customer_relationships')
+      .select(`
+        relationship_type_id, customer_id, active,
+        tax_customers!inner ( id, community_id )
+      `)
+      .eq('active', true);
+    if (relErr) { warn('[tax-cron] fetch relationships failed', relErr.message); return 0; }
 
+    // Group customers by (community_id, relationship_type_id) so we can fetch
+    // matching rules once per group.
+    const groups = new Map(); // key = `${community}|${rtid}` → { community, rtid, customers: [{id}] }
+    for (const r of rels || []) {
+      const cust = r.tax_customers;
+      if (!cust || !cust.community_id) continue;
+      const key = `${cust.community_id}|${r.relationship_type_id}`;
+      let g = groups.get(key);
+      if (!g) { g = { community: cust.community_id, rtid: r.relationship_type_id, customers: [] }; groups.set(key, g); }
+      g.customers.push({ id: cust.id });
+    }
+    if (!groups.size) return 0;
+
+    // Cache schedule lookups across the run — many rules share a slug.
+    const scheduleCache = new Map();   // key = `${community}|${slug}` → schedule id or null
+    async function findScheduleId(community, slug) {
+      const key = `${community}|${slug}`;
+      if (scheduleCache.has(key)) return scheduleCache.get(key);
+      const { data } = await supabase.from('tax_filing_schedules')
+        .select('id').eq('community_id', community).eq('slug', slug).maybeSingle();
+      const id = data?.id || null;
+      scheduleCache.set(key, id);
+      return id;
+    }
+
+    const today = todayUtc();
     let created = 0;
-    for (const sub of subs || []) {
-      const { data: schedules, error: sErr } = await supabase
-        .from('tax_filing_schedules')
-        .select('id, slug, anchor_rule, enabled, community_id')
-        .eq('product_id', sub.product_id)
-        .eq('enabled', true);
-      if (sErr) { warn('[tax-cron] fetch schedules failed', sErr.message); continue; }
 
-      const activeSlugs = Array.isArray(sub.active_schedule_slugs) && sub.active_schedule_slugs.length
-        ? new Set(sub.active_schedule_slugs)
-        : null;
+    for (const g of groups.values()) {
+      const { data: rules, error: rulesErr } = await supabase
+        .from('tax_relationship_workflow_rules')
+        .select('id, filing_schedule_slug, cadence, anchor_rule, name_i18n')
+        .eq('community_id', g.community)
+        .eq('relationship_type_id', g.rtid)
+        .eq('active', true);
+      if (rulesErr) { warn('[tax-cron] fetch rules failed', rulesErr.message); continue; }
+      if (!rules || !rules.length) continue;
 
-      const refDate = sub.start_date && sub.start_date > todayUtc() ? sub.start_date : todayUtc();
+      for (const rule of rules) {
+        // Rules backfilled in Phase 1 may still have null anchor_rule if the
+        // joined schedule was missing one — skip them instead of crashing.
+        if (!rule.anchor_rule || typeof rule.anchor_rule !== 'object') continue;
+        const periods = generatePeriods(rule.anchor_rule, today, PERIOD_LOOKAHEAD, { lang: 'es' });
+        if (!periods.length) continue;
+        const scheduleId = await findScheduleId(g.community, rule.filing_schedule_slug);
 
-      for (const sch of schedules || []) {
-        if (activeSlugs && !activeSlugs.has(sch.slug)) continue;
-        const periods = generatePeriods(sch.anchor_rule, refDate, PERIOD_LOOKAHEAD, { lang: 'es' });
-        for (const p of periods) {
-          const id = 'tp_' + crypto.createHash('sha1')
-            .update(`${sub.id}|${sch.id}|${p.dueDate}`).digest('hex').slice(0, 16);
-          const row = {
-            id,
-            community_id: sub.community_id,
-            subscription_id: sub.id,
-            schedule_id: sch.id,
-            customer_id: sub.customer_id,
-            period_label: p.periodLabel,
-            period_start: p.periodStart,
-            period_end: p.periodEnd,
-            due_date: p.dueDate,
-            status: 'pending',
-          };
-          const { error: insErr } = await supabase
-            .from('tax_filing_periods').insert(row);
-          if (!insErr) created++;
-          // Duplicate-key error is expected and ignored — periods are idempotent.
+        for (const cust of g.customers) {
+          for (const p of periods) {
+            const id = 'tp_' + crypto.createHash('sha1')
+              .update(`${cust.id}|${rule.id}|${p.dueDate}`).digest('hex').slice(0, 16);
+            const row = {
+              id,
+              community_id: g.community,
+              customer_id: cust.id,
+              workflow_rule_id: rule.id,
+              relationship_type_id: g.rtid,
+              schedule_id: scheduleId,           // optional, for legacy joins
+              subscription_id: null,             // no longer required
+              period_label: p.periodLabel,
+              period_start: p.periodStart,
+              period_end: p.periodEnd,
+              due_date: p.dueDate,
+              status: 'pending',
+            };
+            const { error: insErr } = await supabase.from('tax_filing_periods').insert(row);
+            if (!insErr) created++;
+            // Duplicate-key insert is expected on subsequent runs — ignored.
+          }
         }
       }
     }
@@ -88,18 +135,25 @@ module.exports = function createTaxRemindersCron(deps) {
   }
 
   // ── Step 2: fire today's reminders ──────────────────────────────────────────
+  //
+  // Phase 4n.6: period rows now reference a workflow rule (or, for legacy
+  // rows, a schedule + subscription). We resolve the offsets / checklist /
+  // display name from the rule when available, falling back to the legacy
+  // schedule/subscription path. Both join shapes are LEFT joins so a period
+  // with one but not the other still surfaces.
   async function fireReminders() {
     const today = todayUtc();
 
-    // Pull periods due in the next ~21 days that haven't reached a terminal state.
     const { data: rows, error } = await supabase
       .from('tax_filing_periods')
       .select(`
         id, community_id, subscription_id, customer_id, schedule_id, status,
+        workflow_rule_id, relationship_type_id,
         period_label, period_start, period_end, due_date,
-        tax_subscriptions!inner ( reminder_channels, reminder_offsets_days, custom_info_checklist ),
-        tax_customers!inner ( id, email, name, locale, preferred_communication_email ),
-        tax_filing_schedules!inner ( id, slug, name_i18n, description_i18n, info_checklist )
+        tax_subscriptions ( reminder_channels, reminder_offsets_days, custom_info_checklist ),
+        tax_customers!inner ( id, email, name, locale, preferred_communication_email, community_id ),
+        tax_filing_schedules ( id, slug, name_i18n, description_i18n, info_checklist ),
+        tax_relationship_workflow_rules ( id, filing_schedule_slug, reminder_offsets_days, required_documents, name_i18n, description_i18n, info_checklist )
       `)
       .in('status', ['pending', 'info_requested'])
       .gte('due_date', today)
@@ -108,40 +162,68 @@ module.exports = function createTaxRemindersCron(deps) {
 
     let fired = 0;
     for (const row of rows || []) {
-      const sub = row.tax_subscriptions;
+      const sub = row.tax_subscriptions || null;
       const cust = row.tax_customers;
-      const sch = row.tax_filing_schedules;
+      const ruleRow = row.tax_relationship_workflow_rules || null;
+      const schedRow = row.tax_filing_schedules || null;
 
-      // Phase 4j: resolve relationship-driven offsets + extra required docs.
-      // Subscription overrides win; otherwise fall through to relationship
-      // workflow rule; otherwise system default. Required docs APPEND on top
-      // of the schedule default (the sender dedupes by key).
-      const rule = await resolveWorkflowRule(cust.id, row.community_id, sch.slug);
+      // Build a synthetic "schedule-ish" object for the sender. Rule fields
+      // win when present; schedule fills the gaps so the email/in-app
+      // renderer doesn't need to branch.
+      const sch = {
+        id: schedRow?.id || ruleRow?.id || row.workflow_rule_id || '',
+        slug: schedRow?.slug || ruleRow?.filing_schedule_slug || '',
+        name_i18n:        firstNonEmptyI18n(ruleRow?.name_i18n, schedRow?.name_i18n),
+        description_i18n: firstNonEmptyI18n(ruleRow?.description_i18n, schedRow?.description_i18n),
+        info_checklist:   firstNonEmptyArray(ruleRow?.info_checklist, schedRow?.info_checklist),
+      };
 
+      // Offsets resolution (subscription override → rule → system default).
       let offsets;
-      if (Array.isArray(sub.reminder_offsets_days) && sub.reminder_offsets_days.length) {
+      if (Array.isArray(sub?.reminder_offsets_days) && sub.reminder_offsets_days.length) {
         offsets = sub.reminder_offsets_days;
-      } else if (Array.isArray(rule?.reminder_offsets_days) && rule.reminder_offsets_days.length) {
-        // Stored as positive days-before-due; cron expects negative.
-        offsets = rule.reminder_offsets_days.map(d => -Math.abs(Number(d) || 0)).filter(Boolean);
+      } else if (Array.isArray(ruleRow?.reminder_offsets_days) && ruleRow.reminder_offsets_days.length) {
+        offsets = ruleRow.reminder_offsets_days.map(d => -Math.abs(Number(d) || 0)).filter(Boolean);
         if (!offsets.length) offsets = [-14, -7, -3];
       } else {
         offsets = [-14, -7, -3];
       }
-      const channels = Array.isArray(sub.reminder_channels) && sub.reminder_channels.length
+      const channels = Array.isArray(sub?.reminder_channels) && sub.reminder_channels.length
         ? sub.reminder_channels : ['email', 'in_app'];
-      const extraDocs = Array.isArray(rule?.required_documents) ? rule.required_documents : null;
+
+      // Phase 4j compat: legacy periods (no workflow_rule_id) still cross-ref
+      // any matching rule via the customer's relationships so extra_docs and
+      // offsets resolve the same way they did before. Rule-keyed periods
+      // already carry the rule via the join.
+      let extraDocs = Array.isArray(ruleRow?.required_documents) ? ruleRow.required_documents : null;
+      if (!row.workflow_rule_id && schedRow?.slug) {
+        const merged = await resolveWorkflowRule(cust.id, row.community_id, schedRow.slug);
+        if (Array.isArray(merged?.required_documents)) extraDocs = merged.required_documents;
+      }
 
       const dates = reminderFireDates(row.due_date, offsets);
       for (let i = 0; i < offsets.length; i++) {
         if (dates[i] !== today) continue;
         for (const channel of channels) {
-          const sent = await dispatchOne({ row, sub, cust, sch, channel, offsetDays: offsets[i], extraDocs });
+          const sent = await dispatchOne({ row, sub: sub || {}, cust, sch, channel, offsetDays: offsets[i], extraDocs });
           if (sent) fired++;
         }
       }
     }
     return fired;
+  }
+
+  function firstNonEmptyI18n(...candidates) {
+    for (const c of candidates) {
+      if (c && typeof c === 'object' && Object.values(c).some(v => typeof v === 'string' && v.trim())) {
+        return c;
+      }
+    }
+    return {};
+  }
+  function firstNonEmptyArray(...candidates) {
+    for (const c of candidates) if (Array.isArray(c) && c.length) return c;
+    return [];
   }
 
   // Phase 4j: find the most specific workflow rule (community, customer's

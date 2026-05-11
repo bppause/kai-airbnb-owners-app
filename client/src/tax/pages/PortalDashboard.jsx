@@ -69,6 +69,21 @@ export default function PortalDashboard() {
   const portalBase = community ? `/tax/${community.id}/portal` : '#';
   const today = new Date().toISOString().slice(0, 10);
 
+  // Phase 4n.6: prefer the workflow's name/slug/category over the schedule's
+  // when both are present. After the cron flip, relationship-driven periods
+  // arrive with `workflow` populated and `schedule` null; legacy periods are
+  // the opposite. Picking up the relationship as the category gives the
+  // customer a "this is from your Payroll service" hint per card.
+  function displayFor(f) {
+    return {
+      nameI18n: f.workflow?.name_i18n || f.schedule?.name_i18n || {},
+      descI18n: f.workflow?.description_i18n || f.schedule?.description_i18n || {},
+      slug: f.workflow?.filing_schedule_slug || f.schedule?.slug || '',
+      category: (f.relationship && pickI18n(f.relationship.name_i18n, locale).value)
+        || f.schedule?.jurisdiction || '',
+    };
+  }
+
   // Split filings: urgent (due ≤ 14d, action still required), upcoming
   // (everything else not filed), and historical.
   const { urgent, laterUpcoming, past } = useMemo(() => {
@@ -137,12 +152,13 @@ export default function PortalDashboard() {
               const daysWord = Math.abs(f.daysLeft) === 1
                 ? t('portal.dashboard.day') : t('portal.dashboard.days');
               const overdueOrToday = f.daysLeft <= 0;
+              const disp = displayFor(f);
               return (
                 <ActionCard
                   key={f.id}
                   tone={overdueOrToday ? 'danger' : 'warn'}
                   icon="!"
-                  title={pickI18n(f.schedule?.name_i18n, locale).value || f.schedule?.slug || t('portal.dashboard.filing')}
+                  title={pickI18n(disp.nameI18n, locale).value || disp.slug || t('portal.dashboard.filing')}
                   subtitle={overdueOrToday
                     ? t('portal.dashboard.dueToday', { period: f.period_label })
                     : t('portal.dashboard.dueIn', { days: f.daysLeft, daysWord, period: f.period_label })}
@@ -184,11 +200,13 @@ export default function PortalDashboard() {
           : laterUpcoming.length === 0
             ? <p style={{ color: 'var(--tax-muted)' }}>{t('portal.dashboard.empty')}</p>
             : <div className="tax-services-grid">
-                {laterUpcoming.map(f => (
+                {laterUpcoming.map(f => {
+                  const disp = displayFor(f);
+                  return (
                   <a key={f.id} href={`${portalBase}/filings/${encodeURIComponent(f.id)}`}
                      className="tax-service-card" style={{ textDecoration: 'none', color: 'inherit' }}>
-                    <span className="tax-service-card__category">{f.schedule?.jurisdiction}</span>
-                    <h3>{pickI18n(f.schedule?.name_i18n, locale).value}</h3>
+                    <span className="tax-service-card__category">{disp.category}</span>
+                    <h3>{pickI18n(disp.nameI18n, locale).value || disp.slug}</h3>
                     <p>{f.period_label} • {t('portal.dashboard.due')} {f.due_date}</p>
                     <p style={{ marginTop: 8 }}>
                       <span style={{
@@ -198,7 +216,8 @@ export default function PortalDashboard() {
                       }}>{t(STATUS_KEY[f.status] || 'portal.status.pending')}</span>
                     </p>
                   </a>
-                ))}
+                  );
+                })}
               </div>
         }
       </section>
