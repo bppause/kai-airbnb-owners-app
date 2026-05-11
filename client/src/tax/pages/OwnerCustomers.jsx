@@ -291,6 +291,7 @@ export default function OwnerCustomers() {
 // edit form (Phase 4d).
 function ImportCustomers({ auth, community, onDone, t }) {
   const [csvText, setCsvText] = useState('');
+  const [mode, setMode] = useState('skip');       // 'skip' | 'update'
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState(null);
   const [err, setErr] = useState('');
@@ -339,7 +340,7 @@ function ImportCustomers({ auth, community, onDone, t }) {
     setBusy(true); setErr(''); setResult(null);
     try {
       const r = await taxApi.adminImportCustomers(auth, {
-        communitySlug: community.id, csv: csvText,
+        communitySlug: community.id, csv: csvText, mode,
       });
       setResult(r);
     } catch (e) {
@@ -347,9 +348,12 @@ function ImportCustomers({ auth, community, onDone, t }) {
     } finally { setBusy(false); }
   };
 
-  const hardErrors = (result?.errors || []).filter(e => !e.skipped && !e.warning);
+  // Bucket the per-row notices returned by the server. Hard errors block
+  // the row entirely; warnings mean the row was created/updated with a
+  // caveat; skippedRows comes back as a structured array in mode='skip'.
+  const hardErrors = (result?.errors || []).filter(e => !e.warning);
   const warnings   = (result?.errors || []).filter(e => e.warning);
-  const skippedRows = (result?.errors || []).filter(e => e.skipped);
+  const skippedRows = result?.skippedRows || [];
 
   return (
     <form className="tax-form" onSubmit={(e) => { e.preventDefault(); onSubmit(); }}
@@ -372,6 +376,32 @@ function ImportCustomers({ auth, community, onDone, t }) {
         </label>
       </div>
 
+      {/* Phase: mode picker — controls what happens when a row's email
+          already exists in this community. Skip is the safe default
+          (idempotent re-runs); Update enables bulk profile refresh from
+          a regenerated spreadsheet. */}
+      <fieldset style={{ border: '1px solid var(--tax-border)', borderRadius: 8, padding: 12, margin: '8px 0 0' }}>
+        <legend style={{ padding: '0 6px', fontSize: 12, fontWeight: 700, color: 'var(--tax-muted)', textTransform: 'uppercase', letterSpacing: '.4px' }}>
+          {t('owner.customers.import.mode.title')}
+        </legend>
+        <label style={{ display: 'flex', gap: 8, padding: '8px 4px', cursor: 'pointer', borderRadius: 6 }}>
+          <input type="radio" name="import-mode" value="skip"
+                 checked={mode === 'skip'} onChange={() => setMode('skip')} />
+          <div>
+            <div style={{ fontSize: 13, fontWeight: 600 }}>{t('owner.customers.import.mode.skip')}</div>
+            <div style={{ fontSize: 12, color: 'var(--tax-muted)' }}>{t('owner.customers.import.mode.skipHint')}</div>
+          </div>
+        </label>
+        <label style={{ display: 'flex', gap: 8, padding: '8px 4px', cursor: 'pointer', borderRadius: 6 }}>
+          <input type="radio" name="import-mode" value="update"
+                 checked={mode === 'update'} onChange={() => setMode('update')} />
+          <div>
+            <div style={{ fontSize: 13, fontWeight: 600 }}>{t('owner.customers.import.mode.update')}</div>
+            <div style={{ fontSize: 12, color: 'var(--tax-muted)' }}>{t('owner.customers.import.mode.updateHint')}</div>
+          </div>
+        </label>
+      </fieldset>
+
       <div>
         <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--tax-muted)', marginTop: 8, display: 'block' }}>
           {t('owner.customers.import.csvLabel')}
@@ -389,9 +419,32 @@ function ImportCustomers({ auth, community, onDone, t }) {
 
       {result && (
         <div style={{ background: 'var(--tax-bg-alt)', padding: 12, borderRadius: 8, display: 'grid', gap: 8 }}>
-          <div style={{ fontWeight: 600 }}>
-            {t('owner.customers.import.summary', {
-              created: result.created, skipped: result.skipped, errors: hardErrors.length,
+          {/* Four-bucket summary stat strip. Each bucket renders as a
+              colored chip so the owner can absorb the result at a glance. */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: 8 }}>
+            <SummaryCell label={t('owner.customers.import.bucket.created')}
+                         value={result.created || 0}
+                         color="#166534" bg="#dcfce7" />
+            <SummaryCell label={t('owner.customers.import.bucket.updated')}
+                         value={result.updated || 0}
+                         color="#1d4ed8" bg="#dbeafe" />
+            <SummaryCell label={t('owner.customers.import.bucket.skipped')}
+                         value={result.skipped || 0}
+                         color="#6b7280" bg="#f3f4f6" />
+            <SummaryCell label={t('owner.customers.import.bucket.errors')}
+                         value={hardErrors.length}
+                         color="#b91c1c" bg="#fee2e2" />
+            {warnings.length > 0 && (
+              <SummaryCell label={t('owner.customers.import.bucket.warnings')}
+                           value={warnings.length}
+                           color="#92400e" bg="#fef3c7" />
+            )}
+          </div>
+          <div style={{ fontSize: 12, color: 'var(--tax-muted)' }}>
+            {t('owner.customers.import.summaryMode', {
+              mode: result.mode === 'update'
+                ? t('owner.customers.import.mode.update')
+                : t('owner.customers.import.mode.skip'),
             })}
           </div>
           {hardErrors.length > 0 && (
@@ -451,5 +504,16 @@ function ImportCustomers({ auth, community, onDone, t }) {
         </button>
       </div>
     </form>
+  );
+}
+
+// Color-pill stat cell used in the import result strip. Centered number on
+// top, uppercase label below — same shape as the platform-dashboard cells.
+function SummaryCell({ label, value, color, bg }) {
+  return (
+    <div style={{ background: bg, color, padding: '8px 10px', borderRadius: 6, textAlign: 'center' }}>
+      <div style={{ fontSize: 18, fontWeight: 700 }}>{value}</div>
+      <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.4px' }}>{label}</div>
+    </div>
   );
 }

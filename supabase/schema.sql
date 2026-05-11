@@ -1312,6 +1312,24 @@ insert into public.tax_customer_relationships (id, customer_id, relationship_typ
   ('crel_bppause_irs',    'cust_bppause', 'audit.irs',          'system@platform')
 on conflict (customer_id, relationship_type_id) do nothing;
 
+-- ── SEED: additional test customers ──────────────────────────────────────────
+-- Two more test customer rows so the CSV-import flow can be exercised against
+-- pre-existing emails (both "skip" and "update" modes). marthajpause is a
+-- second customer record for Martha (her original record under
+-- inversur1310@gmail.com remains untouched). morroskaitest is a generic test
+-- mailbox useful for both portal-login + import-update testing.
+insert into public.tax_customers (id, community_id, email, name, locale) values
+  ('cust_marthajpause',  'tax-america-services', 'marthajpause@gmail.com', 'Martha J Pause',    'es'),
+  ('cust_morroskaitest', 'tax-america-services', 'morroskaitest@gmail.com', 'Morros Kai (test)', 'en')
+on conflict (community_id, email) do nothing;
+
+insert into public.tax_customer_relationships (id, customer_id, relationship_type_id, created_by_email) values
+  ('crel_marthajpause_indtax', 'cust_marthajpause',  'individual.taxes', 'system@platform'),
+  ('crel_marthajpause_itin',   'cust_marthajpause',  'individual.itin',  'system@platform'),
+  ('crel_morroskai_llc',       'cust_morroskaitest', 'business.llc',         'system@platform'),
+  ('crel_morroskai_book',      'cust_morroskaitest', 'business.bookkeeping', 'system@platform')
+on conflict (customer_id, relationship_type_id) do nothing;
+
 -- ═══════════════════════════════════════════════════════════════════════════════
 -- v85-2c: Relationship-aware reminder tips
 --
