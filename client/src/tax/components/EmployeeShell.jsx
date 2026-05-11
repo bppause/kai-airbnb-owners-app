@@ -53,11 +53,17 @@ export default function EmployeeShell({ community, active, children }) {
                 }}>{unread}</span>
               )}
             </a>
+            {/* Customers tab is visible to ALL employees. Admins see the
+                whole community; staff see only their assigned customers
+                (scoping happens server-side). Detail-page actions stay
+                admin-gated. */}
+            {employee && (
+              <a href={`${base}/customers`} className={active === 'customers' ? 'active' : ''}>
+                {t('employee.nav.customers')}
+              </a>
+            )}
             {employee?.role === 'admin' && (
               <>
-                <a href={`${base}/customers`} className={active === 'customers' ? 'active' : ''}>
-                  {t('employee.nav.customers')}
-                </a>
                 <a href={`${base}/leads`} className={active === 'leads' ? 'active' : ''}>
                   {t('employee.nav.leads')}
                 </a>
