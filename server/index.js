@@ -366,11 +366,26 @@ app.use('/api/notifications', notificationsRouter); // legacy alias — drop aft
 // Phase 1.5 endpoints: GET/POST /respond/:token, /admin/cron/run, /admin/customers, /admin/periods.
 // Reuses platform `communities` (business_type='tax') as the multi-tenant boundary.
 const taxModule = require('./modules/tax');
+// Phase 4i: owner-editable subject + body override loader. Senders call this
+// with (communityId, template_key, lang); a non-null result with enabled=true
+// replaces the hardcoded defaults for non-empty fields.
+async function loadTaxEmailTemplate(communityId, key, lang) {
+  if (!supabase || !communityId || !key || !lang) return null;
+  const { data, error } = await supabase
+    .from('tax_email_templates')
+    .select('subject, body_text, body_html, enabled')
+    .eq('community_id', communityId)
+    .eq('template_key', key)
+    .eq('lang', lang)
+    .maybeSingle();
+  if (error || !data || !data.enabled) return null;
+  return data;
+}
 const {
   sendTaxLeadEmail, sendTaxReminderEmail, sendTaxDocumentEmail,
   sendTaxMessageEmail, sendTaxMessagePracticeEmail, sendTaxMessageEmployeeEmail,
   sendTaxWelcomeEmail, sendTaxStaffWelcomeEmail,
-} = require('./modules/tax/email-senders')({ sendSpanishEmail, emailConfigured });
+} = require('./modules/tax/email-senders')({ sendSpanishEmail, emailConfigured, loadTaxEmailTemplate });
 const taxRemindersCron = require('./modules/tax/reminders')({
   supabase,
   isSupabaseConfigured: Boolean(SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY),

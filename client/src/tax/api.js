@@ -173,6 +173,10 @@ export const taxApi = {
   adminCreateEmployee(auth, payload)            { return request('POST', '/admin/employees', payload, auth, { admin: true }); },
   adminSendStaffWelcomeEmail(auth, id)          { return request('POST', `/admin/employees/${encodeURIComponent(id)}/send-welcome`, {}, auth, { admin: true }); },
 
+  adminListEmailTemplates(auth, communitySlug)  { return request('GET',  `/admin/email-templates?communitySlug=${encodeURIComponent(communitySlug)}`, undefined, auth, { admin: true }); },
+  adminUpdateEmailTemplate(auth, key, lang, payload) { return request('PUT', `/admin/email-templates/${encodeURIComponent(key)}/${encodeURIComponent(lang)}`, payload, auth, { admin: true }); },
+  adminResetEmailTemplate(auth, key, lang, communitySlug) { return request('DELETE', `/admin/email-templates/${encodeURIComponent(key)}/${encodeURIComponent(lang)}?communitySlug=${encodeURIComponent(communitySlug)}`, undefined, auth, { admin: true }); },
+
   adminListEmployeeAssignments(auth, empId)     { return request('GET', `/admin/employees/${encodeURIComponent(empId)}/assignments`, undefined, auth, { admin: true }); },
   adminAddEmployeeAssignment(auth, empId, payload) { return request('POST', `/admin/employees/${encodeURIComponent(empId)}/assignments`, payload, auth, { admin: true }); },
   adminRemoveEmployeeAssignment(auth, empId, customerId) { return request('DELETE', `/admin/employees/${encodeURIComponent(empId)}/assignments/${encodeURIComponent(customerId)}`, undefined, auth, { admin: true }); },
