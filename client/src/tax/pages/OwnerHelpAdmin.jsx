@@ -53,7 +53,7 @@ export default function OwnerHelpAdmin() {
 
   useEffect(() => {
     if (!fbUser || !community) return;
-    taxApi.adminListRelationshipTypes(auth)
+    taxApi.adminListRelationshipTypes(auth, { communitySlug: community.id })
       .then(d => setTypes(d.types || []))
       .catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps

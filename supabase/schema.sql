@@ -2049,3 +2049,13 @@ create index if not exists tax_relationship_workflow_rules_lookup_idx
   on public.tax_relationship_workflow_rules(community_id, relationship_type_id, filing_schedule_slug, active);
 create index if not exists tax_relationship_workflow_rules_schedule_idx
   on public.tax_relationship_workflow_rules(community_id, filing_schedule_slug, active);
+
+-- ─── Per-community relationship types (Phase 4k) ──────────────────────────────
+-- Existing rows in tax_relationship_types (the 13 seeded "platform default"
+-- services) have community_id = NULL and are visible to every community.
+-- Owner-added types carry their community's id and are only visible to that
+-- community. Listing queries use: WHERE community_id IS NULL OR community_id = $1.
+alter table public.tax_relationship_types
+  add column if not exists community_id text references public.communities(id) on delete cascade;
+create index if not exists tax_relationship_types_community_idx
+  on public.tax_relationship_types(community_id, active, display_order);

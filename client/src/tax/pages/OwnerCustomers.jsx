@@ -89,7 +89,7 @@ export default function OwnerCustomers() {
   // staff just won't see the chip filter (search still works fine).
   useEffect(() => {
     if (!fbUser || !community) return;
-    taxApi.adminListRelationshipTypes(auth)
+    taxApi.adminListRelationshipTypes(auth, { communitySlug: community.id })
       .then(d => setAllTypes(d.types || []))
       .catch(() => setAllTypes([]));
     // eslint-disable-next-line react-hooks/exhaustive-deps
