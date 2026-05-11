@@ -73,6 +73,7 @@
   "portal.nav.messages": "Mensajes",
   "portal.nav.documents": "Documentos",
   "portal.nav.faqs": "Preguntas frecuentes",
+  "portal.nav.help": "Ayuda",
   "portal.nav.profile": "Perfil",
   "portal.signout": "Cerrar sesión",
   "portal.greeting": "Bienvenido/a, {name}",
@@ -385,5 +386,26 @@
   "owner.settings.community.name": "Nombre de la oficina",
   "owner.settings.community.contactEmail": "Correo de contacto",
   "owner.settings.community.phone": "Teléfono",
-  "owner.settings.community.defaultLocale": "Idioma predeterminado"
+  "owner.settings.community.defaultLocale": "Idioma predeterminado",
+
+  "employee.nav.help": "Ayuda",
+
+  "portal.help.title": "Centro de ayuda",
+  "portal.help.subtitle": "Cómo aprovechar al máximo su portal. Los artículos marcados como adaptados cubren específicamente los servicios que le brindamos.",
+  "portal.help.empty": "Aún no hay artículos disponibles. Contacte a su oficina de impuestos si necesita ayuda.",
+  "portal.help.pickArticle": "Elija un artículo de la izquierda para comenzar a leer.",
+  "portal.help.tailoredBadge": "Adaptado a sus servicios",
+  "portal.help.source": "Fuente",
+  "portal.help.disclaimer": "Estos artículos cubren cómo usar el portal, no asesoría fiscal específica. Para preguntas sobre su situación individual, envíe un mensaje directo a su oficina de impuestos.",
+  "portal.help.cat.gettingStarted": "Comenzar",
+  "portal.help.cat.documents": "Documentos",
+  "portal.help.cat.messages": "Mensajes",
+  "portal.help.cat.filings": "Declaraciones",
+  "portal.help.cat.notifications": "Notificaciones",
+  "portal.help.cat.profile": "Perfil",
+  "portal.help.cat.service": "Para sus servicios",
+  "portal.help.cat.admin": "Herramientas de administrador",
+
+  "employee.help.title": "Centro de ayuda del personal",
+  "employee.help.subtitle": "Cómo usar el portal del personal. Las pestañas, funciones o flujos nuevos se documentan aquí cuando se lanzan."
 }

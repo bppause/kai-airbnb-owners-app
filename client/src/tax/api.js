@@ -71,6 +71,10 @@ export const taxApi = {
   // Portal (Phase 2c) — relationship-tailored tips
   getTips(auth)                   { return request('GET',  '/portal/tips', undefined, auth); },
 
+  // Portal + employee (Phase 4c) — help center
+  getHelp(auth)                   { return request('GET',  '/portal/help', undefined, auth); },
+  getEmployeeHelp(auth)           { return request('GET',  '/employee/help', undefined, auth); },
+
   // Portal (Phase 2f) — messaging
   getThreads(auth)                              { return request('GET',  '/portal/threads', undefined, auth); },
   createThread(auth, payload)                   { return request('POST', '/portal/threads', payload, auth); },

@@ -67,6 +67,9 @@ export default function EmployeeShell({ community, active, children }) {
                 </a>
               </>
             )}
+            <a href={`${base}/help`} className={active === 'help' ? 'active' : ''}>
+              {t('employee.nav.help')}
+            </a>
             <a href={`${base}/profile`} className={active === 'profile' ? 'active' : ''}>
               {t('employee.nav.profile')}
             </a>
