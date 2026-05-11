@@ -162,7 +162,7 @@ export default function OwnerRelationshipWorkflows() {
             <select id="wkfl-rel" value={activeRel} onChange={e => setActiveRel(e.target.value)}>
               {types.map(rt => (
                 <option key={rt.id} value={rt.id}>
-                  {rt.category} — {pickI18n(rt.name_i18n, locale)}
+                  {rt.category} — {pickI18n(rt.name_i18n, locale).value || rt.slug}
                 </option>
               ))}
             </select>
@@ -186,7 +186,7 @@ export default function OwnerRelationshipWorkflows() {
                 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 12, flexWrap: 'wrap' }}>
                     <div>
-                      <div style={{ fontWeight: 700 }}>{pickI18n(sch.name_i18n, locale)}</div>
+                      <div style={{ fontWeight: 700 }}>{pickI18n(sch.name_i18n, locale).value || sch.slug}</div>
                       <div style={{ fontSize: 12, color: 'var(--tax-muted)' }}>
                         <code>{sch.slug}</code> · {sch.cadence}
                       </div>
