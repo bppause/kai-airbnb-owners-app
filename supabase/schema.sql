@@ -1274,6 +1274,34 @@ insert into public.tax_customer_relationships (id, customer_id, relationship_typ
   ('crel_martha_payroll', 'cust_martha_pause', 'business.payroll',          'system@platform')
 on conflict (customer_id, relationship_type_id) do nothing;
 
+-- ── SEED: bppause test customer (added Phase 2d test wave) ───────────────────
+-- Deliberately a different profile from Martha so the per-customer tailoring
+-- of FAQs, tips, and "Your services" chips is visibly distinct between the
+-- two test accounts:
+--   Martha (es)  → Business: Sales Tax Filing, Payroll
+--   BP Pause (en) → Business: LLC, Individual: Taxes, Individual: ITIN,
+--                   Audit: IRS Audit
+-- Sign in to /tax/tax-america-services/portal with Google or by setting an
+-- email/password for bppause@gmail.com. First-login UID linkage happens
+-- automatically via Phase 2a's /auth/link.
+insert into public.tax_customers (id, community_id, email, name, locale)
+values ('cust_bppause', 'tax-america-services', 'bppause@gmail.com', 'BP Pause', 'en')
+on conflict (community_id, email) do nothing;
+
+-- One subscription so the dashboard's upcoming-filings list has content.
+-- Individual taxes (1040) is annual / April-anchored, so this won't fire any
+-- noisy reminders during normal off-season testing.
+insert into public.tax_subscriptions (id, community_id, customer_id, product_id, active_schedule_slugs) values
+  ('sub_bppause_indtax', 'tax-america-services', 'cust_bppause', 'tax-america-services:individual-tax', null)
+on conflict (customer_id, product_id) do nothing;
+
+insert into public.tax_customer_relationships (id, customer_id, relationship_type_id, created_by_email) values
+  ('crel_bppause_llc',    'cust_bppause', 'business.llc',       'system@platform'),
+  ('crel_bppause_indtax', 'cust_bppause', 'individual.taxes',   'system@platform'),
+  ('crel_bppause_itin',   'cust_bppause', 'individual.itin',    'system@platform'),
+  ('crel_bppause_irs',    'cust_bppause', 'audit.irs',          'system@platform')
+on conflict (customer_id, relationship_type_id) do nothing;
+
 -- ═══════════════════════════════════════════════════════════════════════════════
 -- v85-2c: Relationship-aware reminder tips
 --
