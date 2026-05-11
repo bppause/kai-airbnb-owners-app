@@ -76,6 +76,7 @@ export function TaxAuthProvider({ communitySlug, children }) {
     customer: me?.customer || null,
     community: me?.community || null,
     prefs: me?.preferences || null,
+    relationships: me?.relationships || [],
     status, error,
     signOut, refreshMe,
   };

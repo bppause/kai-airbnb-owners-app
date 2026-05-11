@@ -50,4 +50,8 @@ export const taxApi = {
   getNotifications(auth)          { return request('GET',  '/portal/notifications', undefined, auth); },
   markNotificationRead(auth, id)  { return request('POST', `/portal/notifications/${encodeURIComponent(id)}/read`, {}, auth); },
   updatePreferences(auth, payload){ return request('PUT',  '/portal/preferences', payload, auth); },
+
+  // Portal (Phase 2b) — relationships + FAQs
+  getRelationships(auth)          { return request('GET',  '/portal/relationships', undefined, auth); },
+  getFaqs(auth)                   { return request('GET',  '/portal/faqs', undefined, auth); },
 };
