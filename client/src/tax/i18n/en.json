@@ -70,6 +70,7 @@
   "respond.error.generic": "We could not save your information. Please try again or contact us.",
 
   "portal.nav.dashboard": "Dashboard",
+  "portal.nav.documents": "Documents",
   "portal.nav.faqs": "FAQs",
   "portal.nav.profile": "Profile",
   "portal.signout": "Sign out",
@@ -138,5 +139,23 @@
   "portal.faqs.empty": "We have not tagged any services on your profile yet, so there are no tailored FAQs available. Contact your tax practice and we will set this up for you.",
   "portal.faqs.noneForType": "No FAQs are configured for this service yet.",
   "portal.faqs.customLabel": "Custom note from your tax practice",
-  "portal.faqs.disclaimer": "This information is general guidance only and is not a substitute for personalized professional advice. Tax law and procedures change — always confirm specifics with your tax practice or the relevant agency before acting."
+  "portal.faqs.disclaimer": "This information is general guidance only and is not a substitute for personalized professional advice. Tax law and procedures change — always confirm specifics with your tax practice or the relevant agency before acting.",
+
+  "portal.documents.title": "Documents",
+  "portal.documents.subtitle": "Upload supporting documents and download files your tax practice shares with you. Files are stored securely and only accessible to you and your tax practice.",
+  "portal.documents.uploadHint": "Upload statements, prior returns, ID documents, or anything we have asked for.",
+  "portal.documents.uploadBtn": "Upload a file",
+  "portal.documents.uploading_short": "Uploading…",
+  "portal.documents.uploading": "Uploading {name}…",
+  "portal.documents.uploadSuccess": "Uploaded {name}.",
+  "portal.documents.limits": "PDF, image, Word, Excel, CSV, or plain text. 25 MB maximum.",
+  "portal.documents.empty": "No documents yet. Upload supporting files using the button above.",
+  "portal.documents.fromPractice": "From your tax practice",
+  "portal.documents.fromYou": "Uploaded by you",
+  "portal.documents.download": "Download",
+  "portal.documents.delete": "Delete",
+  "portal.documents.confirmDelete": "Delete \"{name}\"? This cannot be undone.",
+  "portal.documents.errUnsupported": "That file type is not supported.",
+  "portal.documents.errTooLarge": "That file exceeds the 25 MB size limit.",
+  "portal.documents.errGeneric": "Something went wrong. Please try again or contact your tax practice."
 }

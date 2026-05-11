@@ -57,4 +57,11 @@ export const taxApi = {
 
   // Portal (Phase 2c) — relationship-tailored tips
   getTips(auth)                   { return request('GET',  '/portal/tips', undefined, auth); },
+
+  // Portal (Phase 2d) — customer documents
+  getDocuments(auth)                            { return request('GET',  '/portal/documents', undefined, auth); },
+  createDocumentUploadUrl(auth, payload)        { return request('POST', '/portal/documents/upload-url', payload, auth); },
+  finalizeDocumentUpload(auth, id)              { return request('POST', `/portal/documents/${encodeURIComponent(id)}/finalize`, {}, auth); },
+  getDocumentDownloadUrl(auth, id)              { return request('GET',  `/portal/documents/${encodeURIComponent(id)}/download-url`, undefined, auth); },
+  deleteDocument(auth, id)                      { return request('DELETE', `/portal/documents/${encodeURIComponent(id)}`, undefined, auth); },
 };

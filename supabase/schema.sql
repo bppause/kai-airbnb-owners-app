@@ -1379,3 +1379,83 @@ insert into public.tax_relationship_default_tips (id, relationship_type_id, cont
     '{"en":"CT DRS audits often start as a desk audit (requests by mail). Responding fully and on time often prevents escalation to a field audit — partial or late responses almost always make the audit broader.","es":"Las auditorías del CT DRS a menudo comienzan como auditorías de escritorio (solicitudes por correo). Responder de forma completa y a tiempo a menudo evita la escalada a una auditoría de campo — las respuestas parciales o tardías casi siempre amplían la auditoría."}'::jsonb,
     'CT DRS — Audit Information')
 on conflict (id) do nothing;
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- v85-2d: Customer documents
+--
+-- Files uploaded by the customer (statements, prior returns, ID for ITIN) or
+-- by the practice (completed returns, K-1s, payment confirmations). Storage
+-- lives in the private `tax-documents` bucket below; this table is the
+-- metadata index and audit trail.
+-- ═══════════════════════════════════════════════════════════════════════════════
+
+-- Create the private storage bucket. Idempotent: only inserts if missing.
+-- IMPORTANT: if your Supabase project does not have the Storage extension
+-- enabled, this line will be skipped silently (the do-block catches the
+-- missing-table error). In that case, create the bucket via the Supabase
+-- Dashboard → Storage → New bucket → "tax-documents" (private).
+do $$ begin
+  insert into storage.buckets (id, name, public)
+  values ('tax-documents', 'tax-documents', false)
+  on conflict (id) do nothing;
+exception when undefined_table then
+  raise notice 'storage.buckets table not available — create the tax-documents bucket via Supabase Dashboard';
+end $$;
+
+create table if not exists public.tax_documents (
+  id                text primary key,
+  community_id      text not null references public.communities(id) on delete cascade,
+  customer_id       text not null references public.tax_customers(id) on delete cascade,
+  period_id         text references public.tax_filing_periods(id) on delete set null,
+
+  -- Source: who put this here. 'customer' = customer-uploaded, 'practice' =
+  -- owner-uploaded for the customer to pick up (e.g., completed return).
+  source            text not null,
+
+  -- Owner-facing classification. Free-text for v1; Phase 4a may add a
+  -- managed enum. Defaults map to common workflow buckets.
+  kind              text default 'general',
+
+  -- File metadata. Original file name is preserved for owner convenience;
+  -- storage path is opaque (uses doc id, not the file name).
+  file_name         text not null,
+  mime_type         text not null,
+  size_bytes        bigint not null,
+  storage_path      text not null,
+
+  -- Lifecycle. status = 'draft' until the upload PUT succeeds; the
+  -- /finalize call flips it to 'uploaded'. Failed/abandoned drafts can be
+  -- swept by a future cleanup job (defer in v1).
+  status            text not null default 'draft',
+  uploaded_by_role  text not null,            -- 'customer' | 'practice'
+  uploaded_by_email text,
+  uploaded_at       timestamptz,
+
+  -- Soft delete keeps the audit trail intact. The storage object is removed
+  -- from the bucket on hard delete (admin action only).
+  deleted_at        timestamptz,
+
+  created_at        timestamptz not null default now(),
+  updated_at        timestamptz not null default now()
+);
+do $$ begin
+  alter table public.tax_documents add constraint tax_documents_source_chk
+    check (source in ('customer','practice'));
+exception when duplicate_object then null; end $$;
+do $$ begin
+  alter table public.tax_documents add constraint tax_documents_status_chk
+    check (status in ('draft','uploaded','failed'));
+exception when duplicate_object then null; end $$;
+do $$ begin
+  alter table public.tax_documents add constraint tax_documents_role_chk
+    check (uploaded_by_role in ('customer','practice'));
+exception when duplicate_object then null; end $$;
+
+create index if not exists tax_documents_customer_idx
+  on public.tax_documents(customer_id, status, created_at desc)
+  where deleted_at is null;
+create index if not exists tax_documents_community_idx
+  on public.tax_documents(community_id, status, created_at desc)
+  where deleted_at is null;
+create index if not exists tax_documents_period_idx
+  on public.tax_documents(period_id) where period_id is not null;

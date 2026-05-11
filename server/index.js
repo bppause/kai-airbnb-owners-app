@@ -366,7 +366,8 @@ app.use('/api/notifications', notificationsRouter); // legacy alias — drop aft
 // Phase 1.5 endpoints: GET/POST /respond/:token, /admin/cron/run, /admin/customers, /admin/periods.
 // Reuses platform `communities` (business_type='tax') as the multi-tenant boundary.
 const taxModule = require('./modules/tax');
-const { sendTaxLeadEmail, sendTaxReminderEmail } = require('./modules/tax/email-senders')({ sendSpanishEmail, emailConfigured });
+const { sendTaxLeadEmail, sendTaxReminderEmail, sendTaxDocumentEmail } =
+  require('./modules/tax/email-senders')({ sendSpanishEmail, emailConfigured });
 const taxRemindersCron = require('./modules/tax/reminders')({
   supabase,
   isSupabaseConfigured: Boolean(SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY),
@@ -379,6 +380,8 @@ const taxRouter = taxModule.createRouter({
   supabase, requireSupabaseEnv, sendSupabaseError,
   auditLog,
   sendTaxLeadEmail,
+  sendTaxDocumentEmail,
+  publicAppUrl: () => publicAppUrl(),
   isGlobalAdmin,
   runReminderCron: taxRemindersCron.run,
 });
