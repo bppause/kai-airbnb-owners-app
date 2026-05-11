@@ -3152,10 +3152,18 @@ module.exports = function createTaxRouter(deps) {
   // role gating.)
   router.get('/employee/help', async (req, res) => {
     const emp = await requireTaxEmployee(req, res); if (!emp) return;
-    const articles = await loadEffectiveHelp({
+    let articles = await loadEffectiveHelp({
       communityId: emp.community_id,
       audience: 'employee',
     });
+    // Staff don't see admin-category articles — those cover features only
+    // admins can access (Customers/Staff/Settings/Articles/FAQs/Audit/
+    // Leads tabs). Filtering them out keeps the staff help center focused
+    // and means admins impersonating a staff user can verify the staff
+    // experience matches what real staff see.
+    if (emp.role !== 'admin') {
+      articles = articles.filter(a => a.category !== 'admin');
+    }
     res.json({ articles });
   });
 
