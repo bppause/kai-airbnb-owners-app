@@ -10,7 +10,7 @@ import ImpersonationBanner from './ImpersonationBanner';
 // (same Firebase login, different table row) never confuses the two views.
 export default function EmployeeShell({ community, active, children }) {
   const { t } = useT();
-  const { fbUser, employee, signOut, impersonation, exitImpersonation } = useEmployeeAuth();
+  const { fbUser, employee, signOut, impersonation, exitImpersonation, customerAccess } = useEmployeeAuth();
   const base = community ? `/tax/${community.id}/employee` : '#';
 
   // Unread inbox badge — counts threads with practice_unread = true.
@@ -91,6 +91,13 @@ export default function EmployeeShell({ community, active, children }) {
               {t('employee.nav.profile')}
             </a>
             <LocaleSwitcher />
+            {/* Dual-role switch — see PortalShell counterpart for rationale. */}
+            {!impersonation && customerAccess?.hasCustomerRow && community && (
+              <a href={`/tax/${community.id}/portal`} className="tax-btn tax-btn--ghost tax-btn--sm"
+                 style={{ color: 'var(--tax-brand-primary)', borderColor: 'var(--tax-brand-primary)' }}>
+                {t('employee.switchToCustomer')}
+              </a>
+            )}
             <button type="button" className="tax-btn tax-btn--ghost tax-btn--sm" onClick={signOut}>
               {t('portal.signout')}
             </button>

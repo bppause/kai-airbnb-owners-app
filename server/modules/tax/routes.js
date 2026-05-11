@@ -1659,7 +1659,7 @@ module.exports = function createTaxRouter(deps) {
   // ── GET /portal/me ──
   router.get('/portal/me', async (req, res) => {
     const customer = await requireTaxCustomer(req, res); if (!customer) return;
-    const [{ data: community }, { data: subs }, { data: rels }] = await Promise.all([
+    const [{ data: community }, { data: subs }, { data: rels }, { data: companion }] = await Promise.all([
       supabase.from('communities')
         .select('id, name, logo_url, brand_primary_color, brand_secondary_color, default_locale, tax_allow_customer_notif_pref_change, contact_email, phone')
         .eq('id', customer.community_id).maybeSingle(),
@@ -1672,6 +1672,13 @@ module.exports = function createTaxRouter(deps) {
           type:tax_relationship_types ( id, category, slug, name_i18n, display_order )
         `)
         .eq('customer_id', customer.id).eq('active', true),
+      // Companion check: does the same email also exist as an active
+      // tax_employees row in this community? When yes, the portal nav
+      // surfaces a "Switch to staff view" link so the owner/staff member
+      // doesn't have to memorize the /employee URL.
+      supabase.from('tax_employees')
+        .select('id, role').eq('community_id', customer.community_id)
+        .eq('email', customer.email).eq('status', 'active').maybeSingle(),
     ]);
     const allChannels = uniqueChannels(subs);
     res.json({
@@ -1682,6 +1689,9 @@ module.exports = function createTaxRouter(deps) {
         allowChange: Boolean(community?.tax_allow_customer_notif_pref_change),
       },
       relationships: rels || [],
+      staffAccess: companion
+        ? { hasEmployeeRow: true, role: companion.role }
+        : { hasEmployeeRow: false, role: null },
     });
   });
 
@@ -3020,7 +3030,7 @@ module.exports = function createTaxRouter(deps) {
   // ── GET /employee/me ──
   router.get('/employee/me', async (req, res) => {
     const emp = await requireTaxEmployee(req, res); if (!emp) return;
-    const [{ data: community }, assignments] = await Promise.all([
+    const [{ data: community }, assignments, { data: companion }] = await Promise.all([
       supabase.from('communities')
         .select('id, name, logo_url, brand_primary_color, brand_secondary_color, default_locale, contact_email, phone')
         .eq('id', emp.community_id).maybeSingle(),
@@ -3034,6 +3044,13 @@ module.exports = function createTaxRouter(deps) {
               customer:tax_customers ( id, email, name, phone, whatsapp, locale )
             `).eq('employee_id', emp.id).eq('active', true)
         : Promise.resolve({ data: [] }),
+      // Companion check: same email also seeded as a customer in this
+      // community? Surfaces a "Switch to customer view" link in the
+      // staff nav for dual-role accounts (e.g., the owner who self-
+      // services through both portals).
+      supabase.from('tax_customers')
+        .select('id').eq('community_id', emp.community_id)
+        .eq('email', emp.email).eq('status', 'active').maybeSingle(),
     ]);
     res.json({
       employee: pickEmployee(emp),
@@ -3041,6 +3058,9 @@ module.exports = function createTaxRouter(deps) {
       // Always include the array (empty for admin) so the frontend
       // can always destructure it without branching.
       assignments: (assignments?.data || []),
+      customerAccess: companion
+        ? { hasCustomerRow: true }
+        : { hasCustomerRow: false },
     });
   });
 

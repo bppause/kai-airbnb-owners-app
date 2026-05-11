@@ -76,6 +76,9 @@
   "portal.nav.help": "Help",
   "portal.nav.profile": "Profile",
   "portal.signout": "Sign out",
+  "portal.switchToStaff": "→ Switch to staff view",
+  "portal.switchToOwner": "→ Switch to owner view",
+  "employee.switchToCustomer": "→ Switch to customer view",
   "portal.greeting": "Welcome, {name}",
 
   "portal.login.title": "Sign in to your portal",
