@@ -5,15 +5,24 @@ import { useEmployeeAuth } from '../auth/EmployeeAuthProvider';
 import { taxApi } from '../api';
 import ImpersonationBanner from './ImpersonationBanner';
 
-// Practice-side chrome. Visually distinguished from the customer portal by
-// a "Staff" badge in the header, so an employee who is ALSO a customer
-// (same Firebase login, different table row) never confuses the two views.
+// Phase 4l: sidebar shell. Replaces the 13-item horizontal nav with a
+// left-rail sidebar split into two groups (Work / Configure) plus a
+// footer (Profile, Help, Locale, dual-role switch, sign-out). On
+// narrow viewports the sidebar collapses behind a hamburger button.
+//
+// Active state still keys off the `active` prop passed by each page.
+// Admin gating: the "Configure" group only renders for role=admin
+// employees; staff see only the "Work" items relevant to them.
 export default function EmployeeShell({ community, active, children }) {
   const { t } = useT();
   const { fbUser, employee, signOut, impersonation, exitImpersonation, customerAccess } = useEmployeeAuth();
   const base = community ? `/tax/${community.id}/employee` : '#';
+  const isAdmin = employee?.role === 'admin';
 
-  // Unread inbox badge — counts threads with practice_unread = true.
+  // Mobile menu open/closed.
+  const [mobileOpen, setMobileOpen] = useState(false);
+
+  // Unread inbox badge (same query as before).
   const [unread, setUnread] = useState(0);
   useEffect(() => {
     if (!fbUser || !community) return;
@@ -27,99 +36,105 @@ export default function EmployeeShell({ community, active, children }) {
   const initials = (community?.name || 'TAX')
     .split(/\s+/).map(w => w[0] || '').join('').slice(0, 3).toUpperCase();
 
+  const closeMobile = () => setMobileOpen(false);
+  const navLink = (key, href, label, badge) => (
+    <a key={key} href={href} className={active === key ? 'active' : ''} onClick={closeMobile}>
+      <span>{label}</span>
+      {badge != null && badge > 0 && <span className="tax-shell__badge">{badge}</span>}
+    </a>
+  );
+
   return (
     <>
       <ImpersonationBanner impersonation={impersonation} onExit={exitImpersonation} />
-      <header className="tax-header" style={{ borderBottom: '2px solid var(--tax-brand-primary)' }}>
-        <div className="tax-container tax-header__row">
-          <a href={base} className="tax-brand" aria-label={community?.name || 'Tax Services'}>
+      <div className="tax-shell">
+        {mobileOpen && <div className="tax-shell__backdrop tax-shell__backdrop--open" onClick={closeMobile} />}
+
+        <aside className={`tax-shell__sidebar${mobileOpen ? ' tax-shell__sidebar--open' : ''}`}
+               aria-label={t('employee.nav.sidebarAria')}>
+          <a href={base} className="tax-shell__brand" onClick={closeMobile}
+             aria-label={community?.name || 'Tax Services'}>
             {community?.logo_url
-              ? <img src={community.logo_url} alt={community?.name || ''} className="tax-brand__logo" />
+              ? <img src={community.logo_url} alt={community?.name || ''} className="tax-brand__logo" style={{ height: 32, maxWidth: 150 }} />
               : <span className="tax-brand__mark">{initials}</span>}
-            <span style={{
-              marginLeft: 10, padding: '2px 8px', borderRadius: 4,
-              background: 'var(--tax-brand-primary)', color: '#fff',
-              fontSize: 11, fontWeight: 700, letterSpacing: '0.6px', textTransform: 'uppercase',
-            }}>{t('employee.staffBadge')}</span>
+            <span className="tax-shell__brand-name">
+              <span className="tax-shell__brand-title">{community?.name || ''}</span>
+              <span className="tax-shell__staff-badge">{t('employee.staffBadge')}</span>
+            </span>
           </a>
-          <nav className="tax-nav" aria-label="Staff">
-            <a href={base} className={active === 'inbox' ? 'active' : ''}>
-              {t('employee.nav.inbox')}
-              {unread > 0 && (
-                <span style={{
-                  marginLeft: 6, padding: '2px 7px', borderRadius: 999,
-                  background: 'var(--tax-brand-secondary)', color: '#fff',
-                  fontSize: 11, fontWeight: 700, lineHeight: 1.4,
-                }}>{unread}</span>
-              )}
-            </a>
-            {/* Customers tab is visible to ALL employees. Admins see the
-                whole community; staff see only their assigned customers
-                (scoping happens server-side). Detail-page actions stay
-                admin-gated. */}
-            {employee && (
-              <a href={`${base}/customers`} className={active === 'customers' ? 'active' : ''}>
-                {t('employee.nav.customers')}
-              </a>
+
+          <nav className="tax-shell__nav">
+            {/* Work group — everyone sees Inbox. Customers visible to all
+                employees (server-side scopes by role). Leads is admin-only. */}
+            <div className="tax-shell__group">
+              <div className="tax-shell__group-label">{t('employee.nav.groupWork')}</div>
+              {navLink('inbox', base, t('employee.nav.inbox'), unread)}
+              {employee && navLink('customers', `${base}/customers`, t('employee.nav.customers'))}
+              {isAdmin && navLink('leads', `${base}/leads`, t('employee.nav.leads'))}
+            </div>
+
+            {/* Configure group — admin only. Order goes from "what the
+                business does" (services, workflows) → "how it talks to
+                customers" (emails, articles, faqs) → "who runs it"
+                (staff, settings) → "what happened" (audit). */}
+            {isAdmin && (
+              <div className="tax-shell__group">
+                <div className="tax-shell__group-label">{t('employee.nav.groupConfigure')}</div>
+                {navLink('services',        `${base}/services`,        t('employee.nav.services'))}
+                {navLink('workflows',       `${base}/workflows`,       t('employee.nav.workflows'))}
+                {navLink('email-templates', `${base}/email-templates`, t('employee.nav.emailTemplates'))}
+                {navLink('articles',        `${base}/articles`,        t('employee.nav.articles'))}
+                {navLink('faqs',            `${base}/faqs`,            t('employee.nav.faqsAdmin'))}
+                {navLink('staff',           `${base}/staff`,           t('employee.nav.staff'))}
+                {navLink('settings',        `${base}/settings`,        t('employee.nav.settings'))}
+                {navLink('audit',           `${base}/audit`,           t('employee.nav.audit'))}
+              </div>
             )}
-            {employee?.role === 'admin' && (
-              <>
-                <a href={`${base}/leads`} className={active === 'leads' ? 'active' : ''}>
-                  {t('employee.nav.leads')}
-                </a>
-                <a href={`${base}/staff`} className={active === 'staff' ? 'active' : ''}>
-                  {t('employee.nav.staff')}
-                </a>
-                <a href={`${base}/settings`} className={active === 'settings' ? 'active' : ''}>
-                  {t('employee.nav.settings')}
-                </a>
-                <a href={`${base}/email-templates`} className={active === 'email-templates' ? 'active' : ''}>
-                  {t('employee.nav.emailTemplates')}
-                </a>
-                <a href={`${base}/services`} className={active === 'services' ? 'active' : ''}>
-                  {t('employee.nav.services')}
-                </a>
-                <a href={`${base}/workflows`} className={active === 'workflows' ? 'active' : ''}>
-                  {t('employee.nav.workflows')}
-                </a>
-                <a href={`${base}/articles`} className={active === 'articles' ? 'active' : ''}>
-                  {t('employee.nav.articles')}
-                </a>
-                <a href={`${base}/faqs`} className={active === 'faqs' ? 'active' : ''}>
-                  {t('employee.nav.faqsAdmin')}
-                </a>
-                <a href={`${base}/audit`} className={active === 'audit' ? 'active' : ''}>
-                  {t('employee.nav.audit')}
-                </a>
-              </>
-            )}
-            <a href={`${base}/help`} className={active === 'help' ? 'active' : ''}>
-              {t('employee.nav.help')}
-            </a>
-            <a href={`${base}/profile`} className={active === 'profile' ? 'active' : ''}>
-              {t('employee.nav.profile')}
-            </a>
-            <LocaleSwitcher />
-            {/* Dual-role switch — see PortalShell counterpart for rationale. */}
+
+            {/* You group — personal / non-admin tools. */}
+            <div className="tax-shell__group">
+              <div className="tax-shell__group-label">{t('employee.nav.groupYou')}</div>
+              {navLink('profile', `${base}/profile`, t('employee.nav.profile'))}
+              {navLink('help',    `${base}/help`,    t('employee.nav.help'))}
+            </div>
+          </nav>
+
+          <div className="tax-shell__footer">
+            {/* Dual-role switch — surfaced when this email is ALSO a
+                tax_customers row in the same community. Hidden during
+                impersonation (the impersonator's identity drives this). */}
             {!impersonation && customerAccess?.hasCustomerRow && community && (
-              <a href={`/tax/${community.id}/portal`} className="tax-btn tax-btn--ghost tax-btn--sm"
+              <a href={`/tax/${community.id}/portal`}
+                 className="tax-btn tax-btn--ghost tax-btn--sm"
                  style={{ color: 'var(--tax-brand-primary)', borderColor: 'var(--tax-brand-primary)' }}>
                 {t('employee.switchToCustomer')}
               </a>
             )}
-            <button type="button" className="tax-btn tax-btn--ghost tax-btn--sm" onClick={signOut}>
-              {t('portal.signout')}
-            </button>
-          </nav>
-        </div>
-      </header>
-      <div className="tax-container" style={{ paddingTop: 24 }}>
-        {employee && (
-          <div style={{ color: 'var(--tax-muted)', fontSize: 14, marginBottom: 16 }}>
-            {t('employee.greeting', { name: employee.name || employee.email })}
+            <div className="tax-shell__footer-row">
+              <LocaleSwitcher />
+              <button type="button" className="tax-btn tax-btn--ghost tax-btn--sm" onClick={signOut}>
+                {t('portal.signout')}
+              </button>
+            </div>
           </div>
-        )}
-        {children}
+        </aside>
+
+        <div className="tax-shell__main">
+          <div className="tax-shell__topbar">
+            <button type="button" className="tax-shell__menu-btn"
+                    aria-label={t('employee.nav.openMenu')}
+                    onClick={() => setMobileOpen(o => !o)}>☰</button>
+            <span style={{ fontWeight: 700 }}>{community?.name || ''}</span>
+          </div>
+          <main className="tax-shell__content">
+            {employee && (
+              <div style={{ color: 'var(--tax-muted)', fontSize: 14, marginBottom: 16 }}>
+                {t('employee.greeting', { name: employee.name || employee.email })}
+              </div>
+            )}
+            {children}
+          </main>
+        </div>
       </div>
     </>
   );
