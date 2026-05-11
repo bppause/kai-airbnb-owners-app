@@ -79,6 +79,7 @@
   "respond.error.generic": "No pudimos guardar su información. Inténtelo de nuevo o contáctenos.",
 
   "portal.nav.dashboard": "Panel",
+  "portal.nav.openMenu": "Abrir menú",
   "portal.nav.messages": "Mensajes",
   "portal.nav.documents": "Documentos",
   "portal.nav.faqs": "Preguntas frecuentes",

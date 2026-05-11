@@ -79,6 +79,7 @@
   "respond.error.generic": "We could not save your information. Please try again or contact us.",
 
   "portal.nav.dashboard": "Dashboard",
+  "portal.nav.openMenu": "Open menu",
   "portal.nav.messages": "Messages",
   "portal.nav.documents": "Documents",
   "portal.nav.faqs": "FAQs",

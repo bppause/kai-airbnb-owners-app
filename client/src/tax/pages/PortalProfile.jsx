@@ -254,9 +254,11 @@ export default function PortalProfile() {
           </div>
         )}
 
-        <button type="submit" className="tax-btn tax-btn--primary" disabled={savingProfile}>
-          {savingProfile ? t('lead.submitting') : t('portal.profile.save')}
-        </button>
+        <div className="tax-sticky-cta">
+          <button type="submit" className="tax-btn tax-btn--primary" disabled={savingProfile}>
+            {savingProfile ? t('lead.submitting') : t('portal.profile.save')}
+          </button>
+        </div>
       </form>
 
       {/* Services (read-only) — the language preference moved into the
