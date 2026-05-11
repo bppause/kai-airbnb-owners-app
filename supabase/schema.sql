@@ -1847,9 +1847,79 @@ create index if not exists tax_impersonation_active_idx
 create index if not exists tax_impersonation_admin_idx
   on public.tax_impersonation_sessions(admin_employee_id, created_at desc);
 
--- Seed: taxamericaserives@gmail.com as a second admin employee. Note the
--- spelling — this is exactly what was requested in the impersonation issue.
--- If it should be 'services' with the 'c', update via SQL or the admin UI.
+-- Seed: taxamericaservices@gmail.com as a second admin employee (the
+-- practice owner mailbox). The owner of the practice is also fundamentally
+-- an employee — they wear both hats — so we seed them as both an employee
+-- (role='admin') and a customer (so they can self-test the customer
+-- experience end-to-end from their own login).
+--
+-- Migration note: an earlier seed used the misspelling 'taxamericaserives'
+-- (missing 'c'). The do-block below renames any row with that earlier
+-- email to the correct one, idempotent and safe to re-run.
+do $$ begin
+  update public.tax_employees
+    set email = 'taxamericaservices@gmail.com', name = 'Tax America Services (owner)', updated_at = now()
+    where community_id = 'tax-america-services'
+    and email = 'taxamericaserives@gmail.com'
+    and not exists (
+      select 1 from public.tax_employees e2
+      where e2.community_id = 'tax-america-services'
+      and e2.email = 'taxamericaservices@gmail.com'
+    );
+end $$;
+
 insert into public.tax_employees (id, community_id, email, name, locale, role)
-values ('emp_taxamericaserives', 'tax-america-services', 'taxamericaserives@gmail.com', 'Tax America Services (owner)', 'en', 'admin')
+values ('emp_taxamericaservices', 'tax-america-services', 'taxamericaservices@gmail.com', 'Tax America Services (owner)', 'en', 'admin')
 on conflict (community_id, email) do nothing;
+
+-- The owner also exists as a customer row so they can sign into /portal
+-- and verify the customer experience. No subscription seeded; relationships
+-- left empty by default — the owner can self-assign relationships once
+-- signed in via the admin UI.
+insert into public.tax_customers (id, community_id, email, name, locale)
+values ('cust_taxamericaservices', 'tax-america-services', 'taxamericaservices@gmail.com', 'Tax America Services (test customer)', 'en')
+on conflict (community_id, email) do nothing;
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- v85-4e: Owner-managed help articles
+--
+-- Mirrors the FAQ override pattern from Phase 2b. Platform defaults live
+-- in tax_help_articles (untouched); per-community overrides + custom
+-- articles live in this new table.
+--
+-- Three flavors of community row:
+--   override (replace default text)  → default_help_article_id set, visible=true,  title/body filled
+--   hide (suppress the default)      → default_help_article_id set, visible=false
+--   custom (community-authored)       → default_help_article_id NULL,   title/body filled,
+--                                       audience/category/relationship_type_id set explicitly
+-- ═══════════════════════════════════════════════════════════════════════════════
+create table if not exists public.tax_community_help_articles (
+  id                       text primary key,
+  community_id             text not null references public.communities(id) on delete cascade,
+  default_help_article_id  text references public.tax_help_articles(id) on delete cascade,
+  audience                 text not null,
+  relationship_type_id     text references public.tax_relationship_types(id) on delete set null,
+  category                 text not null default 'general',
+  display_order            int not null default 0,
+  title_i18n               jsonb not null default '{}'::jsonb,
+  body_i18n                jsonb not null default '{}'::jsonb,
+  visible                  boolean not null default true,
+  source_note              text,
+  created_at               timestamptz not null default now(),
+  updated_at               timestamptz not null default now(),
+  -- One override per (community, default). NULL default_help_article_id
+  -- bypasses this constraint, so customs can be unlimited.
+  unique (community_id, default_help_article_id)
+);
+do $$ begin
+  alter table public.tax_community_help_articles add constraint tax_community_help_articles_audience_chk
+    check (audience in ('customer','employee'));
+exception when duplicate_object then null; end $$;
+do $$ begin
+  alter table public.tax_community_help_articles add constraint tax_community_help_articles_category_chk
+    check (category in (
+      'getting_started','documents','messages','filings','profile','notifications','service','admin','general'
+    ));
+exception when duplicate_object then null; end $$;
+create index if not exists tax_community_help_articles_audience_idx
+  on public.tax_community_help_articles(community_id, audience, display_order);

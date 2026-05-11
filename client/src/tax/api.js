@@ -180,4 +180,14 @@ export const taxApi = {
   // Impersonation (admin-only)
   adminStartImpersonation(auth, payload)         { return request('POST', '/admin/impersonation/start', payload, auth, { admin: true }); },
   adminEndImpersonation(auth, token)             { return request('POST', `/admin/impersonation/${encodeURIComponent(token)}/end`, {}, auth, { admin: true }); },
+
+  // Phase 4e — owner-managed help articles
+  adminListHelp(auth, communitySlug, audience)   {
+    const qs = new URLSearchParams({ communitySlug });
+    if (audience) qs.set('audience', audience);
+    return request('GET',  `/admin/help?${qs.toString()}`, undefined, auth, { admin: true });
+  },
+  adminOverrideHelp(auth, defaultId, payload)    { return request('PUT',  `/admin/help/override/${encodeURIComponent(defaultId)}`, payload, auth, { admin: true }); },
+  adminCreateHelp(auth, payload)                 { return request('POST', '/admin/help/custom', payload, auth, { admin: true }); },
+  adminDeleteHelp(auth, rowId)                   { return request('DELETE', `/admin/help/${encodeURIComponent(rowId)}`, undefined, auth, { admin: true }); },
 };
