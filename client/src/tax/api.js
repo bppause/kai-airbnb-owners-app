@@ -16,10 +16,22 @@ function authHeaders(auth) {
   };
 }
 
-async function request(method, path, body, auth) {
+// Phase 4a: owner-admin calls also need an x-admin-email header so the
+// legacy /admin/* endpoints (still on requireGlobalAdmin) accept the call.
+// The new endpoints accept either path via requireOwnerAdmin; sending the
+// extra header is harmless on those too.
+function adminAuthHeaders(auth) {
+  return {
+    ...authHeaders(auth),
+    'x-admin-email': auth?.adminEmail || auth?.email || '',
+  };
+}
+
+async function request(method, path, body, auth, { admin } = {}) {
+  const headers = admin ? adminAuthHeaders(auth) : authHeaders(auth);
   const res = await fetch(BASE + path, {
     method,
-    headers: { 'Content-Type': 'application/json', ...authHeaders(auth) },
+    headers: { 'Content-Type': 'application/json', ...headers },
     body: body !== undefined ? JSON.stringify(body) : undefined,
   });
   const text = await res.text();
@@ -83,4 +95,31 @@ export const taxApi = {
   markEmployeeThreadRead(auth, id)              { return request('POST', `/employee/threads/${encodeURIComponent(id)}/read`, {}, auth); },
   getEmployeeNotifications(auth)                { return request('GET',  '/employee/notifications', undefined, auth); },
   markEmployeeNotificationRead(auth, id)        { return request('POST', `/employee/notifications/${encodeURIComponent(id)}/read`, {}, auth); },
+
+  // Owner-admin (Phase 4a) — all admin endpoints. Pass auth =
+  // { uid, email, communitySlug, adminEmail }. adminEmail is the address
+  // that should match GLOBAL_ADMIN_EMAILS (legacy endpoints); when omitted
+  // we fall back to auth.email.
+  adminListCustomers(auth, communitySlug)       { return request('GET',  `/admin/customers?communitySlug=${encodeURIComponent(communitySlug)}`, undefined, auth, { admin: true }); },
+  adminCreateCustomer(auth, payload)            { return request('POST', '/admin/customers', payload, auth, { admin: true }); },
+  adminGetCustomer(auth, id)                    { return request('GET',  `/admin/customers/${encodeURIComponent(id)}`, undefined, auth, { admin: true }); },
+
+  adminListRelationshipTypes(auth)              { return request('GET',  '/admin/relationship-types', undefined, auth, { admin: true }); },
+  adminListCustomerRelationships(auth, customerId) { return request('GET', `/admin/customers/${encodeURIComponent(customerId)}/relationships`, undefined, auth, { admin: true }); },
+  adminAddCustomerRelationship(auth, customerId, payload) { return request('POST', `/admin/customers/${encodeURIComponent(customerId)}/relationships`, payload, auth, { admin: true }); },
+  adminRemoveCustomerRelationship(auth, customerId, relId) { return request('DELETE', `/admin/customers/${encodeURIComponent(customerId)}/relationships/${encodeURIComponent(relId)}`, undefined, auth, { admin: true }); },
+
+  adminListCustomerDocuments(auth, customerId)  { return request('GET', `/admin/customers/${encodeURIComponent(customerId)}/documents`, undefined, auth, { admin: true }); },
+  adminCustomerDocumentUploadUrl(auth, customerId, payload) { return request('POST', `/admin/customers/${encodeURIComponent(customerId)}/documents/upload-url`, payload, auth, { admin: true }); },
+  adminFinalizeDocument(auth, docId)            { return request('POST', `/admin/documents/${encodeURIComponent(docId)}/finalize`, {}, auth, { admin: true }); },
+  adminGetDocumentDownloadUrl(auth, docId)      { return request('GET',  `/admin/documents/${encodeURIComponent(docId)}/download-url`, undefined, auth, { admin: true }); },
+  adminDeleteDocument(auth, docId)              { return request('DELETE', `/admin/documents/${encodeURIComponent(docId)}`, undefined, auth, { admin: true }); },
+
+  adminListEmployees(auth, communitySlug)       { return request('GET',  `/admin/employees?communitySlug=${encodeURIComponent(communitySlug)}`, undefined, auth, { admin: true }); },
+  adminCreateEmployee(auth, payload)            { return request('POST', '/admin/employees', payload, auth, { admin: true }); },
+
+  adminListEmployeeAssignments(auth, empId)     { return request('GET', `/admin/employees/${encodeURIComponent(empId)}/assignments`, undefined, auth, { admin: true }); },
+  adminAddEmployeeAssignment(auth, empId, payload) { return request('POST', `/admin/employees/${encodeURIComponent(empId)}/assignments`, payload, auth, { admin: true }); },
+  adminRemoveEmployeeAssignment(auth, empId, customerId) { return request('DELETE', `/admin/employees/${encodeURIComponent(empId)}/assignments/${encodeURIComponent(customerId)}`, undefined, auth, { admin: true }); },
+  adminListCustomerAssignments(auth, customerId) { return request('GET', `/admin/customers/${encodeURIComponent(customerId)}/assignments`, undefined, auth, { admin: true }); },
 };

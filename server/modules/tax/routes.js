@@ -63,13 +63,44 @@ module.exports = function createTaxRouter(deps) {
   });
 
   // Admin gate: requires `x-admin-email` header that matches GLOBAL_ADMIN_EMAILS.
-  // Phase 4a replaces this with full session auth + per-tenant owner role.
+  // Used by the legacy curl-driven admin endpoints from Phases 1.5–3b.
   const requireGlobalAdmin = (req, res) => {
     const email = trim(req.get('x-admin-email') || req.query.adminEmail || '', 200).toLowerCase();
     if (typeof isGlobalAdmin === 'function' && isGlobalAdmin(email)) return email;
     res.status(403).json({ error: 'Admin authentication required.' });
     return null;
   };
+
+  // Phase 4a admin gate: accepts EITHER path —
+  //   (a) Global admin via x-admin-email header (legacy curl flows), or
+  //   (b) Firebase auth from a tax_employees row with role='admin' for the
+  //       targeted community (the dashboard logged-in path).
+  // Returns { email, source, employee? } on success; writes 403 + returns
+  // null on failure. Always await this.
+  async function requireOwnerAdmin(req, res) {
+    if (!requireSupabaseEnv(res)) return null;
+    // (a) Global admin email header — same shape as requireGlobalAdmin.
+    const headerEmail = trim(req.get('x-admin-email') || req.query.adminEmail || '', 200).toLowerCase();
+    if (headerEmail && typeof isGlobalAdmin === 'function' && isGlobalAdmin(headerEmail)) {
+      return { email: headerEmail, source: 'global' };
+    }
+    // (b) role='admin' employee with Firebase headers (same triple as
+    // requireTaxEmployee). Community match is enforced via x-tax-community.
+    const uid = trim(req.get('x-firebase-uid') || '', 200);
+    const email = trim(req.get('x-firebase-email') || '', 200).toLowerCase();
+    const communitySlug = trim(req.get('x-tax-community') || '', 200);
+    if (uid && email && communitySlug) {
+      const { data: emp } = await supabase.from('tax_employees')
+        .select('id, community_id, email, role, status, firebase_uid')
+        .eq('email', email).eq('community_id', communitySlug).maybeSingle();
+      if (emp && emp.status === 'active' && emp.role === 'admin' &&
+          (!emp.firebase_uid || emp.firebase_uid === uid)) {
+        return { email, source: 'employee', employee: emp };
+      }
+    }
+    res.status(403).json({ error: 'Admin authentication required.' });
+    return null;
+  }
 
   // ── GET /community/:slug ────────────────────────────────────────────────────
   router.get('/community/:slug', async (req, res) => {
@@ -317,21 +348,96 @@ module.exports = function createTaxRouter(deps) {
   });
 
   router.get('/admin/customers', async (req, res) => {
-    if (!requireGlobalAdmin(req, res)) return;
-    if (!requireSupabaseEnv(res)) return;
+    if (!(await requireOwnerAdmin(req, res))) return;
     const communitySlug = trim(req.query.communitySlug || '', 200);
     if (!communitySlug) return res.status(400).json({ error: 'communitySlug required.' });
 
     const { data: customers, error } = await supabase
       .from('tax_customers')
       .select(`
-        id, email, name, locale, status, created_at,
+        id, email, name, phone, whatsapp, locale, status, created_at,
         tax_subscriptions ( id, product_id, status, active_schedule_slugs, reminder_channels, reminder_offsets_days )
       `)
       .eq('community_id', communitySlug)
       .order('created_at', { ascending: false });
     if (error) return sendSupabaseError(res, error);
     res.json({ customers: customers || [] });
+  });
+
+  // ── POST /admin/customers ── (Phase 4a)
+  // Creates a customer row. The portal can then magic-link them in (Phase 1.5)
+  // or they can self-link by signing in (Phase 2a). No subscription is
+  // created — owner adds those via SQL/curl until Phase 4b ships subscription UI.
+  router.post('/admin/customers', async (req, res) => {
+    if (!(await requireOwnerAdmin(req, res))) return;
+    const body = req.body || {};
+    const communitySlug = trim(body.communitySlug, 200);
+    const email = trim(body.email, 200).toLowerCase();
+    const name = trim(body.name, MAX_NAME_LEN);
+    const phone = trim(body.phone, MAX_PHONE_LEN);
+    const locale = (body.locale === 'en') ? 'en' : 'es';
+    if (!communitySlug || !email) return res.status(400).json({ error: 'communitySlug and email required.' });
+    if (!isValidEmail(email)) return res.status(400).json({ error: 'Email is not valid.' });
+
+    // Reject if a customer with this email already exists in the community —
+    // the unique constraint would catch it, but a friendlier error helps.
+    const { data: existing } = await supabase.from('tax_customers')
+      .select('id').eq('community_id', communitySlug).eq('email', email).maybeSingle();
+    if (existing) return res.status(409).json({ error: 'A customer with this email already exists in this community.' });
+
+    const id = 'cust_' + uuidv4().slice(0, 16);
+    const { error } = await supabase.from('tax_customers').insert({
+      id, community_id: communitySlug, email, name, phone, locale, status: 'active',
+    });
+    if (error) return sendSupabaseError(res, error);
+    res.json({ ok: true, id });
+  });
+
+  // ── GET /admin/customers/:id ── (Phase 4a)
+  // Single-customer detail view: profile + active relationships + active
+  // subscriptions + counts for documents and threads. The dashboard composes
+  // these into the customer detail page in one round trip.
+  router.get('/admin/customers/:id', async (req, res) => {
+    if (!(await requireOwnerAdmin(req, res))) return;
+    const id = trim(req.params.id, 200);
+    const { data: cust, error: cErr } = await supabase.from('tax_customers')
+      .select('id, community_id, email, name, phone, whatsapp, address, preferred_communication_email, locale, status, notes, firebase_uid, created_at, updated_at')
+      .eq('id', id).maybeSingle();
+    if (cErr) return sendSupabaseError(res, cErr);
+    if (!cust) return res.status(404).json({ error: 'Customer not found.' });
+
+    const [rels, subs, docs, threads, assignments] = await Promise.all([
+      supabase.from('tax_customer_relationships')
+        .select(`
+          id, relationship_type_id, notes, active, created_at,
+          type:tax_relationship_types ( id, category, slug, name_i18n, display_order )
+        `).eq('customer_id', id).eq('active', true),
+      supabase.from('tax_subscriptions')
+        .select('id, product_id, status, reminder_channels, reminder_offsets_days, active_schedule_slugs, start_date, created_at')
+        .eq('customer_id', id),
+      supabase.from('tax_documents')
+        .select('id, source, kind, file_name, mime_type, size_bytes, status, uploaded_at, uploaded_by_role, uploaded_by_email, created_at')
+        .eq('customer_id', id).is('deleted_at', null).eq('status', 'uploaded')
+        .order('created_at', { ascending: false }).limit(100),
+      supabase.from('tax_message_threads')
+        .select('id, subject, status, last_message_at, last_message_preview, last_message_by_role, practice_unread, created_at')
+        .eq('customer_id', id)
+        .order('last_message_at', { ascending: false, nullsFirst: false }).limit(50),
+      supabase.from('tax_employee_customer_assignments')
+        .select(`
+          id, is_primary, created_at,
+          employee:tax_employees ( id, email, name, role )
+        `).eq('customer_id', id).eq('active', true),
+    ]);
+
+    res.json({
+      customer: cust,
+      relationships: rels.data || [],
+      subscriptions: subs.data || [],
+      documents: docs.data || [],
+      threads: threads.data || [],
+      assignments: assignments.data || [],
+    });
   });
 
   router.get('/admin/periods', async (req, res) => {

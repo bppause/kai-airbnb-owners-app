@@ -22,6 +22,10 @@ import PortalMessages from './pages/PortalMessages';
 import EmployeeInbox from './pages/EmployeeInbox';
 import EmployeeThread from './pages/EmployeeThread';
 import EmployeeProfile from './pages/EmployeeProfile';
+import OwnerCustomers from './pages/OwnerCustomers';
+import OwnerCustomerDetail from './pages/OwnerCustomerDetail';
+import OwnerStaff from './pages/OwnerStaff';
+import OwnerStaffDetail from './pages/OwnerStaffDetail';
 import { TaxAuthProvider, useTaxAuth } from './auth/AuthProvider';
 import { TaxEmployeeAuthProvider, useEmployeeAuth } from './auth/EmployeeAuthProvider';
 import { taxApi } from './api';
@@ -37,9 +41,17 @@ function parseTaxPath() {
   }
   const slug = parts[1] || DEFAULT_COMMUNITY_SLUG;
   if (parts[2] === 'employee') {
-    // /employee, /employee/profile, /employee/threads/:id
     if (parts[3] === 'profile') return { route: 'employee-profile', slug };
     if (parts[3] === 'threads' && parts[4]) return { route: 'employee-thread', slug, threadId: decodeURIComponent(parts[4]) };
+    // Phase 4a owner pages (admin role gated on page-render side too)
+    if (parts[3] === 'customers') {
+      if (parts[4]) return { route: 'owner-customer-detail', slug, customerId: decodeURIComponent(parts[4]) };
+      return { route: 'owner-customers', slug };
+    }
+    if (parts[3] === 'staff') {
+      if (parts[4]) return { route: 'owner-staff-detail', slug, employeeId: decodeURIComponent(parts[4]) };
+      return { route: 'owner-staff', slug };
+    }
     return { route: 'employee-inbox', slug };
   }
   if (parts[2] === 'portal') {
@@ -191,5 +203,9 @@ function EmployeeGate({ parsed, community }) {
   }
   if (parsed.route === 'employee-profile') return <EmployeeProfile />;
   if (parsed.route === 'employee-thread') return <EmployeeThread threadId={parsed.threadId} />;
+  if (parsed.route === 'owner-customers') return <OwnerCustomers />;
+  if (parsed.route === 'owner-customer-detail') return <OwnerCustomerDetail customerId={parsed.customerId} />;
+  if (parsed.route === 'owner-staff') return <OwnerStaff />;
+  if (parsed.route === 'owner-staff-detail') return <OwnerStaffDetail employeeId={parsed.employeeId} />;
   return <EmployeeInbox />;
 }
