@@ -130,8 +130,66 @@ export default function OwnerCustomerDetail({ customerId }) {
         locale={locale}
         t={t} />
 
+      <ReminderActivitySection data={data} locale={locale} t={t} />
+
       <AssignmentsSection data={data} t={t} />
     </EmployeeShell>
+  );
+}
+
+// Phase 4n: per-customer reminder send + open/click timeline. Renders the
+// 20 most recent reminder rows (event_type='reminder') with timestamps for
+// delivered / opened / clicked. Caveat shown inline: Apple Mail Privacy
+// Protection pre-fetches the open pixel so iOS opens are noisy.
+function ReminderActivitySection({ data, locale, t }) {
+  const logs = Array.isArray(data?.emailLogs) ? data.emailLogs : [];
+  function fmt(iso) {
+    if (!iso) return '—';
+    try {
+      return new Intl.DateTimeFormat(locale === 'en' ? 'en-US' : 'es-ES',
+        { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+        .format(new Date(iso));
+    } catch (_e) { return iso; }
+  }
+  return (
+    <section className="tax-section" style={{ paddingTop: 0 }}>
+      <h3>{t('owner.customer.section.reminderActivity')}</h3>
+      <p style={{ color: 'var(--tax-muted)', fontSize: 13, margin: '0 0 12px' }}>
+        {t('owner.customer.reminderActivity.note')}
+      </p>
+      {logs.length === 0 ? (
+        <p style={{ color: 'var(--tax-muted)' }}>{t('owner.customer.reminderActivity.empty')}</p>
+      ) : (
+        <div style={{ overflowX: 'auto', border: '1px solid var(--tax-border)', borderRadius: 8 }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+            <thead>
+              <tr style={{ background: 'var(--tax-bg-alt)', textAlign: 'left' }}>
+                <th style={{ padding: '8px 10px' }}>{t('owner.customer.reminderActivity.sent')}</th>
+                <th style={{ padding: '8px 10px' }}>{t('owner.customer.reminderActivity.subject')}</th>
+                <th style={{ padding: '8px 10px' }}>{t('owner.customer.reminderActivity.delivered')}</th>
+                <th style={{ padding: '8px 10px' }}>{t('owner.customer.reminderActivity.opened')}</th>
+                <th style={{ padding: '8px 10px' }}>{t('owner.customer.reminderActivity.clicked')}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {logs.map(l => (
+                <tr key={l.id} style={{ borderTop: '1px solid var(--tax-border)' }}>
+                  <td style={{ padding: '8px 10px' }}>{fmt(l.created_at)}</td>
+                  <td style={{ padding: '8px 10px' }}>{l.subject || '—'}</td>
+                  <td style={{ padding: '8px 10px' }}>{fmt(l.delivered_at)}</td>
+                  <td style={{ padding: '8px 10px', color: l.opened_at ? 'var(--tax-success)' : 'var(--tax-muted)' }}>
+                    {fmt(l.opened_at)}{l.open_count > 1 ? ` ×${l.open_count}` : ''}
+                  </td>
+                  <td style={{ padding: '8px 10px', color: l.clicked_at ? 'var(--tax-success)' : 'var(--tax-muted)' }}>
+                    {fmt(l.clicked_at)}{l.click_count > 1 ? ` ×${l.click_count}` : ''}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </section>
   );
 }
 

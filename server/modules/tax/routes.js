@@ -44,6 +44,7 @@ module.exports = function createTaxRouter(deps) {
     sendTaxMessageEmployeeEmail,
     sendTaxWelcomeEmail,
     sendTaxStaffWelcomeEmail,
+    previewTaxEmail,
     publicAppUrl,
     isGlobalAdmin,
     isEnvGlobalAdminEmail,
@@ -1111,7 +1112,7 @@ module.exports = function createTaxRouter(deps) {
     if (cErr) return sendSupabaseError(res, cErr);
     if (!cust) return res.status(404).json({ error: 'Customer not found.' });
 
-    const [rels, subs, docs, threads, assignments, periods] = await Promise.all([
+    const [rels, subs, docs, threads, assignments, periods, emailLogs] = await Promise.all([
       supabase.from('tax_customer_relationships')
         .select(`
           id, relationship_type_id, notes, active, created_at,
@@ -1144,6 +1145,13 @@ module.exports = function createTaxRouter(deps) {
         `)
         .eq('customer_id', id)
         .order('due_date', { ascending: false }).limit(24),
+      // Phase 4n: reminder send + open/click history. Bounded so we don't
+      // pull every email this customer ever got; the UI shows the 20 most
+      // recent reminder events.
+      supabase.from('email_delivery_logs')
+        .select('id, event_type, subject, related_id, created_at, delivered_at, opened_at, clicked_at, bounced_at, open_count, click_count')
+        .eq('customer_id', id).eq('event_type', 'reminder')
+        .order('created_at', { ascending: false }).limit(20),
     ]);
 
     res.json({
@@ -1154,6 +1162,7 @@ module.exports = function createTaxRouter(deps) {
       threads: threads.data || [],
       periods: periods.data || [],
       assignments: assignments.data || [],
+      emailLogs: emailLogs.data || [],
     });
   });
 
@@ -3626,6 +3635,79 @@ module.exports = function createTaxRouter(deps) {
       });
     } catch (_e) {}
     res.json({ ok: true });
+  });
+
+  // ── Phase 4n: rendered preview ───────────────────────────────────────────
+  // Renders a template with stub variables so the owner can see exactly what
+  // the customer will receive before saving. Accepts an unsaved override in
+  // the body — if omitted, falls back to whatever's persisted. Today only
+  // `reminder` has fully factored defaults; other keys render the override
+  // through the placeholder interpolator (partial=true).
+  router.post('/admin/email-templates/preview', async (req, res) => {
+    if (!(await requireOwnerAdmin(req, res))) return;
+    if (typeof previewTaxEmail !== 'function') {
+      return res.status(500).json({ error: 'preview unavailable' });
+    }
+    const body = req.body || {};
+    const communitySlug = trim(body.communitySlug, 200);
+    const key = trim(body.key, 60);
+    const lang = trim(body.lang, 10) === 'en' ? 'en' : 'es';
+    if (!communitySlug) return res.status(400).json({ error: 'communitySlug required.' });
+    if (!TAX_EMAIL_TEMPLATE_KEYS.includes(key)) return res.status(400).json({ error: 'Unknown template_key.' });
+
+    // The body can pass `useUnsaved: true` with `subject`, `body_text`,
+    // `body_html` to preview an in-flight edit. Otherwise the route loads
+    // the persisted row via applyOverride() inside previewTaxEmail.
+    const override = body.useUnsaved
+      ? {
+          subject: typeof body.subject === 'string' ? body.subject : '',
+          body_text: typeof body.body_text === 'string' ? body.body_text : '',
+          body_html: typeof body.body_html === 'string' ? body.body_html : '',
+        }
+      : null;
+
+    // Stub data used for the reminder builder. Real values are pulled when
+    // the cron actually fires; this mirrors the typical shape with realistic
+    // placeholders so the owner can see the formatting.
+    const stub = {
+      communityId: communitySlug,
+      row: {
+        due_date: body.dueDate || '2026-06-15',
+        period_label: body.periodLabel || (lang === 'en' ? 'Q2 2026' : 'T2 2026'),
+      },
+      cust: {
+        name: body.customerName || (lang === 'en' ? 'Maria García' : 'María García'),
+        email: 'preview@example.com',
+        locale: lang,
+        community_id: communitySlug,
+      },
+      sch: {
+        name_i18n: { en: 'Federal Estimated Income Tax (1040-ES)', es: 'Impuesto Federal Estimado (1040-ES)' },
+        description_i18n: { en: 'Quarterly estimated payment for the IRS.', es: 'Pago estimado trimestral para el IRS.' },
+        info_checklist: Array.isArray(body.scheduleChecklist) ? body.scheduleChecklist : [
+          { key: 'income_estimate', label_i18n: { en: 'Estimated income for the quarter', es: 'Ingresos estimados del trimestre' }, type: 'amount', required: true },
+          { key: 'deductions', label_i18n: { en: 'Estimated deductions', es: 'Deducciones estimadas' }, type: 'amount', required: false },
+        ],
+      },
+      sub: { custom_info_checklist: null, reminder_offsets_days: [] },
+      magicUrl: 'https://example.com/tax/r/preview-magic-link',
+      offsetDays: Number.isFinite(Number(body.offsetDays)) ? Math.abs(Number(body.offsetDays)) : 14,
+      tips: [],
+      extraDocs: Array.isArray(body.extraDocs) ? body.extraDocs : null,
+    };
+
+    try {
+      const rendered = await previewTaxEmail({ key, lang, override, stub });
+      return res.json({
+        subject: rendered.subject || '',
+        text: rendered.text || '',
+        html: rendered.html || '',
+        partial: !!rendered.partial,
+        lang: rendered.lang || lang,
+      });
+    } catch (e) {
+      return res.status(500).json({ error: e?.message || 'preview failed' });
+    }
   });
 
   // ── Owner setup status (Phase 4m) ─────────────────────────────────────────

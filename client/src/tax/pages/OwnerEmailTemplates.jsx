@@ -3,6 +3,7 @@ import { useT } from '../i18n';
 import { useEmployeeAuth } from '../auth/EmployeeAuthProvider';
 import { taxApi } from '../api';
 import EmployeeShell from '../components/EmployeeShell';
+import EmailPreviewModal from '../components/EmailPreviewModal';
 
 // Phase 4i: owner-editable email subject + body per template_key × lang.
 // When all three fields (subject / body_text / body_html) are empty for a
@@ -41,6 +42,7 @@ export default function OwnerEmailTemplates() {
   const [form, setForm] = useState({ subject: '', body_text: '', body_html: '', enabled: true });
   const [msg, setMsg] = useState({ kind: 'idle', text: '' });
   const [busy, setBusy] = useState(false);
+  const [previewOpen, setPreviewOpen] = useState(false);
 
   const load = () => {
     if (!fbUser || !community) return;
@@ -200,6 +202,10 @@ export default function OwnerEmailTemplates() {
                     disabled={busy} onClick={onSave}>
               {busy ? t('lead.submitting') : t('owner.emailTemplates.saveBtn')}
             </button>
+            <button type="button" className="tax-btn tax-btn--ghost"
+                    onClick={() => setPreviewOpen(true)}>
+              {t('preview.title')}
+            </button>
             {isOverridden && (
               <button type="button" className="tax-btn tax-btn--ghost"
                       disabled={busy} onClick={onReset}>
@@ -226,6 +232,16 @@ export default function OwnerEmailTemplates() {
           </ul>
         </aside>
       </div>
+
+      <EmailPreviewModal
+        open={previewOpen}
+        onClose={() => setPreviewOpen(false)}
+        auth={auth}
+        communitySlug={community?.id}
+        templateKey={activeKey}
+        lang={activeLang}
+        override={{ subject: form.subject, body_text: form.body_text, body_html: form.body_html }}
+      />
     </EmployeeShell>
   );
 }

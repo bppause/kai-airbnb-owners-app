@@ -3,6 +3,7 @@ import { pickI18n, useT } from '../i18n';
 import { useEmployeeAuth } from '../auth/EmployeeAuthProvider';
 import { taxApi } from '../api';
 import EmployeeShell from '../components/EmployeeShell';
+import EmailPreviewModal from '../components/EmailPreviewModal';
 import { generatePeriods, upcomingReminderFires, todayIsoUtc } from '../lib/schedulePeriods';
 
 // Phase 4j: for each (relationship_type, filing_schedule) the owner can
@@ -33,6 +34,7 @@ export default function OwnerRelationshipWorkflows() {
   const [editor, setEditor] = useState({});           // key = `${rel}|${slug}`
   const [busy, setBusy] = useState({});               // same key → bool
   const [msg, setMsg] = useState({});                 // same key → {kind,text}
+  const [preview, setPreview] = useState(null);       // { lang, extraDocs, offsetDays }
 
   const load = () => {
     if (!fbUser || !community) return;
@@ -341,10 +343,21 @@ export default function OwnerRelationshipWorkflows() {
                     </div>
                   )}
 
-                  <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+                  <div style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
                     <button type="button" className="tax-btn tax-btn--primary tax-btn--sm"
                             disabled={!!busy[k]} onClick={() => onSave(activeRel, sch.slug)}>
                       {busy[k] ? t('lead.submitting') : t('owner.workflows.saveBtn')}
+                    </button>
+                    <button type="button" className="tax-btn tax-btn--ghost tax-btn--sm"
+                            onClick={() => {
+                              const { offsets, usingDefault } = parseOffsets(st.offsetsInput);
+                              const effective = usingDefault ? SYSTEM_DEFAULT_OFFSETS : offsets;
+                              setPreview({
+                                extraDocs: Array.isArray(st.docs) ? st.docs : [],
+                                offsetDays: effective[0] || 14,
+                              });
+                            }}>
+                      {t('owner.workflows.previewEmailBtn')}
                     </button>
                     {isOverride && (
                       <button type="button" className="tax-btn tax-btn--ghost tax-btn--sm"
@@ -359,6 +372,18 @@ export default function OwnerRelationshipWorkflows() {
           </div>
         </>
       )}
+
+      <EmailPreviewModal
+        open={!!preview}
+        onClose={() => setPreview(null)}
+        auth={auth}
+        communitySlug={community?.id}
+        templateKey="reminder"
+        lang={locale === 'en' ? 'en' : 'es'}
+        override={null}
+        extraDocs={preview?.extraDocs || null}
+        offsetDays={preview?.offsetDays || 14}
+      />
     </EmployeeShell>
   );
 }

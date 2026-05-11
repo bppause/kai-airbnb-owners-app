@@ -10,7 +10,7 @@
 const { escapeHtml } = require('../../core/utils');
 
 module.exports = function createTaxSenders(deps) {
-  const { sendSpanishEmail, emailConfigured, loadTaxEmailTemplate } = deps;
+  const { sendSpanishEmail, emailConfigured, loadTaxEmailTemplate, logTaxEmailDelivery } = deps;
 
   // Phase 4i: owner-editable subject + intro paragraph per (template_key, lang).
   // Senders compute their defaults as before; if an override row exists and
@@ -110,14 +110,13 @@ module.exports = function createTaxSenders(deps) {
   // Formal bilingual reminder asking the customer for the info needed to
   // complete a filing. Tone consciously formal per owner preference. Lang
   // chosen from cust.locale ('en' or 'es'); falls back to 'es'.
-  const sendTaxReminderEmail = async ({ row, cust, sch, sub, magicUrl, offsetDays, tips, extraDocs }) => {
-    if (!emailConfigured) return { sent: false, skipped: true, reason: 'email_not_configured' };
-    // Prefer the customer's chosen communication email (Phase 2e) when set;
-    // otherwise fall back to the login email.
-    const to = String(cust?.preferred_communication_email || cust?.email || '').trim();
-    if (!to) return { sent: false, skipped: true, reason: 'customer_email_missing' };
-
-    const lang = cust.locale === 'en' ? 'en' : 'es';
+  //
+  // Phase 4n: the default-building logic is factored into buildReminderEmail
+  // so the admin preview route can render the same output without sending.
+  function buildReminderEmail({ row, cust, sch, sub, magicUrl, offsetDays, tips, extraDocs, langOverride }) {
+    const lang = langOverride === 'en' ? 'en'
+      : langOverride === 'es' ? 'es'
+      : (cust?.locale === 'en' ? 'en' : 'es');
     const langTag = lang === 'en' ? 'en' : 'es-CO';
     const filingName = pickName(sch.name_i18n, lang);
     const filingDesc = pickName(sch.description_i18n, lang);
@@ -206,13 +205,82 @@ module.exports = function createTaxSenders(deps) {
       period_label: row.period_label, due_date: row.due_date,
       offset_days: Math.abs(offsetDays), magic_url: magicUrl,
     };
+    return { lang, langTag, defaults, vars };
+  }
+
+  const sendTaxReminderEmail = async ({ row, cust, sch, sub, magicUrl, offsetDays, tips, extraDocs }) => {
+    if (!emailConfigured) return { sent: false, skipped: true, reason: 'email_not_configured' };
+    // Prefer the customer's chosen communication email (Phase 2e) when set;
+    // otherwise fall back to the login email.
+    const to = String(cust?.preferred_communication_email || cust?.email || '').trim();
+    if (!to) return { sent: false, skipped: true, reason: 'customer_email_missing' };
+
+    const built = buildReminderEmail({ row, cust, sch, sub, magicUrl, offsetDays, tips, extraDocs });
     const finalCopy = await applyOverride({
-      communityId: cust.community_id, key: 'reminder', lang, vars, defaults,
+      communityId: cust.community_id, key: 'reminder',
+      lang: built.lang, vars: built.vars, defaults: built.defaults,
     });
-    return sendSpanishEmail({
-      to, subject: finalCopy.subject, text: finalCopy.text, html: finalCopy.html, lang: langTag,
+    const result = await sendSpanishEmail({
+      to, subject: finalCopy.subject, text: finalCopy.text, html: finalCopy.html, lang: built.langTag,
     });
+    // Phase 4n: persist a row keyed by Resend's message id so the webhook
+    // receiver can match incoming opened/clicked events back to a customer.
+    if (result && result.sent && typeof logTaxEmailDelivery === 'function') {
+      try {
+        await logTaxEmailDelivery({
+          resendId: result.id || '',
+          communityId: cust.community_id || '',
+          customerId: cust.id || '',
+          eventType: 'reminder',
+          recipients: [to],
+          subject: finalCopy.subject,
+          relatedEntity: 'tax.period',
+          relatedId: row?.id || '',
+        });
+      } catch (_e) { /* logging must never break a send */ }
+    }
+    return result;
   };
+
+  // Phase 4n: pure helper for the admin preview route. Accepts an optional
+  // unsaved override (subject/body_text/body_html) so the owner can preview
+  // exactly what they're about to save. When `override` is null, the route
+  // falls through to whatever's persisted in tax_email_templates.
+  async function previewTaxEmail({ key, lang, override, stub }) {
+    if (key !== 'reminder') {
+      // For non-reminder templates we don't have factored defaults yet —
+      // just substitute the unsaved override (or empty strings) through
+      // interpolate so the owner can sanity-check placeholders.
+      const vars = (stub && stub.vars) || {};
+      return {
+        key, lang,
+        subject: interpolate((override && override.subject) || '', vars),
+        text: interpolate((override && override.body_text) || '', vars),
+        html: interpolate((override && override.body_html) || '', vars),
+        partial: true,
+      };
+    }
+    const built = buildReminderEmail({ ...(stub || {}), langOverride: lang });
+    if (override) {
+      const pick = (oField, dField) => {
+        const s = (typeof override[oField] === 'string' ? override[oField] : '').trim();
+        return s ? interpolate(override[oField], built.vars) : built.defaults[dField];
+      };
+      return {
+        key, lang: built.lang,
+        subject: pick('subject', 'subject'),
+        text: pick('body_text', 'text'),
+        html: pick('body_html', 'html'),
+        partial: false,
+      };
+    }
+    // Loaded persisted row from DB.
+    const persistedCopy = await applyOverride({
+      communityId: stub && stub.communityId, key: 'reminder',
+      lang: built.lang, vars: built.vars, defaults: built.defaults,
+    });
+    return { key, lang: built.lang, ...persistedCopy, partial: false };
+  }
 
   function pickName(obj, lang) {
     if (obj && typeof obj === 'object') {
@@ -777,5 +845,6 @@ module.exports = function createTaxSenders(deps) {
     sendTaxMessageEmployeeEmail,
     sendTaxWelcomeEmail,
     sendTaxStaffWelcomeEmail,
+    previewTaxEmail,
   };
 };
