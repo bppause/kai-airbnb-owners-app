@@ -19,7 +19,7 @@ export default function EmployeeProfile() {
   const auth = { uid: fbUser?.uid, email: fbUser?.email, communitySlug: community?.id };
 
   const [form, setForm] = useState({
-    name: '', phone: '', whatsapp: '', preferredEmail: '',
+    name: '', phone: '', whatsapp: '', preferredEmail: '', locale: 'es',
     addr: { line1: '', line2: '', city: '', state: '', postal_code: '', country: 'US' },
     inApp: true, email: false,
   });
@@ -35,6 +35,7 @@ export default function EmployeeProfile() {
       phone: employee.phone || '',
       whatsapp: employee.whatsapp || '',
       preferredEmail: employee.preferredCommunicationEmail || '',
+      locale: employee.locale === 'en' ? 'en' : 'es',
       addr: {
         line1: a.line1 || '', line2: a.line2 || '',
         city: a.city || '', state: a.state || '',
@@ -81,6 +82,7 @@ export default function EmployeeProfile() {
         address,
         preferredCommunicationEmail: form.preferredEmail.trim(),
         notificationChannels: channels,
+        locale: form.locale,
       });
       setMsg({ kind: 'success', text: t('portal.profile.saved') });
       refreshMe();
@@ -157,6 +159,21 @@ export default function EmployeeProfile() {
           <input id="ep-pref-email" type="email" value={form.preferredEmail}
                  placeholder={employee?.email || ''}
                  onChange={e => onField('preferredEmail', e.target.value)} maxLength={200} />
+        </div>
+
+        <div>
+          <label htmlFor="ep-locale">
+            {t('portal.profile.language')}
+            <span style={{ color: 'var(--tax-muted)', fontWeight: 400, marginLeft: 6, fontSize: 12 }}>
+              {t('portal.profile.language.hint')}
+            </span>
+          </label>
+          <select id="ep-locale" value={form.locale}
+                  onChange={e => onField('locale', e.target.value)}
+                  style={{ maxWidth: 280 }}>
+            <option value="es">Español</option>
+            <option value="en">English</option>
+          </select>
         </div>
 
         <fieldset style={{ border: '1px solid var(--tax-border)', borderRadius: 8, padding: 16, margin: 0 }}>
