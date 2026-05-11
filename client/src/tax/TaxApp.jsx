@@ -102,7 +102,7 @@ export default function TaxApp() {
         ? <Respond token={parsed.token} />
         : parsed.route.startsWith('platform')
           ? <PlatformRoot parsed={parsed} />
-          : parsed.route.startsWith('employee')
+          : (parsed.route.startsWith('employee') || parsed.route.startsWith('owner-'))
             ? <EmployeeRoot parsed={parsed} />
             : parsed.route.startsWith('portal')
               ? <PortalRoot parsed={parsed} />
