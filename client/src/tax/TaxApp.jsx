@@ -26,6 +26,8 @@ import OwnerCustomers from './pages/OwnerCustomers';
 import OwnerCustomerDetail from './pages/OwnerCustomerDetail';
 import OwnerStaff from './pages/OwnerStaff';
 import OwnerStaffDetail from './pages/OwnerStaffDetail';
+import OwnerLeads from './pages/OwnerLeads';
+import OwnerSettings from './pages/OwnerSettings';
 import { TaxAuthProvider, useTaxAuth } from './auth/AuthProvider';
 import { TaxEmployeeAuthProvider, useEmployeeAuth } from './auth/EmployeeAuthProvider';
 import { taxApi } from './api';
@@ -52,6 +54,8 @@ function parseTaxPath() {
       if (parts[4]) return { route: 'owner-staff-detail', slug, employeeId: decodeURIComponent(parts[4]) };
       return { route: 'owner-staff', slug };
     }
+    if (parts[3] === 'leads')    return { route: 'owner-leads', slug };
+    if (parts[3] === 'settings') return { route: 'owner-settings', slug };
     return { route: 'employee-inbox', slug };
   }
   if (parts[2] === 'portal') {
@@ -207,5 +211,7 @@ function EmployeeGate({ parsed, community }) {
   if (parsed.route === 'owner-customer-detail') return <OwnerCustomerDetail customerId={parsed.customerId} />;
   if (parsed.route === 'owner-staff') return <OwnerStaff />;
   if (parsed.route === 'owner-staff-detail') return <OwnerStaffDetail employeeId={parsed.employeeId} />;
+  if (parsed.route === 'owner-leads') return <OwnerLeads />;
+  if (parsed.route === 'owner-settings') return <OwnerSettings />;
   return <EmployeeInbox />;
 }

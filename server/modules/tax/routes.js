@@ -193,8 +193,10 @@ module.exports = function createTaxRouter(deps) {
     res.json({ ok: true, id: inserted.id });
   });
 
+  // Phase 4b: lead inbox lives at /admin/leads — see below. /leads stays
+  // 501 so legacy callers don't accidentally hit it without auth.
   router.get('/leads', (_req, res) => {
-    res.status(501).json({ error: 'Lead inbox not implemented yet (Phase 4).' });
+    res.status(501).json({ error: 'Use /admin/leads (admin-authenticated).' });
   });
 
   // ────────────────────────────────────────────────────────────────────────────
@@ -471,6 +473,195 @@ module.exports = function createTaxRouter(deps) {
       .eq('id', communitySlug).eq('business_type', TAX_BUSINESS_TYPE);
     if (error) return sendSupabaseError(res, error);
     res.json({ ok: true, allowCustomerChange: allowChange });
+  });
+
+  // ── Phase 4b admin endpoints ───────────────────────────────────────────────
+
+  // GET /admin/community-settings?communitySlug=  — companion read for the
+  // PUT /admin/community-settings/notif-lock that exists since Phase 2a.
+  router.get('/admin/community-settings', async (req, res) => {
+    if (!(await requireOwnerAdmin(req, res))) return;
+    const communitySlug = trim(req.query.communitySlug, 200);
+    if (!communitySlug) return res.status(400).json({ error: 'communitySlug required.' });
+    const { data, error } = await supabase.from('communities')
+      .select('id, name, tax_allow_customer_notif_pref_change, contact_email, phone, default_locale')
+      .eq('id', communitySlug).eq('business_type', TAX_BUSINESS_TYPE).maybeSingle();
+    if (error) return sendSupabaseError(res, error);
+    if (!data) return res.status(404).json({ error: 'Community not found.' });
+    res.json({ settings: data });
+  });
+
+  // GET /admin/products?communitySlug=  — products with their schedules.
+  // Used by the OwnerCustomerDetail subscription editor to populate the
+  // product + schedule pickers.
+  router.get('/admin/products', async (req, res) => {
+    if (!(await requireOwnerAdmin(req, res))) return;
+    const communitySlug = trim(req.query.communitySlug, 200);
+    if (!communitySlug) return res.status(400).json({ error: 'communitySlug required.' });
+    const { data, error } = await supabase.from('tax_products')
+      .select(`
+        id, slug, category, display_order, name_i18n, description_i18n,
+        schedules:tax_filing_schedules ( id, slug, jurisdiction, cadence, enabled, name_i18n )
+      `)
+      .eq('community_id', communitySlug)
+      .order('display_order', { ascending: true });
+    if (error) return sendSupabaseError(res, error);
+    res.json({ products: data || [] });
+  });
+
+  // POST /admin/customers/:id/subscriptions — body { productId,
+  // activeScheduleSlugs?, status?, startDate? }. Defaults: status='active',
+  // active_schedule_slugs=null (= all schedules), reminder_offsets_days &
+  // reminder_channels use platform defaults from the column DEFAULTs.
+  router.post('/admin/customers/:id/subscriptions', async (req, res) => {
+    if (!(await requireOwnerAdmin(req, res))) return;
+    const customerId = trim(req.params.id, 200);
+    const body = req.body || {};
+    const productId = trim(body.productId, 200);
+    if (!productId) return res.status(400).json({ error: 'productId required.' });
+
+    const { data: cust } = await supabase.from('tax_customers')
+      .select('id, community_id').eq('id', customerId).maybeSingle();
+    if (!cust) return res.status(404).json({ error: 'Customer not found.' });
+    // Sanity: product must exist in the same community.
+    const { data: product } = await supabase.from('tax_products')
+      .select('id, community_id').eq('id', productId).maybeSingle();
+    if (!product || product.community_id !== cust.community_id) {
+      return res.status(400).json({ error: 'Product not available in this community.' });
+    }
+    // Duplicate guard: tax_subscriptions has unique (customer_id, product_id).
+    const { data: existing } = await supabase.from('tax_subscriptions')
+      .select('id').eq('customer_id', customerId).eq('product_id', productId).maybeSingle();
+    if (existing) return res.status(409).json({ error: 'Customer already has this subscription.' });
+
+    const activeScheduleSlugs = Array.isArray(body.activeScheduleSlugs) && body.activeScheduleSlugs.length
+      ? body.activeScheduleSlugs.map(s => String(s).slice(0, 80)) : null;
+    const status = (body.status === 'paused' || body.status === 'cancelled') ? body.status : 'active';
+    const startDate = trim(body.startDate, 32) || null;
+
+    const id = 'sub_' + uuidv4().slice(0, 16);
+    const { error } = await supabase.from('tax_subscriptions').insert({
+      id,
+      community_id: cust.community_id,
+      customer_id: customerId,
+      product_id: productId,
+      active_schedule_slugs: activeScheduleSlugs,
+      status,
+      start_date: startDate,
+    });
+    if (error) return sendSupabaseError(res, error);
+    res.json({ ok: true, id });
+  });
+
+  // PUT /admin/subscriptions/:id — body { status?, activeScheduleSlugs?,
+  // reminderOffsetsDays?, reminderChannels?, startDate? }. Each field is
+  // optional; only provided ones are updated.
+  router.put('/admin/subscriptions/:id', async (req, res) => {
+    if (!(await requireOwnerAdmin(req, res))) return;
+    const subId = trim(req.params.id, 200);
+    const body = req.body || {};
+    const update = { updated_at: new Date().toISOString() };
+
+    if (body.status !== undefined) {
+      const s = String(body.status);
+      if (!['active', 'paused', 'cancelled'].includes(s)) {
+        return res.status(400).json({ error: 'status must be active|paused|cancelled.' });
+      }
+      update.status = s;
+    }
+    if (body.activeScheduleSlugs !== undefined) {
+      // null/empty array means "all schedules under this product".
+      const arr = Array.isArray(body.activeScheduleSlugs) ? body.activeScheduleSlugs : null;
+      update.active_schedule_slugs = (arr && arr.length) ? arr.map(s => String(s).slice(0, 80)) : null;
+    }
+    if (Array.isArray(body.reminderOffsetsDays)) {
+      const ints = body.reminderOffsetsDays
+        .map(n => Number(n)).filter(Number.isFinite).map(n => Math.trunc(n))
+        .filter(n => n >= -120 && n <= 30);
+      if (!ints.length) return res.status(400).json({ error: 'reminderOffsetsDays must contain at least one valid offset.' });
+      update.reminder_offsets_days = ints;
+    }
+    if (Array.isArray(body.reminderChannels)) {
+      const channels = body.reminderChannels.map(c => String(c).toLowerCase())
+        .filter(c => c === 'email' || c === 'in_app');
+      if (!channels.length) return res.status(400).json({ error: 'reminderChannels must include at least one channel.' });
+      update.reminder_channels = ['email', 'in_app'].filter(c => channels.includes(c));
+    }
+    if (body.startDate !== undefined) {
+      update.start_date = trim(body.startDate, 32) || null;
+    }
+
+    if (Object.keys(update).length === 1) {
+      return res.status(400).json({ error: 'Nothing to update.' });
+    }
+
+    const { error } = await supabase.from('tax_subscriptions').update(update).eq('id', subId);
+    if (error) return sendSupabaseError(res, error);
+    res.json({ ok: true });
+  });
+
+  // DELETE /admin/subscriptions/:id — soft cancel via status='cancelled'.
+  // Hard delete would cascade-delete filing_periods which we want to keep
+  // for the audit trail. If the owner truly needs to purge a subscription,
+  // they can do it via SQL.
+  router.delete('/admin/subscriptions/:id', async (req, res) => {
+    if (!(await requireOwnerAdmin(req, res))) return;
+    const subId = trim(req.params.id, 200);
+    const { error } = await supabase.from('tax_subscriptions')
+      .update({ status: 'cancelled', updated_at: new Date().toISOString() })
+      .eq('id', subId);
+    if (error) return sendSupabaseError(res, error);
+    res.json({ ok: true });
+  });
+
+  // GET /admin/leads?communitySlug=&status= — lead inbox.
+  // Status values come from the schema check constraint:
+  //   new | contacted | converted | closed
+  router.get('/admin/leads', async (req, res) => {
+    if (!(await requireOwnerAdmin(req, res))) return;
+    const communitySlug = trim(req.query.communitySlug, 200);
+    if (!communitySlug) return res.status(400).json({ error: 'communitySlug required.' });
+    let q = supabase.from('tax_leads')
+      .select('id, name, email, phone, product_slug, message, preferred_locale, status, notes, contacted_at, created_at')
+      .eq('community_id', communitySlug)
+      .order('created_at', { ascending: false }).limit(500);
+    const statusFilter = trim(req.query.status, 40);
+    if (statusFilter) q = q.eq('status', statusFilter);
+    const { data, error } = await q;
+    if (error) return sendSupabaseError(res, error);
+    res.json({ leads: data || [] });
+  });
+
+  // PUT /admin/leads/:id — body { status?, notes? }. Setting status to
+  // 'contacted' for the first time stamps contacted_at; transitioning to
+  // any other status leaves the existing stamp in place.
+  router.put('/admin/leads/:id', async (req, res) => {
+    if (!(await requireOwnerAdmin(req, res))) return;
+    const leadId = trim(req.params.id, 200);
+    const body = req.body || {};
+    const update = { updated_at: new Date().toISOString() };
+
+    if (body.status !== undefined) {
+      const s = String(body.status);
+      if (!['new', 'contacted', 'converted', 'closed'].includes(s)) {
+        return res.status(400).json({ error: 'status must be new|contacted|converted|closed.' });
+      }
+      update.status = s;
+      if (s === 'contacted') {
+        // Only stamp the first transition to contacted; preserve later edits.
+        const { data: cur } = await supabase.from('tax_leads')
+          .select('contacted_at').eq('id', leadId).maybeSingle();
+        if (cur && !cur.contacted_at) update.contacted_at = new Date().toISOString();
+      }
+    }
+    if (body.notes !== undefined) update.notes = trim(body.notes, MAX_TEXT_LEN);
+
+    if (Object.keys(update).length === 1) {
+      return res.status(400).json({ error: 'Nothing to update.' });
+    }
+    const { error } = await supabase.from('tax_leads').update(update).eq('id', leadId);
+    if (error) return sendSupabaseError(res, error);
+    res.json({ ok: true });
   });
 
   // ────────────────────────────────────────────────────────────────────────────
