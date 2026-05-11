@@ -50,6 +50,7 @@ export default function PortalShell({ community, active, children }) {
             </a>
             <a href={`${base}/documents`} className={active === 'documents' ? 'active' : ''}>{t('portal.nav.documents')}</a>
             <a href={`${base}/faqs`} className={active === 'faqs' ? 'active' : ''}>{t('portal.nav.faqs')}</a>
+            <a href={`${base}/help`} className={active === 'help' ? 'active' : ''}>{t('portal.nav.help')}</a>
             <a href={`${base}/profile`} className={active === 'profile' ? 'active' : ''}>{t('portal.nav.profile')}</a>
             <LocaleSwitcher />
             <button type="button" className="tax-btn tax-btn--ghost tax-btn--sm" onClick={signOut}>

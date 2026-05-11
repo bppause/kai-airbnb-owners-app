@@ -28,6 +28,8 @@ import OwnerStaff from './pages/OwnerStaff';
 import OwnerStaffDetail from './pages/OwnerStaffDetail';
 import OwnerLeads from './pages/OwnerLeads';
 import OwnerSettings from './pages/OwnerSettings';
+import PortalHelp from './pages/PortalHelp';
+import EmployeeHelp from './pages/EmployeeHelp';
 import { TaxAuthProvider, useTaxAuth } from './auth/AuthProvider';
 import { TaxEmployeeAuthProvider, useEmployeeAuth } from './auth/EmployeeAuthProvider';
 import { taxApi } from './api';
@@ -56,11 +58,13 @@ function parseTaxPath() {
     }
     if (parts[3] === 'leads')    return { route: 'owner-leads', slug };
     if (parts[3] === 'settings') return { route: 'owner-settings', slug };
+    if (parts[3] === 'help')     return { route: 'employee-help', slug };
     return { route: 'employee-inbox', slug };
   }
   if (parts[2] === 'portal') {
     if (parts[3] === 'profile') return { route: 'portal-profile', slug };
     if (parts[3] === 'faqs') return { route: 'portal-faqs', slug };
+    if (parts[3] === 'help') return { route: 'portal-help', slug };
     if (parts[3] === 'documents') return { route: 'portal-documents', slug };
     if (parts[3] === 'messages') {
       // /portal/messages, /portal/messages/new, /portal/messages/:threadId
@@ -145,6 +149,7 @@ function PortalGate({ parsed, community }) {
   if (parsed.route === 'portal-profile') return <PortalProfile />;
   if (parsed.route === 'portal-faqs') return <PortalFaqs />;
   if (parsed.route === 'portal-documents') return <PortalDocuments />;
+  if (parsed.route === 'portal-help') return <PortalHelp />;
   if (parsed.route === 'portal-messages') return <PortalMessages threadId={parsed.threadId} />;
   if (parsed.route === 'portal-filing') return <PortalFiling filingId={parsed.filingId} />;
   return <PortalDashboard />;
@@ -213,5 +218,6 @@ function EmployeeGate({ parsed, community }) {
   if (parsed.route === 'owner-staff-detail') return <OwnerStaffDetail employeeId={parsed.employeeId} />;
   if (parsed.route === 'owner-leads') return <OwnerLeads />;
   if (parsed.route === 'owner-settings') return <OwnerSettings />;
+  if (parsed.route === 'employee-help') return <EmployeeHelp />;
   return <EmployeeInbox />;
 }

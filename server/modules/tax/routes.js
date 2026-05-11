@@ -1040,6 +1040,35 @@ module.exports = function createTaxRouter(deps) {
     res.json({ groups });
   });
 
+  // ── GET /portal/help ── (Phase 4c, auth-gated)
+  // Returns active customer-audience help articles filtered to:
+  //   relationship_type_id IS NULL  (general portal-usage articles)
+  //   OR relationship_type_id matches one of the customer's active
+  //   relationships. Grouped by category for the help-center UI.
+  router.get('/portal/help', async (req, res) => {
+    const customer = await requireTaxCustomer(req, res); if (!customer) return;
+    const typeIds = await activeTypeIdsForCustomer(customer.id);
+
+    let q = supabase.from('tax_help_articles')
+      .select(`
+        id, audience, relationship_type_id, category, display_order,
+        title_i18n, body_i18n, source_note,
+        type:tax_relationship_types ( id, category, slug, name_i18n )
+      `)
+      .eq('audience', 'customer').eq('active', true)
+      .order('display_order', { ascending: true });
+    // Postgres "is null OR in (…)" via Supabase's `or()`.
+    if (typeIds.length) {
+      const inList = typeIds.map(id => `"${id}"`).join(',');
+      q = q.or(`relationship_type_id.is.null,relationship_type_id.in.(${inList})`);
+    } else {
+      q = q.is('relationship_type_id', null);
+    }
+    const { data, error } = await q;
+    if (error) return sendSupabaseError(res, error);
+    res.json({ articles: data || [] });
+  });
+
   // ── GET /portal/faqs ── (auth-gated)
   // Returns effective FAQs (defaults + community overrides + custom additions)
   // for the customer's relationship types only.
@@ -2157,6 +2186,21 @@ module.exports = function createTaxRouter(deps) {
       .order('created_at', { ascending: false }).limit(50);
     if (error) return sendSupabaseError(res, error);
     res.json({ notifications: data || [] });
+  });
+
+  // ── GET /employee/help ── (Phase 4c)
+  // Employee-audience help articles. No per-relationship filtering for v1 —
+  // employees see all employee articles regardless of role. (Admin tools
+  // article is shown to staff too; the article text itself explains the
+  // role gating.)
+  router.get('/employee/help', async (req, res) => {
+    const emp = await requireTaxEmployee(req, res); if (!emp) return;
+    const { data, error } = await supabase.from('tax_help_articles')
+      .select('id, category, display_order, title_i18n, body_i18n, source_note')
+      .eq('audience', 'employee').eq('active', true)
+      .order('display_order', { ascending: true });
+    if (error) return sendSupabaseError(res, error);
+    res.json({ articles: data || [] });
   });
 
   // ── POST /employee/notifications/:id/read ──
