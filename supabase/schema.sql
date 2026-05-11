@@ -1020,3 +1020,256 @@ on conflict (customer_id, product_id) do nothing;
 
 -- Deprecated old registration tables are intentionally not used by the app anymore.
 -- Keep them as historical backups unless you have verified the migration and want to drop them manually.
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- v85-2b: Customer relationships + FAQs
+--
+-- A customer can have many "relationships" with the business (a small catalog
+-- of service tags across categories: business / individual / general / audit).
+-- Each relationship type carries default FAQs sourced from public-domain
+-- references (IRS, SBA, state DORs). Each community can override or hide the
+-- defaults via tax_relationship_faqs.
+-- ═══════════════════════════════════════════════════════════════════════════════
+
+-- Catalog of relationship types. Seeded by the platform; communities do not
+-- create new types in v1 (keeps the FAQ default-set globally curated). If a
+-- community needs a custom service tag, that's a future enhancement.
+create table if not exists public.tax_relationship_types (
+  id            text primary key,                   -- 'business.llc', 'individual.itin', etc.
+  category      text not null,                      -- 'business' | 'individual' | 'general' | 'audit'
+  slug          text not null,                      -- 'llc', 'itin', etc.
+  name_i18n     jsonb not null default '{}'::jsonb, -- {en, es}
+  description_i18n jsonb not null default '{}'::jsonb,
+  display_order int not null default 0,
+  active        boolean not null default true,
+  created_at    timestamptz not null default now()
+);
+do $$ begin
+  alter table public.tax_relationship_types add constraint tax_relationship_types_category_chk
+    check (category in ('business','individual','general','audit'));
+exception when duplicate_object then null; end $$;
+create index if not exists tax_relationship_types_category_idx
+  on public.tax_relationship_types(category, display_order);
+
+-- Default FAQs, seeded from public-domain sources. Keyed by relationship type;
+-- evergreen content only (no specific dollar thresholds that change yearly).
+-- Each row carries a `source_note` for owner-visible attribution.
+create table if not exists public.tax_relationship_default_faqs (
+  id                   text primary key,
+  relationship_type_id text not null references public.tax_relationship_types(id) on delete cascade,
+  display_order        int not null default 0,
+  question_i18n        jsonb not null default '{}'::jsonb,
+  answer_i18n          jsonb not null default '{}'::jsonb,
+  source_note          text,
+  created_at           timestamptz not null default now()
+);
+create index if not exists tax_relationship_default_faqs_type_idx
+  on public.tax_relationship_default_faqs(relationship_type_id, display_order);
+
+-- Per-community FAQ overrides. Three flavors:
+--   (a) override of a default — `default_faq_id` set, question/answer replaced
+--   (b) hide a default       — `default_faq_id` set, visible = false
+--   (c) custom FAQ           — `default_faq_id` null, owner-authored
+create table if not exists public.tax_relationship_faqs (
+  id                   text primary key,
+  community_id         text not null references public.communities(id) on delete cascade,
+  relationship_type_id text not null references public.tax_relationship_types(id) on delete cascade,
+  default_faq_id       text references public.tax_relationship_default_faqs(id) on delete set null,
+  display_order        int not null default 0,
+  question_i18n        jsonb not null default '{}'::jsonb,
+  answer_i18n          jsonb not null default '{}'::jsonb,
+  visible              boolean not null default true,
+  created_at           timestamptz not null default now(),
+  updated_at           timestamptz not null default now(),
+  unique (community_id, relationship_type_id, default_faq_id)
+);
+create index if not exists tax_relationship_faqs_community_type_idx
+  on public.tax_relationship_faqs(community_id, relationship_type_id, display_order);
+
+-- Customer ↔ relationship mapping (1-to-many).
+create table if not exists public.tax_customer_relationships (
+  id                   text primary key,
+  customer_id          text not null references public.tax_customers(id) on delete cascade,
+  relationship_type_id text not null references public.tax_relationship_types(id) on delete restrict,
+  notes                text,
+  active               boolean not null default true,
+  created_at           timestamptz not null default now(),
+  created_by_email     text,
+  unique (customer_id, relationship_type_id)
+);
+create index if not exists tax_customer_relationships_customer_idx
+  on public.tax_customer_relationships(customer_id) where active;
+create index if not exists tax_customer_relationships_type_idx
+  on public.tax_customer_relationships(relationship_type_id) where active;
+
+-- ── SEED: 13 relationship types across 4 categories ──────────────────────────
+insert into public.tax_relationship_types (id, category, slug, name_i18n, description_i18n, display_order) values
+  ('business.llc',                'business',   'llc',                '{"en":"LLC","es":"LLC (Sociedad de Responsabilidad Limitada)"}'::jsonb,                  '{"en":"Limited Liability Company filings and ongoing obligations.","es":"Declaraciones y obligaciones continuas de una LLC."}'::jsonb, 10),
+  ('business.s_corp',             'business',   's_corp',             '{"en":"S-Corp","es":"S-Corp (Corporación S)"}'::jsonb,                                   '{"en":"S corporation election, Form 1120-S, and shareholder distributions.","es":"Elección S-Corp, Formulario 1120-S y distribuciones a accionistas."}'::jsonb, 20),
+  ('business.partnership_1065',   'business',   'partnership_1065',   '{"en":"Partnership (1065)","es":"Sociedad (1065)"}'::jsonb,                              '{"en":"Multi-member partnerships filing Form 1065 and issuing K-1s.","es":"Sociedades de varios miembros que presentan el Formulario 1065 y emiten K-1."}'::jsonb, 30),
+  ('business.sales_tax_filing',   'business',   'sales_tax_filing',   '{"en":"Sales Tax Filing","es":"Declaración de Impuesto sobre las Ventas"}'::jsonb,       '{"en":"Periodic state sales and use tax returns.","es":"Declaraciones periódicas estatales de impuesto sobre ventas y uso."}'::jsonb, 40),
+  ('business.business_formation', 'business',   'business_formation', '{"en":"Business Formation","es":"Formación de Empresas"}'::jsonb,                        '{"en":"Forming an LLC, corporation, or partnership and registering with state and federal agencies.","es":"Constituir una LLC, corporación o sociedad y registrarla ante las agencias estatales y federales."}'::jsonb, 50),
+  ('business.payroll',            'business',   'payroll',            '{"en":"Payroll","es":"Nómina"}'::jsonb,                                                  '{"en":"Payroll processing, tax deposits, and quarterly Form 941 filings.","es":"Procesamiento de nómina, depósitos de impuestos y declaraciones trimestrales del Formulario 941."}'::jsonb, 60),
+  ('business.bookkeeping',        'business',   'bookkeeping',        '{"en":"Bookkeeping","es":"Contabilidad"}'::jsonb,                                        '{"en":"Ongoing recording, categorization, and reconciliation of business transactions.","es":"Registro, categorización y conciliación continuos de las transacciones del negocio."}'::jsonb, 70),
+  ('individual.taxes',            'individual', 'taxes',              '{"en":"Individual Taxes (1040)","es":"Impuestos Personales (1040)"}'::jsonb,             '{"en":"Personal federal and state income tax returns.","es":"Declaraciones de impuestos federales y estatales personales."}'::jsonb, 100),
+  ('individual.itin',             'individual', 'itin',               '{"en":"ITIN Application","es":"Solicitud de ITIN"}'::jsonb,                              '{"en":"Individual Taxpayer Identification Number applications and renewals (Form W-7).","es":"Solicitudes y renovaciones del Número de Identificación Personal del Contribuyente (Formulario W-7)."}'::jsonb, 110),
+  ('general.notary',              'general',    'notary',             '{"en":"Notary","es":"Notario"}'::jsonb,                                                  '{"en":"Notarization of documents by a commissioned notary public.","es":"Notarización de documentos por un notario público comisionado."}'::jsonb, 200),
+  ('general.translation',         'general',    'translation',        '{"en":"Translation","es":"Traducción"}'::jsonb,                                          '{"en":"Document translation between English and Spanish.","es":"Traducción de documentos entre inglés y español."}'::jsonb, 210),
+  ('audit.irs',                   'audit',      'irs',                '{"en":"IRS Audit","es":"Auditoría del IRS"}'::jsonb,                                     '{"en":"Representation and response support during an IRS examination.","es":"Representación y apoyo de respuesta durante una auditoría del IRS."}'::jsonb, 300),
+  ('audit.drs',                   'audit',      'drs',                '{"en":"State Tax Audit (DRS)","es":"Auditoría Estatal (DRS)"}'::jsonb,                   '{"en":"Representation during a state Department of Revenue Services audit.","es":"Representación durante una auditoría del Departamento Estatal de Servicios de Rentas."}'::jsonb, 310)
+on conflict (id) do nothing;
+
+-- ── SEED: default FAQs ────────────────────────────────────────────────────────
+-- Evergreen content from public-domain sources. Owners can override per
+-- community via tax_relationship_faqs. Source notes are owner-visible.
+insert into public.tax_relationship_default_faqs (id, relationship_type_id, display_order, question_i18n, answer_i18n, source_note) values
+  -- LLC
+  ('business.llc.q1', 'business.llc', 10,
+    '{"en":"What is an LLC?","es":"¿Qué es una LLC?"}'::jsonb,
+    '{"en":"A Limited Liability Company is a U.S. business structure that limits its owners'' personal liability for business debts and offers flexibility in how it is taxed. Most LLCs are governed by state statute and an operating agreement.","es":"Una Sociedad de Responsabilidad Limitada (LLC) es una estructura de negocios estadounidense que limita la responsabilidad personal de sus dueños por las deudas del negocio y ofrece flexibilidad en cómo tributa. La mayoría de las LLC se rigen por la ley estatal y por un acuerdo operativo."}'::jsonb,
+    'IRS.gov — Limited Liability Company (LLC); SBA.gov — Choose a business structure'),
+  ('business.llc.q2', 'business.llc', 20,
+    '{"en":"How is an LLC taxed by default?","es":"¿Cómo tributa una LLC por defecto?"}'::jsonb,
+    '{"en":"By default, a single-member LLC is treated as a disregarded entity and reported on the owner''s Form 1040 (Schedule C), and a multi-member LLC is taxed as a partnership filing Form 1065. An LLC can elect to be taxed as a C corporation or S corporation by filing Form 8832 or Form 2553.","es":"Por defecto, una LLC de un solo miembro se trata como entidad ignorada y se reporta en el Formulario 1040 (Anexo C) del dueño, y una LLC de varios miembros tributa como sociedad presentando el Formulario 1065. Una LLC puede elegir tributar como corporación C o S presentando el Formulario 8832 o el Formulario 2553."}'::jsonb,
+    'IRS Forms 8832 and 2553; IRS Pub 3402'),
+  ('business.llc.q3', 'business.llc', 30,
+    '{"en":"What documents should I keep for my LLC?","es":"¿Qué documentos debo guardar de mi LLC?"}'::jsonb,
+    '{"en":"Maintain your articles of organization, operating agreement, EIN confirmation, annual state filings, separate business bank statements, invoices, receipts for deductible expenses, and copies of all federal and state returns. The IRS generally recommends keeping tax records for at least three years.","es":"Mantenga su acta constitutiva, acuerdo operativo, confirmación del EIN, declaraciones anuales estatales, estados de cuenta bancarios separados del negocio, facturas, recibos de gastos deducibles y copias de todas las declaraciones federales y estatales. El IRS generalmente recomienda conservar los registros fiscales por al menos tres años."}'::jsonb,
+    'IRS Pub 583; IRS — How long should I keep records?'),
+
+  -- S-Corp
+  ('business.s_corp.q1', 'business.s_corp', 10,
+    '{"en":"What is an S corporation?","es":"¿Qué es una corporación S?"}'::jsonb,
+    '{"en":"An S corporation is a corporation that has elected to pass corporate income, losses, deductions, and credits through to its shareholders for federal tax purposes. Shareholders report this on their personal returns and are taxed at individual rates, avoiding double taxation on most income.","es":"Una corporación S es una corporación que ha elegido transferir los ingresos, pérdidas, deducciones y créditos corporativos a sus accionistas para fines fiscales federales. Los accionistas lo reportan en sus declaraciones personales y tributan a las tasas individuales, evitando la doble tributación sobre la mayoría de los ingresos."}'::jsonb,
+    'IRS.gov — S Corporations'),
+  ('business.s_corp.q2', 'business.s_corp', 20,
+    '{"en":"How do I become an S corporation?","es":"¿Cómo me convierto en corporación S?"}'::jsonb,
+    '{"en":"File Form 2553 (Election by a Small Business Corporation) with the IRS, signed by all shareholders. The election must generally be made no later than two months and 15 days after the start of the tax year in which it is to take effect.","es":"Presente el Formulario 2553 (Elección por una Pequeña Corporación) ante el IRS, firmado por todos los accionistas. La elección generalmente debe hacerse a más tardar dos meses y 15 días después del comienzo del año fiscal en que entrará en vigor."}'::jsonb,
+    'IRS Form 2553 instructions'),
+  ('business.s_corp.q3', 'business.s_corp', 30,
+    '{"en":"Do S-Corp shareholder-employees need to take a salary?","es":"¿Los empleados-accionistas de una S-Corp deben recibir salario?"}'::jsonb,
+    '{"en":"Yes. The IRS requires that shareholders who perform services for an S corporation be paid reasonable compensation as W-2 wages before any non-wage distributions are made. ''Reasonable'' generally means what a similar business would pay for similar services.","es":"Sí. El IRS requiere que los accionistas que prestan servicios a una corporación S reciban una compensación razonable como salarios W-2 antes de cualquier distribución que no sea salario. ''Razonable'' generalmente significa lo que un negocio similar pagaría por servicios similares."}'::jsonb,
+    'IRS — S Corporation Compensation and Medical Insurance Issues'),
+
+  -- Partnership (1065)
+  ('business.partnership_1065.q1', 'business.partnership_1065', 10,
+    '{"en":"Who must file Form 1065?","es":"¿Quién debe presentar el Formulario 1065?"}'::jsonb,
+    '{"en":"Every domestic partnership must file Form 1065 to report its income, deductions, gains, losses, and credits. The partnership itself does not pay income tax; instead each partner receives a Schedule K-1 reporting their share, which they include on their personal returns.","es":"Toda sociedad nacional debe presentar el Formulario 1065 para reportar sus ingresos, deducciones, ganancias, pérdidas y créditos. La sociedad misma no paga impuesto sobre la renta; en su lugar, cada socio recibe un Anexo K-1 que reporta su parte, el cual incluyen en sus declaraciones personales."}'::jsonb,
+    'IRS — About Form 1065'),
+  ('business.partnership_1065.q2', 'business.partnership_1065', 20,
+    '{"en":"When is Form 1065 due?","es":"¿Cuándo vence el Formulario 1065?"}'::jsonb,
+    '{"en":"For a calendar-year partnership, Form 1065 is due March 15 of the following year. A six-month extension may be requested with Form 7004.","es":"Para una sociedad de año calendario, el Formulario 1065 vence el 15 de marzo del año siguiente. Se puede solicitar una prórroga de seis meses con el Formulario 7004."}'::jsonb,
+    'IRS Form 1065 instructions; IRS Form 7004'),
+
+  -- Sales Tax Filing
+  ('business.sales_tax_filing.q1', 'business.sales_tax_filing', 10,
+    '{"en":"How often do I file Connecticut sales and use tax?","es":"¿Con qué frecuencia presento el impuesto sobre ventas y uso de Connecticut?"}'::jsonb,
+    '{"en":"The Connecticut Department of Revenue Services (DRS) assigns a filing frequency — monthly, quarterly, or annual — based on the size of your tax liability. DRS may change your frequency over time and will notify you in writing.","es":"El Departamento de Servicios de Rentas de Connecticut (DRS) asigna una frecuencia de presentación — mensual, trimestral o anual — según el tamaño de su obligación tributaria. El DRS puede cambiar su frecuencia con el tiempo y se lo notificará por escrito."}'::jsonb,
+    'CT DRS — Sales and Use Tax'),
+  ('business.sales_tax_filing.q2', 'business.sales_tax_filing', 20,
+    '{"en":"Which sales are taxable in Connecticut?","es":"¿Qué ventas están sujetas a impuesto en Connecticut?"}'::jsonb,
+    '{"en":"Most retail sales of tangible personal property and many enumerated services are taxable. Specific exemptions exist for items such as most grocery food, prescription drugs, and certain clothing. The CT DRS publishes the full list of taxable services and exemptions.","es":"La mayoría de las ventas al por menor de bienes personales tangibles y muchos servicios enumerados están sujetos a impuesto. Existen exenciones específicas para artículos como la mayoría de los alimentos de supermercado, medicamentos recetados y cierta ropa. El CT DRS publica la lista completa de servicios sujetos a impuesto y exenciones."}'::jsonb,
+    'CT DRS — Sales and Use Tax Information; PS 2019(2)'),
+  ('business.sales_tax_filing.q3', 'business.sales_tax_filing', 30,
+    '{"en":"What records do I need to keep for sales tax?","es":"¿Qué registros debo mantener para el impuesto sobre las ventas?"}'::jsonb,
+    '{"en":"Keep complete records of all sales (taxable and exempt), purchases, resale and exemption certificates, and copies of returns filed. Connecticut requires sales tax records to be kept for at least six years.","es":"Mantenga registros completos de todas las ventas (sujetas y exentas), compras, certificados de reventa y exención, y copias de las declaraciones presentadas. Connecticut requiere que los registros de impuesto sobre las ventas se conserven por al menos seis años."}'::jsonb,
+    'CT DRS Reg. § 12-2-12; IRS Pub 583'),
+
+  -- Business Formation
+  ('business.business_formation.q1', 'business.business_formation', 10,
+    '{"en":"What are the main steps to form an LLC or corporation?","es":"¿Cuáles son los pasos principales para formar una LLC o corporación?"}'::jsonb,
+    '{"en":"Typical steps: choose a business name and check availability with the state, file formation documents (articles of organization or incorporation), draft an operating agreement or bylaws, obtain an Employer Identification Number (EIN) from the IRS, register for any required state tax accounts (sales, withholding), and open a business bank account.","es":"Pasos típicos: elegir un nombre comercial y verificar la disponibilidad ante el estado, presentar los documentos de formación (acta constitutiva), redactar un acuerdo operativo o estatutos, obtener un Número de Identificación del Empleador (EIN) del IRS, registrarse para las cuentas tributarias estatales requeridas (ventas, retención) y abrir una cuenta bancaria de negocio."}'::jsonb,
+    'SBA.gov — 10 Steps to Start Your Business; IRS — Apply for an Employer Identification Number'),
+  ('business.business_formation.q2', 'business.business_formation', 20,
+    '{"en":"Do I need an EIN even if I have no employees?","es":"¿Necesito un EIN incluso si no tengo empleados?"}'::jsonb,
+    '{"en":"Most businesses need an EIN. The IRS requires one if you operate as a corporation or partnership, have any employees, file employment or excise tax returns, or open a business bank account at most institutions. Single-member LLCs without employees may not be required, but most banks still ask for one.","es":"La mayoría de los negocios necesitan un EIN. El IRS lo exige si opera como corporación o sociedad, tiene empleados, presenta declaraciones de impuestos sobre el empleo o consumo, o abre una cuenta bancaria de negocio en la mayoría de las instituciones. Las LLC de un solo miembro sin empleados pueden no requerirlo, pero la mayoría de los bancos lo solicitan."}'::jsonb,
+    'IRS — Do You Need an EIN?'),
+
+  -- Payroll
+  ('business.payroll.q1', 'business.payroll', 10,
+    '{"en":"What payroll tax returns must my business file?","es":"¿Qué declaraciones de impuestos de nómina debe presentar mi negocio?"}'::jsonb,
+    '{"en":"Most employers file Form 941 quarterly for federal income tax withholding and FICA (Social Security and Medicare). Annual filings typically include Form 940 (federal unemployment), Form W-2 for each employee, and corresponding state withholding and unemployment returns.","es":"La mayoría de los empleadores presentan el Formulario 941 trimestralmente para la retención del impuesto federal sobre la renta y FICA (Seguro Social y Medicare). Las presentaciones anuales generalmente incluyen el Formulario 940 (desempleo federal), el Formulario W-2 para cada empleado y las declaraciones correspondientes de retención y desempleo estatales."}'::jsonb,
+    'IRS — Employment Taxes; IRS Forms 941, 940, W-2'),
+  ('business.payroll.q2', 'business.payroll', 20,
+    '{"en":"How often must I deposit federal payroll taxes?","es":"¿Con qué frecuencia debo depositar los impuestos federales de nómina?"}'::jsonb,
+    '{"en":"The IRS assigns each employer a deposit schedule — monthly or semi-weekly — based on the total tax liability reported during a four-quarter lookback period. New employers typically start as monthly depositors. Deposits are made electronically through EFTPS.","es":"El IRS asigna a cada empleador un calendario de depósitos — mensual o quincenal — según la obligación tributaria total reportada durante un período de revisión de cuatro trimestres. Los empleadores nuevos generalmente comienzan como depositantes mensuales. Los depósitos se hacen electrónicamente a través de EFTPS."}'::jsonb,
+    'IRS Pub 15 (Circular E)'),
+
+  -- Bookkeeping
+  ('business.bookkeeping.q1', 'business.bookkeeping', 10,
+    '{"en":"Why is monthly bookkeeping important?","es":"¿Por qué es importante la contabilidad mensual?"}'::jsonb,
+    '{"en":"Recording transactions monthly keeps your financial picture current, makes tax preparation faster and cheaper, supports loan and grant applications, and helps you catch errors or fraud early. The IRS expects businesses to maintain books that accurately reflect income and expenses.","es":"Registrar las transacciones mensualmente mantiene actualizada su imagen financiera, hace que la preparación de impuestos sea más rápida y económica, apoya las solicitudes de préstamos y subvenciones, y ayuda a detectar errores o fraude temprano. El IRS espera que los negocios mantengan libros que reflejen con precisión los ingresos y gastos."}'::jsonb,
+    'IRS Pub 583 — Starting a Business and Keeping Records'),
+  ('business.bookkeeping.q2', 'business.bookkeeping', 20,
+    '{"en":"Should I separate business and personal accounts?","es":"¿Debo separar las cuentas comerciales y personales?"}'::jsonb,
+    '{"en":"Yes. Using a dedicated business bank account and credit card protects the liability shield of an LLC or corporation, simplifies tax preparation, and creates a clean audit trail. Mixing accounts is one of the most common bookkeeping problems we help fix.","es":"Sí. Usar una cuenta bancaria y tarjeta de crédito dedicadas al negocio protege el escudo de responsabilidad de una LLC o corporación, simplifica la preparación de impuestos y crea un rastro de auditoría limpio. Mezclar cuentas es uno de los problemas de contabilidad más comunes que ayudamos a resolver."}'::jsonb,
+    'SBA.gov — Manage your finances'),
+
+  -- Individual Taxes
+  ('individual.taxes.q1', 'individual.taxes', 10,
+    '{"en":"When is my federal tax return due?","es":"¿Cuándo vence mi declaración federal?"}'::jsonb,
+    '{"en":"Form 1040 is generally due April 15. If that date falls on a weekend or holiday, the due date moves to the next business day. You can request an automatic six-month extension to file (but not to pay) using Form 4868.","es":"El Formulario 1040 generalmente vence el 15 de abril. Si esa fecha cae en fin de semana o feriado, la fecha de vencimiento se traslada al siguiente día hábil. Puede solicitar una prórroga automática de seis meses para presentar (pero no para pagar) usando el Formulario 4868."}'::jsonb,
+    'IRS — About Form 1040 / Form 4868'),
+  ('individual.taxes.q2', 'individual.taxes', 20,
+    '{"en":"What documents should I gather before my tax appointment?","es":"¿Qué documentos debo reunir antes de mi cita de impuestos?"}'::jsonb,
+    '{"en":"Bring: photo ID, Social Security cards or ITINs for everyone on the return, last year''s return, all W-2s and 1099s, mortgage interest (1098) and property tax statements, records of charitable contributions, medical expenses, education-related forms (1098-T), child care provider information, and any letters received from the IRS or state.","es":"Traiga: identificación con foto, tarjetas de Seguro Social o ITIN de todas las personas en la declaración, la declaración del año anterior, todos los W-2 y 1099, estados de interés hipotecario (1098) y de impuesto a la propiedad, registros de donaciones caritativas, gastos médicos, formularios relacionados con educación (1098-T), información del proveedor de cuidado infantil y cualquier carta recibida del IRS o del estado."}'::jsonb,
+    'IRS — What to bring to your tax appointment'),
+
+  -- ITIN
+  ('individual.itin.q1', 'individual.itin', 10,
+    '{"en":"Who needs an ITIN?","es":"¿Quién necesita un ITIN?"}'::jsonb,
+    '{"en":"An Individual Taxpayer Identification Number is issued by the IRS to people who must file or be reported on a U.S. tax return but who are not eligible for a Social Security Number. This typically includes non-resident aliens with U.S. tax obligations and certain dependents and spouses of U.S. residents.","es":"El Número de Identificación Personal del Contribuyente lo emite el IRS a personas que deben presentar o aparecer en una declaración fiscal de EE.UU. pero que no son elegibles para un Número de Seguro Social. Esto generalmente incluye extranjeros no residentes con obligaciones fiscales en EE.UU. y ciertos dependientes y cónyuges de residentes estadounidenses."}'::jsonb,
+    'IRS — Individual Taxpayer Identification Number (ITIN)'),
+  ('individual.itin.q2', 'individual.itin', 20,
+    '{"en":"How do I apply for an ITIN?","es":"¿Cómo solicito un ITIN?"}'::jsonb,
+    '{"en":"Submit Form W-7 along with your federal tax return and original (or certified copies of) identification documents such as a passport. You can apply through a Certified Acceptance Agent — many tax practices, including ours, are authorized to verify documents so you do not have to mail your originals to the IRS.","es":"Presente el Formulario W-7 junto con su declaración federal y documentos de identificación originales (o copias certificadas) como un pasaporte. Puede solicitarlo a través de un Agente de Aceptación Certificado — muchas oficinas de impuestos, incluyendo la nuestra, están autorizadas a verificar los documentos para que no tenga que enviar los originales al IRS."}'::jsonb,
+    'IRS Form W-7 instructions; IRS — Certified Acceptance Agents'),
+  ('individual.itin.q3', 'individual.itin', 30,
+    '{"en":"How long is an ITIN valid?","es":"¿Por cuánto tiempo es válido un ITIN?"}'::jsonb,
+    '{"en":"An ITIN that is not used on a federal tax return for three consecutive years will expire. ITINs with certain middle digits also expire on a published schedule. Expired ITINs must be renewed using Form W-7 before they can be used on a return.","es":"Un ITIN que no se use en una declaración federal por tres años consecutivos vencerá. Los ITIN con ciertos dígitos del medio también vencen según un calendario publicado. Los ITIN vencidos deben renovarse usando el Formulario W-7 antes de poder usarse en una declaración."}'::jsonb,
+    'IRS — ITIN expiration'),
+
+  -- Notary
+  ('general.notary.q1', 'general.notary', 10,
+    '{"en":"What does a notary public do?","es":"¿Qué hace un notario público?"}'::jsonb,
+    '{"en":"A notary public is a public officer commissioned by the state to witness the signing of documents, verify signer identity, administer oaths, and deter fraud. A U.S. notary does not provide legal advice or draft documents — that is different from a ''notario público'' in many Latin American countries.","es":"Un notario público es un funcionario público comisionado por el estado para presenciar la firma de documentos, verificar la identidad del firmante, administrar juramentos y prevenir el fraude. Un notario en EE.UU. no brinda asesoría legal ni redacta documentos — eso es diferente al ''notario público'' en muchos países latinoamericanos."}'::jsonb,
+    'National Notary Association; CT Secretary of the State — Notary information'),
+  ('general.notary.q2', 'general.notary', 20,
+    '{"en":"What should I bring to a notary appointment?","es":"¿Qué debo traer a una cita con el notario?"}'::jsonb,
+    '{"en":"Bring the original, unsigned document and a current government-issued photo ID (driver''s license, passport, or state ID). Do not sign the document beforehand — the notary must witness the signature.","es":"Traiga el documento original sin firmar y una identificación oficial vigente con foto (licencia de conducir, pasaporte o identificación estatal). No firme el documento antes — el notario debe presenciar la firma."}'::jsonb,
+    'National Notary Association'),
+
+  -- Translation
+  ('general.translation.q1', 'general.translation', 10,
+    '{"en":"What is a certified translation?","es":"¿Qué es una traducción certificada?"}'::jsonb,
+    '{"en":"A certified translation is accompanied by a signed statement from the translator attesting that the translation is complete and accurate. Many U.S. agencies — including USCIS and the IRS — require certified translations for foreign-language documents.","es":"Una traducción certificada va acompañada de una declaración firmada del traductor que certifica que la traducción es completa y precisa. Muchas agencias estadounidenses — incluyendo USCIS e IRS — exigen traducciones certificadas para documentos en idioma extranjero."}'::jsonb,
+    'USCIS Policy Manual — Translations; American Translators Association'),
+
+  -- IRS Audit
+  ('audit.irs.q1', 'audit.irs', 10,
+    '{"en":"I received an IRS notice. What should I do first?","es":"Recibí una notificación del IRS. ¿Qué debo hacer primero?"}'::jsonb,
+    '{"en":"Do not ignore it and do not panic. Read the notice carefully to identify the tax year, the issue, and the deadline to respond. Bring the notice to your tax practice as soon as possible — most IRS notices have strict response windows, and a timely, well-documented reply often resolves the matter without a full audit.","es":"No la ignore ni se asuste. Lea la notificación con cuidado para identificar el año fiscal, el problema y la fecha límite para responder. Lleve la notificación a su oficina de impuestos lo antes posible — la mayoría de las notificaciones del IRS tienen plazos estrictos, y una respuesta oportuna y bien documentada a menudo resuelve el asunto sin una auditoría completa."}'::jsonb,
+    'IRS — Understanding Your IRS Notice or Letter'),
+  ('audit.irs.q2', 'audit.irs', 20,
+    '{"en":"What rights do I have during an IRS audit?","es":"¿Qué derechos tengo durante una auditoría del IRS?"}'::jsonb,
+    '{"en":"The Taxpayer Bill of Rights includes: the right to be informed, to quality service, to pay no more than the correct amount of tax, to challenge the IRS''s position, to appeal an IRS decision in an independent forum, to finality, to privacy, to confidentiality, to retain representation, and to a fair and just tax system.","es":"La Declaración de Derechos del Contribuyente incluye: el derecho a ser informado, a un servicio de calidad, a pagar no más del impuesto correcto, a impugnar la posición del IRS, a apelar una decisión del IRS en un foro independiente, a la finalidad, a la privacidad, a la confidencialidad, a tener representación, y a un sistema fiscal justo y equitativo."}'::jsonb,
+    'IRS Pub 1 — Your Rights as a Taxpayer'),
+
+  -- DRS Audit
+  ('audit.drs.q1', 'audit.drs', 10,
+    '{"en":"What can trigger a Connecticut DRS audit?","es":"¿Qué puede desencadenar una auditoría del DRS de Connecticut?"}'::jsonb,
+    '{"en":"Common triggers include large discrepancies between your state return and federal return or 1099s, a sharp change in reported revenue, sales tax returns that don''t match your bank deposits, and selection through DRS''s random or industry-targeted audit programs.","es":"Los desencadenantes comunes incluyen grandes discrepancias entre su declaración estatal y su declaración federal o 1099, un cambio brusco en los ingresos reportados, declaraciones de impuesto sobre ventas que no coinciden con sus depósitos bancarios, y la selección a través de los programas de auditoría aleatorios o por industria del DRS."}'::jsonb,
+    'CT DRS — Audit Information'),
+  ('audit.drs.q2', 'audit.drs', 20,
+    '{"en":"How far back can a DRS audit go?","es":"¿Hasta cuándo puede revisar el DRS en una auditoría?"}'::jsonb,
+    '{"en":"Connecticut generally has three years from the date a return was filed to assess additional tax. The period is extended to six years if 25% or more of tax was omitted, and there is no time limit if a return was fraudulent or never filed.","es":"Connecticut generalmente tiene tres años desde la fecha en que se presentó una declaración para evaluar impuestos adicionales. El período se extiende a seis años si se omitió el 25% o más del impuesto, y no hay límite de tiempo si la declaración fue fraudulenta o nunca se presentó."}'::jsonb,
+    'CGS § 12-415; CT DRS — Statute of limitations')
+on conflict (id) do nothing;
+
+-- ── SEED: tag Martha as Business: Sales Tax Filing + Business: Payroll ───────
+-- (matches her existing tax_subscriptions so the portal FAQ filtering works
+-- immediately on first deploy)
+insert into public.tax_customer_relationships (id, customer_id, relationship_type_id, created_by_email) values
+  ('crel_martha_sales',   'cust_martha_pause', 'business.sales_tax_filing', 'system@platform'),
+  ('crel_martha_payroll', 'cust_martha_pause', 'business.payroll',          'system@platform')
+on conflict (customer_id, relationship_type_id) do nothing;

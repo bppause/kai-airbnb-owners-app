@@ -70,6 +70,7 @@
   "respond.error.generic": "No pudimos guardar su información. Inténtelo de nuevo o contáctenos.",
 
   "portal.nav.dashboard": "Panel",
+  "portal.nav.faqs": "Preguntas frecuentes",
   "portal.nav.profile": "Perfil",
   "portal.signout": "Cerrar sesión",
   "portal.greeting": "Bienvenido/a, {name}",
@@ -120,5 +121,20 @@
   "portal.status.infoReceived": "Información recibida",
   "portal.status.inPrep": "En preparación",
   "portal.status.filed": "Presentada",
-  "portal.status.skipped": "Omitida"
+  "portal.status.skipped": "Omitida",
+
+  "portal.profile.services": "Sus servicios con nosotros",
+  "portal.profile.servicesHint": "Estos son los servicios que actualmente le brindamos. Para agregar o cambiarlos, contacte a su contador.",
+  "portal.profile.noServices": "Aún no hemos etiquetado ningún servicio en su perfil.",
+  "portal.profile.category.business": "Negocio",
+  "portal.profile.category.individual": "Personal",
+  "portal.profile.category.general": "General",
+  "portal.profile.category.audit": "Auditoría",
+
+  "portal.faqs.title": "Preguntas frecuentes",
+  "portal.faqs.subtitle": "Respuestas adaptadas a los servicios que le brindamos. Su oficina de impuestos puede agregar, editar o complementar estas notas.",
+  "portal.faqs.empty": "Aún no hemos etiquetado servicios en su perfil, por lo que no hay preguntas frecuentes personalizadas disponibles. Contacte a su contador y lo configuraremos.",
+  "portal.faqs.noneForType": "Aún no hay preguntas frecuentes configuradas para este servicio.",
+  "portal.faqs.customLabel": "Nota personalizada de su oficina de impuestos",
+  "portal.faqs.disclaimer": "Esta información es solo orientación general y no sustituye el asesoramiento profesional personalizado. Las leyes y procedimientos fiscales cambian — confirme siempre los detalles con su contador o la agencia correspondiente antes de actuar."
 }

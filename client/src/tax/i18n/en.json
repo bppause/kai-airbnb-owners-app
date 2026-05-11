@@ -70,6 +70,7 @@
   "respond.error.generic": "We could not save your information. Please try again or contact us.",
 
   "portal.nav.dashboard": "Dashboard",
+  "portal.nav.faqs": "FAQs",
   "portal.nav.profile": "Profile",
   "portal.signout": "Sign out",
   "portal.greeting": "Welcome, {name}",
@@ -120,5 +121,20 @@
   "portal.status.infoReceived": "Information received",
   "portal.status.inPrep": "In preparation",
   "portal.status.filed": "Filed",
-  "portal.status.skipped": "Skipped"
+  "portal.status.skipped": "Skipped",
+
+  "portal.profile.services": "Your services with us",
+  "portal.profile.servicesHint": "These are the services we currently provide for you. To add or change them, contact your tax practice.",
+  "portal.profile.noServices": "We have not tagged any services on your profile yet.",
+  "portal.profile.category.business": "Business",
+  "portal.profile.category.individual": "Individual",
+  "portal.profile.category.general": "General",
+  "portal.profile.category.audit": "Audit",
+
+  "portal.faqs.title": "Frequently asked questions",
+  "portal.faqs.subtitle": "Answers tailored to the services we provide for you. Your tax practice may add, edit, or supplement these notes.",
+  "portal.faqs.empty": "We have not tagged any services on your profile yet, so there are no tailored FAQs available. Contact your tax practice and we will set this up for you.",
+  "portal.faqs.noneForType": "No FAQs are configured for this service yet.",
+  "portal.faqs.customLabel": "Custom note from your tax practice",
+  "portal.faqs.disclaimer": "This information is general guidance only and is not a substitute for personalized professional advice. Tax law and procedures change — always confirm specifics with your tax practice or the relevant agency before acting."
 }

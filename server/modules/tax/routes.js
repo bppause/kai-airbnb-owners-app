@@ -450,12 +450,20 @@ module.exports = function createTaxRouter(deps) {
   // ── GET /portal/me ──
   router.get('/portal/me', async (req, res) => {
     const customer = await requireTaxCustomer(req, res); if (!customer) return;
-    const { data: community } = await supabase.from('communities')
-      .select('id, name, logo_url, brand_primary_color, brand_secondary_color, default_locale, tax_allow_customer_notif_pref_change, contact_email, phone')
-      .eq('id', customer.community_id).maybeSingle();
-    const { data: subs } = await supabase.from('tax_subscriptions')
-      .select('id, product_id, status, reminder_channels, reminder_offsets_days')
-      .eq('customer_id', customer.id);
+    const [{ data: community }, { data: subs }, { data: rels }] = await Promise.all([
+      supabase.from('communities')
+        .select('id, name, logo_url, brand_primary_color, brand_secondary_color, default_locale, tax_allow_customer_notif_pref_change, contact_email, phone')
+        .eq('id', customer.community_id).maybeSingle(),
+      supabase.from('tax_subscriptions')
+        .select('id, product_id, status, reminder_channels, reminder_offsets_days')
+        .eq('customer_id', customer.id),
+      supabase.from('tax_customer_relationships')
+        .select(`
+          id, relationship_type_id, active, created_at,
+          type:tax_relationship_types ( id, category, slug, name_i18n, display_order )
+        `)
+        .eq('customer_id', customer.id).eq('active', true),
+    ]);
     const allChannels = uniqueChannels(subs);
     res.json({
       customer: pickCustomer(customer),
@@ -464,6 +472,7 @@ module.exports = function createTaxRouter(deps) {
         channels: allChannels,
         allowChange: Boolean(community?.tax_allow_customer_notif_pref_change),
       },
+      relationships: rels || [],
     });
   });
 
@@ -618,7 +627,286 @@ module.exports = function createTaxRouter(deps) {
     res.json({ ok: true, channels });
   });
 
+  // ────────────────────────────────────────────────────────────────────────────
+  // Phase 2b: customer relationships + FAQ tailoring
+  //
+  // A customer can have many "relationships" with the business (LLC, ITIN,
+  // Sales Tax Filing, etc.). The catalog lives in tax_relationship_types and
+  // is platform-curated; each type carries default FAQs from public sources,
+  // which communities may override or supplement via tax_relationship_faqs.
+  // ────────────────────────────────────────────────────────────────────────────
+
+  // ── GET /portal/relationships ── (auth-gated)
+  router.get('/portal/relationships', async (req, res) => {
+    const customer = await requireTaxCustomer(req, res); if (!customer) return;
+    const { data, error } = await supabase.from('tax_customer_relationships')
+      .select(`
+        id, relationship_type_id, notes, active, created_at,
+        type:tax_relationship_types ( id, category, slug, name_i18n, description_i18n, display_order )
+      `)
+      .eq('customer_id', customer.id).eq('active', true);
+    if (error) return sendSupabaseError(res, error);
+    res.json({ relationships: data || [] });
+  });
+
+  // ── GET /portal/faqs ── (auth-gated)
+  // Returns effective FAQs (defaults + community overrides + custom additions)
+  // for the customer's relationship types only.
+  router.get('/portal/faqs', async (req, res) => {
+    const customer = await requireTaxCustomer(req, res); if (!customer) return;
+    const data = await loadEffectiveFaqs({
+      communityId: customer.community_id,
+      filterTypeIds: await activeTypeIdsForCustomer(customer.id),
+    });
+    res.json(data);
+  });
+
+  // ── GET /admin/relationship-types ── (global admin)
+  router.get('/admin/relationship-types', async (req, res) => {
+    if (!requireGlobalAdmin(req, res)) return;
+    if (!requireSupabaseEnv(res)) return;
+    const { data, error } = await supabase.from('tax_relationship_types')
+      .select('id, category, slug, name_i18n, description_i18n, display_order, active')
+      .eq('active', true).order('display_order', { ascending: true });
+    if (error) return sendSupabaseError(res, error);
+    res.json({ types: data || [] });
+  });
+
+  // ── GET /admin/customers/:id/relationships ── (global admin)
+  router.get('/admin/customers/:id/relationships', async (req, res) => {
+    if (!requireGlobalAdmin(req, res)) return;
+    if (!requireSupabaseEnv(res)) return;
+    const id = trim(req.params.id, 200);
+    const { data, error } = await supabase.from('tax_customer_relationships')
+      .select(`
+        id, relationship_type_id, notes, active, created_at, created_by_email,
+        type:tax_relationship_types ( id, category, slug, name_i18n, display_order )
+      `)
+      .eq('customer_id', id);
+    if (error) return sendSupabaseError(res, error);
+    res.json({ relationships: data || [] });
+  });
+
+  // ── POST /admin/customers/:id/relationships ── (global admin)
+  router.post('/admin/customers/:id/relationships', async (req, res) => {
+    if (!requireGlobalAdmin(req, res)) return;
+    if (!requireSupabaseEnv(res)) return;
+    const customerId = trim(req.params.id, 200);
+    const typeId = trim(req.body?.relationshipTypeId, 200);
+    const notes = trim(req.body?.notes, MAX_TEXT_LEN);
+    if (!customerId || !typeId) return res.status(400).json({ error: 'customerId and relationshipTypeId required.' });
+    const { data: cust } = await supabase.from('tax_customers').select('id, email').eq('id', customerId).maybeSingle();
+    if (!cust) return res.status(404).json({ error: 'Customer not found.' });
+    const { data: type } = await supabase.from('tax_relationship_types').select('id').eq('id', typeId).maybeSingle();
+    if (!type) return res.status(404).json({ error: 'Relationship type not found.' });
+    const relId = 'crel_' + uuidv4().slice(0, 12);
+    const actor = trim(req.get('x-admin-email') || '', 200).toLowerCase();
+    // Upsert-on-conflict: if the customer already has this relationship, reactivate it.
+    const { error } = await supabase.from('tax_customer_relationships').upsert({
+      id: relId,
+      customer_id: customerId,
+      relationship_type_id: typeId,
+      notes: notes || null,
+      active: true,
+      created_by_email: actor || null,
+    }, { onConflict: 'customer_id,relationship_type_id' });
+    if (error) return sendSupabaseError(res, error);
+    try {
+      await auditLog({
+        entity: 'tax.customer_relationship', entityId: relId,
+        action: 'add', actorEmail: actor || 'system',
+        after: { customerId, typeId },
+      });
+    } catch (_e) {}
+    res.json({ ok: true });
+  });
+
+  // ── DELETE /admin/customers/:id/relationships/:relId ── (global admin)
+  router.delete('/admin/customers/:id/relationships/:relId', async (req, res) => {
+    if (!requireGlobalAdmin(req, res)) return;
+    if (!requireSupabaseEnv(res)) return;
+    const customerId = trim(req.params.id, 200);
+    const relId = trim(req.params.relId, 200);
+    // Soft delete: mark inactive so we keep the audit trail.
+    const { error } = await supabase.from('tax_customer_relationships')
+      .update({ active: false })
+      .eq('id', relId).eq('customer_id', customerId);
+    if (error) return sendSupabaseError(res, error);
+    res.json({ ok: true });
+  });
+
+  // ── GET /admin/communities/:slug/faqs ── (global admin)
+  // Returns the full effective FAQ set for the community across ALL relationship
+  // types — what the customer would see if they had every relationship.
+  // Owner-facing tooling will let them edit/override per-type.
+  router.get('/admin/communities/:slug/faqs', async (req, res) => {
+    if (!requireGlobalAdmin(req, res)) return;
+    if (!requireSupabaseEnv(res)) return;
+    const communityId = trim(req.params.slug, 200);
+    const data = await loadEffectiveFaqs({ communityId, filterTypeIds: null });
+    res.json(data);
+  });
+
+  // ── PUT /admin/communities/:slug/faqs/override/:defaultFaqId ── (global admin)
+  // Owner overrides a default FAQ for this community. Body:
+  //   { questionI18n, answerI18n, visible }
+  // If `visible:false`, the default is hidden for this community.
+  router.put('/admin/communities/:slug/faqs/override/:defaultFaqId', async (req, res) => {
+    if (!requireGlobalAdmin(req, res)) return;
+    if (!requireSupabaseEnv(res)) return;
+    const communityId = trim(req.params.slug, 200);
+    const defaultFaqId = trim(req.params.defaultFaqId, 200);
+    const body = req.body || {};
+    const { data: def } = await supabase.from('tax_relationship_default_faqs')
+      .select('id, relationship_type_id, display_order').eq('id', defaultFaqId).maybeSingle();
+    if (!def) return res.status(404).json({ error: 'Default FAQ not found.' });
+    const overrideId = 'tfaq_' + uuidv4().slice(0, 12);
+    const { error } = await supabase.from('tax_relationship_faqs').upsert({
+      id: overrideId,
+      community_id: communityId,
+      relationship_type_id: def.relationship_type_id,
+      default_faq_id: defaultFaqId,
+      display_order: def.display_order,
+      question_i18n: safeI18n(body.questionI18n),
+      answer_i18n: safeI18n(body.answerI18n),
+      visible: body.visible === false ? false : true,
+      updated_at: new Date().toISOString(),
+    }, { onConflict: 'community_id,relationship_type_id,default_faq_id' });
+    if (error) return sendSupabaseError(res, error);
+    res.json({ ok: true });
+  });
+
+  // ── POST /admin/communities/:slug/faqs/custom ── (global admin)
+  // Owner adds a community-specific FAQ for a relationship type. Body:
+  //   { relationshipTypeId, displayOrder, questionI18n, answerI18n }
+  router.post('/admin/communities/:slug/faqs/custom', async (req, res) => {
+    if (!requireGlobalAdmin(req, res)) return;
+    if (!requireSupabaseEnv(res)) return;
+    const communityId = trim(req.params.slug, 200);
+    const typeId = trim(req.body?.relationshipTypeId, 200);
+    if (!typeId) return res.status(400).json({ error: 'relationshipTypeId required.' });
+    const customId = 'tfaq_' + uuidv4().slice(0, 12);
+    const { error } = await supabase.from('tax_relationship_faqs').insert({
+      id: customId,
+      community_id: communityId,
+      relationship_type_id: typeId,
+      default_faq_id: null,
+      display_order: Number(req.body?.displayOrder) || 1000,
+      question_i18n: safeI18n(req.body?.questionI18n),
+      answer_i18n: safeI18n(req.body?.answerI18n),
+      visible: true,
+    });
+    if (error) return sendSupabaseError(res, error);
+    res.json({ ok: true, id: customId });
+  });
+
+  // ── DELETE /admin/communities/:slug/faqs/:overrideId ── (global admin)
+  // Hard-delete a community FAQ row — either an override (reverts to default)
+  // or a custom FAQ (removes it).
+  router.delete('/admin/communities/:slug/faqs/:overrideId', async (req, res) => {
+    if (!requireGlobalAdmin(req, res)) return;
+    if (!requireSupabaseEnv(res)) return;
+    const communityId = trim(req.params.slug, 200);
+    const overrideId = trim(req.params.overrideId, 200);
+    const { error } = await supabase.from('tax_relationship_faqs')
+      .delete().eq('id', overrideId).eq('community_id', communityId);
+    if (error) return sendSupabaseError(res, error);
+    res.json({ ok: true });
+  });
+
   // ── Helpers ────────────────────────────────────────────────────────────────
+  async function activeTypeIdsForCustomer(customerId) {
+    const { data } = await supabase.from('tax_customer_relationships')
+      .select('relationship_type_id').eq('customer_id', customerId).eq('active', true);
+    return (data || []).map(r => r.relationship_type_id);
+  }
+
+  // Loads default FAQs + community overrides/customs, merges them into the
+  // "effective" set, and groups by relationship type.
+  //   filterTypeIds: null → all active types; array → only these types
+  async function loadEffectiveFaqs({ communityId, filterTypeIds }) {
+    const typeQ = supabase.from('tax_relationship_types')
+      .select('id, category, slug, name_i18n, description_i18n, display_order')
+      .eq('active', true);
+    const types = await typeQ;
+    if (types.error) throw new Error(types.error.message);
+    let typeRows = types.data || [];
+    if (Array.isArray(filterTypeIds)) {
+      const allow = new Set(filterTypeIds);
+      typeRows = typeRows.filter(t => allow.has(t.id));
+    }
+    typeRows.sort((a, b) => a.display_order - b.display_order);
+    if (!typeRows.length) return { groups: [] };
+
+    const typeIds = typeRows.map(t => t.id);
+    const [defaults, overrides] = await Promise.all([
+      supabase.from('tax_relationship_default_faqs')
+        .select('id, relationship_type_id, display_order, question_i18n, answer_i18n, source_note')
+        .in('relationship_type_id', typeIds),
+      supabase.from('tax_relationship_faqs')
+        .select('id, relationship_type_id, default_faq_id, display_order, question_i18n, answer_i18n, visible')
+        .eq('community_id', communityId)
+        .in('relationship_type_id', typeIds),
+    ]);
+    if (defaults.error) throw new Error(defaults.error.message);
+    if (overrides.error) throw new Error(overrides.error.message);
+
+    const overrideByDefault = new Map();
+    const customsByType = new Map();
+    for (const o of overrides.data || []) {
+      if (o.default_faq_id) overrideByDefault.set(o.default_faq_id, o);
+      else {
+        const arr = customsByType.get(o.relationship_type_id) || [];
+        arr.push(o); customsByType.set(o.relationship_type_id, arr);
+      }
+    }
+
+    const groups = typeRows.map(t => {
+      const items = [];
+      for (const d of (defaults.data || []).filter(d => d.relationship_type_id === t.id)) {
+        const ov = overrideByDefault.get(d.id);
+        if (ov && ov.visible === false) continue;
+        if (ov) {
+          items.push({
+            id: ov.id, source: 'override', defaultFaqId: d.id,
+            display_order: ov.display_order ?? d.display_order,
+            question_i18n: ov.question_i18n || d.question_i18n,
+            answer_i18n: ov.answer_i18n || d.answer_i18n,
+            source_note: d.source_note,
+          });
+        } else {
+          items.push({
+            id: d.id, source: 'default',
+            display_order: d.display_order,
+            question_i18n: d.question_i18n,
+            answer_i18n: d.answer_i18n,
+            source_note: d.source_note,
+          });
+        }
+      }
+      for (const c of customsByType.get(t.id) || []) {
+        items.push({
+          id: c.id, source: 'custom',
+          display_order: c.display_order,
+          question_i18n: c.question_i18n,
+          answer_i18n: c.answer_i18n,
+        });
+      }
+      items.sort((a, b) => a.display_order - b.display_order);
+      return { type: t, faqs: items };
+    });
+    return { groups };
+  }
+
+  function safeI18n(v) {
+    if (!v || typeof v !== 'object' || Array.isArray(v)) return {};
+    const out = {};
+    for (const k of ['en', 'es']) {
+      if (typeof v[k] === 'string') out[k] = trim(v[k], MAX_TEXT_LEN);
+    }
+    return out;
+  }
+
   function uniqueChannels(subs) {
     const set = new Set();
     for (const s of subs || []) {
