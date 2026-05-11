@@ -27,7 +27,7 @@ export default function PortalProfile() {
 
   // ── Profile form state (Phase 2e) ───────────────────────────────────────
   const [form, setForm] = useState({
-    name: '', phone: '', whatsapp: '', preferredEmail: '',
+    name: '', phone: '', whatsapp: '', preferredEmail: '', locale: 'es',
     addr: { line1: '', line2: '', city: '', state: '', postal_code: '', country: 'US' },
   });
   const [savingProfile, setSavingProfile] = useState(false);
@@ -43,6 +43,7 @@ export default function PortalProfile() {
       phone: customer.phone || '',
       whatsapp: customer.whatsapp || '',
       preferredEmail: customer.preferredCommunicationEmail || '',
+      locale: customer.locale === 'en' ? 'en' : 'es',
       addr: {
         line1: a.line1 || '', line2: a.line2 || '',
         city: a.city || '', state: a.state || '',
@@ -82,6 +83,7 @@ export default function PortalProfile() {
         whatsapp: form.whatsapp.trim(),
         address,
         preferredCommunicationEmail: form.preferredEmail.trim(),
+        locale: form.locale,
       });
       setProfileMsg({ kind: 'success', text: t('portal.profile.saved') });
       refreshMe();
@@ -189,6 +191,21 @@ export default function PortalProfile() {
                  onChange={e => onField('preferredEmail', e.target.value)} maxLength={200} />
         </div>
 
+        <div>
+          <label htmlFor="pp-locale">
+            {t('portal.profile.language')}
+            <span style={{ color: 'var(--tax-muted)', fontWeight: 400, marginLeft: 6, fontSize: 12 }}>
+              {t('portal.profile.language.hint')}
+            </span>
+          </label>
+          <select id="pp-locale" value={form.locale}
+                  onChange={e => onField('locale', e.target.value)}
+                  style={{ maxWidth: 280 }}>
+            <option value="es">Español</option>
+            <option value="en">English</option>
+          </select>
+        </div>
+
         <fieldset style={{ border: '1px solid var(--tax-border)', borderRadius: 8, padding: 16, margin: 0 }}>
           <legend style={{ padding: '0 8px', fontWeight: 600, fontSize: 14 }}>{t('portal.profile.address')}</legend>
           <div style={{ display: 'grid', gap: 12 }}>
@@ -242,12 +259,9 @@ export default function PortalProfile() {
         </button>
       </form>
 
-      {/* ── Read-only info: language + services ──────────────────────── */}
-      <div style={{ marginTop: 40, color: 'var(--tax-muted)', fontSize: 13 }}>
-        {t('portal.profile.language')}: {customer?.locale === 'en' ? 'English' : 'Español'}
-      </div>
-
-      <h3 style={{ marginTop: 32 }}>{t('portal.profile.services')}</h3>
+      {/* Services (read-only) — the language preference moved into the
+          editable form above so it can drive outgoing emails. */}
+      <h3 style={{ marginTop: 40 }}>{t('portal.profile.services')}</h3>
       <p className="tax-section__lede" style={{ marginBottom: 16 }}>
         {t('portal.profile.servicesHint')}
       </p>

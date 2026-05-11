@@ -1864,6 +1864,14 @@ module.exports = function createTaxRouter(deps) {
         update.preferred_communication_email = raw.slice(0, MAX_NAME_LEN);
       }
     }
+    if (body.locale !== undefined) {
+      const v = String(body.locale || '').trim().toLowerCase();
+      if (v !== 'en' && v !== 'es') {
+        return res.status(400).json({ error: 'locale_invalid',
+          message: "locale must be 'en' or 'es'." });
+      }
+      update.locale = v;
+    }
 
     const { error } = await supabase.from('tax_customers')
       .update(update).eq('id', customer.id);
@@ -3334,6 +3342,15 @@ module.exports = function createTaxRouter(deps) {
       }
       // Dedupe while preserving stable order in_app, email.
       update.notification_channels = ['in_app', 'email'].filter(c => channels.includes(c));
+    }
+
+    if (body.locale !== undefined) {
+      const v = String(body.locale || '').trim().toLowerCase();
+      if (v !== 'en' && v !== 'es') {
+        return res.status(400).json({ error: 'locale_invalid',
+          message: "locale must be 'en' or 'es'." });
+      }
+      update.locale = v;
     }
 
     const { error } = await supabase.from('tax_employees').update(update).eq('id', emp.id);

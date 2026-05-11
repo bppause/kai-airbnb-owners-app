@@ -139,6 +139,7 @@
   "portal.profile.email": "Correo electrónico",
   "portal.profile.phone": "Teléfono",
   "portal.profile.language": "Idioma",
+  "portal.profile.language.hint": "Define el idioma en el que le enviamos correos.",
   "portal.profile.notifications": "Preferencias de notificación",
   "portal.profile.notifications.editable": "Elija cómo desea que le recordemos las próximas declaraciones.",
   "portal.profile.notifications.locked": "Sus canales de notificación están administrados por su contador. Tanto el correo como las notificaciones del portal están activos.",
