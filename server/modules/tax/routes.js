@@ -3611,6 +3611,75 @@ module.exports = function createTaxRouter(deps) {
     res.json({ ok: true });
   });
 
+  // ── Owner setup status (Phase 4m) ─────────────────────────────────────────
+  // Computes a 6-step onboarding checklist from existing data — no schema
+  // changes. Drives the /employee/setup page and the "X of 6" banner on
+  // the inbox. Each step:
+  //   { key, done, optional?, summary } where summary is a short human-
+  //   readable line shown inside the step card.
+  router.get('/admin/setup-status', async (req, res) => {
+    if (!(await requireOwnerAdmin(req, res))) return;
+    const communitySlug = trim(req.query.communitySlug, 200);
+    if (!communitySlug) return res.status(400).json({ error: 'communitySlug required.' });
+
+    const [
+      { data: community },
+      svcCount,
+      ruleCount,
+      tmplCount,
+      staffCount,
+      custCount,
+    ] = await Promise.all([
+      supabase.from('communities')
+        .select('id, name, contact_email, phone, logo_url, brand_primary_color, default_locale, tagline, tagline_en')
+        .eq('id', communitySlug).maybeSingle(),
+      supabase.from('tax_relationship_types')
+        .select('id', { count: 'exact', head: true })
+        .eq('community_id', communitySlug),
+      supabase.from('tax_relationship_workflow_rules')
+        .select('id', { count: 'exact', head: true })
+        .eq('community_id', communitySlug),
+      supabase.from('tax_email_templates')
+        .select('id', { count: 'exact', head: true })
+        .eq('community_id', communitySlug),
+      supabase.from('tax_employees')
+        .select('id', { count: 'exact', head: true })
+        .eq('community_id', communitySlug).eq('status', 'active'),
+      supabase.from('tax_customers')
+        .select('id', { count: 'exact', head: true })
+        .eq('community_id', communitySlug).eq('status', 'active'),
+    ]);
+
+    const services    = svcCount?.count   || 0;
+    const workflows   = ruleCount?.count  || 0;
+    const templates   = tmplCount?.count  || 0;
+    const staff       = staffCount?.count || 0;
+    const customers   = custCount?.count  || 0;
+
+    // Brand step: contact_email + phone both set (otherwise reminder
+    // emails won't have a sensible "from" / footer).
+    const brandDone = !!(community?.contact_email && community?.phone);
+
+    res.json({
+      community: community || null,
+      counts: { services, workflows, templates, staff, customers },
+      steps: [
+        {
+          key: 'brand',
+          done: brandDone,
+          summary: community
+            ? `${community.name}${community.contact_email ? ` · ${community.contact_email}` : ''}`
+            : '',
+        },
+        { key: 'services',  done: services  > 0, optional: true,  summary: `${services} custom service${services === 1 ? '' : 's'}` },
+        { key: 'workflows', done: workflows > 0,                  summary: `${workflows} workflow rule${workflows === 1 ? '' : 's'}` },
+        { key: 'emails',    done: templates > 0, optional: true,  summary: `${templates} custom template${templates === 1 ? '' : 's'}` },
+        { key: 'staff',     done: staff     > 1, optional: true,  summary: `${staff} active staff member${staff === 1 ? '' : 's'}` },
+        { key: 'customers', done: customers > 0,                  summary: `${customers} active customer${customers === 1 ? '' : 's'}` },
+      ],
+    });
+  });
+
   router.get('/admin/employees', async (req, res) => {
     if (!(await requireOwnerAdmin(req, res))) return;
     const communitySlug = trim(req.query.communitySlug, 200);
