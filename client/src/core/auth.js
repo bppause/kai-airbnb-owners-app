@@ -18,7 +18,18 @@
 // See docs/platform/PLATFORM_ARCHITECTURE.md §11 frontend stage F4.
 
 import { initializeApp } from "firebase/app";
-import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from "firebase/auth";
+import {
+  getAuth,
+  GoogleAuthProvider,
+  signInWithPopup,
+  signOut,
+  onAuthStateChanged,
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
+  sendEmailVerification,
+  sendPasswordResetEmail,
+  updateProfile,
+} from "firebase/auth";
 import { api } from "./api";
 
 const FIREBASE_CONFIG = {
@@ -58,6 +69,24 @@ export const provider = _provider;
 export const signInWithGoogle = () => signInWithPopup(_auth, _provider);
 export const signOutUser = () => signOut(_auth);
 export const onAuthChanged = (cb) => onAuthStateChanged(_auth, cb);
+
+// Email/password helpers — companion to Google sign-in. Password accounts
+// must verify their email before the SPA provisions them via /api/admin/me;
+// the caller in App.jsx checks `firebaseUser.emailVerified`.
+export const registerWithEmail = async (email, password, displayName) => {
+  const cred = await createUserWithEmailAndPassword(_auth, email, password);
+  if (displayName && cred.user) {
+    try { await updateProfile(cred.user, { displayName }); } catch (e) { /* non-fatal */ }
+  }
+  try { await sendEmailVerification(cred.user); } catch (e) { /* non-fatal */ }
+  return cred;
+};
+export const signInWithEmail = (email, password) => signInWithEmailAndPassword(_auth, email, password);
+export const resendVerificationEmail = () => {
+  if (!_auth?.currentUser) throw new Error("not signed in");
+  return sendEmailVerification(_auth.currentUser);
+};
+export const requestPasswordReset = (email) => sendPasswordResetEmail(_auth, email);
 
 // Resolve role / config / permissions / communities for a Firebase user.
 // Mirrors the previous App.jsx call sites (which built the URL by hand).

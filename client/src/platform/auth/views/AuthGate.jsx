@@ -19,6 +19,7 @@ import { CSS } from "../../../core/styles";
 import LanguageSwitch from "../../../core/ui/LanguageSwitch";
 import GoogleIcon from "../../../core/ui/GoogleIcon";
 import CommunityMissionCards from "../components/CommunityMissionCards";
+import EmailAuthPanel from "../components/EmailAuthPanel";
 
 export default function AuthGate({ onLogin, setLang=()=>{}, complexLogo='', complexNameEs='Propietarios Airbnb KAI', complexNameEn='KAI Airbnb Owners', complexLocation='Serena del Mar · Cartagena 🇨🇴', complexBg='/morros-kai-bg.jpg', onCommunitySelect }) {
   const { lang } = useApp();
@@ -167,6 +168,7 @@ export default function AuthGate({ onLogin, setLang=()=>{}, complexLogo='', comp
         </div>
         <div className="google-switch-help"><strong>{appText(lang,"login.switchGoogleTitle")}</strong><br/>{appText(lang,"login.switchGoogleHelp")}<br/><span>{appText(lang,"login.switchGoogleSteps")}</span></div>
         <button className="btn-google gate-btn" onClick={onLogin} title={appText(lang,"login.switchGoogleHelp")}><GoogleIcon/> {t.google}</button>
+        <EmailAuthPanel lang={lang} />
         <div style={{marginTop:16,fontSize:'.68rem',color:'rgba(47,79,58,.4)',textAlign:'center',letterSpacing:'.04em'}}>{complexName} · v{APP_VERSION}</div>
       </div>
     </div>
