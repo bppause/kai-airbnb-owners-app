@@ -1980,3 +1980,39 @@ do $$ begin
 exception when duplicate_object then null; end $$;
 create index if not exists tax_community_help_articles_audience_idx
   on public.tax_community_help_articles(community_id, audience, display_order);
+
+-- ─── Tax email template overrides (Phase 4i) ──────────────────────────────────
+-- Owners can override the subject + body of each transactional email the tax
+-- module sends. When no row exists (or enabled=false), the sender falls back
+-- to the bilingual hardcoded defaults in server/modules/tax/email-senders.js.
+--
+-- An override row replaces the ENTIRE subject / body — bullets, CTAs, and
+-- footers included. Placeholders use {{var}} syntax; available variables
+-- depend on the template (see senders for the rendering context). Empty
+-- subject / body_text / body_html fields keep the default for that part
+-- (so owners can override just the subject while keeping the body).
+create table if not exists public.tax_email_templates (
+  id                  text primary key,
+  community_id        text not null references public.communities(id) on delete cascade,
+  template_key        text not null,
+  lang                text not null,
+  subject             text not null default '',
+  body_text           text not null default '',  -- plain-text body (full)
+  body_html           text not null default '',  -- HTML body (full)
+  enabled             boolean not null default true,
+  updated_at          timestamptz not null default now(),
+  unique (community_id, template_key, lang)
+);
+do $$ begin
+  alter table public.tax_email_templates add constraint tax_email_templates_lang_chk
+    check (lang in ('en','es'));
+exception when duplicate_object then null; end $$;
+do $$ begin
+  alter table public.tax_email_templates add constraint tax_email_templates_key_chk
+    check (template_key in (
+      'welcome_customer','welcome_staff','reminder','document',
+      'message_to_customer','message_to_practice','message_to_employee','lead'
+    ));
+exception when duplicate_object then null; end $$;
+create index if not exists tax_email_templates_lookup_idx
+  on public.tax_email_templates(community_id, template_key, lang);

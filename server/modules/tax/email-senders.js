@@ -10,7 +10,41 @@
 const { escapeHtml } = require('../../core/utils');
 
 module.exports = function createTaxSenders(deps) {
-  const { sendSpanishEmail, emailConfigured } = deps;
+  const { sendSpanishEmail, emailConfigured, loadTaxEmailTemplate } = deps;
+
+  // Phase 4i: owner-editable subject + intro paragraph per (template_key, lang).
+  // Senders compute their defaults as before; if an override row exists and
+  // is enabled, the subject / intro_text / intro_html are replaced with the
+  // overridden values, after {{var}} substitution. Structural content
+  // (bullets, CTAs, footers) stays hardcoded.
+  async function loadOverride(communityId, key, lang) {
+    if (typeof loadTaxEmailTemplate !== 'function' || !communityId) return null;
+    try { return await loadTaxEmailTemplate(communityId, key, lang); }
+    catch (_e) { return null; }
+  }
+  function interpolate(tpl, vars) {
+    if (typeof tpl !== 'string' || !tpl) return tpl;
+    return tpl.replace(/\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/g, (_m, k) => {
+      const v = vars && Object.prototype.hasOwnProperty.call(vars, k) ? vars[k] : '';
+      return v == null ? '' : String(v);
+    });
+  }
+  // Apply per-field override: if the override field is non-empty after trim,
+  // use it (interpolated); otherwise keep the default. Lets owners override
+  // just the subject and leave the body as the system default, etc.
+  async function applyOverride({ communityId, key, lang, vars, defaults }) {
+    const ov = await loadOverride(communityId, key, lang);
+    if (!ov) return defaults;
+    const pick = (oField, dField) => {
+      const s = (typeof ov[oField] === 'string' ? ov[oField] : '').trim();
+      return s ? interpolate(ov[oField], vars || {}) : defaults[dField];
+    };
+    return {
+      subject: pick('subject', 'subject'),
+      text:    pick('body_text', 'text'),
+      html:    pick('body_html', 'html'),
+    };
+  }
 
   const sendTaxLeadEmail = async ({ community, lead }) => {
     if (!emailConfigured) return { sent: false, skipped: true, reason: 'Email not configured.' };
@@ -50,10 +84,24 @@ module.exports = function createTaxSenders(deps) {
       </div>
     `;
 
-    return sendSpanishEmail({
-      to,
+    const defaults = {
       subject: `[${community.name}] New lead from ${lead.name}`,
       text, html,
+    };
+    const vars = {
+      practice_name: community.name,
+      lead_name: lead.name, lead_email: lead.email, lead_phone: lead.phone || '',
+      lead_service: lead.product_slug || '', lead_locale: lead.preferred_locale,
+      lead_message: lead.message || '', lead_id: lead.id, lead_submitted: lead.created_at,
+    };
+    const finalCopy = await applyOverride({
+      communityId: community.id, key: 'lead',
+      lang: lead.preferred_locale === 'en' ? 'en' : 'es',
+      vars, defaults,
+    });
+    return sendSpanishEmail({
+      to,
+      subject: finalCopy.subject, text: finalCopy.text, html: finalCopy.html,
       lang: lead.preferred_locale === 'en' ? 'en' : 'es-CO',
     });
   };
@@ -151,7 +199,19 @@ module.exports = function createTaxSenders(deps) {
       </div>
     `;
 
-    return sendSpanishEmail({ to, subject, text, html, lang: langTag });
+    const defaults = { subject, text, html };
+    const vars = {
+      customer_name: cust.name || '', practice_name: 'Tax America Services',
+      filing_name: filingName, filing_description: filingDesc || '',
+      period_label: row.period_label, due_date: row.due_date,
+      offset_days: Math.abs(offsetDays), magic_url: magicUrl,
+    };
+    const finalCopy = await applyOverride({
+      communityId: cust.community_id, key: 'reminder', lang, vars, defaults,
+    });
+    return sendSpanishEmail({
+      to, subject: finalCopy.subject, text: finalCopy.text, html: finalCopy.html, lang: langTag,
+    });
   };
 
   function pickName(obj, lang) {
@@ -237,7 +297,17 @@ module.exports = function createTaxSenders(deps) {
       </div>
     `;
 
-    return sendSpanishEmail({ to, subject, text, html, lang: langTag });
+    const defaults = { subject, text, html };
+    const vars = {
+      customer_name: cust.name || '', practice_name: practiceName,
+      file_name: doc.file_name || '', portal_url: portalUrl || '',
+    };
+    const finalCopy = await applyOverride({
+      communityId: cust.community_id, key: 'document', lang, vars, defaults,
+    });
+    return sendSpanishEmail({
+      to, subject: finalCopy.subject, text: finalCopy.text, html: finalCopy.html, lang: langTag,
+    });
   };
 
   // ── Customer message email (Phase 2f) ────────────────────────────────────
@@ -302,7 +372,19 @@ module.exports = function createTaxSenders(deps) {
       </div>
     `;
 
-    return sendSpanishEmail({ to, subject, text, html, lang: langTag });
+    const msgDefaults = { subject, text, html };
+    const msgVars = {
+      customer_name: cust.name || '', practice_name: practiceName,
+      thread_subject: thread?.subject || '', portal_url: portalUrl || '',
+      author_name: message?.author_name || practiceName,
+      message_preview: message?.body || '',
+    };
+    const msgFinal = await applyOverride({
+      communityId: cust.community_id, key: 'message_to_customer', lang, vars: msgVars, defaults: msgDefaults,
+    });
+    return sendSpanishEmail({
+      to, subject: msgFinal.subject, text: msgFinal.text, html: msgFinal.html, lang: langTag,
+    });
   };
 
   // ── Practice notification email (Phase 2f) ───────────────────────────────
@@ -346,7 +428,18 @@ module.exports = function createTaxSenders(deps) {
       </div>
     `;
 
-    return sendSpanishEmail({ to, subject, text, html, lang: 'en' });
+    const pDefaults = { subject, text, html };
+    const pVars = {
+      customer_name: customer?.name || '', customer_email: customer?.email || '',
+      practice_name: community?.name || '', thread_subject: thread?.subject || '',
+      thread_id: thread?.id || '', message_preview: previewLine,
+    };
+    const pFinal = await applyOverride({
+      communityId: community?.id, key: 'message_to_practice', lang: 'en', vars: pVars, defaults: pDefaults,
+    });
+    return sendSpanishEmail({
+      to, subject: pFinal.subject, text: pFinal.text, html: pFinal.html, lang: 'en',
+    });
   };
 
   // ── Employee message email (Phase 3) ─────────────────────────────────────
@@ -403,7 +496,18 @@ module.exports = function createTaxSenders(deps) {
       </div>
     `;
 
-    return sendSpanishEmail({ to, subject, text, html, lang: langTag });
+    const eDefaults = { subject, text, html };
+    const eVars = {
+      customer_name: customer?.name || '', customer_email: customer?.email || '',
+      employee_name: employee?.name || '', practice_name: community?.name || '',
+      thread_subject: thread?.subject || '', message_preview: previewLine,
+    };
+    const eFinal = await applyOverride({
+      communityId: community?.id, key: 'message_to_employee', lang, vars: eVars, defaults: eDefaults,
+    });
+    return sendSpanishEmail({
+      to, subject: eFinal.subject, text: eFinal.text, html: eFinal.html, lang: langTag,
+    });
   };
 
   // ── Welcome / portal-invite email ────────────────────────────────────────
@@ -519,7 +623,18 @@ module.exports = function createTaxSenders(deps) {
       </div>
     `;
 
-    return sendSpanishEmail({ to, subject, text, html, lang: langTag });
+    const wDefaults = { subject, text, html };
+    const wVars = {
+      customer_name: cust.name || '', practice_name: practiceName,
+      customer_email: to, portal_url: portalUrl || '',
+      relationships_list: relNames.join(', '),
+    };
+    const wFinal = await applyOverride({
+      communityId: cust.community_id, key: 'welcome_customer', lang, vars: wVars, defaults: wDefaults,
+    });
+    return sendSpanishEmail({
+      to, subject: wFinal.subject, text: wFinal.text, html: wFinal.html, lang: langTag,
+    });
   };
 
   // Staff onboarding email — sent when an owner adds an employee row.
@@ -629,7 +744,18 @@ module.exports = function createTaxSenders(deps) {
       </div>
     `;
 
-    return sendSpanishEmail({ to, subject, text, html, lang: langTag });
+    const sDefaults = { subject, text, html };
+    const sVars = {
+      staff_name: emp.name || '', practice_name: practiceName,
+      staff_email: to, role: emp.role || 'staff', role_label: roleLabel,
+      employee_url: employeeUrl || '',
+    };
+    const sFinal = await applyOverride({
+      communityId: emp.community_id, key: 'welcome_staff', lang, vars: sVars, defaults: sDefaults,
+    });
+    return sendSpanishEmail({
+      to, subject: sFinal.subject, text: sFinal.text, html: sFinal.html, lang: langTag,
+    });
   };
 
   return {

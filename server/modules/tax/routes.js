@@ -3313,6 +3313,78 @@ module.exports = function createTaxRouter(deps) {
   });
 
   // ── ADMIN: list / add employees (owner-side seeding until Phase 4a UI) ────
+  // ── Email template overrides (Phase 4i) ─────────────────────────────────
+  // Owner can override subject + body of each tax email per language.
+  // Keys: welcome_customer, welcome_staff, reminder, document,
+  //       message_to_customer, message_to_practice, message_to_employee, lead.
+  const TAX_EMAIL_TEMPLATE_KEYS = [
+    'welcome_customer', 'welcome_staff', 'reminder', 'document',
+    'message_to_customer', 'message_to_practice', 'message_to_employee', 'lead',
+  ];
+  const TAX_EMAIL_TEMPLATE_LANGS = ['en', 'es'];
+
+  router.get('/admin/email-templates', async (req, res) => {
+    if (!(await requireOwnerAdmin(req, res))) return;
+    const communitySlug = trim(req.query.communitySlug, 200);
+    if (!communitySlug) return res.status(400).json({ error: 'communitySlug required.' });
+    const { data, error } = await supabase.from('tax_email_templates')
+      .select('id, template_key, lang, subject, body_text, body_html, enabled, updated_at')
+      .eq('community_id', communitySlug);
+    if (error) return sendSupabaseError(res, error);
+    res.json({ templates: data || [], keys: TAX_EMAIL_TEMPLATE_KEYS, langs: TAX_EMAIL_TEMPLATE_LANGS });
+  });
+
+  router.put('/admin/email-templates/:key/:lang', async (req, res) => {
+    if (!(await requireOwnerAdmin(req, res))) return;
+    const body = req.body || {};
+    const communitySlug = trim(body.communitySlug, 200);
+    const key = trim(req.params.key, 60);
+    const lang = trim(req.params.lang, 10);
+    if (!communitySlug) return res.status(400).json({ error: 'communitySlug required.' });
+    if (!TAX_EMAIL_TEMPLATE_KEYS.includes(key)) return res.status(400).json({ error: 'Unknown template_key.' });
+    if (!TAX_EMAIL_TEMPLATE_LANGS.includes(lang)) return res.status(400).json({ error: 'Unknown lang.' });
+
+    const id = `tet_${communitySlug}_${key}_${lang}`.slice(0, 200);
+    const row = {
+      id, community_id: communitySlug, template_key: key, lang,
+      subject: trim(body.subject, 4000),
+      body_text: typeof body.body_text === 'string' ? body.body_text.slice(0, 32000) : '',
+      body_html: typeof body.body_html === 'string' ? body.body_html.slice(0, 64000) : '',
+      enabled: body.enabled === false ? false : true,
+      updated_at: new Date().toISOString(),
+    };
+    const { error } = await supabase.from('tax_email_templates').upsert(row, { onConflict: 'id' });
+    if (error) return sendSupabaseError(res, error);
+    try {
+      await auditLog({
+        entity: 'tax.email_template', entityId: id,
+        action: 'upsert', actorEmail: '',
+        after: { community: communitySlug, key, lang, enabled: row.enabled },
+      });
+    } catch (_e) {}
+    res.json({ ok: true, template: row });
+  });
+
+  // DELETE → revert to hardcoded default
+  router.delete('/admin/email-templates/:key/:lang', async (req, res) => {
+    if (!(await requireOwnerAdmin(req, res))) return;
+    const communitySlug = trim(req.query.communitySlug, 200);
+    const key = trim(req.params.key, 60);
+    const lang = trim(req.params.lang, 10);
+    if (!communitySlug) return res.status(400).json({ error: 'communitySlug required.' });
+    const id = `tet_${communitySlug}_${key}_${lang}`.slice(0, 200);
+    const { error } = await supabase.from('tax_email_templates').delete().eq('id', id);
+    if (error) return sendSupabaseError(res, error);
+    try {
+      await auditLog({
+        entity: 'tax.email_template', entityId: id,
+        action: 'reset_to_default', actorEmail: '',
+        after: { community: communitySlug, key, lang },
+      });
+    } catch (_e) {}
+    res.json({ ok: true });
+  });
+
   router.get('/admin/employees', async (req, res) => {
     if (!(await requireOwnerAdmin(req, res))) return;
     const communitySlug = trim(req.query.communitySlug, 200);

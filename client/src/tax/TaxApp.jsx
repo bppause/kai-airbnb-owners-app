@@ -31,6 +31,7 @@ import OwnerSettings from './pages/OwnerSettings';
 import OwnerHelpAdmin from './pages/OwnerHelpAdmin';
 import OwnerAudit from './pages/OwnerAudit';
 import OwnerFaqAdmin from './pages/OwnerFaqAdmin';
+import OwnerEmailTemplates from './pages/OwnerEmailTemplates';
 import PlatformDashboard from './pages/PlatformDashboard';
 import PlatformCommunityCreate from './pages/PlatformCommunityCreate';
 import { TaxPlatformAuthProvider, useTaxPlatformAuth } from './auth/PlatformAuthProvider';
@@ -73,6 +74,7 @@ function parseTaxPath() {
     }
     if (parts[3] === 'leads')    return { route: 'owner-leads', slug };
     if (parts[3] === 'settings') return { route: 'owner-settings', slug };
+    if (parts[3] === 'email-templates') return { route: 'owner-email-templates', slug };
     if (parts[3] === 'articles') return { route: 'owner-articles', slug };
     if (parts[3] === 'faqs')     return { route: 'owner-faqs', slug };
     if (parts[3] === 'audit')    return { route: 'owner-audit', slug };
@@ -241,6 +243,7 @@ function EmployeeGate({ parsed, community }) {
   if (parsed.route === 'owner-articles') return <OwnerHelpAdmin />;
   if (parsed.route === 'owner-faqs') return <OwnerFaqAdmin />;
   if (parsed.route === 'owner-audit') return <OwnerAudit />;
+  if (parsed.route === 'owner-email-templates') return <OwnerEmailTemplates />;
   if (parsed.route === 'employee-help') return <EmployeeHelp />;
   return <EmployeeInbox />;
 }
