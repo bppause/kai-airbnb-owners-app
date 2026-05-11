@@ -202,4 +202,10 @@ export const taxApi = {
   adminOverrideFaq(auth, defaultFaqId, payload)  { return request('PUT', `/admin/communities/${encodeURIComponent(payload.communitySlug)}/faqs/override/${encodeURIComponent(defaultFaqId)}`, payload, auth, { admin: true }); },
   adminAddCustomFaq(auth, communitySlug, payload){ return request('POST', `/admin/communities/${encodeURIComponent(communitySlug)}/faqs/custom`, payload, auth, { admin: true }); },
   adminDeleteCommunityFaq(auth, communitySlug, overrideId) { return request('DELETE', `/admin/communities/${encodeURIComponent(communitySlug)}/faqs/${encodeURIComponent(overrideId)}`, undefined, auth, { admin: true }); },
+
+  // Phase 5 — platform admin (cross-tenant). Auth uses x-firebase-uid +
+  // x-firebase-email; the server checks against GLOBAL_ADMIN_EMAILS.
+  platformVerify(auth)                         { return request('POST', '/platform/auth/verify', {}, auth); },
+  platformListCommunities(auth)                { return request('GET',  '/platform/communities', undefined, auth); },
+  platformCreateCommunity(auth, payload)       { return request('POST', '/platform/communities', payload, auth); },
 };
