@@ -190,4 +190,15 @@ export const taxApi = {
   adminOverrideHelp(auth, defaultId, payload)    { return request('PUT',  `/admin/help/override/${encodeURIComponent(defaultId)}`, payload, auth, { admin: true }); },
   adminCreateHelp(auth, payload)                 { return request('POST', '/admin/help/custom', payload, auth, { admin: true }); },
   adminDeleteHelp(auth, rowId)                   { return request('DELETE', `/admin/help/${encodeURIComponent(rowId)}`, undefined, auth, { admin: true }); },
+
+  // Phase 4f — audit log viewer + FAQ admin (uses existing Phase 2b endpoints)
+  adminListAudit(auth, filters = {}) {
+    const qs = new URLSearchParams();
+    for (const [k, v] of Object.entries(filters)) if (v) qs.set(k, String(v));
+    return request('GET', `/admin/audit?${qs.toString()}`, undefined, auth, { admin: true });
+  },
+  adminListCommunityFaqs(auth, communitySlug)    { return request('GET', `/admin/communities/${encodeURIComponent(communitySlug)}/faqs`, undefined, auth, { admin: true }); },
+  adminOverrideFaq(auth, defaultFaqId, payload)  { return request('PUT', `/admin/communities/${encodeURIComponent(payload.communitySlug)}/faqs/override/${encodeURIComponent(defaultFaqId)}`, payload, auth, { admin: true }); },
+  adminAddCustomFaq(auth, communitySlug, payload){ return request('POST', `/admin/communities/${encodeURIComponent(communitySlug)}/faqs/custom`, payload, auth, { admin: true }); },
+  adminDeleteCommunityFaq(auth, communitySlug, overrideId) { return request('DELETE', `/admin/communities/${encodeURIComponent(communitySlug)}/faqs/${encodeURIComponent(overrideId)}`, undefined, auth, { admin: true }); },
 };
