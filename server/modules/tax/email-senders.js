@@ -208,7 +208,7 @@ module.exports = function createTaxSenders(deps) {
     return { lang, langTag, defaults, vars };
   }
 
-  const sendTaxReminderEmail = async ({ row, cust, sch, sub, magicUrl, offsetDays, tips, extraDocs }) => {
+  const sendTaxReminderEmail = async ({ row, cust, sch, sub, magicUrl, offsetDays, tips, extraDocs, workflowRuleId, skipLog }) => {
     if (!emailConfigured) return { sent: false, skipped: true, reason: 'email_not_configured' };
     // Prefer the customer's chosen communication email (Phase 2e) when set;
     // otherwise fall back to the login email.
@@ -225,12 +225,16 @@ module.exports = function createTaxSenders(deps) {
     });
     // Phase 4n: persist a row keyed by Resend's message id so the webhook
     // receiver can match incoming opened/clicked events back to a customer.
-    if (result && result.sent && typeof logTaxEmailDelivery === 'function') {
+    // Phase 4n.8: also stamp workflow_rule_id so the per-workflow engagement
+    // panel can aggregate without a 2-table join. `skipLog` is set by the
+    // test-reminder route so dry-runs don't pollute the engagement numbers.
+    if (result && result.sent && !skipLog && typeof logTaxEmailDelivery === 'function') {
       try {
         await logTaxEmailDelivery({
           resendId: result.id || '',
           communityId: cust.community_id || '',
           customerId: cust.id || '',
+          workflowRuleId: workflowRuleId || row?.workflow_rule_id || '',
           eventType: 'reminder',
           recipients: [to],
           subject: finalCopy.subject,
@@ -248,15 +252,27 @@ module.exports = function createTaxSenders(deps) {
   // doesn't get baked into every customer's email). Lives alongside
   // buildReminderEmail so the placeholder set stays in sync with the vars
   // map the sender builds at send time.
+  //
+  // Phase 4n.4: extended to every template key so the owner can preview /
+  // edit ALL of them, not just `reminder`. The HTML kept intentionally
+  // simple — these are starting points the owner edits; the sender's
+  // hardcoded HTML still runs for fields the owner leaves empty.
+
+  function wrapHtml(bodyHtml) {
+    return `<div style="font-family:Arial,sans-serif;max-width:640px;color:#111">${bodyHtml}</div>`.trim();
+  }
+  function ctaButton(href, label) {
+    return `<p style="margin:24px 0"><a href="${href}" style="background:#1d3a6d;color:#fff;text-decoration:none;padding:12px 22px;border-radius:8px;font-weight:600;display:inline-block">${label}</a></p>`;
+  }
+
   function buildReminderTemplate(lang) {
     const useEn = lang === 'en';
-    const formalGreeting = useEn ? 'Dear {{customer_name}},' : 'Estimado/a {{customer_name}}:';
+    const greeting = useEn ? 'Dear {{customer_name}},' : 'Estimado/a {{customer_name}}:';
     const closing = useEn ? 'Sincerely,\n{{practice_name}}' : 'Atentamente,\n{{practice_name}}';
     const subject = useEn
       ? 'Reminder: {{filing_name}} due {{due_date}} ({{offset_days}} days away)'
       : 'Recordatorio: {{filing_name}} vence el {{due_date}} ({{offset_days}} días restantes)';
-
-    const introBody = useEn
+    const intro = useEn
       ? `This is a reminder that the filing "{{filing_name}}" for the period {{period_label}} is due on {{due_date}}.\n\n{{filing_description}}\n\nIn order to prepare and submit this filing on your behalf, we will need the information requested in your secure portal.`
       : `Le escribimos para recordarle que la declaración "{{filing_name}}" correspondiente al período {{period_label}} vence el {{due_date}}.\n\n{{filing_description}}\n\nPara poder preparar y presentar esta declaración en su nombre, necesitamos la información solicitada en su portal seguro.`;
     const ctaText = useEn
@@ -264,48 +280,260 @@ module.exports = function createTaxSenders(deps) {
       : 'Por favor envíe su información usando el enlace seguro a continuación. El enlace es único para esta declaración y expirará después de la fecha de vencimiento.';
     const ctaLabel = useEn ? 'Submit information' : 'Enviar información';
 
-    const text = [formalGreeting, '', introBody, '', ctaText, '{{magic_url}}', '', closing].join('\n');
-    const html = `
-      <div style="font-family:Arial,sans-serif;max-width:640px;color:#111">
-        <p>${formalGreeting}</p>
-        <p style="white-space:pre-line">${introBody}</p>
-        <p>${ctaText}</p>
-        <p style="margin:24px 0">
-          <a href="{{magic_url}}" style="background:#1d3a6d;color:#fff;text-decoration:none;padding:12px 22px;border-radius:8px;font-weight:600;display:inline-block">${ctaLabel}</a>
-        </p>
-        <p style="color:#666;font-size:13px">{{magic_url}}</p>
-        <p style="white-space:pre-line">${closing}</p>
-      </div>
-    `.trim();
-
+    const text = [greeting, '', intro, '', ctaText, '{{magic_url}}', '', closing].join('\n');
+    const html = wrapHtml(`
+      <p>${greeting}</p>
+      <p style="white-space:pre-line">${intro}</p>
+      <p>${ctaText}</p>
+      ${ctaButton('{{magic_url}}', ctaLabel)}
+      <p style="color:#666;font-size:13px">{{magic_url}}</p>
+      <p style="white-space:pre-line">${closing}</p>
+    `);
     return { subject, text, html };
   }
 
-  // Returns the editable defaults for any known template_key. Today only the
-  // reminder template has a factored placeholder version; for other keys we
-  // return empty strings (the form starts blank) — same behavior as before.
+  function buildWelcomeCustomerTemplate(lang) {
+    const useEn = lang === 'en';
+    const greeting = useEn ? 'Dear {{customer_name}},' : 'Estimado/a {{customer_name}}:';
+    const closing = useEn ? 'Sincerely,\n{{practice_name}}' : 'Atentamente,\n{{practice_name}}';
+    const subject = useEn
+      ? 'Welcome to {{practice_name}}'
+      : 'Bienvenido/a a {{practice_name}}';
+    const intro = useEn
+      ? `Welcome — your secure client portal at {{practice_name}} is ready. We've set up your account with the email {{customer_email}}.\n\nYour active services:\n{{relationships_list}}\n\nUse the portal to submit information, upload documents, message us, and download completed filings.`
+      : `Bienvenido/a — su portal seguro en {{practice_name}} está listo. Hemos configurado su cuenta con el correo {{customer_email}}.\n\nServicios activos:\n{{relationships_list}}\n\nUse el portal para enviar información, subir documentos, escribirnos y descargar declaraciones finalizadas.`;
+    const ctaLabel = useEn ? 'Open my portal' : 'Abrir mi portal';
+    const text = [greeting, '', intro, '', '{{portal_url}}', '', closing].join('\n');
+    const html = wrapHtml(`
+      <p>${greeting}</p>
+      <p style="white-space:pre-line">${intro}</p>
+      ${ctaButton('{{portal_url}}', ctaLabel)}
+      <p style="color:#666;font-size:13px">{{portal_url}}</p>
+      <p style="white-space:pre-line">${closing}</p>
+    `);
+    return { subject, text, html };
+  }
+
+  function buildWelcomeStaffTemplate(lang) {
+    const useEn = lang === 'en';
+    const greeting = useEn ? 'Hi {{staff_name}},' : 'Hola {{staff_name}}:';
+    const closing = useEn ? 'Thanks,\n{{practice_name}}' : 'Gracias,\n{{practice_name}}';
+    const subject = useEn
+      ? 'Your staff account at {{practice_name}}'
+      : 'Su cuenta de personal en {{practice_name}}';
+    const intro = useEn
+      ? `You've been added to {{practice_name}} as {{role_label}}.\n\nSign in with {{staff_email}} to access the staff portal. If this is your first time, your Google or password login will be linked on first sign-in.`
+      : `Le hemos agregado a {{practice_name}} como {{role_label}}.\n\nInicie sesión con {{staff_email}} para acceder al portal del personal. Si es su primera vez, su inicio de sesión con Google o contraseña se vinculará en el primer acceso.`;
+    const ctaLabel = useEn ? 'Open staff portal' : 'Abrir portal del personal';
+    const text = [greeting, '', intro, '', '{{employee_url}}', '', closing].join('\n');
+    const html = wrapHtml(`
+      <p>${greeting}</p>
+      <p style="white-space:pre-line">${intro}</p>
+      ${ctaButton('{{employee_url}}', ctaLabel)}
+      <p style="color:#666;font-size:13px">{{employee_url}}</p>
+      <p style="white-space:pre-line">${closing}</p>
+    `);
+    return { subject, text, html };
+  }
+
+  function buildDocumentTemplate(lang) {
+    const useEn = lang === 'en';
+    const greeting = useEn ? 'Dear {{customer_name}},' : 'Estimado/a {{customer_name}}:';
+    const closing = useEn ? 'Sincerely,\n{{practice_name}}' : 'Atentamente,\n{{practice_name}}';
+    const subject = useEn
+      ? 'New document available in your portal — {{file_name}}'
+      : 'Nuevo documento disponible en su portal — {{file_name}}';
+    const intro = useEn
+      ? `{{practice_name}} has uploaded a new document to your secure portal:\n\n  • {{file_name}}`
+      : `{{practice_name}} ha cargado un documento nuevo en su portal seguro:\n\n  • {{file_name}}`;
+    const ctaText = useEn
+      ? `Please sign in to review and download it. If you have questions about this document, reply to this email or contact our office.`
+      : `Por favor inicie sesión para revisarlo y descargarlo. Si tiene preguntas sobre este documento, responda a este correo o contacte a nuestra oficina.`;
+    const ctaLabel = useEn ? 'Open my portal' : 'Abrir mi portal';
+    const text = [greeting, '', intro, '', ctaText, '{{portal_url}}', '', closing].join('\n');
+    const html = wrapHtml(`
+      <p>${greeting}</p>
+      <p style="white-space:pre-line">${intro}</p>
+      <p>${ctaText}</p>
+      ${ctaButton('{{portal_url}}', ctaLabel)}
+      <p style="color:#666;font-size:13px">{{portal_url}}</p>
+      <p style="white-space:pre-line">${closing}</p>
+    `);
+    return { subject, text, html };
+  }
+
+  function buildMessageToCustomerTemplate(lang) {
+    const useEn = lang === 'en';
+    const greeting = useEn ? 'Dear {{customer_name}},' : 'Estimado/a {{customer_name}}:';
+    const closing = useEn ? 'Sincerely,\n{{practice_name}}' : 'Atentamente,\n{{practice_name}}';
+    const subject = useEn
+      ? 'New message from {{practice_name}}: {{thread_subject}}'
+      : 'Nuevo mensaje de {{practice_name}}: {{thread_subject}}';
+    const intro = useEn
+      ? `{{author_name}} at {{practice_name}} has sent you a new message:\n\n{{message_preview}}`
+      : `{{author_name}} de {{practice_name}} le ha enviado un nuevo mensaje:\n\n{{message_preview}}`;
+    const ctaText = useEn
+      ? 'Sign in to view the full thread and reply.'
+      : 'Inicie sesión para ver la conversación completa y responder.';
+    const ctaLabel = useEn ? 'Open my portal' : 'Abrir mi portal';
+    const text = [greeting, '', intro, '', ctaText, '{{portal_url}}', '', closing].join('\n');
+    const html = wrapHtml(`
+      <p>${greeting}</p>
+      <p style="white-space:pre-line">${intro}</p>
+      <p>${ctaText}</p>
+      ${ctaButton('{{portal_url}}', ctaLabel)}
+      <p style="color:#666;font-size:13px">{{portal_url}}</p>
+      <p style="white-space:pre-line">${closing}</p>
+    `);
+    return { subject, text, html };
+  }
+
+  function buildMessageToPracticeTemplate(lang) {
+    const useEn = lang === 'en';
+    const subject = useEn
+      ? 'New message from {{customer_name}}: {{thread_subject}}'
+      : 'Nuevo mensaje de {{customer_name}}: {{thread_subject}}';
+    const body = useEn
+      ? `{{customer_name}} ({{customer_email}}) sent a new message on thread {{thread_id}}:\n\n{{message_preview}}\n\nReply through the staff portal — do not reply to this email directly.`
+      : `{{customer_name}} ({{customer_email}}) envió un nuevo mensaje en la conversación {{thread_id}}:\n\n{{message_preview}}\n\nResponda a través del portal del personal — no responda directamente a este correo.`;
+    const text = body;
+    const html = wrapHtml(`<p style="white-space:pre-line">${body}</p>`);
+    return { subject, text, html };
+  }
+
+  function buildMessageToEmployeeTemplate(lang) {
+    const useEn = lang === 'en';
+    const subject = useEn
+      ? 'Customer message: {{customer_name}} — {{thread_subject}}'
+      : 'Mensaje de cliente: {{customer_name}} — {{thread_subject}}';
+    const body = useEn
+      ? `Hi {{employee_name}},\n\n{{customer_name}} ({{customer_email}}) has posted a new message on the thread "{{thread_subject}}":\n\n{{message_preview}}\n\nReply through the staff portal — do not reply to this email directly.\n\n{{practice_name}}`
+      : `Hola {{employee_name}}:\n\n{{customer_name}} ({{customer_email}}) publicó un nuevo mensaje en la conversación "{{thread_subject}}":\n\n{{message_preview}}\n\nResponda a través del portal del personal — no responda directamente a este correo.\n\n{{practice_name}}`;
+    const html = wrapHtml(`<p style="white-space:pre-line">${body}</p>`);
+    return { subject, text: body, html };
+  }
+
+  function buildLeadTemplate(lang) {
+    const useEn = lang === 'en';
+    const subject = useEn
+      ? '[{{practice_name}}] New lead from {{lead_name}}'
+      : '[{{practice_name}}] Nuevo prospecto de {{lead_name}}';
+    const body = useEn
+      ? `New lead via {{practice_name}} landing page:\n\nName:    {{lead_name}}\nEmail:   {{lead_email}}\nPhone:   {{lead_phone}}\nService: {{lead_service}}\nLocale:  {{lead_locale}}\n\nMessage:\n{{lead_message}}\n\nLead ID:   {{lead_id}}\nSubmitted: {{lead_submitted}}`
+      : `Nuevo prospecto desde la página de {{practice_name}}:\n\nNombre:   {{lead_name}}\nCorreo:   {{lead_email}}\nTeléfono: {{lead_phone}}\nServicio: {{lead_service}}\nIdioma:   {{lead_locale}}\n\nMensaje:\n{{lead_message}}\n\nID:       {{lead_id}}\nEnviado:  {{lead_submitted}}`;
+    const html = wrapHtml(`<p style="white-space:pre-line">${body}</p>`);
+    return { subject, text: body, html };
+  }
+
+  // Returns the editable defaults for any known template_key. Each key has a
+  // factored placeholder version so the Email Templates form prefills with
+  // realistic starting text. `hasFactoredDefault` stays true for every known
+  // key now that they're all wired.
+  const TEMPLATE_BUILDERS = {
+    welcome_customer:    buildWelcomeCustomerTemplate,
+    welcome_staff:       buildWelcomeStaffTemplate,
+    reminder:            buildReminderTemplate,
+    document:            buildDocumentTemplate,
+    message_to_customer: buildMessageToCustomerTemplate,
+    message_to_practice: buildMessageToPracticeTemplate,
+    message_to_employee: buildMessageToEmployeeTemplate,
+    lead:                buildLeadTemplate,
+  };
   function getTemplateDefaults({ key, lang }) {
     const useLang = lang === 'en' ? 'en' : 'es';
-    if (key === 'reminder') return buildReminderTemplate(useLang);
-    return { subject: '', text: '', html: '' };
+    const builder = TEMPLATE_BUILDERS[key];
+    if (!builder) return { subject: '', text: '', html: '' };
+    return builder(useLang);
   }
 
   // Phase 4n: pure helper for the admin preview route. Accepts an optional
   // unsaved override (subject/body_text/body_html) so the owner can preview
   // exactly what they're about to save. When `override` is null, the route
   // falls through to whatever's persisted in tax_email_templates.
+  // Phase 4n.4: stub variable values for previewing every template key. The
+  // owner sees realistic substituted text so {{customer_name}} etc. resolve
+  // to plausible values in the modal, even though the stored template keeps
+  // the placeholders intact.
+  function previewStubVars(key, lang) {
+    const useEn = lang === 'en';
+    const customerName = useEn ? 'Maria García' : 'María García';
+    const base = {
+      customer_name: customerName,
+      practice_name: 'Tax America Services',
+      customer_email: 'maria@example.com',
+      portal_url: 'https://example.com/tax/portal',
+      employee_url: 'https://example.com/tax/employee',
+      magic_url: 'https://example.com/tax/r/preview-magic-link',
+    };
+    const perKey = {
+      welcome_customer: {
+        relationships_list: useEn ? '  • Individual Tax\n  • Payroll' : '  • Impuestos Personales\n  • Nómina',
+      },
+      welcome_staff: {
+        staff_name: useEn ? 'Carlos Mendoza' : 'Carlos Mendoza',
+        staff_email: 'carlos@example.com',
+        role: 'staff',
+        role_label: useEn ? 'Staff' : 'Personal',
+      },
+      reminder: {
+        filing_name: useEn ? 'Federal Estimated Income Tax (1040-ES)' : 'Impuesto Federal Estimado (1040-ES)',
+        filing_description: useEn ? 'Quarterly estimated payment for the IRS.' : 'Pago estimado trimestral para el IRS.',
+        period_label: useEn ? 'Q2 2026' : 'T2 2026',
+        due_date: '2026-06-15',
+        offset_days: 14,
+      },
+      document: {
+        file_name: 'Tax_Return_2025.pdf',
+      },
+      message_to_customer: {
+        thread_subject: useEn ? 'Question about your filing' : 'Pregunta sobre su declaración',
+        author_name: useEn ? 'Carlos Mendoza' : 'Carlos Mendoza',
+        message_preview: useEn ? 'Hi Maria — we noticed an item on your filing that needs clarification…' : 'Hola María — vimos un detalle en su declaración que requiere aclaración…',
+      },
+      message_to_practice: {
+        thread_id: 'thr_abc12345',
+        thread_subject: useEn ? 'Question about my W-2' : 'Pregunta sobre mi W-2',
+        message_preview: useEn ? 'Hi — I just received my W-2 and have a question about box 12…' : 'Hola — acabo de recibir mi W-2 y tengo una pregunta sobre el cuadro 12…',
+      },
+      message_to_employee: {
+        employee_name: useEn ? 'Carlos Mendoza' : 'Carlos Mendoza',
+        thread_subject: useEn ? 'Question about my W-2' : 'Pregunta sobre mi W-2',
+        message_preview: useEn ? 'Hi — I just received my W-2 and have a question about box 12…' : 'Hola — acabo de recibir mi W-2 y tengo una pregunta sobre el cuadro 12…',
+      },
+      lead: {
+        lead_name: useEn ? 'David Park' : 'David Park',
+        lead_email: 'david@example.com',
+        lead_phone: '+1 555 0123',
+        lead_service: 'individual-tax',
+        lead_locale: lang,
+        lead_message: useEn ? 'I just moved to Cartagena and need help with my US return.' : 'Acabo de mudarme a Cartagena y necesito ayuda con mi declaración de EE. UU.',
+        lead_id: 'lead_preview123',
+        lead_submitted: '2026-05-11T14:30:00Z',
+      },
+    };
+    return { ...base, ...(perKey[key] || {}) };
+  }
+
   async function previewTaxEmail({ key, lang, override, stub }) {
+    // For every key except reminder we render the placeholder template +
+    // override through interpolate(). For reminder we use the live builder
+    // because its defaults are substituted rather than placeholders.
     if (key !== 'reminder') {
-      // For non-reminder templates we don't have factored defaults yet —
-      // just substitute the unsaved override (or empty strings) through
-      // interpolate so the owner can sanity-check placeholders.
-      const vars = (stub && stub.vars) || {};
+      const useLang = lang === 'en' ? 'en' : 'es';
+      const defaults = getTemplateDefaults({ key, lang: useLang });
+      const vars = previewStubVars(key, useLang);
+      const pick = (oField, dField) => {
+        const raw = override && typeof override[oField] === 'string' && override[oField].trim()
+          ? override[oField]
+          : defaults[dField];
+        return interpolate(raw || '', vars);
+      };
       return {
-        key, lang,
-        subject: interpolate((override && override.subject) || '', vars),
-        text: interpolate((override && override.body_text) || '', vars),
-        html: interpolate((override && override.body_html) || '', vars),
-        partial: true,
+        key, lang: useLang,
+        subject: pick('subject', 'subject'),
+        text: pick('body_text', 'text'),
+        html: pick('body_html', 'html'),
+        partial: false,
       };
     }
     const built = buildReminderEmail({ ...(stub || {}), langOverride: lang });

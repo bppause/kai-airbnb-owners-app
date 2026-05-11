@@ -132,8 +132,244 @@ export default function OwnerCustomerDetail({ customerId }) {
 
       <ReminderActivitySection data={data} locale={locale} t={t} />
 
+      <WorkflowOverridesSection
+        auth={auth} customerId={customerId} locale={locale} t={t} />
+
       <AssignmentsSection data={data} t={t} />
     </EmployeeShell>
+  );
+}
+
+// Phase 4n.8: per-customer workflow override editor. Lists every workflow
+// active for this customer (resolved through their relationships) and
+// shows whether an override row exists. Click "Customize" → modal with a
+// checklist editor and optional reminder offsets; Save upserts the row.
+// Reset deletes the row, falling back to the workflow rule's defaults.
+function WorkflowOverridesSection({ auth, customerId, locale, t }) {
+  const [items, setItems] = useState(null);
+  const [editing, setEditing] = useState(null);     // { rule, override }
+  const [err, setErr] = useState('');
+  function load() {
+    setErr('');
+    taxApi.adminListCustomerWorkflowOverrides(auth, customerId)
+      .then(d => setItems(d.workflows || []))
+      .catch(e => setErr(e?.message || t('error.loadFailed')));
+  }
+  useEffect(load, [customerId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  return (
+    <section className="tax-section" style={{ paddingTop: 0 }}>
+      <h3>{t('owner.customer.section.workflowOverrides')}</h3>
+      <p style={{ color: 'var(--tax-muted)', fontSize: 13, margin: '0 0 12px' }}>
+        {t('owner.customer.workflowOverrides.note')}
+      </p>
+      {err && <div className="tax-msg tax-msg--error">{err}</div>}
+      {items === null && <p>{t('loading')}</p>}
+      {items !== null && items.length === 0 && (
+        <p style={{ color: 'var(--tax-muted)' }}>
+          {t('owner.customer.workflowOverrides.empty')}
+        </p>
+      )}
+      {items !== null && items.length > 0 && (
+        <div style={{ display: 'grid', gap: 8 }}>
+          {items.map(w => {
+            const name = pickI18n(w.rule.name_i18n, locale).value || w.rule.filing_schedule_slug;
+            const hasOverride = !!w.override;
+            const effectiveOffsets = hasOverride && Array.isArray(w.override.reminder_offsets_days) && w.override.reminder_offsets_days.length
+              ? w.override.reminder_offsets_days
+              : (Array.isArray(w.rule.reminder_offsets_days) ? w.rule.reminder_offsets_days : []);
+            const effectiveDocs = hasOverride && Array.isArray(w.override.custom_info_checklist) && w.override.custom_info_checklist.length
+              ? w.override.custom_info_checklist
+              : (Array.isArray(w.rule.info_checklist) ? w.rule.info_checklist : []);
+            return (
+              <div key={w.rule.id} style={{
+                display: 'flex', alignItems: 'center', gap: 12, justifyContent: 'space-between',
+                padding: '10px 12px', border: '1px solid var(--tax-border)', borderRadius: 8,
+              }}>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontWeight: 600 }}>{name}</div>
+                  <div style={{ fontSize: 12, color: 'var(--tax-muted)' }}>
+                    <code>{w.rule.filing_schedule_slug}</code> · {w.rule.cadence || '—'} ·{' '}
+                    {t('owner.customer.workflowOverrides.offsets', { offsets: effectiveOffsets.join(', ') || '—' })} ·{' '}
+                    {t('owner.customer.workflowOverrides.docCount', { count: effectiveDocs.length })}
+                  </div>
+                </div>
+                <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+                  {hasOverride && (
+                    <span style={{
+                      padding: '2px 10px', borderRadius: 999, fontSize: 12, fontWeight: 600,
+                      background: 'var(--tax-brand-primary)', color: '#fff',
+                    }}>{t('owner.customer.workflowOverrides.badge')}</span>
+                  )}
+                  <button type="button" className="tax-btn tax-btn--ghost tax-btn--sm"
+                          onClick={() => setEditing(w)}>
+                    {hasOverride
+                      ? t('owner.customer.workflowOverrides.editBtn')
+                      : t('owner.customer.workflowOverrides.customizeBtn')}
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {editing && (
+        <WorkflowOverrideModal
+          auth={auth} customerId={customerId} t={t} locale={locale}
+          workflow={editing}
+          onClose={() => setEditing(null)}
+          onChange={() => { setEditing(null); load(); }}
+        />
+      )}
+    </section>
+  );
+}
+
+function WorkflowOverrideModal({ auth, customerId, workflow, locale, t, onClose, onChange }) {
+  const rule = workflow.rule;
+  const override = workflow.override;
+  const startingOffsets = (override?.reminder_offsets_days && override.reminder_offsets_days.length)
+    ? override.reminder_offsets_days
+    : (rule.reminder_offsets_days || []);
+  const startingDocs = (override?.custom_info_checklist && override.custom_info_checklist.length)
+    ? override.custom_info_checklist
+    : (rule.info_checklist || []);
+  const [offsetsInput, setOffsetsInput] = useState(startingOffsets.join(', '));
+  const [docs, setDocs] = useState(startingDocs.map(d => ({ ...d, label_i18n: { ...(d.label_i18n || {}) } })));
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+
+  const ruleName = pickI18n(rule.name_i18n, locale).value || rule.filing_schedule_slug;
+
+  function addDoc() {
+    setDocs(prev => [...prev, { key: '', label_i18n: { en: '', es: '' }, type: 'text', required: true }]);
+  }
+  function updateDoc(idx, patch) {
+    setDocs(prev => prev.map((d, i) => i === idx ? { ...d, ...patch } : d));
+  }
+  function removeDoc(idx) { setDocs(prev => prev.filter((_, i) => i !== idx)); }
+
+  async function save() {
+    setBusy(true); setErr('');
+    const offsets = String(offsetsInput || '').split(/[\s,;]+/).map(s => parseInt(s, 10))
+      .filter(n => Number.isFinite(n) && n >= 0 && n <= 365);
+    try {
+      await taxApi.adminUpsertCustomerWorkflowOverride(auth, customerId, rule.id, {
+        reminderOffsetsDays: offsets,
+        customInfoChecklist: docs,
+      });
+      onChange();
+    } catch (e) { setErr(e?.message || t('respond.error.generic')); }
+    finally { setBusy(false); }
+  }
+  async function reset() {
+    if (!override) { onClose(); return; }
+    if (!window.confirm(t('owner.customer.workflowOverrides.resetConfirm'))) return;
+    setBusy(true); setErr('');
+    try {
+      await taxApi.adminDeleteCustomerWorkflowOverride(auth, customerId, rule.id);
+      onChange();
+    } catch (e) { setErr(e?.message || t('respond.error.generic')); }
+    finally { setBusy(false); }
+  }
+
+  return (
+    <div onClick={onClose} style={{
+      position: 'fixed', inset: 0, background: 'rgba(15,23,42,.55)',
+      zIndex: 1000, display: 'flex', alignItems: 'flex-start', justifyContent: 'center',
+      padding: 16, overflow: 'auto',
+    }}>
+      <div onClick={e => e.stopPropagation()} style={{
+        background: 'var(--tax-bg)', borderRadius: 12, maxWidth: 720, width: '100%',
+        margin: '40px 0', border: '1px solid var(--tax-border)',
+      }}>
+        <div style={{ padding: '14px 18px', borderBottom: '1px solid var(--tax-border)',
+                      display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <strong>{t('owner.customer.workflowOverrides.modalTitle', { name: ruleName })}</strong>
+          <button type="button" className="tax-btn tax-btn--ghost tax-btn--sm" onClick={onClose}>
+            {t('preview.close')}
+          </button>
+        </div>
+        <div style={{ padding: 18, display: 'grid', gap: 12 }}>
+          {err && <div className="tax-msg tax-msg--error">{err}</div>}
+
+          <div>
+            <label style={{ display: 'block', fontSize: 13, marginBottom: 4 }}>
+              {t('owner.workflows.offsetsLabel')}
+            </label>
+            <input type="text" value={offsetsInput}
+                   placeholder={t('owner.customer.workflowOverrides.offsetsPlaceholder')}
+                   onChange={e => setOffsetsInput(e.target.value)}
+                   style={{ width: 240 }} />
+            <p style={{ margin: '4px 0 0', fontSize: 12, color: 'var(--tax-muted)' }}>
+              {t('owner.customer.workflowOverrides.offsetsHint', {
+                offsets: (rule.reminder_offsets_days || []).join(', ') || '14, 7, 3' })}
+            </p>
+          </div>
+
+          <div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+              <span style={{ fontSize: 13, fontWeight: 600 }}>{t('owner.workflows.docsLabel')}</span>
+              <button type="button" className="tax-btn tax-btn--ghost tax-btn--sm" onClick={addDoc}>
+                + {t('owner.workflows.addDoc')}
+              </button>
+            </div>
+            {docs.length === 0 && (
+              <p style={{ color: 'var(--tax-muted)', fontSize: 13 }}>{t('owner.workflows.docsEmpty')}</p>
+            )}
+            {docs.map((d, i) => (
+              <div key={i} style={{
+                display: 'grid', gap: 8, padding: 8, marginTop: 8,
+                gridTemplateColumns: '1fr 1fr 1fr 110px 60px 32px',
+                alignItems: 'center', border: '1px dashed var(--tax-border)', borderRadius: 6,
+              }}>
+                <input type="text" value={d.key} placeholder={t('owner.workflows.docKey')}
+                       onChange={e => updateDoc(i, { key: e.target.value })} />
+                <input type="text" value={d.label_i18n?.en || ''} placeholder={t('owner.workflows.docLabelEn')}
+                       onChange={e => updateDoc(i, { label_i18n: { ...(d.label_i18n || {}), en: e.target.value } })} />
+                <input type="text" value={d.label_i18n?.es || ''} placeholder={t('owner.workflows.docLabelEs')}
+                       onChange={e => updateDoc(i, { label_i18n: { ...(d.label_i18n || {}), es: e.target.value } })} />
+                <select value={d.type || 'text'} onChange={e => updateDoc(i, { type: e.target.value })}>
+                  <option value="currency">currency</option>
+                  <option value="number">number</option>
+                  <option value="text">text</option>
+                  <option value="date">date</option>
+                  <option value="file">file</option>
+                </select>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12 }}>
+                  <input type="checkbox" checked={d.required !== false}
+                         onChange={e => updateDoc(i, { required: e.target.checked })} />
+                  {t('owner.workflows.docRequired')}
+                </label>
+                <button type="button" className="tax-btn tax-btn--ghost tax-btn--sm"
+                        onClick={() => removeDoc(i)} aria-label={t('owner.workflows.removeDoc')}>×</button>
+              </div>
+            ))}
+          </div>
+
+          <div style={{ display: 'flex', gap: 8, justifyContent: 'space-between', marginTop: 8 }}>
+            <div>
+              {override && (
+                <button type="button" className="tax-btn tax-btn--ghost tax-btn--sm"
+                        disabled={busy} onClick={reset}>
+                  {t('owner.customer.workflowOverrides.removeBtn')}
+                </button>
+              )}
+            </div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button type="button" className="tax-btn tax-btn--ghost tax-btn--sm" onClick={onClose}>
+                {t('preview.close')}
+              </button>
+              <button type="button" className="tax-btn tax-btn--primary tax-btn--sm"
+                      disabled={busy} onClick={save}>
+                {busy ? t('lead.submitting') : t('owner.customer.workflowOverrides.saveBtn')}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -756,7 +992,8 @@ function FilingRow({ period: p, statuses, auth, onChange, locale, t }) {
     finally { setBusy(false); }
   };
 
-  const filingName = pickI18n(p.schedule?.name_i18n, locale).value || p.schedule?.slug || '—';
+  const filingName = pickI18n(p.workflow?.name_i18n || p.schedule?.name_i18n, locale).value
+    || p.workflow?.filing_schedule_slug || p.schedule?.slug || '—';
 
   return (
     <div className="tax-contact-item" style={{

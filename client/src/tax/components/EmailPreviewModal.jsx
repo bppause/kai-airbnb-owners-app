@@ -72,11 +72,6 @@ export default function EmailPreviewModal({
           <div style={{ padding: 20 }}>
             <div style={{ marginBottom: 12, fontSize: 13, color: 'var(--tax-muted)' }}>
               {t('preview.note')}
-              {data.partial && (
-                <span style={{ display: 'block', marginTop: 4 }}>
-                  {t('preview.partialNote')}
-                </span>
-              )}
             </div>
 
             <div style={{ marginBottom: 16, padding: 10, background: 'var(--tax-bg-alt)',

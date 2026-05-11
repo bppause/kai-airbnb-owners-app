@@ -867,6 +867,21 @@ create table if not exists public.tax_filing_periods (
 create index if not exists idx_tax_periods_due on public.tax_filing_periods(community_id, status, due_date);
 create index if not exists idx_tax_periods_customer on public.tax_filing_periods(customer_id, due_date desc);
 
+-- Phase 4n.6: relationship-driven period generation. Periods now reference
+-- the workflow rule directly (so the cron can read cadence / anchor_rule /
+-- info_checklist without joining tax_filing_schedules). subscription_id +
+-- schedule_id become optional — periods can exist for customers who have a
+-- relationship but no active subscription.
+alter table public.tax_filing_periods
+  add column if not exists workflow_rule_id text references public.tax_relationship_workflow_rules(id) on delete set null,
+  add column if not exists relationship_type_id text references public.tax_relationship_types(id) on delete set null;
+alter table public.tax_filing_periods alter column subscription_id drop not null;
+alter table public.tax_filing_periods alter column schedule_id drop not null;
+create index if not exists idx_tax_periods_workflow_rule
+  on public.tax_filing_periods(customer_id, workflow_rule_id, due_date);
+create index if not exists idx_tax_periods_relationship
+  on public.tax_filing_periods(customer_id, relationship_type_id, due_date desc);
+
 -- Magic-link tokens for customer info submissions. Token stored hashed
 -- (sha-256 hex). Single-use OR until the period reaches info_received.
 create table if not exists public.tax_response_tokens (
@@ -2073,6 +2088,61 @@ create index if not exists tax_relationship_workflow_rules_lookup_idx
   on public.tax_relationship_workflow_rules(community_id, relationship_type_id, filing_schedule_slug, active);
 create index if not exists tax_relationship_workflow_rules_schedule_idx
   on public.tax_relationship_workflow_rules(community_id, filing_schedule_slug, active);
+
+-- Phase 4n.5 / 4n.6: promote a rule into a self-contained workflow row.
+-- After Phase 2 of the migration these columns will be the source of truth
+-- for period generation (cron walks rules instead of schedules). For now
+-- they're populated when new workflows are created via POST
+-- /admin/filing-schedules so we don't have to join through schedules.
+alter table public.tax_relationship_workflow_rules
+  add column if not exists name_i18n        jsonb not null default '{}'::jsonb,
+  add column if not exists description_i18n jsonb not null default '{}'::jsonb,
+  add column if not exists cadence          text,
+  add column if not exists anchor_rule      jsonb,
+  add column if not exists info_checklist   jsonb not null default '[]'::jsonb;
+
+-- One-shot backfill from the linked schedule. Idempotent — only fills NULL
+-- or empty values, so re-running won't clobber owner-edited workflow text.
+-- Safe to skip when there's no test data; included here so re-runs on a
+-- fresh tenant land in a consistent state.
+update public.tax_relationship_workflow_rules r
+   set name_i18n        = case when r.name_i18n = '{}'::jsonb then coalesce(s.name_i18n, '{}'::jsonb) else r.name_i18n end,
+       description_i18n = case when r.description_i18n = '{}'::jsonb then coalesce(s.description_i18n, '{}'::jsonb) else r.description_i18n end,
+       cadence          = coalesce(r.cadence, s.cadence),
+       anchor_rule      = coalesce(r.anchor_rule, s.anchor_rule),
+       info_checklist   = case when r.info_checklist = '[]'::jsonb then coalesce(s.info_checklist, '[]'::jsonb) else r.info_checklist end
+  from public.tax_filing_schedules s
+ where r.community_id = s.community_id
+   and r.filing_schedule_slug = s.slug;
+
+-- Phase 4n.8: per-(customer, workflow) overrides. Highest priority in the
+-- reminder + checklist resolution chain. Used for one-off adjustments —
+-- "Maria's company also needs to send their new vendor contract this year"
+-- — without forking the workflow rule for everyone else in that
+-- relationship.
+create table if not exists public.tax_customer_workflow_overrides (
+  id text primary key,
+  community_id text not null references public.communities(id) on delete cascade,
+  customer_id  text not null references public.tax_customers(id) on delete cascade,
+  workflow_rule_id text not null references public.tax_relationship_workflow_rules(id) on delete cascade,
+  custom_info_checklist  jsonb,
+  reminder_offsets_days  int[],
+  active boolean not null default true,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (customer_id, workflow_rule_id)
+);
+create index if not exists idx_tax_cust_wf_overrides_lookup
+  on public.tax_customer_workflow_overrides(customer_id, workflow_rule_id, active);
+alter table public.tax_customer_workflow_overrides disable row level security;
+
+-- Also denormalize workflow_rule_id onto email_delivery_logs so the
+-- engagement panel (Phase 4b) can aggregate without a 2-table join.
+alter table public.email_delivery_logs
+  add column if not exists workflow_rule_id text;
+create index if not exists idx_email_delivery_logs_workflow_rule
+  on public.email_delivery_logs(workflow_rule_id, event_type, created_at desc)
+  where workflow_rule_id is not null;
 
 -- ─── Per-community relationship types (Phase 4k) ──────────────────────────────
 -- Existing rows in tax_relationship_types (the 13 seeded "platform default"

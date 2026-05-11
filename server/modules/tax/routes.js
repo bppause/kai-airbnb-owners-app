@@ -38,6 +38,7 @@ module.exports = function createTaxRouter(deps) {
     supabase, requireSupabaseEnv, sendSupabaseError,
     auditLog,
     sendTaxLeadEmail,
+    sendTaxReminderEmail,
     sendTaxDocumentEmail,
     sendTaxMessageEmail,
     sendTaxMessagePracticeEmail,
@@ -1142,7 +1143,9 @@ module.exports = function createTaxRouter(deps) {
         .select(`
           id, period_label, period_start, period_end, due_date,
           status, info_received_at, filed_at, created_at,
-          schedule:tax_filing_schedules ( id, slug, jurisdiction, cadence, name_i18n )
+          workflow_rule_id, relationship_type_id,
+          schedule:tax_filing_schedules ( id, slug, jurisdiction, cadence, name_i18n ),
+          workflow:tax_relationship_workflow_rules ( id, filing_schedule_slug, cadence, name_i18n )
         `)
         .eq('customer_id', id)
         .order('due_date', { ascending: false }).limit(24),
@@ -1713,10 +1716,16 @@ module.exports = function createTaxRouter(deps) {
   // ── GET /portal/filings ──
   router.get('/portal/filings', async (req, res) => {
     const customer = await requireTaxCustomer(req, res); if (!customer) return;
+    // Phase 4n.6: include the workflow rule + relationship type so the
+    // dashboard can prefer the owner's editable name/description when set,
+    // group by relationship, and show which relationship drove each item.
     const { data, error } = await supabase.from('tax_filing_periods')
       .select(`
         id, period_label, period_start, period_end, due_date, status, info_received_at, filed_at,
-        schedule:tax_filing_schedules ( id, slug, jurisdiction, cadence, name_i18n, description_i18n )
+        workflow_rule_id, relationship_type_id,
+        schedule:tax_filing_schedules ( id, slug, jurisdiction, cadence, name_i18n, description_i18n ),
+        workflow:tax_relationship_workflow_rules ( id, filing_schedule_slug, cadence, name_i18n, description_i18n, info_checklist ),
+        relationship:tax_relationship_types ( id, slug, category, name_i18n )
       `)
       .eq('customer_id', customer.id)
       .order('due_date', { ascending: true })
@@ -1730,23 +1739,53 @@ module.exports = function createTaxRouter(deps) {
     const customer = await requireTaxCustomer(req, res); if (!customer) return;
     const id = trim(req.params.id, 200);
     const { data: period, error } = await supabase.from('tax_filing_periods')
-      .select('id, community_id, subscription_id, schedule_id, customer_id, status, period_label, period_start, period_end, due_date, info_received_at, filed_at')
+      .select('id, community_id, subscription_id, schedule_id, workflow_rule_id, customer_id, status, period_label, period_start, period_end, due_date, info_received_at, filed_at')
       .eq('id', id).maybeSingle();
     if (error) return sendSupabaseError(res, error);
     if (!period || period.customer_id !== customer.id) {
       return res.status(404).json({ error: 'Filing not found.' });
     }
-    const [{ data: schedule }, { data: subscription }] = await Promise.all([
-      supabase.from('tax_filing_schedules')
-        .select('id, slug, jurisdiction, cadence, info_checklist, name_i18n, description_i18n')
-        .eq('id', period.schedule_id).maybeSingle(),
-      supabase.from('tax_subscriptions').select('id, custom_info_checklist').eq('id', period.subscription_id).maybeSingle(),
+    // Phase 4n.6 / 4n.8: precedence is
+    //   per-customer override → subscription override → workflow rule →
+    //   schedule default.
+    const [{ data: rule }, { data: schedule }, { data: subscription }, { data: custOverride }] = await Promise.all([
+      period.workflow_rule_id
+        ? supabase.from('tax_relationship_workflow_rules')
+            .select('id, filing_schedule_slug, cadence, info_checklist, name_i18n, description_i18n')
+            .eq('id', period.workflow_rule_id).maybeSingle()
+        : Promise.resolve({ data: null }),
+      period.schedule_id
+        ? supabase.from('tax_filing_schedules')
+            .select('id, slug, jurisdiction, cadence, info_checklist, name_i18n, description_i18n')
+            .eq('id', period.schedule_id).maybeSingle()
+        : Promise.resolve({ data: null }),
+      period.subscription_id
+        ? supabase.from('tax_subscriptions').select('id, custom_info_checklist').eq('id', period.subscription_id).maybeSingle()
+        : Promise.resolve({ data: null }),
+      period.workflow_rule_id
+        ? supabase.from('tax_customer_workflow_overrides')
+            .select('custom_info_checklist')
+            .eq('customer_id', period.customer_id)
+            .eq('workflow_rule_id', period.workflow_rule_id)
+            .eq('active', true).maybeSingle()
+        : Promise.resolve({ data: null }),
     ]);
-    const checklist = (Array.isArray(subscription?.custom_info_checklist) && subscription.custom_info_checklist.length)
-      ? subscription.custom_info_checklist
-      : (Array.isArray(schedule?.info_checklist) ? schedule.info_checklist : []);
+    const overrideChecklist = Array.isArray(custOverride?.custom_info_checklist) && custOverride.custom_info_checklist.length
+      ? custOverride.custom_info_checklist : null;
+    const ruleChecklist = Array.isArray(rule?.info_checklist) && rule.info_checklist.length ? rule.info_checklist : null;
+    const scheduleChecklist = Array.isArray(schedule?.info_checklist) && schedule.info_checklist.length ? schedule.info_checklist : null;
+    const checklist = overrideChecklist
+      || ((Array.isArray(subscription?.custom_info_checklist) && subscription.custom_info_checklist.length)
+        ? subscription.custom_info_checklist
+        : (ruleChecklist || scheduleChecklist || []));
+    // Build a unified `schedule` shape the frontend already reads.
+    const effectiveSchedule = schedule || (rule ? {
+      id: rule.id, slug: rule.filing_schedule_slug, cadence: rule.cadence,
+      name_i18n: rule.name_i18n || {}, description_i18n: rule.description_i18n || {},
+      info_checklist: rule.info_checklist || [],
+    } : null);
     res.json({
-      period, schedule, checklist,
+      period, schedule: effectiveSchedule, checklist,
       alreadyReceived: ['info_received', 'in_prep', 'filed'].includes(period.status),
     });
   });
@@ -2242,11 +2281,19 @@ module.exports = function createTaxRouter(deps) {
           .filter(n => Number.isFinite(n) && n >= 0 && n <= 365);
       }
       const ruleId = `trwr_${communitySlug}_${relTypeId}_${slug}`.slice(0, 200);
+      // Phase 4n.5: also persist the workflow spec onto the rule row so the
+      // upcoming relationship-driven cron can read it without joining through
+      // tax_filing_schedules. Mirrors the schedule row we just inserted.
       const { error: ruleErr } = await supabase.from('tax_relationship_workflow_rules').upsert({
         id: ruleId, community_id: communitySlug,
         relationship_type_id: relTypeId, filing_schedule_slug: slug,
         reminder_offsets_days: offsets,
         required_documents: Array.isArray(body.extraDocs) ? body.extraDocs : [],
+        name_i18n: { en: nameEn, es: nameEs },
+        description_i18n: { en: trim(body.descriptionEn || '', 1000), es: trim(body.descriptionEs || '', 1000) },
+        cadence,
+        anchor_rule: anchorRule,
+        info_checklist: infoChecklist,
         active: true, updated_at: new Date().toISOString(),
       }, { onConflict: 'id' });
       if (ruleErr) return sendSupabaseError(res, ruleErr);
@@ -2260,6 +2307,194 @@ module.exports = function createTaxRouter(deps) {
       });
     } catch (_e) {}
     res.json({ ok: true, scheduleId, slug });
+  });
+
+  // ── Phase 4n.8: per-customer workflow overrides ─────────────────────────
+  // List every workflow active for a customer (resolved through their
+  // active relationships) and join the override row if one exists. Used by
+  // the customer detail page to render the override editor.
+  router.get('/admin/customers/:id/workflow-overrides', async (req, res) => {
+    if (!(await requireOwnerAdmin(req, res))) return;
+    const customerId = trim(req.params.id, 200);
+    if (!customerId) return res.status(400).json({ error: 'customerId required.' });
+    const { data: cust } = await supabase.from('tax_customers')
+      .select('id, community_id').eq('id', customerId).maybeSingle();
+    if (!cust) return res.status(404).json({ error: 'Customer not found.' });
+
+    const { data: rels } = await supabase.from('tax_customer_relationships')
+      .select('relationship_type_id').eq('customer_id', customerId).eq('active', true);
+    const typeIds = (rels || []).map(r => r.relationship_type_id);
+    if (!typeIds.length) return res.json({ workflows: [] });
+
+    const { data: rules } = await supabase.from('tax_relationship_workflow_rules')
+      .select('id, relationship_type_id, filing_schedule_slug, cadence, name_i18n, description_i18n, info_checklist, reminder_offsets_days')
+      .eq('community_id', cust.community_id)
+      .eq('active', true)
+      .in('relationship_type_id', typeIds);
+    const { data: overrides } = await supabase.from('tax_customer_workflow_overrides')
+      .select('workflow_rule_id, custom_info_checklist, reminder_offsets_days, active, updated_at')
+      .eq('customer_id', customerId);
+    const ovByRule = new Map();
+    for (const o of overrides || []) ovByRule.set(o.workflow_rule_id, o);
+
+    const workflows = (rules || []).map(rule => ({
+      rule,
+      override: ovByRule.get(rule.id) || null,
+    }));
+    res.json({ workflows });
+  });
+
+  router.put('/admin/customers/:customerId/workflow-overrides/:ruleId', async (req, res) => {
+    if (!(await requireOwnerAdmin(req, res))) return;
+    const customerId = trim(req.params.customerId, 200);
+    const ruleId = trim(req.params.ruleId, 200);
+    const body = req.body || {};
+    if (!customerId || !ruleId) return res.status(400).json({ error: 'customerId + ruleId required.' });
+
+    const { data: cust } = await supabase.from('tax_customers')
+      .select('id, community_id').eq('id', customerId).maybeSingle();
+    if (!cust) return res.status(404).json({ error: 'Customer not found.' });
+
+    // Validate offsets — same shape as the workflow rule editor.
+    let offsets = null;
+    if (Array.isArray(body.reminderOffsetsDays)) {
+      const parsed = body.reminderOffsetsDays
+        .map(n => parseInt(n, 10))
+        .filter(n => Number.isFinite(n) && n >= 0 && n <= 365);
+      offsets = parsed.length ? parsed.slice(0, 10) : null;
+    }
+    const checklist = Array.isArray(body.customInfoChecklist) ? body.customInfoChecklist : null;
+
+    const id = `tcwo_${customerId}_${ruleId}`.slice(0, 200);
+    const row = {
+      id, community_id: cust.community_id, customer_id: customerId,
+      workflow_rule_id: ruleId,
+      custom_info_checklist: checklist,
+      reminder_offsets_days: offsets,
+      active: body.active === false ? false : true,
+      updated_at: new Date().toISOString(),
+    };
+    const { error } = await supabase.from('tax_customer_workflow_overrides').upsert(row, { onConflict: 'id' });
+    if (error) return sendSupabaseError(res, error);
+    try {
+      await auditLog({
+        entity: 'tax.customer_workflow_override', entityId: id,
+        action: 'upsert', actorEmail: '',
+        after: { customer: customerId, rule: ruleId,
+                 offsets: Array.isArray(offsets) ? offsets.length : 0,
+                 docs: Array.isArray(checklist) ? checklist.length : 0 },
+      });
+    } catch (_e) {}
+    res.json({ ok: true, override: row });
+  });
+
+  router.delete('/admin/customers/:customerId/workflow-overrides/:ruleId', async (req, res) => {
+    if (!(await requireOwnerAdmin(req, res))) return;
+    const customerId = trim(req.params.customerId, 200);
+    const ruleId = trim(req.params.ruleId, 200);
+    const id = `tcwo_${customerId}_${ruleId}`.slice(0, 200);
+    const { error } = await supabase.from('tax_customer_workflow_overrides').delete().eq('id', id);
+    if (error) return sendSupabaseError(res, error);
+    try {
+      await auditLog({
+        entity: 'tax.customer_workflow_override', entityId: id,
+        action: 'delete', actorEmail: '',
+        after: { customer: customerId, rule: ruleId },
+      });
+    } catch (_e) {}
+    res.json({ ok: true });
+  });
+
+  // ── Phase 4n.9: per-workflow engagement panel ───────────────────────────
+  // Aggregates email_delivery_logs over a sliding window. Owner sees at a
+  // glance how a particular workflow's reminders are landing — open / click
+  // rates are the signal that a workflow's wording is working.
+  router.get('/admin/workflows/:ruleId/engagement', async (req, res) => {
+    if (!(await requireOwnerAdmin(req, res))) return;
+    const ruleId = trim(req.params.ruleId, 200);
+    const windowDays = Math.max(1, Math.min(365, parseInt(req.query.windowDays, 10) || 90));
+    const since = new Date(Date.now() - windowDays * 86400000).toISOString();
+    const { data, error } = await supabase.from('email_delivery_logs')
+      .select('id, event_type, customer_id, created_at, delivered_at, opened_at, clicked_at, bounced_at, open_count, click_count')
+      .eq('workflow_rule_id', ruleId).eq('event_type', 'reminder')
+      .gte('created_at', since);
+    if (error) return sendSupabaseError(res, error);
+    const rows = data || [];
+    const summary = {
+      windowDays,
+      sent: rows.length,
+      delivered: rows.filter(r => r.delivered_at).length,
+      opened: rows.filter(r => r.opened_at).length,
+      clicked: rows.filter(r => r.clicked_at).length,
+      bounced: rows.filter(r => r.bounced_at).length,
+      uniqueCustomers: new Set(rows.map(r => r.customer_id).filter(Boolean)).size,
+    };
+    summary.openRate = summary.sent ? summary.opened / summary.sent : 0;
+    summary.clickRate = summary.sent ? summary.clicked / summary.sent : 0;
+    res.json({ summary });
+  });
+
+  // ── Phase 4n.9: send a test reminder ────────────────────────────────────
+  // Builds a stub period for the workflow and sends the actual reminder
+  // email to the requested recipient (defaults to the calling owner's
+  // email). No DB write — does NOT create a real period or response token,
+  // and is intentionally silent on email_delivery_logs so test sends don't
+  // pollute the engagement panel.
+  router.post('/admin/workflows/:ruleId/test-reminder', async (req, res) => {
+    const email = await requireOwnerAdmin(req, res);
+    if (!email) return;
+    if (typeof sendTaxReminderEmail !== 'function') {
+      return res.status(500).json({ error: 'reminder sender not configured' });
+    }
+    const ruleId = trim(req.params.ruleId, 200);
+    const body = req.body || {};
+    const toEmail = trim(body.toEmail || email, 200);
+    if (!toEmail || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(toEmail)) {
+      return res.status(400).json({ error: 'Invalid recipient email.' });
+    }
+    const lang = body.lang === 'en' ? 'en' : 'es';
+
+    const { data: rule } = await supabase.from('tax_relationship_workflow_rules')
+      .select('id, community_id, filing_schedule_slug, name_i18n, description_i18n, info_checklist, reminder_offsets_days, required_documents')
+      .eq('id', ruleId).maybeSingle();
+    if (!rule) return res.status(404).json({ error: 'Workflow not found.' });
+
+    // Stub objects mirror what fireReminders normally passes to the sender.
+    const offsetDays = Math.abs(parseInt(body.offsetDays, 10)) || 14;
+    const stubRow = {
+      id: 'preview',
+      period_label: lang === 'en' ? 'Test period' : 'Período de prueba',
+      due_date: body.dueDate || '2026-12-31',
+    };
+    const stubCust = {
+      id: 'preview',
+      community_id: rule.community_id,
+      email: toEmail,
+      name: lang === 'en' ? 'Test recipient' : 'Destinatario de prueba',
+      locale: lang,
+    };
+    const stubSch = {
+      id: rule.id,
+      slug: rule.filing_schedule_slug,
+      name_i18n: rule.name_i18n || {},
+      description_i18n: rule.description_i18n || {},
+      info_checklist: rule.info_checklist || [],
+    };
+    const magicUrl = `${typeof publicAppUrl === 'function' ? publicAppUrl() : ''}/tax/respond/preview-test`;
+    try {
+      const result = await sendTaxReminderEmail({
+        row: stubRow, cust: stubCust, sch: stubSch, sub: null,
+        magicUrl, offsetDays, tips: [], extraDocs: rule.required_documents || null,
+        // Test sends are excluded from engagement aggregation.
+        skipLog: true,
+      });
+      if (result?.sent === false && !result.skipped) {
+        return res.status(500).json({ error: result.reason || 'send failed' });
+      }
+      return res.json({ ok: true, to: toEmail, skipped: !!result?.skipped, reason: result?.reason || null });
+    } catch (e) {
+      return res.status(500).json({ error: e?.message || 'send failed' });
+    }
   });
 
   router.get('/admin/relationship-workflow-rules', async (req, res) => {
@@ -3772,7 +4007,7 @@ module.exports = function createTaxRouter(deps) {
       subject: defaults.subject || '',
       body_text: defaults.text || '',
       body_html: defaults.html || '',
-      hasFactoredDefault: key === 'reminder',
+      hasFactoredDefault: !!(defaults.subject || defaults.text || defaults.html),
     });
   });
 

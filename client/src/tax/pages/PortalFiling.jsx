@@ -3,6 +3,7 @@ import { pickI18n, useT } from '../i18n';
 import { useTaxAuth } from '../auth/AuthProvider';
 import { taxApi } from '../api';
 import PortalShell from '../components/PortalShell';
+import ChecklistField from '../components/ChecklistField';
 
 export default function PortalFiling({ filingId }) {
   const { locale, t } = useT();
@@ -83,27 +84,12 @@ export default function PortalFiling({ filingId }) {
       </p>
 
       <form className="tax-form" onSubmit={onSubmit} noValidate>
-        {(checklist || []).map(item => {
-          const label = pickI18n(item.label_i18n, locale).value || item.key;
-          const fieldId = `pf-${item.key}`;
-          const inputType = item.type === 'number' || item.type === 'currency' ? 'number' : (item.type === 'text' ? 'textarea' : 'text');
-          return (
-            <div key={item.key}>
-              <label htmlFor={fieldId}>
-                {label}
-                {!item.required && <span style={{ color: '#94a3b8', fontWeight: 400, marginLeft: 6 }}>{t('respond.optional')}</span>}
-              </label>
-              {inputType === 'textarea' ? (
-                <textarea id={fieldId} rows={3} value={values[item.key] || ''} onChange={e => onChange(item.key, e.target.value)} />
-              ) : (
-                <input id={fieldId} type={inputType}
-                       inputMode={inputType === 'number' ? 'decimal' : undefined}
-                       step={item.type === 'currency' ? '0.01' : undefined}
-                       value={values[item.key] || ''} onChange={e => onChange(item.key, e.target.value)} />
-              )}
-            </div>
-          );
-        })}
+        {(checklist || []).map(item => (
+          <ChecklistField key={item.key} item={item} fieldIdPrefix="pf"
+                          value={values[item.key]}
+                          onChange={(v) => onChange(item.key, v)}
+                          auth={auth} supportsFileUpload={true} />
+        ))}
 
         <div>
           <label htmlFor="pf-notes">{t('respond.notes')}</label>

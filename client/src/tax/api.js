@@ -190,6 +190,11 @@ export const taxApi = {
 
   adminListFilingSchedules(auth, communitySlug)  { return request('GET', `/admin/filing-schedules?communitySlug=${encodeURIComponent(communitySlug)}`, undefined, auth, { admin: true }); },
   adminCreateFilingSchedule(auth, payload) { return request('POST', '/admin/filing-schedules', payload, auth, { admin: true }); },
+  adminListCustomerWorkflowOverrides(auth, customerId) { return request('GET', `/admin/customers/${encodeURIComponent(customerId)}/workflow-overrides`, undefined, auth, { admin: true }); },
+  adminUpsertCustomerWorkflowOverride(auth, customerId, ruleId, payload) { return request('PUT', `/admin/customers/${encodeURIComponent(customerId)}/workflow-overrides/${encodeURIComponent(ruleId)}`, payload, auth, { admin: true }); },
+  adminDeleteCustomerWorkflowOverride(auth, customerId, ruleId) { return request('DELETE', `/admin/customers/${encodeURIComponent(customerId)}/workflow-overrides/${encodeURIComponent(ruleId)}`, undefined, auth, { admin: true }); },
+  adminGetWorkflowEngagement(auth, ruleId, windowDays = 90) { return request('GET', `/admin/workflows/${encodeURIComponent(ruleId)}/engagement?windowDays=${windowDays}`, undefined, auth, { admin: true }); },
+  adminSendWorkflowTestReminder(auth, ruleId, payload) { return request('POST', `/admin/workflows/${encodeURIComponent(ruleId)}/test-reminder`, payload, auth, { admin: true }); },
   adminListRelationshipWorkflowRules(auth, communitySlug) { return request('GET', `/admin/relationship-workflow-rules?communitySlug=${encodeURIComponent(communitySlug)}`, undefined, auth, { admin: true }); },
   adminUpdateRelationshipWorkflowRule(auth, relTypeId, scheduleSlug, payload) { return request('PUT', `/admin/relationship-workflow-rules/${encodeURIComponent(relTypeId)}/${encodeURIComponent(scheduleSlug)}`, payload, auth, { admin: true }); },
   adminDeleteRelationshipWorkflowRule(auth, relTypeId, scheduleSlug, communitySlug) { return request('DELETE', `/admin/relationship-workflow-rules/${encodeURIComponent(relTypeId)}/${encodeURIComponent(scheduleSlug)}?communitySlug=${encodeURIComponent(communitySlug)}`, undefined, auth, { admin: true }); },
