@@ -1,13 +1,26 @@
 // Thin fetch wrapper for /api/m/tax/* endpoints.
 // Errors throw with .status and .body attached so callers can branch on 4xx/5xx.
+//
+// Portal calls take an `auth` object { uid, email, communitySlug } that
+// becomes x-firebase-uid, x-firebase-email, x-tax-community headers. The
+// server validates these against tax_customers on every request.
 
 const BASE = '/api/m/tax';
 
-async function request(method, path, body) {
+function authHeaders(auth) {
+  if (!auth || !auth.uid || !auth.email) return {};
+  return {
+    'x-firebase-uid': auth.uid,
+    'x-firebase-email': auth.email,
+    'x-tax-community': auth.communitySlug || '',
+  };
+}
+
+async function request(method, path, body, auth) {
   const res = await fetch(BASE + path, {
     method,
-    headers: { 'Content-Type': 'application/json' },
-    body: body ? JSON.stringify(body) : undefined,
+    headers: { 'Content-Type': 'application/json', ...authHeaders(auth) },
+    body: body !== undefined ? JSON.stringify(body) : undefined,
   });
   const text = await res.text();
   let parsed = null;
@@ -22,8 +35,19 @@ async function request(method, path, body) {
 }
 
 export const taxApi = {
-  getCommunity(slug) { return request('GET', `/community/${encodeURIComponent(slug)}`); },
-  submitLead(payload) { return request('POST', '/leads', payload); },
-  getResponse(token) { return request('GET', `/respond/${encodeURIComponent(token)}`); },
-  submitResponse(token, payload) { return request('POST', `/respond/${encodeURIComponent(token)}`, payload); },
+  // Public (Phase 1 + 1.5)
+  getCommunity(slug)              { return request('GET',  `/community/${encodeURIComponent(slug)}`); },
+  submitLead(payload)             { return request('POST', '/leads', payload); },
+  getResponse(token)              { return request('GET',  `/respond/${encodeURIComponent(token)}`); },
+  submitResponse(token, payload)  { return request('POST', `/respond/${encodeURIComponent(token)}`, payload); },
+
+  // Portal (Phase 2a) — `auth = { uid, email, communitySlug }`
+  authLink(payload)               { return request('POST', '/auth/link', payload); },
+  getMe(auth)                     { return request('GET',  '/portal/me', undefined, auth); },
+  getFilings(auth)                { return request('GET',  '/portal/filings', undefined, auth); },
+  getFiling(auth, id)             { return request('GET',  `/portal/filings/${encodeURIComponent(id)}`, undefined, auth); },
+  submitFiling(auth, id, payload) { return request('POST', `/portal/filings/${encodeURIComponent(id)}/respond`, payload, auth); },
+  getNotifications(auth)          { return request('GET',  '/portal/notifications', undefined, auth); },
+  markNotificationRead(auth, id)  { return request('POST', `/portal/notifications/${encodeURIComponent(id)}/read`, {}, auth); },
+  updatePreferences(auth, payload){ return request('PUT',  '/portal/preferences', payload, auth); },
 };

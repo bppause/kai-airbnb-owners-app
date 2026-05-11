@@ -591,6 +591,12 @@ do $$ begin
     check (default_locale in ('en','es'));
 exception when duplicate_object then null; end $$;
 
+-- v85-2a: per-community toggle controlling whether customers can change their
+-- own reminder-channel preference inside the portal. Default: false (locked).
+-- Owner flips to true to allow customer self-service. Existing subscription
+-- reminder_channels are not affected when this flag changes.
+alter table public.communities add column if not exists tax_allow_customer_notif_pref_change boolean not null default false;
+
 create index if not exists idx_communities_business_type on public.communities(business_type);
 create index if not exists idx_communities_parent on public.communities(parent_community_id);
 
