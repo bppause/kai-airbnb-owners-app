@@ -409,7 +409,7 @@ module.exports = function createTaxRouter(deps) {
           type:tax_relationship_types ( id, category, slug, name_i18n, display_order )
         `).eq('customer_id', id).eq('active', true),
       supabase.from('tax_subscriptions')
-        .select('id, product_id, status, reminder_channels, reminder_offsets_days, active_schedule_slugs, start_date, created_at')
+        .select('id, product_id, status, reminder_channels, reminder_offsets_days, active_schedule_slugs, custom_info_checklist, start_date, created_at')
         .eq('customer_id', id),
       supabase.from('tax_documents')
         .select('id, source, kind, file_name, mime_type, size_bytes, status, uploaded_at, uploaded_by_role, uploaded_by_email, created_at')
@@ -650,7 +650,7 @@ module.exports = function createTaxRouter(deps) {
     const { data, error } = await supabase.from('tax_products')
       .select(`
         id, slug, category, display_order, name_i18n, description_i18n,
-        schedules:tax_filing_schedules ( id, slug, jurisdiction, cadence, enabled, name_i18n )
+        schedules:tax_filing_schedules ( id, slug, jurisdiction, cadence, enabled, name_i18n, info_checklist )
       `)
       .eq('community_id', communitySlug)
       .order('display_order', { ascending: true });
@@ -738,6 +738,42 @@ module.exports = function createTaxRouter(deps) {
     }
     if (body.startDate !== undefined) {
       update.start_date = trim(body.startDate, 32) || null;
+    }
+
+    // Phase 4g: customInfoChecklist
+    //   null / empty array → clear the override (revert to schedule default)
+    //   array of items     → store the override; each item is shape-normalized
+    if (body.customInfoChecklist !== undefined) {
+      if (body.customInfoChecklist === null) {
+        update.custom_info_checklist = null;
+      } else if (!Array.isArray(body.customInfoChecklist)) {
+        return res.status(400).json({ error: 'customInfoChecklist must be an array or null.' });
+      } else {
+        const items = [];
+        const seen = new Set();
+        for (const raw of body.customInfoChecklist) {
+          if (!raw || typeof raw !== 'object' || Array.isArray(raw)) continue;
+          const key = trim(raw.key, 80).toLowerCase().replace(/[^a-z0-9_]/g, '_');
+          if (!key) continue;
+          if (seen.has(key)) {
+            return res.status(400).json({ error: `customInfoChecklist contains a duplicate key: ${key}` });
+          }
+          seen.add(key);
+          const type = ['currency', 'number', 'text'].includes(raw.type) ? raw.type : 'text';
+          const required = Boolean(raw.required);
+          const label_i18n = {};
+          const en = typeof raw.label_i18n?.en === 'string' ? raw.label_i18n.en.trim().slice(0, 240) : '';
+          const es = typeof raw.label_i18n?.es === 'string' ? raw.label_i18n.es.trim().slice(0, 240) : '';
+          if (en) label_i18n.en = en;
+          if (es) label_i18n.es = es;
+          if (!label_i18n.en && !label_i18n.es) {
+            return res.status(400).json({ error: `customInfoChecklist item "${key}" needs a label in at least one language.` });
+          }
+          items.push({ key, type, required, label_i18n });
+        }
+        // Empty array after filtering → treat as clear.
+        update.custom_info_checklist = items.length ? items : null;
+      }
     }
 
     if (Object.keys(update).length === 1) {
