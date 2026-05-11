@@ -236,5 +236,12 @@
   "employee.profile.channels.inAppHint": "siempre aparece en la bandeja del portal del personal",
   "employee.profile.channels.email": "Correo electrónico",
   "employee.profile.channels.emailHint": "se envía a su correo de inicio de sesión o al preferido",
-  "employee.profile.channels.atLeastOne": "Por favor elija al menos un canal de notificación."
+  "employee.profile.channels.atLeastOne": "Por favor elija al menos un canal de notificación.",
+
+  "employee.profile.assignments.title": "Sus clientes asignados",
+  "employee.profile.assignments.adminBanner": "Todos los clientes de esta oficina",
+  "employee.profile.assignments.adminHint": "Como administrador, su bandeja y acceso a clientes abarcan a todos los clientes activos de esta oficina.",
+  "employee.profile.assignments.empty": "Aún no tiene clientes asignados. Su bandeja estará vacía hasta que su administrador le asigne clientes.",
+  "employee.profile.assignments.primary": "Principal",
+  "employee.profile.assignments.managedBy": "Las asignaciones de clientes las gestiona el administrador de su oficina."
 }

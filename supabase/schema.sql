@@ -1648,3 +1648,34 @@ create index if not exists tax_employee_notifications_all_idx
 insert into public.tax_employees (id, community_id, email, name, locale, role)
 values ('emp_bppause', 'tax-america-services', 'bppause@gmail.com', 'BP Pause (staff)', 'en', 'admin')
 on conflict (community_id, email) do nothing;
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- v85-3b: Employee ↔ customer assignments
+--
+-- Many-to-many mapping between tax_employees and tax_customers. Used by the
+-- Phase 3 employee portal to scope a `staff`-role employee's visibility to
+-- their assigned customers only. `admin`-role employees ignore this table
+-- and see every customer in their community.
+--
+-- Soft delete (active=false) keeps the audit trail intact across re-assigns.
+-- is_primary flags one staffer as the "lead" for a customer (purely an
+-- informational hint for UI sorting; no enforced uniqueness in v1).
+-- ═══════════════════════════════════════════════════════════════════════════════
+create table if not exists public.tax_employee_customer_assignments (
+  id                text primary key,
+  community_id      text not null references public.communities(id) on delete cascade,
+  employee_id       text not null references public.tax_employees(id) on delete cascade,
+  customer_id       text not null references public.tax_customers(id) on delete cascade,
+  is_primary        boolean not null default false,
+  assigned_by_email text,
+  active            boolean not null default true,
+  created_at        timestamptz not null default now(),
+  updated_at        timestamptz not null default now(),
+  unique (employee_id, customer_id)
+);
+create index if not exists tax_emp_cust_assign_employee_idx
+  on public.tax_employee_customer_assignments(employee_id) where active;
+create index if not exists tax_emp_cust_assign_customer_idx
+  on public.tax_employee_customer_assignments(customer_id) where active;
+create index if not exists tax_emp_cust_assign_community_idx
+  on public.tax_employee_customer_assignments(community_id) where active;

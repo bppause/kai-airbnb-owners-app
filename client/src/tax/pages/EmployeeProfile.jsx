@@ -15,7 +15,7 @@ function normalizeWhatsappForCheck(raw) {
 // per the owner spec, switchable to "portal + email" via the checkboxes.
 export default function EmployeeProfile() {
   const { t } = useT();
-  const { fbUser, employee, community, refreshMe } = useEmployeeAuth();
+  const { fbUser, employee, community, assignments, refreshMe } = useEmployeeAuth();
   const auth = { uid: fbUser?.uid, email: fbUser?.email, communitySlug: community?.id };
 
   const [form, setForm] = useState({
@@ -234,6 +234,54 @@ export default function EmployeeProfile() {
           {busy ? t('lead.submitting') : t('portal.profile.save')}
         </button>
       </form>
+
+      {/* ── Assignments widget (Phase 3b) ─────────────────────────────────
+          Read-only: customer assignments are managed by the practice
+          owner via /admin/employees/:id/assignments. Admin-role employees
+          see a "scope = all" banner instead of a roster — they're not
+          subject to the assignment filter. */}
+      <h3 style={{ marginTop: 32 }}>{t('employee.profile.assignments.title')}</h3>
+      {employee?.role === 'admin' ? (
+        <div className="tax-msg" style={{ background: 'color-mix(in srgb, var(--tax-brand-primary) 8%, #fff)',
+                                          color: 'var(--tax-text)', borderLeft: '3px solid var(--tax-brand-primary)' }}>
+          <strong>{t('employee.profile.assignments.adminBanner')}</strong>
+          <div style={{ marginTop: 4, color: 'var(--tax-muted)', fontSize: 13 }}>
+            {t('employee.profile.assignments.adminHint')}
+          </div>
+        </div>
+      ) : (assignments || []).length === 0 ? (
+        <div className="tax-contact-item">
+          <p style={{ margin: 0, color: 'var(--tax-muted)' }}>
+            {t('employee.profile.assignments.empty')}
+          </p>
+        </div>
+      ) : (
+        <div style={{ display: 'grid', gap: 8 }}>
+          {assignments.map(a => (
+            <div key={a.id} className="tax-contact-item"
+                 style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
+              <div style={{ minWidth: 0, flex: 1 }}>
+                <div style={{ fontWeight: 600 }}>
+                  {a.customer?.name || a.customer?.email || '—'}
+                  {a.is_primary && (
+                    <span style={{
+                      marginLeft: 8, padding: '2px 8px', borderRadius: 999,
+                      background: 'var(--tax-brand-primary)', color: '#fff',
+                      fontSize: 11, fontWeight: 700,
+                    }}>{t('employee.profile.assignments.primary')}</span>
+                  )}
+                </div>
+                <div style={{ fontSize: 12, color: 'var(--tax-muted)', marginTop: 2 }}>
+                  {a.customer?.email}{a.customer?.phone ? ` • ${a.customer.phone}` : ''}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+      <p style={{ color: 'var(--tax-muted)', fontSize: 13, marginTop: 8 }}>
+        {t('employee.profile.assignments.managedBy')}
+      </p>
     </EmployeeShell>
   );
 }
