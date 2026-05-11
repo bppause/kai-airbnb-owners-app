@@ -391,6 +391,8 @@
   "owner.staff.role.staff": "Personal (ve solo los clientes asignados)",
   "owner.staff.role.admin": "Administrador (ve a todos los clientes de la oficina)",
   "owner.staff.createBtn": "Crear miembro del personal",
+  "owner.staff.sendWelcomeEmail": "Enviar correo de bienvenida con enlace de acceso",
+  "owner.staff.sendWelcomeEmailHint": "Se envía en su idioma seleccionado. Incluye un enlace al portal del personal e instrucciones para iniciar sesión con Google o crear una contraseña.",
   "owner.staff.addedSuccess": "Miembro del personal creado. Pídale que inicie sesión en el portal del personal para activar la cuenta.",
   "owner.staff.empty": "Aún no hay personal.",
   "owner.staff.notFound": "No encontramos a ese miembro del personal.",

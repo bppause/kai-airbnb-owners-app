@@ -522,6 +522,116 @@ module.exports = function createTaxSenders(deps) {
     return sendSpanishEmail({ to, subject, text, html, lang: langTag });
   };
 
+  // Staff onboarding email — sent when an owner adds an employee row.
+  // Mirrors sendTaxWelcomeEmail but points at the /employee URL and uses
+  // role-aware copy (admin vs staff). Locale follows emp.locale.
+  const sendTaxStaffWelcomeEmail = async ({ emp, community, employeeUrl }) => {
+    if (!emailConfigured) return { sent: false, skipped: true, reason: 'email_not_configured' };
+    const to = String(emp?.email || '').trim();
+    if (!to) return { sent: false, skipped: true, reason: 'employee_email_missing' };
+
+    const lang = emp?.locale === 'en' ? 'en' : 'es';
+    const langTag = lang === 'en' ? 'en' : 'es-CO';
+    const practiceName = community?.name || 'Tax America Services';
+    const isAdmin = emp?.role === 'admin';
+    const formalGreeting = formalSalutation(emp.name, lang);
+    const closing = (lang === 'en'
+      ? `Sincerely,\n${practiceName}`
+      : `Atentamente,\n${practiceName}`);
+
+    const roleLabel = lang === 'en'
+      ? (isAdmin ? 'an administrator' : 'a staff member')
+      : (isAdmin ? 'administrador/a' : 'miembro del personal');
+
+    const subject = lang === 'en'
+      ? `You've been added as ${roleLabel} at ${practiceName}`
+      : `Le hemos agregado como ${roleLabel} en ${practiceName}`;
+
+    const adminBullets = lang === 'en' ? [
+      '  • Manage customers, staff, leads, and community settings',
+      '  • Send filing reminders, share documents, and reply to customer messages',
+      '  • Edit FAQs and help articles, and view the audit log',
+    ] : [
+      '  • Administrar clientes, personal, prospectos y configuración de la comunidad',
+      '  • Enviar recordatorios de declaración, compartir documentos y responder mensajes de clientes',
+      '  • Editar FAQs y artículos de ayuda, y ver el registro de auditoría',
+    ];
+    const staffBullets = lang === 'en' ? [
+      '  • See the customers assigned to you',
+      '  • Respond to customer messages and share documents',
+      '  • Update your profile and notification preferences',
+    ] : [
+      '  • Ver los clientes asignados a usted',
+      '  • Responder mensajes de clientes y compartir documentos',
+      '  • Actualizar su perfil y preferencias de notificación',
+    ];
+    const bullets = isAdmin ? adminBullets : staffBullets;
+
+    const introLines = lang === 'en' ? [
+      formalGreeting,
+      '',
+      `${practiceName} has added you to the staff portal as ${roleLabel}. From the portal you can:`,
+      '',
+      ...bullets,
+    ] : [
+      formalGreeting,
+      '',
+      `${practiceName} le ha agregado al portal del personal como ${roleLabel}. Desde el portal puede:`,
+      '',
+      ...bullets,
+    ];
+
+    const signInLines = lang === 'en' ? [
+      '',
+      'To sign in for the first time, visit:',
+      '',
+      `  ${employeeUrl}`,
+      '',
+      `You can sign in with Google or create a password using this email address (${to}).`,
+      '',
+      'If you have any questions about getting started, simply reply to this email.',
+    ] : [
+      '',
+      'Para iniciar sesión por primera vez, visite:',
+      '',
+      `  ${employeeUrl}`,
+      '',
+      `Puede iniciar sesión con Google o crear una contraseña usando este correo (${to}).`,
+      '',
+      'Si tiene alguna pregunta sobre cómo comenzar, simplemente responda a este correo.',
+    ];
+
+    const text = [...introLines, ...signInLines, '', closing].join('\n');
+    const ctaLabel = lang === 'en' ? 'Open staff portal' : 'Abrir portal del personal';
+
+    const html = `
+      <div style="font-family:Arial,sans-serif;max-width:640px;color:#111">
+        <p>${escapeHtml(formalGreeting)}</p>
+        <p>${escapeHtml(introLines[2])}</p>
+        <ul>
+          ${bullets.map(b => `<li>${escapeHtml(b.replace(/^\s*•\s*/, ''))}</li>`).join('')}
+        </ul>
+        <p style="margin:24px 0">
+          <a href="${employeeUrl}" style="background:#1d3a6d;color:#fff;text-decoration:none;padding:12px 22px;border-radius:8px;font-weight:600;display:inline-block">${escapeHtml(ctaLabel)}</a>
+        </p>
+        <p style="color:#666;font-size:13px">${escapeHtml(employeeUrl)}</p>
+        <p style="color:#444;font-size:14px">
+          ${escapeHtml(lang === 'en'
+            ? `You can sign in with Google or create a password using this email address (${to}).`
+            : `Puede iniciar sesión con Google o crear una contraseña usando este correo (${to}).`)}
+        </p>
+        <p style="color:#444;font-size:14px">
+          ${escapeHtml(lang === 'en'
+            ? 'If you have any questions about getting started, simply reply to this email.'
+            : 'Si tiene alguna pregunta sobre cómo comenzar, simplemente responda a este correo.')}
+        </p>
+        <p style="white-space:pre-line">${escapeHtml(closing)}</p>
+      </div>
+    `;
+
+    return sendSpanishEmail({ to, subject, text, html, lang: langTag });
+  };
+
   return {
     sendTaxLeadEmail,
     sendTaxReminderEmail,
@@ -530,5 +640,6 @@ module.exports = function createTaxSenders(deps) {
     sendTaxMessagePracticeEmail,
     sendTaxMessageEmployeeEmail,
     sendTaxWelcomeEmail,
+    sendTaxStaffWelcomeEmail,
   };
 };
