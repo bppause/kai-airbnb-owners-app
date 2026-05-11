@@ -51,12 +51,46 @@ export default function Respond({ token }) {
   const filingName = pickI18n(schedule.name_i18n, locale).value;
 
   if (alreadyReceived || submitState.kind === 'success') {
+    // Continuity: instead of dead-ending on a success card, surface CTAs
+    // back into the portal. Deep link to this filing so the customer can
+    // see status updates (status flips info_received → in_prep → filed
+    // as the practice works through it). Generic "open my portal" link
+    // covers them seeing all their other filings, messages, documents.
+    const portalUrl = community ? `/tax/${community.id}/portal` : '#';
+    const filingDeepLink = (community && period?.id)
+      ? `/tax/${community.id}/portal/filings/${encodeURIComponent(period.id)}`
+      : portalUrl;
     return (
       <Shell community={community} brandStyle={brandStyle}>
-        <div className="tax-msg tax-msg--success">
-          <strong>{t(alreadyReceived ? 'respond.alreadyReceived.heading' : 'respond.success.heading')}</strong>
-          <div style={{ marginTop: 6 }}>{t(alreadyReceived ? 'respond.alreadyReceived.body' : 'respond.success.body')}</div>
-        </div>
+        <section className="tax-section" style={{ paddingTop: 32 }}>
+          <div className="tax-msg tax-msg--success">
+            <strong>{t(alreadyReceived ? 'respond.alreadyReceived.heading' : 'respond.success.heading')}</strong>
+            <div style={{ marginTop: 6 }}>{t(alreadyReceived ? 'respond.alreadyReceived.body' : 'respond.success.body')}</div>
+          </div>
+
+          {community && (
+            <div style={{ marginTop: 24 }}>
+              <h3 style={{ margin: '0 0 6px' }}>{t('respond.continue.title')}</h3>
+              <p style={{ margin: '0 0 16px', color: 'var(--tax-muted)', fontSize: 14 }}>
+                {t('respond.continue.subtitle', { email: customer?.email || '' })}
+              </p>
+              <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+                <a href={filingDeepLink} className="tax-btn tax-btn--primary">
+                  {t('respond.continue.viewStatus')}
+                </a>
+                <a href={portalUrl} className="tax-btn tax-btn--ghost"
+                   style={{ color: 'var(--tax-brand-primary)', borderColor: 'var(--tax-brand-primary)' }}>
+                  {t('respond.continue.openPortal')}
+                </a>
+              </div>
+              <ul style={{ marginTop: 16, paddingLeft: 18, color: 'var(--tax-muted)', fontSize: 13 }}>
+                <li>{t('respond.continue.bulletStatus')}</li>
+                <li>{t('respond.continue.bulletMessages')}</li>
+                <li>{t('respond.continue.bulletDocuments')}</li>
+              </ul>
+            </div>
+          )}
+        </section>
       </Shell>
     );
   }
@@ -149,6 +183,20 @@ export default function Respond({ token }) {
             {submitState.kind === 'submitting' ? t('respond.submitting') : t('respond.submit')}
           </button>
         </form>
+
+        {/* Quiet footer link for customers who'd rather submit from inside
+            the portal (where they can attach documents, see other filings,
+            and message the practice). Magic-link form is still the path
+            of least resistance for one-off customers without an account. */}
+        {community && (
+          <p style={{ marginTop: 20, textAlign: 'center', fontSize: 13, color: 'var(--tax-muted)' }}>
+            {t('respond.havePortal')}{' '}
+            <a href={`/tax/${community.id}/portal`}
+               style={{ color: 'var(--tax-brand-primary)', fontWeight: 600 }}>
+              {t('respond.openPortalLink')}
+            </a>
+          </p>
+        )}
       </section>
     </Shell>
   );
