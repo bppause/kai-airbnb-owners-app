@@ -4,6 +4,27 @@ import { useEmployeeAuth } from '../auth/EmployeeAuthProvider';
 import { taxApi } from '../api';
 import EmployeeShell from '../components/EmployeeShell';
 
+// Category display order — surface business / individual first since most
+// customers are tagged with one of those. The relationship types themselves
+// already carry display_order, used as a tiebreak inside each category.
+const CATEGORY_ORDER = ['business', 'individual', 'general', 'audit'];
+
+function groupByCategory(types) {
+  const buckets = new Map();
+  for (const t of types) {
+    const c = t.category || 'other';
+    if (!buckets.has(c)) buckets.set(c, []);
+    buckets.get(c).push(t);
+  }
+  for (const arr of buckets.values()) {
+    arr.sort((a, b) => (a.display_order || 0) - (b.display_order || 0));
+  }
+  const known = CATEGORY_ORDER.filter(c => buckets.has(c));
+  const extras = Array.from(buckets.keys())
+    .filter(c => !CATEGORY_ORDER.includes(c)).sort();
+  return [...known, ...extras].map(c => ({ category: c, types: buckets.get(c) }));
+}
+
 // Customer browser. Surfaced inside the staff portal at
 // /tax/{slug}/employee/customers and visible to BOTH admin and staff
 // employees:
@@ -73,6 +94,8 @@ export default function OwnerCustomers() {
       .catch(() => setAllTypes([]));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fbUser, community]);
+
+  const groupedTypes = useMemo(() => groupByCategory(allTypes), [allTypes]);
 
   const toggleRelationshipFilter = (typeId) =>
     setRelationshipFilter(prev =>
@@ -190,27 +213,39 @@ export default function OwnerCustomers() {
               <p style={{ fontSize: 12, color: 'var(--tax-muted)', margin: '0 0 8px' }}>
                 {t('owner.customers.fieldRelationshipsHint')}
               </p>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                {allTypes.map(tp => {
-                  const active = form.relationshipTypeIds.includes(tp.id);
-                  return (
-                    <button key={tp.id} type="button" onClick={() => toggleRelOnForm(tp.id)}
-                            style={{
-                              padding: '4px 10px', borderRadius: 999,
-                              background: active
-                                ? 'color-mix(in srgb, var(--tax-brand-primary) 12%, #fff)'
-                                : '#fff',
-                              color: active ? 'var(--tax-brand-primary)' : 'var(--tax-text)',
-                              border: '1px solid',
-                              borderColor: active
-                                ? 'color-mix(in srgb, var(--tax-brand-primary) 35%, #fff)'
-                                : 'var(--tax-border)',
-                              fontSize: 12, fontWeight: active ? 700 : 500, cursor: 'pointer',
-                            }}>
-                      {pickI18n(tp.name_i18n, locale).value || tp.slug}
-                    </button>
-                  );
-                })}
+              <div style={{ display: 'grid', gap: 10 }}>
+                {groupedTypes.map(({ category, types }) => (
+                  <div key={category}>
+                    <div style={{
+                      fontSize: 11, fontWeight: 700, color: 'var(--tax-muted)',
+                      textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 4,
+                    }}>
+                      {t(`owner.customers.category.${category}`, { _: category })}
+                    </div>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                      {types.map(tp => {
+                        const active = form.relationshipTypeIds.includes(tp.id);
+                        return (
+                          <button key={tp.id} type="button" onClick={() => toggleRelOnForm(tp.id)}
+                                  style={{
+                                    padding: '4px 10px', borderRadius: 999,
+                                    background: active
+                                      ? 'color-mix(in srgb, var(--tax-brand-primary) 12%, #fff)'
+                                      : '#fff',
+                                    color: active ? 'var(--tax-brand-primary)' : 'var(--tax-text)',
+                                    border: '1px solid',
+                                    borderColor: active
+                                      ? 'color-mix(in srgb, var(--tax-brand-primary) 35%, #fff)'
+                                      : 'var(--tax-border)',
+                                    fontSize: 12, fontWeight: active ? 700 : 500, cursor: 'pointer',
+                                  }}>
+                            {pickI18n(tp.name_i18n, locale).value || tp.slug}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
           )}
@@ -271,28 +306,40 @@ export default function OwnerCustomers() {
               </button>
             )}
           </div>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-            {allTypes.map(tp => {
-              const active = relationshipFilter.includes(tp.id);
-              return (
-                <button key={tp.id} type="button"
-                        onClick={() => toggleRelationshipFilter(tp.id)}
-                        style={{
-                          padding: '4px 10px', borderRadius: 999,
-                          background: active
-                            ? 'color-mix(in srgb, var(--tax-brand-primary) 12%, #fff)'
-                            : '#fff',
-                          color: active ? 'var(--tax-brand-primary)' : 'var(--tax-text)',
-                          border: '1px solid',
-                          borderColor: active
-                            ? 'color-mix(in srgb, var(--tax-brand-primary) 35%, #fff)'
-                            : 'var(--tax-border)',
-                          fontSize: 12, fontWeight: active ? 700 : 500, cursor: 'pointer',
-                        }}>
-                  {pickI18n(tp.name_i18n, locale).value || tp.slug}
-                </button>
-              );
-            })}
+          <div style={{ display: 'grid', gap: 10 }}>
+            {groupedTypes.map(({ category, types }) => (
+              <div key={category}>
+                <div style={{
+                  fontSize: 11, fontWeight: 700, color: 'var(--tax-muted)',
+                  textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 4,
+                }}>
+                  {t(`owner.customers.category.${category}`, { _: category })}
+                </div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                  {types.map(tp => {
+                    const active = relationshipFilter.includes(tp.id);
+                    return (
+                      <button key={tp.id} type="button"
+                              onClick={() => toggleRelationshipFilter(tp.id)}
+                              style={{
+                                padding: '4px 10px', borderRadius: 999,
+                                background: active
+                                  ? 'color-mix(in srgb, var(--tax-brand-primary) 12%, #fff)'
+                                  : '#fff',
+                                color: active ? 'var(--tax-brand-primary)' : 'var(--tax-text)',
+                                border: '1px solid',
+                                borderColor: active
+                                  ? 'color-mix(in srgb, var(--tax-brand-primary) 35%, #fff)'
+                                  : 'var(--tax-border)',
+                                fontSize: 12, fontWeight: active ? 700 : 500, cursor: 'pointer',
+                              }}>
+                        {pickI18n(tp.name_i18n, locale).value || tp.slug}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       )}
