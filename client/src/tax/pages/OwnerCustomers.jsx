@@ -33,7 +33,11 @@ export default function OwnerCustomers() {
   // Add-customer form state (admin only; staff sees no Add UI)
   const [adding, setAdding] = useState(false);
   const [importing, setImporting] = useState(false);
-  const [form, setForm] = useState({ name: '', email: '', phone: '', locale: 'es' });
+  const [form, setForm] = useState({
+    name: '', email: '', phone: '', locale: 'es',
+    relationshipTypeIds: [],
+    sendWelcomeEmail: true,                       // default behavior per owner spec
+  });
   const [busyAdd, setBusyAdd] = useState(false);
   const [addMsg, setAddMsg] = useState({ kind: 'idle', text: '' });
 
@@ -85,9 +89,14 @@ export default function OwnerCustomers() {
         name: form.name.trim(),
         phone: form.phone.trim(),
         locale: form.locale,
+        relationshipTypeIds: form.relationshipTypeIds,
+        sendWelcomeEmail: form.sendWelcomeEmail,
       });
+      // Successful create. The welcome-email send is best-effort on the
+      // server; we just trust the response for the redirect. The detail
+      // page can re-send manually if needed.
       setAddMsg({ kind: 'success', text: t('owner.customers.addedSuccess') });
-      setForm({ name: '', email: '', phone: '', locale: 'es' });
+      setForm({ name: '', email: '', phone: '', locale: 'es', relationshipTypeIds: [], sendWelcomeEmail: true });
       window.location.href = `/tax/${community.id}/employee/customers/${encodeURIComponent(r.id)}`;
     } catch (err) {
       setAddMsg({ kind: 'error', text: err?.message || t('respond.error.generic') });
@@ -95,6 +104,14 @@ export default function OwnerCustomers() {
       setBusyAdd(false);
     }
   };
+
+  const toggleRelOnForm = (typeId) =>
+    setForm(prev => ({
+      ...prev,
+      relationshipTypeIds: prev.relationshipTypeIds.includes(typeId)
+        ? prev.relationshipTypeIds.filter(id => id !== typeId)
+        : [...prev.relationshipTypeIds, typeId],
+    }));
 
   const base = community ? `/tax/${community.id}/employee/customers` : '#';
 
@@ -160,6 +177,62 @@ export default function OwnerCustomers() {
               </select>
             </div>
           </div>
+
+          {/* Service relationships — chip picker over the 13 relationship
+              types. Selected chips drive both the customer's portal-side
+              FAQ/help filtering and (when the welcome email is enabled)
+              the bulleted service list in the welcome email body. */}
+          {allTypes.length > 0 && (
+            <div>
+              <label style={{ fontSize: 13, fontWeight: 600, marginBottom: 6, display: 'block' }}>
+                {t('owner.customers.fieldRelationships')}
+              </label>
+              <p style={{ fontSize: 12, color: 'var(--tax-muted)', margin: '0 0 8px' }}>
+                {t('owner.customers.fieldRelationshipsHint')}
+              </p>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                {allTypes.map(tp => {
+                  const active = form.relationshipTypeIds.includes(tp.id);
+                  return (
+                    <button key={tp.id} type="button" onClick={() => toggleRelOnForm(tp.id)}
+                            style={{
+                              padding: '4px 10px', borderRadius: 999,
+                              background: active
+                                ? 'color-mix(in srgb, var(--tax-brand-primary) 12%, #fff)'
+                                : '#fff',
+                              color: active ? 'var(--tax-brand-primary)' : 'var(--tax-text)',
+                              border: '1px solid',
+                              borderColor: active
+                                ? 'color-mix(in srgb, var(--tax-brand-primary) 35%, #fff)'
+                                : 'var(--tax-border)',
+                              fontSize: 12, fontWeight: active ? 700 : 500, cursor: 'pointer',
+                            }}>
+                      {pickI18n(tp.name_i18n, locale).value || tp.slug}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Welcome-email checkbox. Default on per owner spec. The email
+              body summarizes the selected relationships and is rendered
+              in the customer's locale (es/en above). */}
+          <label style={{
+            display: 'flex', alignItems: 'flex-start', gap: 10, cursor: 'pointer',
+            padding: '10px 12px', background: 'var(--tax-bg-alt)', borderRadius: 8,
+          }}>
+            <input type="checkbox" checked={form.sendWelcomeEmail}
+                   onChange={e => setForm(p => ({ ...p, sendWelcomeEmail: e.target.checked }))}
+                   style={{ marginTop: 2 }} />
+            <div>
+              <div style={{ fontWeight: 600, fontSize: 14 }}>{t('owner.customers.sendWelcome')}</div>
+              <div style={{ fontSize: 12, color: 'var(--tax-muted)', marginTop: 2 }}>
+                {t('owner.customers.sendWelcomeHint')}
+              </div>
+            </div>
+          </label>
+
           {addMsg.text && (
             <div className={`tax-msg tax-msg--${addMsg.kind === 'error' ? 'error' : 'success'}`}>{addMsg.text}</div>
           )}

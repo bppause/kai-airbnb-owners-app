@@ -42,6 +42,7 @@ module.exports = function createTaxRouter(deps) {
     sendTaxMessageEmail,
     sendTaxMessagePracticeEmail,
     sendTaxMessageEmployeeEmail,
+    sendTaxWelcomeEmail,
     publicAppUrl,
     isGlobalAdmin,
     isEnvGlobalAdminEmail,
@@ -638,11 +639,16 @@ module.exports = function createTaxRouter(deps) {
     const name = trim(body.name, MAX_NAME_LEN);
     const phone = trim(body.phone, MAX_PHONE_LEN);
     const locale = (body.locale === 'en') ? 'en' : 'es';
+    // Phase: relationships (array of type ids) + sendWelcomeEmail (bool,
+    // default true). Both are optional but the Add form sends them.
+    const requestedRels = Array.isArray(body.relationshipTypeIds)
+      ? body.relationshipTypeIds.map(s => String(s)).filter(Boolean) : [];
+    const sendWelcome = body.sendWelcomeEmail === false ? false : true;
+
     if (!communitySlug || !email) return res.status(400).json({ error: 'communitySlug and email required.' });
     if (!isValidEmail(email)) return res.status(400).json({ error: 'Email is not valid.' });
 
-    // Reject if a customer with this email already exists in the community —
-    // the unique constraint would catch it, but a friendlier error helps.
+    // Reject if a customer with this email already exists in the community.
     const { data: existing } = await supabase.from('tax_customers')
       .select('id').eq('community_id', communitySlug).eq('email', email).maybeSingle();
     if (existing) return res.status(409).json({ error: 'A customer with this email already exists in this community.' });
@@ -652,8 +658,116 @@ module.exports = function createTaxRouter(deps) {
       id, community_id: communitySlug, email, name, phone, locale, status: 'active',
     });
     if (error) return sendSupabaseError(res, error);
-    res.json({ ok: true, id });
+
+    // Insert relationship tags. Unknown ids are warned but don't fail
+    // the customer create (mirrors CSV-import semantics).
+    let createdRelTypeIds = [];
+    let unknownRels = [];
+    if (requestedRels.length) {
+      const { data: types } = await supabase.from('tax_relationship_types')
+        .select('id').eq('active', true);
+      const validTypeIds = new Set((types || []).map(t => t.id));
+      const validRels = requestedRels.filter(id => validTypeIds.has(id));
+      unknownRels = requestedRels.filter(id => !validTypeIds.has(id));
+      if (validRels.length) {
+        const relRows = validRels.map(typeId => ({
+          id: 'crel_' + uuidv4().slice(0, 12),
+          customer_id: id,
+          relationship_type_id: typeId,
+          created_by_email: 'admin_add',
+          active: true,
+        }));
+        const { error: relErr } = await supabase.from('tax_customer_relationships').insert(relRows);
+        if (!relErr) createdRelTypeIds = validRels;
+      }
+    }
+
+    // Welcome email — best-effort, never blocks the create. Looks up the
+    // joined relationship rows so the email body can render localized
+    // service names.
+    let welcomeResult = { sent: false, skipped: true };
+    if (sendWelcome) {
+      welcomeResult = await sendWelcomeForCustomer(id);
+    }
+
+    res.json({
+      ok: true, id,
+      relationshipsAdded: createdRelTypeIds,
+      unknownRelationships: unknownRels,
+      welcomeEmail: welcomeResult,
+    });
   });
+
+  // POST /admin/customers/:id/send-welcome
+  // Manual resend of the welcome email — useful after adding more
+  // relationships, or if the original send failed/got missed by the
+  // customer. Always uses the current relationship set + customer locale.
+  router.post('/admin/customers/:id/send-welcome', async (req, res) => {
+    if (!(await requireOwnerAdmin(req, res))) return;
+    const customerId = trim(req.params.id, 200);
+    const result = await sendWelcomeForCustomer(customerId);
+    if (result.skipped) {
+      // Common case: email not configured on this deploy. Return 200 with
+      // the skip reason so the UI can show a clear message instead of a
+      // generic error.
+      return res.json(result);
+    }
+    if (result.sent === false) {
+      return res.status(500).json({ ok: false, ...result });
+    }
+    res.json({ ok: true, ...result });
+  });
+
+  // Shared welcome-email plumbing — loads the customer, community, and the
+  // current relationships, builds the portal URL, hands off to the email
+  // sender. Audit-logged.
+  async function sendWelcomeForCustomer(customerId) {
+    const [{ data: cust }] = await Promise.all([
+      supabase.from('tax_customers')
+        .select('id, community_id, email, name, locale, status')
+        .eq('id', customerId).maybeSingle(),
+    ]);
+    if (!cust) return { sent: false, error: 'Customer not found.' };
+    if (cust.status !== 'active') return { sent: false, error: 'Customer is not active.' };
+
+    const [{ data: community }, { data: rels }] = await Promise.all([
+      supabase.from('communities')
+        .select('id, name, contact_email').eq('id', cust.community_id).maybeSingle(),
+      supabase.from('tax_customer_relationships')
+        .select(`
+          relationship_type_id, active,
+          type:tax_relationship_types ( id, name_i18n, display_order )
+        `).eq('customer_id', customerId).eq('active', true),
+    ]);
+
+    const portalUrl = `${(typeof publicAppUrl === 'function' ? publicAppUrl() : '')}/tax/${cust.community_id}/portal`;
+    const relationships = (rels || []).slice().sort((a, b) =>
+      (a.type?.display_order || 0) - (b.type?.display_order || 0));
+
+    let result = { sent: false, skipped: true, reason: 'no_sender' };
+    if (typeof sendTaxWelcomeEmail === 'function') {
+      try {
+        result = await sendTaxWelcomeEmail({ cust, community, relationships, portalUrl });
+      } catch (e) {
+        warn('[tax] welcome email failed', e?.message || e);
+        result = { sent: false, error: e?.message || 'Send failed.' };
+      }
+    }
+    try {
+      await auditLog({
+        entity: 'tax.customer', entityId: customerId,
+        action: 'send_welcome_email',
+        actorEmail: '',
+        after: {
+          to: cust.email,
+          locale: cust.locale,
+          relationshipsCount: relationships.length,
+          sent: !!result.sent,
+        },
+      });
+    } catch (_e) {}
+    return result;
+  }
 
   // ── POST /admin/customers/import ── (Phase 4h — bulk CSV import)
   //

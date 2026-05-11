@@ -406,6 +406,122 @@ module.exports = function createTaxSenders(deps) {
     return sendSpanishEmail({ to, subject, text, html, lang: langTag });
   };
 
+  // ── Welcome / portal-invite email ────────────────────────────────────────
+  // Sent when an owner manually creates a customer + opts in to a welcome
+  // email (default behavior on the Add form). Locale picked from
+  // cust.locale; relationships list rendered in the same language. Goes to
+  // cust.email (the sign-in identity) — preferred_communication_email is
+  // not used here because at first-sign-in time the two are the same and
+  // the welcome IS the invitation to use this email to sign in.
+  const sendTaxWelcomeEmail = async ({ cust, community, relationships = [], portalUrl }) => {
+    if (!emailConfigured) return { sent: false, skipped: true, reason: 'email_not_configured' };
+    const to = String(cust?.email || '').trim();
+    if (!to) return { sent: false, skipped: true, reason: 'customer_email_missing' };
+
+    const lang = cust?.locale === 'en' ? 'en' : 'es';
+    const langTag = lang === 'en' ? 'en' : 'es-CO';
+    const practiceName = community?.name || 'Tax America Services';
+    const formalGreeting = formalSalutation(cust.name, lang);
+    const closing = (lang === 'en'
+      ? `Sincerely,\n${practiceName}`
+      : `Atentamente,\n${practiceName}`);
+
+    const subject = lang === 'en'
+      ? `Welcome to your portal at ${practiceName}`
+      : `Bienvenido/a a su portal en ${practiceName}`;
+
+    const introLines = lang === 'en' ? [
+      formalGreeting,
+      '',
+      `${practiceName} has set up a secure online portal for you to manage your tax services with us. From the portal you can:`,
+      '',
+      '  • Receive filing reminders and upload the documents we need',
+      '  • View completed returns and other documents we share with you',
+      '  • Message us directly with questions',
+    ] : [
+      formalGreeting,
+      '',
+      `${practiceName} ha configurado un portal seguro en línea para que administre sus servicios de impuestos con nosotros. Desde el portal puede:`,
+      '',
+      '  • Recibir recordatorios de declaración y subir los documentos que necesitamos',
+      '  • Ver declaraciones completadas y otros documentos que compartimos con usted',
+      '  • Enviarnos mensajes directamente con preguntas',
+    ];
+
+    // Relationship list. relationships is the array of joined rows from
+    // tax_customer_relationships → tax_relationship_types. We use the
+    // localized name_i18n for each. Skipped entirely if empty.
+    const relNames = (relationships || [])
+      .map(r => pickName(r.type?.name_i18n, lang))
+      .filter(Boolean);
+    const relHeader = lang === 'en'
+      ? 'We have you set up for the following services:'
+      : 'Lo tenemos configurado para los siguientes servicios:';
+    const relSection = relNames.length
+      ? ['', relHeader, '', ...relNames.map(n => `  • ${n}`)]
+      : [];
+
+    const signInLines = lang === 'en' ? [
+      '',
+      'To sign in for the first time, visit:',
+      '',
+      `  ${portalUrl}`,
+      '',
+      `You can sign in with Google or create a password using this email address (${to}).`,
+      '',
+      'If you have any questions about getting started, simply reply to this email.',
+    ] : [
+      '',
+      'Para iniciar sesión por primera vez, visite:',
+      '',
+      `  ${portalUrl}`,
+      '',
+      `Puede iniciar sesión con Google o crear una contraseña usando este correo (${to}).`,
+      '',
+      'Si tiene alguna pregunta sobre cómo comenzar, simplemente responda a este correo.',
+    ];
+
+    const text = [...introLines, ...relSection, ...signInLines, '', closing].join('\n');
+
+    const relHtml = relNames.length
+      ? `
+        <p style="margin:16px 0 6px">${escapeHtml(relHeader)}</p>
+        <ul style="margin:0 0 16px">
+          ${relNames.map(n => `<li>${escapeHtml(n)}</li>`).join('')}
+        </ul>` : '';
+    const ctaLabel = lang === 'en' ? 'Open my portal' : 'Abrir mi portal';
+
+    const html = `
+      <div style="font-family:Arial,sans-serif;max-width:640px;color:#111">
+        <p>${escapeHtml(formalGreeting)}</p>
+        <p>${escapeHtml(introLines[2])}</p>
+        <ul>
+          <li>${escapeHtml(introLines[4].replace(/^\s*•\s*/, ''))}</li>
+          <li>${escapeHtml(introLines[5].replace(/^\s*•\s*/, ''))}</li>
+          <li>${escapeHtml(introLines[6].replace(/^\s*•\s*/, ''))}</li>
+        </ul>
+        ${relHtml}
+        <p style="margin:24px 0">
+          <a href="${portalUrl}" style="background:#1d3a6d;color:#fff;text-decoration:none;padding:12px 22px;border-radius:8px;font-weight:600;display:inline-block">${escapeHtml(ctaLabel)}</a>
+        </p>
+        <p style="color:#666;font-size:13px">${escapeHtml(portalUrl)}</p>
+        <p style="color:#444;font-size:14px">
+          ${escapeHtml(lang === 'en'
+            ? `You can sign in with Google or create a password using this email address (${to}).`
+            : `Puede iniciar sesión con Google o crear una contraseña usando este correo (${to}).`)}
+        </p>
+        <p style="color:#444;font-size:14px">
+          ${escapeHtml(lang === 'en'
+            ? 'If you have any questions about getting started, simply reply to this email.'
+            : 'Si tiene alguna pregunta sobre cómo comenzar, simplemente responda a este correo.')}
+        </p>
+        <p style="white-space:pre-line">${escapeHtml(closing)}</p>
+      </div>
+    `;
+
+    return sendSpanishEmail({ to, subject, text, html, lang: langTag });
+  };
+
   return {
     sendTaxLeadEmail,
     sendTaxReminderEmail,
@@ -413,5 +529,6 @@ module.exports = function createTaxSenders(deps) {
     sendTaxMessageEmail,
     sendTaxMessagePracticeEmail,
     sendTaxMessageEmployeeEmail,
+    sendTaxWelcomeEmail,
   };
 };
