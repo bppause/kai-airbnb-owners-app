@@ -127,6 +127,10 @@ export function TaxEmployeeAuthProvider({ communitySlug, children }) {
     employee: me?.employee || null,
     community: me?.community || null,
     assignments: me?.assignments || [],
+    // customerAccess: { hasCustomerRow } — set when this employee's email
+    // is ALSO a tax_customers row for the same community. Surfaces a
+    // "Switch to customer view" link in EmployeeShell.
+    customerAccess: me?.customerAccess || { hasCustomerRow: false },
     impersonation,
     status, error,
     signOut, refreshMe, exitImpersonation,

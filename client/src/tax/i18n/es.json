@@ -76,6 +76,9 @@
   "portal.nav.help": "Ayuda",
   "portal.nav.profile": "Perfil",
   "portal.signout": "Cerrar sesión",
+  "portal.switchToStaff": "→ Cambiar a vista del personal",
+  "portal.switchToOwner": "→ Cambiar a vista del dueño",
+  "employee.switchToCustomer": "→ Cambiar a vista de cliente",
   "portal.greeting": "Bienvenido/a, {name}",
 
   "portal.login.title": "Inicie sesión en su portal",

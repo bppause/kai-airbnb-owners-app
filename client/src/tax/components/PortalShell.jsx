@@ -10,7 +10,7 @@ import ImpersonationBanner from './ImpersonationBanner';
 // `--tax-brand-*` CSS vars set on the outer .tax-app wrapper.
 export default function PortalShell({ community, active, children }) {
   const { t } = useT();
-  const { fbUser, customer, signOut, impersonation, exitImpersonation } = useTaxAuth();
+  const { fbUser, customer, signOut, impersonation, exitImpersonation, staffAccess } = useTaxAuth();
   const initials = (community?.name || 'TAX')
     .split(/\s+/).map(w => w[0] || '').join('').slice(0, 3).toUpperCase();
   const base = community ? `/tax/${community.id}/portal` : '#';
@@ -55,6 +55,21 @@ export default function PortalShell({ community, active, children }) {
             <a href={`${base}/help`} className={active === 'help' ? 'active' : ''}>{t('portal.nav.help')}</a>
             <a href={`${base}/profile`} className={active === 'profile' ? 'active' : ''}>{t('portal.nav.profile')}</a>
             <LocaleSwitcher />
+            {/* Dual-role switch: when the same email also has an active
+                tax_employees row for this community, show a one-click
+                link to the staff portal. Hidden during impersonation
+                (the impersonator's real identity decides those flags
+                via /portal/me; while impersonating a customer the
+                impersonator is acting as that customer, not themselves,
+                so the link wouldn't make sense). */}
+            {!impersonation && staffAccess?.hasEmployeeRow && community && (
+              <a href={`/tax/${community.id}/employee`} className="tax-btn tax-btn--ghost tax-btn--sm"
+                 style={{ color: 'var(--tax-brand-primary)', borderColor: 'var(--tax-brand-primary)' }}>
+                {staffAccess.role === 'admin'
+                  ? t('portal.switchToOwner')
+                  : t('portal.switchToStaff')}
+              </a>
+            )}
             <button type="button" className="tax-btn tax-btn--ghost tax-btn--sm" onClick={signOut}>
               {t('portal.signout')}
             </button>

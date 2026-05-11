@@ -151,6 +151,12 @@ export function TaxAuthProvider({ communitySlug, children }) {
     community: me?.community || null,
     prefs: me?.preferences || null,
     relationships: me?.relationships || [],
+    // staffAccess: { hasEmployeeRow, role } — set when this customer's
+    // email is ALSO a tax_employees row for the same community. Surfaces
+    // a "Switch to staff view" link in PortalShell so dual-role accounts
+    // (the owner, for example) can hop between identities without
+    // memorizing the /employee URL.
+    staffAccess: me?.staffAccess || { hasEmployeeRow: false, role: null },
     impersonation,
     status, error,
     signOut, refreshMe, exitImpersonation,
