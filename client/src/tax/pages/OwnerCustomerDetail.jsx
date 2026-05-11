@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { pickI18n, useT } from '../i18n';
 import { useEmployeeAuth } from '../auth/EmployeeAuthProvider';
-import { taxApi } from '../api';
+import { taxApi, setImpersonation } from '../api';
 import EmployeeShell from '../components/EmployeeShell';
 import OwnerSubscriptionsSection from '../components/OwnerSubscriptionsSection';
 
@@ -76,11 +76,16 @@ export default function OwnerCustomerDetail({ customerId }) {
   return (
     <EmployeeShell community={community} active="customers">
       <a href={back} style={{ fontSize: 14, color: 'var(--tax-muted)' }}>← {t('owner.customer.back')}</a>
-      <h2 style={{ marginTop: 8, marginBottom: 4 }}>{c.name || c.email}</h2>
-      <p style={{ color: 'var(--tax-muted)', marginTop: 0, fontSize: 13 }}>
-        {c.email}{c.phone ? ` • ${c.phone}` : ''}{c.whatsapp ? ` • WhatsApp ${c.whatsapp}` : ''}
-        {' • '}{c.locale === 'en' ? 'English' : 'Español'}
-      </p>
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, marginTop: 8 }}>
+        <div style={{ minWidth: 0, flex: 1 }}>
+          <h2 style={{ margin: 0, marginBottom: 4 }}>{c.name || c.email}</h2>
+          <p style={{ color: 'var(--tax-muted)', marginTop: 0, fontSize: 13 }}>
+            {c.email}{c.phone ? ` • ${c.phone}` : ''}{c.whatsapp ? ` • WhatsApp ${c.whatsapp}` : ''}
+            {' • '}{c.locale === 'en' ? 'English' : 'Español'}
+          </p>
+        </div>
+        <ImpersonateCustomerButton customer={c} auth={auth} community={community} t={t} />
+      </div>
 
       <ProfileSection customer={c} auth={auth} customerId={customerId} onChange={load} t={t} />
 
@@ -636,5 +641,53 @@ function AssignmentsSection({ data, t }) {
         {t('owner.customer.assignment.hint')}
       </p>
     </section>
+  );
+}
+
+// "Impersonate" button — admin previews the customer portal as this user.
+// Stores impersonation state in sessionStorage (tab-scoped) and navigates
+// the same tab to /portal, where the customer-side AuthProvider detects
+// the state and skips Firebase. The admin's real Firebase session stays
+// intact and resumes when impersonation exits.
+function ImpersonateCustomerButton({ customer, auth, community, t }) {
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+
+  const onClick = async () => {
+    if (!window.confirm(t('impersonation.confirm.customer', { name: customer.name || customer.email }))) return;
+    setBusy(true); setErr('');
+    try {
+      const r = await taxApi.adminStartImpersonation(auth, {
+        communitySlug: community.id,
+        targetType: 'customer',
+        targetId: customer.id,
+      });
+      setImpersonation({
+        token: r.token,
+        targetType: 'customer',
+        targetId: customer.id,
+        targetEmail: customer.email,
+        targetName: customer.name || customer.email,
+        communitySlug: community.id,
+        realAdminEmail: auth.adminEmail || auth.email,
+        realAdminUid: auth.uid,
+        expiresAt: r.expiresAt,
+      });
+      window.location.href = `/tax/${community.id}/portal`;
+    } catch (e) {
+      setErr(e?.message || '');
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
+      <button type="button" className="tax-btn tax-btn--ghost tax-btn--sm"
+              onClick={onClick} disabled={busy}
+              style={{ color: '#b91c1c', borderColor: '#b91c1c', flexShrink: 0 }}>
+        {busy ? t('impersonation.starting') : t('impersonation.viewAsCustomer')}
+      </button>
+      {err && <span style={{ color: 'var(--tax-error)', fontSize: 11 }}>{err}</span>}
+    </div>
   );
 }

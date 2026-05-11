@@ -3,13 +3,14 @@ import LocaleSwitcher from './LocaleSwitcher';
 import { useT } from '../i18n';
 import { useTaxAuth } from '../auth/AuthProvider';
 import { taxApi } from '../api';
+import ImpersonationBanner from './ImpersonationBanner';
 
 // Chrome shared by every portal page: brand header, locale switcher,
 // nav to dashboard/profile, and sign-out. Inherits brand colors from the
 // `--tax-brand-*` CSS vars set on the outer .tax-app wrapper.
 export default function PortalShell({ community, active, children }) {
   const { t } = useT();
-  const { fbUser, customer, signOut } = useTaxAuth();
+  const { fbUser, customer, signOut, impersonation, exitImpersonation } = useTaxAuth();
   const initials = (community?.name || 'TAX')
     .split(/\s+/).map(w => w[0] || '').join('').slice(0, 3).toUpperCase();
   const base = community ? `/tax/${community.id}/portal` : '#';
@@ -29,6 +30,7 @@ export default function PortalShell({ community, active, children }) {
 
   return (
     <>
+      <ImpersonationBanner impersonation={impersonation} onExit={exitImpersonation} />
       <header className="tax-header">
         <div className="tax-container tax-header__row">
           <a href={base} className="tax-brand" aria-label={community?.name || 'Tax Services'}>

@@ -433,5 +433,17 @@
   "owner.customer.subscription.channelsHint": "Cómo se le recuerda al cliente. El cliente también puede configurarlo desde su perfil cuando el bloqueo de notificación de la oficina está abierto.",
   "owner.customer.subscription.errOffsets": "Los desplazamientos deben ser una lista separada por comas de enteros, ej. -14, -7, -3.",
   "owner.customer.subscription.errOffsetsEmpty": "Proporcione al menos un desplazamiento de recordatorio, ej. -3.",
-  "owner.customer.subscription.errChannels": "Elija al menos un canal de recordatorio."
+  "owner.customer.subscription.errChannels": "Elija al menos un canal de recordatorio.",
+
+  "impersonation.badge": "Suplantando",
+  "impersonation.viewingCustomer": "Viendo el portal de cliente como {name}",
+  "impersonation.viewingEmployee": "Viendo el portal del personal como {name}",
+  "impersonation.realAdmin": "administrador real",
+  "impersonation.expiresIn": "vence en {mins} min",
+  "impersonation.exit": "Salir de la suplantación",
+  "impersonation.viewAsCustomer": "Ver como este cliente",
+  "impersonation.viewAsEmployee": "Ver como este miembro del personal",
+  "impersonation.starting": "Iniciando…",
+  "impersonation.confirm.customer": "¿Iniciar una sesión de suplantación como {name}? Un banner rojo marcará cada página y cada acción que realice se registrará en auditoría con su identidad y la suya. Las sesiones expiran en una hora.",
+  "impersonation.confirm.employee": "¿Iniciar una sesión de suplantación como {name}? Un banner rojo marcará cada página y cada acción que realice se registrará en auditoría con su identidad y la suya. Las sesiones expiran en una hora."
 }

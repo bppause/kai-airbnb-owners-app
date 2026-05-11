@@ -433,5 +433,17 @@
   "owner.customer.subscription.channelsHint": "How the customer is reminded. The customer can also self-serve this from their profile when the community notification lock is open.",
   "owner.customer.subscription.errOffsets": "Offsets must be a comma-separated list of integers, e.g. -14, -7, -3.",
   "owner.customer.subscription.errOffsetsEmpty": "Provide at least one reminder offset, e.g. -3.",
-  "owner.customer.subscription.errChannels": "Pick at least one reminder channel."
+  "owner.customer.subscription.errChannels": "Pick at least one reminder channel.",
+
+  "impersonation.badge": "Impersonating",
+  "impersonation.viewingCustomer": "Viewing the customer portal as {name}",
+  "impersonation.viewingEmployee": "Viewing the staff portal as {name}",
+  "impersonation.realAdmin": "real admin",
+  "impersonation.expiresIn": "expires in {mins} min",
+  "impersonation.exit": "Exit impersonation",
+  "impersonation.viewAsCustomer": "View as this customer",
+  "impersonation.viewAsEmployee": "View as this staff member",
+  "impersonation.starting": "Starting…",
+  "impersonation.confirm.customer": "Start an impersonation session as {name}? A red banner will mark every page and every action you take will be audit-logged with both your identity and theirs. Sessions expire after one hour.",
+  "impersonation.confirm.employee": "Start an impersonation session as {name}? A red banner will mark every page and every action you take will be audit-logged with both your identity and theirs. Sessions expire after one hour."
 }

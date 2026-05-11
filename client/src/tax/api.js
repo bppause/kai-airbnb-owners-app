@@ -6,8 +6,36 @@
 // server validates these against tax_customers on every request.
 
 const BASE = '/api/m/tax';
+const IMPERSONATION_KEY = 'tax-impersonation';
+
+// Impersonation state lives in sessionStorage (tab-scoped). When present,
+// portal/employee requests send x-impersonation-token instead of Firebase
+// auth headers; admin requests do NOT use the impersonation header (the
+// admin's normal identity stays in charge for admin endpoints).
+export function getImpersonation() {
+  try {
+    const raw = sessionStorage.getItem(IMPERSONATION_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch (_e) { return null; }
+}
+export function setImpersonation(state) {
+  try { sessionStorage.setItem(IMPERSONATION_KEY, JSON.stringify(state)); } catch (_e) {}
+}
+export function clearImpersonation() {
+  try { sessionStorage.removeItem(IMPERSONATION_KEY); } catch (_e) {}
+}
 
 function authHeaders(auth) {
+  // When impersonating, use the token instead of Firebase headers. Server
+  // resolves the target identity from the token; community is included
+  // for symmetry but not strictly needed (the token is community-bound).
+  const imp = getImpersonation();
+  if (imp && imp.token) {
+    return {
+      'x-impersonation-token': imp.token,
+      'x-tax-community': imp.communitySlug || '',
+    };
+  }
   if (!auth || !auth.uid || !auth.email) return {};
   return {
     'x-firebase-uid': auth.uid,
@@ -16,15 +44,17 @@ function authHeaders(auth) {
   };
 }
 
-// Phase 4a: owner-admin calls also need an x-admin-email header so the
-// legacy /admin/* endpoints (still on requireGlobalAdmin) accept the call.
-// The new endpoints accept either path via requireOwnerAdmin; sending the
-// extra header is harmless on those too.
+// Admin headers: always uses the real admin identity, never the impersonation
+// token. Admin actions (including start/end impersonation) must trace back
+// to the real human.
 function adminAuthHeaders(auth) {
-  return {
-    ...authHeaders(auth),
+  const hdrs = {
     'x-admin-email': auth?.adminEmail || auth?.email || '',
   };
+  if (auth?.uid)   hdrs['x-firebase-uid']   = auth.uid;
+  if (auth?.email) hdrs['x-firebase-email'] = auth.email;
+  if (auth?.communitySlug) hdrs['x-tax-community'] = auth.communitySlug;
+  return hdrs;
 }
 
 async function request(method, path, body, auth, { admin } = {}) {
@@ -146,4 +176,8 @@ export const taxApi = {
   // Phase 4d — admin overrides
   adminUpdateCustomer(auth, customerId, payload) { return request('PUT',  `/admin/customers/${encodeURIComponent(customerId)}`, payload, auth, { admin: true }); },
   adminUpdatePeriod(auth, periodId, payload)     { return request('PUT',  `/admin/periods/${encodeURIComponent(periodId)}`, payload, auth, { admin: true }); },
+
+  // Impersonation (admin-only)
+  adminStartImpersonation(auth, payload)         { return request('POST', '/admin/impersonation/start', payload, auth, { admin: true }); },
+  adminEndImpersonation(auth, token)             { return request('POST', `/admin/impersonation/${encodeURIComponent(token)}/end`, {}, auth, { admin: true }); },
 };

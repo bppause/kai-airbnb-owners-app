@@ -3,13 +3,14 @@ import LocaleSwitcher from './LocaleSwitcher';
 import { useT } from '../i18n';
 import { useEmployeeAuth } from '../auth/EmployeeAuthProvider';
 import { taxApi } from '../api';
+import ImpersonationBanner from './ImpersonationBanner';
 
 // Practice-side chrome. Visually distinguished from the customer portal by
 // a "Staff" badge in the header, so an employee who is ALSO a customer
 // (same Firebase login, different table row) never confuses the two views.
 export default function EmployeeShell({ community, active, children }) {
   const { t } = useT();
-  const { fbUser, employee, signOut } = useEmployeeAuth();
+  const { fbUser, employee, signOut, impersonation, exitImpersonation } = useEmployeeAuth();
   const base = community ? `/tax/${community.id}/employee` : '#';
 
   // Unread inbox badge — counts threads with practice_unread = true.
@@ -28,6 +29,7 @@ export default function EmployeeShell({ community, active, children }) {
 
   return (
     <>
+      <ImpersonationBanner impersonation={impersonation} onExit={exitImpersonation} />
       <header className="tax-header" style={{ borderBottom: '2px solid var(--tax-brand-primary)' }}>
         <div className="tax-container tax-header__row">
           <a href={base} className="tax-brand" aria-label={community?.name || 'Tax Services'}>
