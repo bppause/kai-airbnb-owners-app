@@ -51,5 +51,21 @@
 
   "loading": "Loading…",
   "error.notFound": "We could not find this tax practice. Check the URL or contact support.",
-  "error.loadFailed": "We could not load this page. Please try again."
+  "error.loadFailed": "We could not load this page. Please try again.",
+
+  "respond.title": "Information request",
+  "respond.subtitle": "Please provide the following information for {filingName} ({periodLabel}). It is due on {dueDate}.",
+  "respond.required": "Required",
+  "respond.optional": "Optional",
+  "respond.submit": "Submit information",
+  "respond.submitting": "Submitting…",
+  "respond.success.heading": "Thank you — your information has been received.",
+  "respond.success.body": "We will contact you if anything else is needed to complete this filing.",
+  "respond.alreadyReceived.heading": "We have already received your information for this filing.",
+  "respond.alreadyReceived.body": "If you need to update what you submitted, please contact us directly.",
+  "respond.notes": "Notes (optional)",
+  "respond.error.invalidLink": "This link is invalid or has expired. Please contact us to request a new one.",
+  "respond.error.usedLink": "This link has already been used. If you need to update your submission, contact us directly.",
+  "respond.error.missingFields": "Please complete all required fields.",
+  "respond.error.generic": "We could not save your information. Please try again or contact us."
 }

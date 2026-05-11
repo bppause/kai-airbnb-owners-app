@@ -24,4 +24,6 @@ async function request(method, path, body) {
 export const taxApi = {
   getCommunity(slug) { return request('GET', `/community/${encodeURIComponent(slug)}`); },
   submitLead(payload) { return request('POST', '/leads', payload); },
+  getResponse(token) { return request('GET', `/respond/${encodeURIComponent(token)}`); },
+  submitResponse(token, payload) { return request('POST', `/respond/${encodeURIComponent(token)}`, payload); },
 };
