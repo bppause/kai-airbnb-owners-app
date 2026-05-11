@@ -160,12 +160,28 @@ module.exports = function createTaxRemindersCron(deps) {
       .lte('due_date', shiftDays(today, 30));
     if (error) { warn('[tax-cron] fetch periods failed', error.message); return 0; }
 
+    // Phase 4n.8: pre-fetch per-customer overrides for the customers in this
+    // batch so we don't N+1 the resolution loop.
+    const customerIds = Array.from(new Set((rows || []).map(r => r.customer_id).filter(Boolean)));
+    const overridesByKey = new Map();
+    if (customerIds.length) {
+      const { data: ov } = await supabase
+        .from('tax_customer_workflow_overrides')
+        .select('customer_id, workflow_rule_id, custom_info_checklist, reminder_offsets_days')
+        .in('customer_id', customerIds).eq('active', true);
+      for (const o of ov || []) {
+        overridesByKey.set(`${o.customer_id}|${o.workflow_rule_id}`, o);
+      }
+    }
+
     let fired = 0;
     for (const row of rows || []) {
       const sub = row.tax_subscriptions || null;
       const cust = row.tax_customers;
       const ruleRow = row.tax_relationship_workflow_rules || null;
       const schedRow = row.tax_filing_schedules || null;
+      const customerOverride = row.workflow_rule_id
+        ? overridesByKey.get(`${cust.id}|${row.workflow_rule_id}`) : null;
 
       // Build a synthetic "schedule-ish" object for the sender. Rule fields
       // win when present; schedule fills the gaps so the email/in-app
@@ -175,12 +191,23 @@ module.exports = function createTaxRemindersCron(deps) {
         slug: schedRow?.slug || ruleRow?.filing_schedule_slug || '',
         name_i18n:        firstNonEmptyI18n(ruleRow?.name_i18n, schedRow?.name_i18n),
         description_i18n: firstNonEmptyI18n(ruleRow?.description_i18n, schedRow?.description_i18n),
-        info_checklist:   firstNonEmptyArray(ruleRow?.info_checklist, schedRow?.info_checklist),
+        info_checklist:   firstNonEmptyArray(
+          customerOverride?.custom_info_checklist,
+          ruleRow?.info_checklist,
+          schedRow?.info_checklist
+        ),
       };
 
-      // Offsets resolution (subscription override → rule → system default).
+      // Offsets precedence:
+      //   1. per-customer workflow override (Phase 4n.8)
+      //   2. legacy subscription override
+      //   3. workflow rule
+      //   4. system default
       let offsets;
-      if (Array.isArray(sub?.reminder_offsets_days) && sub.reminder_offsets_days.length) {
+      if (Array.isArray(customerOverride?.reminder_offsets_days) && customerOverride.reminder_offsets_days.length) {
+        offsets = customerOverride.reminder_offsets_days.map(d => -Math.abs(Number(d) || 0)).filter(Boolean);
+        if (!offsets.length) offsets = [-14, -7, -3];
+      } else if (Array.isArray(sub?.reminder_offsets_days) && sub.reminder_offsets_days.length) {
         offsets = sub.reminder_offsets_days;
       } else if (Array.isArray(ruleRow?.reminder_offsets_days) && ruleRow.reminder_offsets_days.length) {
         offsets = ruleRow.reminder_offsets_days.map(d => -Math.abs(Number(d) || 0)).filter(Boolean);
@@ -286,7 +313,7 @@ module.exports = function createTaxRemindersCron(deps) {
         result = { sent: false, reason: 'email_not_configured' };
       } else {
         try {
-          await sendTaxReminderEmail({ row, cust, sch, sub, magicUrl, offsetDays, tips, extraDocs });
+          await sendTaxReminderEmail({ row, cust, sch, sub, magicUrl, offsetDays, tips, extraDocs, workflowRuleId: row.workflow_rule_id || null });
           result = { sent: true };
         } catch (e) {
           result = { sent: false, reason: e?.message || 'send_failed' };

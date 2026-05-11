@@ -208,7 +208,7 @@ module.exports = function createTaxSenders(deps) {
     return { lang, langTag, defaults, vars };
   }
 
-  const sendTaxReminderEmail = async ({ row, cust, sch, sub, magicUrl, offsetDays, tips, extraDocs }) => {
+  const sendTaxReminderEmail = async ({ row, cust, sch, sub, magicUrl, offsetDays, tips, extraDocs, workflowRuleId, skipLog }) => {
     if (!emailConfigured) return { sent: false, skipped: true, reason: 'email_not_configured' };
     // Prefer the customer's chosen communication email (Phase 2e) when set;
     // otherwise fall back to the login email.
@@ -225,12 +225,16 @@ module.exports = function createTaxSenders(deps) {
     });
     // Phase 4n: persist a row keyed by Resend's message id so the webhook
     // receiver can match incoming opened/clicked events back to a customer.
-    if (result && result.sent && typeof logTaxEmailDelivery === 'function') {
+    // Phase 4n.8: also stamp workflow_rule_id so the per-workflow engagement
+    // panel can aggregate without a 2-table join. `skipLog` is set by the
+    // test-reminder route so dry-runs don't pollute the engagement numbers.
+    if (result && result.sent && !skipLog && typeof logTaxEmailDelivery === 'function') {
       try {
         await logTaxEmailDelivery({
           resendId: result.id || '',
           communityId: cust.community_id || '',
           customerId: cust.id || '',
+          workflowRuleId: workflowRuleId || row?.workflow_rule_id || '',
           eventType: 'reminder',
           recipients: [to],
           subject: finalCopy.subject,

@@ -85,6 +85,7 @@ export default function OwnerRelationshipWorkflows() {
 
   const [showAddPicker, setShowAddPicker] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [testSend, setTestSend] = useState(null);    // { ruleId, name }
 
   // System default — kept in sync with reminders.js' fallback. Used for the
   // preview when the user hasn't typed any custom offsets yet.
@@ -389,6 +390,8 @@ export default function OwnerRelationshipWorkflows() {
                     </div>
                   )}
 
+                  {r && <EngagementBar ruleId={r.id} auth={auth} t={t} />}
+
                   <div style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
                     <button type="button" className="tax-btn tax-btn--primary tax-btn--sm"
                             disabled={!!busy[k]} onClick={() => onSave(activeRel, sch.slug)}>
@@ -405,6 +408,12 @@ export default function OwnerRelationshipWorkflows() {
                             }}>
                       {t('owner.workflows.previewEmailBtn')}
                     </button>
+                    {r && (
+                      <button type="button" className="tax-btn tax-btn--ghost tax-btn--sm"
+                              onClick={() => setTestSend({ ruleId: r.id, name: pickI18n(sch.name_i18n, locale).value || sch.slug })}>
+                        {t('owner.workflows.sendTestBtn')}
+                      </button>
+                    )}
                     {isOverride && (
                       <button type="button" className="tax-btn tax-btn--ghost tax-btn--sm"
                               disabled={!!busy[k]} onClick={() => onReset(activeRel, sch.slug)}>
@@ -473,7 +482,138 @@ export default function OwnerRelationshipWorkflows() {
           }
         }}
       />
+
+      <TestSendModal
+        open={!!testSend}
+        onClose={() => setTestSend(null)}
+        auth={auth}
+        ruleId={testSend?.ruleId}
+        workflowName={testSend?.name}
+        defaultEmail={fbUser?.email || ''}
+        t={t}
+      />
     </EmployeeShell>
+  );
+}
+
+// Phase 4n.9: tiny engagement strip rendered inside each workflow card.
+// Fetches the 90-day window aggregate from the server. Stays compact —
+// owners scan it; clicking on a workflow elsewhere drills in.
+function EngagementBar({ ruleId, auth, t }) {
+  const [data, setData] = useState(null);
+  useEffect(() => {
+    let cancelled = false;
+    taxApi.adminGetWorkflowEngagement(auth, ruleId, 90)
+      .then(d => { if (!cancelled) setData(d.summary); })
+      .catch(() => { /* silent — engagement is a nice-to-have, not blocking */ });
+    return () => { cancelled = true; };
+  }, [ruleId]); // eslint-disable-line react-hooks/exhaustive-deps
+  if (!data) return null;
+  if (data.sent === 0) {
+    return (
+      <p style={{ margin: '12px 0 0', fontSize: 12, color: 'var(--tax-muted)' }}>
+        {t('owner.workflows.engagement.none')}
+      </p>
+    );
+  }
+  const pct = (n) => Math.round((n / data.sent) * 100);
+  return (
+    <div style={{
+      margin: '12px 0 0', padding: '8px 10px', borderRadius: 6,
+      background: 'var(--tax-bg-alt)', border: '1px solid var(--tax-border)',
+      display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'baseline', fontSize: 12,
+    }}>
+      <strong style={{ color: 'var(--tax-muted)' }}>{t('owner.workflows.engagement.label')}</strong>
+      <span>{t('owner.workflows.engagement.sent', { count: data.sent })}</span>
+      <span style={{ color: data.opened ? 'var(--tax-success)' : 'var(--tax-muted)' }}>
+        {t('owner.workflows.engagement.opened', { count: data.opened, pct: pct(data.opened) })}
+      </span>
+      <span style={{ color: data.clicked ? 'var(--tax-success)' : 'var(--tax-muted)' }}>
+        {t('owner.workflows.engagement.clicked', { count: data.clicked, pct: pct(data.clicked) })}
+      </span>
+      <span style={{ color: 'var(--tax-muted)' }}>
+        {t('owner.workflows.engagement.unique', { count: data.uniqueCustomers })}
+      </span>
+    </div>
+  );
+}
+
+function TestSendModal({ open, onClose, auth, ruleId, workflowName, defaultEmail, t }) {
+  const [email, setEmail] = useState(defaultEmail || '');
+  const [lang, setLang] = useState('en');
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState({ kind: 'idle', text: '' });
+  useEffect(() => { if (open) { setEmail(defaultEmail || ''); setMsg({ kind: 'idle', text: '' }); } },
+    [open, defaultEmail]);
+  if (!open) return null;
+
+  async function send() {
+    setBusy(true); setMsg({ kind: 'idle', text: '' });
+    try {
+      const result = await taxApi.adminSendWorkflowTestReminder(auth, ruleId, {
+        toEmail: email, lang,
+      });
+      if (result.skipped) {
+        setMsg({ kind: 'error', text: t('owner.workflows.testSend.skipped', { reason: result.reason || '' }) });
+      } else {
+        setMsg({ kind: 'success', text: t('owner.workflows.testSend.sent', { email }) });
+      }
+    } catch (e) {
+      setMsg({ kind: 'error', text: e?.message || t('respond.error.generic') });
+    } finally { setBusy(false); }
+  }
+
+  return (
+    <div onClick={onClose} style={{
+      position: 'fixed', inset: 0, background: 'rgba(15,23,42,.55)',
+      zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16,
+    }}>
+      <div onClick={e => e.stopPropagation()} style={{
+        background: 'var(--tax-bg)', borderRadius: 12, maxWidth: 480, width: '100%',
+        border: '1px solid var(--tax-border)',
+      }}>
+        <div style={{ padding: '14px 18px', borderBottom: '1px solid var(--tax-border)',
+                      display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <strong>{t('owner.workflows.testSend.title', { name: workflowName || '' })}</strong>
+          <button type="button" className="tax-btn tax-btn--ghost tax-btn--sm" onClick={onClose}>
+            {t('preview.close')}
+          </button>
+        </div>
+        <div style={{ padding: 18, display: 'grid', gap: 12 }}>
+          <p style={{ margin: 0, fontSize: 13, color: 'var(--tax-muted)' }}>
+            {t('owner.workflows.testSend.note')}
+          </p>
+          <div>
+            <label htmlFor="ts-email" style={{ display: 'block', fontSize: 13, marginBottom: 4 }}>
+              {t('owner.workflows.testSend.toEmail')}
+            </label>
+            <input id="ts-email" type="email" value={email}
+                   onChange={e => setEmail(e.target.value)} style={{ width: '100%' }} />
+          </div>
+          <div>
+            <label htmlFor="ts-lang" style={{ display: 'block', fontSize: 13, marginBottom: 4 }}>
+              {t('owner.workflows.testSend.lang')}
+            </label>
+            <select id="ts-lang" value={lang} onChange={e => setLang(e.target.value)}>
+              <option value="en">English</option>
+              <option value="es">Español</option>
+            </select>
+          </div>
+          {msg.text && (
+            <div className={`tax-msg tax-msg--${msg.kind === 'error' ? 'error' : 'success'}`}>{msg.text}</div>
+          )}
+          <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+            <button type="button" className="tax-btn tax-btn--ghost tax-btn--sm" onClick={onClose}>
+              {t('preview.close')}
+            </button>
+            <button type="button" className="tax-btn tax-btn--primary tax-btn--sm"
+                    disabled={busy || !email} onClick={send}>
+              {busy ? t('lead.submitting') : t('owner.workflows.testSend.send')}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
 

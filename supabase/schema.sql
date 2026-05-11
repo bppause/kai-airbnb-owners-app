@@ -2115,6 +2115,35 @@ update public.tax_relationship_workflow_rules r
  where r.community_id = s.community_id
    and r.filing_schedule_slug = s.slug;
 
+-- Phase 4n.8: per-(customer, workflow) overrides. Highest priority in the
+-- reminder + checklist resolution chain. Used for one-off adjustments —
+-- "Maria's company also needs to send their new vendor contract this year"
+-- — without forking the workflow rule for everyone else in that
+-- relationship.
+create table if not exists public.tax_customer_workflow_overrides (
+  id text primary key,
+  community_id text not null references public.communities(id) on delete cascade,
+  customer_id  text not null references public.tax_customers(id) on delete cascade,
+  workflow_rule_id text not null references public.tax_relationship_workflow_rules(id) on delete cascade,
+  custom_info_checklist  jsonb,
+  reminder_offsets_days  int[],
+  active boolean not null default true,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (customer_id, workflow_rule_id)
+);
+create index if not exists idx_tax_cust_wf_overrides_lookup
+  on public.tax_customer_workflow_overrides(customer_id, workflow_rule_id, active);
+alter table public.tax_customer_workflow_overrides disable row level security;
+
+-- Also denormalize workflow_rule_id onto email_delivery_logs so the
+-- engagement panel (Phase 4b) can aggregate without a 2-table join.
+alter table public.email_delivery_logs
+  add column if not exists workflow_rule_id text;
+create index if not exists idx_email_delivery_logs_workflow_rule
+  on public.email_delivery_logs(workflow_rule_id, event_type, created_at desc)
+  where workflow_rule_id is not null;
+
 -- ─── Per-community relationship types (Phase 4k) ──────────────────────────────
 -- Existing rows in tax_relationship_types (the 13 seeded "platform default"
 -- services) have community_id = NULL and are visible to every community.
