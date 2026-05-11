@@ -84,20 +84,38 @@ export default function PortalDashboard() {
     };
   }
 
-  // Split filings: urgent (due ≤ 14d, action still required), upcoming
-  // (everything else not filed), and historical.
-  const { urgent, laterUpcoming, past } = useMemo(() => {
-    const u = [], l = [], p = [];
+  // Phase 4n.7: four buckets keyed off (status, daysLeft). One filing lands
+  // in exactly one bucket. Past-due pending periods stay in "action" so the
+  // customer notices them — they're not historical, they're overdue.
+  //   action     — pending / info_requested AND daysLeft <= 14 (or overdue)
+  //   upcoming   — pending / info_requested AND daysLeft > 14
+  //   inHand     — info_received / in_prep   (we've got it, customer waits)
+  //   completed  — filed                      (done; customer can review)
+  // `past` (historical view at the bottom) is everything that's filed OR
+  // overdue + skipped — kept separate from the buckets for the collapsible.
+  const buckets = useMemo(() => {
+    const out = { action: [], upcoming: [], inHand: [], completed: [], past: [] };
     for (const f of filings || []) {
-      if (f.status === 'filed' || f.due_date < today) { p.push(f); continue; }
       const dleft = daysBetween(f.due_date, today);
-      const needsCustomerAction = f.status === 'pending' || f.status === 'info_requested';
-      if (needsCustomerAction && dleft != null && dleft <= URGENT_DAYS) u.push({ ...f, daysLeft: dleft });
-      else l.push(f);
+      const status = f.status;
+      const withDays = { ...f, daysLeft: dleft };
+      if (status === 'filed') { out.completed.push(withDays); out.past.push(withDays); continue; }
+      if (status === 'skipped') { out.past.push(withDays); continue; }
+      if (status === 'info_received' || status === 'in_prep') { out.inHand.push(withDays); continue; }
+      // pending / info_requested:
+      if (dleft != null && dleft <= URGENT_DAYS) out.action.push(withDays);
+      else out.upcoming.push(withDays);
     }
-    u.sort((a, b) => (a.daysLeft || 0) - (b.daysLeft || 0));
-    return { urgent: u, laterUpcoming: l, past: p };
+    out.action.sort((a, b) => (a.daysLeft ?? 999) - (b.daysLeft ?? 999));
+    out.upcoming.sort((a, b) => (a.daysLeft ?? 999) - (b.daysLeft ?? 999));
+    out.inHand.sort((a, b) => a.due_date.localeCompare(b.due_date));
+    out.completed.sort((a, b) => b.due_date.localeCompare(a.due_date));
+    return out;
   }, [filings, today]);
+
+  const [activeBucket, setActiveBucket] = useState('action');
+  // Sub-filter for the Coming-up bucket: limit to next N days or "all".
+  const [upcomingWindow, setUpcomingWindow] = useState(90);
 
   const unreadThreads = useMemo(() =>
     (threads || []).filter(th => th.customer_unread), [threads]);
@@ -113,13 +131,28 @@ export default function PortalDashboard() {
   }, [documents]);
 
   const allLoaded = filings !== null && threads !== null && documents !== null;
-  const hasActions = urgent.length > 0 || unreadThreads.length > 0 || recentPracticeDocs.length > 0;
+  const hasInbox = unreadThreads.length > 0 || recentPracticeDocs.length > 0;
+  const counts = {
+    action: buckets.action.length,
+    upcoming: buckets.upcoming.length,
+    inHand: buckets.inHand.length,
+    completed: buckets.completed.length,
+  };
+  const visibleItems = useMemo(() => {
+    if (activeBucket !== 'upcoming') return buckets[activeBucket] || [];
+    if (upcomingWindow === 'all') return buckets.upcoming;
+    return buckets.upcoming.filter(f => (f.daysLeft ?? 999) <= upcomingWindow);
+  }, [buckets, activeBucket, upcomingWindow]);
 
   return (
     <PortalShell community={community} active="dashboard">
       {err && <div className="tax-msg tax-msg--error">{err}</div>}
 
-      {/* ── Action queue ──────────────────────────────────────────── */}
+      {/* ── Your filings ──────────────────────────────────────────────
+            Bucket-driven layout — Action is the default so the customer
+            sees what they owe before anything else. "In our hands" and
+            "Completed" surface so the customer can confirm what's been
+            received without scrolling through history. */}
       <section style={{ marginBottom: 32 }}>
         <h2 style={{ marginTop: 0, marginBottom: 4 }}>{t('portal.dashboard.nextTitle')}</h2>
         <p className="tax-section__lede" style={{ marginTop: 0 }}>
@@ -128,98 +161,49 @@ export default function PortalDashboard() {
 
         {!allLoaded && <p>{t('loading')}</p>}
 
-        {allLoaded && !hasActions && (
-          <div style={{
-            display: 'flex', alignItems: 'center', gap: 12,
-            background: 'color-mix(in srgb, var(--tax-success) 8%, #fff)',
-            border: '1px solid var(--tax-success)',
-            color: 'var(--tax-success)',
-            padding: '16px 18px', borderRadius: 10,
-          }}>
-            <span style={{ fontSize: 24 }}>✓</span>
-            <div>
-              <div style={{ fontWeight: 700 }}>{t('portal.dashboard.allCaughtUp')}</div>
-              <div style={{ fontSize: 13, marginTop: 2 }}>
-                {t('portal.dashboard.allCaughtUpSubtitle')}
-              </div>
-            </div>
-          </div>
-        )}
+        {allLoaded && (
+          <>
+            <BucketChips
+              active={activeBucket}
+              counts={counts}
+              onChange={setActiveBucket}
+              t={t}
+            />
 
-        {allLoaded && hasActions && (
-          <div style={{ display: 'grid', gap: 10 }}>
-            {urgent.map(f => {
-              const daysWord = Math.abs(f.daysLeft) === 1
-                ? t('portal.dashboard.day') : t('portal.dashboard.days');
-              const overdueOrToday = f.daysLeft <= 0;
-              const disp = displayFor(f);
-              return (
-                <ActionCard
-                  key={f.id}
-                  tone={overdueOrToday ? 'danger' : 'warn'}
-                  icon="!"
-                  title={pickI18n(disp.nameI18n, locale).value || disp.slug || t('portal.dashboard.filing')}
-                  subtitle={overdueOrToday
-                    ? t('portal.dashboard.dueToday', { period: f.period_label })
-                    : t('portal.dashboard.dueIn', { days: f.daysLeft, daysWord, period: f.period_label })}
-                  cta={t('portal.dashboard.ctaSubmitInfo')}
-                  href={`${portalBase}/filings/${encodeURIComponent(f.id)}`}
-                />
-              );
-            })}
-            {unreadThreads.length > 0 && (
-              <ActionCard
-                tone="info"
-                icon="✉"
-                title={t('portal.dashboard.unreadMessagesTitle', { count: unreadThreads.length })}
-                subtitle={t('portal.dashboard.unreadMessagesSubtitle')}
-                cta={t('portal.dashboard.ctaOpenMessages')}
-                href={`${portalBase}/messages`}
-              />
-            )}
-            {recentPracticeDocs.length > 0 && (
-              <ActionCard
-                tone="info"
-                icon="📄"
-                title={t('portal.dashboard.newDocsTitle', { count: recentPracticeDocs.length })}
-                subtitle={t('portal.dashboard.newDocsSubtitle')}
-                cta={t('portal.dashboard.ctaOpenDocuments')}
-                href={`${portalBase}/documents`}
-              />
-            )}
-          </div>
-        )}
-      </section>
-
-      {/* ── Upcoming filings (> 14 days out, or already moved past the
-            customer-action statuses). Kept as cards for parity with the
-            previous layout, but no longer the page hero. ────────────── */}
-      <section style={{ marginBottom: 32 }}>
-        <h2 style={{ marginBottom: 8 }}>{t('portal.dashboard.upcoming')}</h2>
-        {filings === null ? <p>{t('loading')}</p>
-          : laterUpcoming.length === 0
-            ? <p style={{ color: 'var(--tax-muted)' }}>{t('portal.dashboard.empty')}</p>
-            : <div className="tax-services-grid">
-                {laterUpcoming.map(f => {
-                  const disp = displayFor(f);
-                  return (
-                  <a key={f.id} href={`${portalBase}/filings/${encodeURIComponent(f.id)}`}
-                     className="tax-service-card" style={{ textDecoration: 'none', color: 'inherit' }}>
-                    <span className="tax-service-card__category">{disp.category}</span>
-                    <h3>{pickI18n(disp.nameI18n, locale).value || disp.slug}</h3>
-                    <p>{f.period_label} • {t('portal.dashboard.due')} {f.due_date}</p>
-                    <p style={{ marginTop: 8 }}>
-                      <span style={{
-                        display: 'inline-block', padding: '4px 10px', borderRadius: 999,
-                        background: 'color-mix(in srgb, var(--tax-brand-primary) 10%, #fff)',
-                        color: 'var(--tax-brand-primary)', fontSize: 12, fontWeight: 600,
-                      }}>{t(STATUS_KEY[f.status] || 'portal.status.pending')}</span>
-                    </p>
-                  </a>
-                  );
-                })}
+            {activeBucket === 'action' && hasInbox && (
+              <div style={{ display: 'grid', gap: 10, marginBottom: 16 }}>
+                {unreadThreads.length > 0 && (
+                  <ActionCard tone="info" icon="✉"
+                    title={t('portal.dashboard.unreadMessagesTitle', { count: unreadThreads.length })}
+                    subtitle={t('portal.dashboard.unreadMessagesSubtitle')}
+                    cta={t('portal.dashboard.ctaOpenMessages')}
+                    href={`${portalBase}/messages`} />
+                )}
+                {recentPracticeDocs.length > 0 && (
+                  <ActionCard tone="info" icon="📄"
+                    title={t('portal.dashboard.newDocsTitle', { count: recentPracticeDocs.length })}
+                    subtitle={t('portal.dashboard.newDocsSubtitle')}
+                    cta={t('portal.dashboard.ctaOpenDocuments')}
+                    href={`${portalBase}/documents`} />
+                )}
               </div>
-        }
+            )}
+
+            {activeBucket === 'upcoming' && buckets.upcoming.length > 0 && (
+              <WindowFilter value={upcomingWindow} onChange={setUpcomingWindow} t={t} />
+            )}
+
+            <FilingsByRelationship
+              items={visibleItems}
+              activeBucket={activeBucket}
+              portalBase={portalBase}
+              displayFor={displayFor}
+              hasInbox={hasInbox}
+              locale={locale}
+              t={t}
+            />
+          </>
+        )}
       </section>
 
       {tipGroups && tipGroups.length > 0 && (
@@ -276,17 +260,20 @@ export default function PortalDashboard() {
         }
       </section>
 
-      {past.length > 0 && (
+      {buckets.past.length > 0 && (
         <details>
           <summary style={{ cursor: 'pointer', fontWeight: 600 }}>
-            {t('portal.dashboard.pastFilings', { count: past.length })}
+            {t('portal.dashboard.pastFilings', { count: buckets.past.length })}
           </summary>
           <ul style={{ marginTop: 12 }}>
-            {past.map(f => (
-              <li key={f.id} style={{ color: 'var(--tax-muted)' }}>
-                {pickI18n(f.schedule?.name_i18n, locale).value} — {f.period_label} — {t(STATUS_KEY[f.status] || 'portal.status.filed')}
-              </li>
-            ))}
+            {buckets.past.map(f => {
+              const disp = displayFor(f);
+              return (
+                <li key={f.id} style={{ color: 'var(--tax-muted)' }}>
+                  {pickI18n(disp.nameI18n, locale).value || disp.slug} — {f.period_label} — {t(STATUS_KEY[f.status] || 'portal.status.filed')}
+                </li>
+              );
+            })}
           </ul>
         </details>
       )}
@@ -324,5 +311,196 @@ function ActionCard({ tone, icon, title, subtitle, cta, href }) {
       </div>
       <span className="tax-btn tax-btn--primary tax-btn--sm" style={{ flexShrink: 0 }}>{cta}</span>
     </a>
+  );
+}
+
+// Phase 4n.7: bucket selector. Chip per bucket with a count pill; the count
+// pill is highlighted when the bucket is active. Counts are 0-safe — we
+// still render the chip (greyed out) so the customer sees the categories
+// even when one is empty.
+function BucketChips({ active, counts, onChange, t }) {
+  const order = ['action', 'upcoming', 'inHand', 'completed'];
+  const labelKey = {
+    action: 'portal.dashboard.bucket.action',
+    upcoming: 'portal.dashboard.bucket.upcoming',
+    inHand: 'portal.dashboard.bucket.inHand',
+    completed: 'portal.dashboard.bucket.completed',
+  };
+  const tone = {
+    action: '#b91c1c',
+    upcoming: 'var(--tax-brand-primary)',
+    inHand: '#047857',
+    completed: '#475569',
+  };
+  return (
+    <div role="tablist" aria-label="filings buckets"
+         style={{ display: 'flex', gap: 8, flexWrap: 'wrap', margin: '4px 0 16px' }}>
+      {order.map(key => {
+        const isActive = active === key;
+        const count = counts[key] || 0;
+        const accent = tone[key];
+        return (
+          <button key={key} type="button" role="tab" aria-selected={isActive}
+                  onClick={() => onChange(key)}
+                  style={{
+                    display: 'inline-flex', alignItems: 'center', gap: 8,
+                    padding: '8px 14px', borderRadius: 999,
+                    border: `1px solid ${isActive ? accent : 'var(--tax-border)'}`,
+                    background: isActive ? `color-mix(in srgb, ${accent} 12%, #fff)` : '#fff',
+                    color: isActive ? accent : 'var(--tax-text)',
+                    fontSize: 13, fontWeight: 600, cursor: 'pointer',
+                    opacity: count === 0 && !isActive ? 0.55 : 1,
+                  }}>
+            <span>{t(labelKey[key])}</span>
+            <span style={{
+              minWidth: 22, padding: '0 8px', borderRadius: 999, fontSize: 12,
+              background: isActive ? accent : 'var(--tax-bg-alt)',
+              color: isActive ? '#fff' : 'var(--tax-muted)',
+              textAlign: 'center', lineHeight: '18px',
+            }}>{count}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+// Sub-filter inside the Coming-up bucket so the customer can ignore the
+// long tail and focus on the next month / quarter.
+function WindowFilter({ value, onChange, t }) {
+  const options = [
+    { v: 30,  k: 'portal.dashboard.window.30' },
+    { v: 90,  k: 'portal.dashboard.window.90' },
+    { v: 365, k: 'portal.dashboard.window.365' },
+    { v: 'all', k: 'portal.dashboard.window.all' },
+  ];
+  return (
+    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 12 }}>
+      <span style={{ fontSize: 13, color: 'var(--tax-muted)', alignSelf: 'center', marginRight: 4 }}>
+        {t('portal.dashboard.window.label')}
+      </span>
+      {options.map(opt => {
+        const isActive = value === opt.v;
+        return (
+          <button key={opt.v} type="button" onClick={() => onChange(opt.v)}
+                  style={{
+                    padding: '4px 12px', borderRadius: 6, fontSize: 12, fontWeight: 600,
+                    border: `1px solid ${isActive ? 'var(--tax-brand-primary)' : 'var(--tax-border)'}`,
+                    background: isActive ? 'var(--tax-brand-primary)' : '#fff',
+                    color: isActive ? '#fff' : 'var(--tax-text)',
+                    cursor: 'pointer',
+                  }}>{t(opt.k)}</button>
+        );
+      })}
+    </div>
+  );
+}
+
+// Groups items by relationship name (falls back to "Other" when missing).
+// Renders each group as a labelled section with a grid of filing cards.
+function FilingsByRelationship({ items, activeBucket, portalBase, displayFor, hasInbox, locale, t }) {
+  const groups = useMemo(() => {
+    const map = new Map();
+    for (const f of items) {
+      const relName = f.relationship
+        ? (pickI18n(f.relationship.name_i18n, locale).value || f.relationship.slug || '')
+        : '';
+      const key = relName || '__other__';
+      let g = map.get(key);
+      if (!g) { g = { key, label: relName || t('portal.dashboard.bucket.unassigned'), items: [] }; map.set(key, g); }
+      g.items.push(f);
+    }
+    return Array.from(map.values());
+  }, [items, locale, t]);
+
+  if (items.length === 0) {
+    // The Action bucket may still have inbox-style cards above the filings
+    // grid; only show the "all caught up" banner when truly nothing's here.
+    if (activeBucket === 'action' && hasInbox) return null;
+    return <EmptyBucket bucket={activeBucket} t={t} />;
+  }
+
+  return (
+    <div style={{ display: 'grid', gap: 20 }}>
+      {groups.map(g => (
+        <div key={g.key}>
+          <h3 style={{
+            fontSize: 13, textTransform: 'uppercase', letterSpacing: '.04em',
+            color: 'var(--tax-muted)', margin: '0 0 8px',
+          }}>{g.label}</h3>
+          <div className="tax-services-grid">
+            {g.items.map(f => (
+              <FilingCard key={f.id} f={f} portalBase={portalBase}
+                          displayFor={displayFor} activeBucket={activeBucket} locale={locale} t={t} />
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function FilingCard({ f, portalBase, displayFor, activeBucket, locale, t }) {
+  const disp = displayFor(f);
+  const overdue = (f.daysLeft ?? 999) < 0 && (f.status === 'pending' || f.status === 'info_requested');
+  const STATUS_KEY = {
+    pending: 'portal.status.pending',
+    info_requested: 'portal.status.infoRequested',
+    info_received: 'portal.status.infoReceived',
+    in_prep: 'portal.status.inPrep',
+    filed: 'portal.status.filed',
+    skipped: 'portal.status.skipped',
+  };
+  const statusColor = activeBucket === 'completed' ? '#047857'
+                    : activeBucket === 'inHand'    ? '#047857'
+                    : overdue                       ? '#b91c1c'
+                    : 'var(--tax-brand-primary)';
+  return (
+    <a href={`${portalBase}/filings/${encodeURIComponent(f.id)}`}
+       className="tax-service-card" style={{ textDecoration: 'none', color: 'inherit' }}>
+      <span className="tax-service-card__category">{disp.category}</span>
+      <h3 style={{ margin: '4px 0' }}>{pickI18n(disp.nameI18n, locale).value || disp.slug}</h3>
+      <p style={{ margin: '4px 0', color: 'var(--tax-muted)', fontSize: 14 }}>
+        {f.period_label} • {t('portal.dashboard.due')} {f.due_date}
+      </p>
+      {(activeBucket === 'action' || activeBucket === 'upcoming') && f.daysLeft != null && (
+        <p style={{ margin: '4px 0', fontSize: 12, color: overdue ? '#b91c1c' : 'var(--tax-muted)' }}>
+          {overdue
+            ? t('portal.dashboard.overdueBy', { days: Math.abs(f.daysLeft) })
+            : f.daysLeft === 0
+              ? t('portal.dashboard.dueTodayShort')
+              : t('portal.dashboard.dueInDays', { days: f.daysLeft })}
+        </p>
+      )}
+      <p style={{ marginTop: 8 }}>
+        <span style={{
+          display: 'inline-block', padding: '4px 10px', borderRadius: 999,
+          background: `color-mix(in srgb, ${statusColor} 12%, #fff)`,
+          color: statusColor, fontSize: 12, fontWeight: 600,
+        }}>{t(STATUS_KEY[f.status] || 'portal.status.pending')}</span>
+      </p>
+    </a>
+  );
+}
+
+function EmptyBucket({ bucket, t }) {
+  const map = {
+    action: 'portal.dashboard.empty.action',
+    upcoming: 'portal.dashboard.empty.upcoming',
+    inHand: 'portal.dashboard.empty.inHand',
+    completed: 'portal.dashboard.empty.completed',
+  };
+  return (
+    <div style={{
+      display: 'flex', alignItems: 'center', gap: 12,
+      background: 'color-mix(in srgb, var(--tax-success) 8%, #fff)',
+      border: '1px solid var(--tax-success)', color: 'var(--tax-success)',
+      padding: '16px 18px', borderRadius: 10,
+    }}>
+      <span style={{ fontSize: 24 }}>✓</span>
+      <div>
+        <div style={{ fontWeight: 700 }}>{t(map[bucket] || 'portal.dashboard.empty')}</div>
+      </div>
+    </div>
   );
 }
