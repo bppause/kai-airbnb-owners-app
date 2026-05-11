@@ -1176,25 +1176,12 @@ module.exports = function createTaxRouter(deps) {
   router.get('/portal/help', async (req, res) => {
     const customer = await requireTaxCustomer(req, res); if (!customer) return;
     const typeIds = await activeTypeIdsForCustomer(customer.id);
-
-    let q = supabase.from('tax_help_articles')
-      .select(`
-        id, audience, relationship_type_id, category, display_order,
-        title_i18n, body_i18n, source_note,
-        type:tax_relationship_types ( id, category, slug, name_i18n )
-      `)
-      .eq('audience', 'customer').eq('active', true)
-      .order('display_order', { ascending: true });
-    // Postgres "is null OR in (…)" via Supabase's `or()`.
-    if (typeIds.length) {
-      const inList = typeIds.map(id => `"${id}"`).join(',');
-      q = q.or(`relationship_type_id.is.null,relationship_type_id.in.(${inList})`);
-    } else {
-      q = q.is('relationship_type_id', null);
-    }
-    const { data, error } = await q;
-    if (error) return sendSupabaseError(res, error);
-    res.json({ articles: data || [] });
+    const articles = await loadEffectiveHelp({
+      communityId: customer.community_id,
+      audience: 'customer',
+      customerRelationshipTypeIds: typeIds,
+    });
+    res.json({ articles });
   });
 
   // ── GET /portal/faqs ── (auth-gated)
@@ -1350,6 +1337,162 @@ module.exports = function createTaxRouter(deps) {
     const overrideId = trim(req.params.overrideId, 200);
     const { error } = await supabase.from('tax_relationship_faqs')
       .delete().eq('id', overrideId).eq('community_id', communityId);
+    if (error) return sendSupabaseError(res, error);
+    res.json({ ok: true });
+  });
+
+  // ── Phase 4e: owner-managed help articles ───────────────────────────────
+
+  // GET /admin/help?communitySlug=&audience=  — returns the effective merged
+  // article set for the admin editor. Audience filter optional (defaults to
+  // both); customer relationships are NOT filtered (admin sees every
+  // article regardless of who would normally see it).
+  router.get('/admin/help', async (req, res) => {
+    if (!(await requireOwnerAdmin(req, res))) return;
+    const communityId = trim(req.query.communitySlug, 200);
+    if (!communityId) return res.status(400).json({ error: 'communitySlug required.' });
+    const audience = trim(req.query.audience, 40);
+
+    const audiences = audience ? [audience] : ['customer', 'employee'];
+    const results = {};
+    for (const aud of audiences) {
+      // For the admin view, pass null for customerRelationshipTypeIds so
+      // every default is included regardless of relationship.
+      results[aud] = await loadEffectiveHelp({
+        communityId, audience: aud,
+        customerRelationshipTypeIds: null,
+      });
+      // …but loadEffectiveHelp with null filters out null-tagged defaults
+      // for customer audience. Switch to "all" by using the dedicated path:
+      if (aud === 'customer') {
+        results[aud] = await loadEffectiveHelpForAdmin(communityId, 'customer');
+      }
+    }
+    res.json({ articles: results });
+  });
+
+  // Helper used only by the admin GET: returns merged defaults + community
+  // rows for ALL relationship types (no per-customer filtering). Avoids the
+  // customer-side restriction that would hide relationship-tagged defaults
+  // when the admin doesn't carry that tag themselves.
+  async function loadEffectiveHelpForAdmin(communityId, audience) {
+    const [{ data: defaults }, { data: community }] = await Promise.all([
+      supabase.from('tax_help_articles')
+        .select(`
+          id, audience, relationship_type_id, category, display_order,
+          title_i18n, body_i18n, source_note,
+          type:tax_relationship_types ( id, category, slug, name_i18n )
+        `)
+        .eq('audience', audience).eq('active', true),
+      supabase.from('tax_community_help_articles')
+        .select(`
+          id, default_help_article_id, audience, relationship_type_id, category,
+          display_order, title_i18n, body_i18n, visible, source_note,
+          type:tax_relationship_types ( id, category, slug, name_i18n )
+        `)
+        .eq('community_id', communityId).eq('audience', audience),
+    ]);
+    const overrideByDefault = new Map();
+    const customs = [];
+    for (const row of community || []) {
+      if (row.default_help_article_id) overrideByDefault.set(row.default_help_article_id, row);
+      else customs.push(row);
+    }
+    const merged = [];
+    for (const d of defaults || []) {
+      const ov = overrideByDefault.get(d.id);
+      // In the admin view we keep hidden defaults too so the owner can
+      // re-show them. Source 'hidden' is the distinguishing signal.
+      if (ov && ov.visible === false) {
+        merged.push({ ...d, source: 'hidden', overrideId: ov.id, defaultId: d.id });
+      } else if (ov) {
+        merged.push({
+          id: ov.id, source: 'override', defaultId: d.id, overrideId: ov.id,
+          audience: d.audience, relationship_type_id: d.relationship_type_id,
+          type: d.type, category: d.category,
+          display_order: ov.display_order ?? d.display_order,
+          title_i18n: ov.title_i18n && Object.keys(ov.title_i18n).length ? ov.title_i18n : d.title_i18n,
+          body_i18n:  ov.body_i18n  && Object.keys(ov.body_i18n).length  ? ov.body_i18n  : d.body_i18n,
+          source_note: d.source_note,
+        });
+      } else {
+        merged.push({ ...d, source: 'default' });
+      }
+    }
+    for (const c of customs) merged.push({ ...c, source: 'custom' });
+    merged.sort((a, b) => (a.display_order ?? 0) - (b.display_order ?? 0));
+    return merged;
+  }
+
+  // PUT /admin/help/override/:defaultArticleId
+  // Upserts a community row that overrides the platform default. Setting
+  // `visible:false` hides the default entirely for this community.
+  router.put('/admin/help/override/:defaultArticleId', async (req, res) => {
+    if (!(await requireOwnerAdmin(req, res))) return;
+    const defaultArticleId = trim(req.params.defaultArticleId, 200);
+    const body = req.body || {};
+    const communityId = trim(body.communitySlug, 200);
+    if (!communityId) return res.status(400).json({ error: 'communitySlug required.' });
+
+    const { data: def } = await supabase.from('tax_help_articles')
+      .select('id, audience, category, relationship_type_id, display_order')
+      .eq('id', defaultArticleId).maybeSingle();
+    if (!def) return res.status(404).json({ error: 'Default article not found.' });
+
+    const overrideId = 'thlpov_' + uuidv4().slice(0, 12);
+    const { error } = await supabase.from('tax_community_help_articles').upsert({
+      id: overrideId,
+      community_id: communityId,
+      default_help_article_id: defaultArticleId,
+      audience: def.audience,
+      relationship_type_id: def.relationship_type_id || null,
+      category: def.category,
+      display_order: def.display_order,
+      title_i18n: safeI18n(body.titleI18n),
+      body_i18n: safeI18n(body.bodyI18n),
+      visible: body.visible === false ? false : true,
+      updated_at: new Date().toISOString(),
+    }, { onConflict: 'community_id,default_help_article_id' });
+    if (error) return sendSupabaseError(res, error);
+    res.json({ ok: true });
+  });
+
+  // POST /admin/help/custom  — owner authors a brand-new community article.
+  router.post('/admin/help/custom', async (req, res) => {
+    if (!(await requireOwnerAdmin(req, res))) return;
+    const body = req.body || {};
+    const communityId = trim(body.communitySlug, 200);
+    const audience = trim(body.audience, 40);
+    const category = trim(body.category, 40) || 'general';
+    const relationshipTypeId = trim(body.relationshipTypeId, 200) || null;
+    const titleI18n = safeI18n(body.titleI18n);
+    const bodyI18n = safeI18n(body.bodyI18n);
+    const displayOrder = Number(body.displayOrder) || 1000;
+
+    if (!communityId || !audience) return res.status(400).json({ error: 'communitySlug and audience required.' });
+    if (!['customer', 'employee'].includes(audience)) return res.status(400).json({ error: 'audience must be customer|employee.' });
+    if (!titleI18n.en && !titleI18n.es) return res.status(400).json({ error: 'Provide a title in at least one language.' });
+    if (!bodyI18n.en && !bodyI18n.es) return res.status(400).json({ error: 'Provide a body in at least one language.' });
+
+    const id = 'thlpcu_' + uuidv4().slice(0, 12);
+    const { error } = await supabase.from('tax_community_help_articles').insert({
+      id, community_id: communityId, default_help_article_id: null,
+      audience, relationship_type_id: relationshipTypeId,
+      category, display_order: displayOrder,
+      title_i18n: titleI18n, body_i18n: bodyI18n, visible: true,
+    });
+    if (error) return sendSupabaseError(res, error);
+    res.json({ ok: true, id });
+  });
+
+  // DELETE /admin/help/:rowId  — removes a community row (override or
+  // custom). When deleting an override, the platform default re-appears
+  // automatically. When deleting a custom, the article is simply gone.
+  router.delete('/admin/help/:rowId', async (req, res) => {
+    if (!(await requireOwnerAdmin(req, res))) return;
+    const rowId = trim(req.params.rowId, 200);
+    const { error } = await supabase.from('tax_community_help_articles')
+      .delete().eq('id', rowId);
     if (error) return sendSupabaseError(res, error);
     res.json({ ok: true });
   });
@@ -2322,12 +2465,11 @@ module.exports = function createTaxRouter(deps) {
   // role gating.)
   router.get('/employee/help', async (req, res) => {
     const emp = await requireTaxEmployee(req, res); if (!emp) return;
-    const { data, error } = await supabase.from('tax_help_articles')
-      .select('id, category, display_order, title_i18n, body_i18n, source_note')
-      .eq('audience', 'employee').eq('active', true)
-      .order('display_order', { ascending: true });
-    if (error) return sendSupabaseError(res, error);
-    res.json({ articles: data || [] });
+    const articles = await loadEffectiveHelp({
+      communityId: emp.community_id,
+      audience: 'employee',
+    });
+    res.json({ articles });
   });
 
   // ── POST /employee/notifications/:id/read ──
@@ -2595,6 +2737,94 @@ module.exports = function createTaxRouter(deps) {
     const { data } = await supabase.from('tax_customer_relationships')
       .select('relationship_type_id').eq('customer_id', customerId).eq('active', true);
     return (data || []).map(r => r.relationship_type_id);
+  }
+
+  // Phase 4e: merges platform-default help articles with per-community
+  // overrides/customs, mirroring the FAQ merge pattern.
+  //
+  // For audience='customer', customerRelationshipTypeIds filters defaults to
+  //   (relationship_type_id IS NULL) OR (in customer's tagged set)
+  // Community-custom articles are also filtered by the same rule (a custom
+  // article tagged with a relationship type only shows to customers who
+  // have it; null-tagged customs show to everyone).
+  //
+  // Each returned article carries source: 'default'|'override'|'custom' so
+  // the admin UI can show overlay badges, and id retains the row the UI
+  // would edit (community-row id for override/custom, default id for plain
+  // defaults).
+  async function loadEffectiveHelp({ communityId, audience, customerRelationshipTypeIds = null }) {
+    // Defaults
+    let defaultsQ = supabase.from('tax_help_articles')
+      .select(`
+        id, audience, relationship_type_id, category, display_order,
+        title_i18n, body_i18n, source_note,
+        type:tax_relationship_types ( id, category, slug, name_i18n )
+      `)
+      .eq('audience', audience).eq('active', true);
+    if (audience === 'customer') {
+      if (customerRelationshipTypeIds && customerRelationshipTypeIds.length) {
+        const inList = customerRelationshipTypeIds.map(id => `"${id}"`).join(',');
+        defaultsQ = defaultsQ.or(`relationship_type_id.is.null,relationship_type_id.in.(${inList})`);
+      } else {
+        defaultsQ = defaultsQ.is('relationship_type_id', null);
+      }
+    }
+    const { data: defaults, error: dErr } = await defaultsQ;
+    if (dErr) throw new Error(dErr.message);
+
+    // Community overrides + customs
+    const { data: community, error: cErr } = await supabase.from('tax_community_help_articles')
+      .select(`
+        id, default_help_article_id, audience, relationship_type_id, category,
+        display_order, title_i18n, body_i18n, visible, source_note,
+        type:tax_relationship_types ( id, category, slug, name_i18n )
+      `)
+      .eq('community_id', communityId).eq('audience', audience);
+    if (cErr) throw new Error(cErr.message);
+
+    const overrideByDefault = new Map();
+    const customs = [];
+    for (const row of community || []) {
+      if (row.default_help_article_id) overrideByDefault.set(row.default_help_article_id, row);
+      else customs.push(row);
+    }
+
+    // Build defaults-derived list, applying override/hide.
+    const merged = [];
+    for (const d of defaults || []) {
+      const ov = overrideByDefault.get(d.id);
+      if (ov && ov.visible === false) continue;
+      if (ov) {
+        merged.push({
+          id: ov.id,
+          source: 'override',
+          defaultId: d.id,
+          audience: d.audience,
+          relationship_type_id: d.relationship_type_id,
+          type: d.type,
+          category: d.category,
+          display_order: ov.display_order ?? d.display_order,
+          title_i18n: ov.title_i18n && Object.keys(ov.title_i18n).length ? ov.title_i18n : d.title_i18n,
+          body_i18n:  ov.body_i18n  && Object.keys(ov.body_i18n).length  ? ov.body_i18n  : d.body_i18n,
+          source_note: d.source_note,
+        });
+      } else {
+        merged.push({ ...d, source: 'default' });
+      }
+    }
+
+    // Append customs (filtered by relationship for customer audience).
+    for (const c of customs) {
+      if (audience === 'customer') {
+        if (c.relationship_type_id) {
+          if (!customerRelationshipTypeIds || !customerRelationshipTypeIds.includes(c.relationship_type_id)) continue;
+        }
+      }
+      merged.push({ ...c, source: 'custom' });
+    }
+
+    merged.sort((a, b) => (a.display_order ?? 0) - (b.display_order ?? 0));
+    return merged;
   }
 
   // Loads default FAQs + community overrides/customs, merges them into the

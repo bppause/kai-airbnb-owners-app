@@ -28,6 +28,7 @@ import OwnerStaff from './pages/OwnerStaff';
 import OwnerStaffDetail from './pages/OwnerStaffDetail';
 import OwnerLeads from './pages/OwnerLeads';
 import OwnerSettings from './pages/OwnerSettings';
+import OwnerHelpAdmin from './pages/OwnerHelpAdmin';
 import PortalHelp from './pages/PortalHelp';
 import EmployeeHelp from './pages/EmployeeHelp';
 import { TaxAuthProvider, useTaxAuth } from './auth/AuthProvider';
@@ -58,6 +59,7 @@ function parseTaxPath() {
     }
     if (parts[3] === 'leads')    return { route: 'owner-leads', slug };
     if (parts[3] === 'settings') return { route: 'owner-settings', slug };
+    if (parts[3] === 'articles') return { route: 'owner-articles', slug };
     if (parts[3] === 'help')     return { route: 'employee-help', slug };
     return { route: 'employee-inbox', slug };
   }
@@ -218,6 +220,7 @@ function EmployeeGate({ parsed, community }) {
   if (parsed.route === 'owner-staff-detail') return <OwnerStaffDetail employeeId={parsed.employeeId} />;
   if (parsed.route === 'owner-leads') return <OwnerLeads />;
   if (parsed.route === 'owner-settings') return <OwnerSettings />;
+  if (parsed.route === 'owner-articles') return <OwnerHelpAdmin />;
   if (parsed.route === 'employee-help') return <EmployeeHelp />;
   return <EmployeeInbox />;
 }
