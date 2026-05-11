@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { pickI18n, useT } from '../i18n';
 import { useTaxAuth } from '../auth/AuthProvider';
 import { taxApi } from '../api';
@@ -11,35 +11,112 @@ const CATEGORY_KEY = {
   audit: 'portal.profile.category.audit',
 };
 
+// E.164 validator: + followed by 7-15 digits, first not zero. Mirrors the
+// server-side regex in routes.js so the user gets immediate feedback before
+// the round-trip. The server still re-validates.
+const WHATSAPP_E164 = /^\+[1-9]\d{6,14}$/;
+function normalizeWhatsappForCheck(raw) {
+  const trimmed = String(raw || '').trim();
+  return '+' + trimmed.replace(/^\+/, '').replace(/\D+/g, '');
+}
+
 export default function PortalProfile() {
   const { locale, t } = useT();
   const { fbUser, customer, community, prefs, relationships, refreshMe } = useTaxAuth();
   const auth = { uid: fbUser?.uid, email: fbUser?.email, communitySlug: community?.id };
 
-  const allowChange = Boolean(prefs?.allowChange);
-  const initial = prefs?.channels || ['email', 'in_app'];
-  const [email, setEmail] = useState(initial.includes('email'));
-  const [inApp, setInApp] = useState(initial.includes('in_app'));
-  const [busy, setBusy] = useState(false);
-  const [msg, setMsg] = useState({ kind: 'idle', text: '' });
+  // ── Profile form state (Phase 2e) ───────────────────────────────────────
+  const [form, setForm] = useState({
+    name: '', phone: '', whatsapp: '', preferredEmail: '',
+    addr: { line1: '', line2: '', city: '', state: '', postal_code: '', country: 'US' },
+  });
+  const [savingProfile, setSavingProfile] = useState(false);
+  const [profileMsg, setProfileMsg] = useState({ kind: 'idle', text: '' });
 
-  const onSave = async () => {
-    const channels = [];
-    if (email) channels.push('email');
-    if (inApp) channels.push('in_app');
-    if (!channels.length) {
-      setMsg({ kind: 'error', text: t('portal.profile.atLeastOne') });
+  // Hydrate the form from the auth context whenever the customer record
+  // refreshes (initial load, post-save).
+  useEffect(() => {
+    if (!customer) return;
+    const a = customer.address || {};
+    setForm({
+      name: customer.name || '',
+      phone: customer.phone || '',
+      whatsapp: customer.whatsapp || '',
+      preferredEmail: customer.preferredCommunicationEmail || '',
+      addr: {
+        line1: a.line1 || '', line2: a.line2 || '',
+        city: a.city || '', state: a.state || '',
+        postal_code: a.postal_code || '',
+        country: a.country || 'US',
+      },
+    });
+  }, [customer]);
+
+  const onField = (k, v) => setForm(p => ({ ...p, [k]: v }));
+  const onAddr  = (k, v) => setForm(p => ({ ...p, addr: { ...p.addr, [k]: v } }));
+
+  const whatsappNormalized = form.whatsapp ? normalizeWhatsappForCheck(form.whatsapp) : '';
+  const whatsappValid = !form.whatsapp || WHATSAPP_E164.test(whatsappNormalized);
+  const waLink = whatsappValid && whatsappNormalized.length > 1
+    ? `https://wa.me/${whatsappNormalized.replace(/^\+/, '')}`
+    : '';
+
+  const onSaveProfile = async (e) => {
+    e?.preventDefault?.();
+    if (form.whatsapp && !whatsappValid) {
+      setProfileMsg({ kind: 'error', text: t('portal.profile.whatsapp.invalid') });
       return;
     }
-    setBusy(true); setMsg({ kind: 'idle', text: '' });
+    setSavingProfile(true);
+    setProfileMsg({ kind: 'idle', text: '' });
     try {
-      await taxApi.updatePreferences(auth, { channels });
-      setMsg({ kind: 'success', text: t('portal.profile.saved') });
+      // Strip empty address fields so we don't persist clutter.
+      const address = {};
+      for (const k of ['line1', 'line2', 'city', 'state', 'postal_code', 'country']) {
+        const v = String(form.addr[k] || '').trim();
+        if (v) address[k] = v;
+      }
+      await taxApi.updateProfile(auth, {
+        name: form.name.trim(),
+        phone: form.phone.trim(),
+        whatsapp: form.whatsapp.trim(),
+        address,
+        preferredCommunicationEmail: form.preferredEmail.trim(),
+      });
+      setProfileMsg({ kind: 'success', text: t('portal.profile.saved') });
       refreshMe();
     } catch (err) {
-      setMsg({ kind: 'error', text: err?.message || t('respond.error.generic') });
+      setProfileMsg({ kind: 'error', text: err?.message || t('respond.error.generic') });
     } finally {
-      setBusy(false);
+      setSavingProfile(false);
+    }
+  };
+
+  // ── Notification preferences state (unchanged from Phase 2a/2b) ────────
+  const allowChange = Boolean(prefs?.allowChange);
+  const initial = prefs?.channels || ['email', 'in_app'];
+  const [emailPref, setEmailPref] = useState(initial.includes('email'));
+  const [inAppPref, setInAppPref] = useState(initial.includes('in_app'));
+  const [savingPrefs, setSavingPrefs] = useState(false);
+  const [prefsMsg, setPrefsMsg] = useState({ kind: 'idle', text: '' });
+
+  const onSavePrefs = async () => {
+    const channels = [];
+    if (emailPref) channels.push('email');
+    if (inAppPref) channels.push('in_app');
+    if (!channels.length) {
+      setPrefsMsg({ kind: 'error', text: t('portal.profile.atLeastOne') });
+      return;
+    }
+    setSavingPrefs(true); setPrefsMsg({ kind: 'idle', text: '' });
+    try {
+      await taxApi.updatePreferences(auth, { channels });
+      setPrefsMsg({ kind: 'success', text: t('portal.profile.saved') });
+      refreshMe();
+    } catch (err) {
+      setPrefsMsg({ kind: 'error', text: err?.message || t('respond.error.generic') });
+    } finally {
+      setSavingPrefs(false);
     }
   };
 
@@ -47,35 +124,138 @@ export default function PortalProfile() {
     <PortalShell community={community} active="profile">
       <h2 style={{ marginTop: 0 }}>{t('portal.profile.title')}</h2>
 
-      <div className="tax-contact-grid" style={{ marginBottom: 32 }}>
-        <div className="tax-contact-item">
-          <div className="tax-contact-item__label">{t('portal.profile.name')}</div>
-          <div className="tax-contact-item__value">{customer?.name || '—'}</div>
+      {/* ── Editable profile form ─────────────────────────────────────── */}
+      <form className="tax-form" onSubmit={onSaveProfile} noValidate style={{ maxWidth: 720 }}>
+        <div className="tax-form__row2">
+          <div>
+            <label htmlFor="pp-name">{t('portal.profile.name')}</label>
+            <input id="pp-name" type="text" value={form.name}
+                   onChange={e => onField('name', e.target.value)} maxLength={200} />
+          </div>
+          <div>
+            <label htmlFor="pp-login-email">
+              {t('portal.profile.email')}
+              <span style={{ color: 'var(--tax-muted)', fontWeight: 400, marginLeft: 6, fontSize: 12 }}>
+                ({t('portal.profile.email.readonly')})
+              </span>
+            </label>
+            <input id="pp-login-email" type="email" value={customer?.email || ''} readOnly
+                   style={{ background: 'var(--tax-bg-alt)', color: 'var(--tax-muted)' }} />
+          </div>
         </div>
-        <div className="tax-contact-item">
-          <div className="tax-contact-item__label">{t('portal.profile.email')}</div>
-          <div className="tax-contact-item__value">{customer?.email || '—'}</div>
+
+        <div className="tax-form__row2">
+          <div>
+            <label htmlFor="pp-phone">{t('portal.profile.phone')}</label>
+            <input id="pp-phone" type="tel" value={form.phone}
+                   placeholder="(415) 555-1234"
+                   onChange={e => onField('phone', e.target.value)} maxLength={40} />
+          </div>
+          <div>
+            <label htmlFor="pp-whatsapp">
+              {t('portal.profile.whatsapp')}
+              <span style={{ color: 'var(--tax-muted)', fontWeight: 400, marginLeft: 6, fontSize: 12 }}>
+                {t('portal.profile.whatsapp.format')}
+              </span>
+            </label>
+            <input id="pp-whatsapp" type="tel" value={form.whatsapp}
+                   placeholder="+14155551234"
+                   onChange={e => onField('whatsapp', e.target.value)} maxLength={20}
+                   style={form.whatsapp && !whatsappValid ? { borderColor: 'var(--tax-error)' } : undefined} />
+            {form.whatsapp && !whatsappValid && (
+              <div style={{ color: 'var(--tax-error)', fontSize: 12, marginTop: 4 }}>
+                {t('portal.profile.whatsapp.invalid')}
+              </div>
+            )}
+            {waLink && (
+              <div style={{ fontSize: 12, marginTop: 4 }}>
+                <a href={waLink} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--tax-brand-primary)' }}>
+                  {t('portal.profile.whatsapp.preview')} {whatsappNormalized}
+                </a>
+              </div>
+            )}
+          </div>
         </div>
-        <div className="tax-contact-item">
-          <div className="tax-contact-item__label">{t('portal.profile.phone')}</div>
-          <div className="tax-contact-item__value">{customer?.phone || '—'}</div>
+
+        <div>
+          <label htmlFor="pp-pref-email">
+            {t('portal.profile.preferredEmail')}
+            <span style={{ color: 'var(--tax-muted)', fontWeight: 400, marginLeft: 6, fontSize: 12 }}>
+              {t('portal.profile.preferredEmail.hint')}
+            </span>
+          </label>
+          <input id="pp-pref-email" type="email" value={form.preferredEmail}
+                 placeholder={customer?.email || ''}
+                 onChange={e => onField('preferredEmail', e.target.value)} maxLength={200} />
         </div>
-        <div className="tax-contact-item">
-          <div className="tax-contact-item__label">{t('portal.profile.language')}</div>
-          <div className="tax-contact-item__value">{customer?.locale === 'en' ? 'English' : 'Español'}</div>
-        </div>
+
+        <fieldset style={{ border: '1px solid var(--tax-border)', borderRadius: 8, padding: 16, margin: 0 }}>
+          <legend style={{ padding: '0 8px', fontWeight: 600, fontSize: 14 }}>{t('portal.profile.address')}</legend>
+          <div style={{ display: 'grid', gap: 12 }}>
+            <div>
+              <label htmlFor="pp-addr1">{t('portal.profile.address.line1')}</label>
+              <input id="pp-addr1" type="text" value={form.addr.line1}
+                     onChange={e => onAddr('line1', e.target.value)} maxLength={200} />
+            </div>
+            <div>
+              <label htmlFor="pp-addr2">{t('portal.profile.address.line2')}</label>
+              <input id="pp-addr2" type="text" value={form.addr.line2}
+                     placeholder={t('portal.profile.address.line2.placeholder')}
+                     onChange={e => onAddr('line2', e.target.value)} maxLength={200} />
+            </div>
+            <div className="tax-form__row2">
+              <div>
+                <label htmlFor="pp-city">{t('portal.profile.address.city')}</label>
+                <input id="pp-city" type="text" value={form.addr.city}
+                       onChange={e => onAddr('city', e.target.value)} maxLength={120} />
+              </div>
+              <div>
+                <label htmlFor="pp-state">{t('portal.profile.address.state')}</label>
+                <input id="pp-state" type="text" value={form.addr.state}
+                       onChange={e => onAddr('state', e.target.value)} maxLength={80} />
+              </div>
+            </div>
+            <div className="tax-form__row2">
+              <div>
+                <label htmlFor="pp-postal">{t('portal.profile.address.postal')}</label>
+                <input id="pp-postal" type="text" value={form.addr.postal_code}
+                       onChange={e => onAddr('postal_code', e.target.value)} maxLength={20} />
+              </div>
+              <div>
+                <label htmlFor="pp-country">{t('portal.profile.address.country')}</label>
+                <input id="pp-country" type="text" value={form.addr.country}
+                       onChange={e => onAddr('country', e.target.value)} maxLength={4}
+                       placeholder="US" />
+              </div>
+            </div>
+          </div>
+        </fieldset>
+
+        {profileMsg.text && (
+          <div className={`tax-msg tax-msg--${profileMsg.kind === 'error' ? 'error' : 'success'}`}>
+            {profileMsg.text}
+          </div>
+        )}
+
+        <button type="submit" className="tax-btn tax-btn--primary" disabled={savingProfile}>
+          {savingProfile ? t('lead.submitting') : t('portal.profile.save')}
+        </button>
+      </form>
+
+      {/* ── Read-only info: language + services ──────────────────────── */}
+      <div style={{ marginTop: 40, color: 'var(--tax-muted)', fontSize: 13 }}>
+        {t('portal.profile.language')}: {customer?.locale === 'en' ? 'English' : 'Español'}
       </div>
 
-      <h3>{t('portal.profile.services')}</h3>
+      <h3 style={{ marginTop: 32 }}>{t('portal.profile.services')}</h3>
       <p className="tax-section__lede" style={{ marginBottom: 16 }}>
         {t('portal.profile.servicesHint')}
       </p>
-      {relationships && relationships.length > 0 ? (
-        <RelationshipChips relationships={relationships} locale={locale} t={t} />
-      ) : (
-        <p style={{ color: 'var(--tax-muted)', marginBottom: 32 }}>{t('portal.profile.noServices')}</p>
-      )}
+      {relationships && relationships.length > 0
+        ? <RelationshipChips relationships={relationships} locale={locale} t={t} />
+        : <p style={{ color: 'var(--tax-muted)', marginBottom: 32 }}>{t('portal.profile.noServices')}</p>}
 
+      {/* ── Notification preferences (unchanged from 2a/2b) ──────────── */}
       <h3 style={{ marginTop: 32 }}>{t('portal.profile.notifications')}</h3>
       <p className="tax-section__lede" style={{ marginBottom: 16 }}>
         {allowChange ? t('portal.profile.notifications.editable') : t('portal.profile.notifications.locked')}
@@ -83,23 +263,23 @@ export default function PortalProfile() {
 
       <div className="tax-form" style={{ maxWidth: 480 }}>
         <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: allowChange ? 'pointer' : 'default' }}>
-          <input type="checkbox" checked={email} disabled={!allowChange}
-                 onChange={e => setEmail(e.target.checked)} />
+          <input type="checkbox" checked={emailPref} disabled={!allowChange}
+                 onChange={e => setEmailPref(e.target.checked)} />
           <span>{t('portal.profile.channel.email')}</span>
         </label>
         <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: allowChange ? 'pointer' : 'default' }}>
-          <input type="checkbox" checked={inApp} disabled={!allowChange}
-                 onChange={e => setInApp(e.target.checked)} />
+          <input type="checkbox" checked={inAppPref} disabled={!allowChange}
+                 onChange={e => setInAppPref(e.target.checked)} />
           <span>{t('portal.profile.channel.inApp')}</span>
         </label>
 
-        {msg.text && (
-          <div className={`tax-msg tax-msg--${msg.kind === 'error' ? 'error' : 'success'}`}>{msg.text}</div>
+        {prefsMsg.text && (
+          <div className={`tax-msg tax-msg--${prefsMsg.kind === 'error' ? 'error' : 'success'}`}>{prefsMsg.text}</div>
         )}
 
         {allowChange && (
-          <button type="button" className="tax-btn tax-btn--primary" onClick={onSave} disabled={busy}>
-            {busy ? t('lead.submitting') : t('portal.profile.save')}
+          <button type="button" className="tax-btn tax-btn--primary" onClick={onSavePrefs} disabled={savingPrefs}>
+            {savingPrefs ? t('lead.submitting') : t('portal.profile.save')}
           </button>
         )}
       </div>

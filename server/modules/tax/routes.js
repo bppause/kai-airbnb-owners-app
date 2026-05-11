@@ -390,7 +390,7 @@ module.exports = function createTaxRouter(deps) {
       return null;
     }
     const { data: customer, error } = await supabase.from('tax_customers')
-      .select('id, community_id, email, name, phone, locale, status, firebase_uid')
+      .select('id, community_id, email, name, phone, whatsapp, address, preferred_communication_email, locale, status, firebase_uid')
       .eq('email', email).eq('community_id', communitySlug).maybeSingle();
     if (error) { sendSupabaseError(res, error); return null; }
     if (!customer) {
@@ -597,6 +597,68 @@ module.exports = function createTaxRouter(deps) {
       .eq('id', id).eq('customer_id', customer.id);
     if (error) return sendSupabaseError(res, error);
     res.json({ ok: true });
+  });
+
+  // ── PUT /portal/profile ── (Phase 2e)
+  // Customer-editable profile fields. Login `email` stays read-only (it's the
+  // Firebase auth identity) and goes through /auth/link when a new account
+  // links. Everything else here is at the customer's discretion.
+  router.put('/portal/profile', async (req, res) => {
+    const customer = await requireTaxCustomer(req, res); if (!customer) return;
+    const body = req.body || {};
+
+    const update = { updated_at: new Date().toISOString() };
+
+    if (body.name !== undefined) {
+      update.name = trim(body.name, MAX_NAME_LEN);
+    }
+    if (body.phone !== undefined) {
+      update.phone = trim(body.phone, MAX_PHONE_LEN);
+    }
+    if (body.whatsapp !== undefined) {
+      const raw = String(body.whatsapp || '').trim();
+      if (raw === '') {
+        update.whatsapp = '';
+      } else {
+        const normalized = normalizeWhatsapp(raw);
+        if (!normalized) {
+          return res.status(400).json({ error: 'whatsapp_invalid',
+            message: 'WhatsApp must be in international format starting with + and country code, e.g., +14155551234.' });
+        }
+        update.whatsapp = normalized;
+      }
+    }
+    if (body.address !== undefined) {
+      update.address = sanitizeAddress(body.address);
+    }
+    if (body.preferredCommunicationEmail !== undefined) {
+      const raw = String(body.preferredCommunicationEmail || '').trim().toLowerCase();
+      if (raw === '') {
+        update.preferred_communication_email = '';
+      } else if (!isValidEmail(raw)) {
+        return res.status(400).json({ error: 'preferred_email_invalid',
+          message: 'Preferred communication email is not valid.' });
+      } else {
+        update.preferred_communication_email = raw.slice(0, MAX_NAME_LEN);
+      }
+    }
+
+    const { error } = await supabase.from('tax_customers')
+      .update(update).eq('id', customer.id);
+    if (error) return sendSupabaseError(res, error);
+
+    try {
+      await auditLog({
+        entity: 'tax.customer', entityId: customer.id,
+        action: 'update_profile', actorEmail: customer.email, actorName: customer.name,
+        after: Object.keys(update).filter(k => k !== 'updated_at'),
+      });
+    } catch (_e) {}
+
+    const { data: refreshed } = await supabase.from('tax_customers')
+      .select('id, email, name, phone, whatsapp, address, preferred_communication_email, locale, status')
+      .eq('id', customer.id).maybeSingle();
+    res.json({ ok: true, customer: refreshed });
   });
 
   // ── PUT /portal/preferences ──
@@ -1114,7 +1176,7 @@ module.exports = function createTaxRouter(deps) {
   // document becomes available to a customer.
   async function notifyCustomerOfDocument(doc) {
     const [{ data: cust }, { data: community }] = await Promise.all([
-      supabase.from('tax_customers').select('id, email, name, locale').eq('id', doc.customer_id).maybeSingle(),
+      supabase.from('tax_customers').select('id, email, name, locale, preferred_communication_email').eq('id', doc.customer_id).maybeSingle(),
       supabase.from('communities').select('id, name, contact_email').eq('id', doc.community_id).maybeSingle(),
     ]);
     if (!cust) return;
@@ -1242,7 +1304,44 @@ module.exports = function createTaxRouter(deps) {
     return [...set];
   }
   function pickCustomer(c) {
-    return { id: c.id, email: c.email, name: c.name, phone: c.phone, locale: c.locale, status: c.status };
+    return {
+      id: c.id, email: c.email, name: c.name,
+      phone: c.phone, whatsapp: c.whatsapp || '',
+      address: c.address || {},
+      preferredCommunicationEmail: c.preferred_communication_email || '',
+      locale: c.locale, status: c.status,
+    };
+  }
+
+  // ── Phase 2e helpers ───────────────────────────────────────────────────────
+  // Strip every character except digits and a leading +, then verify the
+  // result is valid E.164: starts with +, first digit 1-9, total 7-15 digits.
+  // Returns the normalized string (e.g. "+14155551234") or null on failure.
+  function normalizeWhatsapp(raw) {
+    const trimmed = String(raw || '').trim();
+    // Keep only digits and a single leading +.
+    const cleaned = '+' + trimmed.replace(/^\+/, '').replace(/\D+/g, '');
+    if (!/^\+[1-9]\d{6,14}$/.test(cleaned)) return null;
+    return cleaned;
+  }
+
+  // Sanitize an address payload into the canonical { line1, line2, city,
+  // state, postal_code, country } shape. Drops unknown keys, trims strings,
+  // and caps each to MAX_NAME_LEN. country defaults to 'US' when an address
+  // line is present.
+  function sanitizeAddress(input) {
+    if (!input || typeof input !== 'object' || Array.isArray(input)) return {};
+    const fields = ['line1', 'line2', 'city', 'state', 'postal_code', 'country'];
+    const out = {};
+    for (const k of fields) {
+      const v = input[k];
+      if (typeof v === 'string') {
+        const t = v.trim().slice(0, MAX_NAME_LEN);
+        if (t) out[k] = t;
+      }
+    }
+    if (out.line1 && !out.country) out.country = 'US';
+    return out;
   }
 
   return router;

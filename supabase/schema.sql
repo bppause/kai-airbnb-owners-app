@@ -758,6 +758,16 @@ create table if not exists public.tax_customers (
 );
 create index if not exists idx_tax_customers_community on public.tax_customers(community_id, status);
 
+-- v85-2e: customer-editable profile fields. WhatsApp stored E.164 normalized
+-- (server validates `^\+[1-9]\d{6,14}$`). Address is structured JSON so we
+-- can evolve fields without a schema migration; v1 keys are
+--   { line1, line2, city, state, postal_code, country }
+-- preferred_communication_email overrides the login email for outbound mail
+-- when non-empty (login email remains the Firebase auth identity).
+alter table public.tax_customers add column if not exists whatsapp text not null default '';
+alter table public.tax_customers add column if not exists address jsonb not null default '{}'::jsonb;
+alter table public.tax_customers add column if not exists preferred_communication_email text not null default '';
+
 -- Schedule definitions — one row per recurring filing under a product.
 -- A product like "Payroll Services" has multiple schedules (941 quarterly,
 -- W-2 January). When a customer subscribes to the product, periods are

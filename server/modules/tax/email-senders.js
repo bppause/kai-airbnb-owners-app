@@ -64,7 +64,9 @@ module.exports = function createTaxSenders(deps) {
   // chosen from cust.locale ('en' or 'es'); falls back to 'es'.
   const sendTaxReminderEmail = async ({ row, cust, sch, sub, magicUrl, offsetDays, tips }) => {
     if (!emailConfigured) return { sent: false, skipped: true, reason: 'email_not_configured' };
-    const to = String(cust?.email || '').trim();
+    // Prefer the customer's chosen communication email (Phase 2e) when set;
+    // otherwise fall back to the login email.
+    const to = String(cust?.preferred_communication_email || cust?.email || '').trim();
     if (!to) return { sent: false, skipped: true, reason: 'customer_email_missing' };
 
     const lang = cust.locale === 'en' ? 'en' : 'es';
@@ -180,7 +182,9 @@ module.exports = function createTaxSenders(deps) {
   // matches the formal reminder email; CTA is the portal home.
   const sendTaxDocumentEmail = async ({ cust, community, doc, portalUrl }) => {
     if (!emailConfigured) return { sent: false, skipped: true, reason: 'email_not_configured' };
-    const to = String(cust?.email || '').trim();
+    // Prefer the customer's chosen communication email (Phase 2e) when set;
+    // otherwise fall back to the login email.
+    const to = String(cust?.preferred_communication_email || cust?.email || '').trim();
     if (!to) return { sent: false, skipped: true, reason: 'customer_email_missing' };
 
     const lang = cust.locale === 'en' ? 'en' : 'es';
