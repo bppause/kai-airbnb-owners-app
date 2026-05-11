@@ -368,7 +368,7 @@ app.use('/api/notifications', notificationsRouter); // legacy alias — drop aft
 const taxModule = require('./modules/tax');
 const {
   sendTaxLeadEmail, sendTaxReminderEmail, sendTaxDocumentEmail,
-  sendTaxMessageEmail, sendTaxMessagePracticeEmail,
+  sendTaxMessageEmail, sendTaxMessagePracticeEmail, sendTaxMessageEmployeeEmail,
 } = require('./modules/tax/email-senders')({ sendSpanishEmail, emailConfigured });
 const taxRemindersCron = require('./modules/tax/reminders')({
   supabase,
@@ -385,6 +385,7 @@ const taxRouter = taxModule.createRouter({
   sendTaxDocumentEmail,
   sendTaxMessageEmail,
   sendTaxMessagePracticeEmail,
+  sendTaxMessageEmployeeEmail,
   publicAppUrl: () => publicAppUrl(),
   isGlobalAdmin,
   runReminderCron: taxRemindersCron.run,

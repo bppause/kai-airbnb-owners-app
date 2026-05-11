@@ -197,5 +197,44 @@
   "portal.messages.fieldReply": "Su respuesta",
   "portal.messages.replyPlaceholder": "Escriba su respuesta…",
   "portal.messages.notFound": "No encontramos esa conversación.",
-  "portal.messages.errBody": "Por favor escriba un mensaje antes de enviar."
+  "portal.messages.errBody": "Por favor escriba un mensaje antes de enviar.",
+
+  "employee.staffBadge": "Personal",
+  "employee.greeting": "Bienvenido/a, {name}",
+  "employee.nav.inbox": "Bandeja",
+  "employee.nav.profile": "Perfil",
+
+  "employee.login.title": "Inicie sesión en el portal del personal",
+  "employee.login.subtitle": "Acceso del personal de la oficina. El portal de clientes está en /portal — inicie sesión allí si es cliente.",
+
+  "employee.inbox.title": "Bandeja de mensajes",
+  "employee.inbox.subtitle": "Conversaciones con clientes de toda la oficina. Las respuestas que publique aquí se atribuyen a usted.",
+  "employee.inbox.filterAll": "Todos",
+  "employee.inbox.filterUnread": "Sin leer ({count})",
+  "employee.inbox.empty": "Aún no hay conversaciones con clientes.",
+  "employee.inbox.emptyUnread": "No hay mensajes sin leer en este momento.",
+  "employee.inbox.fromCustomer": "Del cliente",
+  "employee.inbox.fromPractice": "De la oficina",
+  "employee.inbox.untitled": "(sin asunto)",
+
+  "employee.thread.backToInbox": "Volver a la bandeja",
+  "employee.thread.notFound": "No encontramos esa conversación.",
+  "employee.thread.unnamedCustomer": "Cliente",
+  "employee.thread.contactEmail": "Correo",
+  "employee.thread.contactPhone": "Teléfono",
+  "employee.thread.preferred": "preferido",
+  "employee.thread.customerLabel": "Cliente",
+  "employee.thread.staffLabel": "Personal",
+  "employee.thread.replyAs": "Responder (como {name})",
+  "employee.thread.replyPlaceholder": "Escriba su respuesta al cliente…",
+  "employee.thread.send": "Enviar respuesta",
+
+  "employee.profile.title": "Su perfil de personal",
+  "employee.profile.channels.title": "Preferencias de notificación",
+  "employee.profile.channels.hint": "Elija cómo recibir alertas cuando los clientes publiquen mensajes. La opción predeterminada es solo el portal — también puede activar el correo.",
+  "employee.profile.channels.inApp": "En el portal",
+  "employee.profile.channels.inAppHint": "siempre aparece en la bandeja del portal del personal",
+  "employee.profile.channels.email": "Correo electrónico",
+  "employee.profile.channels.emailHint": "se envía a su correo de inicio de sesión o al preferido",
+  "employee.profile.channels.atLeastOne": "Por favor elija al menos un canal de notificación."
 }

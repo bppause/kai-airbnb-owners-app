@@ -197,5 +197,44 @@
   "portal.messages.fieldReply": "Your reply",
   "portal.messages.replyPlaceholder": "Type your reply…",
   "portal.messages.notFound": "We could not find that conversation.",
-  "portal.messages.errBody": "Please write a message before sending."
+  "portal.messages.errBody": "Please write a message before sending.",
+
+  "employee.staffBadge": "Staff",
+  "employee.greeting": "Welcome, {name}",
+  "employee.nav.inbox": "Inbox",
+  "employee.nav.profile": "Profile",
+
+  "employee.login.title": "Sign in to the staff portal",
+  "employee.login.subtitle": "Practice access. Customer-facing portal is at /portal — sign in there if you are a client.",
+
+  "employee.inbox.title": "Message inbox",
+  "employee.inbox.subtitle": "Conversations with customers across the practice. Replies you post here are attributed to you.",
+  "employee.inbox.filterAll": "All",
+  "employee.inbox.filterUnread": "Unread ({count})",
+  "employee.inbox.empty": "No customer conversations yet.",
+  "employee.inbox.emptyUnread": "No unread customer messages right now.",
+  "employee.inbox.fromCustomer": "From customer",
+  "employee.inbox.fromPractice": "From practice",
+  "employee.inbox.untitled": "(no subject)",
+
+  "employee.thread.backToInbox": "Back to inbox",
+  "employee.thread.notFound": "We could not find that conversation.",
+  "employee.thread.unnamedCustomer": "Customer",
+  "employee.thread.contactEmail": "Email",
+  "employee.thread.contactPhone": "Phone",
+  "employee.thread.preferred": "preferred",
+  "employee.thread.customerLabel": "Customer",
+  "employee.thread.staffLabel": "Staff",
+  "employee.thread.replyAs": "Reply (as {name})",
+  "employee.thread.replyPlaceholder": "Type your reply to the customer…",
+  "employee.thread.send": "Send reply",
+
+  "employee.profile.title": "Your staff profile",
+  "employee.profile.channels.title": "Notification preferences",
+  "employee.profile.channels.hint": "Choose how you receive alerts when customers post messages. The default is portal-only — you can also enable email.",
+  "employee.profile.channels.inApp": "In-app (portal)",
+  "employee.profile.channels.inAppHint": "always shows up in the staff portal inbox",
+  "employee.profile.channels.email": "Email",
+  "employee.profile.channels.emailHint": "delivers to your sign-in email or preferred address",
+  "employee.profile.channels.atLeastOne": "Please choose at least one notification channel."
 }

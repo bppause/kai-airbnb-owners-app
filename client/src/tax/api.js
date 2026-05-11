@@ -72,4 +72,15 @@ export const taxApi = {
   finalizeDocumentUpload(auth, id)              { return request('POST', `/portal/documents/${encodeURIComponent(id)}/finalize`, {}, auth); },
   getDocumentDownloadUrl(auth, id)              { return request('GET',  `/portal/documents/${encodeURIComponent(id)}/download-url`, undefined, auth); },
   deleteDocument(auth, id)                      { return request('DELETE', `/portal/documents/${encodeURIComponent(id)}`, undefined, auth); },
+
+  // Employee portal (Phase 3) — `auth = { uid, email, communitySlug }`
+  employeeAuthLink(payload)                     { return request('POST', '/employee/auth/link', payload); },
+  getEmployeeMe(auth)                           { return request('GET',  '/employee/me', undefined, auth); },
+  updateEmployeeProfile(auth, payload)          { return request('PUT',  '/employee/profile', payload, auth); },
+  getEmployeeThreads(auth)                      { return request('GET',  '/employee/threads', undefined, auth); },
+  getEmployeeThread(auth, id)                   { return request('GET',  `/employee/threads/${encodeURIComponent(id)}`, undefined, auth); },
+  postEmployeeMessage(auth, id, payload)        { return request('POST', `/employee/threads/${encodeURIComponent(id)}/messages`, payload, auth); },
+  markEmployeeThreadRead(auth, id)              { return request('POST', `/employee/threads/${encodeURIComponent(id)}/read`, {}, auth); },
+  getEmployeeNotifications(auth)                { return request('GET',  '/employee/notifications', undefined, auth); },
+  markEmployeeNotificationRead(auth, id)        { return request('POST', `/employee/notifications/${encodeURIComponent(id)}/read`, {}, auth); },
 };

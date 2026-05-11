@@ -19,7 +19,11 @@ import PortalProfile from './pages/PortalProfile';
 import PortalFaqs from './pages/PortalFaqs';
 import PortalDocuments from './pages/PortalDocuments';
 import PortalMessages from './pages/PortalMessages';
+import EmployeeInbox from './pages/EmployeeInbox';
+import EmployeeThread from './pages/EmployeeThread';
+import EmployeeProfile from './pages/EmployeeProfile';
 import { TaxAuthProvider, useTaxAuth } from './auth/AuthProvider';
+import { TaxEmployeeAuthProvider, useEmployeeAuth } from './auth/EmployeeAuthProvider';
 import { taxApi } from './api';
 import './styles/tax.css';
 
@@ -32,6 +36,12 @@ function parseTaxPath() {
     return { route: 'respond', token: decodeURIComponent(parts[2]) };
   }
   const slug = parts[1] || DEFAULT_COMMUNITY_SLUG;
+  if (parts[2] === 'employee') {
+    // /employee, /employee/profile, /employee/threads/:id
+    if (parts[3] === 'profile') return { route: 'employee-profile', slug };
+    if (parts[3] === 'threads' && parts[4]) return { route: 'employee-thread', slug, threadId: decodeURIComponent(parts[4]) };
+    return { route: 'employee-inbox', slug };
+  }
   if (parts[2] === 'portal') {
     if (parts[3] === 'profile') return { route: 'portal-profile', slug };
     if (parts[3] === 'faqs') return { route: 'portal-faqs', slug };
@@ -52,9 +62,11 @@ export default function TaxApp() {
     <TaxLocaleProvider>
       {parsed.route === 'respond'
         ? <Respond token={parsed.token} />
-        : parsed.route.startsWith('portal')
-          ? <PortalRoot parsed={parsed} />
-          : <Landing communitySlug={parsed.slug} />}
+        : parsed.route.startsWith('employee')
+          ? <EmployeeRoot parsed={parsed} />
+          : parsed.route.startsWith('portal')
+            ? <PortalRoot parsed={parsed} />
+            : <Landing communitySlug={parsed.slug} />}
     </TaxLocaleProvider>
   );
 }
@@ -120,4 +132,64 @@ function PortalGate({ parsed, community }) {
   if (parsed.route === 'portal-messages') return <PortalMessages threadId={parsed.threadId} />;
   if (parsed.route === 'portal-filing') return <PortalFiling filingId={parsed.filingId} />;
   return <PortalDashboard />;
+}
+
+// ── Employee subtree (Phase 3) ──────────────────────────────────────────
+// Parallel to PortalRoot but pulls EmployeeAuthProvider, which talks to
+// /employee/auth/link and /employee/me instead of the customer endpoints.
+function EmployeeRoot({ parsed }) {
+  const [community, setCommunity] = useState(null);
+  const [err, setErr] = useState('');
+  useEffect(() => {
+    taxApi.getCommunity(parsed.slug)
+      .then(d => setCommunity(d.community))
+      .catch(e => setErr(e?.message || 'Could not load community'));
+  }, [parsed.slug]);
+
+  if (err) return <div className="tax-fullscreen"><div className="tax-fullscreen__inner">{err}</div></div>;
+  if (!community) return <div className="tax-fullscreen"><div className="tax-fullscreen__inner">Loading…</div></div>;
+
+  const brandStyle = {
+    '--tax-brand-primary': community.brand_primary_color || undefined,
+    '--tax-brand-secondary': community.brand_secondary_color || undefined,
+  };
+
+  return (
+    <div className="tax-app" style={brandStyle}>
+      <TaxEmployeeAuthProvider communitySlug={community.id}>
+        <EmployeeGate parsed={parsed} community={community} />
+      </TaxEmployeeAuthProvider>
+    </div>
+  );
+}
+
+function EmployeeGate({ parsed, community }) {
+  const { status, error, signOut } = useEmployeeAuth();
+
+  if (status === 'unauthenticated') {
+    return <PortalLogin community={community}
+                        titleKey="employee.login.title"
+                        subtitleKey="employee.login.subtitle" />;
+  }
+  if (status === 'loading' || status === 'linking') {
+    return <div className="tax-fullscreen"><div className="tax-fullscreen__inner">Loading…</div></div>;
+  }
+  if (status === 'error') {
+    return (
+      <div className="tax-fullscreen">
+        <div className="tax-fullscreen__inner" style={{ maxWidth: 460 }}>
+          <div className="tax-msg tax-msg--error" role="alert" style={{ textAlign: 'left' }}>
+            <strong>Sign-in problem</strong>
+            <div style={{ marginTop: 6 }}>{error}</div>
+          </div>
+          <button type="button" className="tax-btn tax-btn--primary" style={{ marginTop: 16 }} onClick={signOut}>
+            Try a different account
+          </button>
+        </div>
+      </div>
+    );
+  }
+  if (parsed.route === 'employee-profile') return <EmployeeProfile />;
+  if (parsed.route === 'employee-thread') return <EmployeeThread threadId={parsed.threadId} />;
+  return <EmployeeInbox />;
 }
