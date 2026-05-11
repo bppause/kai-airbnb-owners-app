@@ -2016,3 +2016,36 @@ do $$ begin
 exception when duplicate_object then null; end $$;
 create index if not exists tax_email_templates_lookup_idx
   on public.tax_email_templates(community_id, template_key, lang);
+
+-- ─── Per-relationship workflow rules (Phase 4j) ───────────────────────────────
+-- For (relationship_type, filing_schedule) pair, owner can configure:
+--   • reminder_offsets_days — int[] in DAYS BEFORE due-date (positive ints,
+--     e.g. [14, 7, 2]); stored as positive ints, the reminder cron negates
+--     them at use time. Empty array / null → falls through to subscription
+--     override → system default [14, 7, 3].
+--   • required_documents — jsonb array of {key, label_i18n, type, required}
+--     matching the schedule.info_checklist shape; appended ON TOP of the
+--     schedule defaults so the relationship adds extra required docs
+--     without removing the base list. Empty array / null → just use schedule
+--     default + any subscription-level custom_info_checklist.
+--
+-- Effective resolution (cron applies in this order, first hit wins):
+--   1. tax_subscriptions.reminder_offsets_days / custom_info_checklist
+--   2. tax_relationship_workflow_rules (joined via customer's active rels)
+--   3. tax_filing_schedules.info_checklist + system default offsets
+create table if not exists public.tax_relationship_workflow_rules (
+  id                    text primary key,
+  community_id          text not null references public.communities(id) on delete cascade,
+  relationship_type_id  text not null references public.tax_relationship_types(id) on delete cascade,
+  filing_schedule_slug  text not null,
+  reminder_offsets_days int[],
+  required_documents    jsonb,
+  active                boolean not null default true,
+  created_at            timestamptz not null default now(),
+  updated_at            timestamptz not null default now(),
+  unique (community_id, relationship_type_id, filing_schedule_slug)
+);
+create index if not exists tax_relationship_workflow_rules_lookup_idx
+  on public.tax_relationship_workflow_rules(community_id, relationship_type_id, filing_schedule_slug, active);
+create index if not exists tax_relationship_workflow_rules_schedule_idx
+  on public.tax_relationship_workflow_rules(community_id, filing_schedule_slug, active);
