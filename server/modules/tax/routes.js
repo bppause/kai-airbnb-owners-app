@@ -33,6 +33,19 @@ module.exports = function createTaxRouter(deps) {
 
   const router = express.Router();
 
+  // ── GET /health ─────────────────────────────────────────────────────────────
+  // Lightweight readiness probe for Render and uptime checks. Confirms the tax
+  // module is mounted and Supabase env vars are present (no DB round-trip).
+  router.get('/health', (_req, res) => {
+    res.json({
+      ok: true,
+      module: 'tax',
+      version: '0.1.0',
+      supabase: Boolean(process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY),
+      ts: new Date().toISOString(),
+    });
+  });
+
   // ── GET /community/:slug ────────────────────────────────────────────────────
   // Returns the community record + ordered list of enabled products. Used by
   // the landing page to render branding, services, contact info.

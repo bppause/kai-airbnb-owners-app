@@ -29,6 +29,7 @@ export default function Header({ community }) {
         </a>
         <nav className="tax-nav" aria-label="Main">
           <a href="#services">{t('nav.services')}</a>
+          <a href="#about">{t('nav.about')}</a>
           <a href="#contact">{t('nav.contact')}</a>
           <LocaleSwitcher />
         </nav>

@@ -1,14 +1,29 @@
 import { useEffect, useState } from 'react';
-import { useT } from '../i18n';
+import { hasSavedLocale, useT } from '../i18n';
 import { taxApi } from '../api';
 import Header from '../components/Header';
 import Hero from '../components/Hero';
 import ServicesGrid from '../components/ServicesGrid';
+import About from '../components/About';
 import Contact from '../components/Contact';
 import Footer from '../components/Footer';
 
+// Sets <head> meta for SEO + social previews. Best-effort from JS — non-JS
+// crawlers (legacy Facebook/LinkedIn) won't see these. Server-side rendering
+// of OG tags lands in Phase 2 if the marketing team needs perfect previews.
+function setMeta(name, content, attr = 'name') {
+  if (typeof document === 'undefined' || !content) return;
+  let el = document.head.querySelector(`meta[${attr}="${name}"]`);
+  if (!el) {
+    el = document.createElement('meta');
+    el.setAttribute(attr, name);
+    document.head.appendChild(el);
+  }
+  el.setAttribute('content', content);
+}
+
 export default function Landing({ communitySlug }) {
-  const { t } = useT();
+  const { locale, setLocale, t } = useT();
   const [state, setState] = useState({ kind: 'loading', data: null, error: '' });
 
   useEffect(() => {
@@ -23,6 +38,35 @@ export default function Landing({ communitySlug }) {
       });
     return () => { cancelled = true; };
   }, [communitySlug]);
+
+  // Honor the community's default_locale on first load when the visitor has no
+  // saved preference. Subsequent visits with a saved locale skip this.
+  useEffect(() => {
+    if (state.kind !== 'ready') return;
+    const dl = state.data?.community?.default_locale;
+    if ((dl === 'en' || dl === 'es') && !hasSavedLocale() && dl !== locale) {
+      setLocale(dl);
+    }
+  }, [state, locale, setLocale]);
+
+  // Document title + meta description + OG tags. Re-runs when locale or
+  // community changes so language switches update the head.
+  useEffect(() => {
+    if (state.kind !== 'ready' || typeof document === 'undefined') return;
+    const c = state.data.community;
+    const tagline = (locale === 'es'
+      ? (c.tagline || c.tagline_en)
+      : (c.tagline_en || c.tagline)) || '';
+    const title = tagline ? `${c.name} — ${tagline}` : c.name;
+    document.title = title;
+    setMeta('description', t('meta.description'));
+    setMeta('og:title', title, 'property');
+    setMeta('og:description', t('meta.description'), 'property');
+    setMeta('og:type', 'website', 'property');
+    setMeta('og:locale', locale === 'es' ? 'es_US' : 'en_US', 'property');
+    if (c.logo_url) setMeta('og:image', new URL(c.logo_url, window.location.origin).toString(), 'property');
+    setMeta('twitter:card', 'summary');
+  }, [state, locale, t]);
 
   if (state.kind === 'loading') {
     return <div className="tax-fullscreen"><div className="tax-fullscreen__inner">{t('loading')}</div></div>;
@@ -39,15 +83,13 @@ export default function Landing({ communitySlug }) {
     '--tax-brand-primary': community.brand_primary_color || undefined,
     '--tax-brand-secondary': community.brand_secondary_color || undefined,
   };
-  if (typeof document !== 'undefined') {
-    document.title = community.name || 'Tax Services';
-  }
 
   return (
     <div className="tax-app" style={brandStyle}>
       <Header community={community} />
       <Hero community={community} />
       <ServicesGrid products={products} />
+      <About />
       <Contact community={community} products={products} />
       <Footer community={community} />
     </div>
