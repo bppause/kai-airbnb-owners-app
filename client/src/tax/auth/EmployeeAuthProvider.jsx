@@ -68,6 +68,9 @@ export function TaxEmployeeAuthProvider({ communitySlug, children }) {
     fbUser,
     employee: me?.employee || null,
     community: me?.community || null,
+    // Phase 3b: list of customer assignments for staff (empty array for
+    // admin role — admins see all customers and don't carry an explicit list).
+    assignments: me?.assignments || [],
     status, error,
     signOut, refreshMe,
   };

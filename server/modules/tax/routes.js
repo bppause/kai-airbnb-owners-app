@@ -1492,11 +1492,29 @@ module.exports = function createTaxRouter(deps) {
     const { data: community } = await supabase.from('communities')
       .select('id, name, contact_email').eq('id', thread.community_id).maybeSingle();
 
-    // Fan out to all active employees in the community (Phase 3).
-    const { data: employees } = await supabase.from('tax_employees')
-      .select('id, email, name, locale, notification_channels, preferred_communication_email')
-      .eq('community_id', thread.community_id).eq('status', 'active');
-    const empList = employees || [];
+    // Fan out (Phase 3b): admins always get notified for any customer in
+    // their community; staff get notified ONLY for customers they're
+    // assigned to. The two sets are merged + deduped before delivery.
+    const [{ data: admins }, { data: assignedRows }] = await Promise.all([
+      supabase.from('tax_employees')
+        .select('id, email, name, locale, notification_channels, preferred_communication_email, role, status')
+        .eq('community_id', thread.community_id).eq('status', 'active').eq('role', 'admin'),
+      supabase.from('tax_employee_customer_assignments')
+        .select(`
+          id,
+          employee:tax_employees ( id, email, name, locale, notification_channels, preferred_communication_email, role, status )
+        `)
+        .eq('customer_id', customerId).eq('active', true),
+    ]);
+    const recipientById = new Map();
+    for (const emp of admins || []) recipientById.set(emp.id, emp);
+    for (const row of assignedRows || []) {
+      const emp = row.employee;
+      if (emp && emp.status === 'active' && emp.role === 'staff') {
+        recipientById.set(emp.id, emp);
+      }
+    }
+    const empList = [...recipientById.values()];
 
     for (const emp of empList) {
       // In-app notification row, regardless of email preference.
@@ -1627,10 +1645,28 @@ module.exports = function createTaxRouter(deps) {
   // ── GET /employee/me ──
   router.get('/employee/me', async (req, res) => {
     const emp = await requireTaxEmployee(req, res); if (!emp) return;
-    const { data: community } = await supabase.from('communities')
-      .select('id, name, logo_url, brand_primary_color, brand_secondary_color, default_locale, contact_email, phone')
-      .eq('id', emp.community_id).maybeSingle();
-    res.json({ employee: pickEmployee(emp), community });
+    const [{ data: community }, assignments] = await Promise.all([
+      supabase.from('communities')
+        .select('id, name, logo_url, brand_primary_color, brand_secondary_color, default_locale, contact_email, phone')
+        .eq('id', emp.community_id).maybeSingle(),
+      // Only fetch assignments for staff; for admin the list would be ALL
+      // customers which is a different display ("All customers in this
+      // community" — handled in the frontend on role=admin).
+      emp.role === 'staff'
+        ? supabase.from('tax_employee_customer_assignments')
+            .select(`
+              id, is_primary, created_at,
+              customer:tax_customers ( id, email, name, phone, whatsapp, locale )
+            `).eq('employee_id', emp.id).eq('active', true)
+        : Promise.resolve({ data: [] }),
+    ]);
+    res.json({
+      employee: pickEmployee(emp),
+      community,
+      // Always include the array (empty for admin) so the frontend
+      // can always destructure it without branching.
+      assignments: (assignments?.data || []),
+    });
   });
 
   // ── PUT /employee/profile ──
@@ -1695,9 +1731,35 @@ module.exports = function createTaxRouter(deps) {
     res.json({ ok: true, employee: pickEmployee(refreshed) });
   });
 
-  // ── GET /employee/threads ── (team-wide visibility, v1)
+  // ── Phase 3b visibility helper ──────────────────────────────────────────
+  // Returns:
+  //   null              → employee sees ALL customers in the community
+  //                       (role === 'admin')
+  //   string[]          → exact set of customer IDs the employee may see
+  //                       (role === 'staff' with assignments — possibly empty)
+  // Callers should treat [] as "nothing visible" and short-circuit lists.
+  async function getVisibleCustomerIdsForEmployee(emp) {
+    if (emp.role === 'admin') return null;
+    const { data } = await supabase.from('tax_employee_customer_assignments')
+      .select('customer_id').eq('employee_id', emp.id).eq('active', true);
+    return (data || []).map(r => r.customer_id);
+  }
+
+  // Sugar: returns true when emp can see this customer (admin always can).
+  async function canEmployeeSeeCustomer(emp, customerId) {
+    if (emp.role === 'admin') return true;
+    const { data } = await supabase.from('tax_employee_customer_assignments')
+      .select('id').eq('employee_id', emp.id).eq('customer_id', customerId)
+      .eq('active', true).maybeSingle();
+    return Boolean(data);
+  }
+
+  // ── GET /employee/threads ── (scoped by assignments for staff role)
   router.get('/employee/threads', async (req, res) => {
     const emp = await requireTaxEmployee(req, res); if (!emp) return;
+    const visible = await getVisibleCustomerIdsForEmployee(emp);
+    if (Array.isArray(visible) && visible.length === 0) return res.json({ threads: [] });
+
     let q = supabase.from('tax_message_threads')
       .select(`
         id, subject, status, last_message_at, last_message_preview, last_message_by_role,
@@ -1707,13 +1769,14 @@ module.exports = function createTaxRouter(deps) {
       .eq('community_id', emp.community_id)
       .order('last_message_at', { ascending: false, nullsFirst: false })
       .limit(500);
+    if (Array.isArray(visible)) q = q.in('customer_id', visible);
     if (req.query.unreadOnly === 'true') q = q.eq('practice_unread', true);
     const { data, error } = await q;
     if (error) return sendSupabaseError(res, error);
     res.json({ threads: data || [] });
   });
 
-  // ── GET /employee/threads/:id ── (flips practice_unread)
+  // ── GET /employee/threads/:id ── (404 when staff isn't assigned)
   router.get('/employee/threads/:id', async (req, res) => {
     const emp = await requireTaxEmployee(req, res); if (!emp) return;
     const id = trim(req.params.id, 200);
@@ -1726,6 +1789,10 @@ module.exports = function createTaxRouter(deps) {
     if (!thread || thread.community_id !== emp.community_id) {
       return res.status(404).json({ error: 'Thread not found.' });
     }
+    if (!(await canEmployeeSeeCustomer(emp, thread.customer_id))) {
+      return res.status(404).json({ error: 'Thread not found.' });
+    }
+
     const { data: messages, error } = await supabase.from('tax_messages')
       .select('id, author_role, author_email, author_name, body, attachments, created_at')
       .eq('thread_id', id).order('created_at', { ascending: true });
@@ -1749,6 +1816,9 @@ module.exports = function createTaxRouter(deps) {
     if (!thread || thread.community_id !== emp.community_id) {
       return res.status(404).json({ error: 'Thread not found.' });
     }
+    if (!(await canEmployeeSeeCustomer(emp, thread.customer_id))) {
+      return res.status(403).json({ error: 'You are not assigned to this customer.' });
+    }
     if (thread.status === 'closed') return res.status(409).json({ error: 'This thread is closed.' });
 
     const msgId = await insertMessage({
@@ -1770,8 +1840,11 @@ module.exports = function createTaxRouter(deps) {
     const emp = await requireTaxEmployee(req, res); if (!emp) return;
     const id = trim(req.params.id, 200);
     const { data: thread } = await supabase.from('tax_message_threads')
-      .select('id, community_id').eq('id', id).maybeSingle();
+      .select('id, community_id, customer_id').eq('id', id).maybeSingle();
     if (!thread || thread.community_id !== emp.community_id) return res.status(404).json({ error: 'Thread not found.' });
+    if (!(await canEmployeeSeeCustomer(emp, thread.customer_id))) {
+      return res.status(404).json({ error: 'Thread not found.' });
+    }
     const { error } = await supabase.from('tax_message_threads')
       .update({ practice_unread: false, updated_at: new Date().toISOString() }).eq('id', id);
     if (error) return sendSupabaseError(res, error);
@@ -1831,6 +1904,95 @@ module.exports = function createTaxRouter(deps) {
     });
     if (error) return sendSupabaseError(res, error);
     res.json({ ok: true, id });
+  });
+
+  // ── ADMIN: employee↔customer assignment management (Phase 3b) ────────────
+
+  // GET /admin/employees/:id/assignments — list a staff member's roster
+  router.get('/admin/employees/:id/assignments', async (req, res) => {
+    if (!requireGlobalAdmin(req, res)) return;
+    if (!requireSupabaseEnv(res)) return;
+    const empId = trim(req.params.id, 200);
+    const { data, error } = await supabase.from('tax_employee_customer_assignments')
+      .select(`
+        id, employee_id, customer_id, is_primary, active, created_at, assigned_by_email,
+        customer:tax_customers ( id, email, name, phone, status )
+      `)
+      .eq('employee_id', empId).eq('active', true).order('created_at', { ascending: false });
+    if (error) return sendSupabaseError(res, error);
+    res.json({ assignments: data || [] });
+  });
+
+  // POST /admin/employees/:id/assignments — assign a customer to an employee
+  // Body: { customerId, isPrimary? }
+  router.post('/admin/employees/:id/assignments', async (req, res) => {
+    if (!requireGlobalAdmin(req, res)) return;
+    if (!requireSupabaseEnv(res)) return;
+    const empId = trim(req.params.id, 200);
+    const customerId = trim(req.body?.customerId, 200);
+    const isPrimary = Boolean(req.body?.isPrimary);
+    if (!customerId) return res.status(400).json({ error: 'customerId required.' });
+
+    const [{ data: emp }, { data: cust }] = await Promise.all([
+      supabase.from('tax_employees').select('id, community_id').eq('id', empId).maybeSingle(),
+      supabase.from('tax_customers').select('id, community_id').eq('id', customerId).maybeSingle(),
+    ]);
+    if (!emp) return res.status(404).json({ error: 'Employee not found.' });
+    if (!cust) return res.status(404).json({ error: 'Customer not found.' });
+    if (emp.community_id !== cust.community_id) {
+      return res.status(400).json({ error: 'Employee and customer belong to different communities.' });
+    }
+
+    const id = 'asn_' + uuidv4().slice(0, 12);
+    const actor = trim(req.get('x-admin-email') || '', 200).toLowerCase();
+    // Upsert reactivates a previously soft-deleted row in place.
+    const { error } = await supabase.from('tax_employee_customer_assignments').upsert({
+      id,
+      community_id: emp.community_id,
+      employee_id: empId,
+      customer_id: customerId,
+      is_primary: isPrimary,
+      assigned_by_email: actor || null,
+      active: true,
+      updated_at: new Date().toISOString(),
+    }, { onConflict: 'employee_id,customer_id' });
+    if (error) return sendSupabaseError(res, error);
+    try {
+      await auditLog({
+        entity: 'tax.employee_assignment', entityId: `${empId}:${customerId}`,
+        action: 'assign', actorEmail: actor || 'admin',
+        after: { employeeId: empId, customerId, isPrimary },
+      });
+    } catch (_e) {}
+    res.json({ ok: true });
+  });
+
+  // DELETE /admin/employees/:id/assignments/:customerId — soft delete
+  router.delete('/admin/employees/:id/assignments/:customerId', async (req, res) => {
+    if (!requireGlobalAdmin(req, res)) return;
+    if (!requireSupabaseEnv(res)) return;
+    const empId = trim(req.params.id, 200);
+    const customerId = trim(req.params.customerId, 200);
+    const { error } = await supabase.from('tax_employee_customer_assignments')
+      .update({ active: false, updated_at: new Date().toISOString() })
+      .eq('employee_id', empId).eq('customer_id', customerId);
+    if (error) return sendSupabaseError(res, error);
+    res.json({ ok: true });
+  });
+
+  // GET /admin/customers/:id/assignments — list employees on a customer
+  router.get('/admin/customers/:id/assignments', async (req, res) => {
+    if (!requireGlobalAdmin(req, res)) return;
+    if (!requireSupabaseEnv(res)) return;
+    const customerId = trim(req.params.id, 200);
+    const { data, error } = await supabase.from('tax_employee_customer_assignments')
+      .select(`
+        id, employee_id, customer_id, is_primary, active, created_at, assigned_by_email,
+        employee:tax_employees ( id, email, name, role, status )
+      `)
+      .eq('customer_id', customerId).eq('active', true).order('is_primary', { ascending: false });
+    if (error) return sendSupabaseError(res, error);
+    res.json({ assignments: data || [] });
   });
 
   // ── Helpers ────────────────────────────────────────────────────────────────
