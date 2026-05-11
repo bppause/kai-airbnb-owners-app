@@ -351,6 +351,22 @@ export default function App() {
     }
     const unsub = onAuthChanged((firebaseUser) => {
       if (firebaseUser) {
+        // Password-provider accounts must verify their email before we
+        // provision them. Google sign-ins arrive already verified.
+        const isPasswordOnly = (firebaseUser.providerData || []).every(p => p?.providerId === 'password');
+        if (isPasswordOnly && !firebaseUser.emailVerified) {
+          signOutUser().catch(() => {});
+          setUser(null);
+          setAuthLoading(false);
+          const currentLang = (() => { try { return localStorage.getItem('kai_lang') || 'es-CO'; } catch (e) { return 'es-CO'; } })();
+          showToast(
+            currentLang === 'en'
+              ? 'Please verify your email before signing in. Check your inbox for the verification link.'
+              : 'Verifica tu email antes de iniciar sesión. Revisa tu bandeja para el enlace de verificación.',
+            true,
+          );
+          return;
+        }
         setAdminLoading(true);
         setRegistrationLoading(true);
         setUser({
