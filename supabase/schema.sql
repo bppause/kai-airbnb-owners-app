@@ -585,6 +585,11 @@ alter table public.communities add column if not exists tagline text not null de
 alter table public.communities add column if not exists tagline_en text not null default '';
 alter table public.communities add column if not exists brand_primary_color text not null default '';
 alter table public.communities add column if not exists brand_secondary_color text not null default '';
+alter table public.communities add column if not exists default_locale text not null default 'es';
+do $$ begin
+  alter table public.communities add constraint communities_default_locale_chk
+    check (default_locale in ('en','es'));
+exception when duplicate_object then null; end $$;
 
 create index if not exists idx_communities_business_type on public.communities(business_type);
 create index if not exists idx_communities_parent on public.communities(parent_community_id);
@@ -623,7 +628,8 @@ insert into public.communities (
 update public.communities set
   brand_primary_color   = '#1d3a6d',
   brand_secondary_color = '#d62027',
-  logo_url              = '/tax/tax-america-services-logo.png'
+  logo_url              = '/tax/tax-america-services-logo.png',
+  default_locale        = 'es'
 where id = 'tax-america-services';
 
 -- v85b: tax_products — service catalog cloned per tax community.
