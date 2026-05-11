@@ -561,5 +561,166 @@ alter table public.communities disable row level security;
 alter table public.community_memberships disable row level security;
 alter table public.community_config disable row level security;
 
+-- ─────────────────────────────────────────────────────────────────────────────
+-- TAX MODULE (v85, Phase 1) — landing + leads + product catalog
+-- New vertical reusing the existing `communities` table as the multi-tenant
+-- boundary. A tax practice is `business_type='tax'`. Branches (same brand,
+-- different address) use `parent_community_id` to inherit branding.
+-- ─────────────────────────────────────────────────────────────────────────────
+
+-- v85a: vertical + branch hierarchy + service-business contact fields on communities
+alter table public.communities add column if not exists business_type text not null default 'airbnb';
+do $$ begin
+  alter table public.communities add constraint communities_business_type_chk
+    check (business_type in ('airbnb','tax'));
+exception when duplicate_object then null; end $$;
+
+alter table public.communities add column if not exists parent_community_id text references public.communities(id) on delete set null;
+alter table public.communities add column if not exists address_line1 text not null default '';
+alter table public.communities add column if not exists address_line2 text not null default '';
+alter table public.communities add column if not exists postal_code text not null default '';
+alter table public.communities add column if not exists phone text not null default '';
+alter table public.communities add column if not exists contact_email text not null default '';
+alter table public.communities add column if not exists tagline text not null default '';
+alter table public.communities add column if not exists tagline_en text not null default '';
+alter table public.communities add column if not exists brand_primary_color text not null default '';
+alter table public.communities add column if not exists brand_secondary_color text not null default '';
+
+create index if not exists idx_communities_business_type on public.communities(business_type);
+create index if not exists idx_communities_parent on public.communities(parent_community_id);
+
+-- Seed Tax America Services (single org + single community at launch).
+-- Owner can edit any of these fields later via the admin UI in Phase 4b.
+insert into public.communities (
+  id, name, name_en, business_type,
+  city, state, country,
+  address_line1, postal_code,
+  contact_email,
+  tagline, tagline_en,
+  brand_primary_color, brand_secondary_color,
+  logo_url,
+  description, description_en
+) values (
+  'tax-america-services',
+  'Tax America Services',
+  'Tax America Services',
+  'tax',
+  'Hamden', 'CT', 'USA',
+  '1310 Dixwell Ave, Unit 1', '06514',
+  'info@taxamericaservices.com',
+  'Su éxito financiero en buenas manos',
+  'Your financial success in good hands',
+  '#1d3a6d',
+  '#d62027',
+  '/tax/tax-america-services-logo.png',
+  'Servicios profesionales de impuestos, contabilidad y formación de empresas para individuos y negocios.',
+  'Professional tax preparation, bookkeeping, and business formation services for individuals and businesses.'
+) on conflict (id) do nothing;
+
+-- Re-applies the canonical brand defaults for tax-america-services so
+-- re-running this schema after a brand update overwrites the older values.
+-- Owner can change again via SQL today; via admin UI in Phase 4b.
+update public.communities set
+  brand_primary_color   = '#1d3a6d',
+  brand_secondary_color = '#d62027',
+  logo_url              = '/tax/tax-america-services-logo.png'
+where id = 'tax-america-services';
+
+-- v85b: tax_products — service catalog cloned per tax community.
+-- workflow / sla_hours / required_documents / notification_rules are JSONB and
+-- start empty; Phase 2+ populates them. Owner can enable/disable and edit
+-- name/description in Phase 4b. Custom products are explicitly out of v1.
+create table if not exists public.tax_products (
+  id text primary key,
+  community_id text not null references public.communities(id) on delete cascade,
+  slug text not null,
+  category text not null default 'tax_prep',
+  enabled boolean not null default true,
+  display_order int not null default 0,
+  name_i18n jsonb not null default '{}'::jsonb,
+  description_i18n jsonb not null default '{}'::jsonb,
+  icon text not null default '',
+  workflow jsonb not null default '[]'::jsonb,
+  sla_hours jsonb not null default '{}'::jsonb,
+  required_documents jsonb not null default '[]'::jsonb,
+  notification_rules jsonb not null default '[]'::jsonb,
+  pricing jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (community_id, slug)
+);
+create index if not exists idx_tax_products_community on public.tax_products(community_id, enabled, display_order);
+
+-- Seed defaults for Tax America Services (10 services from taxamericaservices.com).
+insert into public.tax_products (id, community_id, slug, category, display_order, name_i18n, description_i18n, icon) values
+  ('tax-america-services:individual-tax', 'tax-america-services', 'individual-tax', 'tax_prep', 10,
+    '{"en":"Individual Income Tax","es":"Impuestos Personales"}'::jsonb,
+    '{"en":"Federal and state income tax preparation for individuals and families.","es":"Preparación de impuestos federales y estatales para individuos y familias."}'::jsonb,
+    'receipt'),
+  ('tax-america-services:business-tax', 'tax-america-services', 'business-tax', 'tax_prep', 20,
+    '{"en":"Business Tax Preparation","es":"Impuestos de Negocios"}'::jsonb,
+    '{"en":"Tax filings for LLCs, S-Corps, C-Corps, and partnerships.","es":"Declaraciones de impuestos para LLCs, S-Corps, C-Corps y sociedades."}'::jsonb,
+    'briefcase'),
+  ('tax-america-services:itin', 'tax-america-services', 'itin', 'one_off', 30,
+    '{"en":"ITIN Application","es":"Solicitud de ITIN"}'::jsonb,
+    '{"en":"Apply for an Individual Taxpayer Identification Number.","es":"Solicitud del Número de Identificación Personal del Contribuyente (ITIN)."}'::jsonb,
+    'id-card'),
+  ('tax-america-services:bookkeeping', 'tax-america-services', 'bookkeeping', 'recurring', 40,
+    '{"en":"Bookkeeping","es":"Contabilidad"}'::jsonb,
+    '{"en":"Monthly bookkeeping and financial reporting for small businesses.","es":"Contabilidad mensual y reportes financieros para pequeños negocios."}'::jsonb,
+    'book'),
+  ('tax-america-services:payroll', 'tax-america-services', 'payroll', 'recurring', 50,
+    '{"en":"Payroll Services","es":"Nómina"}'::jsonb,
+    '{"en":"Payroll processing, tax withholdings, and quarterly filings.","es":"Procesamiento de nómina, retenciones fiscales y declaraciones trimestrales."}'::jsonb,
+    'wallet'),
+  ('tax-america-services:business-formation', 'tax-america-services', 'business-formation', 'one_off', 60,
+    '{"en":"Business Formation","es":"Formación de Empresas"}'::jsonb,
+    '{"en":"LLC, Corporation, and partnership formation and EIN registration.","es":"Constitución de LLC, Corporaciones y sociedades, y registro de EIN."}'::jsonb,
+    'building'),
+  ('tax-america-services:notary', 'tax-america-services', 'notary', 'one_off', 70,
+    '{"en":"Notary Services","es":"Servicios Notariales"}'::jsonb,
+    '{"en":"Notarization of legal and financial documents.","es":"Notarización de documentos legales y financieros."}'::jsonb,
+    'stamp'),
+  ('tax-america-services:translation', 'tax-america-services', 'translation', 'one_off', 80,
+    '{"en":"Translation Services","es":"Traducciones"}'::jsonb,
+    '{"en":"Certified document translation between English and Spanish.","es":"Traducción certificada de documentos entre inglés y español."}'::jsonb,
+    'globe'),
+  ('tax-america-services:irs-representation', 'tax-america-services', 'irs-representation', 'one_off', 90,
+    '{"en":"IRS Representation","es":"Representación ante el IRS"}'::jsonb,
+    '{"en":"Audit defense and IRS correspondence on your behalf.","es":"Defensa en auditorías y correspondencia con el IRS en su nombre."}'::jsonb,
+    'scales'),
+  ('tax-america-services:sales-tax', 'tax-america-services', 'sales-tax', 'recurring', 100,
+    '{"en":"Sales Tax Filing","es":"Impuestos sobre Ventas"}'::jsonb,
+    '{"en":"State and local sales tax registration, collection, and filing.","es":"Registro, recolección y declaración de impuestos sobre ventas estatales y locales."}'::jsonb,
+    'calculator')
+on conflict (id) do nothing;
+
+-- v85c: tax_leads — public landing page contact form submissions.
+create table if not exists public.tax_leads (
+  id text primary key,
+  community_id text not null references public.communities(id) on delete cascade,
+  name text not null,
+  email text not null,
+  phone text not null default '',
+  product_slug text not null default '',
+  message text not null default '',
+  preferred_locale text not null default 'en' check (preferred_locale in ('en','es')),
+  status text not null default 'new' check (status in ('new','contacted','converted','closed')),
+  source text not null default 'landing',
+  user_agent text not null default '',
+  ip text not null default '',
+  contacted_at timestamptz,
+  contacted_by_uid text not null default '',
+  notes text not null default '',
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+create index if not exists idx_tax_leads_community on public.tax_leads(community_id, created_at desc);
+create index if not exists idx_tax_leads_status on public.tax_leads(community_id, status);
+create index if not exists idx_tax_leads_email on public.tax_leads(email);
+
+alter table public.tax_products disable row level security;
+alter table public.tax_leads disable row level security;
+
 -- Deprecated old registration tables are intentionally not used by the app anymore.
 -- Keep them as historical backups unless you have verified the migration and want to drop them manually.

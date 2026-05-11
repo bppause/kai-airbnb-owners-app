@@ -360,6 +360,19 @@ app.use('/api/notifications', notificationsRouter); // legacy alias — drop aft
 
 
 
+// ─── API: TAX (mounted from server/modules/tax) ──────────────────────────────
+// Canonical: /api/m/tax/*
+// Phase 1 endpoints: GET /community/:slug, POST /leads.
+// Reuses platform `communities` (business_type='tax') as the multi-tenant boundary.
+const taxModule = require('./modules/tax');
+const { sendTaxLeadEmail } = require('./modules/tax/email-senders')({ sendSpanishEmail, emailConfigured });
+const taxRouter = taxModule.createRouter({
+  supabase, requireSupabaseEnv, sendSupabaseError,
+  auditLog,
+  sendTaxLeadEmail,
+});
+app.use('/api/m/tax', taxRouter);
+
 // ─── INCIDENTS SLA CRON (extracted in stage 4j) ──────────────────────────────
 // Walks pending incidents whose next_sla_reminder_at has elapsed and fires the
 // appropriate escalation email. Body lives in

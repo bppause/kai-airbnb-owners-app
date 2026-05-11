@@ -4,6 +4,8 @@ client/dist/
 client/.env.local
 .env
 .DS_Store
+# Root npm install lockfile is intentionally not tracked (client/ has its own).
+/package-lock.json
 
 # Logs
 logs/
