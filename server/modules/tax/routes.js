@@ -62,24 +62,18 @@ module.exports = function createTaxRouter(deps) {
     });
   });
 
-  // Admin gate: requires `x-admin-email` header that matches GLOBAL_ADMIN_EMAILS.
-  // Used by the legacy curl-driven admin endpoints from Phases 1.5–3b.
-  const requireGlobalAdmin = (req, res) => {
-    const email = trim(req.get('x-admin-email') || req.query.adminEmail || '', 200).toLowerCase();
-    if (typeof isGlobalAdmin === 'function' && isGlobalAdmin(email)) return email;
-    res.status(403).json({ error: 'Admin authentication required.' });
-    return null;
-  };
-
-  // Phase 4a admin gate: accepts EITHER path —
-  //   (a) Global admin via x-admin-email header (legacy curl flows), or
+  // Admin gate (Phase 4d: requireGlobalAdmin retired — all /admin/* now
+  // use requireOwnerAdmin below). Accepts EITHER auth path:
+  //   (a) Global admin via x-admin-email header matching GLOBAL_ADMIN_EMAILS
+  //       (legacy curl flows from Phases 1.5–3b stay working unchanged)
   //   (b) Firebase auth from a tax_employees row with role='admin' for the
-  //       targeted community (the dashboard logged-in path).
+  //       targeted community (the dashboard logged-in path; lets additional
+  //       admin employees use the dashboard without being in the env var).
   // Returns { email, source, employee? } on success; writes 403 + returns
   // null on failure. Always await this.
   async function requireOwnerAdmin(req, res) {
     if (!requireSupabaseEnv(res)) return null;
-    // (a) Global admin email header — same shape as requireGlobalAdmin.
+    // (a) Global admin email header (legacy curl callers).
     const headerEmail = trim(req.get('x-admin-email') || req.query.adminEmail || '', 200).toLowerCase();
     if (headerEmail && typeof isGlobalAdmin === 'function' && isGlobalAdmin(headerEmail)) {
       return { email: headerEmail, source: 'global' };
@@ -341,7 +335,7 @@ module.exports = function createTaxRouter(deps) {
   // ────────────────────────────────────────────────────────────────────────────
 
   router.post('/admin/cron/run', async (req, res) => {
-    if (!requireGlobalAdmin(req, res)) return;
+    if (!(await requireOwnerAdmin(req, res))) return;
     if (typeof runReminderCron !== 'function') {
       return res.status(503).json({ error: 'Reminder cron not configured.' });
     }
@@ -408,7 +402,7 @@ module.exports = function createTaxRouter(deps) {
     if (cErr) return sendSupabaseError(res, cErr);
     if (!cust) return res.status(404).json({ error: 'Customer not found.' });
 
-    const [rels, subs, docs, threads, assignments] = await Promise.all([
+    const [rels, subs, docs, threads, assignments, periods] = await Promise.all([
       supabase.from('tax_customer_relationships')
         .select(`
           id, relationship_type_id, notes, active, created_at,
@@ -430,6 +424,17 @@ module.exports = function createTaxRouter(deps) {
           id, is_primary, created_at,
           employee:tax_employees ( id, email, name, role )
         `).eq('customer_id', id).eq('active', true),
+      // Phase 4d: include filing periods so the owner detail page can render
+      // a Filings section with per-period status overrides without an extra
+      // round trip. Window: next 12 due plus most recent 12 by due_date.
+      supabase.from('tax_filing_periods')
+        .select(`
+          id, period_label, period_start, period_end, due_date,
+          status, info_received_at, filed_at, created_at,
+          schedule:tax_filing_schedules ( id, slug, jurisdiction, cadence, name_i18n )
+        `)
+        .eq('customer_id', id)
+        .order('due_date', { ascending: false }).limit(24),
     ]);
 
     res.json({
@@ -438,13 +443,13 @@ module.exports = function createTaxRouter(deps) {
       subscriptions: subs.data || [],
       documents: docs.data || [],
       threads: threads.data || [],
+      periods: periods.data || [],
       assignments: assignments.data || [],
     });
   });
 
   router.get('/admin/periods', async (req, res) => {
-    if (!requireGlobalAdmin(req, res)) return;
-    if (!requireSupabaseEnv(res)) return;
+    if (!(await requireOwnerAdmin(req, res))) return;
     const communitySlug = trim(req.query.communitySlug || '', 200);
     if (!communitySlug) return res.status(400).json({ error: 'communitySlug required.' });
 
@@ -462,9 +467,114 @@ module.exports = function createTaxRouter(deps) {
     res.json({ periods: data || [] });
   });
 
+  // ── PUT /admin/periods/:id ── (Phase 4d)
+  // Manual override of a filing period's status. Common owner action: mark
+  // a period 'skipped' when the customer's business was closed that month,
+  // or advance to 'filed' after submitting through agency portal. The
+  // reminder cron respects status — periods in 'filed' or 'skipped' stop
+  // generating reminders.
+  router.put('/admin/periods/:id', async (req, res) => {
+    if (!(await requireOwnerAdmin(req, res))) return;
+    const periodId = trim(req.params.id, 200);
+    const body = req.body || {};
+    const update = { updated_at: new Date().toISOString() };
+
+    if (body.status !== undefined) {
+      const s = String(body.status);
+      if (!['pending', 'info_requested', 'info_received', 'in_prep', 'filed', 'skipped'].includes(s)) {
+        return res.status(400).json({
+          error: 'status must be pending|info_requested|info_received|in_prep|filed|skipped.',
+        });
+      }
+      update.status = s;
+      // Auto-stamp the timestamp for entry into terminal states. Owner can
+      // also pass infoReceivedAt / filedAt explicitly to override the stamp.
+      const nowIso = new Date().toISOString();
+      if (s === 'info_received' && body.infoReceivedAt === undefined) update.info_received_at = nowIso;
+      if (s === 'filed' && body.filedAt === undefined) update.filed_at = nowIso;
+    }
+    if (body.infoReceivedAt !== undefined) {
+      update.info_received_at = body.infoReceivedAt ? new Date(body.infoReceivedAt).toISOString() : null;
+    }
+    if (body.filedAt !== undefined) {
+      update.filed_at = body.filedAt ? new Date(body.filedAt).toISOString() : null;
+    }
+
+    if (Object.keys(update).length === 1) {
+      return res.status(400).json({ error: 'Nothing to update.' });
+    }
+    const { error } = await supabase.from('tax_filing_periods').update(update).eq('id', periodId);
+    if (error) return sendSupabaseError(res, error);
+    res.json({ ok: true });
+  });
+
+  // ── PUT /admin/customers/:id ── (Phase 4d)
+  // Admin override of customer profile fields. The customer self-serves
+  // these via /portal/profile (Phase 2e); this endpoint exists so the
+  // owner can fix typos / fill in fields before the customer has signed
+  // in. The login email is NOT editable here — it's the Firebase auth
+  // identity. Schema for changing the login email lives in Phase 5 with
+  // a proper re-link flow.
+  router.put('/admin/customers/:id', async (req, res) => {
+    if (!(await requireOwnerAdmin(req, res))) return;
+    const customerId = trim(req.params.id, 200);
+    const body = req.body || {};
+    const update = { updated_at: new Date().toISOString() };
+
+    if (body.name !== undefined)  update.name  = trim(body.name, MAX_NAME_LEN);
+    if (body.phone !== undefined) update.phone = trim(body.phone, MAX_PHONE_LEN);
+
+    if (body.whatsapp !== undefined) {
+      const raw = String(body.whatsapp || '').trim();
+      if (raw === '') update.whatsapp = '';
+      else {
+        const norm = normalizeWhatsapp(raw);
+        if (!norm) {
+          return res.status(400).json({ error: 'whatsapp_invalid',
+            message: 'WhatsApp must be in international format starting with + and country code.' });
+        }
+        update.whatsapp = norm;
+      }
+    }
+    if (body.address !== undefined) update.address = sanitizeAddress(body.address);
+
+    if (body.preferredCommunicationEmail !== undefined) {
+      const raw = String(body.preferredCommunicationEmail || '').trim().toLowerCase();
+      if (raw === '') update.preferred_communication_email = '';
+      else if (!isValidEmail(raw)) {
+        return res.status(400).json({ error: 'preferred_email_invalid' });
+      } else update.preferred_communication_email = raw.slice(0, MAX_NAME_LEN);
+    }
+    if (body.locale !== undefined) {
+      update.locale = (body.locale === 'en') ? 'en' : 'es';
+    }
+    if (body.status !== undefined) {
+      const s = String(body.status);
+      if (!['active', 'paused', 'archived'].includes(s)) {
+        return res.status(400).json({ error: 'status must be active|paused|archived.' });
+      }
+      update.status = s;
+    }
+    if (body.notes !== undefined) update.notes = trim(body.notes, MAX_TEXT_LEN);
+
+    if (Object.keys(update).length === 1) {
+      return res.status(400).json({ error: 'Nothing to update.' });
+    }
+    const { error } = await supabase.from('tax_customers').update(update).eq('id', customerId);
+    if (error) return sendSupabaseError(res, error);
+
+    try {
+      await auditLog({
+        entity: 'tax.customer', entityId: customerId, action: 'admin_update_profile',
+        actorEmail: trim(req.get('x-admin-email') || req.get('x-firebase-email') || '', 200).toLowerCase(),
+        after: Object.keys(update).filter(k => k !== 'updated_at'),
+      });
+    } catch (_e) {}
+    res.json({ ok: true });
+  });
+
   router.put('/admin/community-settings/notif-lock', async (req, res) => {
-    if (!requireGlobalAdmin(req, res)) return;
-    if (!requireSupabaseEnv(res)) return;
+    if (!(await requireOwnerAdmin(req, res))) return;
     const communitySlug = trim(req.body?.communitySlug, 200);
     const allowChange = Boolean(req.body?.allowCustomerChange);
     if (!communitySlug) return res.status(400).json({ error: 'communitySlug required.' });
@@ -1083,8 +1193,7 @@ module.exports = function createTaxRouter(deps) {
 
   // ── GET /admin/relationship-types ── (global admin)
   router.get('/admin/relationship-types', async (req, res) => {
-    if (!requireGlobalAdmin(req, res)) return;
-    if (!requireSupabaseEnv(res)) return;
+    if (!(await requireOwnerAdmin(req, res))) return;
     const { data, error } = await supabase.from('tax_relationship_types')
       .select('id, category, slug, name_i18n, description_i18n, display_order, active')
       .eq('active', true).order('display_order', { ascending: true });
@@ -1094,8 +1203,7 @@ module.exports = function createTaxRouter(deps) {
 
   // ── GET /admin/customers/:id/relationships ── (global admin)
   router.get('/admin/customers/:id/relationships', async (req, res) => {
-    if (!requireGlobalAdmin(req, res)) return;
-    if (!requireSupabaseEnv(res)) return;
+    if (!(await requireOwnerAdmin(req, res))) return;
     const id = trim(req.params.id, 200);
     const { data, error } = await supabase.from('tax_customer_relationships')
       .select(`
@@ -1109,8 +1217,7 @@ module.exports = function createTaxRouter(deps) {
 
   // ── POST /admin/customers/:id/relationships ── (global admin)
   router.post('/admin/customers/:id/relationships', async (req, res) => {
-    if (!requireGlobalAdmin(req, res)) return;
-    if (!requireSupabaseEnv(res)) return;
+    if (!(await requireOwnerAdmin(req, res))) return;
     const customerId = trim(req.params.id, 200);
     const typeId = trim(req.body?.relationshipTypeId, 200);
     const notes = trim(req.body?.notes, MAX_TEXT_LEN);
@@ -1143,8 +1250,7 @@ module.exports = function createTaxRouter(deps) {
 
   // ── DELETE /admin/customers/:id/relationships/:relId ── (global admin)
   router.delete('/admin/customers/:id/relationships/:relId', async (req, res) => {
-    if (!requireGlobalAdmin(req, res)) return;
-    if (!requireSupabaseEnv(res)) return;
+    if (!(await requireOwnerAdmin(req, res))) return;
     const customerId = trim(req.params.id, 200);
     const relId = trim(req.params.relId, 200);
     // Soft delete: mark inactive so we keep the audit trail.
@@ -1160,8 +1266,7 @@ module.exports = function createTaxRouter(deps) {
   // types — what the customer would see if they had every relationship.
   // Owner-facing tooling will let them edit/override per-type.
   router.get('/admin/communities/:slug/faqs', async (req, res) => {
-    if (!requireGlobalAdmin(req, res)) return;
-    if (!requireSupabaseEnv(res)) return;
+    if (!(await requireOwnerAdmin(req, res))) return;
     const communityId = trim(req.params.slug, 200);
     const data = await loadEffectiveFaqs({ communityId, filterTypeIds: null });
     res.json(data);
@@ -1172,8 +1277,7 @@ module.exports = function createTaxRouter(deps) {
   //   { questionI18n, answerI18n, visible }
   // If `visible:false`, the default is hidden for this community.
   router.put('/admin/communities/:slug/faqs/override/:defaultFaqId', async (req, res) => {
-    if (!requireGlobalAdmin(req, res)) return;
-    if (!requireSupabaseEnv(res)) return;
+    if (!(await requireOwnerAdmin(req, res))) return;
     const communityId = trim(req.params.slug, 200);
     const defaultFaqId = trim(req.params.defaultFaqId, 200);
     const body = req.body || {};
@@ -1200,8 +1304,7 @@ module.exports = function createTaxRouter(deps) {
   // Owner adds a community-specific FAQ for a relationship type. Body:
   //   { relationshipTypeId, displayOrder, questionI18n, answerI18n }
   router.post('/admin/communities/:slug/faqs/custom', async (req, res) => {
-    if (!requireGlobalAdmin(req, res)) return;
-    if (!requireSupabaseEnv(res)) return;
+    if (!(await requireOwnerAdmin(req, res))) return;
     const communityId = trim(req.params.slug, 200);
     const typeId = trim(req.body?.relationshipTypeId, 200);
     if (!typeId) return res.status(400).json({ error: 'relationshipTypeId required.' });
@@ -1224,8 +1327,7 @@ module.exports = function createTaxRouter(deps) {
   // Hard-delete a community FAQ row — either an override (reverts to default)
   // or a custom FAQ (removes it).
   router.delete('/admin/communities/:slug/faqs/:overrideId', async (req, res) => {
-    if (!requireGlobalAdmin(req, res)) return;
-    if (!requireSupabaseEnv(res)) return;
+    if (!(await requireOwnerAdmin(req, res))) return;
     const communityId = trim(req.params.slug, 200);
     const overrideId = trim(req.params.overrideId, 200);
     const { error } = await supabase.from('tax_relationship_faqs')
@@ -1380,8 +1482,7 @@ module.exports = function createTaxRouter(deps) {
 
   // ── GET /admin/customers/:id/documents ── (global admin)
   router.get('/admin/customers/:id/documents', async (req, res) => {
-    if (!requireGlobalAdmin(req, res)) return;
-    if (!requireSupabaseEnv(res)) return;
+    if (!(await requireOwnerAdmin(req, res))) return;
     const customerId = trim(req.params.id, 200);
     const { data, error } = await supabase.from('tax_documents')
       .select('id, community_id, source, kind, file_name, mime_type, size_bytes, status, uploaded_at, uploaded_by_role, uploaded_by_email, period_id, created_at')
@@ -1395,8 +1496,7 @@ module.exports = function createTaxRouter(deps) {
   // Owner uploads a document FOR the customer (completed return, etc.). On
   // finalize the customer gets an in-app + email notification.
   router.post('/admin/customers/:id/documents/upload-url', async (req, res) => {
-    if (!requireGlobalAdmin(req, res)) return;
-    if (!requireSupabaseEnv(res)) return;
+    if (!(await requireOwnerAdmin(req, res))) return;
     const customerId = trim(req.params.id, 200);
     const body = req.body || {};
     const fileName = sanitizeFileName(body.fileName);
@@ -1444,8 +1544,7 @@ module.exports = function createTaxRouter(deps) {
   // ── POST /admin/documents/:id/finalize ── (global admin)
   // Flips to uploaded + notifies the customer.
   router.post('/admin/documents/:id/finalize', async (req, res) => {
-    if (!requireGlobalAdmin(req, res)) return;
-    if (!requireSupabaseEnv(res)) return;
+    if (!(await requireOwnerAdmin(req, res))) return;
     const docId = trim(req.params.id, 200);
     const { data: doc } = await supabase.from('tax_documents')
       .select('id, community_id, customer_id, source, status, file_name, kind')
@@ -1470,8 +1569,7 @@ module.exports = function createTaxRouter(deps) {
 
   // ── GET /admin/documents/:id/download-url ── (global admin)
   router.get('/admin/documents/:id/download-url', async (req, res) => {
-    if (!requireGlobalAdmin(req, res)) return;
-    if (!requireSupabaseEnv(res)) return;
+    if (!(await requireOwnerAdmin(req, res))) return;
     const docId = trim(req.params.id, 200);
     const { data: doc } = await supabase.from('tax_documents')
       .select('id, storage_path, file_name, status, deleted_at').eq('id', docId).maybeSingle();
@@ -1488,8 +1586,7 @@ module.exports = function createTaxRouter(deps) {
   // data the practice doesn't want lingering. Use the soft-delete on the
   // customer endpoint when keeping the audit trail matters more.
   router.delete('/admin/documents/:id', async (req, res) => {
-    if (!requireGlobalAdmin(req, res)) return;
-    if (!requireSupabaseEnv(res)) return;
+    if (!(await requireOwnerAdmin(req, res))) return;
     const docId = trim(req.params.id, 200);
     const { data: doc } = await supabase.from('tax_documents')
       .select('id, storage_path').eq('id', docId).maybeSingle();
@@ -1536,7 +1633,7 @@ module.exports = function createTaxRouter(deps) {
   //
   // Thread-per-conversation, denormalized last_message_* + unread flags on the
   // thread row so the list query is O(1). Customer endpoints are auth-gated;
-  // owner endpoints sit behind requireGlobalAdmin. The owner UI lands with
+  // owner endpoints sit behind requireOwnerAdmin. The owner UI lands with
   // Phase 4a — until then, the practice replies via these endpoints directly.
   // ────────────────────────────────────────────────────────────────────────────
   const MAX_MESSAGE_BODY = 4000;
@@ -1667,8 +1764,7 @@ module.exports = function createTaxRouter(deps) {
 
   // ── ADMIN: GET /admin/threads ── (owner; optionally filtered)
   router.get('/admin/threads', async (req, res) => {
-    if (!requireGlobalAdmin(req, res)) return;
-    if (!requireSupabaseEnv(res)) return;
+    if (!(await requireOwnerAdmin(req, res))) return;
     const communitySlug = trim(req.query.communitySlug, 200);
     let q = supabase.from('tax_message_threads')
       .select(`
@@ -1687,8 +1783,7 @@ module.exports = function createTaxRouter(deps) {
 
   // ── ADMIN: GET /admin/threads/:id ── (owner; returns + flips practice_unread to false)
   router.get('/admin/threads/:id', async (req, res) => {
-    if (!requireGlobalAdmin(req, res)) return;
-    if (!requireSupabaseEnv(res)) return;
+    if (!(await requireOwnerAdmin(req, res))) return;
     const id = trim(req.params.id, 200);
     const { data: thread } = await supabase.from('tax_message_threads')
       .select(`
@@ -1712,8 +1807,7 @@ module.exports = function createTaxRouter(deps) {
 
   // ── ADMIN: POST /admin/threads/:id/messages ── (owner reply)
   router.post('/admin/threads/:id/messages', async (req, res) => {
-    if (!requireGlobalAdmin(req, res)) return;
-    if (!requireSupabaseEnv(res)) return;
+    if (!(await requireOwnerAdmin(req, res))) return;
     const id = trim(req.params.id, 200);
     const messageBody = trim(req.body?.body, MAX_MESSAGE_BODY);
     if (!messageBody) return res.status(400).json({ error: 'Message body required.' });
@@ -1739,8 +1833,7 @@ module.exports = function createTaxRouter(deps) {
 
   // ── ADMIN: POST /admin/threads/:id/read ──
   router.post('/admin/threads/:id/read', async (req, res) => {
-    if (!requireGlobalAdmin(req, res)) return;
-    if (!requireSupabaseEnv(res)) return;
+    if (!(await requireOwnerAdmin(req, res))) return;
     const id = trim(req.params.id, 200);
     const { error } = await supabase.from('tax_message_threads')
       .update({ practice_unread: false, updated_at: new Date().toISOString() }).eq('id', id);
@@ -2215,8 +2308,7 @@ module.exports = function createTaxRouter(deps) {
 
   // ── ADMIN: list / add employees (owner-side seeding until Phase 4a UI) ────
   router.get('/admin/employees', async (req, res) => {
-    if (!requireGlobalAdmin(req, res)) return;
-    if (!requireSupabaseEnv(res)) return;
+    if (!(await requireOwnerAdmin(req, res))) return;
     const communitySlug = trim(req.query.communitySlug, 200);
     let q = supabase.from('tax_employees')
       .select('id, community_id, email, name, role, status, notification_channels, created_at, firebase_uid')
@@ -2228,8 +2320,7 @@ module.exports = function createTaxRouter(deps) {
   });
 
   router.post('/admin/employees', async (req, res) => {
-    if (!requireGlobalAdmin(req, res)) return;
-    if (!requireSupabaseEnv(res)) return;
+    if (!(await requireOwnerAdmin(req, res))) return;
     const body = req.body || {};
     const communitySlug = trim(body.communitySlug, 200);
     const email = trim(body.email, 200).toLowerCase();
@@ -2251,8 +2342,7 @@ module.exports = function createTaxRouter(deps) {
 
   // GET /admin/employees/:id/assignments — list a staff member's roster
   router.get('/admin/employees/:id/assignments', async (req, res) => {
-    if (!requireGlobalAdmin(req, res)) return;
-    if (!requireSupabaseEnv(res)) return;
+    if (!(await requireOwnerAdmin(req, res))) return;
     const empId = trim(req.params.id, 200);
     const { data, error } = await supabase.from('tax_employee_customer_assignments')
       .select(`
@@ -2267,8 +2357,7 @@ module.exports = function createTaxRouter(deps) {
   // POST /admin/employees/:id/assignments — assign a customer to an employee
   // Body: { customerId, isPrimary? }
   router.post('/admin/employees/:id/assignments', async (req, res) => {
-    if (!requireGlobalAdmin(req, res)) return;
-    if (!requireSupabaseEnv(res)) return;
+    if (!(await requireOwnerAdmin(req, res))) return;
     const empId = trim(req.params.id, 200);
     const customerId = trim(req.body?.customerId, 200);
     const isPrimary = Boolean(req.body?.isPrimary);
@@ -2310,8 +2399,7 @@ module.exports = function createTaxRouter(deps) {
 
   // DELETE /admin/employees/:id/assignments/:customerId — soft delete
   router.delete('/admin/employees/:id/assignments/:customerId', async (req, res) => {
-    if (!requireGlobalAdmin(req, res)) return;
-    if (!requireSupabaseEnv(res)) return;
+    if (!(await requireOwnerAdmin(req, res))) return;
     const empId = trim(req.params.id, 200);
     const customerId = trim(req.params.customerId, 200);
     const { error } = await supabase.from('tax_employee_customer_assignments')
@@ -2323,8 +2411,7 @@ module.exports = function createTaxRouter(deps) {
 
   // GET /admin/customers/:id/assignments — list employees on a customer
   router.get('/admin/customers/:id/assignments', async (req, res) => {
-    if (!requireGlobalAdmin(req, res)) return;
-    if (!requireSupabaseEnv(res)) return;
+    if (!(await requireOwnerAdmin(req, res))) return;
     const customerId = trim(req.params.id, 200);
     const { data, error } = await supabase.from('tax_employee_customer_assignments')
       .select(`

@@ -407,5 +407,31 @@
   "portal.help.cat.admin": "Herramientas de administrador",
 
   "employee.help.title": "Centro de ayuda del personal",
-  "employee.help.subtitle": "Cómo usar el portal del personal. Las pestañas, funciones o flujos nuevos se documentan aquí cuando se lanzan."
+  "employee.help.subtitle": "Cómo usar el portal del personal. Las pestañas, funciones o flujos nuevos se documentan aquí cuando se lanzan.",
+
+  "owner.customer.profile.edit": "Editar perfil",
+  "owner.customer.profile.save": "Guardar perfil",
+  "owner.customer.profile.cancel": "Cancelar",
+  "owner.customer.profile.status.active": "Activo",
+  "owner.customer.profile.status.paused": "Pausado",
+  "owner.customer.profile.status.archived": "Archivado",
+
+  "owner.customer.section.filings": "Declaraciones",
+  "owner.customer.filings.empty": "Aún no hay períodos de declaración. Aparecerán aquí cuando una suscripción genere períodos próximos.",
+  "owner.customer.filings.hint": "La mayoría de los períodos avanzan automáticamente: cuando un cliente responde por el portal, el estado cambia a ''información recibida''. Use el menú para marcar manualmente un período como omitido o ya presentado cuando sea necesario.",
+  "owner.customer.filings.save": "Guardar",
+  "owner.customer.filings.status.pending":         "Programada",
+  "owner.customer.filings.status.info_requested":  "Información solicitada",
+  "owner.customer.filings.status.info_received":   "Información recibida",
+  "owner.customer.filings.status.in_prep":         "En preparación",
+  "owner.customer.filings.status.filed":           "Presentada",
+  "owner.customer.filings.status.skipped":         "Omitida",
+
+  "owner.customer.subscription.offsets": "Días de recordatorio antes del vencimiento",
+  "owner.customer.subscription.offsetsHint": "Lista separada por comas de desplazamientos negativos, ej. -14, -7, -3. Cada valor dispara un recordatorio esa cantidad de días antes de la fecha de vencimiento.",
+  "owner.customer.subscription.channels": "Canales de recordatorio",
+  "owner.customer.subscription.channelsHint": "Cómo se le recuerda al cliente. El cliente también puede configurarlo desde su perfil cuando el bloqueo de notificación de la oficina está abierto.",
+  "owner.customer.subscription.errOffsets": "Los desplazamientos deben ser una lista separada por comas de enteros, ej. -14, -7, -3.",
+  "owner.customer.subscription.errOffsetsEmpty": "Proporcione al menos un desplazamiento de recordatorio, ej. -3.",
+  "owner.customer.subscription.errChannels": "Elija al menos un canal de recordatorio."
 }

@@ -82,7 +82,7 @@ export default function OwnerCustomerDetail({ customerId }) {
         {' • '}{c.locale === 'en' ? 'English' : 'Español'}
       </p>
 
-      <ProfileSection customer={c} t={t} />
+      <ProfileSection customer={c} auth={auth} customerId={customerId} onChange={load} t={t} />
 
       <RelationshipsSection
         data={data} types={types} auth={auth} customerId={customerId}
@@ -92,6 +92,8 @@ export default function OwnerCustomerDetail({ customerId }) {
         data={data} auth={auth} customerId={customerId} onChange={load} t={t} />
 
       <ThreadsSection data={data} threadsBase={threadsBase} t={t} />
+
+      <FilingsSection data={data} auth={auth} onChange={load} locale={locale} t={t} />
 
       <OwnerSubscriptionsSection
         customer={data.customer}
@@ -106,37 +108,190 @@ export default function OwnerCustomerDetail({ customerId }) {
   );
 }
 
-function ProfileSection({ customer: c, t }) {
+// Phase 4d: profile is now editable from the admin side. The login email
+// stays read-only — it's the Firebase identity. Customer self-serves the
+// same fields via /portal/profile; this endpoint is for owner-side fixes
+// (typos, fill-in before customer sign-in, etc.).
+function ProfileSection({ customer: c, auth, customerId, onChange, t }) {
+  const [editing, setEditing] = useState(false);
+  const [form, setForm] = useState({
+    name: c.name || '',
+    phone: c.phone || '',
+    whatsapp: c.whatsapp || '',
+    preferredEmail: c.preferred_communication_email || '',
+    locale: c.locale || 'es',
+    status: c.status || 'active',
+    addr: {
+      line1: c.address?.line1 || '', line2: c.address?.line2 || '',
+      city: c.address?.city || '', state: c.address?.state || '',
+      postal_code: c.address?.postal_code || '',
+      country: c.address?.country || 'US',
+    },
+  });
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+
   const a = c.address || {};
+
+  if (!editing) {
+    return (
+      <section style={{ marginTop: 24 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+          <h3 style={{ margin: 0 }}>{t('owner.customer.section.profile')}</h3>
+          <button type="button" className="tax-btn tax-btn--ghost tax-btn--sm"
+                  onClick={() => setEditing(true)} style={{ color: 'var(--tax-text)' }}>
+            {t('owner.customer.profile.edit')}
+          </button>
+        </div>
+        <div className="tax-contact-grid">
+          <div className="tax-contact-item">
+            <div className="tax-contact-item__label">{t('portal.profile.phone')}</div>
+            <div className="tax-contact-item__value">{c.phone || '—'}</div>
+          </div>
+          <div className="tax-contact-item">
+            <div className="tax-contact-item__label">{t('portal.profile.whatsapp')}</div>
+            <div className="tax-contact-item__value">{c.whatsapp || '—'}</div>
+          </div>
+          <div className="tax-contact-item">
+            <div className="tax-contact-item__label">{t('portal.profile.preferredEmail')}</div>
+            <div className="tax-contact-item__value">{c.preferred_communication_email || '—'}</div>
+          </div>
+          <div className="tax-contact-item">
+            <div className="tax-contact-item__label">{t('portal.profile.address')}</div>
+            <div className="tax-contact-item__value" style={{ fontSize: 13, lineHeight: 1.5 }}>
+              {a.line1 || '—'}
+              {a.line2 && <><br />{a.line2}</>}
+              {(a.city || a.state || a.postal_code) && <><br />{[a.city, a.state, a.postal_code].filter(Boolean).join(', ')}</>}
+              {a.country && <><br />{a.country}</>}
+            </div>
+          </div>
+          <div className="tax-contact-item">
+            <div className="tax-contact-item__label">{t('owner.customer.status')}</div>
+            <div className="tax-contact-item__value">{c.status}</div>
+          </div>
+          <div className="tax-contact-item">
+            <div className="tax-contact-item__label">{t('owner.customer.signedIn')}</div>
+            <div className="tax-contact-item__value">{c.firebase_uid ? t('owner.customer.yes') : t('owner.customer.no')}</div>
+          </div>
+        </div>
+        <p style={{ color: 'var(--tax-muted)', fontSize: 13, marginTop: 8 }}>
+          {t('owner.customer.profileEditHint')}
+        </p>
+      </section>
+    );
+  }
+
+  const onSave = async (e) => {
+    e?.preventDefault?.();
+    setBusy(true); setErr('');
+    const address = {};
+    for (const k of ['line1', 'line2', 'city', 'state', 'postal_code', 'country']) {
+      const v = String(form.addr[k] || '').trim();
+      if (v) address[k] = v;
+    }
+    try {
+      await taxApi.adminUpdateCustomer(auth, customerId, {
+        name: form.name.trim(),
+        phone: form.phone.trim(),
+        whatsapp: form.whatsapp.trim(),
+        preferredCommunicationEmail: form.preferredEmail.trim(),
+        locale: form.locale,
+        status: form.status,
+        address,
+      });
+      setEditing(false);
+      onChange();
+    } catch (e) { setErr(e?.message || ''); }
+    finally { setBusy(false); }
+  };
+
   return (
     <section style={{ marginTop: 24 }}>
       <h3>{t('owner.customer.section.profile')}</h3>
-      <div className="tax-contact-grid">
-        <div className="tax-contact-item">
-          <div className="tax-contact-item__label">{t('portal.profile.preferredEmail')}</div>
-          <div className="tax-contact-item__value">{c.preferred_communication_email || '—'}</div>
-        </div>
-        <div className="tax-contact-item">
-          <div className="tax-contact-item__label">{t('portal.profile.address')}</div>
-          <div className="tax-contact-item__value" style={{ fontSize: 13, lineHeight: 1.5 }}>
-            {a.line1 || '—'}
-            {a.line2 && <><br />{a.line2}</>}
-            {(a.city || a.state || a.postal_code) && <><br />{[a.city, a.state, a.postal_code].filter(Boolean).join(', ')}</>}
-            {a.country && <><br />{a.country}</>}
+      <form className="tax-form" onSubmit={onSave} noValidate style={{ maxWidth: 720 }}>
+        <div className="tax-form__row2">
+          <div>
+            <label htmlFor="ocp-name">{t('portal.profile.name')}</label>
+            <input id="ocp-name" type="text" value={form.name}
+                   onChange={e => setForm(p => ({ ...p, name: e.target.value }))} maxLength={200} />
+          </div>
+          <div>
+            <label htmlFor="ocp-status">{t('owner.customer.status')}</label>
+            <select id="ocp-status" value={form.status}
+                    onChange={e => setForm(p => ({ ...p, status: e.target.value }))}>
+              <option value="active">{t('owner.customer.profile.status.active')}</option>
+              <option value="paused">{t('owner.customer.profile.status.paused')}</option>
+              <option value="archived">{t('owner.customer.profile.status.archived')}</option>
+            </select>
           </div>
         </div>
-        <div className="tax-contact-item">
-          <div className="tax-contact-item__label">{t('owner.customer.status')}</div>
-          <div className="tax-contact-item__value">{c.status}</div>
+        <div className="tax-form__row2">
+          <div>
+            <label htmlFor="ocp-phone">{t('portal.profile.phone')}</label>
+            <input id="ocp-phone" type="tel" value={form.phone}
+                   onChange={e => setForm(p => ({ ...p, phone: e.target.value }))} maxLength={40} />
+          </div>
+          <div>
+            <label htmlFor="ocp-whatsapp">
+              {t('portal.profile.whatsapp')}
+              <span style={{ color: 'var(--tax-muted)', fontWeight: 400, marginLeft: 6, fontSize: 12 }}>
+                {t('portal.profile.whatsapp.format')}
+              </span>
+            </label>
+            <input id="ocp-whatsapp" type="tel" value={form.whatsapp}
+                   placeholder="+14155551234"
+                   onChange={e => setForm(p => ({ ...p, whatsapp: e.target.value }))} maxLength={20} />
+          </div>
         </div>
-        <div className="tax-contact-item">
-          <div className="tax-contact-item__label">{t('owner.customer.signedIn')}</div>
-          <div className="tax-contact-item__value">{c.firebase_uid ? t('owner.customer.yes') : t('owner.customer.no')}</div>
+        <div className="tax-form__row2">
+          <div>
+            <label htmlFor="ocp-pref-email">{t('portal.profile.preferredEmail')}</label>
+            <input id="ocp-pref-email" type="email" value={form.preferredEmail}
+                   placeholder={c.email}
+                   onChange={e => setForm(p => ({ ...p, preferredEmail: e.target.value }))} maxLength={200} />
+          </div>
+          <div>
+            <label htmlFor="ocp-locale">{t('owner.customers.fieldLocale')}</label>
+            <select id="ocp-locale" value={form.locale}
+                    onChange={e => setForm(p => ({ ...p, locale: e.target.value }))}>
+              <option value="es">Español</option>
+              <option value="en">English</option>
+            </select>
+          </div>
         </div>
-      </div>
-      <p style={{ color: 'var(--tax-muted)', fontSize: 13, marginTop: 8 }}>
-        {t('owner.customer.profileEditHint')}
-      </p>
+        <fieldset style={{ border: '1px solid var(--tax-border)', borderRadius: 8, padding: 16, margin: 0 }}>
+          <legend style={{ padding: '0 8px', fontWeight: 600, fontSize: 14 }}>{t('portal.profile.address')}</legend>
+          <div style={{ display: 'grid', gap: 12 }}>
+            <input type="text" placeholder={t('portal.profile.address.line1')} value={form.addr.line1}
+                   onChange={e => setForm(p => ({ ...p, addr: { ...p.addr, line1: e.target.value } }))} maxLength={200} />
+            <input type="text" placeholder={t('portal.profile.address.line2')} value={form.addr.line2}
+                   onChange={e => setForm(p => ({ ...p, addr: { ...p.addr, line2: e.target.value } }))} maxLength={200} />
+            <div className="tax-form__row2">
+              <input type="text" placeholder={t('portal.profile.address.city')} value={form.addr.city}
+                     onChange={e => setForm(p => ({ ...p, addr: { ...p.addr, city: e.target.value } }))} maxLength={120} />
+              <input type="text" placeholder={t('portal.profile.address.state')} value={form.addr.state}
+                     onChange={e => setForm(p => ({ ...p, addr: { ...p.addr, state: e.target.value } }))} maxLength={80} />
+            </div>
+            <div className="tax-form__row2">
+              <input type="text" placeholder={t('portal.profile.address.postal')} value={form.addr.postal_code}
+                     onChange={e => setForm(p => ({ ...p, addr: { ...p.addr, postal_code: e.target.value } }))} maxLength={20} />
+              <input type="text" placeholder={t('portal.profile.address.country')} value={form.addr.country}
+                     onChange={e => setForm(p => ({ ...p, addr: { ...p.addr, country: e.target.value } }))} maxLength={4} />
+            </div>
+          </div>
+        </fieldset>
+        {err && <div className="tax-msg tax-msg--error">{err}</div>}
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button type="submit" className="tax-btn tax-btn--primary" disabled={busy}>
+            {busy ? t('lead.submitting') : t('owner.customer.profile.save')}
+          </button>
+          <button type="button" className="tax-btn tax-btn--ghost"
+                  onClick={() => setEditing(false)}
+                  style={{ color: 'var(--tax-text)' }}>
+            {t('owner.customer.profile.cancel')}
+          </button>
+        </div>
+      </form>
     </section>
   );
 }
@@ -369,6 +524,86 @@ function ThreadsSection({ data, threadsBase, t }) {
           </div>
       }
     </section>
+  );
+}
+
+// Phase 4d: per-period status override. Most filings auto-advance via the
+// reminder cron (pending → info_requested when a reminder fires, →
+// info_received when the customer submits via /respond or portal). Owner
+// uses this to mark a period as 'skipped' (business was closed that
+// month) or to manually flag as 'filed' after submitting through agency
+// portal outside the platform.
+function FilingsSection({ data, auth, onChange, locale, t }) {
+  const periods = data.periods || [];
+  const STATUS = ['pending', 'info_requested', 'info_received', 'in_prep', 'filed', 'skipped'];
+
+  return (
+    <section style={{ marginTop: 32 }}>
+      <h3>{t('owner.customer.section.filings')}</h3>
+      {periods.length === 0
+        ? <p style={{ color: 'var(--tax-muted)' }}>{t('owner.customer.filings.empty')}</p>
+        : <div style={{ display: 'grid', gap: 8 }}>
+            {periods.map(p => (
+              <FilingRow key={p.id} period={p} statuses={STATUS}
+                         auth={auth} onChange={onChange} locale={locale} t={t} />
+            ))}
+          </div>}
+      <p style={{ color: 'var(--tax-muted)', fontSize: 13, marginTop: 8 }}>
+        {t('owner.customer.filings.hint')}
+      </p>
+    </section>
+  );
+}
+
+function FilingRow({ period: p, statuses, auth, onChange, locale, t }) {
+  const [status, setStatus] = useState(p.status);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+
+  // Reset to server value when the parent reloads (e.g., after save).
+  useEffect(() => { setStatus(p.status); }, [p.status]);
+
+  const dirty = status !== p.status;
+  const onSave = async () => {
+    setBusy(true); setErr('');
+    try {
+      await taxApi.adminUpdatePeriod(auth, p.id, { status });
+      onChange();
+    } catch (e) { setErr(e?.message || ''); }
+    finally { setBusy(false); }
+  };
+
+  const filingName = pickI18n(p.schedule?.name_i18n, locale).value || p.schedule?.slug || '—';
+
+  return (
+    <div className="tax-contact-item" style={{
+      display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12,
+      opacity: (p.status === 'filed' || p.status === 'skipped') ? 0.75 : 1,
+    }}>
+      <div style={{ minWidth: 0, flex: 1 }}>
+        <div style={{ fontWeight: 600 }}>{filingName}</div>
+        <div style={{ fontSize: 13, color: 'var(--tax-muted)', marginTop: 2 }}>
+          {p.period_label} • {t('portal.dashboard.due')} {p.due_date}
+          {p.schedule?.jurisdiction ? ` • ${p.schedule.jurisdiction}` : ''}
+        </div>
+      </div>
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexShrink: 0 }}>
+        <select value={status} onChange={e => setStatus(e.target.value)}
+                disabled={busy}
+                style={{ padding: '6px 8px', border: '1px solid var(--tax-border)', borderRadius: 6, fontSize: 13 }}>
+          {statuses.map(s => (
+            <option key={s} value={s}>{t(`owner.customer.filings.status.${s}`)}</option>
+          ))}
+        </select>
+        {dirty && (
+          <button type="button" className="tax-btn tax-btn--primary tax-btn--sm"
+                  onClick={onSave} disabled={busy}>
+            {busy ? t('lead.submitting') : t('owner.customer.filings.save')}
+          </button>
+        )}
+        {err && <span style={{ color: 'var(--tax-error)', fontSize: 12 }}>{err}</span>}
+      </div>
+    </div>
   );
 }
 

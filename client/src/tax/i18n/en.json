@@ -407,5 +407,31 @@
   "portal.help.cat.admin": "Admin tools",
 
   "employee.help.title": "Staff help center",
-  "employee.help.subtitle": "How to use the staff portal. New tabs, features, or workflows are documented here as they ship."
+  "employee.help.subtitle": "How to use the staff portal. New tabs, features, or workflows are documented here as they ship.",
+
+  "owner.customer.profile.edit": "Edit profile",
+  "owner.customer.profile.save": "Save profile",
+  "owner.customer.profile.cancel": "Cancel",
+  "owner.customer.profile.status.active": "Active",
+  "owner.customer.profile.status.paused": "Paused",
+  "owner.customer.profile.status.archived": "Archived",
+
+  "owner.customer.section.filings": "Filings",
+  "owner.customer.filings.empty": "No filing periods yet. They will appear here once a subscription generates upcoming periods.",
+  "owner.customer.filings.hint": "Most periods auto-advance: a customer responding via the portal flips status to ''info received''. Use the dropdown to manually mark a period skipped or already filed when needed.",
+  "owner.customer.filings.save": "Save",
+  "owner.customer.filings.status.pending":         "Scheduled",
+  "owner.customer.filings.status.info_requested":  "Info requested",
+  "owner.customer.filings.status.info_received":   "Info received",
+  "owner.customer.filings.status.in_prep":         "In preparation",
+  "owner.customer.filings.status.filed":           "Filed",
+  "owner.customer.filings.status.skipped":         "Skipped",
+
+  "owner.customer.subscription.offsets": "Reminder days before due date",
+  "owner.customer.subscription.offsetsHint": "Comma-separated list of negative offsets, e.g. -14, -7, -3. Each value fires a reminder that many days before the due date.",
+  "owner.customer.subscription.channels": "Reminder channels",
+  "owner.customer.subscription.channelsHint": "How the customer is reminded. The customer can also self-serve this from their profile when the community notification lock is open.",
+  "owner.customer.subscription.errOffsets": "Offsets must be a comma-separated list of integers, e.g. -14, -7, -3.",
+  "owner.customer.subscription.errOffsetsEmpty": "Provide at least one reminder offset, e.g. -3.",
+  "owner.customer.subscription.errChannels": "Pick at least one reminder channel."
 }
