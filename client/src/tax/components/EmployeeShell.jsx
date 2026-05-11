@@ -51,6 +51,16 @@ export default function EmployeeShell({ community, active, children }) {
                 }}>{unread}</span>
               )}
             </a>
+            {employee?.role === 'admin' && (
+              <>
+                <a href={`${base}/customers`} className={active === 'customers' ? 'active' : ''}>
+                  {t('employee.nav.customers')}
+                </a>
+                <a href={`${base}/staff`} className={active === 'staff' ? 'active' : ''}>
+                  {t('employee.nav.staff')}
+                </a>
+              </>
+            )}
             <a href={`${base}/profile`} className={active === 'profile' ? 'active' : ''}>
               {t('employee.nav.profile')}
             </a>
