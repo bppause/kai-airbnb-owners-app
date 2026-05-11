@@ -1273,3 +1273,109 @@ insert into public.tax_customer_relationships (id, customer_id, relationship_typ
   ('crel_martha_sales',   'cust_martha_pause', 'business.sales_tax_filing', 'system@platform'),
   ('crel_martha_payroll', 'cust_martha_pause', 'business.payroll',          'system@platform')
 on conflict (customer_id, relationship_type_id) do nothing;
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- v85-2c: Relationship-aware reminder tips
+--
+-- Short, practical tips tied to a relationship type. Two contexts:
+--   filing_reminder  → injected into reminder emails + in-app notifications
+--   general          → shown on the portal dashboard, not in reminders
+--
+-- v1 ships defaults only; per-community overrides are a future enhancement
+-- (owners can still customize the wrapping reminder copy via email_templates
+-- when those rows are introduced in Phase 4b).
+-- ═══════════════════════════════════════════════════════════════════════════════
+create table if not exists public.tax_relationship_default_tips (
+  id                   text primary key,
+  relationship_type_id text not null references public.tax_relationship_types(id) on delete cascade,
+  context              text not null default 'filing_reminder',
+  display_order        int not null default 0,
+  tip_i18n             jsonb not null default '{}'::jsonb,
+  source_note          text,
+  created_at           timestamptz not null default now()
+);
+do $$ begin
+  alter table public.tax_relationship_default_tips add constraint tax_relationship_default_tips_context_chk
+    check (context in ('filing_reminder','general'));
+exception when duplicate_object then null; end $$;
+create index if not exists tax_relationship_default_tips_type_ctx_idx
+  on public.tax_relationship_default_tips(relationship_type_id, context, display_order);
+
+insert into public.tax_relationship_default_tips (id, relationship_type_id, context, display_order, tip_i18n, source_note) values
+  -- Business: LLC
+  ('tip.llc.fr1', 'business.llc', 'filing_reminder', 10,
+    '{"en":"Member contributions, distributions, and (if you elected S-corp status) reasonable salary each have different tax treatments. Keep a clean record of each transaction throughout the year.","es":"Las aportaciones de los miembros, distribuciones y (si eligió el estatus de S-Corp) un salario razonable reciben distintos tratamientos fiscales. Mantenga un registro claro de cada transacción durante el año."}'::jsonb,
+    'Practical guidance; see IRS Pub 541 (Partnerships) / IRS Pub 542 (Corporations)'),
+  ('tip.llc.g1', 'business.llc', 'general', 20,
+    '{"en":"Document key LLC decisions in writing — even for a single-member LLC. Annual meeting minutes and written consents strengthen the liability shield if your LLC is ever challenged.","es":"Documente por escrito las decisiones importantes de su LLC — incluso si es de un solo miembro. Las actas anuales y consentimientos por escrito refuerzan el escudo de responsabilidad si la LLC es cuestionada alguna vez."}'::jsonb,
+    'SBA.gov — Maintain your business'),
+
+  -- Business: S-Corp
+  ('tip.scorp.fr1', 'business.s_corp', 'filing_reminder', 10,
+    '{"en":"S-corp shareholder-employees must take reasonable W-2 wages before any non-wage distributions. Distributions taken instead of wages are a top IRS audit trigger and can be reclassified with penalties and back payroll taxes.","es":"Los empleados-accionistas de S-Corp deben recibir salarios W-2 razonables antes de cualquier distribución no salarial. Tomar distribuciones en lugar de salarios es uno de los principales desencadenantes de auditoría del IRS y puede reclasificarse con multas e impuestos atrasados de nómina."}'::jsonb,
+    'IRS — S Corporation Compensation and Medical Insurance Issues'),
+
+  -- Business: Partnership (1065)
+  ('tip.p1065.fr1', 'business.partnership_1065', 'filing_reminder', 10,
+    '{"en":"K-1s must be furnished to every partner by the partnership filing deadline (March 15 for calendar-year partnerships). Late K-1s expose the partnership to per-partner, per-month penalties — these add up quickly.","es":"Los K-1 deben entregarse a cada socio antes de la fecha de presentación de la sociedad (15 de marzo para sociedades de año calendario). Los K-1 tardíos exponen a la sociedad a multas por socio y por mes — se acumulan rápido."}'::jsonb,
+    'IRS Form 1065 instructions; IRC §6698'),
+
+  -- Business: Sales Tax Filing
+  ('tip.salestax.fr1', 'business.sales_tax_filing', 'filing_reminder', 10,
+    '{"en":"Your reported gross sales should reconcile to your bank deposits and any 1099-K from payment processors. CT DRS cross-checks these — large unexplained gaps are a common audit trigger.","es":"Sus ventas brutas reportadas deben conciliar con sus depósitos bancarios y cualquier 1099-K de procesadores de pago. El CT DRS verifica esto — las brechas grandes sin explicación son un desencadenante común de auditoría."}'::jsonb,
+    'CT DRS — Sales and Use Tax audits'),
+  ('tip.salestax.fr2', 'business.sales_tax_filing', 'filing_reminder', 20,
+    '{"en":"Keep resale and exemption certificates for every non-taxable sale. Without a valid certificate on file, DRS will treat the sale as taxable during an audit — even if the customer was actually exempt.","es":"Mantenga certificados de reventa y exención para cada venta no gravable. Sin un certificado válido archivado, el DRS tratará la venta como gravable durante una auditoría — incluso si el cliente realmente estaba exento."}'::jsonb,
+    'CT DRS — Sales and Use Tax'),
+
+  -- Business: Business Formation
+  ('tip.busform.g1', 'business.business_formation', 'general', 10,
+    '{"en":"Register for state tax accounts (sales, withholding) BEFORE your first sale or first hire. Backdating registrations triggers penalty assessments — registering early is free and prevents costly cleanup later.","es":"Regístrese para las cuentas tributarias estatales (ventas, retención) ANTES de su primera venta o primera contratación. Retroactivar registros genera multas — registrarse temprano es gratis y evita correcciones costosas más adelante."}'::jsonb,
+    'CT DRS — Register your business'),
+
+  -- Business: Payroll
+  ('tip.payroll.fr1', 'business.payroll', 'filing_reminder', 10,
+    '{"en":"Household help, contractors paid $600 or more, and S-corp owner wages all create filing obligations — even if your business has no traditional employees. Tell us about every person who receives money from your business.","es":"La ayuda doméstica, los contratistas que reciben $600 o más, y los salarios de los dueños de S-Corp generan obligaciones de declaración — incluso si su negocio no tiene empleados tradicionales. Cuéntenos sobre cada persona que recibe dinero de su negocio."}'::jsonb,
+    'IRS — Independent contractor vs. employee; IRS Form 1099-NEC'),
+  ('tip.payroll.fr2', 'business.payroll', 'filing_reminder', 20,
+    '{"en":"Payroll-tax deposit penalties stack fast: 2% (1–5 days late), 5% (6–15 days), 10% (>15 days), and 15% if you wait until the IRS demands payment. If you''re unsure about a deposit, contact us before the deadline.","es":"Las multas por depósitos de impuestos de nómina se acumulan rápido: 2% (1–5 días tarde), 5% (6–15 días), 10% (más de 15 días) y 15% si espera a que el IRS exija el pago. Si tiene dudas sobre un depósito, contáctenos antes del vencimiento."}'::jsonb,
+    'IRC §6656; IRS Pub 15 (Circular E)'),
+
+  -- Business: Bookkeeping
+  ('tip.book.fr1', 'business.bookkeeping', 'filing_reminder', 10,
+    '{"en":"Reconcile your business bank and credit card statements every month. Unreconciled balances are the #1 cause of last-minute scrambling at tax time and inflate the cost of preparing your return.","es":"Concilie sus estados de cuenta bancarios y de tarjeta de crédito del negocio cada mes. Los saldos sin conciliar son la causa #1 de prisas de última hora en temporada de impuestos e inflan el costo de preparar su declaración."}'::jsonb,
+    'Practical guidance; IRS Pub 583'),
+
+  -- Individual Taxes
+  ('tip.indtax.fr1', 'individual.taxes', 'filing_reminder', 10,
+    '{"en":"If you received any IRS or state notices since your last filing — even ones you ignored — please bring them to your appointment. Issues compound when ignored, and many notices have strict response windows.","es":"Si recibió notificaciones del IRS o estatales desde su última declaración — incluso las que ignoró — por favor tráigalas a su cita. Los problemas se acumulan al ignorarlos, y muchas notificaciones tienen plazos estrictos de respuesta."}'::jsonb,
+    'IRS Pub 5181 — Understanding Your IRS Notice'),
+  ('tip.indtax.g1', 'individual.taxes', 'general', 20,
+    '{"en":"Keep a single tax folder (paper or digital) year-round. Drop in W-2s, 1099s, donation receipts, and IRS letters as they arrive. Future-you will thank present-you in April.","es":"Mantenga una sola carpeta de impuestos (papel o digital) durante todo el año. Agregue W-2s, 1099s, recibos de donaciones y cartas del IRS conforme lleguen. Su yo futuro se lo agradecerá a su yo presente en abril."}'::jsonb,
+    'Practical guidance'),
+
+  -- ITIN
+  ('tip.itin.g1', 'individual.itin', 'general', 10,
+    '{"en":"ITIN renewals can take 7+ weeks during peak season (January–April). If yours expires before next April, start the renewal now so it doesn''t delay your refund.","es":"Las renovaciones de ITIN pueden tardar más de 7 semanas en temporada alta (enero–abril). Si el suyo vence antes del próximo abril, comience la renovación ahora para que no retrase su reembolso."}'::jsonb,
+    'IRS — ITIN expiration and renewal'),
+
+  -- Notary
+  ('tip.notary.g1', 'general.notary', 'general', 10,
+    '{"en":"Bring valid government-issued photo ID and the UNSIGNED document. The notary must witness your signature in person — pre-signed documents cannot be notarized.","es":"Traiga una identificación oficial vigente con foto y el documento SIN FIRMAR. El notario debe presenciar su firma en persona — los documentos firmados previamente no pueden notarizarse."}'::jsonb,
+    'National Notary Association'),
+
+  -- Translation
+  ('tip.translation.g1', 'general.translation', 'general', 10,
+    '{"en":"USCIS and the IRS both require certified translations for foreign-language documents. Plan ahead — longer documents can take 3–5 business days.","es":"Tanto USCIS como el IRS requieren traducciones certificadas para documentos en idioma extranjero. Planifique con anticipación — los documentos más largos pueden tomar 3–5 días hábiles."}'::jsonb,
+    'USCIS Policy Manual — Translations'),
+
+  -- IRS Audit
+  ('tip.audit_irs.g1', 'audit.irs', 'general', 10,
+    '{"en":"If you receive an IRS notice, save the envelope. The postmark date can matter for response deadlines, and the notice number printed on the letter tells us exactly which IRS division is involved.","es":"Si recibe una notificación del IRS, guarde el sobre. La fecha del matasellos puede importar para los plazos de respuesta, y el número de notificación impreso en la carta nos dice exactamente qué división del IRS está involucrada."}'::jsonb,
+    'IRS — Understanding Your IRS Notice or Letter'),
+
+  -- DRS Audit
+  ('tip.audit_drs.g1', 'audit.drs', 'general', 10,
+    '{"en":"CT DRS audits often start as a desk audit (requests by mail). Responding fully and on time often prevents escalation to a field audit — partial or late responses almost always make the audit broader.","es":"Las auditorías del CT DRS a menudo comienzan como auditorías de escritorio (solicitudes por correo). Responder de forma completa y a tiempo a menudo evita la escalada a una auditoría de campo — las respuestas parciales o tardías casi siempre amplían la auditoría."}'::jsonb,
+    'CT DRS — Audit Information')
+on conflict (id) do nothing;

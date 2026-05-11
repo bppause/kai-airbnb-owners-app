@@ -62,7 +62,7 @@ module.exports = function createTaxSenders(deps) {
   // Formal bilingual reminder asking the customer for the info needed to
   // complete a filing. Tone consciously formal per owner preference. Lang
   // chosen from cust.locale ('en' or 'es'); falls back to 'es'.
-  const sendTaxReminderEmail = async ({ row, cust, sch, sub, magicUrl, offsetDays }) => {
+  const sendTaxReminderEmail = async ({ row, cust, sch, sub, magicUrl, offsetDays, tips }) => {
     if (!emailConfigured) return { sent: false, skipped: true, reason: 'email_not_configured' };
     const to = String(cust?.email || '').trim();
     if (!to) return { sent: false, skipped: true, reason: 'customer_email_missing' };
@@ -110,12 +110,26 @@ module.exports = function createTaxSenders(deps) {
       : `Por favor envíe su información usando el enlace seguro a continuación. El enlace es único para esta declaración y expirará después de la fecha de vencimiento.`;
     const ctaLabel = lang === 'en' ? 'Submit information' : 'Enviar información';
 
+    // Phase 2c: relationship-aware tips, injected above the closing.
+    const tipsArr = Array.isArray(tips) ? tips : [];
+    const tipsHeading = lang === 'en' ? 'Helpful reminders for your services' : 'Recordatorios útiles para sus servicios';
+    const tipsTextLines = tipsArr.map(t => `  • ${pickName(t.tip_i18n, lang)}`);
+    const tipsHtml = tipsArr.length ? `
+      <div style="margin:24px 0;padding:16px 18px;background:#f4f7fb;border-left:3px solid #1d3a6d;border-radius:6px">
+        <div style="font-weight:600;margin-bottom:8px">${escapeHtml(tipsHeading)}</div>
+        <ul style="margin:0;padding-left:20px">
+          ${tipsArr.map(t => `<li style="margin:4px 0">${escapeHtml(pickName(t.tip_i18n, lang))}</li>`).join('')}
+        </ul>
+      </div>
+    ` : '';
+
     const text = [
       ...introLines,
       ...checklistTextLines,
       ``,
       ctaText,
       magicUrl,
+      ...(tipsTextLines.length ? [``, tipsHeading + ':', ...tipsTextLines] : []),
       ``,
       closing,
     ].join('\n');
@@ -130,6 +144,7 @@ module.exports = function createTaxSenders(deps) {
           <a href="${magicUrl}" style="background:#1d3a6d;color:#fff;text-decoration:none;padding:12px 22px;border-radius:8px;font-weight:600;display:inline-block">${escapeHtml(ctaLabel)}</a>
         </p>
         <p style="color:#666;font-size:13px">${escapeHtml(magicUrl)}</p>
+        ${tipsHtml}
         <p style="white-space:pre-line">${escapeHtml(closing)}</p>
       </div>
     `;

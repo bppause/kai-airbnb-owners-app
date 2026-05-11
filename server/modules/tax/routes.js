@@ -649,6 +649,33 @@ module.exports = function createTaxRouter(deps) {
     res.json({ relationships: data || [] });
   });
 
+  // ── GET /portal/tips ── (auth-gated)
+  // Returns ALL tips (both contexts) for the customer's active relationship
+  // types, grouped by relationship type so the dashboard can render them.
+  router.get('/portal/tips', async (req, res) => {
+    const customer = await requireTaxCustomer(req, res); if (!customer) return;
+    const typeIds = await activeTypeIdsForCustomer(customer.id);
+    if (!typeIds.length) return res.json({ groups: [] });
+    const [{ data: types }, { data: tips }] = await Promise.all([
+      supabase.from('tax_relationship_types')
+        .select('id, category, slug, name_i18n, display_order')
+        .in('id', typeIds).order('display_order', { ascending: true }),
+      supabase.from('tax_relationship_default_tips')
+        .select('id, relationship_type_id, context, display_order, tip_i18n, source_note')
+        .in('relationship_type_id', typeIds)
+        .order('display_order', { ascending: true }),
+    ]);
+    const byType = new Map();
+    for (const t of tips || []) {
+      const arr = byType.get(t.relationship_type_id) || [];
+      arr.push(t); byType.set(t.relationship_type_id, arr);
+    }
+    const groups = (types || [])
+      .map(t => ({ type: t, tips: byType.get(t.id) || [] }))
+      .filter(g => g.tips.length > 0);
+    res.json({ groups });
+  });
+
   // ── GET /portal/faqs ── (auth-gated)
   // Returns effective FAQs (defaults + community overrides + custom additions)
   // for the customer's relationship types only.
