@@ -56,8 +56,14 @@ export default function EmployeeShell({ community, active, children }) {
                 <a href={`${base}/customers`} className={active === 'customers' ? 'active' : ''}>
                   {t('employee.nav.customers')}
                 </a>
+                <a href={`${base}/leads`} className={active === 'leads' ? 'active' : ''}>
+                  {t('employee.nav.leads')}
+                </a>
                 <a href={`${base}/staff`} className={active === 'staff' ? 'active' : ''}>
                   {t('employee.nav.staff')}
+                </a>
+                <a href={`${base}/settings`} className={active === 'settings' ? 'active' : ''}>
+                  {t('employee.nav.settings')}
                 </a>
               </>
             )}

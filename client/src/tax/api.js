@@ -122,4 +122,20 @@ export const taxApi = {
   adminAddEmployeeAssignment(auth, empId, payload) { return request('POST', `/admin/employees/${encodeURIComponent(empId)}/assignments`, payload, auth, { admin: true }); },
   adminRemoveEmployeeAssignment(auth, empId, customerId) { return request('DELETE', `/admin/employees/${encodeURIComponent(empId)}/assignments/${encodeURIComponent(customerId)}`, undefined, auth, { admin: true }); },
   adminListCustomerAssignments(auth, customerId) { return request('GET', `/admin/customers/${encodeURIComponent(customerId)}/assignments`, undefined, auth, { admin: true }); },
+
+  // Phase 4b — subscriptions, leads, community settings
+  adminGetCommunitySettings(auth, communitySlug) { return request('GET',  `/admin/community-settings?communitySlug=${encodeURIComponent(communitySlug)}`, undefined, auth, { admin: true }); },
+  adminSetNotifLock(auth, payload)               { return request('PUT',  '/admin/community-settings/notif-lock', payload, auth, { admin: true }); },
+
+  adminListProducts(auth, communitySlug)         { return request('GET',  `/admin/products?communitySlug=${encodeURIComponent(communitySlug)}`, undefined, auth, { admin: true }); },
+  adminAddSubscription(auth, customerId, payload){ return request('POST', `/admin/customers/${encodeURIComponent(customerId)}/subscriptions`, payload, auth, { admin: true }); },
+  adminUpdateSubscription(auth, subId, payload)  { return request('PUT',  `/admin/subscriptions/${encodeURIComponent(subId)}`, payload, auth, { admin: true }); },
+  adminCancelSubscription(auth, subId)           { return request('DELETE', `/admin/subscriptions/${encodeURIComponent(subId)}`, undefined, auth, { admin: true }); },
+
+  adminListLeads(auth, communitySlug, opts = {}) {
+    const qs = new URLSearchParams({ communitySlug });
+    if (opts.status) qs.set('status', opts.status);
+    return request('GET',  `/admin/leads?${qs.toString()}`, undefined, auth, { admin: true });
+  },
+  adminUpdateLead(auth, leadId, payload)         { return request('PUT',  `/admin/leads/${encodeURIComponent(leadId)}`, payload, auth, { admin: true }); },
 };

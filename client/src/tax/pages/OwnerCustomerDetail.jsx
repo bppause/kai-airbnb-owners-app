@@ -3,6 +3,7 @@ import { pickI18n, useT } from '../i18n';
 import { useEmployeeAuth } from '../auth/EmployeeAuthProvider';
 import { taxApi } from '../api';
 import EmployeeShell from '../components/EmployeeShell';
+import OwnerSubscriptionsSection from '../components/OwnerSubscriptionsSection';
 
 const CATEGORY_KEY = {
   business: 'portal.profile.category.business',
@@ -92,7 +93,13 @@ export default function OwnerCustomerDetail({ customerId }) {
 
       <ThreadsSection data={data} threadsBase={threadsBase} t={t} />
 
-      <SubscriptionsSection data={data} t={t} />
+      <OwnerSubscriptionsSection
+        customer={data.customer}
+        subscriptions={data.subscriptions}
+        auth={auth}
+        onChange={load}
+        locale={locale}
+        t={t} />
 
       <AssignmentsSection data={data} t={t} />
     </EmployeeShell>
@@ -361,34 +368,6 @@ function ThreadsSection({ data, threadsBase, t }) {
             ))}
           </div>
       }
-    </section>
-  );
-}
-
-function SubscriptionsSection({ data, t }) {
-  const subs = data.subscriptions || [];
-  return (
-    <section style={{ marginTop: 32 }}>
-      <h3>{t('owner.customer.section.subscriptions')}</h3>
-      {subs.length === 0
-        ? <p style={{ color: 'var(--tax-muted)' }}>{t('owner.customer.subscription.empty')}</p>
-        : <ul style={{ paddingLeft: 20, margin: 0 }}>
-            {subs.map(s => (
-              <li key={s.id} style={{ marginBottom: 6 }}>
-                <code style={{ background: 'var(--tax-bg-alt)', padding: '2px 6px', borderRadius: 4, fontSize: 13 }}>{s.product_id}</code>
-                <span style={{ color: 'var(--tax-muted)', fontSize: 13, marginLeft: 8 }}>
-                  {s.status}
-                  {Array.isArray(s.active_schedule_slugs) && s.active_schedule_slugs.length > 0 && (
-                    <> • {s.active_schedule_slugs.join(', ')}</>
-                  )}
-                </span>
-              </li>
-            ))}
-          </ul>
-      }
-      <p style={{ color: 'var(--tax-muted)', fontSize: 13, marginTop: 8 }}>
-        {t('owner.customer.subscription.editHint')}
-      </p>
     </section>
   );
 }
