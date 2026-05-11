@@ -79,6 +79,17 @@ module.exports = function createUnitsRouter(deps) {
       if (conflict) return res.status(409).json({ error: conflict.message, conflict });
     } catch(e) { return sendSupabaseError(res, e); }
 
+    // Guard: this endpoint is only for owners who already have at least one
+    // approved listing in this community. First-time owners must go through
+    // POST /api/platform/registrations so their initial unit(s) are reviewed
+    // as part of the registration approval (no second approval needed).
+    const { data: existingApproved, error: approvedCheckErr } = await supabase
+      .from('listings').select('id')
+      .eq('owner_uid', ownerUid).eq('community_id', communityId).eq('status','approved')
+      .limit(1).maybeSingle();
+    if (approvedCheckErr) return sendSupabaseError(res, approvedCheckErr);
+    if (!existingApproved) return res.status(403).json({ error: 'You must complete the initial registration before adding more units.', code:'not_approved_yet' });
+
     const { data: profileRow } = await supabase.from('app_users').select('whatsapp,notification_email').eq('uid', ownerUid).maybeSingle();
     const ownerContact = String(profileRow?.whatsapp || '').trim();
     const googleEmail  = String(userEmail || '').trim().toLowerCase();
