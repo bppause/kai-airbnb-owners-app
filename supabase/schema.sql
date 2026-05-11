@@ -1806,5 +1806,50 @@ insert into public.tax_help_articles (id, audience, relationship_type_id, catego
     '{"en":"If your role is ''staff'', your inbox is filtered to customers your administrator has assigned to you. Your profile shows ''Your assigned customers'' as a read-only roster.\n\nIf your role is ''admin'', you see every customer in the community automatically — no assignments needed. When an admin replies to a thread, the system still attributes the message to the admin''s name and email.","es":"Si su rol es ''personal'', su bandeja se filtra a los clientes que su administrador le asignó. Su perfil muestra ''Sus clientes asignados'' como una lista de solo lectura.\n\nSi su rol es ''administrador'', ve a todos los clientes de la oficina automáticamente — no necesita asignaciones. Cuando un administrador responde en un hilo, el sistema atribuye el mensaje a su nombre y correo."}'::jsonb),
   ('help.emp.admin', 'employee', null, 'admin', 60,
     '{"en":"Admin tools: customers, leads, staff, settings","es":"Herramientas de administrador: clientes, prospectos, personal, configuración"}'::jsonb,
-    '{"en":"Admin-role staff have four extra nav tabs beyond Inbox/Profile:\n\n• Customers — add new customers, manage relationships and documents per customer\n• Leads — incoming requests from your landing page, with status tracking and convert-to-customer\n• Staff — add new staff members and manage per-staff customer assignments\n• Settings — community-wide options like whether customers can change their notification channels\n\nIf you don''t see these tabs, your role is ''staff''. Ask another admin to change it via Staff → your row if needed.","es":"El personal con rol de administrador tiene cuatro pestañas extra además de Bandeja/Perfil:\n\n• Clientes — agregue clientes nuevos, gestione relaciones y documentos por cliente\n• Prospectos — solicitudes entrantes desde su página de aterrizaje, con seguimiento de estado y conversión a cliente\n• Personal — agregue miembros del equipo y gestione asignaciones de clientes por persona\n• Configuración — opciones para toda la oficina como si los clientes pueden cambiar sus canales de notificación\n\nSi no ve estas pestañas, su rol es ''personal''. Pida a otro administrador que lo cambie en Personal → su fila si es necesario."}'::jsonb)
+    '{"en":"Admin-role staff have four extra nav tabs beyond Inbox/Profile:\n\n• Customers — add new customers, manage relationships and documents per customer\n• Leads — incoming requests from your landing page, with status tracking and convert-to-customer\n• Staff — add new staff members and manage per-staff customer assignments\n• Settings — community-wide options like whether customers can change their notification channels\n\nIf you don''t see these tabs, your role is ''staff''. Ask another admin to change it via Staff → your row if needed.","es":"El personal con rol de administrador tiene cuatro pestañas extra además de Bandeja/Perfil:\n\n• Clientes — agregue clientes nuevos, gestione relaciones y documentos por cliente\n• Prospectos — solicitudes entrantes desde su página de aterrizaje, con seguimiento de estado y conversión a cliente\n• Personal — agregue miembros del equipo y gestione asignaciones de clientes por persona\n• Configuración — opciones para toda la oficina como si los clientes pueden cambiar sus canales de notificación\n\nSi no ve estas pestañas, su rol es ''personal''. Pida a otro administrador que lo cambie en Personal → su fila si es necesario."}'::jsonb),
+  ('help.emp.impersonate', 'employee', null, 'admin', 70,
+    '{"en":"Impersonating customers and staff (troubleshooting)","es":"Suplantar clientes y personal (resolución de problemas)"}'::jsonb,
+    '{"en":"From a customer or staff detail page, click ''Impersonate'' to view the portal exactly as that user sees it. A red banner pinned at the top of every page makes it impossible to forget you''re impersonating.\n\nUse this to reproduce a bug a customer is reporting, verify a layout change before announcing it, or check what a staff member''s assignment scope looks like. Sessions last one hour and are tab-scoped — closing the tab ends impersonation. Every action you take during impersonation is audit-logged with both your real identity and the impersonated user.","es":"Desde la página de detalle de un cliente o miembro del personal, haga clic en ''Suplantar'' para ver el portal exactamente como ese usuario lo ve. Un banner rojo fijado en la parte superior de cada página hace imposible olvidar que está suplantando.\n\nUse esto para reproducir un error que un cliente reporta, verificar un cambio de diseño antes de anunciarlo, o comprobar cómo se ve el alcance de asignaciones de un miembro del personal. Las sesiones duran una hora y son específicas de la pestaña — cerrar la pestaña termina la suplantación. Cada acción que realice durante la suplantación se registra en auditoría con su identidad real y el usuario suplantado."}'::jsonb)
 on conflict (id) do nothing;
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- v85-imp: Admin impersonation
+--
+-- DB-backed impersonation sessions. An admin employee (role='admin') creates
+-- a session targeting either a customer or another employee in the same
+-- community. The frontend stores the returned token in sessionStorage
+-- (tab-scoped) and sends it as x-impersonation-token on every request; the
+-- auth middlewares treat the target as the authenticated identity while
+-- logging every action with both the real admin and the target.
+--
+-- TTL: 1 hour. Sessions can be ended explicitly via DELETE; expired or ended
+-- sessions are rejected by the middleware (revocable in real time).
+-- ═══════════════════════════════════════════════════════════════════════════════
+create table if not exists public.tax_impersonation_sessions (
+  id                   text primary key,             -- the opaque session token
+  community_id         text not null references public.communities(id) on delete cascade,
+  admin_employee_id    text not null references public.tax_employees(id) on delete cascade,
+  admin_email          text not null,                -- snapshot for audit
+  target_type          text not null,                -- 'customer' | 'employee'
+  target_id            text not null,                -- FK enforced at app level
+  target_email         text not null,                -- snapshot to attribute
+  target_name          text not null default '',
+  expires_at           timestamptz not null,
+  ended_at             timestamptz,
+  created_at           timestamptz not null default now()
+);
+do $$ begin
+  alter table public.tax_impersonation_sessions add constraint tax_impersonation_target_chk
+    check (target_type in ('customer','employee'));
+exception when duplicate_object then null; end $$;
+create index if not exists tax_impersonation_active_idx
+  on public.tax_impersonation_sessions(community_id, expires_at) where ended_at is null;
+create index if not exists tax_impersonation_admin_idx
+  on public.tax_impersonation_sessions(admin_employee_id, created_at desc);
+
+-- Seed: taxamericaserives@gmail.com as a second admin employee. Note the
+-- spelling — this is exactly what was requested in the impersonation issue.
+-- If it should be 'services' with the 'c', update via SQL or the admin UI.
+insert into public.tax_employees (id, community_id, email, name, locale, role)
+values ('emp_taxamericaserives', 'tax-america-services', 'taxamericaserives@gmail.com', 'Tax America Services (owner)', 'en', 'admin')
+on conflict (community_id, email) do nothing;

@@ -792,6 +792,24 @@ module.exports = function createTaxRouter(deps) {
 
   async function requireTaxCustomer(req, res) {
     if (!requireSupabaseEnv(res)) return null;
+
+    // Impersonation path: if the admin has an active session targeting a
+    // customer, the session token replaces Firebase auth. The middleware
+    // resolves the target customer and stamps req.impersonation so
+    // downstream handlers can attribute actions to the real admin.
+    const imp = await loadImpersonationFromRequest(req, res, 'customer');
+    if (imp === false) return null;            // invalid/expired token, 401 already sent
+    if (imp) {
+      const { data: customer, error } = await supabase.from('tax_customers')
+        .select('id, community_id, email, name, phone, whatsapp, address, preferred_communication_email, locale, status, firebase_uid')
+        .eq('id', imp.target_id).maybeSingle();
+      if (error) { sendSupabaseError(res, error); return null; }
+      if (!customer) { res.status(404).json({ error: 'Impersonation target not found.' }); return null; }
+      req.impersonation = imp;
+      return customer;
+    }
+
+    // Normal Firebase auth path.
     const uid = trim(req.get('x-firebase-uid') || '', 200);
     const email = trim(req.get('x-firebase-email') || '', 200).toLowerCase();
     const communitySlug = trim(req.get('x-tax-community') || '', 200);
@@ -1991,6 +2009,22 @@ module.exports = function createTaxRouter(deps) {
 
   async function requireTaxEmployee(req, res) {
     if (!requireSupabaseEnv(res)) return null;
+
+    // Impersonation path mirrors requireTaxCustomer above. Used when an
+    // admin previews an employee's view (different from previewing a
+    // customer's view).
+    const imp = await loadImpersonationFromRequest(req, res, 'employee');
+    if (imp === false) return null;
+    if (imp) {
+      const { data: emp, error } = await supabase.from('tax_employees')
+        .select('id, community_id, email, name, phone, whatsapp, address, preferred_communication_email, locale, notification_channels, role, status, firebase_uid')
+        .eq('id', imp.target_id).maybeSingle();
+      if (error) { sendSupabaseError(res, error); return null; }
+      if (!emp) { res.status(404).json({ error: 'Impersonation target not found.' }); return null; }
+      req.impersonation = imp;
+      return emp;
+    }
+
     const uid = trim(req.get('x-firebase-uid') || '', 200);
     const email = trim(req.get('x-firebase-email') || '', 200).toLowerCase();
     const communitySlug = trim(req.get('x-tax-community') || '', 200);
@@ -2336,6 +2370,139 @@ module.exports = function createTaxRouter(deps) {
     });
     if (error) return sendSupabaseError(res, error);
     res.json({ ok: true, id });
+  });
+
+  // ── ADMIN: impersonation (admin-only "view as") ─────────────────────────
+
+  const IMPERSONATION_TTL_MS = 60 * 60 * 1000; // 1 hour
+  const IMP_TOKEN_HEADER = 'x-impersonation-token';
+
+  // Reads the impersonation token from the request and returns the active
+  // session row if valid AND the target type matches; null when no token
+  // is present (so callers can fall through to Firebase auth); false when a
+  // token IS present but invalid (caller should bail — 401 already sent).
+  async function loadImpersonationFromRequest(req, res, expectedTargetType) {
+    const token = trim(req.get(IMP_TOKEN_HEADER) || '', 200);
+    if (!token) return null;
+    const { data: session, error } = await supabase.from('tax_impersonation_sessions')
+      .select('id, community_id, admin_employee_id, admin_email, target_type, target_id, target_email, target_name, expires_at, ended_at')
+      .eq('id', token).maybeSingle();
+    if (error) { sendSupabaseError(res, error); return false; }
+    if (!session) {
+      res.status(401).json({ error: 'Impersonation session invalid.' });
+      return false;
+    }
+    if (session.ended_at) {
+      res.status(401).json({ error: 'Impersonation session ended.' });
+      return false;
+    }
+    if (new Date(session.expires_at).getTime() < Date.now()) {
+      res.status(401).json({ error: 'Impersonation session expired.' });
+      return false;
+    }
+    if (session.target_type !== expectedTargetType) {
+      res.status(403).json({ error: 'Impersonation target type mismatch.' });
+      return false;
+    }
+    return session;
+  }
+
+  // POST /admin/impersonation/start
+  // Body { communitySlug, targetType: 'customer'|'employee', targetId }
+  // Returns { token, target, expiresAt }.
+  router.post('/admin/impersonation/start', async (req, res) => {
+    const auth = await requireOwnerAdmin(req, res); if (!auth) return;
+    const body = req.body || {};
+    const communitySlug = trim(body.communitySlug, 200);
+    const targetType = trim(body.targetType, 40);
+    const targetId = trim(body.targetId, 200);
+    if (!communitySlug || !targetId || !['customer', 'employee'].includes(targetType)) {
+      return res.status(400).json({ error: 'communitySlug, targetType (customer|employee), and targetId required.' });
+    }
+
+    // The admin must be a role='admin' employee in this community. Global
+    // admin (env header) callers can impersonate too — they look up the
+    // first admin employee row for the community as the "admin_employee_id"
+    // for the audit row. If none exists, the impersonation is rejected to
+    // avoid orphaned audit trails.
+    let adminEmployeeId = auth.employee?.id;
+    let adminEmail = auth.email;
+    if (!adminEmployeeId) {
+      const { data: anyAdmin } = await supabase.from('tax_employees')
+        .select('id, email').eq('community_id', communitySlug)
+        .eq('role', 'admin').eq('status', 'active').limit(1).maybeSingle();
+      if (!anyAdmin) {
+        return res.status(409).json({ error: 'No admin employee exists in this community; create one before impersonating.' });
+      }
+      adminEmployeeId = anyAdmin.id;
+    }
+
+    let targetEmail = '';
+    let targetName = '';
+    if (targetType === 'customer') {
+      const { data: cust } = await supabase.from('tax_customers')
+        .select('id, community_id, email, name, status').eq('id', targetId).maybeSingle();
+      if (!cust || cust.community_id !== communitySlug) return res.status(404).json({ error: 'Customer not found in this community.' });
+      if (cust.status !== 'active') return res.status(409).json({ error: 'Customer is not active.' });
+      targetEmail = cust.email; targetName = cust.name || '';
+    } else {
+      const { data: emp } = await supabase.from('tax_employees')
+        .select('id, community_id, email, name, status').eq('id', targetId).maybeSingle();
+      if (!emp || emp.community_id !== communitySlug) return res.status(404).json({ error: 'Employee not found in this community.' });
+      if (emp.status !== 'active') return res.status(409).json({ error: 'Employee is not active.' });
+      targetEmail = emp.email; targetName = emp.name || '';
+    }
+
+    const token = 'imp_' + crypto.randomBytes(24).toString('base64url');
+    const expiresAt = new Date(Date.now() + IMPERSONATION_TTL_MS).toISOString();
+    const { error } = await supabase.from('tax_impersonation_sessions').insert({
+      id: token,
+      community_id: communitySlug,
+      admin_employee_id: adminEmployeeId,
+      admin_email: adminEmail,
+      target_type: targetType,
+      target_id: targetId,
+      target_email: targetEmail,
+      target_name: targetName,
+      expires_at: expiresAt,
+    });
+    if (error) return sendSupabaseError(res, error);
+
+    try {
+      await auditLog({
+        entity: 'tax.impersonation', entityId: token,
+        action: 'start', actorEmail: adminEmail,
+        after: { targetType, targetId, targetEmail, expiresAt },
+      });
+    } catch (_e) {}
+
+    res.json({
+      token,
+      target: { type: targetType, id: targetId, email: targetEmail, name: targetName, communitySlug },
+      expiresAt,
+    });
+  });
+
+  // POST /admin/impersonation/:token/end
+  router.post('/admin/impersonation/:token/end', async (req, res) => {
+    // We allow ANY authenticated admin in the community to end any session
+    // — practical for revoking sessions of departing admins. The session's
+    // own community_id gates the action.
+    const auth = await requireOwnerAdmin(req, res); if (!auth) return;
+    const token = trim(req.params.token, 200);
+    const { data: session } = await supabase.from('tax_impersonation_sessions')
+      .select('id, community_id, target_id, target_type, admin_email').eq('id', token).maybeSingle();
+    if (!session) return res.status(404).json({ error: 'Session not found.' });
+    await supabase.from('tax_impersonation_sessions')
+      .update({ ended_at: new Date().toISOString() }).eq('id', token);
+    try {
+      await auditLog({
+        entity: 'tax.impersonation', entityId: token,
+        action: 'end', actorEmail: auth.email,
+        after: { endedBy: auth.email, originalAdmin: session.admin_email },
+      });
+    } catch (_e) {}
+    res.json({ ok: true });
   });
 
   // ── ADMIN: employee↔customer assignment management (Phase 3b) ────────────
