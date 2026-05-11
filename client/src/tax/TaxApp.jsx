@@ -31,6 +31,10 @@ import OwnerSettings from './pages/OwnerSettings';
 import OwnerHelpAdmin from './pages/OwnerHelpAdmin';
 import OwnerAudit from './pages/OwnerAudit';
 import OwnerFaqAdmin from './pages/OwnerFaqAdmin';
+import PlatformDashboard from './pages/PlatformDashboard';
+import PlatformCommunityCreate from './pages/PlatformCommunityCreate';
+import { TaxPlatformAuthProvider, useTaxPlatformAuth } from './auth/PlatformAuthProvider';
+import { signInWithGoogle, firebaseReady } from './auth/firebase';
 import PortalHelp from './pages/PortalHelp';
 import EmployeeHelp from './pages/EmployeeHelp';
 import { TaxAuthProvider, useTaxAuth } from './auth/AuthProvider';
@@ -45,6 +49,14 @@ function parseTaxPath() {
   // parts[0] is always 'tax' here (main.jsx only mounts TaxApp on /tax/*).
   if (parts[1] === 'respond' && parts[2]) {
     return { route: 'respond', token: decodeURIComponent(parts[2]) };
+  }
+  // Phase 5: platform admin lives at /tax/_platform/*. The underscore
+  // prefix can't collide with a real community slug (slugs are
+  // [a-z0-9-_] after normalization, but no real practice would use a
+  // leading underscore).
+  if (parts[1] === '_platform') {
+    if (parts[2] === 'communities' && parts[3] === 'new') return { route: 'platform-create' };
+    return { route: 'platform-dashboard' };
   }
   const slug = parts[1] || DEFAULT_COMMUNITY_SLUG;
   if (parts[2] === 'employee') {
@@ -88,11 +100,13 @@ export default function TaxApp() {
     <TaxLocaleProvider>
       {parsed.route === 'respond'
         ? <Respond token={parsed.token} />
-        : parsed.route.startsWith('employee')
-          ? <EmployeeRoot parsed={parsed} />
-          : parsed.route.startsWith('portal')
-            ? <PortalRoot parsed={parsed} />
-            : <Landing communitySlug={parsed.slug} />}
+        : parsed.route.startsWith('platform')
+          ? <PlatformRoot parsed={parsed} />
+          : parsed.route.startsWith('employee')
+            ? <EmployeeRoot parsed={parsed} />
+            : parsed.route.startsWith('portal')
+              ? <PortalRoot parsed={parsed} />
+              : <Landing communitySlug={parsed.slug} />}
     </TaxLocaleProvider>
   );
 }
@@ -229,4 +243,59 @@ function EmployeeGate({ parsed, community }) {
   if (parsed.route === 'owner-audit') return <OwnerAudit />;
   if (parsed.route === 'employee-help') return <EmployeeHelp />;
   return <EmployeeInbox />;
+}
+
+// Phase 5: platform subtree. Mounts the TaxPlatformAuthProvider — no
+// community context here since the platform admin operates cross-tenant.
+// Gate behavior is similar to the employee gate but the auth path checks
+// against GLOBAL_ADMIN_EMAILS (no DB employee lookup).
+function PlatformRoot({ parsed }) {
+  return (
+    <div className="tax-app">
+      <TaxPlatformAuthProvider>
+        <PlatformGate parsed={parsed} />
+      </TaxPlatformAuthProvider>
+    </div>
+  );
+}
+
+function PlatformGate({ parsed }) {
+  const { status, error, signIn, signOut } = useTaxPlatformAuth();
+
+  if (status === 'unauthenticated') {
+    return (
+      <div className="tax-fullscreen">
+        <div className="tax-fullscreen__inner" style={{ maxWidth: 460 }}>
+          <h2 style={{ marginTop: 0 }}>Platform admin sign-in</h2>
+          <p style={{ color: 'var(--tax-muted)' }}>
+            This area is restricted to platform administrators (emails listed in <code>GLOBAL_ADMIN_EMAILS</code>).
+          </p>
+          <button type="button" className="tax-btn tax-btn--primary tax-btn--block"
+                  onClick={signIn} disabled={!firebaseReady}>
+            Sign in with Google
+          </button>
+        </div>
+      </div>
+    );
+  }
+  if (status === 'loading' || status === 'verifying') {
+    return <div className="tax-fullscreen"><div className="tax-fullscreen__inner">Loading…</div></div>;
+  }
+  if (status === 'error') {
+    return (
+      <div className="tax-fullscreen">
+        <div className="tax-fullscreen__inner" style={{ maxWidth: 460 }}>
+          <div className="tax-msg tax-msg--error" role="alert" style={{ textAlign: 'left' }}>
+            <strong>Platform admin access denied</strong>
+            <div style={{ marginTop: 6 }}>{error || 'Your email is not listed in GLOBAL_ADMIN_EMAILS.'}</div>
+          </div>
+          <button type="button" className="tax-btn tax-btn--primary" style={{ marginTop: 16 }} onClick={signOut}>
+            Try a different account
+          </button>
+        </div>
+      </div>
+    );
+  }
+  if (parsed.route === 'platform-create') return <PlatformCommunityCreate />;
+  return <PlatformDashboard />;
 }

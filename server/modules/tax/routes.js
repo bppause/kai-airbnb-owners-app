@@ -44,6 +44,7 @@ module.exports = function createTaxRouter(deps) {
     sendTaxMessageEmployeeEmail,
     publicAppUrl,
     isGlobalAdmin,
+    isEnvGlobalAdminEmail,
     runReminderCron,
   } = deps;
 
@@ -62,6 +63,158 @@ module.exports = function createTaxRouter(deps) {
     });
   });
 
+  // ════════════════════════════════════════════════════════════════════════════
+  // Phase 5: platform admin (cross-tenant tax-module operations)
+  //
+  // Distinct from /admin/* (per-community) — these endpoints operate ACROSS
+  // every tax community on this deployment. Strict gate: only emails listed
+  // in GLOBAL_ADMIN_EMAILS pass. role='admin' employees of a community do
+  // NOT have platform access (they manage their community, not the platform).
+  // ════════════════════════════════════════════════════════════════════════════
+
+  // Strict platform-admin gate. Returns the verified email or null
+  // (after sending a 403). Accepts either:
+  //   - x-firebase-uid + x-firebase-email (dashboard logged-in path)
+  //   - x-admin-email (curl path)
+  async function requirePlatformAdmin(req, res) {
+    if (!requireSupabaseEnv(res)) return null;
+    const email = trim(
+      req.get('x-firebase-email') || req.get('x-admin-email') || req.query.adminEmail || '',
+      200
+    ).toLowerCase();
+    if (!email) {
+      res.status(401).json({ error: 'Authentication required.' });
+      return null;
+    }
+    if (typeof isEnvGlobalAdminEmail !== 'function' || !isEnvGlobalAdminEmail(email)) {
+      res.status(403).json({ error: 'Platform administrator access required.' });
+      return null;
+    }
+    return email;
+  }
+
+  // POST /platform/auth/verify
+  // Lets the frontend confirm the signed-in Firebase email is a platform
+  // admin without actually performing a sensitive action. Returns 200 ok or
+  // 403; the dashboard renders accordingly.
+  router.post('/platform/auth/verify', async (req, res) => {
+    if (!(await requirePlatformAdmin(req, res))) return;
+    res.json({ ok: true });
+  });
+
+  // GET /platform/communities
+  // Returns every tax community on this deployment with key stats. Powers
+  // the platform dashboard's overview table.
+  router.get('/platform/communities', async (req, res) => {
+    if (!(await requirePlatformAdmin(req, res))) return;
+
+    const { data: communities, error } = await supabase.from('communities')
+      .select('id, name, contact_email, phone, default_locale, brand_primary_color, brand_secondary_color, tax_allow_customer_notif_pref_change, created_at')
+      .eq('business_type', TAX_BUSINESS_TYPE)
+      .order('created_at', { ascending: true });
+    if (error) return sendSupabaseError(res, error);
+
+    // For each community, gather count stats in parallel. Each .select('id',
+    // { count: 'exact', head: true }) hits the DB with HEAD only — no rows
+    // come back, just the count. Cheap.
+    const stats = await Promise.all((communities || []).map(async (c) => {
+      const [custs, emps, leads, docs, threads] = await Promise.all([
+        supabase.from('tax_customers').select('id', { count: 'exact', head: true })
+          .eq('community_id', c.id).eq('status', 'active'),
+        supabase.from('tax_employees').select('id', { count: 'exact', head: true })
+          .eq('community_id', c.id).eq('status', 'active'),
+        supabase.from('tax_leads').select('id', { count: 'exact', head: true })
+          .eq('community_id', c.id).in('status', ['new', 'contacted']),
+        supabase.from('tax_documents').select('id', { count: 'exact', head: true })
+          .eq('community_id', c.id).is('deleted_at', null).eq('status', 'uploaded'),
+        supabase.from('tax_message_threads').select('id', { count: 'exact', head: true })
+          .eq('community_id', c.id).eq('status', 'open'),
+      ]);
+      return {
+        ...c,
+        stats: {
+          customers: custs.count || 0,
+          employees: emps.count || 0,
+          openLeads: leads.count || 0,
+          documents: docs.count || 0,
+          openThreads: threads.count || 0,
+        },
+      };
+    }));
+    res.json({ communities: stats });
+  });
+
+  // POST /platform/communities
+  // Provisions a new tax community: communities row + initial admin employee
+  // + the standard active=true status. Optional brand colors and locale.
+  router.post('/platform/communities', async (req, res) => {
+    const adminEmail = await requirePlatformAdmin(req, res); if (!adminEmail) return;
+    const body = req.body || {};
+    const id = trim(body.id, 100).toLowerCase().replace(/[^a-z0-9_-]/g, '-');
+    const name = trim(body.name, 200);
+    const contactEmail = trim(body.contactEmail, 200).toLowerCase();
+    const phone = trim(body.phone, 40);
+    const defaultLocale = body.defaultLocale === 'en' ? 'en' : 'es';
+    const brandPrimary = trim(body.brandPrimaryColor, 24) || '';
+    const brandSecondary = trim(body.brandSecondaryColor, 24) || '';
+    const ownerEmail = trim(body.ownerEmail, 200).toLowerCase();
+    const ownerName = trim(body.ownerName, 200);
+
+    if (!id || !name || !contactEmail || !ownerEmail) {
+      return res.status(400).json({ error: 'id, name, contactEmail, and ownerEmail are required.' });
+    }
+    if (!isValidEmail(contactEmail) || !isValidEmail(ownerEmail)) {
+      return res.status(400).json({ error: 'contactEmail and ownerEmail must be valid email addresses.' });
+    }
+
+    // Reject existing slug — caller picks a different one.
+    const { data: existing } = await supabase.from('communities')
+      .select('id').eq('id', id).maybeSingle();
+    if (existing) return res.status(409).json({ error: 'A community with this slug already exists.' });
+
+    const insert = {
+      id,
+      name,
+      contact_email: contactEmail,
+      phone,
+      default_locale: defaultLocale,
+      business_type: TAX_BUSINESS_TYPE,
+    };
+    if (brandPrimary)   insert.brand_primary_color   = brandPrimary;
+    if (brandSecondary) insert.brand_secondary_color = brandSecondary;
+
+    const { error: cErr } = await supabase.from('communities').insert(insert);
+    if (cErr) return sendSupabaseError(res, cErr);
+
+    // Create the first admin employee. This lets the owner sign in at
+    // /tax/{id}/employee immediately (their first sign-in links Firebase
+    // UID to the seeded row via Phase 2a /employee/auth/link).
+    const empId = 'emp_' + uuidv4().slice(0, 12);
+    const { error: eErr } = await supabase.from('tax_employees').insert({
+      id: empId,
+      community_id: id,
+      email: ownerEmail,
+      name: ownerName || name + ' (owner)',
+      locale: defaultLocale,
+      role: 'admin',
+    });
+    if (eErr) {
+      // Roll back the community insert so the operator can retry cleanly.
+      await supabase.from('communities').delete().eq('id', id);
+      return sendSupabaseError(res, eErr);
+    }
+
+    try {
+      await auditLog({
+        entity: 'tax.platform.community', entityId: id,
+        action: 'provision', actorEmail: adminEmail,
+        after: { name, contactEmail, ownerEmail, defaultLocale },
+      });
+    } catch (_e) {}
+
+    res.json({ ok: true, communityId: id, ownerEmployeeId: empId });
+  });
+
   // Admin gate (Phase 4d: requireGlobalAdmin retired — all /admin/* now
   // use requireOwnerAdmin below). Accepts EITHER auth path:
   //   (a) Global admin via x-admin-email header matching GLOBAL_ADMIN_EMAILS
@@ -73,10 +226,21 @@ module.exports = function createTaxRouter(deps) {
   // null on failure. Always await this.
   async function requireOwnerAdmin(req, res) {
     if (!requireSupabaseEnv(res)) return null;
-    // (a) Global admin email header (legacy curl callers).
+    // (a) Global admin email header (legacy curl callers + dashboard fallback).
+    //
+    // Bug fix: previously this called `isGlobalAdmin(headerEmail)` as if it
+    // were sync, but the canonical helper is async with (uid, email) signature
+    // and returns a Promise (always truthy). For env-list-only checks the
+    // sync `isEnvGlobalAdminEmail(email)` is correct; falls back to the
+    // async version for DB-role-aware checks when the env helper isn't
+    // wired in.
     const headerEmail = trim(req.get('x-admin-email') || req.query.adminEmail || '', 200).toLowerCase();
-    if (headerEmail && typeof isGlobalAdmin === 'function' && isGlobalAdmin(headerEmail)) {
-      return { email: headerEmail, source: 'global' };
+    if (headerEmail) {
+      const envOk = typeof isEnvGlobalAdminEmail === 'function' && isEnvGlobalAdminEmail(headerEmail);
+      const dbOk  = !envOk && typeof isGlobalAdmin === 'function'
+        ? await isGlobalAdmin('', headerEmail)
+        : false;
+      if (envOk || dbOk) return { email: headerEmail, source: 'global' };
     }
     // (b) role='admin' employee with Firebase headers (same triple as
     // requireTaxEmployee). Community match is enforced via x-tax-community.

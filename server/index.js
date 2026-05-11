@@ -388,6 +388,7 @@ const taxRouter = taxModule.createRouter({
   sendTaxMessageEmployeeEmail,
   publicAppUrl: () => publicAppUrl(),
   isGlobalAdmin,
+  isEnvGlobalAdminEmail,
   runReminderCron: taxRemindersCron.run,
 });
 app.use('/api/m/tax', taxRouter);
