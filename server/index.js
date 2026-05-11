@@ -225,10 +225,13 @@ app.use('/api/registrations', registrationsRouter); // legacy alias — drop aft
 const unitsModule = require('./platform/units');
 const unitsRouter = unitsModule.createRouter({
   supabase, requireSupabaseEnv, sendSupabaseError, getCommunityId,
-  listingFromDb, listingToDb,
+  listingFromDb, listingToDb, notificationToDb, registrationFromListingRows,
   isThreeDigitApt, isValidEmail, isValidOptionalUrl, parseCoOwners,
   findApartmentConflict, validateApartmentUniqueness,
   getCommunity, auditEvent, auditLog, publicAppUrl, sendListingChangeEmail,
+  sendRegistrationSubmittedEmail, sendRegistrationReviewerEmail,
+  sendTemplatedEmail, getEmailNotificationConfig, normalizeRecipients,
+  getGlobalAdminEmails, getDelegateAdminsWithPermission, getCommunityAdminEmails,
   canUpdateGlobalListing, canDeleteGlobalListing, hasCommunityAdminPerm,
 });
 app.use('/api/platform/units', unitsRouter);

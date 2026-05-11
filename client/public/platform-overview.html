@@ -318,8 +318,12 @@ function setLang(l){
   document.body.classList.toggle('lang-en', l === 'en');
   document.getElementById('btnEs').classList.toggle('active', l === 'es');
   document.getElementById('btnEn').classList.toggle('active', l === 'en');
-  // If a sound is mid-play, swap to the matching language file at the same point.
-  if (autoPilot.audio.src && !autoPilot.audio.paused) apPlayCurrent(true);
+  // Per-audience views (investor/client/user) are JS-rendered with the
+  // current `lang` baked in at render time. The static .es-text/.en-text
+  // spans only cover the topbar and the chooser. So when the user toggles
+  // language while inside a mode, re-render that view to pick up the new
+  // copy. Auto-pilot state is preserved across the re-render.
+  if (mode !== 'choose') render({ isLangSwitch: true });
 }
 
 function setMode(m){
@@ -336,7 +340,8 @@ function resetMode(){
 }
 
 /* ─── Render dispatch ────────────────────────────────────────────── */
-function render(){
+function render(opts){
+  const isLangSwitch = !!(opts && opts.isLangSwitch);
   const chooser = document.getElementById('chooser');
   const view = document.getElementById('view');
   const modeBtn = document.getElementById('modeBtn');
@@ -351,7 +356,7 @@ function render(){
   }
   chooser.style.display = 'none';
   modeBtn.style.display = '';
-  if (mode === 'investor') renderInvestor(view);
+  if (mode === 'investor') renderInvestor(view, isLangSwitch);
   else if (mode === 'client') renderClient(view);
   else if (mode === 'user') renderUser(view);
 }
@@ -417,7 +422,7 @@ function ctaBlock(opts){
 }
 
 /* ─── INVESTOR mode ─────────────────────────────────────────────── */
-function renderInvestor(view){
+function renderInvestor(view, isLangSwitch){
   view.innerHTML = `
     <section class="section">
       <h2>💼 ${lang==='en'?'Investor tour':'Tour para inversionistas'}</h2>
@@ -435,10 +440,16 @@ function renderInvestor(view){
       secondaryHref: '#'
     })}
   `;
-  // Start auto-pilot
   document.getElementById('autopilot').style.display = 'flex';
-  apReset();
-  apPlay();
+  if (isLangSwitch) {
+    // Re-render triggered by a language toggle — keep the tour position.
+    // Swap audio file to matching language if mid-play.
+    if (autoPilot.playing) apPlayCurrent(true);
+    apRender();
+  } else {
+    apReset();
+    apPlay();
+  }
 }
 
 /* ─── CLIENT mode ───────────────────────────────────────────────── */
