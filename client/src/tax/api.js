@@ -134,7 +134,25 @@ export const taxApi = {
   // { uid, email, communitySlug, adminEmail }. adminEmail is the address
   // that should match GLOBAL_ADMIN_EMAILS (legacy endpoints); when omitted
   // we fall back to auth.email.
-  adminListCustomers(auth, communitySlug)       { return request('GET',  `/admin/customers?communitySlug=${encodeURIComponent(communitySlug)}`, undefined, auth, { admin: true }); },
+  adminListCustomers(auth, communitySlug, opts = {}) {
+    const qs = new URLSearchParams({ communitySlug });
+    if (opts.q) qs.set('q', opts.q);
+    if (opts.relationshipTypeIds && opts.relationshipTypeIds.length) {
+      qs.set('relationshipTypeIds', opts.relationshipTypeIds.join(','));
+    }
+    return request('GET',  `/admin/customers?${qs.toString()}`, undefined, auth, { admin: true });
+  },
+
+  // Staff + admin: scoped customer search via the employee gate.
+  listEmployeeCustomers(auth, opts = {}) {
+    const qs = new URLSearchParams();
+    if (opts.q) qs.set('q', opts.q);
+    if (opts.relationshipTypeIds && opts.relationshipTypeIds.length) {
+      qs.set('relationshipTypeIds', opts.relationshipTypeIds.join(','));
+    }
+    const path = '/employee/customers' + (qs.toString() ? `?${qs.toString()}` : '');
+    return request('GET',  path, undefined, auth);
+  },
   adminCreateCustomer(auth, payload)            { return request('POST', '/admin/customers', payload, auth, { admin: true }); },
   adminImportCustomers(auth, payload)           { return request('POST', '/admin/customers/import', payload, auth, { admin: true }); },
   adminGetCustomer(auth, id)                    { return request('GET',  `/admin/customers/${encodeURIComponent(id)}`, undefined, auth, { admin: true }); },

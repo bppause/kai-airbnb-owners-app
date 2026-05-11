@@ -1,45 +1,78 @@
-import { useEffect, useMemo, useState } from 'react';
-import { useT } from '../i18n';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { pickI18n, useT } from '../i18n';
 import { useEmployeeAuth } from '../auth/EmployeeAuthProvider';
 import { taxApi } from '../api';
 import EmployeeShell from '../components/EmployeeShell';
 
-// Phase 4a — owner view of every customer in the community. Surfaced inside
-// the staff portal at /tax/{slug}/employee/customers; the shell only shows
-// the "Customers" tab when employee.role === 'admin' (gate-checked there).
+// Customer browser. Surfaced inside the staff portal at
+// /tax/{slug}/employee/customers and visible to BOTH admin and staff
+// employees:
+//   admin → uses adminListCustomers (whole community)
+//   staff → uses listEmployeeCustomers (scoped to assigned customers)
+//
+// Search + filter behavior is identical for both roles. Admin-only
+// surfaces (Add / Import) are gated by role.
+//
+// Search runs server-side via the q + relationshipTypeIds params on
+// the underlying endpoint. The frontend debounces input changes by
+// 300ms before refetching to keep typing responsive.
 export default function OwnerCustomers() {
-  const { t } = useT();
+  const { locale, t } = useT();
   const { fbUser, employee, community } = useEmployeeAuth();
   const auth = { uid: fbUser?.uid, email: fbUser?.email, communitySlug: community?.id };
+  const isAdmin = employee?.role === 'admin';
 
   const [customers, setCustomers] = useState(null);
-  const [search, setSearch] = useState('');
+  const [searchInput, setSearchInput] = useState('');
+  const [search, setSearch] = useState('');                 // debounced value
+  const [relationshipFilter, setRelationshipFilter] = useState([]); // array of type ids
+  const [allTypes, setAllTypes] = useState([]);
+  const [loading, setLoading] = useState(false);
   const [err, setErr] = useState('');
 
-  // Add-customer form state (inline expand)
+  // Add-customer form state (admin only; staff sees no Add UI)
   const [adding, setAdding] = useState(false);
   const [importing, setImporting] = useState(false);
   const [form, setForm] = useState({ name: '', email: '', phone: '', locale: 'es' });
   const [busyAdd, setBusyAdd] = useState(false);
   const [addMsg, setAddMsg] = useState({ kind: 'idle', text: '' });
 
+  // Debounce the search input so we don't refetch on every keystroke.
+  const debounceRef = useRef(null);
+  useEffect(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => setSearch(searchInput.trim()), 300);
+    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
+  }, [searchInput]);
+
   const load = () => {
     if (!fbUser || !community) return;
-    taxApi.adminListCustomers(auth, community.id)
-      .then(d => setCustomers(d.customers || []))
-      .catch(e => setErr(e?.message || t('error.loadFailed')));
+    setLoading(true); setErr('');
+    const opts = { q: search, relationshipTypeIds: relationshipFilter };
+    const p = isAdmin
+      ? taxApi.adminListCustomers(auth, community.id, opts)
+      : taxApi.listEmployeeCustomers(auth, opts);
+    p.then(d => setCustomers(d.customers || []))
+     .catch(e => setErr(e?.message || t('error.loadFailed')))
+     .finally(() => setLoading(false));
   };
-  useEffect(load, [fbUser, community]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(load, [fbUser, community, search, relationshipFilter, isAdmin]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const filtered = useMemo(() => {
-    if (!customers) return null;
-    const q = search.trim().toLowerCase();
-    if (!q) return customers;
-    return customers.filter(c =>
-      (c.name || '').toLowerCase().includes(q) ||
-      (c.email || '').toLowerCase().includes(q) ||
-      (c.phone || '').toLowerCase().includes(q));
-  }, [customers, search]);
+  // Load relationship-type catalog once for the chip filter. Both admin
+  // and staff need it; the endpoint sits behind requireOwnerAdmin so staff
+  // would 403. Wrap in try/catch so a 403 doesn't blow up the page —
+  // staff just won't see the chip filter (search still works fine).
+  useEffect(() => {
+    if (!fbUser || !community) return;
+    taxApi.adminListRelationshipTypes(auth)
+      .then(d => setAllTypes(d.types || []))
+      .catch(() => setAllTypes([]));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fbUser, community]);
+
+  const toggleRelationshipFilter = (typeId) =>
+    setRelationshipFilter(prev =>
+      prev.includes(typeId) ? prev.filter(id => id !== typeId) : [...prev, typeId]);
 
   const onAdd = async (e) => {
     e.preventDefault();
@@ -55,7 +88,6 @@ export default function OwnerCustomers() {
       });
       setAddMsg({ kind: 'success', text: t('owner.customers.addedSuccess') });
       setForm({ name: '', email: '', phone: '', locale: 'es' });
-      // Jump straight into the new customer's detail page.
       window.location.href = `/tax/${community.id}/employee/customers/${encodeURIComponent(r.id)}`;
     } catch (err) {
       setAddMsg({ kind: 'error', text: err?.message || t('respond.error.generic') });
@@ -64,33 +96,34 @@ export default function OwnerCustomers() {
     }
   };
 
-  if (employee && employee.role !== 'admin') {
-    return <EmployeeShell community={community} active="customers">
-      <div className="tax-msg tax-msg--error">{t('owner.notAuthorized')}</div>
-    </EmployeeShell>;
-  }
-
   const base = community ? `/tax/${community.id}/employee/customers` : '#';
 
   return (
     <EmployeeShell community={community} active="customers">
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8, gap: 12, flexWrap: 'wrap' }}>
         <h2 style={{ margin: 0 }}>{t('owner.customers.title')}</h2>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <button type="button" className="tax-btn tax-btn--ghost tax-btn--sm"
-                  onClick={() => { setImporting(im => !im); setAdding(false); }}
-                  style={{ color: 'var(--tax-text)' }}>
-            {importing ? t('owner.customers.cancelImport') : t('owner.customers.importBtn')}
-          </button>
-          <button type="button" className="tax-btn tax-btn--primary tax-btn--sm"
-                  onClick={() => { setAdding(a => !a); setImporting(false); }}>
-            {adding ? t('owner.customers.cancelAdd') : t('owner.customers.addBtn')}
-          </button>
-        </div>
+        {/* Admin-only actions. Staff sees the list + search/filter but no
+            create or import controls — they manage relationships through
+            the customer detail page (admin-only) or via the inbox flow. */}
+        {isAdmin && (
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button type="button" className="tax-btn tax-btn--ghost tax-btn--sm"
+                    onClick={() => { setImporting(im => !im); setAdding(false); }}
+                    style={{ color: 'var(--tax-text)' }}>
+              {importing ? t('owner.customers.cancelImport') : t('owner.customers.importBtn')}
+            </button>
+            <button type="button" className="tax-btn tax-btn--primary tax-btn--sm"
+                    onClick={() => { setAdding(a => !a); setImporting(false); }}>
+              {adding ? t('owner.customers.cancelAdd') : t('owner.customers.addBtn')}
+            </button>
+          </div>
+        )}
       </div>
-      <p className="tax-section__lede">{t('owner.customers.subtitle')}</p>
+      <p className="tax-section__lede">
+        {isAdmin ? t('owner.customers.subtitle') : t('owner.customers.subtitleStaff')}
+      </p>
 
-      {importing && (
+      {isAdmin && importing && (
         <ImportCustomers auth={auth} community={community}
                          onDone={() => { setImporting(false); load(); }}
                          t={t} />
@@ -98,7 +131,7 @@ export default function OwnerCustomers() {
 
       {err && <div className="tax-msg tax-msg--error">{err}</div>}
 
-      {adding && (
+      {isAdmin && adding && (
         <form className="tax-form" onSubmit={onAdd} noValidate style={{ marginBottom: 24 }}>
           <div className="tax-form__row2">
             <div>
@@ -136,22 +169,70 @@ export default function OwnerCustomers() {
         </form>
       )}
 
-      <div style={{ marginBottom: 16 }}>
+      <div style={{ marginBottom: 12 }}>
         <input type="search" placeholder={t('owner.customers.searchPlaceholder')}
-               value={search} onChange={e => setSearch(e.target.value)}
+               value={searchInput} onChange={e => setSearchInput(e.target.value)}
                style={{
                  width: '100%', padding: '10px 12px',
                  border: '1px solid var(--tax-border)', borderRadius: 8, fontSize: 15,
                }} />
+        <div style={{ fontSize: 12, color: 'var(--tax-muted)', marginTop: 4 }}>
+          {t('owner.customers.searchHint')}
+        </div>
       </div>
 
-      {filtered === null ? <p>{t('loading')}</p>
-        : filtered.length === 0
+      {allTypes.length > 0 && (
+        <div style={{ marginBottom: 16 }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--tax-muted)',
+                        textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 6 }}>
+            {t('owner.customers.filterRelationships')}
+            {relationshipFilter.length > 0 && (
+              <button type="button"
+                      onClick={() => setRelationshipFilter([])}
+                      style={{
+                        marginLeft: 10, border: 0, background: 'transparent',
+                        color: 'var(--tax-brand-primary)', cursor: 'pointer',
+                        fontSize: 11, fontWeight: 700, textTransform: 'uppercase',
+                      }}>
+                {t('owner.customers.clearFilters')}
+              </button>
+            )}
+          </div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+            {allTypes.map(tp => {
+              const active = relationshipFilter.includes(tp.id);
+              return (
+                <button key={tp.id} type="button"
+                        onClick={() => toggleRelationshipFilter(tp.id)}
+                        style={{
+                          padding: '4px 10px', borderRadius: 999,
+                          background: active
+                            ? 'color-mix(in srgb, var(--tax-brand-primary) 12%, #fff)'
+                            : '#fff',
+                          color: active ? 'var(--tax-brand-primary)' : 'var(--tax-text)',
+                          border: '1px solid',
+                          borderColor: active
+                            ? 'color-mix(in srgb, var(--tax-brand-primary) 35%, #fff)'
+                            : 'var(--tax-border)',
+                          fontSize: 12, fontWeight: active ? 700 : 500, cursor: 'pointer',
+                        }}>
+                  {pickI18n(tp.name_i18n, locale).value || tp.slug}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {customers === null || (loading && !customers) ? <p>{t('loading')}</p>
+        : customers.length === 0
           ? <p style={{ color: 'var(--tax-muted)' }}>
-              {search ? t('owner.customers.noMatch') : t('owner.customers.empty')}
+              {search || relationshipFilter.length > 0
+                ? t('owner.customers.noMatch')
+                : t('owner.customers.empty')}
             </p>
-          : <div style={{ display: 'grid', gap: 8 }}>
-              {filtered.map(c => (
+          : <div style={{ display: 'grid', gap: 8, opacity: loading ? 0.6 : 1 }}>
+              {customers.map(c => (
                 <a key={c.id} href={`${base}/${encodeURIComponent(c.id)}`}
                    className="tax-contact-item" style={{ textDecoration: 'none', color: 'inherit' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
@@ -160,10 +241,30 @@ export default function OwnerCustomers() {
                       <div style={{ fontSize: 13, color: 'var(--tax-muted)', marginTop: 2 }}>
                         {c.email}
                         {c.phone ? ` • ${c.phone}` : ''}
-                        {c.tax_subscriptions?.length
-                          ? ` • ${c.tax_subscriptions.length} ${t('owner.customers.subsLabel')}`
-                          : ''}
+                        {c.whatsapp ? ` • WhatsApp ${c.whatsapp}` : ''}
                       </div>
+                      {/* Address summary — first line + city when available */}
+                      {(c.address?.line1 || c.address?.city) && (
+                        <div style={{ fontSize: 12, color: 'var(--tax-muted)', marginTop: 2 }}>
+                          {[c.address.line1, c.address.city, c.address.state].filter(Boolean).join(', ')}
+                        </div>
+                      )}
+                      {/* Relationship chips */}
+                      {Array.isArray(c.relationships) && c.relationships.length > 0 && (
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 6 }}>
+                          {c.relationships.map(r => (
+                            <span key={r.relationship_type_id} style={{
+                              padding: '1px 8px', borderRadius: 999,
+                              background: 'color-mix(in srgb, var(--tax-brand-primary) 8%, #fff)',
+                              color: 'var(--tax-brand-primary)',
+                              border: '1px solid color-mix(in srgb, var(--tax-brand-primary) 18%, #fff)',
+                              fontSize: 11, fontWeight: 600,
+                            }}>
+                              {pickI18n(r.type?.name_i18n, locale).value || r.relationship_type_id}
+                            </span>
+                          ))}
+                        </div>
+                      )}
                     </div>
                     <div style={{ flexShrink: 0, fontSize: 12, color: 'var(--tax-muted)' }}>
                       {c.locale === 'en' ? 'EN' : 'ES'}

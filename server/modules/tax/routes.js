@@ -512,17 +512,119 @@ module.exports = function createTaxRouter(deps) {
     const communitySlug = trim(req.query.communitySlug || '', 200);
     if (!communitySlug) return res.status(400).json({ error: 'communitySlug required.' });
 
-    const { data: customers, error } = await supabase
-      .from('tax_customers')
+    try {
+      const customers = await searchCustomers({
+        communitySlug,
+        q: req.query.q,
+        relationshipTypeIds: parseCsvList(req.query.relationshipTypeIds),
+        scopedCustomerIds: null,            // admin sees the whole community
+      });
+      res.json({ customers });
+    } catch (e) {
+      return sendSupabaseError(res, e);
+    }
+  });
+
+  // Shared search/list helper used by both /admin/customers and
+  // /employee/customers. Returns the customer rows with their active
+  // relationships joined in.
+  //
+  // Args:
+  //   communitySlug         — required
+  //   q                     — optional search term; ILIKE-matched against
+  //                           name, email, phone, whatsapp, preferred email,
+  //                           and address subfields (line1, city, state,
+  //                           postal_code)
+  //   relationshipTypeIds   — optional array; when set, only customers
+  //                           tagged with ANY of these types are returned
+  //   scopedCustomerIds     — null (no scope filter) or array (intersect
+  //                           with this set; empty array → return [])
+  //
+  // Implementation notes:
+  //   • Search uses Supabase .or() with the JSONB ->> arrow syntax so
+  //     address subfields are matched without a SQL function.
+  //   • Search-term sanitization: PostgREST's or() filter splits on commas
+  //     and dots, so we strip those plus % and _ to avoid breaking the
+  //     filter and producing accidental wildcards.
+  //   • Relationships are fetched as a second query keyed by customer_id
+  //     to keep the select string simple and to avoid embedded-resource
+  //     pagination quirks.
+  async function searchCustomers({ communitySlug, q, relationshipTypeIds, scopedCustomerIds }) {
+    let query = supabase.from('tax_customers')
       .select(`
-        id, email, name, phone, whatsapp, locale, status, created_at,
+        id, email, name, phone, whatsapp, address, preferred_communication_email,
+        locale, status, created_at,
         tax_subscriptions ( id, product_id, status, active_schedule_slugs, reminder_channels, reminder_offsets_days )
       `)
-      .eq('community_id', communitySlug)
-      .order('created_at', { ascending: false });
-    if (error) return sendSupabaseError(res, error);
-    res.json({ customers: customers || [] });
-  });
+      .eq('community_id', communitySlug);
+
+    if (Array.isArray(scopedCustomerIds)) {
+      if (!scopedCustomerIds.length) return [];
+      query = query.in('id', scopedCustomerIds);
+    }
+
+    if (Array.isArray(relationshipTypeIds) && relationshipTypeIds.length) {
+      const { data: relRows, error: relErr } = await supabase.from('tax_customer_relationships')
+        .select('customer_id')
+        .eq('active', true)
+        .in('relationship_type_id', relationshipTypeIds);
+      if (relErr) throw new Error(relErr.message);
+      const matchedIds = [...new Set((relRows || []).map(r => r.customer_id))];
+      if (!matchedIds.length) return [];
+      query = query.in('id', matchedIds);
+    }
+
+    const rawTerm = String(q || '').trim();
+    if (rawTerm) {
+      // Strip characters that would break PostgREST's or-filter parsing
+      // and escape SQL wildcards we don't want to expose.
+      const safe = rawTerm.replace(/[,.%_()*]/g, ' ').trim();
+      if (safe) {
+        const pat = `%${safe}%`;
+        // JSONB->>field uses PostgREST's arrow syntax inside the column
+        // reference. Spaces and quotes are NOT allowed in filter values
+        // passed through `.or()`, so the term has already been sanitized.
+        query = query.or([
+          `name.ilike.${pat}`,
+          `email.ilike.${pat}`,
+          `phone.ilike.${pat}`,
+          `whatsapp.ilike.${pat}`,
+          `preferred_communication_email.ilike.${pat}`,
+          `address->>line1.ilike.${pat}`,
+          `address->>line2.ilike.${pat}`,
+          `address->>city.ilike.${pat}`,
+          `address->>state.ilike.${pat}`,
+          `address->>postal_code.ilike.${pat}`,
+        ].join(','));
+      }
+    }
+
+    const { data: customers, error } = await query.order('created_at', { ascending: false });
+    if (error) throw new Error(error.message);
+
+    // Hydrate active relationships in one extra query.
+    const ids = (customers || []).map(c => c.id);
+    if (!ids.length) return [];
+    const { data: rels } = await supabase.from('tax_customer_relationships')
+      .select(`
+        customer_id, relationship_type_id, active,
+        type:tax_relationship_types ( id, slug, category, name_i18n, display_order )
+      `)
+      .in('customer_id', ids).eq('active', true);
+    const byCustomer = new Map();
+    for (const r of rels || []) {
+      const arr = byCustomer.get(r.customer_id) || [];
+      arr.push(r);
+      byCustomer.set(r.customer_id, arr);
+    }
+    return (customers || []).map(c => ({ ...c, relationships: byCustomer.get(c.id) || [] }));
+  }
+
+  function parseCsvList(raw) {
+    if (!raw) return [];
+    if (Array.isArray(raw)) return raw.map(s => String(s).trim()).filter(Boolean);
+    return String(raw).split(',').map(s => s.trim()).filter(Boolean);
+  }
 
   // ── POST /admin/customers ── (Phase 4a)
   // Creates a customer row. The portal can then magic-link them in (Phase 1.5)
@@ -2787,6 +2889,28 @@ module.exports = function createTaxRouter(deps) {
       .eq('active', true).maybeSingle();
     return Boolean(data);
   }
+
+  // ── GET /employee/customers ── (scoped customer search for staff/admin)
+  // Same search/filter params as /admin/customers but scoped:
+  //   role='admin'  → entire community (visible = null)
+  //   role='staff'  → only customers in their tax_employee_customer_assignments
+  // The customer detail page itself stays admin-gated; this endpoint just
+  // powers a browse + search experience for staff.
+  router.get('/employee/customers', async (req, res) => {
+    const emp = await requireTaxEmployee(req, res); if (!emp) return;
+    const visible = await getVisibleCustomerIdsForEmployee(emp);
+    try {
+      const customers = await searchCustomers({
+        communitySlug: emp.community_id,
+        q: req.query.q,
+        relationshipTypeIds: parseCsvList(req.query.relationshipTypeIds),
+        scopedCustomerIds: visible,         // null for admin, array for staff
+      });
+      res.json({ customers });
+    } catch (e) {
+      return sendSupabaseError(res, e);
+    }
+  });
 
   // ── GET /employee/threads ── (scoped by assignments for staff role)
   router.get('/employee/threads', async (req, res) => {
