@@ -98,7 +98,7 @@ module.exports = function createTaxRemindersCron(deps) {
         id, community_id, subscription_id, customer_id, schedule_id, status,
         period_label, period_start, period_end, due_date,
         tax_subscriptions!inner ( reminder_channels, reminder_offsets_days, custom_info_checklist ),
-        tax_customers!inner ( id, email, name, locale ),
+        tax_customers!inner ( id, email, name, locale, preferred_communication_email ),
         tax_filing_schedules!inner ( id, slug, name_i18n, description_i18n, info_checklist )
       `)
       .in('status', ['pending', 'info_requested'])
