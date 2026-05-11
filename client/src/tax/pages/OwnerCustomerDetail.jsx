@@ -84,7 +84,10 @@ export default function OwnerCustomerDetail({ customerId }) {
             {' • '}{c.locale === 'en' ? 'English' : 'Español'}
           </p>
         </div>
-        <ImpersonateCustomerButton customer={c} auth={auth} community={community} t={t} />
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'flex-end', flexShrink: 0 }}>
+          <ImpersonateCustomerButton customer={c} auth={auth} community={community} t={t} />
+          <SendWelcomeButton customer={c} auth={auth} t={t} />
+        </div>
       </div>
 
       <ProfileSection customer={c} auth={auth} customerId={customerId} onChange={load} t={t} />
@@ -688,6 +691,55 @@ function ImpersonateCustomerButton({ customer, auth, community, t }) {
         {busy ? t('impersonation.starting') : t('impersonation.viewAsCustomer')}
       </button>
       {err && <span style={{ color: 'var(--tax-error)', fontSize: 11 }}>{err}</span>}
+    </div>
+  );
+}
+
+// "Send welcome email" — manual resend of the bilingual portal-invite.
+// Uses the customer's current locale + current relationships (so adding
+// more services after the initial send + clicking this again will surface
+// the new services in the email body).
+function SendWelcomeButton({ customer: c, auth, t }) {
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState({ kind: 'idle', text: '' });
+
+  const onClick = async () => {
+    if (!window.confirm(t('owner.customer.welcome.confirm', {
+      name: c.name || c.email, lang: c.locale === 'en' ? 'English' : 'Español',
+    }))) return;
+    setBusy(true); setMsg({ kind: 'idle', text: '' });
+    try {
+      const result = await taxApi.adminSendWelcomeEmail(auth, c.id);
+      if (result?.ok || result?.sent) {
+        setMsg({ kind: 'success', text: t('owner.customer.welcome.sent') });
+      } else if (result?.skipped) {
+        setMsg({ kind: 'error', text: t('owner.customer.welcome.skipped', {
+          reason: result.reason || 'unknown',
+        }) });
+      } else {
+        setMsg({ kind: 'error', text: result?.error || t('respond.error.generic') });
+      }
+    } catch (e) {
+      setMsg({ kind: 'error', text: e?.message || t('respond.error.generic') });
+    } finally {
+      setBusy(false);
+      setTimeout(() => setMsg({ kind: 'idle', text: '' }), 6000);
+    }
+  };
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
+      <button type="button" className="tax-btn tax-btn--ghost tax-btn--sm"
+              onClick={onClick} disabled={busy}
+              style={{ color: 'var(--tax-brand-primary)', borderColor: 'var(--tax-brand-primary)' }}>
+        {busy ? t('owner.customer.welcome.sending') : t('owner.customer.welcome.button')}
+      </button>
+      {msg.text && (
+        <span style={{
+          fontSize: 11,
+          color: msg.kind === 'success' ? 'var(--tax-success)' : 'var(--tax-error)',
+        }}>{msg.text}</span>
+      )}
     </div>
   );
 }
