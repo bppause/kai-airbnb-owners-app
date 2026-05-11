@@ -33,6 +33,14 @@
   "lead.error.generic": "Hubo un problema al enviar tu solicitud. Por favor inténtalo de nuevo o llámanos.",
   "lead.error.network": "Error de red. Verifica tu conexión e inténtalo de nuevo.",
 
+  "about.heading": "Nosotros",
+  "about.body": "Ayudamos a individuos y negocios a navegar los impuestos de EE.UU. con confianza. Nuestro equipo bilingüe ofrece años de experiencia en preparación de impuestos personales y de negocios, nómina, contabilidad, solicitudes de ITIN y formación de empresas.",
+  "about.point1": "Servicio bilingüe en español e inglés",
+  "about.point2": "Apoyo todo el año, no solo en temporada de impuestos",
+  "about.point3": "Precios honestos y comunicación clara",
+
+  "meta.description": "Servicios bilingües de preparación de impuestos, contabilidad, nómina, ITIN y formación de empresas para individuos y negocios.",
+
   "contact.heading": "Visítanos",
   "contact.address": "Dirección",
   "contact.phone": "Teléfono",

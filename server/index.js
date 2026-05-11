@@ -362,7 +362,7 @@ app.use('/api/notifications', notificationsRouter); // legacy alias — drop aft
 
 // ─── API: TAX (mounted from server/modules/tax) ──────────────────────────────
 // Canonical: /api/m/tax/*
-// Phase 1   endpoints: GET /community/:slug, POST /leads.
+// Phase 1   endpoints: GET /health, GET /community/:slug, POST /leads.
 // Phase 1.5 endpoints: GET/POST /respond/:token, /admin/cron/run, /admin/customers, /admin/periods.
 // Reuses platform `communities` (business_type='tax') as the multi-tenant boundary.
 const taxModule = require('./modules/tax');
@@ -387,6 +387,36 @@ app.use('/api/m/tax', taxRouter);
 // reminders at the configured offsets. Daily cadence (12h interval) keeps
 // it well within Render's free-tier restart window.
 taxRemindersCron.start({ intervalMs: 12 * 60 * 60 * 1000, initialDelayMs: 60 * 1000 });
+
+// Public SEO endpoint — lists active tax community landings. Lives at root
+// (search-engine convention). robots.txt is static under client/public/.
+app.get('/sitemap.xml', async (req, res) => {
+  try {
+    const base = (process.env.PUBLIC_APP_URL || `${req.protocol}://${req.get('host')}`).replace(/\/$/, '');
+    let urls = [];
+    if (SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY) {
+      const { data } = await supabase
+        .from('communities')
+        .select('id, business_type, is_active, updated_at')
+        .eq('is_active', true)
+        .eq('business_type', 'tax');
+      urls = (data || []).map(c => ({
+        loc: `${base}/tax/${encodeURIComponent(c.id)}`,
+        lastmod: c.updated_at ? new Date(c.updated_at).toISOString().slice(0, 10) : null,
+      }));
+    }
+    const entries = urls.map(u =>
+      `  <url>\n    <loc>${u.loc}</loc>${u.lastmod ? `\n    <lastmod>${u.lastmod}</lastmod>` : ''}\n  </url>`
+    ).join('\n');
+    res.type('application/xml').send(
+      `<?xml version="1.0" encoding="UTF-8"?>\n` +
+      `<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${entries}\n</urlset>\n`
+    );
+  } catch (e) {
+    warn('[sitemap] failed', e?.message || e);
+    res.status(500).type('application/xml').send('<?xml version="1.0" encoding="UTF-8"?><urlset/>');
+  }
+});
 
 // ─── INCIDENTS SLA CRON (extracted in stage 4j) ──────────────────────────────
 // Walks pending incidents whose next_sla_reminder_at has elapsed and fires the

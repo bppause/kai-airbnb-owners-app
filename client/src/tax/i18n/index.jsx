@@ -1,9 +1,11 @@
 // Tiny i18n for the tax module.
 // - Two locale bundles (en, es) loaded statically.
-// - Locale resolution: localStorage → browser Accept-Language → 'en'.
+// - Initial locale: saved preference (localStorage) → 'es' (platform default).
+//   The community's `default_locale` (from API) overrides 'es' on first load
+//   when no saved preference exists — see Landing.jsx.
 // - useT() returns t(key, vars?) and the active locale + setter.
 // - Owner-authored content (product names, descriptions, tagline) is stored as
-//   {en, es} JSONB on the server; pickI18n() does fallback to en when es missing.
+//   {en, es} JSONB on the server; pickI18n() falls back to en when es missing.
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import en from './en.json';
@@ -11,14 +13,19 @@ import es from './es.json';
 
 const BUNDLES = { en, es };
 const STORAGE_KEY = 'tax_locale';
+const DEFAULT_LOCALE = 'es'; // Spanish-majority customer base; overridable per-community.
 
 export function detectInitialLocale() {
   try {
     const saved = localStorage.getItem(STORAGE_KEY);
     if (saved === 'en' || saved === 'es') return saved;
   } catch (_e) {}
-  const nav = (typeof navigator !== 'undefined' && navigator.language) || 'en';
-  return nav.toLowerCase().startsWith('es') ? 'es' : 'en';
+  return DEFAULT_LOCALE;
+}
+
+export function hasSavedLocale() {
+  try { return ['en', 'es'].includes(localStorage.getItem(STORAGE_KEY)); }
+  catch (_e) { return false; }
 }
 
 function format(str, vars) {
@@ -27,7 +34,7 @@ function format(str, vars) {
 }
 
 const TaxLocaleContext = createContext({
-  locale: 'en',
+  locale: DEFAULT_LOCALE,
   setLocale: () => {},
   t: (key) => key,
 });

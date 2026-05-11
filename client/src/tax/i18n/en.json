@@ -33,6 +33,14 @@
   "lead.error.generic": "Something went wrong sending your request. Please try again or call us.",
   "lead.error.network": "Network error. Please check your connection and try again.",
 
+  "about.heading": "About us",
+  "about.body": "We help individuals and businesses navigate U.S. taxes with confidence. Our bilingual team brings years of experience in personal and business tax preparation, payroll, bookkeeping, ITIN applications, and business formation.",
+  "about.point1": "Bilingual service in English and Spanish",
+  "about.point2": "Year-round support, not just tax season",
+  "about.point3": "Honest pricing and clear communication",
+
+  "meta.description": "Bilingual tax preparation, bookkeeping, payroll, ITIN, and business formation services for individuals and businesses.",
+
   "contact.heading": "Visit us",
   "contact.address": "Address",
   "contact.phone": "Phone",
