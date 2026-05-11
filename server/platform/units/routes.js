@@ -18,10 +18,13 @@ const { warn } = require('../../../logger');
 module.exports = function createUnitsRouter(deps) {
   const {
     supabase, requireSupabaseEnv, sendSupabaseError, getCommunityId,
-    listingFromDb, listingToDb,
+    listingFromDb, listingToDb, notificationToDb, registrationFromListingRows,
     isThreeDigitApt, isValidEmail, isValidOptionalUrl, parseCoOwners,
     findApartmentConflict, validateApartmentUniqueness,
     getCommunity, auditEvent, auditLog, publicAppUrl, sendListingChangeEmail,
+    sendRegistrationSubmittedEmail, sendRegistrationReviewerEmail,
+    sendTemplatedEmail, getEmailNotificationConfig, normalizeRecipients,
+    getGlobalAdminEmails, getDelegateAdminsWithPermission, getCommunityAdminEmails,
     canUpdateGlobalListing, canDeleteGlobalListing, hasCommunityAdminPerm,
   } = deps;
 
@@ -52,7 +55,15 @@ module.exports = function createUnitsRouter(deps) {
     res.json((data || []).map(listingFromDb));
   });
 
-  // POST /               — create a unit
+  // POST /               — submit a new unit (goes through approval)
+  //
+  // An already-approved owner adding a unit follows the same approval
+  // workflow as a first-time registration: the listing is inserted with
+  // status='pending' under a fresh registration_id, owner gets the
+  // submitted email, and admins / community reviewers get the reviewer
+  // email + an in-app notification. The existing
+  // POST /api/platform/registrations/:id/approve|decline endpoints
+  // handle the review step because they key on registration_id.
   router.post('/', async (req, res) => {
     if (!requireSupabaseEnv(res)) return;
     const { ownerUid, owner, userEmail, apt, rooms, guests, operator, operatorEmail, operatorWhatsapp, airbnb, coOwners: coOwnersRaw } = req.body;
@@ -75,7 +86,8 @@ module.exports = function createUnitsRouter(deps) {
 
     const community = await getCommunity(communityId);
     const towerLabel = community?.tower || 'KAI';
-    const item = { id:'lst_'+uuidv4().slice(0,8), communityId, ownerUid, owner:String(owner||'').trim(), userEmail:googleEmail, apt:String(apt).trim(), tower:towerLabel, rooms, guests:Number(guests), operator:operator||'', operatorEmail:operatorEmail||'', operatorWhatsapp:operatorWhatsapp||'', contact:ownerContact, email:ownerEmail, airbnb:String(airbnb||'').trim(), coOwners:[], status:'approved', reviewedByUid:ownerUid, reviewedByName:owner, reviewedAt:new Date().toISOString(), createdAt:new Date().toISOString() };
+    const registrationId = 'reg_' + uuidv4().slice(0,8);
+    const item = { id:'lst_'+uuidv4().slice(0,8), communityId, registrationId, ownerUid, owner:String(owner||'').trim(), userEmail:googleEmail, apt:String(apt).trim(), tower:towerLabel, rooms, guests:Number(guests), operator:operator||'', operatorEmail:operatorEmail||'', operatorWhatsapp:operatorWhatsapp||'', contact:ownerContact, email:ownerEmail, airbnb:String(airbnb||'').trim(), coOwners:[], status:'pending', reason:'', createdAt:new Date().toISOString() };
     const { data, error } = await supabase.from('listings').insert(listingToDb(item, communityId)).select('*').single();
     if (error) return sendSupabaseError(res, error);
     if (coOwnersParsed.coOwners.length > 0) {
@@ -83,11 +95,43 @@ module.exports = function createUnitsRouter(deps) {
       if (coErr) warn('co_owners save failed (run schema migration): ' + (coErr.message || coErr));
       else data.co_owners = coOwnersParsed.coOwners;
     }
-    await auditEvent({ listingId:data.id, registrationId:data.registration_id, actorUid:ownerUid, actorName:owner, action:'listing_created', after:data });
-    // eslint-disable-next-line no-undef -- pre-existing latent code; userEmail is always truthy in practice. See stage 3a commit message.
-    await auditLog({ entity:'listing', entityId:data.id, action:'create', actorUid:ownerUid, actorEmail:userEmail || email, actorName:owner, after:data });
-    setImmediate(() => sendListingChangeEmail({ listing: listingFromDb(data), action:'created', appUrl: publicAppUrl(req) }).catch(e => warn('Listing created email failed: ' + (e?.message || e))));
+    await auditEvent({ listingId:data.id, registrationId, actorUid:ownerUid, actorName:owner, action:'registration_submitted', after:data });
+    await auditLog({ entity:'listing', entityId:data.id, action:'create', actorUid:ownerUid, actorEmail:userEmail || '', actorName:owner, after:data });
+    const result = registrationFromListingRows([data]);
     res.json(listingFromDb(data));
+    setImmediate(async () => {
+      const appUrl = publicAppUrl(req);
+      try { await sendRegistrationSubmittedEmail({ registration: result, appUrl }); }
+      catch(e) { warn('Add-unit submitted email failed: ' + (e?.message || e)); }
+      try {
+        const { data: reviewerRows } = await supabase.from('listings').select('owner_uid,owner,user_email,email').eq('community_id', communityId).eq('status','approved');
+        const seen = new Set();
+        for (const r of reviewerRows || []) {
+          if (!r.owner_uid || seen.has(r.owner_uid)) continue;
+          if (r.owner_uid === ownerUid) continue; // don't notify the owner about their own add
+          seen.add(r.owner_uid);
+          const reviewer = { user_uid:r.owner_uid, user_name:r.owner, user_email:r.user_email || r.email };
+          const note = { id:'not_' + uuidv4().slice(0,8), communityId, ownerUid: reviewer.user_uid, listingId:null, incidentId:null, title:'Nueva unidad pendiente', message:`${owner} solicita agregar el apartamento ${apt}.`, isRead:false, emailSent:false, emailError:'', createdAt:new Date().toISOString(), kind:'registration', registrationId };
+          await supabase.from('notifications').insert(notificationToDb(note));
+          try { await sendRegistrationReviewerEmail({ reviewer, registration: result, appUrl }); }
+          catch(mailErr) { warn('Add-unit reviewer email failed: ' + (mailErr?.message || mailErr)); }
+        }
+      } catch(e) { warn('Add-unit reviewer notification failed: ' + (e?.message || e)); }
+      try {
+        const notifCfg = await getEmailNotificationConfig();
+        const revCfg = notifCfg['registration_reviewer'];
+        if (!revCfg?.enabled) return;
+        const adminRecips = [];
+        if (revCfg.globalAdmin) adminRecips.push(...getGlobalAdminEmails());
+        if (revCfg.delegateAdmin) adminRecips.push(...await getDelegateAdminsWithPermission('canApproveRegistrations'));
+        if (revCfg.communityAdmin ?? true) adminRecips.push(...await getCommunityAdminEmails(communityId));
+        const normalized = normalizeRecipients(adminRecips);
+        if (!normalized.length) return;
+        const comm = await getCommunity(communityId);
+        const communityName = comm?.name || communityId;
+        await sendTemplatedEmail({ key:'registration_reviewer', to: normalized, vars: { reviewerName:'Admin', userName: owner || '', userEmail: googleEmail, approvalsLink: appUrl+'/?view=approvals', communityName } });
+      } catch(e) { warn('Add-unit admin reviewer email failed: ' + (e?.message || e)); }
+    });
   });
 
   // PUT /:id             — update a unit

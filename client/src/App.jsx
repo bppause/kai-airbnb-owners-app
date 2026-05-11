@@ -592,8 +592,18 @@ export default function App() {
     setSyncing(true);
     try {
       const newL = await api.post('/api/listings', { ...data, ownerUid: user.uid, owner: user.name, userEmail: user.email });
-      setListings(l => [...l, newL]);
-      setModal(null); showToast("✅ Apartamento registrado");
+      // New units now go through the same approval flow as initial
+      // registration — listing comes back as 'pending' and won't show in
+      // My Units until an admin approves it.
+      if (newL?.status === 'pending') {
+        setModal(null);
+        showToast(lang === 'en'
+          ? "📋 Unit submitted — awaiting admin approval. You'll receive an email when it's reviewed."
+          : "📋 Unidad enviada — pendiente de aprobación. Recibirás un email cuando sea revisada.");
+      } else {
+        setListings(l => [...l, newL]);
+        setModal(null); showToast("✅ Apartamento registrado");
+      }
     } catch(e) { console.error('Save listing error', e); showToast("Error al guardar: " + (e.message || 'Revise Supabase/Render'), true); } finally { setSyncing(false); }
   };
 
