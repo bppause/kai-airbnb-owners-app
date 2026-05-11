@@ -296,33 +296,30 @@ function ImportCustomers({ auth, community, onDone, t }) {
   const [result, setResult] = useState(null);
   const [err, setErr] = useState('');
 
-  const downloadTemplate = () => {
-    // Sample rows show all supported columns. Comments aren't real CSV
-    // (they start with '#') so the import will skip them as invalid
-    // emails; we include them as inline documentation in the file the
-    // owner downloads. Better than a separate README.
-    const lines = [
-      'email,name,phone,whatsapp,locale,address_line1,address_line2,city,state,postal_code,country,preferred_communication_email,notes,relationships',
-      'sample.llc@example.com,Sample LLC Owner,+14155551234,+14155551234,en,123 Main St,Suite 4,San Francisco,CA,94103,US,billing@example.com,New client referred by Maria,"business.llc,business.bookkeeping,business.payroll"',
-      'maria.gomez@example.com,Maria Gómez,(860) 555-2233,,es,742 Pine St,,Hartford,CT,06103,US,,Quarterly sales tax + annual 1040,"individual.taxes,business.sales_tax_filing"',
-      '# Columns are case-insensitive. Required: email. Whatsapp must be E.164 (+countrycode+number) — leave blank if unknown.',
-      '# locale: en or es (default es). country defaults to US when an address line is filled.',
-      '# relationships: comma-separated ids from the catalog — see /tax/{slug}/employee/articles for the list.',
-      '# Valid relationship ids: business.llc, business.s_corp, business.partnership_1065, business.sales_tax_filing,',
-      '#                         business.business_formation, business.payroll, business.bookkeeping,',
-      '#                         individual.taxes, individual.itin,',
-      '#                         general.notary, general.translation, audit.irs, audit.drs',
-      '# Duplicate emails (already in this community) are skipped.',
-    ];
-    const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `tax-customer-import-${community.id}.csv`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  // The template is a static asset at /tax-customer-import-template.csv
+  // — accessible without authentication, so admins can share the URL
+  // directly with new practice owners during onboarding (no need to
+  // log them in just to grab the template). The file lives in
+  // client/public/ and includes inline `#` comment rows that the
+  // server-side parser silently skips, so an owner can leave the docs
+  // in place without breaking the import.
+  const TEMPLATE_URL = '/tax-customer-import-template.csv';
+  const shareUrl = typeof window !== 'undefined'
+    ? `${window.location.origin}${TEMPLATE_URL}`
+    : TEMPLATE_URL;
+
+  const [copyMsg, setCopyMsg] = useState('');
+  const copyTemplateUrl = async () => {
+    try {
+      await navigator.clipboard.writeText(shareUrl);
+      setCopyMsg(t('owner.customers.import.copyOk'));
+      setTimeout(() => setCopyMsg(''), 2000);
+    } catch (_e) {
+      // Fallback for older browsers: select the URL in an input the
+      // owner can manually copy. Cheap UX — surface the URL as plain
+      // text alongside the button so it's always selectable too.
+      setCopyMsg(t('owner.customers.import.copyManual'));
+    }
   };
 
   const onFile = (e) => {
@@ -363,17 +360,32 @@ function ImportCustomers({ auth, community, onDone, t }) {
         {t('owner.customers.import.subtitle')}
       </p>
 
-      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-        <button type="button" className="tax-btn tax-btn--ghost tax-btn--sm"
-                onClick={downloadTemplate}
-                style={{ color: 'var(--tax-brand-primary)', borderColor: 'var(--tax-brand-primary)' }}>
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+        <a href={TEMPLATE_URL} download className="tax-btn tax-btn--ghost tax-btn--sm"
+           style={{ color: 'var(--tax-brand-primary)', borderColor: 'var(--tax-brand-primary)' }}>
           {t('owner.customers.import.downloadTemplate')}
+        </a>
+        <button type="button" className="tax-btn tax-btn--ghost tax-btn--sm"
+                onClick={copyTemplateUrl}
+                style={{ color: 'var(--tax-text)' }}>
+          {t('owner.customers.import.copyUrl')}
         </button>
         <label className="tax-btn tax-btn--ghost tax-btn--sm"
                style={{ color: 'var(--tax-text)', cursor: 'pointer' }}>
           {t('owner.customers.import.pickFile')}
           <input type="file" accept=".csv,text/csv,text/plain" style={{ display: 'none' }} onChange={onFile} />
         </label>
+      </div>
+      {/* Always-visible shareable URL — so owners can copy by hand when
+          clipboard access isn't available (older browsers, locked-down
+          mobile, etc.) */}
+      <div style={{ fontSize: 12, color: 'var(--tax-muted)', marginTop: 4 }}>
+        {t('owner.customers.import.shareUrlHint')}&nbsp;
+        <a href={TEMPLATE_URL} target="_blank" rel="noopener noreferrer"
+           style={{ color: 'var(--tax-brand-primary)', fontFamily: 'monospace', wordBreak: 'break-all' }}>
+          {shareUrl}
+        </a>
+        {copyMsg && <span style={{ marginLeft: 8, color: 'var(--tax-success)' }}>{copyMsg}</span>}
       </div>
 
       {/* Phase: mode picker — controls what happens when a row's email

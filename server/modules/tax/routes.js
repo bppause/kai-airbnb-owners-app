@@ -967,7 +967,16 @@ module.exports = function createTaxRouter(deps) {
     if (field.length || row.length) { row.push(field); rows.push(row); }
     // Strip fully-empty trailing rows
     while (rows.length && rows[rows.length - 1].every(c => !c || c === '')) rows.pop();
-    return rows;
+    // Drop comment rows — anything where the first non-blank field starts
+    // with "#". Lets the shareable template include documentation inline
+    // without forcing the owner to manually delete it before upload. We
+    // never drop the first row (header) regardless, even if someone names
+    // a column starting with "#" — unlikely but defensive.
+    return rows.filter((r, i) => {
+      if (i === 0) return true;
+      const firstFilled = r.find(c => c && String(c).trim());
+      return !firstFilled || !String(firstFilled).trim().startsWith('#');
+    });
   }
 
   // ── GET /admin/customers/:id ── (Phase 4a)
