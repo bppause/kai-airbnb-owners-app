@@ -2242,11 +2242,19 @@ module.exports = function createTaxRouter(deps) {
           .filter(n => Number.isFinite(n) && n >= 0 && n <= 365);
       }
       const ruleId = `trwr_${communitySlug}_${relTypeId}_${slug}`.slice(0, 200);
+      // Phase 4n.5: also persist the workflow spec onto the rule row so the
+      // upcoming relationship-driven cron can read it without joining through
+      // tax_filing_schedules. Mirrors the schedule row we just inserted.
       const { error: ruleErr } = await supabase.from('tax_relationship_workflow_rules').upsert({
         id: ruleId, community_id: communitySlug,
         relationship_type_id: relTypeId, filing_schedule_slug: slug,
         reminder_offsets_days: offsets,
         required_documents: Array.isArray(body.extraDocs) ? body.extraDocs : [],
+        name_i18n: { en: nameEn, es: nameEs },
+        description_i18n: { en: trim(body.descriptionEn || '', 1000), es: trim(body.descriptionEs || '', 1000) },
+        cadence,
+        anchor_rule: anchorRule,
+        info_checklist: infoChecklist,
         active: true, updated_at: new Date().toISOString(),
       }, { onConflict: 'id' });
       if (ruleErr) return sendSupabaseError(res, ruleErr);

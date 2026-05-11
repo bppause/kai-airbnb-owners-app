@@ -2074,6 +2074,32 @@ create index if not exists tax_relationship_workflow_rules_lookup_idx
 create index if not exists tax_relationship_workflow_rules_schedule_idx
   on public.tax_relationship_workflow_rules(community_id, filing_schedule_slug, active);
 
+-- Phase 4n.5 / 4n.6: promote a rule into a self-contained workflow row.
+-- After Phase 2 of the migration these columns will be the source of truth
+-- for period generation (cron walks rules instead of schedules). For now
+-- they're populated when new workflows are created via POST
+-- /admin/filing-schedules so we don't have to join through schedules.
+alter table public.tax_relationship_workflow_rules
+  add column if not exists name_i18n        jsonb not null default '{}'::jsonb,
+  add column if not exists description_i18n jsonb not null default '{}'::jsonb,
+  add column if not exists cadence          text,
+  add column if not exists anchor_rule      jsonb,
+  add column if not exists info_checklist   jsonb not null default '[]'::jsonb;
+
+-- One-shot backfill from the linked schedule. Idempotent — only fills NULL
+-- or empty values, so re-running won't clobber owner-edited workflow text.
+-- Safe to skip when there's no test data; included here so re-runs on a
+-- fresh tenant land in a consistent state.
+update public.tax_relationship_workflow_rules r
+   set name_i18n        = case when r.name_i18n = '{}'::jsonb then coalesce(s.name_i18n, '{}'::jsonb) else r.name_i18n end,
+       description_i18n = case when r.description_i18n = '{}'::jsonb then coalesce(s.description_i18n, '{}'::jsonb) else r.description_i18n end,
+       cadence          = coalesce(r.cadence, s.cadence),
+       anchor_rule      = coalesce(r.anchor_rule, s.anchor_rule),
+       info_checklist   = case when r.info_checklist = '[]'::jsonb then coalesce(s.info_checklist, '[]'::jsonb) else r.info_checklist end
+  from public.tax_filing_schedules s
+ where r.community_id = s.community_id
+   and r.filing_schedule_slug = s.slug;
+
 -- ─── Per-community relationship types (Phase 4k) ──────────────────────────────
 -- Existing rows in tax_relationship_types (the 13 seeded "platform default"
 -- services) have community_id = NULL and are visible to every community.

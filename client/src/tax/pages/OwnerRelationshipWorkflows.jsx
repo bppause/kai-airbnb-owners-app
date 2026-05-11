@@ -16,7 +16,11 @@ import { generatePeriods, upcomingReminderFires, todayIsoUtc } from '../lib/sche
 // type, required }. Schema is the same as schedule.info_checklist so the
 // reminder rendering loop doesn't need to branch.
 
-const DOC_TYPES = ['text', 'amount', 'date', 'file', 'note'];
+// Phase 4n.5: type values aligned with what PortalFiling/Respond actually
+// render. `currency` → numeric input with $0.01 step, `number` → numeric,
+// `text` → multi-line textarea, `date` → native date picker, `file` → file
+// upload that writes to tax_documents with the filing context.
+const DOC_TYPES = ['currency', 'number', 'text', 'date', 'file'];
 
 export default function OwnerRelationshipWorkflows() {
   const { locale, t } = useT();
@@ -726,9 +730,7 @@ function CreateWorkflowModal({ open, onClose, t, onCreate }) {
                 <input type="text" value={d.label_i18n?.es || ''} placeholder={t('owner.workflows.docLabelEs')}
                        onChange={e => updateDoc(i, { label_i18n: { ...(d.label_i18n || {}), es: e.target.value } })} />
                 <select value={d.type || 'text'} onChange={e => updateDoc(i, { type: e.target.value })}>
-                  <option value="text">text</option><option value="amount">amount</option>
-                  <option value="date">date</option><option value="file">file</option>
-                  <option value="note">note</option>
+                  {DOC_TYPES.map(opt => <option key={opt} value={opt}>{opt}</option>)}
                 </select>
                 <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12 }}>
                   <input type="checkbox" checked={d.required !== false}
