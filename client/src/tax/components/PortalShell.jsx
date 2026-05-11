@@ -23,6 +23,7 @@ export default function PortalShell({ community, active, children }) {
           </a>
           <nav className="tax-nav" aria-label="Portal">
             <a href={base} className={active === 'dashboard' ? 'active' : ''}>{t('portal.nav.dashboard')}</a>
+            <a href={`${base}/documents`} className={active === 'documents' ? 'active' : ''}>{t('portal.nav.documents')}</a>
             <a href={`${base}/faqs`} className={active === 'faqs' ? 'active' : ''}>{t('portal.nav.faqs')}</a>
             <a href={`${base}/profile`} className={active === 'profile' ? 'active' : ''}>{t('portal.nav.profile')}</a>
             <LocaleSwitcher />

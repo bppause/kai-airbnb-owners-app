@@ -38,6 +38,8 @@ module.exports = function createTaxRouter(deps) {
     supabase, requireSupabaseEnv, sendSupabaseError,
     auditLog,
     sendTaxLeadEmail,
+    sendTaxDocumentEmail,
+    publicAppUrl,
     isGlobalAdmin,
     runReminderCron,
   } = deps;
@@ -840,6 +842,303 @@ module.exports = function createTaxRouter(deps) {
     if (error) return sendSupabaseError(res, error);
     res.json({ ok: true });
   });
+
+  // ────────────────────────────────────────────────────────────────────────────
+  // Phase 2d: customer documents
+  //
+  // Files live in the private `tax-documents` Supabase Storage bucket. The
+  // server holds the service role key and signs upload/download URLs that
+  // the client uses directly — no file bytes pass through the Node tier.
+  // ────────────────────────────────────────────────────────────────────────────
+  const DOCS_BUCKET = 'tax-documents';
+  const MAX_DOC_BYTES = 25 * 1024 * 1024;
+  const DOC_MIME_ALLOWLIST = new Set([
+    'application/pdf',
+    'image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/heic', 'image/heif',
+    'application/msword',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    'application/vnd.ms-excel',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    'text/csv',
+    'text/plain',
+  ]);
+  const DOWNLOAD_URL_TTL_SECONDS = 5 * 60;
+
+  function sanitizeFileName(name) {
+    const s = String(name || '').trim().replace(/[\\/]/g, '_').replace(/\x00/g, '');
+    return s.slice(0, 255) || 'file';
+  }
+  function pathFor(communityId, customerId, docId) {
+    return `${encodeURIComponent(communityId)}/${encodeURIComponent(customerId)}/${docId}`;
+  }
+  function isAllowedMime(m) { return DOC_MIME_ALLOWLIST.has(String(m || '').toLowerCase()); }
+
+  // ── POST /portal/documents/upload-url ── (auth-gated customer)
+  // Creates a draft document row and returns a signed upload URL. Client then
+  // PUTs the file directly to Supabase Storage and calls /finalize.
+  router.post('/portal/documents/upload-url', async (req, res) => {
+    const customer = await requireTaxCustomer(req, res); if (!customer) return;
+    const body = req.body || {};
+    const fileName = sanitizeFileName(body.fileName);
+    const mimeType = trim(body.mimeType, 200).toLowerCase();
+    const sizeBytes = Number(body.sizeBytes);
+    const kind = trim(body.kind, 80) || 'general';
+    if (!fileName || !mimeType) return res.status(400).json({ error: 'fileName and mimeType required.' });
+    if (!isAllowedMime(mimeType)) return res.status(415).json({ error: 'File type not supported.' });
+    if (!Number.isFinite(sizeBytes) || sizeBytes <= 0 || sizeBytes > MAX_DOC_BYTES) {
+      return res.status(413).json({ error: 'File exceeds the 25 MB size limit.' });
+    }
+
+    const docId = 'tdoc_' + uuidv4().slice(0, 16);
+    const path = pathFor(customer.community_id, customer.id, docId);
+    const { data: signed, error: sErr } = await supabase.storage
+      .from(DOCS_BUCKET).createSignedUploadUrl(path);
+    if (sErr) {
+      warn('[tax-docs] createSignedUploadUrl failed', sErr.message);
+      return res.status(500).json({ error: 'Could not prepare upload. Please retry.' });
+    }
+
+    const { error: iErr } = await supabase.from('tax_documents').insert({
+      id: docId,
+      community_id: customer.community_id,
+      customer_id: customer.id,
+      source: 'customer',
+      kind,
+      file_name: fileName,
+      mime_type: mimeType,
+      size_bytes: sizeBytes,
+      storage_path: path,
+      status: 'draft',
+      uploaded_by_role: 'customer',
+      uploaded_by_email: customer.email,
+    });
+    if (iErr) return sendSupabaseError(res, iErr);
+
+    res.json({ id: docId, signedUrl: signed.signedUrl, path, expiresInSeconds: 7200 });
+  });
+
+  // ── POST /portal/documents/:id/finalize ── (auth-gated customer)
+  // Flips the doc status to 'uploaded' after the PUT succeeds. We trust the
+  // client here; if the file did not actually upload, the download URL will
+  // 404 when used. A future cleanup job can sweep abandoned drafts.
+  router.post('/portal/documents/:id/finalize', async (req, res) => {
+    const customer = await requireTaxCustomer(req, res); if (!customer) return;
+    const docId = trim(req.params.id, 200);
+    const { data: doc } = await supabase.from('tax_documents')
+      .select('id, customer_id, source, status').eq('id', docId).maybeSingle();
+    if (!doc || doc.customer_id !== customer.id) return res.status(404).json({ error: 'Document not found.' });
+    if (doc.source !== 'customer') return res.status(403).json({ error: 'Not allowed.' });
+    if (doc.status === 'uploaded') return res.json({ ok: true });
+    const { error } = await supabase.from('tax_documents')
+      .update({ status: 'uploaded', uploaded_at: new Date().toISOString(), updated_at: new Date().toISOString() })
+      .eq('id', docId);
+    if (error) return sendSupabaseError(res, error);
+    try {
+      await auditLog({ entity: 'tax.document', entityId: docId, action: 'upload_customer',
+        actorEmail: customer.email, actorName: customer.name });
+    } catch (_e) {}
+    res.json({ ok: true });
+  });
+
+  // ── GET /portal/documents ── (auth-gated customer)
+  router.get('/portal/documents', async (req, res) => {
+    const customer = await requireTaxCustomer(req, res); if (!customer) return;
+    const { data, error } = await supabase.from('tax_documents')
+      .select('id, source, kind, file_name, mime_type, size_bytes, status, uploaded_at, uploaded_by_role, created_at, period_id')
+      .eq('customer_id', customer.id).is('deleted_at', null).eq('status', 'uploaded')
+      .order('created_at', { ascending: false }).limit(500);
+    if (error) return sendSupabaseError(res, error);
+    res.json({ documents: data || [] });
+  });
+
+  // ── GET /portal/documents/:id/download-url ── (auth-gated customer)
+  router.get('/portal/documents/:id/download-url', async (req, res) => {
+    const customer = await requireTaxCustomer(req, res); if (!customer) return;
+    const docId = trim(req.params.id, 200);
+    const { data: doc } = await supabase.from('tax_documents')
+      .select('id, customer_id, storage_path, file_name, status, deleted_at')
+      .eq('id', docId).maybeSingle();
+    if (!doc || doc.customer_id !== customer.id || doc.deleted_at) return res.status(404).json({ error: 'Document not found.' });
+    if (doc.status !== 'uploaded') return res.status(409).json({ error: 'Document not ready.' });
+    const { data: signed, error } = await supabase.storage
+      .from(DOCS_BUCKET).createSignedUrl(doc.storage_path, DOWNLOAD_URL_TTL_SECONDS, { download: doc.file_name });
+    if (error) { warn('[tax-docs] createSignedUrl failed', error.message); return res.status(500).json({ error: 'Could not prepare download.' }); }
+    res.json({ signedUrl: signed.signedUrl, fileName: doc.file_name, expiresInSeconds: DOWNLOAD_URL_TTL_SECONDS });
+  });
+
+  // ── DELETE /portal/documents/:id ── (auth-gated customer, soft delete)
+  router.delete('/portal/documents/:id', async (req, res) => {
+    const customer = await requireTaxCustomer(req, res); if (!customer) return;
+    const docId = trim(req.params.id, 200);
+    const { data: doc } = await supabase.from('tax_documents')
+      .select('id, customer_id, source').eq('id', docId).maybeSingle();
+    if (!doc || doc.customer_id !== customer.id) return res.status(404).json({ error: 'Document not found.' });
+    // Customers can only delete docs THEY uploaded. Practice-uploaded docs are
+    // considered records of work performed and must be removed by the owner.
+    if (doc.source !== 'customer') return res.status(403).json({ error: 'Contact your tax practice to remove this document.' });
+    const { error } = await supabase.from('tax_documents')
+      .update({ deleted_at: new Date().toISOString(), updated_at: new Date().toISOString() })
+      .eq('id', docId);
+    if (error) return sendSupabaseError(res, error);
+    try {
+      await auditLog({ entity: 'tax.document', entityId: docId, action: 'delete_customer',
+        actorEmail: customer.email, actorName: customer.name });
+    } catch (_e) {}
+    res.json({ ok: true });
+  });
+
+  // ── GET /admin/customers/:id/documents ── (global admin)
+  router.get('/admin/customers/:id/documents', async (req, res) => {
+    if (!requireGlobalAdmin(req, res)) return;
+    if (!requireSupabaseEnv(res)) return;
+    const customerId = trim(req.params.id, 200);
+    const { data, error } = await supabase.from('tax_documents')
+      .select('id, community_id, source, kind, file_name, mime_type, size_bytes, status, uploaded_at, uploaded_by_role, uploaded_by_email, period_id, created_at')
+      .eq('customer_id', customerId).is('deleted_at', null)
+      .order('created_at', { ascending: false }).limit(500);
+    if (error) return sendSupabaseError(res, error);
+    res.json({ documents: data || [] });
+  });
+
+  // ── POST /admin/customers/:id/documents/upload-url ── (global admin)
+  // Owner uploads a document FOR the customer (completed return, etc.). On
+  // finalize the customer gets an in-app + email notification.
+  router.post('/admin/customers/:id/documents/upload-url', async (req, res) => {
+    if (!requireGlobalAdmin(req, res)) return;
+    if (!requireSupabaseEnv(res)) return;
+    const customerId = trim(req.params.id, 200);
+    const body = req.body || {};
+    const fileName = sanitizeFileName(body.fileName);
+    const mimeType = trim(body.mimeType, 200).toLowerCase();
+    const sizeBytes = Number(body.sizeBytes);
+    const kind = trim(body.kind, 80) || 'general';
+    const periodId = trim(body.periodId, 200) || null;
+    if (!fileName || !mimeType) return res.status(400).json({ error: 'fileName and mimeType required.' });
+    if (!isAllowedMime(mimeType)) return res.status(415).json({ error: 'File type not supported.' });
+    if (!Number.isFinite(sizeBytes) || sizeBytes <= 0 || sizeBytes > MAX_DOC_BYTES) {
+      return res.status(413).json({ error: 'File exceeds the 25 MB size limit.' });
+    }
+    const { data: cust } = await supabase.from('tax_customers')
+      .select('id, community_id').eq('id', customerId).maybeSingle();
+    if (!cust) return res.status(404).json({ error: 'Customer not found.' });
+
+    const docId = 'tdoc_' + uuidv4().slice(0, 16);
+    const path = pathFor(cust.community_id, cust.id, docId);
+    const { data: signed, error: sErr } = await supabase.storage
+      .from(DOCS_BUCKET).createSignedUploadUrl(path);
+    if (sErr) {
+      warn('[tax-docs] createSignedUploadUrl failed', sErr.message);
+      return res.status(500).json({ error: 'Could not prepare upload. Please retry.' });
+    }
+    const actor = trim(req.get('x-admin-email') || '', 200).toLowerCase();
+    const { error: iErr } = await supabase.from('tax_documents').insert({
+      id: docId,
+      community_id: cust.community_id,
+      customer_id: cust.id,
+      period_id: periodId,
+      source: 'practice',
+      kind,
+      file_name: fileName,
+      mime_type: mimeType,
+      size_bytes: sizeBytes,
+      storage_path: path,
+      status: 'draft',
+      uploaded_by_role: 'practice',
+      uploaded_by_email: actor,
+    });
+    if (iErr) return sendSupabaseError(res, iErr);
+    res.json({ id: docId, signedUrl: signed.signedUrl, path, expiresInSeconds: 7200 });
+  });
+
+  // ── POST /admin/documents/:id/finalize ── (global admin)
+  // Flips to uploaded + notifies the customer.
+  router.post('/admin/documents/:id/finalize', async (req, res) => {
+    if (!requireGlobalAdmin(req, res)) return;
+    if (!requireSupabaseEnv(res)) return;
+    const docId = trim(req.params.id, 200);
+    const { data: doc } = await supabase.from('tax_documents')
+      .select('id, community_id, customer_id, source, status, file_name, kind')
+      .eq('id', docId).maybeSingle();
+    if (!doc) return res.status(404).json({ error: 'Document not found.' });
+    if (doc.source !== 'practice') return res.status(403).json({ error: 'Only practice uploads finalize through admin.' });
+    if (doc.status === 'uploaded') return res.json({ ok: true });
+
+    const { error } = await supabase.from('tax_documents')
+      .update({ status: 'uploaded', uploaded_at: new Date().toISOString(), updated_at: new Date().toISOString() })
+      .eq('id', docId);
+    if (error) return sendSupabaseError(res, error);
+
+    // Notify the customer (in-app + email when configured).
+    try { await notifyCustomerOfDocument(doc); } catch (e) { warn('[tax-docs] notify failed', e?.message || e); }
+    try {
+      await auditLog({ entity: 'tax.document', entityId: docId, action: 'upload_practice',
+        actorEmail: trim(req.get('x-admin-email') || '', 200).toLowerCase() || 'admin' });
+    } catch (_e) {}
+    res.json({ ok: true });
+  });
+
+  // ── GET /admin/documents/:id/download-url ── (global admin)
+  router.get('/admin/documents/:id/download-url', async (req, res) => {
+    if (!requireGlobalAdmin(req, res)) return;
+    if (!requireSupabaseEnv(res)) return;
+    const docId = trim(req.params.id, 200);
+    const { data: doc } = await supabase.from('tax_documents')
+      .select('id, storage_path, file_name, status, deleted_at').eq('id', docId).maybeSingle();
+    if (!doc || doc.deleted_at) return res.status(404).json({ error: 'Document not found.' });
+    if (doc.status !== 'uploaded') return res.status(409).json({ error: 'Document not ready.' });
+    const { data: signed, error } = await supabase.storage
+      .from(DOCS_BUCKET).createSignedUrl(doc.storage_path, DOWNLOAD_URL_TTL_SECONDS, { download: doc.file_name });
+    if (error) return res.status(500).json({ error: 'Could not prepare download.' });
+    res.json({ signedUrl: signed.signedUrl, fileName: doc.file_name, expiresInSeconds: DOWNLOAD_URL_TTL_SECONDS });
+  });
+
+  // ── DELETE /admin/documents/:id ── (global admin, hard delete)
+  // Removes the storage object AND the metadata row. Use this for sensitive
+  // data the practice doesn't want lingering. Use the soft-delete on the
+  // customer endpoint when keeping the audit trail matters more.
+  router.delete('/admin/documents/:id', async (req, res) => {
+    if (!requireGlobalAdmin(req, res)) return;
+    if (!requireSupabaseEnv(res)) return;
+    const docId = trim(req.params.id, 200);
+    const { data: doc } = await supabase.from('tax_documents')
+      .select('id, storage_path').eq('id', docId).maybeSingle();
+    if (!doc) return res.status(404).json({ error: 'Document not found.' });
+    const { error: rErr } = await supabase.storage.from(DOCS_BUCKET).remove([doc.storage_path]);
+    if (rErr) warn('[tax-docs] storage remove failed (continuing)', rErr.message);
+    const { error } = await supabase.from('tax_documents').delete().eq('id', docId);
+    if (error) return sendSupabaseError(res, error);
+    res.json({ ok: true });
+  });
+
+  // Helper: drop an in-app notification + email when a practice-uploaded
+  // document becomes available to a customer.
+  async function notifyCustomerOfDocument(doc) {
+    const [{ data: cust }, { data: community }] = await Promise.all([
+      supabase.from('tax_customers').select('id, email, name, locale').eq('id', doc.customer_id).maybeSingle(),
+      supabase.from('communities').select('id, name, contact_email').eq('id', doc.community_id).maybeSingle(),
+    ]);
+    if (!cust) return;
+    const portalUrl = `${(typeof publicAppUrl === 'function' ? publicAppUrl() : '')}/tax/${doc.community_id}/portal`;
+    await supabase.from('tax_notifications').insert({
+      id: 'tnotif_' + uuidv4().slice(0, 12),
+      community_id: doc.community_id,
+      customer_id: cust.id,
+      type: 'document_uploaded',
+      title_i18n: {
+        es: `Nuevo documento disponible: ${doc.file_name}`,
+        en: `New document available: ${doc.file_name}`,
+      },
+      body_i18n: {
+        es: `Su oficina de impuestos cargó un documento nuevo en su portal. Inicie sesión para revisarlo y descargarlo.`,
+        en: `Your tax practice uploaded a new document to your portal. Sign in to review and download it.`,
+      },
+      payload: { documentId: doc.id, fileName: doc.file_name, kind: doc.kind },
+    });
+    if (typeof sendTaxDocumentEmail === 'function') {
+      try { await sendTaxDocumentEmail({ cust, community, doc, portalUrl }); }
+      catch (e) { warn('[tax-docs] document email failed', e?.message || e); }
+    }
+  }
 
   // ── Helpers ────────────────────────────────────────────────────────────────
   async function activeTypeIdsForCustomer(customerId) {

@@ -70,6 +70,7 @@
   "respond.error.generic": "No pudimos guardar su información. Inténtelo de nuevo o contáctenos.",
 
   "portal.nav.dashboard": "Panel",
+  "portal.nav.documents": "Documentos",
   "portal.nav.faqs": "Preguntas frecuentes",
   "portal.nav.profile": "Perfil",
   "portal.signout": "Cerrar sesión",
@@ -138,5 +139,23 @@
   "portal.faqs.empty": "Aún no hemos etiquetado servicios en su perfil, por lo que no hay preguntas frecuentes personalizadas disponibles. Contacte a su contador y lo configuraremos.",
   "portal.faqs.noneForType": "Aún no hay preguntas frecuentes configuradas para este servicio.",
   "portal.faqs.customLabel": "Nota personalizada de su oficina de impuestos",
-  "portal.faqs.disclaimer": "Esta información es solo orientación general y no sustituye el asesoramiento profesional personalizado. Las leyes y procedimientos fiscales cambian — confirme siempre los detalles con su contador o la agencia correspondiente antes de actuar."
+  "portal.faqs.disclaimer": "Esta información es solo orientación general y no sustituye el asesoramiento profesional personalizado. Las leyes y procedimientos fiscales cambian — confirme siempre los detalles con su contador o la agencia correspondiente antes de actuar.",
+
+  "portal.documents.title": "Documentos",
+  "portal.documents.subtitle": "Suba documentos de respaldo y descargue los archivos que su oficina de impuestos comparte con usted. Los archivos se almacenan de forma segura y solo son accesibles para usted y su oficina de impuestos.",
+  "portal.documents.uploadHint": "Suba estados de cuenta, declaraciones anteriores, identificaciones o cualquier documento que le hayamos solicitado.",
+  "portal.documents.uploadBtn": "Subir un archivo",
+  "portal.documents.uploading_short": "Subiendo…",
+  "portal.documents.uploading": "Subiendo {name}…",
+  "portal.documents.uploadSuccess": "Se subió {name}.",
+  "portal.documents.limits": "PDF, imagen, Word, Excel, CSV o texto sin formato. Máximo 25 MB.",
+  "portal.documents.empty": "Aún no hay documentos. Suba archivos de respaldo con el botón de arriba.",
+  "portal.documents.fromPractice": "De su oficina de impuestos",
+  "portal.documents.fromYou": "Subido por usted",
+  "portal.documents.download": "Descargar",
+  "portal.documents.delete": "Eliminar",
+  "portal.documents.confirmDelete": "¿Eliminar \"{name}\"? Esta acción no se puede deshacer.",
+  "portal.documents.errUnsupported": "Ese tipo de archivo no es compatible.",
+  "portal.documents.errTooLarge": "El archivo excede el límite de 25 MB.",
+  "portal.documents.errGeneric": "Algo salió mal. Inténtelo de nuevo o contacte a su oficina de impuestos."
 }

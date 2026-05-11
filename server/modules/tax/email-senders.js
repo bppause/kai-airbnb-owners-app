@@ -174,5 +174,67 @@ module.exports = function createTaxSenders(deps) {
     return n ? `Estimado/a ${n}:` : 'Estimado/a cliente:';
   }
 
-  return { sendTaxLeadEmail, sendTaxReminderEmail };
+  // ── Document-available email (Phase 2d) ──────────────────────────────────
+  // Sent when the practice uploads a document to the customer's portal —
+  // typically a completed return, K-1, or signed engagement letter. Tone
+  // matches the formal reminder email; CTA is the portal home.
+  const sendTaxDocumentEmail = async ({ cust, community, doc, portalUrl }) => {
+    if (!emailConfigured) return { sent: false, skipped: true, reason: 'email_not_configured' };
+    const to = String(cust?.email || '').trim();
+    if (!to) return { sent: false, skipped: true, reason: 'customer_email_missing' };
+
+    const lang = cust.locale === 'en' ? 'en' : 'es';
+    const langTag = lang === 'en' ? 'en' : 'es-CO';
+    const practiceName = community?.name || 'Tax America Services';
+    const formalGreeting = formalSalutation(cust.name, lang);
+    const closing = lang === 'en'
+      ? `Sincerely,\n${practiceName}`
+      : `Atentamente,\n${practiceName}`;
+
+    const subject = lang === 'en'
+      ? `New document available in your portal — ${doc.file_name}`
+      : `Nuevo documento disponible en su portal — ${doc.file_name}`;
+
+    const intro = lang === 'en'
+      ? `${practiceName} has uploaded a new document to your secure portal:`
+      : `${practiceName} ha cargado un documento nuevo en su portal seguro:`;
+    const ctaText = lang === 'en'
+      ? `Please sign in to review and download it. If you have questions about this document, reply to this email or contact our office.`
+      : `Por favor inicie sesión para revisarlo y descargarlo. Si tiene preguntas sobre este documento, responda a este correo o contacte a nuestra oficina.`;
+    const ctaLabel = lang === 'en' ? 'Open my portal' : 'Abrir mi portal';
+
+    const text = [
+      formalGreeting,
+      '',
+      intro,
+      `  • ${doc.file_name}`,
+      '',
+      ctaText,
+      portalUrl || '',
+      '',
+      closing,
+    ].join('\n');
+
+    const html = `
+      <div style="font-family:Arial,sans-serif;max-width:640px;color:#111">
+        <p>${escapeHtml(formalGreeting)}</p>
+        <p>${escapeHtml(intro)}</p>
+        <p style="background:#f4f7fb;border-left:3px solid #1d3a6d;padding:10px 14px;border-radius:6px;margin:16px 0">
+          <strong>${escapeHtml(doc.file_name)}</strong>
+        </p>
+        <p>${escapeHtml(ctaText)}</p>
+        ${portalUrl ? `
+          <p style="margin:24px 0">
+            <a href="${portalUrl}" style="background:#1d3a6d;color:#fff;text-decoration:none;padding:12px 22px;border-radius:8px;font-weight:600;display:inline-block">${escapeHtml(ctaLabel)}</a>
+          </p>
+          <p style="color:#666;font-size:13px">${escapeHtml(portalUrl)}</p>
+        ` : ''}
+        <p style="white-space:pre-line">${escapeHtml(closing)}</p>
+      </div>
+    `;
+
+    return sendSpanishEmail({ to, subject, text, html, lang: langTag });
+  };
+
+  return { sendTaxLeadEmail, sendTaxReminderEmail, sendTaxDocumentEmail };
 };
