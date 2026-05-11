@@ -94,6 +94,8 @@
   "portal.dashboard.upcoming": "Próximas declaraciones",
   "portal.dashboard.empty": "No tiene declaraciones pendientes.",
   "portal.dashboard.notifications": "Notificaciones recientes",
+  "portal.dashboard.tips": "Consejos para sus servicios",
+  "portal.dashboard.tipsHint": "Recordatorios prácticos breves adaptados a los servicios que le brindamos.",
   "portal.dashboard.noNotifications": "Aún no hay notificaciones.",
   "portal.dashboard.due": "vence",
   "portal.dashboard.pastFilings": "Declaraciones pasadas ({count})",

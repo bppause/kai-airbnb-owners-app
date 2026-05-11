@@ -20,12 +20,21 @@ export default function PortalDashboard() {
 
   const [filings, setFilings] = useState(null);
   const [notifications, setNotifications] = useState(null);
+  const [tipGroups, setTipGroups] = useState(null);
   const [err, setErr] = useState('');
 
   useEffect(() => {
     if (!fbUser || !community) return;
-    Promise.all([taxApi.getFilings(auth), taxApi.getNotifications(auth)])
-      .then(([f, n]) => { setFilings(f.filings || []); setNotifications(n.notifications || []); })
+    Promise.all([
+      taxApi.getFilings(auth),
+      taxApi.getNotifications(auth),
+      taxApi.getTips(auth),
+    ])
+      .then(([f, n, tg]) => {
+        setFilings(f.filings || []);
+        setNotifications(n.notifications || []);
+        setTipGroups(tg.groups || []);
+      })
       .catch(e => setErr(e?.message || t('error.loadFailed')));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fbUser, community]);
@@ -61,6 +70,38 @@ export default function PortalDashboard() {
               ))}
             </div>
       }
+
+      {tipGroups && tipGroups.length > 0 && (
+        <section style={{ marginTop: 40 }}>
+          <h2 style={{ marginBottom: 4 }}>{t('portal.dashboard.tips')}</h2>
+          <p style={{ color: 'var(--tax-muted)', marginTop: 0, marginBottom: 16, fontSize: 14 }}>
+            {t('portal.dashboard.tipsHint')}
+          </p>
+          <div style={{ display: 'grid', gap: 12 }}>
+            {tipGroups.map(g => (
+              <div key={g.type.id} style={{
+                background: '#f4f7fb',
+                borderLeft: '3px solid var(--tax-brand-primary)',
+                borderRadius: 8, padding: '14px 16px',
+              }}>
+                <div style={{
+                  fontSize: 12, textTransform: 'uppercase', letterSpacing: '.6px',
+                  color: 'var(--tax-muted)', marginBottom: 6,
+                }}>
+                  {pickI18n(g.type.name_i18n, locale).value}
+                </div>
+                <ul style={{ margin: 0, paddingLeft: 20, display: 'grid', gap: 6 }}>
+                  {g.tips.map(tip => (
+                    <li key={tip.id} style={{ fontSize: 14, lineHeight: 1.55 }}>
+                      {pickI18n(tip.tip_i18n, locale).value}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
 
       <h2 style={{ marginTop: 40 }}>{t('portal.dashboard.notifications')}</h2>
       {notifications === null ? <p>{t('loading')}</p>

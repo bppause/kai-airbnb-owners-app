@@ -141,19 +141,28 @@ module.exports = function createTaxRemindersCron(deps) {
     const token = await ensureResponseToken(row);
     const magicUrl = `${publicAppUrl()}/tax/respond/${token.raw}`;
 
+    // Phase 2c: pull `filing_reminder` tips for the customer's active
+    // relationship types. Cap at 3 to keep emails readable. Tips for the
+    // schedule's primary relationship (when we can infer one) go first.
+    const tips = await tipsForReminder(cust.id, sch);
+
     let result = { sent: false, reason: 'noop' };
     if (channel === 'email') {
       if (!emailConfigured) {
         result = { sent: false, reason: 'email_not_configured' };
       } else {
         try {
-          await sendTaxReminderEmail({ row, cust, sch, sub, magicUrl, offsetDays });
+          await sendTaxReminderEmail({ row, cust, sch, sub, magicUrl, offsetDays, tips });
           result = { sent: true };
         } catch (e) {
           result = { sent: false, reason: e?.message || 'send_failed' };
         }
       }
     } else if (channel === 'in_app') {
+      const tipLinesEs = tips.map(t => `• ${pickI18n(t.tip_i18n, 'es')}`).join('\n');
+      const tipLinesEn = tips.map(t => `• ${pickI18n(t.tip_i18n, 'en')}`).join('\n');
+      const tipBodyEs = tipLinesEs ? `\n\nRecordatorios útiles:\n${tipLinesEs}` : '';
+      const tipBodyEn = tipLinesEn ? `\n\nHelpful reminders:\n${tipLinesEn}` : '';
       const notif = {
         id: 'tnotif_' + uuidv4().slice(0, 12),
         community_id: row.community_id,
@@ -164,10 +173,10 @@ module.exports = function createTaxRemindersCron(deps) {
           en: `Reminder: ${pickI18n(sch.name_i18n, 'en')} due ${row.due_date}`,
         },
         body_i18n: {
-          es: `Por favor proporcione la información requerida para ${row.period_label}.`,
-          en: `Please provide the information needed for ${row.period_label}.`,
+          es: `Por favor proporcione la información requerida para ${row.period_label}.${tipBodyEs}`,
+          en: `Please provide the information needed for ${row.period_label}.${tipBodyEn}`,
         },
-        payload: { periodId: row.id, scheduleSlug: sch.slug, magicUrl, offsetDays },
+        payload: { periodId: row.id, scheduleSlug: sch.slug, magicUrl, offsetDays, tipIds: tips.map(t => t.id) },
       };
       const { error: nErr } = await supabase.from('tax_notifications').insert(notif);
       result = nErr ? { sent: false, reason: nErr.message } : { sent: true };
@@ -227,6 +236,46 @@ module.exports = function createTaxRemindersCron(deps) {
       expires_at: expiresAt.toISOString(),
     });
     return { raw, hash: tokenHash };
+  }
+
+  // Maps tax_filing_schedule slugs → relationship_type_ids, so we can sort
+  // the customer's filing-reminder tips with the most-relevant relationship
+  // first. Schedules we haven't mapped fall through and produce no priority
+  // boost — every tip for any of the customer's relationships is still
+  // eligible to appear (subject to the cap below).
+  const SCHEDULE_TO_REL = {
+    'ct-sut-monthly':      'business.sales_tax_filing',
+    'ct-sut-quarterly':    'business.sales_tax_filing',
+    'ct-sut-annual':       'business.sales_tax_filing',
+    'us-941-quarterly':    'business.payroll',
+    'us-940-annual':       'business.payroll',
+    'us-1065-annual':      'business.partnership_1065',
+    'us-1120s-annual':     'business.s_corp',
+    'us-1040-annual':      'individual.taxes',
+    'ct-est-quarterly':    'individual.taxes',
+  };
+  const MAX_TIPS_PER_REMINDER = 3;
+
+  async function tipsForReminder(customerId, sch) {
+    const { data: rels } = await supabase
+      .from('tax_customer_relationships')
+      .select('relationship_type_id')
+      .eq('customer_id', customerId).eq('active', true);
+    const typeIds = (rels || []).map(r => r.relationship_type_id);
+    if (!typeIds.length) return [];
+
+    const { data: tips } = await supabase
+      .from('tax_relationship_default_tips')
+      .select('id, relationship_type_id, context, display_order, tip_i18n, source_note')
+      .in('relationship_type_id', typeIds)
+      .eq('context', 'filing_reminder');
+    if (!tips || !tips.length) return [];
+
+    const primaryRel = SCHEDULE_TO_REL[sch?.slug] || null;
+    const score = (t) => (t.relationship_type_id === primaryRel ? 0 : 1);
+    tips.sort((a, b) =>
+      score(a) - score(b) || a.display_order - b.display_order);
+    return tips.slice(0, MAX_TIPS_PER_REMINDER);
   }
 
   function shiftDays(iso, days) {

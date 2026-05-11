@@ -94,6 +94,8 @@
   "portal.dashboard.upcoming": "Upcoming filings",
   "portal.dashboard.empty": "You have no upcoming filings.",
   "portal.dashboard.notifications": "Recent notifications",
+  "portal.dashboard.tips": "Tips for your services",
+  "portal.dashboard.tipsHint": "Short practical reminders tailored to the services we provide for you.",
   "portal.dashboard.noNotifications": "No notifications yet.",
   "portal.dashboard.due": "due",
   "portal.dashboard.pastFilings": "Past filings ({count})",

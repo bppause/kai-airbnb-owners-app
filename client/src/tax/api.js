@@ -54,4 +54,7 @@ export const taxApi = {
   // Portal (Phase 2b) — relationships + FAQs
   getRelationships(auth)          { return request('GET',  '/portal/relationships', undefined, auth); },
   getFaqs(auth)                   { return request('GET',  '/portal/faqs', undefined, auth); },
+
+  // Portal (Phase 2c) — relationship-tailored tips
+  getTips(auth)                   { return request('GET',  '/portal/tips', undefined, auth); },
 };
