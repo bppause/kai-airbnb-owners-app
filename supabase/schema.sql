@@ -722,5 +722,289 @@ create index if not exists idx_tax_leads_email on public.tax_leads(email);
 alter table public.tax_products disable row level security;
 alter table public.tax_leads disable row level security;
 
+-- ─────────────────────────────────────────────────────────────────────────────
+-- TAX MODULE — Phase 1.5: Compliance Reminders
+-- Subscriptions, recurring schedules, filing periods, magic-link responses,
+-- in-app notifications. See server/modules/tax/ for the cron + dispatcher.
+-- ─────────────────────────────────────────────────────────────────────────────
+
+-- Customers known to the tax module. No Firebase auth yet in Phase 1.5 —
+-- magic-link tokens identify them. Phase 2 adds firebase_uid + portal accounts.
+create table if not exists public.tax_customers (
+  id text primary key,
+  community_id text not null references public.communities(id) on delete cascade,
+  email text not null,
+  name text not null default '',
+  phone text not null default '',
+  locale text not null default 'es' check (locale in ('en','es')),
+  status text not null default 'active' check (status in ('active','paused','archived')),
+  notes text not null default '',
+  firebase_uid text not null default '',  -- Phase 2 populates this on first portal login
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (community_id, email)
+);
+create index if not exists idx_tax_customers_community on public.tax_customers(community_id, status);
+
+-- Schedule definitions — one row per recurring filing under a product.
+-- A product like "Payroll Services" has multiple schedules (941 quarterly,
+-- W-2 January). When a customer subscribes to the product, periods are
+-- generated from all `enabled=true` schedules unless the subscription opts
+-- some out via `active_schedule_slugs`.
+create table if not exists public.tax_filing_schedules (
+  id text primary key,                                   -- e.g. 'fed-941-quarterly'
+  community_id text not null references public.communities(id) on delete cascade,
+  product_id text not null references public.tax_products(id) on delete cascade,
+  slug text not null,
+  jurisdiction text not null default 'federal',          -- 'federal' | 'state:CT' | 'state:NY' | ...
+  cadence text not null check (cadence in ('monthly','quarterly','annual','custom')),
+  -- anchor_rule describes when the filing recurs. Shapes:
+  --   { type:'fixed_quarterly', dates:['04-15','06-15','09-15','01-15'] }
+  --   { type:'monthly_following', day:20 }   -- 20th of month FOLLOWING the period
+  --   { type:'annual', date:'01-31' }
+  anchor_rule jsonb not null default '{}'::jsonb,
+  -- info_checklist: array of { key, label_i18n, type ('number'|'text'|'currency'), required }
+  info_checklist jsonb not null default '[]'::jsonb,
+  name_i18n jsonb not null default '{}'::jsonb,
+  description_i18n jsonb not null default '{}'::jsonb,
+  enabled boolean not null default true,
+  display_order int not null default 100,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (community_id, slug)
+);
+create index if not exists idx_tax_filing_schedules_product on public.tax_filing_schedules(product_id, enabled);
+
+-- Customer × product enrollment. One row per recurring service per customer.
+create table if not exists public.tax_subscriptions (
+  id text primary key,
+  community_id text not null references public.communities(id) on delete cascade,
+  customer_id text not null references public.tax_customers(id) on delete cascade,
+  product_id text not null references public.tax_products(id) on delete cascade,
+  status text not null default 'active' check (status in ('active','paused','ended')),
+  start_date date not null default current_date,
+  end_date date,
+  -- null = all enabled schedules of this product; explicit list = only those slugs
+  active_schedule_slugs text[],
+  -- default both channels; owner can set ['email'] or ['in_app'] per subscription
+  reminder_channels text[] not null default '{email,in_app}',
+  -- default offsets relative to due date; negative = days before
+  reminder_offsets_days int[] not null default '{-14,-7,-3}',
+  custom_info_checklist jsonb,                            -- per-customer override; null = use schedule defaults
+  notes text not null default '',
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (customer_id, product_id)
+);
+create index if not exists idx_tax_subs_community on public.tax_subscriptions(community_id, status);
+create index if not exists idx_tax_subs_customer on public.tax_subscriptions(customer_id);
+
+-- Instance of an upcoming/past filing for a specific customer.
+create table if not exists public.tax_filing_periods (
+  id text primary key,
+  community_id text not null references public.communities(id) on delete cascade,
+  subscription_id text not null references public.tax_subscriptions(id) on delete cascade,
+  schedule_id text not null references public.tax_filing_schedules(id) on delete cascade,
+  customer_id text not null references public.tax_customers(id) on delete cascade,
+  period_label text not null default '',                  -- 'Q1 2026' | 'Jan 2026' | 'Tax Year 2025'
+  period_start date,
+  period_end date,
+  due_date date not null,
+  status text not null default 'pending' check (status in ('pending','info_requested','info_received','in_prep','filed','skipped')),
+  info_received_at timestamptz,
+  filed_at timestamptz,
+  assigned_employee_uid text not null default '',         -- Phase 3 wires this
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (subscription_id, schedule_id, due_date)
+);
+create index if not exists idx_tax_periods_due on public.tax_filing_periods(community_id, status, due_date);
+create index if not exists idx_tax_periods_customer on public.tax_filing_periods(customer_id, due_date desc);
+
+-- Magic-link tokens for customer info submissions. Token stored hashed
+-- (sha-256 hex). Single-use OR until the period reaches info_received.
+create table if not exists public.tax_response_tokens (
+  id text primary key,
+  period_id text not null references public.tax_filing_periods(id) on delete cascade,
+  token_hash text not null unique,
+  expires_at timestamptz not null,
+  used_at timestamptz,
+  created_at timestamptz not null default now()
+);
+create index if not exists idx_tax_tokens_period on public.tax_response_tokens(period_id);
+
+-- Captured customer responses for a filing period.
+create table if not exists public.tax_filing_responses (
+  id text primary key,
+  period_id text not null references public.tax_filing_periods(id) on delete cascade,
+  customer_id text not null references public.tax_customers(id) on delete cascade,
+  data jsonb not null default '{}'::jsonb,                -- { checklistKey: value, ... }
+  notes text not null default '',
+  submitted_at timestamptz not null default now(),
+  ip text not null default '',
+  user_agent text not null default ''
+);
+create index if not exists idx_tax_responses_period on public.tax_filing_responses(period_id, submitted_at desc);
+
+-- In-app notification rows. Phase 1.5 writes when channel includes 'in_app';
+-- Phase 2 customer portal renders unread rows for the customer.
+create table if not exists public.tax_notifications (
+  id text primary key,
+  community_id text not null references public.communities(id) on delete cascade,
+  customer_id text not null references public.tax_customers(id) on delete cascade,
+  type text not null,                                     -- 'reminder' | 'response_received' | ...
+  title_i18n jsonb not null default '{}'::jsonb,
+  body_i18n jsonb not null default '{}'::jsonb,
+  payload jsonb not null default '{}'::jsonb,             -- { periodId, scheduleSlug, magicUrl, ... }
+  read_at timestamptz,
+  created_at timestamptz not null default now()
+);
+create index if not exists idx_tax_notifs_customer on public.tax_notifications(customer_id, created_at desc);
+
+-- Audit reminder dispatch (separate from audit_logs to keep it queryable + cheap).
+create table if not exists public.tax_reminder_log (
+  id text primary key,
+  period_id text not null references public.tax_filing_periods(id) on delete cascade,
+  channel text not null check (channel in ('email','in_app')),
+  offset_days int not null,
+  status text not null check (status in ('sent','failed','skipped')),
+  reason text not null default '',
+  sent_at timestamptz not null default now()
+);
+create index if not exists idx_tax_reminder_log_period on public.tax_reminder_log(period_id, sent_at desc);
+create unique index if not exists ux_tax_reminder_once on public.tax_reminder_log(period_id, channel, offset_days) where status = 'sent';
+
+alter table public.tax_customers           disable row level security;
+alter table public.tax_subscriptions       disable row level security;
+alter table public.tax_filing_schedules    disable row level security;
+alter table public.tax_filing_periods      disable row level security;
+alter table public.tax_response_tokens     disable row level security;
+alter table public.tax_filing_responses    disable row level security;
+alter table public.tax_notifications       disable row level security;
+alter table public.tax_reminder_log        disable row level security;
+
+-- ── SEED: filing schedules for Tax America Services ─────────────────────────
+-- Federal (every state): Q1–Q4 estimated tax, Form 941 quarterly, W-2/1099 January.
+-- Connecticut: Sales & Use Tax monthly, Sales & Use Tax quarterly,
+-- CT Estimated Income Tax quarterly.
+-- Per owner feedback: federal payroll tax deposits + CT-941 are NOT customer-
+-- facing (owner handles directly), so they are omitted from this seed.
+
+insert into public.tax_filing_schedules (id, community_id, product_id, slug, jurisdiction, cadence, anchor_rule, info_checklist, name_i18n, description_i18n, display_order) values
+
+-- ── Federal estimated income tax (attached to Individual + Business products) ─
+('tax-america-services:fed-1040es', 'tax-america-services', 'tax-america-services:individual-tax', 'fed-1040es',
+  'federal', 'quarterly',
+  '{"type":"fixed_quarterly","dates":["04-15","06-15","09-15","01-15"]}'::jsonb,
+  '[
+    {"key":"income_estimate","type":"currency","required":true,"label_i18n":{"es":"Ingreso estimado del trimestre (USD)","en":"Estimated income for the quarter (USD)"}},
+    {"key":"deductions_estimate","type":"currency","required":false,"label_i18n":{"es":"Deducciones estimadas (USD)","en":"Estimated deductions (USD)"}},
+    {"key":"prior_year_paid","type":"currency","required":false,"label_i18n":{"es":"Pagos estimados previos del año (USD)","en":"Prior estimated payments this year (USD)"}},
+    {"key":"notes","type":"text","required":false,"label_i18n":{"es":"Notas o cambios de situación","en":"Notes or changes in situation"}}
+  ]'::jsonb,
+  '{"es":"Impuesto Estimado Federal (1040-ES)","en":"Federal Estimated Income Tax (1040-ES)"}'::jsonb,
+  '{"es":"Pago trimestral de impuesto estimado para individuos.","en":"Quarterly estimated income tax for individuals."}'::jsonb,
+  10),
+
+('tax-america-services:fed-1120w', 'tax-america-services', 'tax-america-services:business-tax', 'fed-1120w',
+  'federal', 'quarterly',
+  '{"type":"fixed_quarterly","dates":["04-15","06-15","09-15","12-15"]}'::jsonb,
+  '[
+    {"key":"taxable_income_estimate","type":"currency","required":true,"label_i18n":{"es":"Ingreso gravable estimado del trimestre (USD)","en":"Estimated taxable income for the quarter (USD)"}},
+    {"key":"prior_year_paid","type":"currency","required":false,"label_i18n":{"es":"Pagos estimados previos del año (USD)","en":"Prior estimated payments this year (USD)"}},
+    {"key":"notes","type":"text","required":false,"label_i18n":{"es":"Notas o cambios","en":"Notes or changes"}}
+  ]'::jsonb,
+  '{"es":"Impuesto Estimado Federal Corporativo (1120-W)","en":"Federal Corporate Estimated Tax (1120-W)"}'::jsonb,
+  '{"es":"Pago trimestral de impuesto estimado para corporaciones.","en":"Quarterly estimated income tax for corporations."}'::jsonb,
+  20),
+
+-- ── Federal Form 941 quarterly (attached to Payroll product) ────────────────
+('tax-america-services:fed-941', 'tax-america-services', 'tax-america-services:payroll', 'fed-941',
+  'federal', 'quarterly',
+  '{"type":"fixed_quarterly","dates":["04-30","07-31","10-31","01-31"]}'::jsonb,
+  '[
+    {"key":"total_wages","type":"currency","required":true,"label_i18n":{"es":"Salarios totales pagados en el trimestre (USD)","en":"Total wages paid in the quarter (USD)"}},
+    {"key":"federal_withheld","type":"currency","required":true,"label_i18n":{"es":"Impuesto federal retenido (USD)","en":"Federal income tax withheld (USD)"}},
+    {"key":"social_security_wages","type":"currency","required":true,"label_i18n":{"es":"Salarios sujetos a Seguro Social (USD)","en":"Social Security wages (USD)"}},
+    {"key":"medicare_wages","type":"currency","required":true,"label_i18n":{"es":"Salarios sujetos a Medicare (USD)","en":"Medicare wages (USD)"}},
+    {"key":"num_employees","type":"number","required":true,"label_i18n":{"es":"Número de empleados","en":"Number of employees"}},
+    {"key":"notes","type":"text","required":false,"label_i18n":{"es":"Notas","en":"Notes"}}
+  ]'::jsonb,
+  '{"es":"Declaración Trimestral del Empleador (Form 941)","en":"Employer''s Quarterly Federal Tax Return (Form 941)"}'::jsonb,
+  '{"es":"Reporte trimestral de impuestos retenidos, Seguro Social y Medicare.","en":"Quarterly report of withheld income tax, Social Security, and Medicare taxes."}'::jsonb,
+  30),
+
+-- ── Federal W-2 / 1099 January (attached to Payroll product) ────────────────
+('tax-america-services:fed-w2-1099', 'tax-america-services', 'tax-america-services:payroll', 'fed-w2-1099',
+  'federal', 'annual',
+  '{"type":"annual","date":"01-31"}'::jsonb,
+  '[
+    {"key":"num_w2","type":"number","required":true,"label_i18n":{"es":"Número de W-2 a emitir","en":"Number of W-2s to issue"}},
+    {"key":"num_1099","type":"number","required":true,"label_i18n":{"es":"Número de 1099 a emitir","en":"Number of 1099s to issue"}},
+    {"key":"contractor_list_notes","type":"text","required":false,"label_i18n":{"es":"Notas sobre contratistas o empleados nuevos","en":"Notes on new contractors or employees"}}
+  ]'::jsonb,
+  '{"es":"Emisión Anual de W-2 / 1099","en":"Annual W-2 / 1099 Filing"}'::jsonb,
+  '{"es":"Emisión anual de formularios W-2 y 1099 al 31 de enero.","en":"Annual issuance of W-2 and 1099 forms by January 31."}'::jsonb,
+  40),
+
+-- ── Connecticut Sales & Use Tax — monthly ────────────────────────────────────
+-- CT requires monthly filing for higher-volume sellers; quarterly otherwise.
+-- Subscription `active_schedule_slugs` picks which one applies per customer.
+('tax-america-services:ct-sut-monthly', 'tax-america-services', 'tax-america-services:sales-tax', 'ct-sut-monthly',
+  'state:CT', 'monthly',
+  '{"type":"monthly_following","day":20}'::jsonb,
+  '[
+    {"key":"gross_sales","type":"currency","required":true,"label_i18n":{"es":"Ventas brutas del mes (USD)","en":"Gross sales for the month (USD)"}},
+    {"key":"taxable_sales","type":"currency","required":true,"label_i18n":{"es":"Ventas gravables (USD)","en":"Taxable sales (USD)"}},
+    {"key":"exempt_sales","type":"currency","required":true,"label_i18n":{"es":"Ventas exentas (USD)","en":"Exempt sales (USD)"}},
+    {"key":"tax_collected","type":"currency","required":true,"label_i18n":{"es":"Impuesto sobre ventas recaudado (USD)","en":"Sales tax collected (USD)"}},
+    {"key":"notes","type":"text","required":false,"label_i18n":{"es":"Notas","en":"Notes"}}
+  ]'::jsonb,
+  '{"es":"Impuesto sobre Ventas y Uso de CT — Mensual","en":"CT Sales & Use Tax — Monthly"}'::jsonb,
+  '{"es":"Declaración mensual de impuesto sobre ventas (vence el día 20 del mes siguiente).","en":"Monthly sales tax return (due the 20th of the following month)."}'::jsonb,
+  50),
+
+-- ── Connecticut Sales & Use Tax — quarterly ─────────────────────────────────
+('tax-america-services:ct-sut-quarterly', 'tax-america-services', 'tax-america-services:sales-tax', 'ct-sut-quarterly',
+  'state:CT', 'quarterly',
+  '{"type":"fixed_quarterly","dates":["04-30","07-31","10-31","01-31"]}'::jsonb,
+  '[
+    {"key":"gross_sales","type":"currency","required":true,"label_i18n":{"es":"Ventas brutas del trimestre (USD)","en":"Gross sales for the quarter (USD)"}},
+    {"key":"taxable_sales","type":"currency","required":true,"label_i18n":{"es":"Ventas gravables (USD)","en":"Taxable sales (USD)"}},
+    {"key":"exempt_sales","type":"currency","required":true,"label_i18n":{"es":"Ventas exentas (USD)","en":"Exempt sales (USD)"}},
+    {"key":"tax_collected","type":"currency","required":true,"label_i18n":{"es":"Impuesto sobre ventas recaudado (USD)","en":"Sales tax collected (USD)"}},
+    {"key":"notes","type":"text","required":false,"label_i18n":{"es":"Notas","en":"Notes"}}
+  ]'::jsonb,
+  '{"es":"Impuesto sobre Ventas y Uso de CT — Trimestral","en":"CT Sales & Use Tax — Quarterly"}'::jsonb,
+  '{"es":"Declaración trimestral de impuesto sobre ventas.","en":"Quarterly sales tax return."}'::jsonb,
+  60),
+
+-- ── Connecticut Estimated Income Tax quarterly ──────────────────────────────
+('tax-america-services:ct-estimated', 'tax-america-services', 'tax-america-services:individual-tax', 'ct-estimated',
+  'state:CT', 'quarterly',
+  '{"type":"fixed_quarterly","dates":["04-15","06-15","09-15","01-15"]}'::jsonb,
+  '[
+    {"key":"income_estimate","type":"currency","required":true,"label_i18n":{"es":"Ingreso estimado del trimestre (USD)","en":"Estimated income for the quarter (USD)"}},
+    {"key":"prior_year_paid","type":"currency","required":false,"label_i18n":{"es":"Pagos estimados previos del año (USD)","en":"Prior estimated payments this year (USD)"}},
+    {"key":"notes","type":"text","required":false,"label_i18n":{"es":"Notas","en":"Notes"}}
+  ]'::jsonb,
+  '{"es":"Impuesto Estimado de Connecticut","en":"CT Estimated Income Tax"}'::jsonb,
+  '{"es":"Pago trimestral del impuesto estimado de Connecticut.","en":"Quarterly Connecticut estimated income tax payment."}'::jsonb,
+  70)
+
+on conflict (id) do nothing;
+
+-- ── SEED: test customer (Martha Pause) + sample subscriptions ───────────────
+insert into public.tax_customers (id, community_id, email, name, locale)
+values ('cust_martha_pause', 'tax-america-services', 'inversur1310@gmail.com', 'Martha Pause', 'es')
+on conflict (community_id, email) do nothing;
+
+-- Subscribe Martha to Sales Tax (CT monthly only, opting out of quarterly)
+-- and Payroll. Reminders go via email + in-app by default.
+insert into public.tax_subscriptions (id, community_id, customer_id, product_id, active_schedule_slugs) values
+  ('sub_martha_sales',   'tax-america-services', 'cust_martha_pause', 'tax-america-services:sales-tax', ARRAY['ct-sut-monthly']),
+  ('sub_martha_payroll', 'tax-america-services', 'cust_martha_pause', 'tax-america-services:payroll',   null)
+on conflict (customer_id, product_id) do nothing;
+
 -- Deprecated old registration tables are intentionally not used by the app anymore.
 -- Keep them as historical backups unless you have verified the migration and want to drop them manually.

@@ -58,5 +58,106 @@ module.exports = function createTaxSenders(deps) {
     });
   };
 
-  return { sendTaxLeadEmail };
+  // ── Reminder email (Phase 1.5) ───────────────────────────────────────────
+  // Formal bilingual reminder asking the customer for the info needed to
+  // complete a filing. Tone consciously formal per owner preference. Lang
+  // chosen from cust.locale ('en' or 'es'); falls back to 'es'.
+  const sendTaxReminderEmail = async ({ row, cust, sch, sub, magicUrl, offsetDays }) => {
+    if (!emailConfigured) return { sent: false, skipped: true, reason: 'email_not_configured' };
+    const to = String(cust?.email || '').trim();
+    if (!to) return { sent: false, skipped: true, reason: 'customer_email_missing' };
+
+    const lang = cust.locale === 'en' ? 'en' : 'es';
+    const langTag = lang === 'en' ? 'en' : 'es-CO';
+    const filingName = pickName(sch.name_i18n, lang);
+    const filingDesc = pickName(sch.description_i18n, lang);
+    const checklist = effectiveChecklist(sub, sch);
+    const formalGreeting = formalSalutation(cust.name, lang);
+    const closing = (lang === 'en'
+      ? 'Sincerely,\nTax America Services'
+      : 'Atentamente,\nTax America Services');
+
+    const daysWord = Math.abs(offsetDays) === 1
+      ? (lang === 'en' ? 'day' : 'día')
+      : (lang === 'en' ? 'days' : 'días');
+    const subject = lang === 'en'
+      ? `Reminder: ${filingName} due ${row.due_date} (${Math.abs(offsetDays)} ${daysWord} away)`
+      : `Recordatorio: ${filingName} vence el ${row.due_date} (${Math.abs(offsetDays)} ${daysWord} restantes)`;
+
+    const introLines = lang === 'en' ? [
+      `${formalGreeting}`,
+      ``,
+      `This is a reminder that the filing "${filingName}" for the period ${row.period_label} is due on ${row.due_date}.`,
+      filingDesc ? `${filingDesc}` : null,
+      ``,
+      `In order to prepare and submit this filing on your behalf, we will need the following information from you:`,
+    ].filter(Boolean) : [
+      `${formalGreeting}`,
+      ``,
+      `Le escribimos para recordarle que la declaración "${filingName}" correspondiente al período ${row.period_label} vence el ${row.due_date}.`,
+      filingDesc ? `${filingDesc}` : null,
+      ``,
+      `Para poder preparar y presentar esta declaración en su nombre, necesitamos la siguiente información:`,
+    ].filter(Boolean);
+
+    const checklistTextLines = checklist.map(item =>
+      `  • ${pickName(item.label_i18n, lang)}${item.required ? '' : (lang === 'en' ? ' (optional)' : ' (opcional)')}`);
+    const checklistHtmlLines = checklist.map(item =>
+      `<li>${escapeHtml(pickName(item.label_i18n, lang))}${item.required ? '' : `<span style="color:#666"> ${lang === 'en' ? '(optional)' : '(opcional)'}</span>`}</li>`);
+
+    const ctaText = lang === 'en'
+      ? `Please submit your information via the secure link below. The link is unique to this filing and will expire after the due date.`
+      : `Por favor envíe su información usando el enlace seguro a continuación. El enlace es único para esta declaración y expirará después de la fecha de vencimiento.`;
+    const ctaLabel = lang === 'en' ? 'Submit information' : 'Enviar información';
+
+    const text = [
+      ...introLines,
+      ...checklistTextLines,
+      ``,
+      ctaText,
+      magicUrl,
+      ``,
+      closing,
+    ].join('\n');
+
+    const html = `
+      <div style="font-family:Arial,sans-serif;max-width:640px;color:#111">
+        <p>${escapeHtml(formalGreeting)}</p>
+        <p>${introLines.slice(2).filter(s => s !== '').map(escapeHtml).join('</p><p>')}</p>
+        <ul>${checklistHtmlLines.join('')}</ul>
+        <p>${escapeHtml(ctaText)}</p>
+        <p style="margin:24px 0">
+          <a href="${magicUrl}" style="background:#1d3a6d;color:#fff;text-decoration:none;padding:12px 22px;border-radius:8px;font-weight:600;display:inline-block">${escapeHtml(ctaLabel)}</a>
+        </p>
+        <p style="color:#666;font-size:13px">${escapeHtml(magicUrl)}</p>
+        <p style="white-space:pre-line">${escapeHtml(closing)}</p>
+      </div>
+    `;
+
+    return sendSpanishEmail({ to, subject, text, html, lang: langTag });
+  };
+
+  function pickName(obj, lang) {
+    if (obj && typeof obj === 'object') {
+      const v = obj[lang];
+      if (typeof v === 'string' && v.trim()) return v;
+      if (typeof obj.en === 'string') return obj.en;
+    }
+    return '';
+  }
+
+  function effectiveChecklist(sub, sch) {
+    if (Array.isArray(sub?.custom_info_checklist) && sub.custom_info_checklist.length) {
+      return sub.custom_info_checklist;
+    }
+    return Array.isArray(sch?.info_checklist) ? sch.info_checklist : [];
+  }
+
+  function formalSalutation(name, lang) {
+    const n = String(name || '').trim();
+    if (lang === 'en') return n ? `Dear ${n},` : 'Dear customer,';
+    return n ? `Estimado/a ${n}:` : 'Estimado/a cliente:';
+  }
+
+  return { sendTaxLeadEmail, sendTaxReminderEmail };
 };

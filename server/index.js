@@ -362,16 +362,31 @@ app.use('/api/notifications', notificationsRouter); // legacy alias — drop aft
 
 // ─── API: TAX (mounted from server/modules/tax) ──────────────────────────────
 // Canonical: /api/m/tax/*
-// Phase 1 endpoints: GET /community/:slug, POST /leads.
+// Phase 1   endpoints: GET /community/:slug, POST /leads.
+// Phase 1.5 endpoints: GET/POST /respond/:token, /admin/cron/run, /admin/customers, /admin/periods.
 // Reuses platform `communities` (business_type='tax') as the multi-tenant boundary.
 const taxModule = require('./modules/tax');
-const { sendTaxLeadEmail } = require('./modules/tax/email-senders')({ sendSpanishEmail, emailConfigured });
+const { sendTaxLeadEmail, sendTaxReminderEmail } = require('./modules/tax/email-senders')({ sendSpanishEmail, emailConfigured });
+const taxRemindersCron = require('./modules/tax/reminders')({
+  supabase,
+  isSupabaseConfigured: Boolean(SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY),
+  publicAppUrl: () => publicAppUrl(),
+  emailConfigured,
+  sendTaxReminderEmail,
+  auditLog,
+});
 const taxRouter = taxModule.createRouter({
   supabase, requireSupabaseEnv, sendSupabaseError,
   auditLog,
   sendTaxLeadEmail,
+  isGlobalAdmin,
+  runReminderCron: taxRemindersCron.run,
 });
 app.use('/api/m/tax', taxRouter);
+// Tax reminder cron — walks subscriptions, generates filing periods, fires
+// reminders at the configured offsets. Daily cadence (12h interval) keeps
+// it well within Render's free-tier restart window.
+taxRemindersCron.start({ intervalMs: 12 * 60 * 60 * 1000, initialDelayMs: 60 * 1000 });
 
 // ─── INCIDENTS SLA CRON (extracted in stage 4j) ──────────────────────────────
 // Walks pending incidents whose next_sla_reminder_at has elapsed and fires the

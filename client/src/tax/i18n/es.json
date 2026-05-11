@@ -43,5 +43,21 @@
 
   "loading": "Cargando…",
   "error.notFound": "No encontramos esta oficina. Verifica la URL o contacta soporte.",
-  "error.loadFailed": "No pudimos cargar esta página. Inténtalo de nuevo."
+  "error.loadFailed": "No pudimos cargar esta página. Inténtalo de nuevo.",
+
+  "respond.title": "Solicitud de información",
+  "respond.subtitle": "Por favor proporcione la siguiente información para {filingName} ({periodLabel}). Vence el {dueDate}.",
+  "respond.required": "Requerido",
+  "respond.optional": "Opcional",
+  "respond.submit": "Enviar información",
+  "respond.submitting": "Enviando…",
+  "respond.success.heading": "Gracias — hemos recibido su información.",
+  "respond.success.body": "Le contactaremos si necesitamos algo más para completar esta declaración.",
+  "respond.alreadyReceived.heading": "Ya hemos recibido su información para esta declaración.",
+  "respond.alreadyReceived.body": "Si necesita actualizar lo que envió, por favor contáctenos directamente.",
+  "respond.notes": "Notas (opcional)",
+  "respond.error.invalidLink": "Este enlace es inválido o ha expirado. Por favor contáctenos para solicitar uno nuevo.",
+  "respond.error.usedLink": "Este enlace ya fue utilizado. Si necesita actualizar su respuesta, contáctenos directamente.",
+  "respond.error.missingFields": "Por favor complete todos los campos requeridos.",
+  "respond.error.generic": "No pudimos guardar su información. Inténtelo de nuevo o contáctenos."
 }
