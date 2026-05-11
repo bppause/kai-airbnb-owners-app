@@ -177,6 +177,7 @@ export const taxApi = {
   adminGetDocumentDownloadUrl(auth, docId)      { return request('GET',  `/admin/documents/${encodeURIComponent(docId)}/download-url`, undefined, auth, { admin: true }); },
   adminDeleteDocument(auth, docId)              { return request('DELETE', `/admin/documents/${encodeURIComponent(docId)}`, undefined, auth, { admin: true }); },
 
+  adminGetSetupStatus(auth, communitySlug)      { return request('GET',  `/admin/setup-status?communitySlug=${encodeURIComponent(communitySlug)}`, undefined, auth, { admin: true }); },
   adminListEmployees(auth, communitySlug)       { return request('GET',  `/admin/employees?communitySlug=${encodeURIComponent(communitySlug)}`, undefined, auth, { admin: true }); },
   adminCreateEmployee(auth, payload)            { return request('POST', '/admin/employees', payload, auth, { admin: true }); },
   adminSendStaffWelcomeEmail(auth, id)          { return request('POST', `/admin/employees/${encodeURIComponent(id)}/send-welcome`, {}, auth, { admin: true }); },

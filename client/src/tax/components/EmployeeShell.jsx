@@ -68,6 +68,7 @@ export default function EmployeeShell({ community, active, children }) {
                 employees (server-side scopes by role). Leads is admin-only. */}
             <div className="tax-shell__group">
               <div className="tax-shell__group-label">{t('employee.nav.groupWork')}</div>
+              {isAdmin && navLink('setup', `${base}/setup`, t('employee.nav.setup'))}
               {navLink('inbox', base, t('employee.nav.inbox'), unread)}
               {employee && navLink('customers', `${base}/customers`, t('employee.nav.customers'))}
               {isAdmin && navLink('leads', `${base}/leads`, t('employee.nav.leads'))}

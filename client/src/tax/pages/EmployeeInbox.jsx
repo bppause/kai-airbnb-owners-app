@@ -3,6 +3,7 @@ import { useT } from '../i18n';
 import { useEmployeeAuth } from '../auth/EmployeeAuthProvider';
 import { taxApi } from '../api';
 import EmployeeShell from '../components/EmployeeShell';
+import SetupBanner from '../components/SetupBanner';
 
 function relTime(iso) {
   if (!iso) return '';
@@ -40,6 +41,7 @@ export default function EmployeeInbox() {
 
   return (
     <EmployeeShell community={community} active="inbox">
+      <SetupBanner />
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
         <h2 style={{ margin: 0 }}>{t('employee.inbox.title')}</h2>
         <div style={{ display: 'flex', gap: 8 }}>
