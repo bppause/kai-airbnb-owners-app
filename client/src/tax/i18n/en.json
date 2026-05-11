@@ -391,6 +391,8 @@
   "owner.staff.role.staff": "Staff (sees only assigned customers)",
   "owner.staff.role.admin": "Admin (sees every customer in the practice)",
   "owner.staff.createBtn": "Create staff member",
+  "owner.staff.sendWelcomeEmail": "Send welcome email with sign-in link",
+  "owner.staff.sendWelcomeEmailHint": "Sent in their selected language. Includes a link to the staff portal and instructions to sign in with Google or create a password.",
   "owner.staff.addedSuccess": "Staff member created. Have them sign in at the staff portal to activate the account.",
   "owner.staff.empty": "No staff yet.",
   "owner.staff.notFound": "We could not find that staff member.",

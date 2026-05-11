@@ -43,6 +43,7 @@ module.exports = function createTaxRouter(deps) {
     sendTaxMessagePracticeEmail,
     sendTaxMessageEmployeeEmail,
     sendTaxWelcomeEmail,
+    sendTaxStaffWelcomeEmail,
     publicAppUrl,
     isGlobalAdmin,
     isEnvGlobalAdminEmail,
@@ -3332,6 +3333,9 @@ module.exports = function createTaxRouter(deps) {
     const name = trim(body.name, MAX_NAME_LEN);
     const role = (body.role === 'admin') ? 'admin' : 'staff';
     const locale = (body.locale === 'es') ? 'es' : 'en';
+    // Default ON — mirrors the customer add flow. Owner can uncheck to add
+    // a staff row without notifying them (e.g., seeding before go-live).
+    const sendWelcome = body.sendWelcomeEmail === false ? false : true;
     if (!communitySlug || !email) return res.status(400).json({ error: 'communitySlug and email required.' });
     if (!isValidEmail(email)) return res.status(400).json({ error: 'Email is not valid.' });
 
@@ -3340,8 +3344,61 @@ module.exports = function createTaxRouter(deps) {
       id, community_id: communitySlug, email, name, role, locale,
     });
     if (error) return sendSupabaseError(res, error);
-    res.json({ ok: true, id });
+
+    let welcomeResult = { sent: false, skipped: true };
+    if (sendWelcome) {
+      welcomeResult = await sendWelcomeForEmployee(id);
+    }
+
+    res.json({ ok: true, id, welcomeEmail: welcomeResult });
   });
+
+  // POST /admin/employees/:id/send-welcome
+  // Manual resend of the staff welcome email — useful if the original send
+  // failed, the employee misplaced it, or they were seeded with the email
+  // suppressed and need it later.
+  router.post('/admin/employees/:id/send-welcome', async (req, res) => {
+    if (!(await requireOwnerAdmin(req, res))) return;
+    const empId = trim(req.params.id, 200);
+    const result = await sendWelcomeForEmployee(empId);
+    if (result.skipped) return res.json(result);
+    if (result.sent === false) return res.status(500).json({ ok: false, ...result });
+    res.json({ ok: true, ...result });
+  });
+
+  // Shared staff welcome-email plumbing — loads the employee + community,
+  // builds the /employee URL, hands off to the sender. Audit-logged.
+  async function sendWelcomeForEmployee(empId) {
+    const { data: emp } = await supabase.from('tax_employees')
+      .select('id, community_id, email, name, role, locale, status')
+      .eq('id', empId).maybeSingle();
+    if (!emp) return { sent: false, error: 'Employee not found.' };
+    if (emp.status !== 'active') return { sent: false, error: 'Employee is not active.' };
+
+    const { data: community } = await supabase.from('communities')
+      .select('id, name, contact_email').eq('id', emp.community_id).maybeSingle();
+
+    const employeeUrl = `${(typeof publicAppUrl === 'function' ? publicAppUrl() : '')}/tax/${emp.community_id}/employee`;
+
+    let result = { sent: false, skipped: true, reason: 'no_sender' };
+    if (typeof sendTaxStaffWelcomeEmail === 'function') {
+      try {
+        result = await sendTaxStaffWelcomeEmail({ emp, community, employeeUrl });
+      } catch (e) {
+        warn('[tax] staff welcome email failed', e?.message || e);
+        result = { sent: false, error: e?.message || 'Send failed.' };
+      }
+    }
+    try {
+      await auditLog({
+        entity: 'tax.employee', entityId: empId,
+        action: 'send_welcome_email',
+        actorEmail: '',
+        after: { to: emp.email, locale: emp.locale, role: emp.role, sent: !!result.sent },
+      });
+    } catch (_e) {}
+    return result;
+  }
 
   // ── ADMIN: impersonation (admin-only "view as") ─────────────────────────
 

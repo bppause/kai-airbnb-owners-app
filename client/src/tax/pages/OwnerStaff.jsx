@@ -13,7 +13,7 @@ export default function OwnerStaff() {
   const [err, setErr] = useState('');
 
   const [adding, setAdding] = useState(false);
-  const [form, setForm] = useState({ name: '', email: '', role: 'staff', locale: 'en' });
+  const [form, setForm] = useState({ name: '', email: '', role: 'staff', locale: 'en', sendWelcomeEmail: true });
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState({ kind: 'idle', text: '' });
 
@@ -36,9 +36,10 @@ export default function OwnerStaff() {
         name: form.name.trim(),
         role: form.role,
         locale: form.locale,
+        sendWelcomeEmail: form.sendWelcomeEmail,
       });
       setMsg({ kind: 'success', text: t('owner.staff.addedSuccess') });
-      setForm({ name: '', email: '', role: 'staff', locale: 'en' });
+      setForm({ name: '', email: '', role: 'staff', locale: 'en', sendWelcomeEmail: true });
       setAdding(false);
       load();
     } catch (err) {
@@ -99,6 +100,14 @@ export default function OwnerStaff() {
               </select>
             </div>
           </div>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '12px 0', cursor: 'pointer' }}>
+            <input type="checkbox" checked={form.sendWelcomeEmail}
+                   onChange={e => setForm(p => ({ ...p, sendWelcomeEmail: e.target.checked }))} />
+            <span>{t('owner.staff.sendWelcomeEmail')}</span>
+          </label>
+          <p style={{ color: 'var(--tax-muted)', fontSize: 13, margin: '0 0 8px' }}>
+            {t('owner.staff.sendWelcomeEmailHint')}
+          </p>
           {msg.text && (
             <div className={`tax-msg tax-msg--${msg.kind === 'error' ? 'error' : 'success'}`}>{msg.text}</div>
           )}
