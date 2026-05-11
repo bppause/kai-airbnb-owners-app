@@ -3,8 +3,8 @@
    the community record (--tax-brand-primary, --tax-brand-secondary). */
 
 .tax-app {
-  --tax-brand-primary: #0b3d91;
-  --tax-brand-secondary: #f5a623;
+  --tax-brand-primary: #1d3a6d;
+  --tax-brand-secondary: #d62027;
   --tax-text: #0f172a;
   --tax-muted: #64748b;
   --tax-bg: #ffffff;
@@ -46,6 +46,7 @@
   font-weight: 800; font-size: 16px; letter-spacing: .5px;
 }
 .tax-brand__name { font-weight: 700; font-size: 16px; }
+.tax-brand__logo { height: 40px; width: auto; max-width: 220px; display: block; }
 .tax-nav { display: flex; align-items: center; gap: 18px; }
 .tax-nav a { color: var(--tax-text); text-decoration: none; font-size: 14px; }
 .tax-nav a:hover { color: var(--tax-brand-primary); }
@@ -58,7 +59,11 @@
 
 /* ── Hero ───────────────────────────────────────────────────────────────── */
 .tax-hero {
-  background: linear-gradient(135deg, var(--tax-brand-primary) 0%, #1e3a8a 100%);
+  background: linear-gradient(
+    135deg,
+    var(--tax-brand-primary) 0%,
+    color-mix(in srgb, var(--tax-brand-primary) 75%, #000) 100%
+  );
   color: #fff;
   padding: 72px 0 88px;
 }
@@ -76,8 +81,10 @@
   transition: transform .08s ease, background .15s ease;
 }
 .tax-btn:active { transform: translateY(1px); }
-.tax-btn--primary { background: var(--tax-brand-secondary); color: #1f2937; }
-.tax-btn--primary:hover { background: #ffb43c; }
+.tax-btn--primary { background: var(--tax-brand-secondary); color: #fff; }
+.tax-btn--primary:hover {
+  background: color-mix(in srgb, var(--tax-brand-secondary) 88%, #000);
+}
 .tax-btn--ghost { background: transparent; color: #fff; border-color: rgba(255,255,255,.4); }
 .tax-btn--ghost:hover { background: rgba(255,255,255,.1); }
 .tax-btn--block { width: 100%; }
@@ -105,7 +112,8 @@
 .tax-service-card:hover { box-shadow: var(--tax-shadow-md); transform: translateY(-2px); }
 .tax-service-card__icon {
   width: 36px; height: 36px; border-radius: 8px;
-  background: rgba(11, 61, 145, .08); color: var(--tax-brand-primary);
+  background: color-mix(in srgb, var(--tax-brand-primary) 10%, #fff);
+  color: var(--tax-brand-primary);
   display: flex; align-items: center; justify-content: center;
   font-size: 12px; font-weight: 700; text-transform: uppercase;
 }
@@ -131,7 +139,7 @@
 }
 .tax-form input:focus, .tax-form textarea:focus, .tax-form select:focus {
   outline: none; border-color: var(--tax-brand-primary);
-  box-shadow: 0 0 0 3px rgba(11, 61, 145, .12);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--tax-brand-primary) 18%, transparent);
 }
 .tax-form textarea { min-height: 120px; resize: vertical; }
 .tax-form__row2 { display: grid; gap: 16px; grid-template-columns: 1fr 1fr; }

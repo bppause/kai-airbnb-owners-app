@@ -598,6 +598,7 @@ insert into public.communities (
   contact_email,
   tagline, tagline_en,
   brand_primary_color, brand_secondary_color,
+  logo_url,
   description, description_en
 ) values (
   'tax-america-services',
@@ -609,11 +610,21 @@ insert into public.communities (
   'info@taxamericaservices.com',
   'Su éxito financiero en buenas manos',
   'Your financial success in good hands',
-  '#0b3d91',
-  '#f5a623',
+  '#1d3a6d',
+  '#d62027',
+  '/tax/tax-america-services-logo.png',
   'Servicios profesionales de impuestos, contabilidad y formación de empresas para individuos y negocios.',
   'Professional tax preparation, bookkeeping, and business formation services for individuals and businesses.'
 ) on conflict (id) do nothing;
+
+-- Re-applies the canonical brand defaults for tax-america-services so
+-- re-running this schema after a brand update overwrites the older values.
+-- Owner can change again via SQL today; via admin UI in Phase 4b.
+update public.communities set
+  brand_primary_color   = '#1d3a6d',
+  brand_secondary_color = '#d62027',
+  logo_url              = '/tax/tax-america-services-logo.png'
+where id = 'tax-america-services';
 
 -- v85b: tax_products — service catalog cloned per tax community.
 -- workflow / sla_hours / required_documents / notification_rules are JSONB and
