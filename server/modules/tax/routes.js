@@ -41,6 +41,7 @@ module.exports = function createTaxRouter(deps) {
     sendTaxDocumentEmail,
     sendTaxMessageEmail,
     sendTaxMessagePracticeEmail,
+    sendTaxMessageEmployeeEmail,
     publicAppUrl,
     isGlobalAdmin,
     runReminderCron,
@@ -1491,7 +1492,46 @@ module.exports = function createTaxRouter(deps) {
     const { data: community } = await supabase.from('communities')
       .select('id, name, contact_email').eq('id', thread.community_id).maybeSingle();
 
-    if (typeof sendTaxMessagePracticeEmail === 'function') {
+    // Fan out to all active employees in the community (Phase 3).
+    const { data: employees } = await supabase.from('tax_employees')
+      .select('id, email, name, locale, notification_channels, preferred_communication_email')
+      .eq('community_id', thread.community_id).eq('status', 'active');
+    const empList = employees || [];
+
+    for (const emp of empList) {
+      // In-app notification row, regardless of email preference.
+      await supabase.from('tax_employee_notifications').insert({
+        id: 'tenot_' + uuidv4().slice(0, 12),
+        community_id: thread.community_id,
+        employee_id: emp.id,
+        type: 'message',
+        title_i18n: {
+          es: `Nuevo mensaje del cliente${cust.name ? ` (${cust.name})` : ''}`,
+          en: `New customer message${cust.name ? ` (${cust.name})` : ''}`,
+        },
+        body_i18n: {
+          es: thread.last_message_preview || '',
+          en: thread.last_message_preview || '',
+        },
+        payload: { threadId: thread.id, customerId: cust.id },
+      });
+
+      // Email when the employee opted in. Default is portal-only.
+      const channels = Array.isArray(emp.notification_channels) ? emp.notification_channels : [];
+      if (channels.includes('email') && typeof sendTaxMessageEmployeeEmail === 'function') {
+        try {
+          await sendTaxMessageEmployeeEmail({
+            community, customer: cust, employee: emp, thread,
+            message: { body: thread.last_message_preview, created_at: thread.last_message_at },
+          });
+        } catch (e) { warn('[tax-msg] employee email failed', e?.message || e); }
+      }
+    }
+
+    // Fallback: when no employees exist yet, alert the practice contact_email.
+    // Once at least one employee is on-staff, individual employee emails take
+    // over and this fallback goes silent.
+    if (empList.length === 0 && typeof sendTaxMessagePracticeEmail === 'function') {
       try {
         await sendTaxMessagePracticeEmail({
           community, customer: cust, thread,
@@ -1500,6 +1540,298 @@ module.exports = function createTaxRouter(deps) {
       } catch (e) { warn('[tax-msg] practice email failed', e?.message || e); }
     }
   }
+
+  // ════════════════════════════════════════════════════════════════════════════
+  // Phase 3: employee portal
+  //
+  // Mirrors the Phase 2a customer auth pattern. Frontend sends
+  //   x-firebase-uid, x-firebase-email, x-tax-community
+  // on every employee-portal request. The middleware looks them up against
+  // tax_employees. SECURITY NOTE: same caveat as Phase 2a — trust the
+  // frontend-asserted headers in v1; harden with firebase-admin ID-token
+  // verification before exposing beyond a trusted pilot.
+  // ════════════════════════════════════════════════════════════════════════════
+
+  async function requireTaxEmployee(req, res) {
+    if (!requireSupabaseEnv(res)) return null;
+    const uid = trim(req.get('x-firebase-uid') || '', 200);
+    const email = trim(req.get('x-firebase-email') || '', 200).toLowerCase();
+    const communitySlug = trim(req.get('x-tax-community') || '', 200);
+    if (!uid || !email || !communitySlug) {
+      res.status(401).json({ error: 'Authentication required.' });
+      return null;
+    }
+    const { data: emp, error } = await supabase.from('tax_employees')
+      .select('id, community_id, email, name, phone, whatsapp, address, preferred_communication_email, locale, notification_channels, role, status, firebase_uid')
+      .eq('email', email).eq('community_id', communitySlug).maybeSingle();
+    if (error) { sendSupabaseError(res, error); return null; }
+    if (!emp) {
+      res.status(403).json({ error: 'Account not provisioned. Contact your practice administrator.' });
+      return null;
+    }
+    if (emp.status !== 'active') {
+      res.status(403).json({ error: 'Account is not active.' });
+      return null;
+    }
+    if (emp.firebase_uid && emp.firebase_uid !== uid) {
+      res.status(403).json({ error: 'Account collision. Contact your practice administrator.' });
+      return null;
+    }
+    return emp;
+  }
+
+  function pickEmployee(e) {
+    return {
+      id: e.id, email: e.email, name: e.name, phone: e.phone,
+      whatsapp: e.whatsapp || '',
+      address: e.address || {},
+      preferredCommunicationEmail: e.preferred_communication_email || '',
+      locale: e.locale, role: e.role, status: e.status,
+      notificationChannels: Array.isArray(e.notification_channels) ? e.notification_channels : ['in_app'],
+    };
+  }
+
+  // ── POST /employee/auth/link ──
+  router.post('/employee/auth/link', async (req, res) => {
+    if (!requireSupabaseEnv(res)) return;
+    const body = req.body || {};
+    const uid = trim(body.uid, 200);
+    const email = trim(body.email, 200).toLowerCase();
+    const communitySlug = trim(body.communitySlug, 200);
+    if (!uid || !email || !communitySlug) {
+      return res.status(400).json({ error: 'uid, email, and communitySlug required.' });
+    }
+    const { data: emp, error } = await supabase.from('tax_employees')
+      .select('id, community_id, email, name, locale, status, firebase_uid, role')
+      .eq('email', email).eq('community_id', communitySlug).maybeSingle();
+    if (error) return sendSupabaseError(res, error);
+    if (!emp) return res.status(403).json({ error: 'Account not provisioned. Contact your practice administrator.' });
+    if (emp.status !== 'active') return res.status(403).json({ error: 'Account is not active.' });
+    if (emp.firebase_uid && emp.firebase_uid !== uid) {
+      return res.status(403).json({ error: 'Account collision. Contact your practice administrator.' });
+    }
+    if (!emp.firebase_uid) {
+      const { error: uErr } = await supabase.from('tax_employees')
+        .update({ firebase_uid: uid, updated_at: new Date().toISOString() }).eq('id', emp.id);
+      if (uErr) return sendSupabaseError(res, uErr);
+      try {
+        await auditLog({
+          entity: 'tax.employee', entityId: emp.id, action: 'link_firebase',
+          actorEmail: email, actorName: emp.name, after: { firebaseUidLinked: true },
+        });
+      } catch (_e) {}
+    }
+    res.json({ ok: true, employee: { ...emp, firebase_uid: uid } });
+  });
+
+  // ── GET /employee/me ──
+  router.get('/employee/me', async (req, res) => {
+    const emp = await requireTaxEmployee(req, res); if (!emp) return;
+    const { data: community } = await supabase.from('communities')
+      .select('id, name, logo_url, brand_primary_color, brand_secondary_color, default_locale, contact_email, phone')
+      .eq('id', emp.community_id).maybeSingle();
+    res.json({ employee: pickEmployee(emp), community });
+  });
+
+  // ── PUT /employee/profile ──
+  // Editable: name, phone, WhatsApp (E.164), address, preferredCommunicationEmail,
+  //           notificationChannels (subset of ['in_app','email'], at least one).
+  router.put('/employee/profile', async (req, res) => {
+    const emp = await requireTaxEmployee(req, res); if (!emp) return;
+    const body = req.body || {};
+    const update = { updated_at: new Date().toISOString() };
+
+    if (body.name !== undefined)  update.name  = trim(body.name, MAX_NAME_LEN);
+    if (body.phone !== undefined) update.phone = trim(body.phone, MAX_PHONE_LEN);
+
+    if (body.whatsapp !== undefined) {
+      const raw = String(body.whatsapp || '').trim();
+      if (raw === '') update.whatsapp = '';
+      else {
+        const norm = normalizeWhatsapp(raw);
+        if (!norm) {
+          return res.status(400).json({ error: 'whatsapp_invalid',
+            message: 'WhatsApp must be in international format starting with + and country code, e.g., +14155551234.' });
+        }
+        update.whatsapp = norm;
+      }
+    }
+    if (body.address !== undefined) update.address = sanitizeAddress(body.address);
+
+    if (body.preferredCommunicationEmail !== undefined) {
+      const raw = String(body.preferredCommunicationEmail || '').trim().toLowerCase();
+      if (raw === '') update.preferred_communication_email = '';
+      else if (!isValidEmail(raw)) {
+        return res.status(400).json({ error: 'preferred_email_invalid',
+          message: 'Preferred communication email is not valid.' });
+      } else update.preferred_communication_email = raw.slice(0, MAX_NAME_LEN);
+    }
+
+    if (body.notificationChannels !== undefined) {
+      const channels = (Array.isArray(body.notificationChannels) ? body.notificationChannels : [])
+        .map(c => String(c).toLowerCase()).filter(c => c === 'email' || c === 'in_app');
+      if (!channels.length) {
+        return res.status(400).json({ error: 'channels_empty',
+          message: 'Select at least one notification channel.' });
+      }
+      // Dedupe while preserving stable order in_app, email.
+      update.notification_channels = ['in_app', 'email'].filter(c => channels.includes(c));
+    }
+
+    const { error } = await supabase.from('tax_employees').update(update).eq('id', emp.id);
+    if (error) return sendSupabaseError(res, error);
+
+    try {
+      await auditLog({
+        entity: 'tax.employee', entityId: emp.id, action: 'update_profile',
+        actorEmail: emp.email, actorName: emp.name,
+        after: Object.keys(update).filter(k => k !== 'updated_at'),
+      });
+    } catch (_e) {}
+
+    const { data: refreshed } = await supabase.from('tax_employees')
+      .select('id, community_id, email, name, phone, whatsapp, address, preferred_communication_email, locale, notification_channels, role, status, firebase_uid')
+      .eq('id', emp.id).maybeSingle();
+    res.json({ ok: true, employee: pickEmployee(refreshed) });
+  });
+
+  // ── GET /employee/threads ── (team-wide visibility, v1)
+  router.get('/employee/threads', async (req, res) => {
+    const emp = await requireTaxEmployee(req, res); if (!emp) return;
+    let q = supabase.from('tax_message_threads')
+      .select(`
+        id, subject, status, last_message_at, last_message_preview, last_message_by_role,
+        practice_unread, created_at, customer_id,
+        customer:tax_customers ( id, email, name )
+      `)
+      .eq('community_id', emp.community_id)
+      .order('last_message_at', { ascending: false, nullsFirst: false })
+      .limit(500);
+    if (req.query.unreadOnly === 'true') q = q.eq('practice_unread', true);
+    const { data, error } = await q;
+    if (error) return sendSupabaseError(res, error);
+    res.json({ threads: data || [] });
+  });
+
+  // ── GET /employee/threads/:id ── (flips practice_unread)
+  router.get('/employee/threads/:id', async (req, res) => {
+    const emp = await requireTaxEmployee(req, res); if (!emp) return;
+    const id = trim(req.params.id, 200);
+    const { data: thread } = await supabase.from('tax_message_threads')
+      .select(`
+        id, customer_id, community_id, subject, status, related_period_id, related_document_id,
+        last_message_at, practice_unread, customer_unread, created_at,
+        customer:tax_customers ( id, email, name, locale, phone, whatsapp, preferred_communication_email )
+      `).eq('id', id).maybeSingle();
+    if (!thread || thread.community_id !== emp.community_id) {
+      return res.status(404).json({ error: 'Thread not found.' });
+    }
+    const { data: messages, error } = await supabase.from('tax_messages')
+      .select('id, author_role, author_email, author_name, body, attachments, created_at')
+      .eq('thread_id', id).order('created_at', { ascending: true });
+    if (error) return sendSupabaseError(res, error);
+    if (thread.practice_unread) {
+      await supabase.from('tax_message_threads')
+        .update({ practice_unread: false, updated_at: new Date().toISOString() }).eq('id', id);
+    }
+    res.json({ thread, messages: messages || [] });
+  });
+
+  // ── POST /employee/threads/:id/messages ──
+  router.post('/employee/threads/:id/messages', async (req, res) => {
+    const emp = await requireTaxEmployee(req, res); if (!emp) return;
+    const id = trim(req.params.id, 200);
+    const messageBody = trim(req.body?.body, MAX_MESSAGE_BODY);
+    if (!messageBody) return res.status(400).json({ error: 'Message body required.' });
+
+    const { data: thread } = await supabase.from('tax_message_threads')
+      .select('id, customer_id, community_id, status').eq('id', id).maybeSingle();
+    if (!thread || thread.community_id !== emp.community_id) {
+      return res.status(404).json({ error: 'Thread not found.' });
+    }
+    if (thread.status === 'closed') return res.status(409).json({ error: 'This thread is closed.' });
+
+    const msgId = await insertMessage({
+      threadId: id,
+      communityId: thread.community_id,
+      customerId: thread.customer_id,
+      role: 'practice',
+      email: emp.email,
+      name: emp.name,
+      body: messageBody,
+    });
+    notifyCustomerOfPracticeMessage(id, thread.customer_id, msgId)
+      .catch(e => warn('[tax-msg] customer notify failed', e?.message || e));
+    res.json({ ok: true, messageId: msgId });
+  });
+
+  // ── POST /employee/threads/:id/read ──
+  router.post('/employee/threads/:id/read', async (req, res) => {
+    const emp = await requireTaxEmployee(req, res); if (!emp) return;
+    const id = trim(req.params.id, 200);
+    const { data: thread } = await supabase.from('tax_message_threads')
+      .select('id, community_id').eq('id', id).maybeSingle();
+    if (!thread || thread.community_id !== emp.community_id) return res.status(404).json({ error: 'Thread not found.' });
+    const { error } = await supabase.from('tax_message_threads')
+      .update({ practice_unread: false, updated_at: new Date().toISOString() }).eq('id', id);
+    if (error) return sendSupabaseError(res, error);
+    res.json({ ok: true });
+  });
+
+  // ── GET /employee/notifications ──
+  router.get('/employee/notifications', async (req, res) => {
+    const emp = await requireTaxEmployee(req, res); if (!emp) return;
+    const { data, error } = await supabase.from('tax_employee_notifications')
+      .select('id, type, title_i18n, body_i18n, payload, read_at, created_at')
+      .eq('employee_id', emp.id)
+      .order('created_at', { ascending: false }).limit(50);
+    if (error) return sendSupabaseError(res, error);
+    res.json({ notifications: data || [] });
+  });
+
+  // ── POST /employee/notifications/:id/read ──
+  router.post('/employee/notifications/:id/read', async (req, res) => {
+    const emp = await requireTaxEmployee(req, res); if (!emp) return;
+    const id = trim(req.params.id, 200);
+    const { error } = await supabase.from('tax_employee_notifications')
+      .update({ read_at: new Date().toISOString() }).eq('id', id).eq('employee_id', emp.id);
+    if (error) return sendSupabaseError(res, error);
+    res.json({ ok: true });
+  });
+
+  // ── ADMIN: list / add employees (owner-side seeding until Phase 4a UI) ────
+  router.get('/admin/employees', async (req, res) => {
+    if (!requireGlobalAdmin(req, res)) return;
+    if (!requireSupabaseEnv(res)) return;
+    const communitySlug = trim(req.query.communitySlug, 200);
+    let q = supabase.from('tax_employees')
+      .select('id, community_id, email, name, role, status, notification_channels, created_at, firebase_uid')
+      .order('created_at', { ascending: false }).limit(200);
+    if (communitySlug) q = q.eq('community_id', communitySlug);
+    const { data, error } = await q;
+    if (error) return sendSupabaseError(res, error);
+    res.json({ employees: data || [] });
+  });
+
+  router.post('/admin/employees', async (req, res) => {
+    if (!requireGlobalAdmin(req, res)) return;
+    if (!requireSupabaseEnv(res)) return;
+    const body = req.body || {};
+    const communitySlug = trim(body.communitySlug, 200);
+    const email = trim(body.email, 200).toLowerCase();
+    const name = trim(body.name, MAX_NAME_LEN);
+    const role = (body.role === 'admin') ? 'admin' : 'staff';
+    const locale = (body.locale === 'es') ? 'es' : 'en';
+    if (!communitySlug || !email) return res.status(400).json({ error: 'communitySlug and email required.' });
+    if (!isValidEmail(email)) return res.status(400).json({ error: 'Email is not valid.' });
+
+    const id = 'emp_' + uuidv4().slice(0, 12);
+    const { error } = await supabase.from('tax_employees').insert({
+      id, community_id: communitySlug, email, name, role, locale,
+    });
+    if (error) return sendSupabaseError(res, error);
+    res.json({ ok: true, id });
+  });
 
   // ── Helpers ────────────────────────────────────────────────────────────────
   async function activeTypeIdsForCustomer(customerId) {

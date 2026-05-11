@@ -349,11 +349,69 @@ module.exports = function createTaxSenders(deps) {
     return sendSpanishEmail({ to, subject, text, html, lang: 'en' });
   };
 
+  // ── Employee message email (Phase 3) ─────────────────────────────────────
+  // Sent to an individual employee when a customer posts on a thread, IF
+  // that employee has 'email' in their notification_channels. Routes to
+  // employee.preferred_communication_email when set, falls back to
+  // employee.email. Locale follows employee.locale.
+  const sendTaxMessageEmployeeEmail = async ({ community, customer, employee, thread, message }) => {
+    if (!emailConfigured) return { sent: false, skipped: true, reason: 'email_not_configured' };
+    const to = String(employee?.preferred_communication_email || employee?.email || '').trim();
+    if (!to) return { sent: false, skipped: true, reason: 'employee_email_missing' };
+
+    const lang = employee?.locale === 'es' ? 'es' : 'en';
+    const langTag = lang === 'en' ? 'en' : 'es-CO';
+    const practiceName = community?.name || 'Your tax practice';
+    const subject = lang === 'en'
+      ? `[${practiceName}] New message from ${customer?.name || customer?.email || 'customer'}${thread?.subject ? ` — ${thread.subject}` : ''}`
+      : `[${practiceName}] Nuevo mensaje de ${customer?.name || customer?.email || 'cliente'}${thread?.subject ? ` — ${thread.subject}` : ''}`;
+
+    const greeting = employee?.name
+      ? (lang === 'en' ? `Hi ${employee.name},` : `Hola ${employee.name},`)
+      : (lang === 'en' ? 'Hello,' : 'Hola,');
+    const intro = lang === 'en'
+      ? `A customer just posted a message on a thread you can see in the staff portal:`
+      : `Un cliente acaba de publicar un mensaje en un hilo visible en el portal del personal:`;
+    const ctaText = lang === 'en'
+      ? `Sign in to the staff portal to view the full thread and reply.`
+      : `Inicie sesión en el portal del personal para ver el hilo completo y responder.`;
+
+    const preview = String(message?.body || '').slice(0, 500);
+    const truncated = (message?.body || '').length > 500;
+    const previewLine = preview + (truncated ? '…' : '');
+
+    const text = [
+      greeting, '', intro,
+      `From:    ${customer?.name || ''} <${customer?.email || ''}>`,
+      thread?.subject ? `Subject: ${thread.subject}` : '',
+      '',
+      previewLine,
+      '',
+      ctaText,
+    ].filter(Boolean).join('\n');
+
+    const html = `
+      <div style="font-family:Arial,sans-serif;max-width:640px;color:#111">
+        <p>${escapeHtml(greeting)}</p>
+        <p>${escapeHtml(intro)}</p>
+        <table style="border-collapse:collapse;margin:8px 0">
+          <tr><td style="padding:4px 8px;color:#555">From</td><td style="padding:4px 8px"><strong>${escapeHtml(customer?.name || '')}</strong> &lt;${escapeHtml(customer?.email || '')}&gt;</td></tr>
+          ${thread?.subject ? `<tr><td style="padding:4px 8px;color:#555">Subject</td><td style="padding:4px 8px">${escapeHtml(thread.subject)}</td></tr>` : ''}
+        </table>
+        <blockquote style="margin:12px 0;padding:12px 16px;background:#f4f7fb;border-left:3px solid #1d3a6d;border-radius:6px;white-space:pre-wrap">${escapeHtml(previewLine)}</blockquote>
+        <p style="color:#555">${escapeHtml(ctaText)}</p>
+      </div>
+    `;
+
+    return sendSpanishEmail({ to, subject, text, html, lang: langTag });
+  };
+
   return {
     sendTaxLeadEmail,
     sendTaxReminderEmail,
     sendTaxDocumentEmail,
     sendTaxMessageEmail,
     sendTaxMessagePracticeEmail,
+    sendTaxMessageEmployeeEmail,
   };
 };

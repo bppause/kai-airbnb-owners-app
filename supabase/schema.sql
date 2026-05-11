@@ -1574,3 +1574,77 @@ create index if not exists tax_messages_thread_idx
   on public.tax_messages(thread_id, created_at asc);
 create index if not exists tax_messages_customer_idx
   on public.tax_messages(customer_id, created_at desc);
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- v85-3: Employee portal
+--
+-- Practice-side users (separate from tax_customers). Authenticate via the
+-- same Firebase project as customers — the URL of the portal entry point
+-- determines which side renders (/portal vs /employee). An email may exist
+-- in both tax_customers AND tax_employees independently (different rows,
+-- same Google UID once both /auth/link endpoints fire).
+--
+-- v1 scope: team-wide thread visibility, no per-customer assignment.
+-- Phase 3b will introduce tax_employee_customer_assignments.
+-- ═══════════════════════════════════════════════════════════════════════════════
+create table if not exists public.tax_employees (
+  id                              text primary key,
+  community_id                    text not null references public.communities(id) on delete cascade,
+  email                           text not null,
+  name                            text not null default '',
+  phone                           text not null default '',
+  whatsapp                        text not null default '',
+  address                         jsonb not null default '{}'::jsonb,
+  preferred_communication_email   text not null default '',
+  locale                          text not null default 'en',
+  -- Notification channel preferences for THIS employee. Defaults to portal-
+  -- only ([in_app]); employees may include 'email' through the profile page.
+  notification_channels           text[] not null default array['in_app']::text[],
+  role                            text not null default 'staff',
+  status                          text not null default 'active',
+  firebase_uid                    text not null default '',
+  created_at                      timestamptz not null default now(),
+  updated_at                      timestamptz not null default now(),
+  unique (community_id, email)
+);
+do $$ begin
+  alter table public.tax_employees add constraint tax_employees_locale_chk
+    check (locale in ('en','es'));
+exception when duplicate_object then null; end $$;
+do $$ begin
+  alter table public.tax_employees add constraint tax_employees_role_chk
+    check (role in ('staff','admin'));
+exception when duplicate_object then null; end $$;
+do $$ begin
+  alter table public.tax_employees add constraint tax_employees_status_chk
+    check (status in ('active','paused','archived'));
+exception when duplicate_object then null; end $$;
+create index if not exists tax_employees_community_idx
+  on public.tax_employees(community_id, status);
+
+-- Employee in-portal notifications. Kept separate from tax_notifications
+-- (customer-scoped) because the access patterns differ — employees query
+-- their own inbox in aggregate, customers see their own bell only.
+create table if not exists public.tax_employee_notifications (
+  id            text primary key,
+  community_id  text not null references public.communities(id) on delete cascade,
+  employee_id   text not null references public.tax_employees(id) on delete cascade,
+  type          text not null,
+  title_i18n    jsonb not null default '{}'::jsonb,
+  body_i18n     jsonb not null default '{}'::jsonb,
+  payload       jsonb not null default '{}'::jsonb,
+  read_at       timestamptz,
+  created_at    timestamptz not null default now()
+);
+create index if not exists tax_employee_notifications_inbox_idx
+  on public.tax_employee_notifications(employee_id, created_at desc) where read_at is null;
+create index if not exists tax_employee_notifications_all_idx
+  on public.tax_employee_notifications(employee_id, created_at desc);
+
+-- Seed: bppause@gmail.com as an EMPLOYEE for the same community where they
+-- already exist as a customer. Same Google login; the portal URL determines
+-- which experience renders. role='admin' so they can test owner-equivalent
+-- flows when Phase 4a introduces real role-gated UI.
+insert into public.tax_employees (id, community_id, email, name, locale, role)
+values ('emp_bppause', 'tax-america-services', 'bppause@gmail.com', 'BP Pause (staff)', 'en', 'admin')
+on conflict (community_id, email) do nothing;

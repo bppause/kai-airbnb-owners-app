@@ -12,7 +12,7 @@ import {
 
 // Standalone login page (no AuthProvider context dependency — the provider
 // only mounts after the user is signed in).
-export default function PortalLogin({ community }) {
+export default function PortalLogin({ community, titleKey, subtitleKey }) {
   const { locale, t } = useT();
   const [mode, setMode] = useState('signin');   // signin | create | reset
   const [email, setEmail] = useState('');
@@ -69,8 +69,8 @@ export default function PortalLogin({ community }) {
       </header>
 
       <section className="tax-section" style={{ maxWidth: 460, margin: '0 auto' }}>
-        <h2 style={{ marginTop: 24 }}>{t('portal.login.title')}</h2>
-        <p className="tax-section__lede">{t('portal.login.subtitle')}</p>
+        <h2 style={{ marginTop: 24 }}>{t(titleKey || 'portal.login.title')}</h2>
+        <p className="tax-section__lede">{t(subtitleKey || 'portal.login.subtitle')}</p>
 
         {!firebaseReady && (
           <div className="tax-msg tax-msg--error" role="alert">{t('portal.login.notConfigured')}</div>
