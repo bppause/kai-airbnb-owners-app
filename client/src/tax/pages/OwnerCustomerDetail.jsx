@@ -130,8 +130,138 @@ export default function OwnerCustomerDetail({ customerId }) {
         locale={locale}
         t={t} />
 
+      <ReminderActivitySection data={data} locale={locale} t={t} />
+
       <AssignmentsSection data={data} t={t} />
     </EmployeeShell>
+  );
+}
+
+// Phase 4n: per-customer reminder send + open/click timeline. Engagement
+// summary at the top + a colored pill per row makes "did this customer
+// actually read it" answerable at a glance. Apple Mail Privacy caveat is
+// shown inline so the team doesn't over-trust open counts.
+function ReminderActivitySection({ data, locale, t }) {
+  const logs = Array.isArray(data?.emailLogs) ? data.emailLogs : [];
+  function fmt(iso, withTime = true) {
+    if (!iso) return '—';
+    try {
+      const opts = withTime
+        ? { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }
+        : { year: 'numeric', month: 'short', day: 'numeric' };
+      return new Intl.DateTimeFormat(locale === 'en' ? 'en-US' : 'es-ES', opts)
+        .format(new Date(iso));
+    } catch (_e) { return iso; }
+  }
+
+  const sent = logs.length;
+  const opened = logs.filter(l => l.opened_at).length;
+  const clicked = logs.filter(l => l.clicked_at).length;
+  const pct = (n) => sent ? Math.round((n / sent) * 100) : 0;
+
+  const Pill = ({ kind, label }) => {
+    const colors = {
+      ok:   { bg: '#dcfce7', fg: '#166534', border: '#bbf7d0' },  // green
+      warn: { bg: '#fef9c3', fg: '#854d0e', border: '#fde68a' },  // amber
+      muted:{ bg: '#f1f5f9', fg: '#64748b', border: '#e2e8f0' },  // gray
+    }[kind] || { bg: '#f1f5f9', fg: '#64748b', border: '#e2e8f0' };
+    return (
+      <span style={{
+        display: 'inline-block', padding: '2px 10px', borderRadius: 999,
+        background: colors.bg, color: colors.fg, border: `1px solid ${colors.border}`,
+        fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap',
+      }}>{label}</span>
+    );
+  };
+
+  return (
+    <section className="tax-section" style={{ paddingTop: 0 }}>
+      <h3>{t('owner.customer.section.reminderActivity')}</h3>
+
+      {sent > 0 && (
+        <div style={{
+          display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
+          gap: 12, margin: '0 0 12px',
+        }}>
+          <SummaryStat label={t('owner.customer.reminderActivity.sent')} value={sent} t={t} />
+          <SummaryStat label={t('owner.customer.reminderActivity.opened')}
+                       value={`${opened} (${pct(opened)}%)`}
+                       accent={opened > 0 ? 'ok' : 'muted'} t={t} />
+          <SummaryStat label={t('owner.customer.reminderActivity.clicked')}
+                       value={`${clicked} (${pct(clicked)}%)`}
+                       accent={clicked > 0 ? 'ok' : 'warn'} t={t} />
+        </div>
+      )}
+
+      <p style={{ color: 'var(--tax-muted)', fontSize: 13, margin: '0 0 12px' }}>
+        {t('owner.customer.reminderActivity.note')}
+      </p>
+
+      {logs.length === 0 ? (
+        <p style={{ color: 'var(--tax-muted)' }}>{t('owner.customer.reminderActivity.empty')}</p>
+      ) : (
+        <div style={{ overflowX: 'auto', border: '1px solid var(--tax-border)', borderRadius: 8 }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+            <thead>
+              <tr style={{ background: 'var(--tax-bg-alt)', textAlign: 'left' }}>
+                <th style={{ padding: '8px 10px' }}>{t('owner.customer.reminderActivity.sent')}</th>
+                <th style={{ padding: '8px 10px' }}>{t('owner.customer.reminderActivity.subject')}</th>
+                <th style={{ padding: '8px 10px' }}>{t('owner.customer.reminderActivity.engagement')}</th>
+                <th style={{ padding: '8px 10px' }}>{t('owner.customer.reminderActivity.timeline')}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {logs.map(l => {
+                const openedPill = l.opened_at
+                  ? <Pill kind="ok" label={`${t('owner.customer.reminderActivity.openedShort')}${l.open_count > 1 ? ` ×${l.open_count}` : ''}`} />
+                  : <Pill kind="muted" label={t('owner.customer.reminderActivity.notOpened')} />;
+                const clickedPill = l.clicked_at
+                  ? <Pill kind="ok" label={`${t('owner.customer.reminderActivity.clickedShort')}${l.click_count > 1 ? ` ×${l.click_count}` : ''}`} />
+                  : <Pill kind="muted" label={t('owner.customer.reminderActivity.notClicked')} />;
+                const deliveredPill = l.delivered_at
+                  ? <Pill kind="muted" label={t('owner.customer.reminderActivity.deliveredShort')} />
+                  : <Pill kind="warn" label={t('owner.customer.reminderActivity.pendingShort')} />;
+                return (
+                  <tr key={l.id} style={{ borderTop: '1px solid var(--tax-border)' }}>
+                    <td style={{ padding: '8px 10px', whiteSpace: 'nowrap' }}>{fmt(l.created_at, false)}</td>
+                    <td style={{ padding: '8px 10px' }}>{l.subject || '—'}</td>
+                    <td style={{ padding: '8px 10px' }}>
+                      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                        {deliveredPill}{openedPill}{clickedPill}
+                      </div>
+                    </td>
+                    <td style={{ padding: '8px 10px', fontSize: 12, color: 'var(--tax-muted)' }}>
+                      {l.opened_at && <div>{t('owner.customer.reminderActivity.opened')}: {fmt(l.opened_at)}</div>}
+                      {l.clicked_at && <div>{t('owner.customer.reminderActivity.clicked')}: {fmt(l.clicked_at)}</div>}
+                      {!l.opened_at && !l.clicked_at && '—'}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </section>
+  );
+}
+
+function SummaryStat({ label, value, accent }) {
+  const ring = {
+    ok:    'var(--tax-success)',
+    warn:  '#d97706',
+    muted: 'var(--tax-border)',
+  }[accent] || 'var(--tax-border)';
+  return (
+    <div style={{
+      padding: 12, borderRadius: 8, background: 'var(--tax-bg-alt)',
+      border: `1px solid ${ring}`,
+    }}>
+      <div style={{ fontSize: 12, color: 'var(--tax-muted)', textTransform: 'uppercase', letterSpacing: '.04em' }}>
+        {label}
+      </div>
+      <div style={{ fontSize: 22, fontWeight: 700, marginTop: 2 }}>{value}</div>
+    </div>
   );
 }
 

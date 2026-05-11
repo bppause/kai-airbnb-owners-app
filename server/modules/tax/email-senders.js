@@ -10,7 +10,7 @@
 const { escapeHtml } = require('../../core/utils');
 
 module.exports = function createTaxSenders(deps) {
-  const { sendSpanishEmail, emailConfigured, loadTaxEmailTemplate } = deps;
+  const { sendSpanishEmail, emailConfigured, loadTaxEmailTemplate, logTaxEmailDelivery } = deps;
 
   // Phase 4i: owner-editable subject + intro paragraph per (template_key, lang).
   // Senders compute their defaults as before; if an override row exists and
@@ -110,14 +110,13 @@ module.exports = function createTaxSenders(deps) {
   // Formal bilingual reminder asking the customer for the info needed to
   // complete a filing. Tone consciously formal per owner preference. Lang
   // chosen from cust.locale ('en' or 'es'); falls back to 'es'.
-  const sendTaxReminderEmail = async ({ row, cust, sch, sub, magicUrl, offsetDays, tips, extraDocs }) => {
-    if (!emailConfigured) return { sent: false, skipped: true, reason: 'email_not_configured' };
-    // Prefer the customer's chosen communication email (Phase 2e) when set;
-    // otherwise fall back to the login email.
-    const to = String(cust?.preferred_communication_email || cust?.email || '').trim();
-    if (!to) return { sent: false, skipped: true, reason: 'customer_email_missing' };
-
-    const lang = cust.locale === 'en' ? 'en' : 'es';
+  //
+  // Phase 4n: the default-building logic is factored into buildReminderEmail
+  // so the admin preview route can render the same output without sending.
+  function buildReminderEmail({ row, cust, sch, sub, magicUrl, offsetDays, tips, extraDocs, langOverride }) {
+    const lang = langOverride === 'en' ? 'en'
+      : langOverride === 'es' ? 'es'
+      : (cust?.locale === 'en' ? 'en' : 'es');
     const langTag = lang === 'en' ? 'en' : 'es-CO';
     const filingName = pickName(sch.name_i18n, lang);
     const filingDesc = pickName(sch.description_i18n, lang);
@@ -206,13 +205,130 @@ module.exports = function createTaxSenders(deps) {
       period_label: row.period_label, due_date: row.due_date,
       offset_days: Math.abs(offsetDays), magic_url: magicUrl,
     };
+    return { lang, langTag, defaults, vars };
+  }
+
+  const sendTaxReminderEmail = async ({ row, cust, sch, sub, magicUrl, offsetDays, tips, extraDocs }) => {
+    if (!emailConfigured) return { sent: false, skipped: true, reason: 'email_not_configured' };
+    // Prefer the customer's chosen communication email (Phase 2e) when set;
+    // otherwise fall back to the login email.
+    const to = String(cust?.preferred_communication_email || cust?.email || '').trim();
+    if (!to) return { sent: false, skipped: true, reason: 'customer_email_missing' };
+
+    const built = buildReminderEmail({ row, cust, sch, sub, magicUrl, offsetDays, tips, extraDocs });
     const finalCopy = await applyOverride({
-      communityId: cust.community_id, key: 'reminder', lang, vars, defaults,
+      communityId: cust.community_id, key: 'reminder',
+      lang: built.lang, vars: built.vars, defaults: built.defaults,
     });
-    return sendSpanishEmail({
-      to, subject: finalCopy.subject, text: finalCopy.text, html: finalCopy.html, lang: langTag,
+    const result = await sendSpanishEmail({
+      to, subject: finalCopy.subject, text: finalCopy.text, html: finalCopy.html, lang: built.langTag,
     });
+    // Phase 4n: persist a row keyed by Resend's message id so the webhook
+    // receiver can match incoming opened/clicked events back to a customer.
+    if (result && result.sent && typeof logTaxEmailDelivery === 'function') {
+      try {
+        await logTaxEmailDelivery({
+          resendId: result.id || '',
+          communityId: cust.community_id || '',
+          customerId: cust.id || '',
+          eventType: 'reminder',
+          recipients: [to],
+          subject: finalCopy.subject,
+          relatedEntity: 'tax.period',
+          relatedId: row?.id || '',
+        });
+      } catch (_e) { /* logging must never break a send */ }
+    }
+    return result;
   };
+
+  // Phase 4n.2: editable defaults for the Email Templates form. Returns the
+  // raw template the owner edits — uses `{{var}}` placeholders instead of
+  // substituted stub values, so the persisted text stays live (Maria García
+  // doesn't get baked into every customer's email). Lives alongside
+  // buildReminderEmail so the placeholder set stays in sync with the vars
+  // map the sender builds at send time.
+  function buildReminderTemplate(lang) {
+    const useEn = lang === 'en';
+    const formalGreeting = useEn ? 'Dear {{customer_name}},' : 'Estimado/a {{customer_name}}:';
+    const closing = useEn ? 'Sincerely,\n{{practice_name}}' : 'Atentamente,\n{{practice_name}}';
+    const subject = useEn
+      ? 'Reminder: {{filing_name}} due {{due_date}} ({{offset_days}} days away)'
+      : 'Recordatorio: {{filing_name}} vence el {{due_date}} ({{offset_days}} días restantes)';
+
+    const introBody = useEn
+      ? `This is a reminder that the filing "{{filing_name}}" for the period {{period_label}} is due on {{due_date}}.\n\n{{filing_description}}\n\nIn order to prepare and submit this filing on your behalf, we will need the information requested in your secure portal.`
+      : `Le escribimos para recordarle que la declaración "{{filing_name}}" correspondiente al período {{period_label}} vence el {{due_date}}.\n\n{{filing_description}}\n\nPara poder preparar y presentar esta declaración en su nombre, necesitamos la información solicitada en su portal seguro.`;
+    const ctaText = useEn
+      ? 'Please submit your information via the secure link below. The link is unique to this filing and will expire after the due date.'
+      : 'Por favor envíe su información usando el enlace seguro a continuación. El enlace es único para esta declaración y expirará después de la fecha de vencimiento.';
+    const ctaLabel = useEn ? 'Submit information' : 'Enviar información';
+
+    const text = [formalGreeting, '', introBody, '', ctaText, '{{magic_url}}', '', closing].join('\n');
+    const html = `
+      <div style="font-family:Arial,sans-serif;max-width:640px;color:#111">
+        <p>${formalGreeting}</p>
+        <p style="white-space:pre-line">${introBody}</p>
+        <p>${ctaText}</p>
+        <p style="margin:24px 0">
+          <a href="{{magic_url}}" style="background:#1d3a6d;color:#fff;text-decoration:none;padding:12px 22px;border-radius:8px;font-weight:600;display:inline-block">${ctaLabel}</a>
+        </p>
+        <p style="color:#666;font-size:13px">{{magic_url}}</p>
+        <p style="white-space:pre-line">${closing}</p>
+      </div>
+    `.trim();
+
+    return { subject, text, html };
+  }
+
+  // Returns the editable defaults for any known template_key. Today only the
+  // reminder template has a factored placeholder version; for other keys we
+  // return empty strings (the form starts blank) — same behavior as before.
+  function getTemplateDefaults({ key, lang }) {
+    const useLang = lang === 'en' ? 'en' : 'es';
+    if (key === 'reminder') return buildReminderTemplate(useLang);
+    return { subject: '', text: '', html: '' };
+  }
+
+  // Phase 4n: pure helper for the admin preview route. Accepts an optional
+  // unsaved override (subject/body_text/body_html) so the owner can preview
+  // exactly what they're about to save. When `override` is null, the route
+  // falls through to whatever's persisted in tax_email_templates.
+  async function previewTaxEmail({ key, lang, override, stub }) {
+    if (key !== 'reminder') {
+      // For non-reminder templates we don't have factored defaults yet —
+      // just substitute the unsaved override (or empty strings) through
+      // interpolate so the owner can sanity-check placeholders.
+      const vars = (stub && stub.vars) || {};
+      return {
+        key, lang,
+        subject: interpolate((override && override.subject) || '', vars),
+        text: interpolate((override && override.body_text) || '', vars),
+        html: interpolate((override && override.body_html) || '', vars),
+        partial: true,
+      };
+    }
+    const built = buildReminderEmail({ ...(stub || {}), langOverride: lang });
+    if (override) {
+      const pick = (oField, dField) => {
+        const s = (typeof override[oField] === 'string' ? override[oField] : '').trim();
+        return s ? interpolate(override[oField], built.vars) : built.defaults[dField];
+      };
+      return {
+        key, lang: built.lang,
+        subject: pick('subject', 'subject'),
+        text: pick('body_text', 'text'),
+        html: pick('body_html', 'html'),
+        partial: false,
+      };
+    }
+    // Loaded persisted row from DB.
+    const persistedCopy = await applyOverride({
+      communityId: stub && stub.communityId, key: 'reminder',
+      lang: built.lang, vars: built.vars, defaults: built.defaults,
+    });
+    return { key, lang: built.lang, ...persistedCopy, partial: false };
+  }
 
   function pickName(obj, lang) {
     if (obj && typeof obj === 'object') {
@@ -777,5 +893,7 @@ module.exports = function createTaxSenders(deps) {
     sendTaxMessageEmployeeEmail,
     sendTaxWelcomeEmail,
     sendTaxStaffWelcomeEmail,
+    previewTaxEmail,
+    getTemplateDefaults,
   };
 };

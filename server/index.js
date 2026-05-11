@@ -171,6 +171,19 @@ const {
 
 // ─── MIDDLEWARE ───────────────────────────────────────────────────────────────
 app.use(cors());
+
+// Phase 4n: Resend webhook receiver — must run BEFORE express.json() so the
+// raw body is available for HMAC signature verification. Mounted as a single
+// raw-body endpoint; the handler parses JSON itself after verifying.
+const taxResendWebhook = require('./modules/tax/resend-webhook')({
+  supabase,
+  isSupabaseConfigured: Boolean(SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY),
+  signingSecret: process.env.RESEND_WEBHOOK_SECRET || '',
+});
+app.post('/api/m/tax/resend/webhook',
+  express.raw({ type: '*/*', limit: '1mb' }),
+  taxResendWebhook.handle);
+
 app.use(express.json({ limit: '15mb' })); // photos stored as base64: 3 × ≤600KB each ≈ ≤2MB total
 
 // Serve built React app
@@ -381,11 +394,38 @@ async function loadTaxEmailTemplate(communityId, key, lang) {
   if (error || !data || !data.enabled) return null;
   return data;
 }
+// Phase 4n: tax-specific delivery log. Keys the row by Resend's message id so
+// the /resend/webhook receiver can stamp open / click events. Different from
+// the generic logEmailDelivery (id-prefixed UUID); we need the message id as
+// the lookup key, plus customer_id for the badge on the customer detail page.
+async function logTaxEmailDelivery({ resendId, communityId, customerId, eventType, recipients, subject, relatedEntity, relatedId }) {
+  if (!supabase) return;
+  try {
+    const { v4: uuidv4 } = require('uuid');
+    await supabase.from('email_delivery_logs').insert({
+      id: 'eml_' + uuidv4().slice(0, 12),
+      community_id: communityId || 'kai',
+      event_type: String(eventType || ''),
+      recipients: Array.isArray(recipients) ? recipients : [],
+      subject: String(subject || '').slice(0, 4000),
+      status: 'sent',
+      error_message: '',
+      related_entity: String(relatedEntity || ''),
+      related_id: String(relatedId || ''),
+      resend_id: resendId || null,
+      customer_id: customerId || null,
+      created_at: new Date().toISOString(),
+    });
+  } catch (e) {
+    console.warn('[tax] logTaxEmailDelivery failed:', e?.message || e);
+  }
+}
 const {
   sendTaxLeadEmail, sendTaxReminderEmail, sendTaxDocumentEmail,
   sendTaxMessageEmail, sendTaxMessagePracticeEmail, sendTaxMessageEmployeeEmail,
   sendTaxWelcomeEmail, sendTaxStaffWelcomeEmail,
-} = require('./modules/tax/email-senders')({ sendSpanishEmail, emailConfigured, loadTaxEmailTemplate });
+  previewTaxEmail, getTemplateDefaults,
+} = require('./modules/tax/email-senders')({ sendSpanishEmail, emailConfigured, loadTaxEmailTemplate, logTaxEmailDelivery });
 const taxRemindersCron = require('./modules/tax/reminders')({
   supabase,
   isSupabaseConfigured: Boolean(SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY),
@@ -404,6 +444,8 @@ const taxRouter = taxModule.createRouter({
   sendTaxMessageEmployeeEmail,
   sendTaxWelcomeEmail,
   sendTaxStaffWelcomeEmail,
+  previewTaxEmail,
+  getTemplateDefaults,
   publicAppUrl: () => publicAppUrl(),
   isGlobalAdmin,
   isEnvGlobalAdminEmail,

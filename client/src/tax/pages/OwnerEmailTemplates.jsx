@@ -3,6 +3,7 @@ import { useT } from '../i18n';
 import { useEmployeeAuth } from '../auth/EmployeeAuthProvider';
 import { taxApi } from '../api';
 import EmployeeShell from '../components/EmployeeShell';
+import EmailPreviewModal from '../components/EmailPreviewModal';
 
 // Phase 4i: owner-editable email subject + body per template_key × lang.
 // When all three fields (subject / body_text / body_html) are empty for a
@@ -41,6 +42,7 @@ export default function OwnerEmailTemplates() {
   const [form, setForm] = useState({ subject: '', body_text: '', body_html: '', enabled: true });
   const [msg, setMsg] = useState({ kind: 'idle', text: '' });
   const [busy, setBusy] = useState(false);
+  const [previewOpen, setPreviewOpen] = useState(false);
 
   const load = () => {
     if (!fbUser || !community) return;
@@ -61,15 +63,43 @@ export default function OwnerEmailTemplates() {
     templates.find(r => r.template_key === activeKey && r.lang === activeLang) || null,
   [templates, activeKey, activeLang]);
 
+  // Phase 4n.2: when there's no override row for this (key, lang), prefill
+  // the form with the factored {{placeholder}} default so the owner edits a
+  // realistic starting template instead of an empty textarea. When an
+  // override exists, prefer it. `prefilledFromDefault` drives the banner.
+  const [prefilledFromDefault, setPrefilledFromDefault] = useState(false);
+
   useEffect(() => {
-    setForm({
-      subject: current?.subject || '',
-      body_text: current?.body_text || '',
-      body_html: current?.body_html || '',
-      enabled: current ? current.enabled : true,
-    });
     setMsg({ kind: 'idle', text: '' });
-  }, [activeKey, activeLang, current]);
+    if (current) {
+      setForm({
+        subject: current.subject || '',
+        body_text: current.body_text || '',
+        body_html: current.body_html || '',
+        enabled: current.enabled,
+      });
+      setPrefilledFromDefault(false);
+      return;
+    }
+    // No override yet — try to fetch the factored default.
+    let cancelled = false;
+    setForm({ subject: '', body_text: '', body_html: '', enabled: true });
+    setPrefilledFromDefault(false);
+    taxApi.adminGetEmailTemplateDefaults(auth, activeKey, activeLang)
+      .then(d => {
+        if (cancelled) return;
+        const anyFilled = (d.subject || d.body_text || d.body_html);
+        setForm({
+          subject: d.subject || '',
+          body_text: d.body_text || '',
+          body_html: d.body_html || '',
+          enabled: true,
+        });
+        setPrefilledFromDefault(!!anyFilled);
+      })
+      .catch(() => { /* leave the form empty if defaults aren't available */ });
+    return () => { cancelled = true; };
+  }, [activeKey, activeLang, current]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const onSave = async () => {
     if (!community) return;
@@ -162,6 +192,16 @@ export default function OwnerEmailTemplates() {
             )}
           </div>
 
+          {prefilledFromDefault && !isOverridden && (
+            <div style={{
+              margin: '0 0 12px', padding: '10px 12px', borderRadius: 8,
+              background: '#eff6ff', border: '1px solid #bfdbfe', color: '#1e3a8a',
+              fontSize: 13,
+            }}>
+              {t('owner.emailTemplates.prefillBanner')}
+            </div>
+          )}
+
           <div className="tax-form" style={{ display: 'grid', gap: 12 }}>
             <div>
               <label htmlFor="tmpl-subject">{t('owner.emailTemplates.subject')}</label>
@@ -200,6 +240,10 @@ export default function OwnerEmailTemplates() {
                     disabled={busy} onClick={onSave}>
               {busy ? t('lead.submitting') : t('owner.emailTemplates.saveBtn')}
             </button>
+            <button type="button" className="tax-btn tax-btn--ghost"
+                    onClick={() => setPreviewOpen(true)}>
+              {t('preview.title')}
+            </button>
             {isOverridden && (
               <button type="button" className="tax-btn tax-btn--ghost"
                       disabled={busy} onClick={onReset}>
@@ -226,6 +270,16 @@ export default function OwnerEmailTemplates() {
           </ul>
         </aside>
       </div>
+
+      <EmailPreviewModal
+        open={previewOpen}
+        onClose={() => setPreviewOpen(false)}
+        auth={auth}
+        communitySlug={community?.id}
+        templateKey={activeKey}
+        lang={activeLang}
+        override={{ subject: form.subject, body_text: form.body_text, body_html: form.body_html }}
+      />
     </EmployeeShell>
   );
 }

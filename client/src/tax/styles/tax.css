@@ -85,8 +85,13 @@
 .tax-btn--primary:hover {
   background: color-mix(in srgb, var(--tax-brand-secondary) 88%, #000);
 }
-.tax-btn--ghost { background: transparent; color: #fff; border-color: rgba(255,255,255,.4); }
-.tax-btn--ghost:hover { background: rgba(255,255,255,.1); }
+/* Default: dark text + light border for use on white card backgrounds. The
+   white-text variant only applies inside the dark hero gradient (and the
+   existing .tax-nav scope, kept for safety). */
+.tax-btn--ghost { background: transparent; color: var(--tax-text); border-color: var(--tax-border); }
+.tax-btn--ghost:hover { background: var(--tax-bg-alt); }
+.tax-hero .tax-btn--ghost { color: #fff; border-color: rgba(255,255,255,.4); }
+.tax-hero .tax-btn--ghost:hover { background: rgba(255,255,255,.1); }
 .tax-btn--block { width: 100%; }
 .tax-btn--sm { padding: 8px 14px; font-size: 13px; }
 .tax-btn[disabled] { opacity: .6; cursor: not-allowed; }

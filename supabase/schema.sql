@@ -485,6 +485,30 @@ create table if not exists public.email_delivery_logs (
 
 alter table public.email_delivery_logs add column if not exists community_id text not null default 'kai' references public.communities(id);
 
+-- Phase 4n: open / click tracking via Resend webhook. resend_id is the message
+-- id returned by `resend.emails.send`; the webhook receiver matches on it and
+-- stamps the corresponding event column. open_count / click_count tally repeat
+-- events (Resend fires `email.opened` each time the pixel loads).
+alter table public.email_delivery_logs add column if not exists resend_id text;
+alter table public.email_delivery_logs add column if not exists delivered_at timestamptz;
+alter table public.email_delivery_logs add column if not exists opened_at timestamptz;
+alter table public.email_delivery_logs add column if not exists clicked_at timestamptz;
+alter table public.email_delivery_logs add column if not exists bounced_at timestamptz;
+alter table public.email_delivery_logs add column if not exists complained_at timestamptz;
+alter table public.email_delivery_logs add column if not exists open_count int not null default 0;
+alter table public.email_delivery_logs add column if not exists click_count int not null default 0;
+alter table public.email_delivery_logs add column if not exists customer_id text;
+create index if not exists idx_email_delivery_logs_resend_id on public.email_delivery_logs(resend_id) where resend_id is not null;
+create index if not exists idx_email_delivery_logs_customer_event on public.email_delivery_logs(customer_id, event_type, created_at desc) where customer_id is not null;
+
+-- Phase 4n.3: owner-created filing schedules. Adds 'weekly' to the cadence
+-- check constraint so we can support `weekly_following` anchor rules. The
+-- new check uses the modern name; drop the old one first if it lingers.
+alter table public.tax_filing_schedules drop constraint if exists tax_filing_schedules_cadence_check;
+alter table public.tax_filing_schedules
+  add constraint tax_filing_schedules_cadence_check
+  check (cadence in ('weekly','monthly','quarterly','annual','custom'));
+
 -- ─────────────────────────────────────────────────────────────────────────────
 -- INDEXES
 -- ─────────────────────────────────────────────────────────────────────────────

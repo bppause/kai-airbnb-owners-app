@@ -44,6 +44,8 @@ module.exports = function createTaxRouter(deps) {
     sendTaxMessageEmployeeEmail,
     sendTaxWelcomeEmail,
     sendTaxStaffWelcomeEmail,
+    previewTaxEmail,
+    getTemplateDefaults,
     publicAppUrl,
     isGlobalAdmin,
     isEnvGlobalAdminEmail,
@@ -1111,7 +1113,7 @@ module.exports = function createTaxRouter(deps) {
     if (cErr) return sendSupabaseError(res, cErr);
     if (!cust) return res.status(404).json({ error: 'Customer not found.' });
 
-    const [rels, subs, docs, threads, assignments, periods] = await Promise.all([
+    const [rels, subs, docs, threads, assignments, periods, emailLogs] = await Promise.all([
       supabase.from('tax_customer_relationships')
         .select(`
           id, relationship_type_id, notes, active, created_at,
@@ -1144,6 +1146,13 @@ module.exports = function createTaxRouter(deps) {
         `)
         .eq('customer_id', id)
         .order('due_date', { ascending: false }).limit(24),
+      // Phase 4n: reminder send + open/click history. Bounded so we don't
+      // pull every email this customer ever got; the UI shows the 20 most
+      // recent reminder events.
+      supabase.from('email_delivery_logs')
+        .select('id, event_type, subject, related_id, created_at, delivered_at, opened_at, clicked_at, bounced_at, open_count, click_count')
+        .eq('customer_id', id).eq('event_type', 'reminder')
+        .order('created_at', { ascending: false }).limit(20),
     ]);
 
     res.json({
@@ -1154,6 +1163,7 @@ module.exports = function createTaxRouter(deps) {
       threads: threads.data || [],
       periods: periods.data || [],
       assignments: assignments.data || [],
+      emailLogs: emailLogs.data || [],
     });
   });
 
@@ -2131,6 +2141,125 @@ module.exports = function createTaxRouter(deps) {
       .order('display_order', { ascending: true });
     if (error) return sendSupabaseError(res, error);
     res.json({ schedules: data || [] });
+  });
+
+  // Phase 4n.3: owner-created filing schedule. Inserts a new row in
+  // tax_filing_schedules and (when relationshipTypeId is given) auto-binds
+  // a tax_relationship_workflow_rules row so the schedule immediately shows
+  // up under that relationship. Cadence + day inputs are folded into the
+  // canonical anchor_rule shapes; supported types: weekly_following,
+  // monthly_following, quarterly_following, annual.
+  router.post('/admin/filing-schedules', async (req, res) => {
+    if (!(await requireOwnerAdmin(req, res))) return;
+    const body = req.body || {};
+    const communitySlug = trim(body.communitySlug, 200);
+    if (!communitySlug) return res.status(400).json({ error: 'communitySlug required.' });
+
+    const cadence = String(body.cadence || '').trim();
+    if (!['weekly', 'monthly', 'quarterly', 'annual'].includes(cadence)) {
+      return res.status(400).json({ error: 'cadence must be weekly|monthly|quarterly|annual.' });
+    }
+    const nameEn = trim(body.nameEn || '', 200);
+    const nameEs = trim(body.nameEs || '', 200);
+    if (!nameEn && !nameEs) return res.status(400).json({ error: 'name required (en or es).' });
+
+    // Build the anchor_rule from the user-friendly inputs.
+    let anchorRule;
+    if (cadence === 'weekly') {
+      const dayOfWeek = Math.max(1, Math.min(7, parseInt(body.dayOfWeek, 10) || 5));
+      anchorRule = { type: 'weekly_following', dayOfWeek };
+    } else if (cadence === 'monthly') {
+      const day = Math.max(1, Math.min(28, parseInt(body.dayOfMonth, 10) || 20));
+      anchorRule = { type: 'monthly_following', day };
+    } else if (cadence === 'quarterly') {
+      const day = Math.max(1, Math.min(28, parseInt(body.dayOfMonth, 10) || 15));
+      anchorRule = { type: 'quarterly_following', day };
+    } else {
+      // annual — expect a MM-DD string or use 12-31 default.
+      const date = String(body.date || '12-31').trim();
+      if (!/^\d{1,2}-\d{1,2}$/.test(date)) return res.status(400).json({ error: 'date must be MM-DD for annual cadence.' });
+      anchorRule = { type: 'annual', date };
+    }
+
+    // Each schedule needs a product. Find or create a 'custom-workflows'
+    // product for this community so owners don't have to manage a separate
+    // service catalog for free-form schedules.
+    let productId = trim(body.productId || '', 200);
+    if (!productId) {
+      const customSlug = 'custom-workflows';
+      const { data: existingProd } = await supabase.from('tax_products')
+        .select('id').eq('community_id', communitySlug).eq('slug', customSlug).maybeSingle();
+      if (existingProd) {
+        productId = existingProd.id;
+      } else {
+        productId = `tp_${communitySlug}_${customSlug}`.slice(0, 200);
+        const { error: prodErr } = await supabase.from('tax_products').insert({
+          id: productId, community_id: communitySlug, slug: customSlug,
+          category: 'custom', display_order: 900,
+          name_i18n: { en: 'Custom workflows', es: 'Flujos personalizados' },
+          description_i18n: { en: 'Owner-defined filing schedules.', es: 'Calendarios de declaraciones definidos por el dueño.' },
+          icon: '',
+        });
+        if (prodErr) return sendSupabaseError(res, prodErr);
+      }
+    }
+
+    // Generate a stable slug from the name; uniqueness check inside community.
+    const baseSlug = (nameEn || nameEs).toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 60) || 'workflow';
+    let slug = baseSlug;
+    let scheduleId = `tfs_${communitySlug}_${slug}`.slice(0, 200);
+    // Ensure unique slug — append a suffix if taken.
+    for (let i = 1; i < 50; i++) {
+      const { data: clash } = await supabase.from('tax_filing_schedules')
+        .select('id').eq('community_id', communitySlug).eq('slug', slug).maybeSingle();
+      if (!clash) break;
+      slug = `${baseSlug}-${i + 1}`;
+      scheduleId = `tfs_${communitySlug}_${slug}`.slice(0, 200);
+    }
+
+    const infoChecklist = Array.isArray(body.infoChecklist) ? body.infoChecklist : [];
+
+    const { error: schedErr } = await supabase.from('tax_filing_schedules').insert({
+      id: scheduleId, community_id: communitySlug, product_id: productId,
+      slug, jurisdiction: trim(body.jurisdiction || 'federal', 60),
+      cadence, anchor_rule: anchorRule, info_checklist: infoChecklist,
+      name_i18n: { en: nameEn, es: nameEs },
+      description_i18n: { en: trim(body.descriptionEn || '', 1000), es: trim(body.descriptionEs || '', 1000) },
+      enabled: true, display_order: 100,
+    });
+    if (schedErr) return sendSupabaseError(res, schedErr);
+
+    // Optional: auto-bind to a relationship type so the schedule shows up
+    // immediately on the Workflows page under that relationship.
+    const relTypeId = trim(body.relationshipTypeId || '', 200);
+    if (relTypeId) {
+      // Parse offsets (positive ints up to 10 entries, dedup).
+      let offsets = [];
+      if (Array.isArray(body.reminderOffsetsDays)) {
+        offsets = body.reminderOffsetsDays
+          .map(n => parseInt(n, 10))
+          .filter(n => Number.isFinite(n) && n >= 0 && n <= 365);
+      }
+      const ruleId = `trwr_${communitySlug}_${relTypeId}_${slug}`.slice(0, 200);
+      const { error: ruleErr } = await supabase.from('tax_relationship_workflow_rules').upsert({
+        id: ruleId, community_id: communitySlug,
+        relationship_type_id: relTypeId, filing_schedule_slug: slug,
+        reminder_offsets_days: offsets,
+        required_documents: Array.isArray(body.extraDocs) ? body.extraDocs : [],
+        active: true, updated_at: new Date().toISOString(),
+      }, { onConflict: 'id' });
+      if (ruleErr) return sendSupabaseError(res, ruleErr);
+    }
+
+    try {
+      await auditLog({
+        entity: 'tax.filing_schedule', entityId: scheduleId,
+        action: 'create', actorEmail: '',
+        after: { community: communitySlug, slug, cadence, relTypeId: relTypeId || null },
+      });
+    } catch (_e) {}
+    res.json({ ok: true, scheduleId, slug });
   });
 
   router.get('/admin/relationship-workflow-rules', async (req, res) => {
@@ -3626,6 +3755,98 @@ module.exports = function createTaxRouter(deps) {
       });
     } catch (_e) {}
     res.json({ ok: true });
+  });
+
+  // Phase 4n.2: editable defaults — returns the {{placeholder}} template the
+  // owner sees in the Email Templates form when no override exists. The form
+  // pre-fills with this so the owner can tweak wording instead of starting
+  // from a blank textarea.
+  router.get('/admin/email-templates/defaults', async (req, res) => {
+    if (!(await requireOwnerAdmin(req, res))) return;
+    const key = trim(req.query.key, 60);
+    const lang = trim(req.query.lang, 10) === 'en' ? 'en' : 'es';
+    if (!TAX_EMAIL_TEMPLATE_KEYS.includes(key)) return res.status(400).json({ error: 'Unknown template_key.' });
+    if (typeof getTemplateDefaults !== 'function') return res.json({ subject: '', text: '', html: '' });
+    const defaults = getTemplateDefaults({ key, lang });
+    res.json({
+      subject: defaults.subject || '',
+      body_text: defaults.text || '',
+      body_html: defaults.html || '',
+      hasFactoredDefault: key === 'reminder',
+    });
+  });
+
+  // ── Phase 4n: rendered preview ───────────────────────────────────────────
+  // Renders a template with stub variables so the owner can see exactly what
+  // the customer will receive before saving. Accepts an unsaved override in
+  // the body — if omitted, falls back to whatever's persisted. Today only
+  // `reminder` has fully factored defaults; other keys render the override
+  // through the placeholder interpolator (partial=true).
+  router.post('/admin/email-templates/preview', async (req, res) => {
+    if (!(await requireOwnerAdmin(req, res))) return;
+    if (typeof previewTaxEmail !== 'function') {
+      return res.status(500).json({ error: 'preview unavailable' });
+    }
+    const body = req.body || {};
+    const communitySlug = trim(body.communitySlug, 200);
+    const key = trim(body.key, 60);
+    const lang = trim(body.lang, 10) === 'en' ? 'en' : 'es';
+    if (!communitySlug) return res.status(400).json({ error: 'communitySlug required.' });
+    if (!TAX_EMAIL_TEMPLATE_KEYS.includes(key)) return res.status(400).json({ error: 'Unknown template_key.' });
+
+    // The body can pass `useUnsaved: true` with `subject`, `body_text`,
+    // `body_html` to preview an in-flight edit. Otherwise the route loads
+    // the persisted row via applyOverride() inside previewTaxEmail.
+    const override = body.useUnsaved
+      ? {
+          subject: typeof body.subject === 'string' ? body.subject : '',
+          body_text: typeof body.body_text === 'string' ? body.body_text : '',
+          body_html: typeof body.body_html === 'string' ? body.body_html : '',
+        }
+      : null;
+
+    // Stub data used for the reminder builder. Real values are pulled when
+    // the cron actually fires; this mirrors the typical shape with realistic
+    // placeholders so the owner can see the formatting.
+    const stub = {
+      communityId: communitySlug,
+      row: {
+        due_date: body.dueDate || '2026-06-15',
+        period_label: body.periodLabel || (lang === 'en' ? 'Q2 2026' : 'T2 2026'),
+      },
+      cust: {
+        name: body.customerName || (lang === 'en' ? 'Maria García' : 'María García'),
+        email: 'preview@example.com',
+        locale: lang,
+        community_id: communitySlug,
+      },
+      sch: {
+        name_i18n: { en: 'Federal Estimated Income Tax (1040-ES)', es: 'Impuesto Federal Estimado (1040-ES)' },
+        description_i18n: { en: 'Quarterly estimated payment for the IRS.', es: 'Pago estimado trimestral para el IRS.' },
+        info_checklist: Array.isArray(body.scheduleChecklist) ? body.scheduleChecklist : [
+          { key: 'income_estimate', label_i18n: { en: 'Estimated income for the quarter', es: 'Ingresos estimados del trimestre' }, type: 'amount', required: true },
+          { key: 'deductions', label_i18n: { en: 'Estimated deductions', es: 'Deducciones estimadas' }, type: 'amount', required: false },
+        ],
+      },
+      sub: { custom_info_checklist: null, reminder_offsets_days: [] },
+      magicUrl: 'https://example.com/tax/r/preview-magic-link',
+      offsetDays: Number.isFinite(Number(body.offsetDays)) ? Math.abs(Number(body.offsetDays)) : 14,
+      tips: [],
+      extraDocs: Array.isArray(body.extraDocs) ? body.extraDocs : null,
+    };
+
+    try {
+      const rendered = await previewTaxEmail({ key, lang, override, stub });
+      return res.json({
+        subject: rendered.subject || '',
+        text: rendered.text || '',
+        html: rendered.html || '',
+        partial: !!rendered.partial,
+        lang: rendered.lang || lang,
+      });
+    } catch (e) {
+      return res.status(500).json({ error: e?.message || 'preview failed' });
+    }
   });
 
   // ── Owner setup status (Phase 4m) ─────────────────────────────────────────
