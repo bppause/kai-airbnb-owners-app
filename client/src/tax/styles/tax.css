@@ -295,3 +295,80 @@
   }
   .tax-shell__backdrop--open { display: block; }
 }
+
+/* ── Customer portal mobile pass (Phase 4o) ───────────────────────────────
+   Goals: no horizontal scroll, 16px+ input fields (iOS won't zoom on focus
+   when input font-size >= 16px), large tap targets, and a hamburger drawer
+   for the portal nav on small phones. Staff side keeps its own mobile
+   pattern (tax-shell__*).
+*/
+
+/* Portal hamburger button — only visible at narrow widths. */
+.tax-portal-menu-btn {
+  display: none;
+  appearance: none; background: transparent;
+  border: 1px solid var(--tax-border);
+  border-radius: 8px; padding: 8px 12px;
+  font-size: 18px; line-height: 1; cursor: pointer;
+  color: var(--tax-text);
+  min-height: 44px;
+}
+
+/* Mobile drawer for the portal nav. Slides down from below the header
+   when the menu button is tapped. Backdrop sits behind it. */
+.tax-portal-nav-backdrop { display: none; }
+
+@media (max-width: 720px) {
+  .tax-portal-menu-btn { display: inline-flex; align-items: center; }
+  .tax-portal-nav {
+    display: none;
+    position: absolute; top: 64px; left: 16px; right: 16px;
+    background: #fff; border: 1px solid var(--tax-border);
+    border-radius: 12px; padding: 12px;
+    flex-direction: column !important; align-items: stretch !important;
+    gap: 4px !important;
+    box-shadow: var(--tax-shadow-md);
+    z-index: 20;
+  }
+  .tax-portal-nav--open { display: flex !important; }
+  .tax-portal-nav a, .tax-portal-nav button.tax-btn {
+    width: 100%; justify-content: flex-start;
+    padding: 12px 14px !important; min-height: 44px;
+    font-size: 15px;
+  }
+  .tax-portal-nav-backdrop--open {
+    display: block; position: fixed; inset: 0;
+    background: rgba(15,23,42,.35); z-index: 19;
+  }
+  /* The header row's container should leave room for the menu button. */
+  .tax-header__row { padding-right: 8px; padding-left: 8px; }
+}
+
+/* Inputs: 16px font on small screens so iOS Safari doesn't zoom the
+   viewport on focus. Also bumps the touch target. */
+@media (max-width: 720px) {
+  .tax-app input, .tax-app textarea, .tax-app select {
+    font-size: 16px !important;
+    min-height: 44px;
+  }
+  .tax-app textarea { min-height: 88px; }
+  .tax-app .tax-btn { min-height: 44px; }
+  .tax-container { padding-left: 16px; padding-right: 16px; }
+}
+
+/* Sticky bottom action bar — opt-in via class. Used on the magic-link
+   Respond page and any other long form where the primary CTA should
+   always be reachable on a phone. Desktop: pass-through (no sticky). */
+.tax-sticky-cta { display: contents; }
+@media (max-width: 720px) {
+  .tax-sticky-cta {
+    display: block;
+    position: sticky; bottom: 0;
+    background: linear-gradient(to top, #fff 60%, rgba(255,255,255,0));
+    padding: 12px 0 16px;
+    z-index: 5;
+  }
+  .tax-sticky-cta .tax-btn {
+    width: 100%;
+  }
+}

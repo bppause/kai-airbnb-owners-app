@@ -5,9 +5,10 @@ import { useTaxAuth } from '../auth/AuthProvider';
 import { taxApi } from '../api';
 import ImpersonationBanner from './ImpersonationBanner';
 
-// Chrome shared by every portal page: brand header, locale switcher,
-// nav to dashboard/profile, and sign-out. Inherits brand colors from the
-// `--tax-brand-*` CSS vars set on the outer .tax-app wrapper.
+// Chrome shared by every portal page. Below 720px the horizontal nav
+// collapses behind a hamburger button (Phase 4o mobile pass) — customers
+// will overwhelmingly arrive on a phone from a reminder email, so the
+// nav can't overflow the viewport.
 export default function PortalShell({ community, active, children }) {
   const { t } = useT();
   const { fbUser, customer, signOut, impersonation, exitImpersonation, staffAccess } = useTaxAuth();
@@ -15,9 +16,11 @@ export default function PortalShell({ community, active, children }) {
     .split(/\s+/).map(w => w[0] || '').join('').slice(0, 3).toUpperCase();
   const base = community ? `/tax/${community.id}/portal` : '#';
 
-  // Unread-message badge for the Messages nav link. Polls /portal/threads
-  // once on mount per shell instance; messaging itself doesn't push, so a
-  // light refetch on each navigation is fine for v1.
+  // Mobile drawer state.
+  const [menuOpen, setMenuOpen] = useState(false);
+  const closeMenu = () => setMenuOpen(false);
+
+  // Unread-message badge for the Messages nav link.
   const [unread, setUnread] = useState(0);
   useEffect(() => {
     if (!fbUser || !community) return;
@@ -31,16 +34,35 @@ export default function PortalShell({ community, active, children }) {
   return (
     <>
       <ImpersonationBanner impersonation={impersonation} onExit={exitImpersonation} />
-      <header className="tax-header">
+      <header className="tax-header" style={{ position: 'sticky', top: 0 }}>
         <div className="tax-container tax-header__row">
-          <a href={base} className="tax-brand" aria-label={community?.name || 'Tax Services'}>
+          <a href={base} className="tax-brand" onClick={closeMenu}
+             aria-label={community?.name || 'Tax Services'}>
             {community?.logo_url
               ? <img src={community.logo_url} alt={community?.name || ''} className="tax-brand__logo" />
               : <span className="tax-brand__mark">{initials}</span>}
           </a>
-          <nav className="tax-nav" aria-label="Portal">
-            <a href={base} className={active === 'dashboard' ? 'active' : ''}>{t('portal.nav.dashboard')}</a>
-            <a href={`${base}/messages`} className={active === 'messages' ? 'active' : ''}>
+
+          {/* Mobile-only hamburger. Hidden on desktop via CSS. */}
+          <button type="button"
+                  className="tax-portal-menu-btn"
+                  aria-label={t('portal.nav.openMenu')}
+                  aria-expanded={menuOpen}
+                  onClick={() => setMenuOpen(o => !o)}>☰</button>
+
+          {/* Backdrop is mobile-only and only visible when the drawer is
+              open; tapping it closes the menu. */}
+          {menuOpen && (
+            <div className="tax-portal-nav-backdrop tax-portal-nav-backdrop--open"
+                 onClick={closeMenu} aria-hidden="true" />
+          )}
+
+          <nav className={`tax-nav tax-portal-nav${menuOpen ? ' tax-portal-nav--open' : ''}`}
+               aria-label="Portal">
+            <a href={base} className={active === 'dashboard' ? 'active' : ''} onClick={closeMenu}>
+              {t('portal.nav.dashboard')}
+            </a>
+            <a href={`${base}/messages`} className={active === 'messages' ? 'active' : ''} onClick={closeMenu}>
               {t('portal.nav.messages')}
               {unread > 0 && (
                 <span style={{
@@ -50,20 +72,15 @@ export default function PortalShell({ community, active, children }) {
                 }}>{unread}</span>
               )}
             </a>
-            <a href={`${base}/documents`} className={active === 'documents' ? 'active' : ''}>{t('portal.nav.documents')}</a>
-            <a href={`${base}/faqs`} className={active === 'faqs' ? 'active' : ''}>{t('portal.nav.faqs')}</a>
-            <a href={`${base}/help`} className={active === 'help' ? 'active' : ''}>{t('portal.nav.help')}</a>
-            <a href={`${base}/profile`} className={active === 'profile' ? 'active' : ''}>{t('portal.nav.profile')}</a>
+            <a href={`${base}/documents`} className={active === 'documents' ? 'active' : ''} onClick={closeMenu}>{t('portal.nav.documents')}</a>
+            <a href={`${base}/faqs`} className={active === 'faqs' ? 'active' : ''} onClick={closeMenu}>{t('portal.nav.faqs')}</a>
+            <a href={`${base}/help`} className={active === 'help' ? 'active' : ''} onClick={closeMenu}>{t('portal.nav.help')}</a>
+            <a href={`${base}/profile`} className={active === 'profile' ? 'active' : ''} onClick={closeMenu}>{t('portal.nav.profile')}</a>
             <LocaleSwitcher />
-            {/* Dual-role switch: when the same email also has an active
-                tax_employees row for this community, show a one-click
-                link to the staff portal. Hidden during impersonation
-                (the impersonator's real identity decides those flags
-                via /portal/me; while impersonating a customer the
-                impersonator is acting as that customer, not themselves,
-                so the link wouldn't make sense). */}
+            {/* Dual-role switch: see Phase 3 notes. Hidden during impersonation. */}
             {!impersonation && staffAccess?.hasEmployeeRow && community && (
               <a href={`/tax/${community.id}/employee`} className="tax-btn tax-btn--ghost tax-btn--sm"
+                 onClick={closeMenu}
                  style={{ color: 'var(--tax-brand-primary)', borderColor: 'var(--tax-brand-primary)' }}>
                 {staffAccess.role === 'admin'
                   ? t('portal.switchToOwner')

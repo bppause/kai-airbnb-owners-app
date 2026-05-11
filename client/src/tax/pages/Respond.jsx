@@ -175,13 +175,15 @@ export default function Respond({ token }) {
             <div className="tax-msg tax-msg--error" role="alert">{submitState.message}</div>
           )}
 
-          <button
-            type="submit"
-            className="tax-btn tax-btn--primary tax-btn--block"
-            disabled={submitState.kind === 'submitting'}
-          >
-            {submitState.kind === 'submitting' ? t('respond.submitting') : t('respond.submit')}
-          </button>
+          <div className="tax-sticky-cta">
+            <button
+              type="submit"
+              className="tax-btn tax-btn--primary tax-btn--block"
+              disabled={submitState.kind === 'submitting'}
+            >
+              {submitState.kind === 'submitting' ? t('respond.submitting') : t('respond.submit')}
+            </button>
+          </div>
         </form>
 
         {/* Quiet footer link for customers who'd rather submit from inside
