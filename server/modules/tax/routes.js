@@ -3772,7 +3772,7 @@ module.exports = function createTaxRouter(deps) {
       subject: defaults.subject || '',
       body_text: defaults.text || '',
       body_html: defaults.html || '',
-      hasFactoredDefault: key === 'reminder',
+      hasFactoredDefault: !!(defaults.subject || defaults.text || defaults.html),
     });
   });
 
