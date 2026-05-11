@@ -12,6 +12,25 @@ const CATEGORY_KEY = {
   audit: 'portal.profile.category.audit',
 };
 
+// Match the order used by the customer-list filter (OwnerCustomers).
+const CATEGORY_ORDER = ['business', 'individual', 'general', 'audit'];
+
+function groupRelationshipsByCategory(types) {
+  const buckets = new Map();
+  for (const t of types) {
+    const c = t.category || 'other';
+    if (!buckets.has(c)) buckets.set(c, []);
+    buckets.get(c).push(t);
+  }
+  for (const arr of buckets.values()) {
+    arr.sort((a, b) => (a.display_order || 0) - (b.display_order || 0));
+  }
+  const known = CATEGORY_ORDER.filter(c => buckets.has(c));
+  const extras = Array.from(buckets.keys())
+    .filter(c => !CATEGORY_ORDER.includes(c)).sort();
+  return [...known, ...extras].map(c => ({ category: c, types: buckets.get(c) }));
+}
+
 const MAX_BYTES = 25 * 1024 * 1024;
 const ALLOWED_MIME = new Set([
   'application/pdf',
@@ -55,7 +74,7 @@ export default function OwnerCustomerDetail({ customerId }) {
   };
   useEffect(() => {
     load();
-    taxApi.adminListRelationshipTypes(auth)
+    taxApi.adminListRelationshipTypes(auth, { communitySlug: community.id })
       .then(d => setTypes(d.types || []))
       .catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -325,6 +344,16 @@ function RelationshipsSection({ data, types, auth, customerId, onChange, locale,
     } catch (e) { setErr(e?.message || ''); }
     finally { setBusy(false); }
   };
+  const onAddType = async (id) => {
+    if (!id || busy) return;
+    setBusy(true); setErr('');
+    try {
+      await taxApi.adminAddCustomerRelationship(auth, customerId, { relationshipTypeId: id });
+      setPicking(false);
+      onChange();
+    } catch (e) { setErr(e?.message || ''); }
+    finally { setBusy(false); }
+  };
   const onRemove = async (rel) => {
     if (!window.confirm(t('owner.customer.relationship.confirmRemove', { name: pickI18n(rel.type?.name_i18n, locale).value || '' }))) return;
     try {
@@ -347,21 +376,37 @@ function RelationshipsSection({ data, types, auth, customerId, onChange, locale,
 
       {picking && (
         <div className="tax-contact-item" style={{ marginBottom: 12 }}>
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-            <select value={typeId} onChange={e => setTypeId(e.target.value)}
-                    style={{ padding: '8px 10px', border: '1px solid var(--tax-border)', borderRadius: 8, minWidth: 240 }}>
-              <option value="">{t('owner.customer.relationship.choose')}</option>
-              {available.map(tp => (
-                <option key={tp.id} value={tp.id}>
-                  {pickI18n(tp.name_i18n, locale).value} ({tp.category})
-                </option>
+          {available.length === 0 ? (
+            <p style={{ margin: 0, color: 'var(--tax-muted)' }}>{t('owner.customer.relationship.allAttached')}</p>
+          ) : (
+            <div style={{ display: 'grid', gap: 10 }}>
+              {groupRelationshipsByCategory(available).map(({ category, types }) => (
+                <div key={category}>
+                  <div style={{
+                    fontSize: 11, fontWeight: 700, color: 'var(--tax-muted)',
+                    textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 4,
+                  }}>
+                    {t(`owner.customers.category.${category}`, { _: category })}
+                  </div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                    {types.map(tp => (
+                      <button key={tp.id} type="button"
+                              onClick={() => onAddType(tp.id)}
+                              disabled={busy}
+                              style={{
+                                padding: '4px 10px', borderRadius: 999,
+                                background: '#fff', color: 'var(--tax-text)',
+                                border: '1px solid var(--tax-border)',
+                                fontSize: 12, fontWeight: 500, cursor: busy ? 'wait' : 'pointer',
+                              }}>
+                        + {pickI18n(tp.name_i18n, locale).value || tp.slug}
+                      </button>
+                    ))}
+                  </div>
+                </div>
               ))}
-            </select>
-            <button type="button" className="tax-btn tax-btn--primary tax-btn--sm"
-                    onClick={onAdd} disabled={!typeId || busy}>
-              {busy ? t('lead.submitting') : t('owner.customer.relationship.confirm')}
-            </button>
-          </div>
+            </div>
+          )}
         </div>
       )}
       {err && <div className="tax-msg tax-msg--error">{err}</div>}

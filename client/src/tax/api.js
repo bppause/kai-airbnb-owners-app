@@ -158,7 +158,15 @@ export const taxApi = {
   adminGetCustomer(auth, id)                    { return request('GET',  `/admin/customers/${encodeURIComponent(id)}`, undefined, auth, { admin: true }); },
   adminSendWelcomeEmail(auth, id)               { return request('POST', `/admin/customers/${encodeURIComponent(id)}/send-welcome`, {}, auth, { admin: true }); },
 
-  adminListRelationshipTypes(auth)              { return request('GET',  '/admin/relationship-types', undefined, auth, { admin: true }); },
+  adminListRelationshipTypes(auth, opts = {})   {
+    const qs = new URLSearchParams();
+    if (opts.communitySlug) qs.set('communitySlug', opts.communitySlug);
+    if (opts.includeInactive) qs.set('includeInactive', '1');
+    const tail = qs.toString();
+    return request('GET',  `/admin/relationship-types${tail ? `?${tail}` : ''}`, undefined, auth, { admin: true });
+  },
+  adminCreateRelationshipType(auth, payload)    { return request('POST', '/admin/relationship-types', payload, auth, { admin: true }); },
+  adminUpdateRelationshipType(auth, id, payload){ return request('PUT', `/admin/relationship-types/${encodeURIComponent(id)}`, payload, auth, { admin: true }); },
   adminListCustomerRelationships(auth, customerId) { return request('GET', `/admin/customers/${encodeURIComponent(customerId)}/relationships`, undefined, auth, { admin: true }); },
   adminAddCustomerRelationship(auth, customerId, payload) { return request('POST', `/admin/customers/${encodeURIComponent(customerId)}/relationships`, payload, auth, { admin: true }); },
   adminRemoveCustomerRelationship(auth, customerId, relId) { return request('DELETE', `/admin/customers/${encodeURIComponent(customerId)}/relationships/${encodeURIComponent(relId)}`, undefined, auth, { admin: true }); },

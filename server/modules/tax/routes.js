@@ -666,8 +666,10 @@ module.exports = function createTaxRouter(deps) {
     let unknownRels = [];
     if (requestedRels.length) {
       const { data: types } = await supabase.from('tax_relationship_types')
-        .select('id').eq('active', true);
-      const validTypeIds = new Set((types || []).map(t => t.id));
+        .select('id, community_id').eq('active', true);
+      const validTypeIds = new Set((types || [])
+        .filter(t => t.community_id == null || t.community_id === communitySlug)
+        .map(t => t.id));
       const validRels = requestedRels.filter(id => validTypeIds.has(id));
       unknownRels = requestedRels.filter(id => !validTypeIds.has(id));
       if (validRels.length) {
@@ -815,8 +817,10 @@ module.exports = function createTaxRouter(deps) {
     // Look up valid relationship-type IDs once. Unknown IDs in a row are
     // logged as warnings but don't fail the row.
     const { data: types } = await supabase.from('tax_relationship_types')
-      .select('id').eq('active', true);
-    const validTypeIds = new Set((types || []).map(t => t.id));
+      .select('id, community_id').eq('active', true);
+    const validTypeIds = new Set((types || [])
+      .filter(t => t.community_id == null || t.community_id === communitySlug)
+      .map(t => t.id));
 
     // Pre-fetch existing customers in this community so we can detect
     // duplicates and (in update mode) merge their fields. Index by lower-
@@ -1986,14 +1990,122 @@ module.exports = function createTaxRouter(deps) {
     res.json(data);
   });
 
-  // ── GET /admin/relationship-types ── (global admin)
+  // ── GET /admin/relationship-types ── (owner admin)
+  // Returns platform defaults (community_id IS NULL) UNION community-scoped
+  // types for the given community. By default only active rows; passing
+  // ?includeInactive=1 returns inactive too (for the manage page).
   router.get('/admin/relationship-types', async (req, res) => {
     if (!(await requireOwnerAdmin(req, res))) return;
-    const { data, error } = await supabase.from('tax_relationship_types')
-      .select('id, category, slug, name_i18n, description_i18n, display_order, active')
-      .eq('active', true).order('display_order', { ascending: true });
+    const communitySlug = trim(req.query.communitySlug, 200);
+    const includeInactive = req.query.includeInactive === '1' || req.query.includeInactive === 'true';
+    let q = supabase.from('tax_relationship_types')
+      .select('id, community_id, category, slug, name_i18n, description_i18n, display_order, active')
+      .order('display_order', { ascending: true });
+    if (!includeInactive) q = q.eq('active', true);
+    // community_id IS NULL OR community_id = $1
+    if (communitySlug) q = q.or(`community_id.is.null,community_id.eq.${communitySlug}`);
+    else q = q.is('community_id', null);
+    const { data, error } = await q;
     if (error) return sendSupabaseError(res, error);
     res.json({ types: data || [] });
+  });
+
+  // ── POST /admin/relationship-types ──
+  // Create a community-scoped relationship type. Owner can pick any of the
+  // 4 standard categories. Slug must be unique within the community.
+  router.post('/admin/relationship-types', async (req, res) => {
+    if (!(await requireOwnerAdmin(req, res))) return;
+    const body = req.body || {};
+    const communitySlug = trim(body.communitySlug, 200);
+    const category = trim(body.category, 40);
+    const slug = trim(body.slug, 80).toLowerCase().replace(/[^a-z0-9_]+/g, '_');
+    const nameEn = trim(body.nameEn, 200);
+    const nameEs = trim(body.nameEs, 200);
+    const descEn = trim(body.descriptionEn, 1000);
+    const descEs = trim(body.descriptionEs, 1000);
+    const displayOrder = Number.isFinite(Number(body.displayOrder)) ? Math.round(Number(body.displayOrder)) : 500;
+    if (!communitySlug || !slug || !category) {
+      return res.status(400).json({ error: 'communitySlug, category, slug required.' });
+    }
+    if (!['business', 'individual', 'general', 'audit'].includes(category)) {
+      return res.status(400).json({ error: 'category must be business, individual, general, or audit.' });
+    }
+    if (!nameEn && !nameEs) {
+      return res.status(400).json({ error: 'At least one of nameEn / nameEs is required.' });
+    }
+    // ID uses the community slug to avoid collisions with platform defaults
+    // ('business.llc') and with other communities' custom types.
+    const id = `${communitySlug}.${category}.${slug}`.slice(0, 200);
+
+    const { data: existing } = await supabase.from('tax_relationship_types')
+      .select('id').eq('id', id).maybeSingle();
+    if (existing) return res.status(409).json({ error: 'A service with this category + slug already exists for this community.' });
+
+    const row = {
+      id, community_id: communitySlug, category, slug,
+      name_i18n: { en: nameEn || nameEs, es: nameEs || nameEn },
+      description_i18n: { en: descEn, es: descEs },
+      display_order: displayOrder,
+      active: true,
+    };
+    const { error } = await supabase.from('tax_relationship_types').insert(row);
+    if (error) return sendSupabaseError(res, error);
+    try {
+      await auditLog({
+        entity: 'tax.relationship_type', entityId: id, action: 'create',
+        actorEmail: '', after: { community: communitySlug, category, slug },
+      });
+    } catch (_e) {}
+    res.json({ ok: true, type: row });
+  });
+
+  // ── PUT /admin/relationship-types/:id ── (community-scoped only)
+  router.put('/admin/relationship-types/:id', async (req, res) => {
+    if (!(await requireOwnerAdmin(req, res))) return;
+    const id = trim(req.params.id, 200);
+    const body = req.body || {};
+    const communitySlug = trim(body.communitySlug, 200);
+    if (!id || !communitySlug) return res.status(400).json({ error: 'id and communitySlug required.' });
+
+    const { data: existing } = await supabase.from('tax_relationship_types')
+      .select('id, community_id').eq('id', id).maybeSingle();
+    if (!existing) return res.status(404).json({ error: 'Relationship type not found.' });
+    // Owners can only edit their own community-scoped types — platform
+    // defaults (community_id NULL) are read-only here.
+    if (existing.community_id !== communitySlug) {
+      return res.status(403).json({ error: 'Platform-default services are read-only.' });
+    }
+
+    const update = {};
+    if (typeof body.nameEn === 'string' || typeof body.nameEs === 'string') {
+      const { data: cur } = await supabase.from('tax_relationship_types')
+        .select('name_i18n').eq('id', id).maybeSingle();
+      const next = { ...(cur?.name_i18n || {}) };
+      if (typeof body.nameEn === 'string') next.en = body.nameEn.slice(0, 200);
+      if (typeof body.nameEs === 'string') next.es = body.nameEs.slice(0, 200);
+      update.name_i18n = next;
+    }
+    if (typeof body.descriptionEn === 'string' || typeof body.descriptionEs === 'string') {
+      const { data: cur } = await supabase.from('tax_relationship_types')
+        .select('description_i18n').eq('id', id).maybeSingle();
+      const next = { ...(cur?.description_i18n || {}) };
+      if (typeof body.descriptionEn === 'string') next.en = body.descriptionEn.slice(0, 1000);
+      if (typeof body.descriptionEs === 'string') next.es = body.descriptionEs.slice(0, 1000);
+      update.description_i18n = next;
+    }
+    if (Number.isFinite(Number(body.displayOrder))) update.display_order = Math.round(Number(body.displayOrder));
+    if (typeof body.active === 'boolean') update.active = body.active;
+
+    if (!Object.keys(update).length) return res.status(400).json({ error: 'No editable fields supplied.' });
+    const { error } = await supabase.from('tax_relationship_types').update(update).eq('id', id);
+    if (error) return sendSupabaseError(res, error);
+    try {
+      await auditLog({
+        entity: 'tax.relationship_type', entityId: id, action: 'update',
+        actorEmail: '', after: { community: communitySlug, changes: Object.keys(update) },
+      });
+    } catch (_e) {}
+    res.json({ ok: true });
   });
 
   // ── Phase 4j: per-relationship workflow rules ────────────────────────────
@@ -2124,10 +2236,17 @@ module.exports = function createTaxRouter(deps) {
     const typeId = trim(req.body?.relationshipTypeId, 200);
     const notes = trim(req.body?.notes, MAX_TEXT_LEN);
     if (!customerId || !typeId) return res.status(400).json({ error: 'customerId and relationshipTypeId required.' });
-    const { data: cust } = await supabase.from('tax_customers').select('id, email').eq('id', customerId).maybeSingle();
+    const { data: cust } = await supabase.from('tax_customers').select('id, email, community_id').eq('id', customerId).maybeSingle();
     if (!cust) return res.status(404).json({ error: 'Customer not found.' });
-    const { data: type } = await supabase.from('tax_relationship_types').select('id').eq('id', typeId).maybeSingle();
+    const { data: type } = await supabase.from('tax_relationship_types')
+      .select('id, community_id, active').eq('id', typeId).maybeSingle();
     if (!type) return res.status(404).json({ error: 'Relationship type not found.' });
+    if (type.community_id != null && type.community_id !== cust.community_id) {
+      return res.status(403).json({ error: 'Service belongs to a different community.' });
+    }
+    if (type.active === false) {
+      return res.status(409).json({ error: 'Service is disabled.' });
+    }
     const relId = 'crel_' + uuidv4().slice(0, 12);
     const actor = trim(req.get('x-admin-email') || '', 200).toLowerCase();
     // Upsert-on-conflict: if the customer already has this relationship, reactivate it.

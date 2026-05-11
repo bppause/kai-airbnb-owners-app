@@ -37,7 +37,7 @@ export default function OwnerRelationshipWorkflows() {
     if (!fbUser || !community) return;
     setLoading(true); setErr('');
     Promise.all([
-      taxApi.adminListRelationshipTypes(auth),
+      taxApi.adminListRelationshipTypes(auth, { communitySlug: community.id }),
       taxApi.adminListFilingSchedules(auth, community.id),
       taxApi.adminListRelationshipWorkflowRules(auth, community.id),
     ])
