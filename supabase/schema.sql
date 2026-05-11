@@ -873,10 +873,35 @@ create index if not exists idx_tax_periods_customer on public.tax_filing_periods
 -- schedule_id become optional — periods can exist for customers who have a
 -- relationship but no active subscription.
 alter table public.tax_filing_periods
-  add column if not exists workflow_rule_id text references public.tax_relationship_workflow_rules(id) on delete set null,
-  add column if not exists relationship_type_id text references public.tax_relationship_types(id) on delete set null;
+  add column if not exists workflow_rule_id text,
+  add column if not exists relationship_type_id text;
 alter table public.tax_filing_periods alter column subscription_id drop not null;
 alter table public.tax_filing_periods alter column schedule_id drop not null;
+-- Idempotent FK creates. `add column if not exists ... references ...` SKIPS
+-- the FK when the column already exists from a prior run — Postgres treats
+-- the whole clause as a no-op. So we attach the constraint with a separate
+-- DO block that checks pg_constraint first. PGRST200 (no relationship found)
+-- means PostgREST never saw this; reload the cache after running this file
+-- with NOTIFY pgrst, 'reload schema'; (or the Supabase dashboard button).
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint where conname = 'tax_filing_periods_workflow_rule_id_fkey'
+  ) then
+    alter table public.tax_filing_periods
+      add constraint tax_filing_periods_workflow_rule_id_fkey
+      foreign key (workflow_rule_id) references public.tax_relationship_workflow_rules(id)
+      on delete set null;
+  end if;
+  if not exists (
+    select 1 from pg_constraint where conname = 'tax_filing_periods_relationship_type_id_fkey'
+  ) then
+    alter table public.tax_filing_periods
+      add constraint tax_filing_periods_relationship_type_id_fkey
+      foreign key (relationship_type_id) references public.tax_relationship_types(id)
+      on delete set null;
+  end if;
+end $$;
 create index if not exists idx_tax_periods_workflow_rule
   on public.tax_filing_periods(customer_id, workflow_rule_id, due_date);
 create index if not exists idx_tax_periods_relationship
