@@ -110,7 +110,7 @@ module.exports = function createTaxSenders(deps) {
   // Formal bilingual reminder asking the customer for the info needed to
   // complete a filing. Tone consciously formal per owner preference. Lang
   // chosen from cust.locale ('en' or 'es'); falls back to 'es'.
-  const sendTaxReminderEmail = async ({ row, cust, sch, sub, magicUrl, offsetDays, tips }) => {
+  const sendTaxReminderEmail = async ({ row, cust, sch, sub, magicUrl, offsetDays, tips, extraDocs }) => {
     if (!emailConfigured) return { sent: false, skipped: true, reason: 'email_not_configured' };
     // Prefer the customer's chosen communication email (Phase 2e) when set;
     // otherwise fall back to the login email.
@@ -121,7 +121,7 @@ module.exports = function createTaxSenders(deps) {
     const langTag = lang === 'en' ? 'en' : 'es-CO';
     const filingName = pickName(sch.name_i18n, lang);
     const filingDesc = pickName(sch.description_i18n, lang);
-    const checklist = effectiveChecklist(sub, sch);
+    const checklist = effectiveChecklist(sub, sch, extraDocs);
     const formalGreeting = formalSalutation(cust.name, lang);
     const closing = (lang === 'en'
       ? 'Sincerely,\nTax America Services'
@@ -223,11 +223,21 @@ module.exports = function createTaxSenders(deps) {
     return '';
   }
 
-  function effectiveChecklist(sub, sch) {
-    if (Array.isArray(sub?.custom_info_checklist) && sub.custom_info_checklist.length) {
-      return sub.custom_info_checklist;
+  function effectiveChecklist(sub, sch, extraDocs) {
+    // Per-subscription override completely replaces the schedule default.
+    const base = (Array.isArray(sub?.custom_info_checklist) && sub.custom_info_checklist.length)
+      ? sub.custom_info_checklist
+      : (Array.isArray(sch?.info_checklist) ? sch.info_checklist : []);
+    // Relationship-driven extras append on top, deduped by `key`.
+    if (!Array.isArray(extraDocs) || !extraDocs.length) return base;
+    const seen = new Set(base.map(i => i?.key).filter(Boolean));
+    const merged = base.slice();
+    for (const x of extraDocs) {
+      if (!x || (x.key && seen.has(x.key))) continue;
+      merged.push(x);
+      if (x.key) seen.add(x.key);
     }
-    return Array.isArray(sch?.info_checklist) ? sch.info_checklist : [];
+    return merged;
   }
 
   function formalSalutation(name, lang) {

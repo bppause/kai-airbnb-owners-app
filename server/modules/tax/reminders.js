@@ -111,16 +111,32 @@ module.exports = function createTaxRemindersCron(deps) {
       const sub = row.tax_subscriptions;
       const cust = row.tax_customers;
       const sch = row.tax_filing_schedules;
-      const offsets = Array.isArray(sub.reminder_offsets_days) && sub.reminder_offsets_days.length
-        ? sub.reminder_offsets_days : [-14, -7, -3];
+
+      // Phase 4j: resolve relationship-driven offsets + extra required docs.
+      // Subscription overrides win; otherwise fall through to relationship
+      // workflow rule; otherwise system default. Required docs APPEND on top
+      // of the schedule default (the sender dedupes by key).
+      const rule = await resolveWorkflowRule(cust.id, row.community_id, sch.slug);
+
+      let offsets;
+      if (Array.isArray(sub.reminder_offsets_days) && sub.reminder_offsets_days.length) {
+        offsets = sub.reminder_offsets_days;
+      } else if (Array.isArray(rule?.reminder_offsets_days) && rule.reminder_offsets_days.length) {
+        // Stored as positive days-before-due; cron expects negative.
+        offsets = rule.reminder_offsets_days.map(d => -Math.abs(Number(d) || 0)).filter(Boolean);
+        if (!offsets.length) offsets = [-14, -7, -3];
+      } else {
+        offsets = [-14, -7, -3];
+      }
       const channels = Array.isArray(sub.reminder_channels) && sub.reminder_channels.length
         ? sub.reminder_channels : ['email', 'in_app'];
+      const extraDocs = Array.isArray(rule?.required_documents) ? rule.required_documents : null;
 
       const dates = reminderFireDates(row.due_date, offsets);
       for (let i = 0; i < offsets.length; i++) {
         if (dates[i] !== today) continue;
         for (const channel of channels) {
-          const sent = await dispatchOne({ row, sub, cust, sch, channel, offsetDays: offsets[i] });
+          const sent = await dispatchOne({ row, sub, cust, sch, channel, offsetDays: offsets[i], extraDocs });
           if (sent) fired++;
         }
       }
@@ -128,8 +144,44 @@ module.exports = function createTaxRemindersCron(deps) {
     return fired;
   }
 
+  // Phase 4j: find the most specific workflow rule (community, customer's
+  // active relationships, schedule slug). If multiple relationships match,
+  // we merge: take the FIRST rule's offsets that's non-empty, and union
+  // ALL the required_documents lists (deduped by key in the sender).
+  async function resolveWorkflowRule(customerId, communityId, scheduleSlug) {
+    if (!customerId || !communityId || !scheduleSlug) return null;
+    const { data: rels } = await supabase
+      .from('tax_customer_relationships')
+      .select('relationship_type_id')
+      .eq('customer_id', customerId).eq('active', true);
+    const typeIds = (rels || []).map(r => r.relationship_type_id);
+    if (!typeIds.length) return null;
+    const { data: rules } = await supabase
+      .from('tax_relationship_workflow_rules')
+      .select('relationship_type_id, reminder_offsets_days, required_documents')
+      .eq('community_id', communityId)
+      .eq('filing_schedule_slug', scheduleSlug)
+      .eq('active', true)
+      .in('relationship_type_id', typeIds);
+    if (!rules || !rules.length) return null;
+    let offsets = null;
+    const docs = [];
+    for (const r of rules) {
+      if (!offsets && Array.isArray(r.reminder_offsets_days) && r.reminder_offsets_days.length) {
+        offsets = r.reminder_offsets_days;
+      }
+      if (Array.isArray(r.required_documents)) {
+        for (const d of r.required_documents) if (d) docs.push(d);
+      }
+    }
+    return {
+      reminder_offsets_days: offsets,
+      required_documents: docs.length ? docs : null,
+    };
+  }
+
   // ── Helpers ────────────────────────────────────────────────────────────────
-  async function dispatchOne({ row, sub, cust, sch, channel, offsetDays }) {
+  async function dispatchOne({ row, sub, cust, sch, channel, offsetDays, extraDocs }) {
     // Pre-flight de-dup: skip if a sent log row already exists for this combo.
     const { data: existing } = await supabase
       .from('tax_reminder_log')
@@ -152,7 +204,7 @@ module.exports = function createTaxRemindersCron(deps) {
         result = { sent: false, reason: 'email_not_configured' };
       } else {
         try {
-          await sendTaxReminderEmail({ row, cust, sch, sub, magicUrl, offsetDays, tips });
+          await sendTaxReminderEmail({ row, cust, sch, sub, magicUrl, offsetDays, tips, extraDocs });
           result = { sent: true };
         } catch (e) {
           result = { sent: false, reason: e?.message || 'send_failed' };

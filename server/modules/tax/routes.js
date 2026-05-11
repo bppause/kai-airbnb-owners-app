@@ -1996,6 +1996,113 @@ module.exports = function createTaxRouter(deps) {
     res.json({ types: data || [] });
   });
 
+  // ── Phase 4j: per-relationship workflow rules ────────────────────────────
+  // GET  /admin/filing-schedules?communitySlug=...     list this community's schedules
+  // GET  /admin/relationship-workflow-rules?communitySlug=...
+  // PUT  /admin/relationship-workflow-rules/:relTypeId/:scheduleSlug
+  // DELETE /admin/relationship-workflow-rules/:relTypeId/:scheduleSlug
+  router.get('/admin/filing-schedules', async (req, res) => {
+    if (!(await requireOwnerAdmin(req, res))) return;
+    const communitySlug = trim(req.query.communitySlug, 200);
+    if (!communitySlug) return res.status(400).json({ error: 'communitySlug required.' });
+    const { data, error } = await supabase.from('tax_filing_schedules')
+      .select('id, slug, product_id, jurisdiction, cadence, anchor_rule, info_checklist, name_i18n, description_i18n, enabled, display_order')
+      .eq('community_id', communitySlug)
+      .order('display_order', { ascending: true });
+    if (error) return sendSupabaseError(res, error);
+    res.json({ schedules: data || [] });
+  });
+
+  router.get('/admin/relationship-workflow-rules', async (req, res) => {
+    if (!(await requireOwnerAdmin(req, res))) return;
+    const communitySlug = trim(req.query.communitySlug, 200);
+    if (!communitySlug) return res.status(400).json({ error: 'communitySlug required.' });
+    const { data, error } = await supabase.from('tax_relationship_workflow_rules')
+      .select('id, relationship_type_id, filing_schedule_slug, reminder_offsets_days, required_documents, active, updated_at')
+      .eq('community_id', communitySlug);
+    if (error) return sendSupabaseError(res, error);
+    res.json({ rules: data || [] });
+  });
+
+  router.put('/admin/relationship-workflow-rules/:relTypeId/:scheduleSlug', async (req, res) => {
+    if (!(await requireOwnerAdmin(req, res))) return;
+    const body = req.body || {};
+    const communitySlug = trim(body.communitySlug, 200);
+    const relTypeId = trim(req.params.relTypeId, 200);
+    const scheduleSlug = trim(req.params.scheduleSlug, 200);
+    if (!communitySlug || !relTypeId || !scheduleSlug) {
+      return res.status(400).json({ error: 'communitySlug, relTypeId, scheduleSlug required.' });
+    }
+    // Validate offsets — array of positive ints, max 10 entries, dedup.
+    let offsets = null;
+    if (Array.isArray(body.reminderOffsetsDays)) {
+      const parsed = body.reminderOffsetsDays
+        .map(v => Number(v))
+        .filter(v => Number.isFinite(v) && v >= 0 && v <= 365)
+        .map(v => Math.round(Math.abs(v)));
+      const dedup = Array.from(new Set(parsed)).slice(0, 10);
+      offsets = dedup;
+    }
+    // Required docs — passed through as JSONB; light shape check.
+    let requiredDocs = null;
+    if (Array.isArray(body.requiredDocuments)) {
+      requiredDocs = body.requiredDocuments
+        .filter(d => d && typeof d === 'object' && typeof d.key === 'string' && d.key)
+        .slice(0, 50)
+        .map(d => ({
+          key: String(d.key).slice(0, 80),
+          label_i18n: (d.label_i18n && typeof d.label_i18n === 'object')
+            ? { en: String(d.label_i18n.en || '').slice(0, 500), es: String(d.label_i18n.es || '').slice(0, 500) }
+            : { en: '', es: '' },
+          type: typeof d.type === 'string' ? d.type.slice(0, 40) : 'text',
+          required: d.required !== false,
+        }));
+    }
+
+    const id = `trwr_${communitySlug}_${relTypeId}_${scheduleSlug}`.slice(0, 200);
+    const row = {
+      id, community_id: communitySlug,
+      relationship_type_id: relTypeId,
+      filing_schedule_slug: scheduleSlug,
+      reminder_offsets_days: offsets,
+      required_documents: requiredDocs,
+      active: body.active === false ? false : true,
+      updated_at: new Date().toISOString(),
+    };
+    const { error } = await supabase.from('tax_relationship_workflow_rules').upsert(row, { onConflict: 'id' });
+    if (error) return sendSupabaseError(res, error);
+    try {
+      await auditLog({
+        entity: 'tax.relationship_workflow_rule', entityId: id,
+        action: 'upsert', actorEmail: '',
+        after: { community: communitySlug, relTypeId, scheduleSlug,
+                 offsets, docsCount: (requiredDocs || []).length, active: row.active },
+      });
+    } catch (_e) {}
+    res.json({ ok: true, rule: row });
+  });
+
+  router.delete('/admin/relationship-workflow-rules/:relTypeId/:scheduleSlug', async (req, res) => {
+    if (!(await requireOwnerAdmin(req, res))) return;
+    const communitySlug = trim(req.query.communitySlug, 200);
+    const relTypeId = trim(req.params.relTypeId, 200);
+    const scheduleSlug = trim(req.params.scheduleSlug, 200);
+    if (!communitySlug || !relTypeId || !scheduleSlug) {
+      return res.status(400).json({ error: 'communitySlug, relTypeId, scheduleSlug required.' });
+    }
+    const id = `trwr_${communitySlug}_${relTypeId}_${scheduleSlug}`.slice(0, 200);
+    const { error } = await supabase.from('tax_relationship_workflow_rules').delete().eq('id', id);
+    if (error) return sendSupabaseError(res, error);
+    try {
+      await auditLog({
+        entity: 'tax.relationship_workflow_rule', entityId: id,
+        action: 'delete', actorEmail: '',
+        after: { community: communitySlug, relTypeId, scheduleSlug },
+      });
+    } catch (_e) {}
+    res.json({ ok: true });
+  });
+
   // ── GET /admin/customers/:id/relationships ── (global admin)
   router.get('/admin/customers/:id/relationships', async (req, res) => {
     if (!(await requireOwnerAdmin(req, res))) return;
