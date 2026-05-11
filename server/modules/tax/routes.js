@@ -389,6 +389,205 @@ module.exports = function createTaxRouter(deps) {
     res.json({ ok: true, id });
   });
 
+  // ── POST /admin/customers/import ── (Phase 4h — bulk CSV import)
+  //
+  // Body { communitySlug, csv: string } — the CSV is sent as raw text in the
+  // JSON body (no multipart). Columns (lowercase, snake_case in the header):
+  //   email                              REQUIRED, unique per community
+  //   name
+  //   phone                              format-permissive
+  //   whatsapp                           E.164; normalized server-side
+  //   locale                             'en' or 'es' (default 'es')
+  //   address_line1 / address_line2 / city / state / postal_code / country
+  //   preferred_communication_email
+  //   notes
+  //   relationships                      comma-separated tax_relationship_types
+  //                                      ids (e.g. business.llc,individual.taxes)
+  //
+  // Behavior: insert-only. Existing email in this community → skip with an
+  // entry in the errors array (so the importer can see which rows were
+  // skipped). Per-row errors don't fail the whole batch — the response
+  // summarizes created / skipped / errors.
+  router.post('/admin/customers/import', async (req, res) => {
+    if (!(await requireOwnerAdmin(req, res))) return;
+    const body = req.body || {};
+    const communitySlug = trim(body.communitySlug, 200);
+    const csvText = String(body.csv || '');
+    if (!communitySlug) return res.status(400).json({ error: 'communitySlug required.' });
+    if (!csvText.trim()) return res.status(400).json({ error: 'csv body is empty.' });
+
+    const rows = parseCsv(csvText);
+    if (!rows.length) return res.json({ created: 0, skipped: 0, errors: [] });
+
+    const headers = rows[0].map(h => String(h || '').trim().toLowerCase().replace(/\s+/g, '_'));
+    if (!headers.includes('email')) {
+      return res.status(400).json({ error: 'csv must include an "email" column.' });
+    }
+
+    // Look up valid relationship-type IDs once. Unknown IDs in a row are
+    // logged as warnings but don't fail the row.
+    const { data: types } = await supabase.from('tax_relationship_types')
+      .select('id').eq('active', true);
+    const validTypeIds = new Set((types || []).map(t => t.id));
+
+    // Detect existing emails so we report dupes as skipped rather than
+    // letting the unique constraint blow up the request.
+    const { data: existing } = await supabase.from('tax_customers')
+      .select('email').eq('community_id', communitySlug);
+    const existingEmails = new Set((existing || []).map(c => String(c.email || '').toLowerCase()));
+
+    const created = [];
+    const errors = [];
+    let skipped = 0;
+
+    for (let i = 1; i < rows.length; i++) {
+      const row = rows[i];
+      if (!row || row.every(c => !c || !String(c).trim())) continue;     // blank row
+
+      const r = {};
+      for (let j = 0; j < headers.length; j++) r[headers[j]] = String(row[j] || '').trim();
+
+      const rowNum = i + 1;     // 1-based, matches what owner sees in Excel
+
+      const email = (r.email || '').toLowerCase();
+      if (!email) { errors.push({ row: rowNum, email: '', message: 'Missing email' }); continue; }
+      if (!isValidEmail(email)) { errors.push({ row: rowNum, email, message: 'Invalid email' }); continue; }
+      if (existingEmails.has(email)) {
+        skipped++;
+        errors.push({ row: rowNum, email, message: 'Already in this community — skipped', skipped: true });
+        continue;
+      }
+
+      let whatsapp = '';
+      if (r.whatsapp) {
+        whatsapp = normalizeWhatsapp(r.whatsapp) || '';
+        if (!whatsapp) { errors.push({ row: rowNum, email, message: `Invalid WhatsApp: ${r.whatsapp}` }); continue; }
+      }
+
+      const preferredEmail = (r.preferred_communication_email || '').toLowerCase();
+      if (preferredEmail && !isValidEmail(preferredEmail)) {
+        errors.push({ row: rowNum, email, message: `Invalid preferred email: ${r.preferred_communication_email}` });
+        continue;
+      }
+
+      const locale = r.locale === 'en' ? 'en' : 'es';
+      const address = {};
+      if (r.address_line1) address.line1 = r.address_line1.slice(0, MAX_NAME_LEN);
+      if (r.address_line2) address.line2 = r.address_line2.slice(0, MAX_NAME_LEN);
+      if (r.city)          address.city = r.city.slice(0, MAX_NAME_LEN);
+      if (r.state)         address.state = r.state.slice(0, MAX_NAME_LEN);
+      if (r.postal_code)   address.postal_code = r.postal_code.slice(0, 20);
+      if (r.country)       address.country = r.country.slice(0, 4);
+      else if (address.line1) address.country = 'US';
+
+      // Parse relationships (comma-separated). Unknown IDs warn but don't
+      // block the row — the customer is still created without that tag.
+      const requestedRels = (r.relationships || '').split(',').map(s => s.trim()).filter(Boolean);
+      const validRels = [];
+      const unknownRels = [];
+      for (const id of requestedRels) {
+        if (validTypeIds.has(id)) validRels.push(id);
+        else unknownRels.push(id);
+      }
+
+      const customerId = 'cust_' + uuidv4().slice(0, 16);
+      const customerRow = {
+        id: customerId,
+        community_id: communitySlug,
+        email,
+        name: (r.name || '').slice(0, MAX_NAME_LEN),
+        phone: (r.phone || '').slice(0, MAX_PHONE_LEN),
+        whatsapp,
+        address,
+        preferred_communication_email: preferredEmail.slice(0, MAX_NAME_LEN),
+        locale,
+        notes: (r.notes || '').slice(0, MAX_TEXT_LEN),
+        status: 'active',
+      };
+
+      const { error: insErr } = await supabase.from('tax_customers').insert(customerRow);
+      if (insErr) {
+        errors.push({ row: rowNum, email, message: `Insert failed: ${insErr.message}` });
+        continue;
+      }
+
+      // Insert relationship tags. Failures here don't roll back the
+      // customer — the row is reported as created with a relationship warning.
+      if (validRels.length) {
+        const relRows = validRels.map(typeId => ({
+          id: 'crel_' + uuidv4().slice(0, 12),
+          customer_id: customerId,
+          relationship_type_id: typeId,
+          created_by_email: 'import',
+          active: true,
+        }));
+        const { error: relErr } = await supabase.from('tax_customer_relationships').insert(relRows);
+        if (relErr) {
+          errors.push({ row: rowNum, email, message: `Customer created, relationships failed: ${relErr.message}` });
+        }
+      }
+      if (unknownRels.length) {
+        errors.push({ row: rowNum, email,
+          message: `Customer created, unknown relationship IDs skipped: ${unknownRels.join(', ')}`,
+          warning: true });
+      }
+
+      existingEmails.add(email);     // dedupe within the batch
+      created.push({ id: customerId, email });
+    }
+
+    try {
+      await auditLog({
+        entity: 'tax.customer', entityId: communitySlug,
+        action: 'import_csv',
+        actorEmail: trim(req.get('x-admin-email') || req.get('x-firebase-email') || '', 200).toLowerCase(),
+        after: { created: created.length, skipped, errorCount: errors.length },
+      });
+    } catch (_e) {}
+
+    res.json({
+      created: created.length, skipped,
+      errors,
+      createdRows: created,           // useful for the UI to confirm specific rows
+    });
+  });
+
+  // Minimal RFC-4180-ish CSV parser. Handles quoted fields, escaped quotes
+  // (""), CRLF/LF/CR line endings, trailing newlines. Returns string[][].
+  function parseCsv(text) {
+    const rows = [];
+    let row = [];
+    let field = '';
+    let i = 0;
+    let inQuotes = false;
+    const len = text.length;
+    while (i < len) {
+      const ch = text[i];
+      if (inQuotes) {
+        if (ch === '"') {
+          if (i + 1 < len && text[i + 1] === '"') { field += '"'; i += 2; continue; }
+          inQuotes = false; i++; continue;
+        }
+        field += ch; i++; continue;
+      }
+      if (ch === '"') { inQuotes = true; i++; continue; }
+      if (ch === ',') { row.push(field); field = ''; i++; continue; }
+      if (ch === '\r') {
+        if (i + 1 < len && text[i + 1] === '\n') i++;
+        row.push(field); rows.push(row); row = []; field = ''; i++; continue;
+      }
+      if (ch === '\n') {
+        row.push(field); rows.push(row); row = []; field = ''; i++; continue;
+      }
+      field += ch; i++;
+    }
+    // Flush final field/row
+    if (field.length || row.length) { row.push(field); rows.push(row); }
+    // Strip fully-empty trailing rows
+    while (rows.length && rows[rows.length - 1].every(c => !c || c === '')) rows.pop();
+    return rows;
+  }
+
   // ── GET /admin/customers/:id ── (Phase 4a)
   // Single-customer detail view: profile + active relationships + active
   // subscriptions + counts for documents and threads. The dashboard composes

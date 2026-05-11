@@ -136,6 +136,7 @@ export const taxApi = {
   // we fall back to auth.email.
   adminListCustomers(auth, communitySlug)       { return request('GET',  `/admin/customers?communitySlug=${encodeURIComponent(communitySlug)}`, undefined, auth, { admin: true }); },
   adminCreateCustomer(auth, payload)            { return request('POST', '/admin/customers', payload, auth, { admin: true }); },
+  adminImportCustomers(auth, payload)           { return request('POST', '/admin/customers/import', payload, auth, { admin: true }); },
   adminGetCustomer(auth, id)                    { return request('GET',  `/admin/customers/${encodeURIComponent(id)}`, undefined, auth, { admin: true }); },
 
   adminListRelationshipTypes(auth)              { return request('GET',  '/admin/relationship-types', undefined, auth, { admin: true }); },

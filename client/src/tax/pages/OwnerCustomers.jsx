@@ -18,6 +18,7 @@ export default function OwnerCustomers() {
 
   // Add-customer form state (inline expand)
   const [adding, setAdding] = useState(false);
+  const [importing, setImporting] = useState(false);
   const [form, setForm] = useState({ name: '', email: '', phone: '', locale: 'es' });
   const [busyAdd, setBusyAdd] = useState(false);
   const [addMsg, setAddMsg] = useState({ kind: 'idle', text: '' });
@@ -73,14 +74,27 @@ export default function OwnerCustomers() {
 
   return (
     <EmployeeShell community={community} active="customers">
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8, gap: 12 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8, gap: 12, flexWrap: 'wrap' }}>
         <h2 style={{ margin: 0 }}>{t('owner.customers.title')}</h2>
-        <button type="button" className="tax-btn tax-btn--primary tax-btn--sm"
-                onClick={() => setAdding(a => !a)}>
-          {adding ? t('owner.customers.cancelAdd') : t('owner.customers.addBtn')}
-        </button>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button type="button" className="tax-btn tax-btn--ghost tax-btn--sm"
+                  onClick={() => { setImporting(im => !im); setAdding(false); }}
+                  style={{ color: 'var(--tax-text)' }}>
+            {importing ? t('owner.customers.cancelImport') : t('owner.customers.importBtn')}
+          </button>
+          <button type="button" className="tax-btn tax-btn--primary tax-btn--sm"
+                  onClick={() => { setAdding(a => !a); setImporting(false); }}>
+            {adding ? t('owner.customers.cancelAdd') : t('owner.customers.addBtn')}
+          </button>
+        </div>
       </div>
       <p className="tax-section__lede">{t('owner.customers.subtitle')}</p>
+
+      {importing && (
+        <ImportCustomers auth={auth} community={community}
+                         onDone={() => { setImporting(false); load(); }}
+                         t={t} />
+      )}
 
       {err && <div className="tax-msg tax-msg--error">{err}</div>}
 
@@ -159,5 +173,182 @@ export default function OwnerCustomers() {
               ))}
             </div>}
     </EmployeeShell>
+  );
+}
+
+// CSV import dialog. Two-step UX:
+//   1. Template download — generated client-side so no static asset deploy
+//      is needed. Header row + 2 example rows + a comment row explaining
+//      the relationship-tag format. Excel/Sheets/Numbers all open it.
+//   2. Upload — owner pastes CSV or picks a file. Server parses, validates
+//      per-row, returns { created, skipped, errors[] }. The dialog
+//      displays the summary inline so the owner can fix problem rows and
+//      re-upload (existing customers are skipped on re-run).
+//
+// Insert-only — duplicate emails report as 'skipped' rather than
+// overwriting. To update existing customers, use the customer detail
+// edit form (Phase 4d).
+function ImportCustomers({ auth, community, onDone, t }) {
+  const [csvText, setCsvText] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState(null);
+  const [err, setErr] = useState('');
+
+  const downloadTemplate = () => {
+    // Sample rows show all supported columns. Comments aren't real CSV
+    // (they start with '#') so the import will skip them as invalid
+    // emails; we include them as inline documentation in the file the
+    // owner downloads. Better than a separate README.
+    const lines = [
+      'email,name,phone,whatsapp,locale,address_line1,address_line2,city,state,postal_code,country,preferred_communication_email,notes,relationships',
+      'sample.llc@example.com,Sample LLC Owner,+14155551234,+14155551234,en,123 Main St,Suite 4,San Francisco,CA,94103,US,billing@example.com,New client referred by Maria,"business.llc,business.bookkeeping,business.payroll"',
+      'maria.gomez@example.com,Maria Gómez,(860) 555-2233,,es,742 Pine St,,Hartford,CT,06103,US,,Quarterly sales tax + annual 1040,"individual.taxes,business.sales_tax_filing"',
+      '# Columns are case-insensitive. Required: email. Whatsapp must be E.164 (+countrycode+number) — leave blank if unknown.',
+      '# locale: en or es (default es). country defaults to US when an address line is filled.',
+      '# relationships: comma-separated ids from the catalog — see /tax/{slug}/employee/articles for the list.',
+      '# Valid relationship ids: business.llc, business.s_corp, business.partnership_1065, business.sales_tax_filing,',
+      '#                         business.business_formation, business.payroll, business.bookkeeping,',
+      '#                         individual.taxes, individual.itin,',
+      '#                         general.notary, general.translation, audit.irs, audit.drs',
+      '# Duplicate emails (already in this community) are skipped.',
+    ];
+    const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `tax-customer-import-${community.id}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  };
+
+  const onFile = (e) => {
+    const f = e.target.files?.[0];
+    e.target.value = '';
+    if (!f) return;
+    const reader = new FileReader();
+    reader.onload = () => setCsvText(String(reader.result || ''));
+    reader.onerror = () => setErr(t('owner.customers.import.errFileRead'));
+    reader.readAsText(f, 'utf-8');
+  };
+
+  const onSubmit = async () => {
+    if (!csvText.trim()) { setErr(t('owner.customers.import.errEmpty')); return; }
+    setBusy(true); setErr(''); setResult(null);
+    try {
+      const r = await taxApi.adminImportCustomers(auth, {
+        communitySlug: community.id, csv: csvText,
+      });
+      setResult(r);
+    } catch (e) {
+      setErr(e?.message || t('respond.error.generic'));
+    } finally { setBusy(false); }
+  };
+
+  const hardErrors = (result?.errors || []).filter(e => !e.skipped && !e.warning);
+  const warnings   = (result?.errors || []).filter(e => e.warning);
+  const skippedRows = (result?.errors || []).filter(e => e.skipped);
+
+  return (
+    <form className="tax-form" onSubmit={(e) => { e.preventDefault(); onSubmit(); }}
+          style={{ marginBottom: 24 }}>
+      <div style={{ fontWeight: 600 }}>{t('owner.customers.import.title')}</div>
+      <p style={{ color: 'var(--tax-muted)', fontSize: 13, margin: '0 0 8px' }}>
+        {t('owner.customers.import.subtitle')}
+      </p>
+
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+        <button type="button" className="tax-btn tax-btn--ghost tax-btn--sm"
+                onClick={downloadTemplate}
+                style={{ color: 'var(--tax-brand-primary)', borderColor: 'var(--tax-brand-primary)' }}>
+          {t('owner.customers.import.downloadTemplate')}
+        </button>
+        <label className="tax-btn tax-btn--ghost tax-btn--sm"
+               style={{ color: 'var(--tax-text)', cursor: 'pointer' }}>
+          {t('owner.customers.import.pickFile')}
+          <input type="file" accept=".csv,text/csv,text/plain" style={{ display: 'none' }} onChange={onFile} />
+        </label>
+      </div>
+
+      <div>
+        <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--tax-muted)', marginTop: 8, display: 'block' }}>
+          {t('owner.customers.import.csvLabel')}
+        </label>
+        <textarea value={csvText} onChange={e => setCsvText(e.target.value)}
+                  rows={10}
+                  placeholder={t('owner.customers.import.csvPlaceholder')}
+                  style={{
+                    width: '100%', padding: 10, border: '1px solid var(--tax-border)',
+                    borderRadius: 8, fontFamily: 'monospace', fontSize: 12,
+                  }} />
+      </div>
+
+      {err && <div className="tax-msg tax-msg--error">{err}</div>}
+
+      {result && (
+        <div style={{ background: 'var(--tax-bg-alt)', padding: 12, borderRadius: 8, display: 'grid', gap: 8 }}>
+          <div style={{ fontWeight: 600 }}>
+            {t('owner.customers.import.summary', {
+              created: result.created, skipped: result.skipped, errors: hardErrors.length,
+            })}
+          </div>
+          {hardErrors.length > 0 && (
+            <div>
+              <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--tax-error)', textTransform: 'uppercase', letterSpacing: '.5px' }}>
+                {t('owner.customers.import.errors')}
+              </div>
+              <ul style={{ margin: '4px 0 0', paddingLeft: 20, fontSize: 13 }}>
+                {hardErrors.map((e, i) => (
+                  <li key={i}>
+                    {t('owner.customers.import.row', { row: e.row })}: <code>{e.email || '—'}</code> — {e.message}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {warnings.length > 0 && (
+            <div>
+              <div style={{ fontSize: 12, fontWeight: 700, color: '#a65b00', textTransform: 'uppercase', letterSpacing: '.5px' }}>
+                {t('owner.customers.import.warnings')}
+              </div>
+              <ul style={{ margin: '4px 0 0', paddingLeft: 20, fontSize: 13 }}>
+                {warnings.map((e, i) => (
+                  <li key={i}>
+                    {t('owner.customers.import.row', { row: e.row })}: <code>{e.email}</code> — {e.message}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {skippedRows.length > 0 && (
+            <details>
+              <summary style={{ fontSize: 12, fontWeight: 700, color: 'var(--tax-muted)', textTransform: 'uppercase', letterSpacing: '.5px', cursor: 'pointer' }}>
+                {t('owner.customers.import.skipped', { count: skippedRows.length })}
+              </summary>
+              <ul style={{ margin: '4px 0 0', paddingLeft: 20, fontSize: 12 }}>
+                {skippedRows.map((e, i) => (
+                  <li key={i}><code>{e.email}</code></li>
+                ))}
+              </ul>
+            </details>
+          )}
+          {result.created > 0 && (
+            <div>
+              <button type="button" className="tax-btn tax-btn--primary tax-btn--sm"
+                      onClick={onDone}>
+                {t('owner.customers.import.done')}
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
+      <div style={{ display: 'flex', gap: 8 }}>
+        <button type="submit" className="tax-btn tax-btn--primary tax-btn--sm" disabled={busy || !csvText.trim()}>
+          {busy ? t('lead.submitting') : t('owner.customers.import.upload')}
+        </button>
+      </div>
+    </form>
   );
 }
