@@ -88,7 +88,11 @@
 .tax-btn--ghost { background: transparent; color: #fff; border-color: rgba(255,255,255,.4); }
 .tax-btn--ghost:hover { background: rgba(255,255,255,.1); }
 .tax-btn--block { width: 100%; }
+.tax-btn--sm { padding: 8px 14px; font-size: 13px; }
 .tax-btn[disabled] { opacity: .6; cursor: not-allowed; }
+.tax-nav a.active { color: var(--tax-brand-primary); font-weight: 700; }
+.tax-nav .tax-btn--ghost { color: var(--tax-text); border-color: var(--tax-border); }
+.tax-nav .tax-btn--ghost:hover { background: var(--tax-bg-alt); }
 
 /* ── Section + cards ────────────────────────────────────────────────────── */
 .tax-section { padding: 64px 0; }

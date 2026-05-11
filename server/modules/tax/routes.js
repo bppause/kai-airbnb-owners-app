@@ -349,5 +349,287 @@ module.exports = function createTaxRouter(deps) {
     res.json({ periods: data || [] });
   });
 
+  router.put('/admin/community-settings/notif-lock', async (req, res) => {
+    if (!requireGlobalAdmin(req, res)) return;
+    if (!requireSupabaseEnv(res)) return;
+    const communitySlug = trim(req.body?.communitySlug, 200);
+    const allowChange = Boolean(req.body?.allowCustomerChange);
+    if (!communitySlug) return res.status(400).json({ error: 'communitySlug required.' });
+    const { error } = await supabase.from('communities')
+      .update({ tax_allow_customer_notif_pref_change: allowChange, updated_at: new Date().toISOString() })
+      .eq('id', communitySlug).eq('business_type', TAX_BUSINESS_TYPE);
+    if (error) return sendSupabaseError(res, error);
+    res.json({ ok: true, allowCustomerChange: allowChange });
+  });
+
+  // ────────────────────────────────────────────────────────────────────────────
+  // Phase 2a: customer portal endpoints
+  //
+  // Auth approach for Phase 2a: the frontend signs in via Firebase (Google or
+  // email/password), then sends `x-firebase-uid`, `x-firebase-email`, and
+  // `x-tax-community` headers on every portal request. The middleware below
+  // validates these against `tax_customers`. This matches the existing
+  // platform pattern (server trusts the frontend-asserted identity).
+  //
+  // SECURITY NOTE: Tax data is more sensitive than the Airbnb listings the
+  // existing platform handles. Before exposing this portal beyond a trusted
+  // pilot, harden the middleware to verify the Firebase ID token signature
+  // against Google's JWKS (firebase-admin SDK or hand-rolled JOSE). The
+  // function shape stays the same; only the implementation hardens.
+  // ────────────────────────────────────────────────────────────────────────────
+
+  async function requireTaxCustomer(req, res) {
+    if (!requireSupabaseEnv(res)) return null;
+    const uid = trim(req.get('x-firebase-uid') || '', 200);
+    const email = trim(req.get('x-firebase-email') || '', 200).toLowerCase();
+    const communitySlug = trim(req.get('x-tax-community') || '', 200);
+    if (!uid || !email || !communitySlug) {
+      res.status(401).json({ error: 'Authentication required.' });
+      return null;
+    }
+    const { data: customer, error } = await supabase.from('tax_customers')
+      .select('id, community_id, email, name, phone, locale, status, firebase_uid')
+      .eq('email', email).eq('community_id', communitySlug).maybeSingle();
+    if (error) { sendSupabaseError(res, error); return null; }
+    if (!customer) {
+      res.status(403).json({ error: 'Account not provisioned. Contact your tax practice.' });
+      return null;
+    }
+    if (customer.status !== 'active') {
+      res.status(403).json({ error: 'Account is not active.' });
+      return null;
+    }
+    if (customer.firebase_uid && customer.firebase_uid !== uid) {
+      res.status(403).json({ error: 'Account collision. Contact your tax practice.' });
+      return null;
+    }
+    return customer;
+  }
+
+  // ── POST /auth/link ────────────────────────────────────────────────────────
+  // On first portal sign-in, links the Firebase UID to the existing
+  // tax_customers row identified by (community_slug, email). Idempotent.
+  router.post('/auth/link', async (req, res) => {
+    if (!requireSupabaseEnv(res)) return;
+    const body = req.body || {};
+    const uid = trim(body.uid, 200);
+    const email = trim(body.email, 200).toLowerCase();
+    const communitySlug = trim(body.communitySlug, 200);
+    if (!uid || !email || !communitySlug) {
+      return res.status(400).json({ error: 'uid, email, and communitySlug required.' });
+    }
+    const { data: customer, error } = await supabase.from('tax_customers')
+      .select('id, community_id, email, name, locale, status, firebase_uid')
+      .eq('email', email).eq('community_id', communitySlug).maybeSingle();
+    if (error) return sendSupabaseError(res, error);
+    if (!customer) {
+      return res.status(403).json({ error: 'Account not provisioned. Contact your tax practice.' });
+    }
+    if (customer.status !== 'active') {
+      return res.status(403).json({ error: 'Account is not active. Contact your tax practice.' });
+    }
+    if (customer.firebase_uid && customer.firebase_uid !== uid) {
+      return res.status(403).json({ error: 'Account collision. Contact your tax practice.' });
+    }
+    if (!customer.firebase_uid) {
+      const { error: uErr } = await supabase.from('tax_customers')
+        .update({ firebase_uid: uid, updated_at: new Date().toISOString() })
+        .eq('id', customer.id);
+      if (uErr) return sendSupabaseError(res, uErr);
+      try {
+        await auditLog({
+          entity: 'tax.customer', entityId: customer.id,
+          action: 'link_firebase', actorEmail: email, actorName: customer.name,
+          after: { firebaseUidLinked: true },
+        });
+      } catch (_e) {}
+    }
+    res.json({ ok: true, customer: { ...customer, firebase_uid: uid } });
+  });
+
+  // ── GET /portal/me ──
+  router.get('/portal/me', async (req, res) => {
+    const customer = await requireTaxCustomer(req, res); if (!customer) return;
+    const { data: community } = await supabase.from('communities')
+      .select('id, name, logo_url, brand_primary_color, brand_secondary_color, default_locale, tax_allow_customer_notif_pref_change, contact_email, phone')
+      .eq('id', customer.community_id).maybeSingle();
+    const { data: subs } = await supabase.from('tax_subscriptions')
+      .select('id, product_id, status, reminder_channels, reminder_offsets_days')
+      .eq('customer_id', customer.id);
+    const allChannels = uniqueChannels(subs);
+    res.json({
+      customer: pickCustomer(customer),
+      community,
+      preferences: {
+        channels: allChannels,
+        allowChange: Boolean(community?.tax_allow_customer_notif_pref_change),
+      },
+    });
+  });
+
+  // ── GET /portal/filings ──
+  router.get('/portal/filings', async (req, res) => {
+    const customer = await requireTaxCustomer(req, res); if (!customer) return;
+    const { data, error } = await supabase.from('tax_filing_periods')
+      .select(`
+        id, period_label, period_start, period_end, due_date, status, info_received_at, filed_at,
+        schedule:tax_filing_schedules ( id, slug, jurisdiction, cadence, name_i18n, description_i18n )
+      `)
+      .eq('customer_id', customer.id)
+      .order('due_date', { ascending: true })
+      .limit(100);
+    if (error) return sendSupabaseError(res, error);
+    res.json({ filings: data || [] });
+  });
+
+  // ── GET /portal/filings/:id ──
+  router.get('/portal/filings/:id', async (req, res) => {
+    const customer = await requireTaxCustomer(req, res); if (!customer) return;
+    const id = trim(req.params.id, 200);
+    const { data: period, error } = await supabase.from('tax_filing_periods')
+      .select('id, community_id, subscription_id, schedule_id, customer_id, status, period_label, period_start, period_end, due_date, info_received_at, filed_at')
+      .eq('id', id).maybeSingle();
+    if (error) return sendSupabaseError(res, error);
+    if (!period || period.customer_id !== customer.id) {
+      return res.status(404).json({ error: 'Filing not found.' });
+    }
+    const [{ data: schedule }, { data: subscription }] = await Promise.all([
+      supabase.from('tax_filing_schedules')
+        .select('id, slug, jurisdiction, cadence, info_checklist, name_i18n, description_i18n')
+        .eq('id', period.schedule_id).maybeSingle(),
+      supabase.from('tax_subscriptions').select('id, custom_info_checklist').eq('id', period.subscription_id).maybeSingle(),
+    ]);
+    const checklist = (Array.isArray(subscription?.custom_info_checklist) && subscription.custom_info_checklist.length)
+      ? subscription.custom_info_checklist
+      : (Array.isArray(schedule?.info_checklist) ? schedule.info_checklist : []);
+    res.json({
+      period, schedule, checklist,
+      alreadyReceived: ['info_received', 'in_prep', 'filed'].includes(period.status),
+    });
+  });
+
+  // ── POST /portal/filings/:id/respond ──
+  router.post('/portal/filings/:id/respond', async (req, res) => {
+    const customer = await requireTaxCustomer(req, res); if (!customer) return;
+    const id = trim(req.params.id, 200);
+    const body = req.body || {};
+    const data = (body.data && typeof body.data === 'object' && !Array.isArray(body.data)) ? body.data : {};
+    const notes = trim(body.notes, MAX_TEXT_LEN);
+
+    const { data: period } = await supabase.from('tax_filing_periods')
+      .select('id, status, schedule_id, subscription_id, customer_id')
+      .eq('id', id).maybeSingle();
+    if (!period || period.customer_id !== customer.id) {
+      return res.status(404).json({ error: 'Filing not found.' });
+    }
+    if (period.status === 'filed') {
+      return res.status(409).json({ error: 'This filing has already been completed.' });
+    }
+
+    const [{ data: schedule }, { data: subscription }] = await Promise.all([
+      supabase.from('tax_filing_schedules').select('info_checklist').eq('id', period.schedule_id).maybeSingle(),
+      supabase.from('tax_subscriptions').select('custom_info_checklist').eq('id', period.subscription_id).maybeSingle(),
+    ]);
+    const checklist = (Array.isArray(subscription?.custom_info_checklist) && subscription.custom_info_checklist.length)
+      ? subscription.custom_info_checklist
+      : (Array.isArray(schedule?.info_checklist) ? schedule.info_checklist : []);
+
+    const missing = checklist.filter(it => it.required).filter(it => {
+      const v = data[it.key];
+      return v === undefined || v === null || String(v).trim() === '';
+    }).map(it => it.key);
+    if (missing.length) return res.status(400).json({ error: 'Missing required fields', missing });
+
+    const respId = 'tresp_' + uuidv4().slice(0, 12);
+    const { error: rErr } = await supabase.from('tax_filing_responses').insert({
+      id: respId, period_id: period.id, customer_id: customer.id,
+      data, notes,
+      ip: trim((req.headers['x-forwarded-for'] || req.ip || '').toString().split(',')[0], 80),
+      user_agent: trim(req.get('user-agent') || '', 500),
+    });
+    if (rErr) return sendSupabaseError(res, rErr);
+
+    await supabase.from('tax_filing_periods').update({
+      status: 'info_received',
+      info_received_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    }).eq('id', period.id);
+
+    try {
+      await auditLog({
+        entity: 'tax.filing_response', entityId: respId,
+        action: 'create_via_portal', actorEmail: customer.email, actorName: customer.name,
+        after: { periodId: period.id },
+      });
+    } catch (_e) {}
+    res.json({ ok: true, id: respId });
+  });
+
+  // ── GET /portal/notifications ──
+  router.get('/portal/notifications', async (req, res) => {
+    const customer = await requireTaxCustomer(req, res); if (!customer) return;
+    const { data, error } = await supabase.from('tax_notifications')
+      .select('id, type, title_i18n, body_i18n, payload, read_at, created_at')
+      .eq('customer_id', customer.id)
+      .order('created_at', { ascending: false })
+      .limit(50);
+    if (error) return sendSupabaseError(res, error);
+    res.json({ notifications: data || [] });
+  });
+
+  // ── POST /portal/notifications/:id/read ──
+  router.post('/portal/notifications/:id/read', async (req, res) => {
+    const customer = await requireTaxCustomer(req, res); if (!customer) return;
+    const id = trim(req.params.id, 200);
+    const { error } = await supabase.from('tax_notifications')
+      .update({ read_at: new Date().toISOString() })
+      .eq('id', id).eq('customer_id', customer.id);
+    if (error) return sendSupabaseError(res, error);
+    res.json({ ok: true });
+  });
+
+  // ── PUT /portal/preferences ──
+  // Updates reminder_channels on ALL of the customer's subscriptions in this
+  // community. Refused with 403 when the community lock is on.
+  router.put('/portal/preferences', async (req, res) => {
+    const customer = await requireTaxCustomer(req, res); if (!customer) return;
+    const { data: community } = await supabase.from('communities')
+      .select('tax_allow_customer_notif_pref_change')
+      .eq('id', customer.community_id).maybeSingle();
+    if (!community?.tax_allow_customer_notif_pref_change) {
+      return res.status(403).json({ error: 'Notification preferences are managed by your tax practice.' });
+    }
+    const channels = (Array.isArray(req.body?.channels) ? req.body.channels : [])
+      .map(c => String(c).toLowerCase()).filter(c => c === 'email' || c === 'in_app');
+    if (!channels.length) {
+      return res.status(400).json({ error: 'Select at least one notification channel.' });
+    }
+    const { error } = await supabase.from('tax_subscriptions')
+      .update({ reminder_channels: channels, updated_at: new Date().toISOString() })
+      .eq('customer_id', customer.id);
+    if (error) return sendSupabaseError(res, error);
+    try {
+      await auditLog({
+        entity: 'tax.customer', entityId: customer.id,
+        action: 'update_preferences', actorEmail: customer.email, actorName: customer.name,
+        after: { channels },
+      });
+    } catch (_e) {}
+    res.json({ ok: true, channels });
+  });
+
+  // ── Helpers ────────────────────────────────────────────────────────────────
+  function uniqueChannels(subs) {
+    const set = new Set();
+    for (const s of subs || []) {
+      for (const c of s.reminder_channels || []) set.add(c);
+    }
+    if (!set.size) { set.add('email'); set.add('in_app'); }
+    return [...set];
+  }
+  function pickCustomer(c) {
+    return { id: c.id, email: c.email, name: c.name, phone: c.phone, locale: c.locale, status: c.status };
+  }
+
   return router;
 };
