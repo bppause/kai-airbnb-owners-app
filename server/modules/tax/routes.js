@@ -679,11 +679,18 @@ module.exports = function createTaxRouter(deps) {
     const body = req.body || {};
     const communitySlug = trim(body.communitySlug, 200);
     const csvText = String(body.csv || '');
+    // Phase: mode='skip' (default — duplicate emails leave existing row
+    // alone) or 'update' (duplicate emails get field-level merged with
+    // the CSV — blank cells are preserved; non-blank cells overwrite).
+    const mode = body.mode === 'update' ? 'update' : 'skip';
+
     if (!communitySlug) return res.status(400).json({ error: 'communitySlug required.' });
     if (!csvText.trim()) return res.status(400).json({ error: 'csv body is empty.' });
 
     const rows = parseCsv(csvText);
-    if (!rows.length) return res.json({ created: 0, skipped: 0, errors: [] });
+    if (!rows.length) {
+      return res.json({ created: 0, updated: 0, skipped: 0, errors: [] });
+    }
 
     const headers = rows[0].map(h => String(h || '').trim().toLowerCase().replace(/\s+/g, '_'));
     if (!headers.includes('email')) {
@@ -696,15 +703,35 @@ module.exports = function createTaxRouter(deps) {
       .select('id').eq('active', true);
     const validTypeIds = new Set((types || []).map(t => t.id));
 
-    // Detect existing emails so we report dupes as skipped rather than
-    // letting the unique constraint blow up the request.
+    // Pre-fetch existing customers in this community so we can detect
+    // duplicates and (in update mode) merge their fields. Index by lower-
+    // cased email for case-insensitive matching.
     const { data: existing } = await supabase.from('tax_customers')
-      .select('email').eq('community_id', communitySlug);
-    const existingEmails = new Set((existing || []).map(c => String(c.email || '').toLowerCase()));
+      .select('id, email, name, phone, whatsapp, address, preferred_communication_email, locale, notes')
+      .eq('community_id', communitySlug);
+    const byEmail = new Map();
+    for (const c of existing || []) {
+      byEmail.set(String(c.email || '').toLowerCase(), c);
+    }
+
+    // Pre-fetch existing relationship tags so we can additively merge.
+    let existingRels = new Map();
+    if (mode === 'update' && existing && existing.length) {
+      const { data: relRows } = await supabase.from('tax_customer_relationships')
+        .select('customer_id, relationship_type_id')
+        .in('customer_id', existing.map(c => c.id))
+        .eq('active', true);
+      for (const r of relRows || []) {
+        const set = existingRels.get(r.customer_id) || new Set();
+        set.add(r.relationship_type_id);
+        existingRels.set(r.customer_id, set);
+      }
+    }
 
     const created = [];
+    const updated = [];
+    const skipped = [];
     const errors = [];
-    let skipped = 0;
 
     for (let i = 1; i < rows.length; i++) {
       const row = rows[i];
@@ -718,16 +745,15 @@ module.exports = function createTaxRouter(deps) {
       const email = (r.email || '').toLowerCase();
       if (!email) { errors.push({ row: rowNum, email: '', message: 'Missing email' }); continue; }
       if (!isValidEmail(email)) { errors.push({ row: rowNum, email, message: 'Invalid email' }); continue; }
-      if (existingEmails.has(email)) {
-        skipped++;
-        errors.push({ row: rowNum, email, message: 'Already in this community — skipped', skipped: true });
-        continue;
-      }
 
-      let whatsapp = '';
-      if (r.whatsapp) {
-        whatsapp = normalizeWhatsapp(r.whatsapp) || '';
-        if (!whatsapp) { errors.push({ row: rowNum, email, message: `Invalid WhatsApp: ${r.whatsapp}` }); continue; }
+      // WhatsApp validation (applies to both create + update).
+      let whatsapp = null;       // null = "field absent from this row, leave alone"
+      if (r.whatsapp !== undefined && r.whatsapp !== '') {
+        whatsapp = normalizeWhatsapp(r.whatsapp);
+        if (!whatsapp) {
+          errors.push({ row: rowNum, email, message: `Invalid WhatsApp: ${r.whatsapp}` });
+          continue;
+        }
       }
 
       const preferredEmail = (r.preferred_communication_email || '').toLowerCase();
@@ -736,7 +762,97 @@ module.exports = function createTaxRouter(deps) {
         continue;
       }
 
-      const locale = r.locale === 'en' ? 'en' : 'es';
+      // Parse relationships (comma-separated). Unknown IDs warn.
+      const requestedRels = (r.relationships || '').split(',').map(s => s.trim()).filter(Boolean);
+      const validRels = [];
+      const unknownRels = [];
+      for (const id of requestedRels) {
+        if (validTypeIds.has(id)) validRels.push(id);
+        else unknownRels.push(id);
+      }
+
+      const existingCust = byEmail.get(email);
+
+      if (existingCust) {
+        // ── Existing email ─────────────────────────────────────────
+        if (mode === 'skip') {
+          skipped.push({ row: rowNum, email, message: 'Already in this community — skipped' });
+          continue;
+        }
+
+        // mode === 'update': field-level merge. Blank CSV cells are
+        // preserved (no change); non-blank cells overwrite. Address
+        // subfields update independently.
+        const update = { updated_at: new Date().toISOString() };
+        if (r.name)  update.name  = r.name.slice(0, MAX_NAME_LEN);
+        if (r.phone) update.phone = r.phone.slice(0, MAX_PHONE_LEN);
+        if (whatsapp !== null) update.whatsapp = whatsapp;
+        if (preferredEmail)  update.preferred_communication_email = preferredEmail.slice(0, MAX_NAME_LEN);
+        if (r.locale === 'en' || r.locale === 'es') update.locale = r.locale;
+        if (r.notes) update.notes = r.notes.slice(0, MAX_TEXT_LEN);
+
+        // Address: merge subfields independently with the existing JSONB.
+        const addrPatch = {};
+        if (r.address_line1) addrPatch.line1 = r.address_line1.slice(0, MAX_NAME_LEN);
+        if (r.address_line2) addrPatch.line2 = r.address_line2.slice(0, MAX_NAME_LEN);
+        if (r.city)          addrPatch.city = r.city.slice(0, MAX_NAME_LEN);
+        if (r.state)         addrPatch.state = r.state.slice(0, MAX_NAME_LEN);
+        if (r.postal_code)   addrPatch.postal_code = r.postal_code.slice(0, 20);
+        if (r.country)       addrPatch.country = r.country.slice(0, 4);
+        if (Object.keys(addrPatch).length) {
+          update.address = { ...(existingCust.address || {}), ...addrPatch };
+        }
+
+        const hasFieldChanges = Object.keys(update).length > 1;
+        // Additive relationship merge — add any new ones; never remove.
+        const currentRels = existingRels.get(existingCust.id) || new Set();
+        const newRels = validRels.filter(id => !currentRels.has(id));
+
+        if (!hasFieldChanges && !newRels.length && !unknownRels.length) {
+          // Nothing actually new to apply.
+          skipped.push({ row: rowNum, email, message: 'No changes from existing row — skipped' });
+          continue;
+        }
+
+        if (hasFieldChanges) {
+          const { error: uErr } = await supabase.from('tax_customers')
+            .update(update).eq('id', existingCust.id);
+          if (uErr) {
+            errors.push({ row: rowNum, email, message: `Update failed: ${uErr.message}` });
+            continue;
+          }
+        }
+
+        if (newRels.length) {
+          const relRows = newRels.map(typeId => ({
+            id: 'crel_' + uuidv4().slice(0, 12),
+            customer_id: existingCust.id,
+            relationship_type_id: typeId,
+            created_by_email: 'import',
+            active: true,
+          }));
+          const { error: relErr } = await supabase.from('tax_customer_relationships').insert(relRows);
+          if (relErr) {
+            errors.push({ row: rowNum, email,
+              message: `Updated, relationships failed: ${relErr.message}`,
+              warning: true });
+          } else {
+            for (const id of newRels) currentRels.add(id);
+            existingRels.set(existingCust.id, currentRels);
+          }
+        }
+
+        if (unknownRels.length) {
+          errors.push({ row: rowNum, email,
+            message: `Updated; unknown relationship IDs skipped: ${unknownRels.join(', ')}`,
+            warning: true });
+        }
+
+        updated.push({ id: existingCust.id, email });
+        continue;
+      }
+
+      // ── New email: create ────────────────────────────────────────
       const address = {};
       if (r.address_line1) address.line1 = r.address_line1.slice(0, MAX_NAME_LEN);
       if (r.address_line2) address.line2 = r.address_line2.slice(0, MAX_NAME_LEN);
@@ -746,16 +862,6 @@ module.exports = function createTaxRouter(deps) {
       if (r.country)       address.country = r.country.slice(0, 4);
       else if (address.line1) address.country = 'US';
 
-      // Parse relationships (comma-separated). Unknown IDs warn but don't
-      // block the row — the customer is still created without that tag.
-      const requestedRels = (r.relationships || '').split(',').map(s => s.trim()).filter(Boolean);
-      const validRels = [];
-      const unknownRels = [];
-      for (const id of requestedRels) {
-        if (validTypeIds.has(id)) validRels.push(id);
-        else unknownRels.push(id);
-      }
-
       const customerId = 'cust_' + uuidv4().slice(0, 16);
       const customerRow = {
         id: customerId,
@@ -763,10 +869,10 @@ module.exports = function createTaxRouter(deps) {
         email,
         name: (r.name || '').slice(0, MAX_NAME_LEN),
         phone: (r.phone || '').slice(0, MAX_PHONE_LEN),
-        whatsapp,
+        whatsapp: whatsapp || '',
         address,
         preferred_communication_email: preferredEmail.slice(0, MAX_NAME_LEN),
-        locale,
+        locale: r.locale === 'en' ? 'en' : 'es',
         notes: (r.notes || '').slice(0, MAX_TEXT_LEN),
         status: 'active',
       };
@@ -777,8 +883,6 @@ module.exports = function createTaxRouter(deps) {
         continue;
       }
 
-      // Insert relationship tags. Failures here don't roll back the
-      // customer — the row is reported as created with a relationship warning.
       if (validRels.length) {
         const relRows = validRels.map(typeId => ({
           id: 'crel_' + uuidv4().slice(0, 12),
@@ -789,7 +893,9 @@ module.exports = function createTaxRouter(deps) {
         }));
         const { error: relErr } = await supabase.from('tax_customer_relationships').insert(relRows);
         if (relErr) {
-          errors.push({ row: rowNum, email, message: `Customer created, relationships failed: ${relErr.message}` });
+          errors.push({ row: rowNum, email,
+            message: `Customer created, relationships failed: ${relErr.message}`,
+            warning: true });
         }
       }
       if (unknownRels.length) {
@@ -798,7 +904,11 @@ module.exports = function createTaxRouter(deps) {
           warning: true });
       }
 
-      existingEmails.add(email);     // dedupe within the batch
+      // Track in-batch so a CSV with duplicate rows for the same email
+      // doesn't insert twice. Treat the second occurrence as either
+      // skip or update depending on mode.
+      byEmail.set(email, { ...customerRow });
+      existingRels.set(customerId, new Set(validRels));
       created.push({ id: customerId, email });
     }
 
@@ -807,14 +917,20 @@ module.exports = function createTaxRouter(deps) {
         entity: 'tax.customer', entityId: communitySlug,
         action: 'import_csv',
         actorEmail: trim(req.get('x-admin-email') || req.get('x-firebase-email') || '', 200).toLowerCase(),
-        after: { created: created.length, skipped, errorCount: errors.length },
+        after: { mode, created: created.length, updated: updated.length,
+                 skipped: skipped.length, errorCount: errors.filter(e => !e.warning).length },
       });
     } catch (_e) {}
 
     res.json({
-      created: created.length, skipped,
-      errors,
-      createdRows: created,           // useful for the UI to confirm specific rows
+      mode,
+      created: created.length,
+      updated: updated.length,
+      skipped: skipped.length,
+      errors,                        // mixed hard-errors + warnings (each flagged)
+      createdRows: created,
+      updatedRows: updated,
+      skippedRows: skipped,
     });
   });
 
