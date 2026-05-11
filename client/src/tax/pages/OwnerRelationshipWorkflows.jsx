@@ -3,6 +3,7 @@ import { pickI18n, useT } from '../i18n';
 import { useEmployeeAuth } from '../auth/EmployeeAuthProvider';
 import { taxApi } from '../api';
 import EmployeeShell from '../components/EmployeeShell';
+import { generatePeriods, upcomingReminderFires, todayIsoUtc } from '../lib/schedulePeriods';
 
 // Phase 4j: for each (relationship_type, filing_schedule) the owner can
 // configure custom reminder offsets (positive days before due-date) and
@@ -55,6 +56,31 @@ export default function OwnerRelationshipWorkflows() {
 
   const enabledSchedules = useMemo(() =>
     schedules.filter(s => s.enabled !== false), [schedules]);
+
+  // System default — kept in sync with reminders.js' fallback. Used for the
+  // preview when the user hasn't typed any custom offsets yet.
+  const SYSTEM_DEFAULT_OFFSETS = [14, 7, 3];
+  const HORIZONS = [30, 60, 90, 365];
+
+  // Parse the offsets the same way onSave does, so the preview matches what
+  // will actually be saved. Falls back to the system default when empty/invalid.
+  function parseOffsets(input) {
+    const parsed = String(input || '')
+      .split(/[\s,;]+/).map(s => parseInt(s, 10))
+      .filter(n => Number.isFinite(n) && n >= 0 && n <= 365);
+    return { offsets: parsed, usingDefault: parsed.length === 0 };
+  }
+
+  // Format an ISO yyyy-mm-dd as a short localized date (e.g. "Jun 1, 2026").
+  function fmtDate(iso) {
+    const d = new Date(iso + 'T00:00:00Z');
+    try {
+      return new Intl.DateTimeFormat(locale === 'es' ? 'es-ES' : 'en-US',
+        { year: 'numeric', month: 'short', day: 'numeric', timeZone: 'UTC' }).format(d);
+    } catch (_e) {
+      return iso;
+    }
+  }
 
   const ruleFor = (relId, slug) =>
     rules.find(r => r.relationship_type_id === relId && r.filing_schedule_slug === slug) || null;
@@ -253,6 +279,61 @@ export default function OwnerRelationshipWorkflows() {
                       </div>
                     ))}
                   </div>
+
+                  {(() => {
+                    const today = todayIsoUtc();
+                    const { offsets, usingDefault } = parseOffsets(st.offsetsInput);
+                    const effective = usingDefault ? SYSTEM_DEFAULT_OFFSETS : offsets;
+                    const periods = generatePeriods(sch.anchor_rule, today, 16);
+                    const previewable = effective.length > 0 && periods.length > 0;
+                    return (
+                      <div style={{
+                        marginTop: 16, padding: 12, borderRadius: 8,
+                        background: 'var(--tax-bg-alt)', border: '1px solid var(--tax-border)',
+                      }}>
+                        <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 4 }}>
+                          {t('owner.workflows.previewTitle')}
+                        </div>
+                        <p style={{ margin: '0 0 8px', fontSize: 12, color: 'var(--tax-muted)' }}>
+                          {usingDefault
+                            ? t('owner.workflows.previewUsingDefault', { offsets: SYSTEM_DEFAULT_OFFSETS.join(', ') })
+                            : t('owner.workflows.previewUsingCustom', { offsets: effective.join(', ') })}
+                          {' · '}{t('owner.workflows.previewToday', { date: fmtDate(today) })}
+                        </p>
+                        {!periods.length && (
+                          <p style={{ margin: 0, fontSize: 12, color: 'var(--tax-muted)' }}>
+                            {t('owner.workflows.previewUnsupported')}
+                          </p>
+                        )}
+                        {periods.length > 0 && !effective.length && (
+                          <p style={{ margin: 0, fontSize: 12, color: 'var(--tax-muted)' }}>
+                            {t('owner.workflows.previewNoOffsets')}
+                          </p>
+                        )}
+                        {previewable && (
+                          <div style={{ display: 'grid', gap: 6, fontSize: 13 }}>
+                            {HORIZONS.map(days => {
+                              const fires = upcomingReminderFires(periods, effective, today, days);
+                              return (
+                                <div key={days} style={{ display: 'grid', gridTemplateColumns: '110px 1fr', gap: 8, alignItems: 'baseline' }}>
+                                  <strong style={{ color: 'var(--tax-text)' }}>
+                                    {t('owner.workflows.previewHorizon', { days })}
+                                  </strong>
+                                  <span style={{ color: fires.length ? 'var(--tax-text)' : 'var(--tax-muted)' }}>
+                                    {fires.length
+                                      ? fires.map(f =>
+                                          `${fmtDate(f.dateIso)} (T-${f.offset}d, ${t('owner.workflows.previewDueShort')} ${fmtDate(f.dueDate)})`
+                                        ).join(' · ')
+                                      : t('owner.workflows.previewNone')}
+                                  </span>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
 
                   {mkey?.text && (
                     <div className={`tax-msg tax-msg--${mkey.kind === 'error' ? 'error' : 'success'}`} style={{ marginTop: 12 }}>
