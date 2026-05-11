@@ -18,6 +18,7 @@ import PortalFiling from './pages/PortalFiling';
 import PortalProfile from './pages/PortalProfile';
 import PortalFaqs from './pages/PortalFaqs';
 import PortalDocuments from './pages/PortalDocuments';
+import PortalMessages from './pages/PortalMessages';
 import { TaxAuthProvider, useTaxAuth } from './auth/AuthProvider';
 import { taxApi } from './api';
 import './styles/tax.css';
@@ -35,6 +36,10 @@ function parseTaxPath() {
     if (parts[3] === 'profile') return { route: 'portal-profile', slug };
     if (parts[3] === 'faqs') return { route: 'portal-faqs', slug };
     if (parts[3] === 'documents') return { route: 'portal-documents', slug };
+    if (parts[3] === 'messages') {
+      // /portal/messages, /portal/messages/new, /portal/messages/:threadId
+      return { route: 'portal-messages', slug, threadId: parts[4] ? decodeURIComponent(parts[4]) : '' };
+    }
     if (parts[3] === 'filings' && parts[4]) return { route: 'portal-filing', slug, filingId: decodeURIComponent(parts[4]) };
     return { route: 'portal-dashboard', slug };
   }
@@ -112,6 +117,7 @@ function PortalGate({ parsed, community }) {
   if (parsed.route === 'portal-profile') return <PortalProfile />;
   if (parsed.route === 'portal-faqs') return <PortalFaqs />;
   if (parsed.route === 'portal-documents') return <PortalDocuments />;
+  if (parsed.route === 'portal-messages') return <PortalMessages threadId={parsed.threadId} />;
   if (parsed.route === 'portal-filing') return <PortalFiling filingId={parsed.filingId} />;
   return <PortalDashboard />;
 }

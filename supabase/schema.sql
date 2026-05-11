@@ -1497,3 +1497,80 @@ create index if not exists tax_documents_community_idx
   where deleted_at is null;
 create index if not exists tax_documents_period_idx
   on public.tax_documents(period_id) where period_id is not null;
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- v85-2f: Customer ↔ practice messaging
+--
+-- Thread-per-conversation between a customer and the practice. The practice
+-- side is multi-user in concept (Phase 3 introduces employees), but for v1
+-- every practice-side message is attributed to the owner (global admin).
+--
+-- Denormalized last_message_* + *_unread columns keep the thread-list query
+-- to a single round trip with no per-message join.
+-- ═══════════════════════════════════════════════════════════════════════════════
+
+create table if not exists public.tax_message_threads (
+  id                   text primary key,
+  community_id         text not null references public.communities(id) on delete cascade,
+  customer_id          text not null references public.tax_customers(id) on delete cascade,
+  subject              text not null default '',
+  related_period_id    text references public.tax_filing_periods(id) on delete set null,
+  related_document_id  text references public.tax_documents(id) on delete set null,
+  status               text not null default 'open',
+  created_by_role      text not null,
+  created_by_email     text,
+
+  -- Denormalized fields refreshed on every message insert. last_message_preview
+  -- is the first ~200 chars of the body; UI truncates further if needed.
+  last_message_at      timestamptz,
+  last_message_preview text not null default '',
+  last_message_by_role text,
+
+  -- Unread booleans flip true for the OTHER party on insert, and false on
+  -- POST /threads/:id/read by that party.
+  customer_unread      boolean not null default false,
+  practice_unread      boolean not null default false,
+
+  created_at           timestamptz not null default now(),
+  updated_at           timestamptz not null default now()
+);
+do $$ begin
+  alter table public.tax_message_threads add constraint tax_message_threads_status_chk
+    check (status in ('open','closed'));
+exception when duplicate_object then null; end $$;
+do $$ begin
+  alter table public.tax_message_threads add constraint tax_message_threads_role_chk
+    check (created_by_role in ('customer','practice'));
+exception when duplicate_object then null; end $$;
+create index if not exists tax_message_threads_customer_idx
+  on public.tax_message_threads(customer_id, last_message_at desc nulls last);
+create index if not exists tax_message_threads_community_idx
+  on public.tax_message_threads(community_id, last_message_at desc nulls last);
+create index if not exists tax_message_threads_practice_unread_idx
+  on public.tax_message_threads(community_id) where practice_unread;
+
+create table if not exists public.tax_messages (
+  id            text primary key,
+  thread_id     text not null references public.tax_message_threads(id) on delete cascade,
+  community_id  text not null references public.communities(id) on delete cascade,
+  customer_id   text not null references public.tax_customers(id) on delete cascade,
+  author_role   text not null,
+  author_email  text,
+  author_name   text not null default '',
+  body          text not null,
+
+  -- Attachments are stored as a JSON array of { document_id, file_name }
+  -- pointers into tax_documents. The column exists in v1 even though the
+  -- UI does not yet expose an attachment picker (Phase 4a).
+  attachments   jsonb not null default '[]'::jsonb,
+
+  created_at    timestamptz not null default now()
+);
+do $$ begin
+  alter table public.tax_messages add constraint tax_messages_role_chk
+    check (author_role in ('customer','practice'));
+exception when duplicate_object then null; end $$;
+create index if not exists tax_messages_thread_idx
+  on public.tax_messages(thread_id, created_at asc);
+create index if not exists tax_messages_customer_idx
+  on public.tax_messages(customer_id, created_at desc);

@@ -70,6 +70,7 @@
   "respond.error.generic": "No pudimos guardar su información. Inténtelo de nuevo o contáctenos.",
 
   "portal.nav.dashboard": "Panel",
+  "portal.nav.messages": "Mensajes",
   "portal.nav.documents": "Documentos",
   "portal.nav.faqs": "Preguntas frecuentes",
   "portal.nav.profile": "Perfil",
@@ -172,5 +173,29 @@
   "portal.documents.confirmDelete": "¿Eliminar \"{name}\"? Esta acción no se puede deshacer.",
   "portal.documents.errUnsupported": "Ese tipo de archivo no es compatible.",
   "portal.documents.errTooLarge": "El archivo excede el límite de 25 MB.",
-  "portal.documents.errGeneric": "Algo salió mal. Inténtelo de nuevo o contacte a su oficina de impuestos."
+  "portal.documents.errGeneric": "Algo salió mal. Inténtelo de nuevo o contacte a su oficina de impuestos.",
+
+  "portal.messages.title": "Mensajes",
+  "portal.messages.subtitle": "Conversación directa con su oficina de impuestos. Las respuestas de su contador activan un correo a usted y una notificación en el portal.",
+  "portal.messages.newBtn": "Iniciar una conversación",
+  "portal.messages.newTitle": "Nueva conversación",
+  "portal.messages.newSubtitle": "Cuéntenos cómo podemos ayudarle. Su contador será notificado por correo y responderá en este hilo.",
+  "portal.messages.fieldSubject": "Asunto (opcional)",
+  "portal.messages.subjectPlaceholder": "Resumen corto, ej. \"Pregunta sobre mi impuesto de ventas Q3\"",
+  "portal.messages.fieldBody": "Mensaje",
+  "portal.messages.bodyPlaceholder": "Escriba su pregunta o comentario…",
+  "portal.messages.sendBtn": "Enviar mensaje",
+  "portal.messages.empty": "Aún no hay conversaciones. Inicie una cuando necesite contactarnos.",
+  "portal.messages.fromPractice": "De su oficina de impuestos",
+  "portal.messages.fromYou": "De usted",
+  "portal.messages.you": "Usted",
+  "portal.messages.practice": "Su oficina de impuestos",
+  "portal.messages.untitled": "(sin asunto)",
+  "portal.messages.backToList": "Volver a mensajes",
+  "portal.messages.opened": "Iniciada",
+  "portal.messages.closed": "Esta conversación ha sido cerrada. Por favor inicie una nueva si tiene preguntas adicionales.",
+  "portal.messages.fieldReply": "Su respuesta",
+  "portal.messages.replyPlaceholder": "Escriba su respuesta…",
+  "portal.messages.notFound": "No encontramos esa conversación.",
+  "portal.messages.errBody": "Por favor escriba un mensaje antes de enviar."
 }
