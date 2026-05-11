@@ -2497,6 +2497,109 @@ module.exports = function createTaxRouter(deps) {
     }
   });
 
+  // ── Phase 4n.10: workflow template library ──────────────────────────────
+  // GET  /admin/workflow-templates                      → catalog
+  // POST /admin/workflow-templates/:templateId/clone    → clone into a
+  //   community + (optional) auto-bind to a relationship type. Same writes
+  //   as POST /admin/filing-schedules, just with the fields pre-filled.
+  const taxTemplates = require('./workflow-templates');
+  router.get('/admin/workflow-templates', async (req, res) => {
+    if (!(await requireOwnerAdmin(req, res))) return;
+    res.json({ templates: taxTemplates.listTemplates() });
+  });
+
+  router.post('/admin/workflow-templates/:templateId/clone', async (req, res) => {
+    if (!(await requireOwnerAdmin(req, res))) return;
+    const body = req.body || {};
+    const communitySlug = trim(body.communitySlug, 200);
+    const templateId = trim(req.params.templateId, 200);
+    const relTypeId = trim(body.relationshipTypeId || '', 200);
+    if (!communitySlug) return res.status(400).json({ error: 'communitySlug required.' });
+    const tpl = taxTemplates.getTemplate(templateId);
+    if (!tpl) return res.status(404).json({ error: 'Template not found.' });
+
+    // Find or create a "custom-workflows" product so the new schedule has
+    // a parent (FK requirement). Same fallback used by create-from-scratch.
+    let productId = trim(body.productId || '', 200);
+    if (!productId) {
+      const customSlug = 'custom-workflows';
+      const { data: existingProd } = await supabase.from('tax_products')
+        .select('id').eq('community_id', communitySlug).eq('slug', customSlug).maybeSingle();
+      if (existingProd) productId = existingProd.id;
+      else {
+        productId = `tp_${communitySlug}_${customSlug}`.slice(0, 200);
+        const { error: prodErr } = await supabase.from('tax_products').insert({
+          id: productId, community_id: communitySlug, slug: customSlug,
+          category: 'custom', display_order: 900,
+          name_i18n: { en: 'Custom workflows', es: 'Flujos personalizados' },
+          description_i18n: { en: 'Owner-defined filing schedules.', es: 'Calendarios definidos por el dueño.' },
+        });
+        if (prodErr) return sendSupabaseError(res, prodErr);
+      }
+    }
+
+    // Build a unique slug, suffix on collision.
+    const baseSlug = tpl.suggested_slug || tpl.id;
+    let slug = baseSlug;
+    let scheduleId = `tfs_${communitySlug}_${slug}`.slice(0, 200);
+    for (let i = 1; i < 50; i++) {
+      const { data: clash } = await supabase.from('tax_filing_schedules')
+        .select('id').eq('community_id', communitySlug).eq('slug', slug).maybeSingle();
+      if (!clash) break;
+      slug = `${baseSlug}-${i + 1}`;
+      scheduleId = `tfs_${communitySlug}_${slug}`.slice(0, 200);
+    }
+
+    const { error: schedErr } = await supabase.from('tax_filing_schedules').insert({
+      id: scheduleId, community_id: communitySlug, product_id: productId,
+      slug, jurisdiction: tpl.jurisdiction || 'federal',
+      cadence: tpl.cadence, anchor_rule: tpl.anchor_rule,
+      info_checklist: tpl.info_checklist,
+      name_i18n: tpl.name_i18n, description_i18n: tpl.description_i18n,
+      enabled: true, display_order: 100,
+    });
+    if (schedErr) return sendSupabaseError(res, schedErr);
+
+    if (relTypeId) {
+      const ruleId = `trwr_${communitySlug}_${relTypeId}_${slug}`.slice(0, 200);
+      const { error: ruleErr } = await supabase.from('tax_relationship_workflow_rules').upsert({
+        id: ruleId, community_id: communitySlug,
+        relationship_type_id: relTypeId, filing_schedule_slug: slug,
+        reminder_offsets_days: Array.isArray(tpl.suggested_offsets) ? tpl.suggested_offsets : [],
+        required_documents: [],
+        name_i18n: tpl.name_i18n, description_i18n: tpl.description_i18n,
+        cadence: tpl.cadence, anchor_rule: tpl.anchor_rule,
+        info_checklist: tpl.info_checklist,
+        active: true, updated_at: new Date().toISOString(),
+      }, { onConflict: 'id' });
+      if (ruleErr) return sendSupabaseError(res, ruleErr);
+    }
+
+    try {
+      await auditLog({
+        entity: 'tax.workflow_template', entityId: templateId,
+        action: 'clone', actorEmail: '',
+        after: { community: communitySlug, slug, relTypeId: relTypeId || null },
+      });
+    } catch (_e) {}
+    res.json({ ok: true, scheduleId, slug });
+  });
+
+  // ── Phase 4n.10: per-workflow audit history ─────────────────────────────
+  router.get('/admin/workflows/:ruleId/audit', async (req, res) => {
+    if (!(await requireOwnerAdmin(req, res))) return;
+    const ruleId = trim(req.params.ruleId, 200);
+    const limit = Math.max(1, Math.min(100, parseInt(req.query.limit, 10) || 20));
+    const { data, error } = await supabase.from('audit_logs')
+      .select('id, action, actor_email, actor_name, before_data, after_data, created_at, reason')
+      .eq('entity', 'tax.relationship_workflow_rule')
+      .eq('entity_id', ruleId)
+      .order('created_at', { ascending: false })
+      .limit(limit);
+    if (error) return sendSupabaseError(res, error);
+    res.json({ events: data || [] });
+  });
+
   router.get('/admin/relationship-workflow-rules', async (req, res) => {
     if (!(await requireOwnerAdmin(req, res))) return;
     const communitySlug = trim(req.query.communitySlug, 200);
@@ -2544,6 +2647,12 @@ module.exports = function createTaxRouter(deps) {
     }
 
     const id = `trwr_${communitySlug}_${relTypeId}_${scheduleSlug}`.slice(0, 200);
+    // Phase 4n.10: snapshot the existing row so the audit history can diff
+    // before/after. Skip when it's a fresh insert (the after is the whole
+    // story).
+    const { data: existingRow } = await supabase.from('tax_relationship_workflow_rules')
+      .select('reminder_offsets_days, required_documents, active, name_i18n, description_i18n, cadence, anchor_rule, info_checklist')
+      .eq('id', id).maybeSingle();
     const row = {
       id, community_id: communitySlug,
       relationship_type_id: relTypeId,
@@ -2559,8 +2668,12 @@ module.exports = function createTaxRouter(deps) {
       await auditLog({
         entity: 'tax.relationship_workflow_rule', entityId: id,
         action: 'upsert', actorEmail: '',
-        after: { community: communitySlug, relTypeId, scheduleSlug,
-                 offsets, docsCount: (requiredDocs || []).length, active: row.active },
+        before: existingRow || null,
+        after: {
+          reminder_offsets_days: offsets,
+          required_documents: requiredDocs,
+          active: row.active,
+        },
       });
     } catch (_e) {}
     res.json({ ok: true, rule: row });
@@ -2575,13 +2688,17 @@ module.exports = function createTaxRouter(deps) {
       return res.status(400).json({ error: 'communitySlug, relTypeId, scheduleSlug required.' });
     }
     const id = `trwr_${communitySlug}_${relTypeId}_${scheduleSlug}`.slice(0, 200);
+    const { data: existingRow } = await supabase.from('tax_relationship_workflow_rules')
+      .select('reminder_offsets_days, required_documents, active, name_i18n, description_i18n, cadence, anchor_rule, info_checklist')
+      .eq('id', id).maybeSingle();
     const { error } = await supabase.from('tax_relationship_workflow_rules').delete().eq('id', id);
     if (error) return sendSupabaseError(res, error);
     try {
       await auditLog({
         entity: 'tax.relationship_workflow_rule', entityId: id,
         action: 'delete', actorEmail: '',
-        after: { community: communitySlug, relTypeId, scheduleSlug },
+        before: existingRow || null,
+        after: null,
       });
     } catch (_e) {}
     res.json({ ok: true });

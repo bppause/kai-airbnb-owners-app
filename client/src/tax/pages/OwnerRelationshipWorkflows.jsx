@@ -85,7 +85,9 @@ export default function OwnerRelationshipWorkflows() {
 
   const [showAddPicker, setShowAddPicker] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [testSend, setTestSend] = useState(null);    // { ruleId, name }
+  const [showTemplateLibrary, setShowTemplateLibrary] = useState(false);
+  const [testSend, setTestSend] = useState(null);     // { ruleId, name }
+  const [historyFor, setHistoryFor] = useState(null); // { ruleId, name }
 
   // System default — kept in sync with reminders.js' fallback. Used for the
   // preview when the user hasn't typed any custom offsets yet.
@@ -235,6 +237,10 @@ export default function OwnerRelationshipWorkflows() {
                 + {t('owner.workflows.addExistingBtn')}
               </button>
             )}
+            <button type="button" className="tax-btn tax-btn--ghost tax-btn--sm"
+                    onClick={() => setShowTemplateLibrary(true)}>
+              + {t('owner.workflows.fromTemplateBtn')}
+            </button>
             <button type="button" className="tax-btn tax-btn--primary tax-btn--sm"
                     onClick={() => setShowCreateModal(true)}>
               + {t('owner.workflows.createNewBtn')}
@@ -414,6 +420,12 @@ export default function OwnerRelationshipWorkflows() {
                         {t('owner.workflows.sendTestBtn')}
                       </button>
                     )}
+                    {r && (
+                      <button type="button" className="tax-btn tax-btn--ghost tax-btn--sm"
+                              onClick={() => setHistoryFor({ ruleId: r.id, name: pickI18n(sch.name_i18n, locale).value || sch.slug })}>
+                        {t('owner.workflows.historyBtn')}
+                      </button>
+                    )}
                     {isOverride && (
                       <button type="button" className="tax-btn tax-btn--ghost tax-btn--sm"
                               disabled={!!busy[k]} onClick={() => onReset(activeRel, sch.slug)}>
@@ -492,7 +504,244 @@ export default function OwnerRelationshipWorkflows() {
         defaultEmail={fbUser?.email || ''}
         t={t}
       />
+
+      <TemplateLibraryModal
+        open={showTemplateLibrary}
+        onClose={() => setShowTemplateLibrary(false)}
+        auth={auth}
+        relationshipTypeId={activeRel}
+        communitySlug={community?.id}
+        locale={locale}
+        t={t}
+        onCloned={() => { setShowTemplateLibrary(false); load(); }}
+      />
+
+      <WorkflowHistoryModal
+        open={!!historyFor}
+        onClose={() => setHistoryFor(null)}
+        auth={auth}
+        ruleId={historyFor?.ruleId}
+        workflowName={historyFor?.name}
+        locale={locale}
+        t={t}
+      />
     </EmployeeShell>
+  );
+}
+
+// Phase 4n.10: catalog browser. Lists hard-coded templates grouped by
+// category (federal / state / business). One-click clone creates the
+// underlying tax_filing_schedules row, auto-binds a rule to the current
+// relationship, and refreshes the page.
+function TemplateLibraryModal({ open, onClose, auth, relationshipTypeId, communitySlug, locale, t, onCloned }) {
+  const [templates, setTemplates] = useState(null);
+  const [err, setErr] = useState('');
+  const [busyId, setBusyId] = useState('');
+  useEffect(() => {
+    if (!open) return;
+    setErr(''); setTemplates(null);
+    taxApi.adminListWorkflowTemplates(auth)
+      .then(d => setTemplates(d.templates || []))
+      .catch(e => setErr(e?.message || t('error.loadFailed')));
+  }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  if (!open) return null;
+  const byCategory = (templates || []).reduce((acc, tpl) => {
+    const k = tpl.category || 'other';
+    if (!acc[k]) acc[k] = [];
+    acc[k].push(tpl);
+    return acc;
+  }, {});
+
+  async function clone(tpl) {
+    if (!relationshipTypeId) {
+      setErr(t('owner.workflows.templates.errNoRel'));
+      return;
+    }
+    setBusyId(tpl.id); setErr('');
+    try {
+      await taxApi.adminCloneWorkflowTemplate(auth, tpl.id, {
+        communitySlug, relationshipTypeId,
+      });
+      onCloned();
+    } catch (e) {
+      setErr(e?.message || t('respond.error.generic'));
+    } finally { setBusyId(''); }
+  }
+
+  return (
+    <div onClick={onClose} style={{
+      position: 'fixed', inset: 0, background: 'rgba(15,23,42,.55)',
+      zIndex: 1000, display: 'flex', alignItems: 'flex-start', justifyContent: 'center',
+      padding: 16, overflow: 'auto',
+    }}>
+      <div onClick={e => e.stopPropagation()} style={{
+        background: 'var(--tax-bg)', borderRadius: 12, maxWidth: 720, width: '100%',
+        margin: '40px 0', border: '1px solid var(--tax-border)',
+      }}>
+        <div style={{ padding: '14px 18px', borderBottom: '1px solid var(--tax-border)',
+                      display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <strong>{t('owner.workflows.templates.title')}</strong>
+          <button type="button" className="tax-btn tax-btn--ghost tax-btn--sm" onClick={onClose}>
+            {t('preview.close')}
+          </button>
+        </div>
+        <div style={{ padding: 18 }}>
+          <p style={{ margin: '0 0 12px', fontSize: 13, color: 'var(--tax-muted)' }}>
+            {t('owner.workflows.templates.note')}
+          </p>
+          {err && <div className="tax-msg tax-msg--error" style={{ marginBottom: 12 }}>{err}</div>}
+          {templates === null && <p>{t('loading')}</p>}
+          {Object.entries(byCategory).map(([cat, list]) => (
+            <div key={cat} style={{ marginBottom: 18 }}>
+              <h4 style={{
+                fontSize: 12, textTransform: 'uppercase', letterSpacing: '.06em',
+                color: 'var(--tax-muted)', margin: '0 0 8px',
+              }}>{t(`owner.workflows.templates.cat.${cat}`)}</h4>
+              <div style={{ display: 'grid', gap: 8 }}>
+                {list.map(tpl => (
+                  <div key={tpl.id} style={{
+                    display: 'flex', alignItems: 'flex-start', gap: 12, justifyContent: 'space-between',
+                    padding: 12, border: '1px solid var(--tax-border)', borderRadius: 8,
+                  }}>
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontWeight: 600 }}>{pickI18n(tpl.name_i18n, locale).value}</div>
+                      <div style={{ fontSize: 13, color: 'var(--tax-muted)', marginTop: 2 }}>
+                        {pickI18n(tpl.description_i18n, locale).value}
+                      </div>
+                      <div style={{ fontSize: 12, color: 'var(--tax-muted)', marginTop: 6 }}>
+                        {tpl.cadence} · {tpl.info_checklist.length} {t('owner.workflows.templates.fields')} ·{' '}
+                        {t('owner.workflows.templates.offsets', { offsets: (tpl.suggested_offsets || []).join(', ') })}
+                      </div>
+                    </div>
+                    <button type="button" className="tax-btn tax-btn--primary tax-btn--sm"
+                            disabled={busyId === tpl.id || !relationshipTypeId}
+                            onClick={() => clone(tpl)}>
+                      {busyId === tpl.id ? t('lead.submitting') : t('owner.workflows.templates.useBtn')}
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Phase 4n.10: per-workflow audit history. Renders the 20 most recent
+// audit_logs entries for this workflow with a compact before→after diff
+// per change (only fields that actually moved).
+function WorkflowHistoryModal({ open, onClose, auth, ruleId, workflowName, locale, t }) {
+  const [events, setEvents] = useState(null);
+  const [err, setErr] = useState('');
+  useEffect(() => {
+    if (!open || !ruleId) return;
+    setEvents(null); setErr('');
+    taxApi.adminGetWorkflowAudit(auth, ruleId, 20)
+      .then(d => setEvents(d.events || []))
+      .catch(e => setErr(e?.message || t('error.loadFailed')));
+  }, [open, ruleId]); // eslint-disable-line react-hooks/exhaustive-deps
+  if (!open) return null;
+
+  function fmtTime(iso) {
+    if (!iso) return '';
+    try {
+      return new Intl.DateTimeFormat(locale === 'en' ? 'en-US' : 'es-ES',
+        { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+        .format(new Date(iso));
+    } catch (_e) { return iso; }
+  }
+
+  function diff(before, after) {
+    const keys = new Set([...Object.keys(before || {}), ...Object.keys(after || {})]);
+    const changes = [];
+    for (const k of keys) {
+      const b = before ? before[k] : undefined;
+      const a = after ? after[k] : undefined;
+      if (JSON.stringify(b) === JSON.stringify(a)) continue;
+      changes.push({ key: k, before: b, after: a });
+    }
+    return changes;
+  }
+
+  function fmtValue(v) {
+    if (v === undefined || v === null) return '∅';
+    if (Array.isArray(v)) {
+      if (!v.length) return '[]';
+      return v.length <= 6 ? JSON.stringify(v) : `[${v.length} items]`;
+    }
+    if (typeof v === 'object') {
+      const json = JSON.stringify(v);
+      return json.length <= 80 ? json : `${json.slice(0, 77)}…`;
+    }
+    return String(v);
+  }
+
+  return (
+    <div onClick={onClose} style={{
+      position: 'fixed', inset: 0, background: 'rgba(15,23,42,.55)',
+      zIndex: 1000, display: 'flex', alignItems: 'flex-start', justifyContent: 'center',
+      padding: 16, overflow: 'auto',
+    }}>
+      <div onClick={e => e.stopPropagation()} style={{
+        background: 'var(--tax-bg)', borderRadius: 12, maxWidth: 720, width: '100%',
+        margin: '40px 0', border: '1px solid var(--tax-border)',
+      }}>
+        <div style={{ padding: '14px 18px', borderBottom: '1px solid var(--tax-border)',
+                      display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <strong>{t('owner.workflows.history.title', { name: workflowName || '' })}</strong>
+          <button type="button" className="tax-btn tax-btn--ghost tax-btn--sm" onClick={onClose}>
+            {t('preview.close')}
+          </button>
+        </div>
+        <div style={{ padding: 18 }}>
+          {err && <div className="tax-msg tax-msg--error">{err}</div>}
+          {events === null && <p>{t('loading')}</p>}
+          {events && events.length === 0 && (
+            <p style={{ color: 'var(--tax-muted)' }}>{t('owner.workflows.history.empty')}</p>
+          )}
+          {events && events.length > 0 && (
+            <div style={{ display: 'grid', gap: 12 }}>
+              {events.map(ev => {
+                const changes = diff(ev.before_data, ev.after_data);
+                return (
+                  <div key={ev.id} style={{
+                    padding: 10, border: '1px solid var(--tax-border)', borderRadius: 8,
+                  }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8 }}>
+                      <strong style={{ fontSize: 13 }}>{t(`owner.workflows.history.action.${ev.action}`)}</strong>
+                      <span style={{ fontSize: 12, color: 'var(--tax-muted)' }}>
+                        {fmtTime(ev.created_at)}
+                        {ev.actor_email ? ` · ${ev.actor_email}` : ''}
+                      </span>
+                    </div>
+                    {changes.length === 0 ? (
+                      <p style={{ margin: '6px 0 0', fontSize: 12, color: 'var(--tax-muted)' }}>
+                        {t('owner.workflows.history.noChanges')}
+                      </p>
+                    ) : (
+                      <ul style={{ margin: '6px 0 0', paddingLeft: 18, fontSize: 13 }}>
+                        {changes.map(c => (
+                          <li key={c.key} style={{ marginBottom: 2 }}>
+                            <code style={{ background: 'var(--tax-bg-alt)', padding: '0 4px', borderRadius: 3 }}>{c.key}</code>
+                            {': '}
+                            <span style={{ color: 'var(--tax-muted)', textDecoration: 'line-through' }}>{fmtValue(c.before)}</span>
+                            {' → '}
+                            <span style={{ color: 'var(--tax-text)' }}>{fmtValue(c.after)}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
   );
 }
 

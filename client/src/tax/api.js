@@ -190,6 +190,9 @@ export const taxApi = {
 
   adminListFilingSchedules(auth, communitySlug)  { return request('GET', `/admin/filing-schedules?communitySlug=${encodeURIComponent(communitySlug)}`, undefined, auth, { admin: true }); },
   adminCreateFilingSchedule(auth, payload) { return request('POST', '/admin/filing-schedules', payload, auth, { admin: true }); },
+  adminListWorkflowTemplates(auth) { return request('GET', '/admin/workflow-templates', undefined, auth, { admin: true }); },
+  adminCloneWorkflowTemplate(auth, templateId, payload) { return request('POST', `/admin/workflow-templates/${encodeURIComponent(templateId)}/clone`, payload, auth, { admin: true }); },
+  adminGetWorkflowAudit(auth, ruleId, limit = 20) { return request('GET', `/admin/workflows/${encodeURIComponent(ruleId)}/audit?limit=${limit}`, undefined, auth, { admin: true }); },
   adminListCustomerWorkflowOverrides(auth, customerId) { return request('GET', `/admin/customers/${encodeURIComponent(customerId)}/workflow-overrides`, undefined, auth, { admin: true }); },
   adminUpsertCustomerWorkflowOverride(auth, customerId, ruleId, payload) { return request('PUT', `/admin/customers/${encodeURIComponent(customerId)}/workflow-overrides/${encodeURIComponent(ruleId)}`, payload, auth, { admin: true }); },
   adminDeleteCustomerWorkflowOverride(auth, customerId, ruleId) { return request('DELETE', `/admin/customers/${encodeURIComponent(customerId)}/workflow-overrides/${encodeURIComponent(ruleId)}`, undefined, auth, { admin: true }); },
