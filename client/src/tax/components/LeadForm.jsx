@@ -1,9 +1,30 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { pickI18n, useT } from '../i18n';
 import { taxApi } from '../api';
 
+// Canonical group order. Categories not in this list slot in after the
+// known ones under the "other" bucket so the form never silently hides a
+// service the owner has configured.
+const CATEGORY_ORDER = ['tax_prep', 'recurring', 'one_off', 'custom'];
+
 export default function LeadForm({ community, products }) {
   const { locale, t } = useT();
+
+  // Group services by category, preserving the owner-defined display_order
+  // inside each group. Caller already sorts `products` by display_order.
+  const groups = useMemo(() => {
+    const buckets = new Map();
+    for (const p of products || []) {
+      const cat = CATEGORY_ORDER.includes(p.category) ? p.category : 'other';
+      if (!buckets.has(cat)) buckets.set(cat, []);
+      buckets.get(cat).push(p);
+    }
+    const ordered = [];
+    for (const cat of [...CATEGORY_ORDER, 'other']) {
+      if (buckets.has(cat)) ordered.push({ cat, items: buckets.get(cat) });
+    }
+    return ordered;
+  }, [products]);
   // Phase 4n.12: multi-select services. `productSlugs` is the live state;
   // submitted as an array. Submission still degrades gracefully if a future
   // client/server pair forgets to send the array (server falls back to the
@@ -84,21 +105,40 @@ export default function LeadForm({ community, products }) {
           {t('lead.field.services.hint')}
         </p>
         <div role="group" aria-label={t('lead.field.services')}
-             style={{ display: 'grid', gap: 6 }}>
-          {products.map(p => {
-            const label = pickI18n(p.name_i18n, locale).value || p.slug;
-            const checked = form.productSlugs.includes(p.slug);
-            return (
-              <label key={p.id} style={{
-                display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer',
-                padding: '8px 12px', border: '1px solid var(--tax-border)', borderRadius: 8,
-                background: checked ? 'color-mix(in srgb, var(--tax-brand-primary) 8%, #fff)' : 'transparent',
+             style={{ display: 'grid', gap: 16 }}>
+          {groups.map(g => (
+            <div key={g.cat}>
+              <div style={{
+                fontSize: 12, textTransform: 'uppercase', letterSpacing: '.06em',
+                color: 'var(--tax-muted)', fontWeight: 700, marginBottom: 8,
               }}>
-                <input type="checkbox" checked={checked} onChange={() => toggleService(p.slug)} />
-                <span>{label}</span>
-              </label>
-            );
-          })}
+                {t(`lead.field.services.cat.${g.cat}`)}
+              </div>
+              <div style={{ display: 'grid', gap: 6 }}>
+                {g.items.map(p => {
+                  const label = pickI18n(p.name_i18n, locale).value || p.slug;
+                  const desc  = pickI18n(p.description_i18n, locale).value || '';
+                  const checked = form.productSlugs.includes(p.slug);
+                  return (
+                    <label key={p.id} style={{
+                      display: 'flex', alignItems: 'flex-start', gap: 10, cursor: 'pointer',
+                      padding: '10px 12px', border: '1px solid var(--tax-border)', borderRadius: 8,
+                      background: checked ? 'color-mix(in srgb, var(--tax-brand-primary) 8%, #fff)' : 'transparent',
+                    }}>
+                      <input type="checkbox" checked={checked} onChange={() => toggleService(p.slug)}
+                             style={{ marginTop: 3 }} />
+                      <div style={{ minWidth: 0 }}>
+                        <div style={{ fontWeight: 600 }}>{label}</div>
+                        {desc && (
+                          <div style={{ fontSize: 13, color: 'var(--tax-muted)', marginTop: 2 }}>{desc}</div>
+                        )}
+                      </div>
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
         </div>
       </div>
       <div>
