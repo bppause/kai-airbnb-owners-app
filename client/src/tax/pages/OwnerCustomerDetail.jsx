@@ -140,6 +140,8 @@ export default function OwnerCustomerDetail({ customerId }) {
 
       <NotesSection auth={auth} customerId={customerId} locale={locale} t={t} />
 
+      <SignatureRequestsSection auth={auth} customerId={customerId} locale={locale} t={t} />
+
       <FilingsSection data={data} auth={auth} onChange={load} locale={locale} t={t} />
 
       <OwnerSubscriptionsSection
@@ -491,6 +493,166 @@ function NotesSection({ auth, customerId, locale, t }) {
               <div style={{ whiteSpace: 'pre-wrap', fontSize: 14 }}>{n.body}</div>
             </div>
           ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
+// Phase 4n.24: e-signature requests on the customer detail. Owner creates
+// a request (title + optional description); customer sees it in the
+// portal, types their legal name, and the row flips to 'signed' with a
+// captured IP + timestamp + consent-text snapshot.
+function SignatureRequestsSection({ auth, customerId, locale, t }) {
+  const [requests, setRequests] = useState(null);
+  const [adding, setAdding] = useState(false);
+  const [form, setForm] = useState({ title: '', description: '' });
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+
+  function load() {
+    setErr('');
+    taxApi.adminListSignatureRequests(auth, customerId)
+      .then(d => setRequests(d.requests || []))
+      .catch(e => setErr(e?.message || t('error.loadFailed')));
+  }
+  useEffect(load, [customerId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function onCreate(e) {
+    e.preventDefault();
+    if (!form.title.trim()) return;
+    setBusy(true); setErr('');
+    try {
+      await taxApi.adminCreateSignatureRequest(auth, customerId, {
+        title: form.title.trim(),
+        description: form.description.trim(),
+      });
+      setForm({ title: '', description: '' });
+      setAdding(false);
+      load();
+    } catch (e2) {
+      setErr(e2?.message || t('respond.error.generic'));
+    } finally { setBusy(false); }
+  }
+
+  async function onCancel(reqId) {
+    if (!window.confirm(t('owner.customer.signatures.confirmCancel'))) return;
+    try {
+      await taxApi.adminCancelSignatureRequest(auth, customerId, reqId);
+      load();
+    } catch (e2) { setErr(e2?.message || t('respond.error.generic')); }
+  }
+
+  function fmt(iso) {
+    if (!iso) return '—';
+    try {
+      return new Intl.DateTimeFormat(locale === 'en' ? 'en-US' : 'es-ES',
+        { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+        .format(new Date(iso));
+    } catch (_e) { return iso; }
+  }
+
+  const STATUS_TONE = {
+    pending: { bg: '#fef3c7', fg: '#854d0e', label: t('owner.customer.signatures.status.pending') },
+    signed: { bg: '#dcfce7', fg: '#166534', label: t('owner.customer.signatures.status.signed') },
+    declined: { bg: '#fee2e2', fg: '#b91c1c', label: t('owner.customer.signatures.status.declined') },
+    cancelled: { bg: 'var(--tax-bg-alt)', fg: 'var(--tax-muted)', label: t('owner.customer.signatures.status.cancelled') },
+    expired: { bg: 'var(--tax-bg-alt)', fg: 'var(--tax-muted)', label: t('owner.customer.signatures.status.expired') },
+  };
+
+  return (
+    <section className="tax-section" style={{ paddingTop: 0 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 12 }}>
+        <div>
+          <h3>{t('owner.customer.section.signatures')}</h3>
+          <p style={{ color: 'var(--tax-muted)', fontSize: 13, margin: '0 0 12px' }}>
+            {t('owner.customer.signatures.hint')}
+          </p>
+        </div>
+        {!adding && (
+          <button type="button" className="tax-btn tax-btn--primary tax-btn--sm"
+                  onClick={() => setAdding(true)}>
+            + {t('owner.customer.signatures.newBtn')}
+          </button>
+        )}
+      </div>
+
+      {err && <div className="tax-msg tax-msg--error">{err}</div>}
+
+      {adding && (
+        <form onSubmit={onCreate} style={{
+          marginBottom: 12, padding: 12, border: '1px solid var(--tax-border)',
+          borderRadius: 8, background: 'var(--tax-bg-alt)', display: 'grid', gap: 8,
+        }}>
+          <input type="text" value={form.title}
+                 placeholder={t('owner.customer.signatures.titlePlaceholder')}
+                 onChange={e => setForm(p => ({ ...p, title: e.target.value }))}
+                 maxLength={300} required style={{ width: '100%' }} />
+          <textarea value={form.description} rows={3}
+                    placeholder={t('owner.customer.signatures.descriptionPlaceholder')}
+                    onChange={e => setForm(p => ({ ...p, description: e.target.value }))}
+                    maxLength={16000} style={{ width: '100%' }} />
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button type="submit" className="tax-btn tax-btn--primary tax-btn--sm"
+                    disabled={busy || !form.title.trim()}>
+              {busy ? t('lead.submitting') : t('owner.customer.signatures.sendBtn')}
+            </button>
+            <button type="button" className="tax-btn tax-btn--ghost tax-btn--sm"
+                    onClick={() => { setAdding(false); setForm({ title: '', description: '' }); }}>
+              {t('preview.close')}
+            </button>
+          </div>
+        </form>
+      )}
+
+      {requests === null && <p>{t('loading')}</p>}
+      {requests && requests.length === 0 && !adding && (
+        <p style={{ color: 'var(--tax-muted)' }}>{t('owner.customer.signatures.empty')}</p>
+      )}
+      {requests && requests.length > 0 && (
+        <div style={{ display: 'grid', gap: 8 }}>
+          {requests.map(r => {
+            const tone = STATUS_TONE[r.status] || STATUS_TONE.pending;
+            return (
+              <div key={r.id} style={{
+                padding: '10px 12px', border: '1px solid var(--tax-border)',
+                borderRadius: 8, background: '#fff',
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'baseline' }}>
+                  <div style={{ minWidth: 0, flex: 1 }}>
+                    <div style={{ fontWeight: 600 }}>{r.title}</div>
+                    <div style={{ fontSize: 12, color: 'var(--tax-muted)', marginTop: 2 }}>
+                      {t('owner.customer.signatures.requestedBy', {
+                        name: r.requested_by_name || r.requested_by_email || '—',
+                        date: fmt(r.created_at),
+                      })}
+                    </div>
+                  </div>
+                  <span style={{
+                    padding: '2px 10px', borderRadius: 999, fontSize: 12, fontWeight: 700,
+                    background: tone.bg, color: tone.fg,
+                  }}>{tone.label}</span>
+                </div>
+                {r.status === 'signed' && (
+                  <div style={{ fontSize: 12, color: 'var(--tax-muted)', marginTop: 6 }}>
+                    {t('owner.customer.signatures.signedSummary', {
+                      name: r.signer_name || r.signer_email,
+                      date: fmt(r.signed_at),
+                    })}
+                  </div>
+                )}
+                {r.status === 'pending' && (
+                  <div style={{ marginTop: 8 }}>
+                    <button type="button" className="tax-btn tax-btn--ghost tax-btn--sm"
+                            onClick={() => onCancel(r.id)}
+                            style={{ color: '#b91c1c', borderColor: '#b91c1c' }}>
+                      {t('owner.customer.signatures.cancelBtn')}
+                    </button>
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
       )}
     </section>

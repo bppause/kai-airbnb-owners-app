@@ -44,6 +44,7 @@ export default function PortalDashboard() {
   const [documents, setDocuments] = useState(null);
   const [notifications, setNotifications] = useState(null);
   const [tipGroups, setTipGroups] = useState(null);
+  const [signatures, setSignatures] = useState(null);
   const [err, setErr] = useState('');
 
   useEffect(() => {
@@ -54,13 +55,15 @@ export default function PortalDashboard() {
       taxApi.getDocuments(auth).catch(() => ({ documents: [] })),
       taxApi.getNotifications(auth).catch(() => ({ notifications: [] })),
       taxApi.getTips(auth).catch(() => ({ groups: [] })),
+      taxApi.getPortalSignatureRequests(auth).catch(() => ({ requests: [] })),
     ])
-      .then(([f, th, d, n, tg]) => {
+      .then(([f, th, d, n, tg, sg]) => {
         setFilings(f.filings || []);
         setThreads(th.threads || []);
         setDocuments(d.documents || []);
         setNotifications(n.notifications || []);
         setTipGroups(tg.groups || []);
+        setSignatures(sg.requests || []);
       })
       .catch(e => setErr(e?.message || t('error.loadFailed')));
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -131,7 +134,9 @@ export default function PortalDashboard() {
   }, [documents]);
 
   const allLoaded = filings !== null && threads !== null && documents !== null;
-  const hasInbox = unreadThreads.length > 0 || recentPracticeDocs.length > 0;
+  const pendingSignatures = useMemo(() =>
+    (signatures || []).filter(s => s.status === 'pending'), [signatures]);
+  const hasInbox = unreadThreads.length > 0 || recentPracticeDocs.length > 0 || pendingSignatures.length > 0;
   const counts = {
     action: buckets.action.length,
     upcoming: buckets.upcoming.length,
@@ -172,6 +177,15 @@ export default function PortalDashboard() {
 
             {activeBucket === 'action' && hasInbox && (
               <div style={{ display: 'grid', gap: 10, marginBottom: 16 }}>
+                {pendingSignatures.length > 0 && pendingSignatures.map(s => (
+                  <ActionCard key={s.id} tone="warn" icon="✎"
+                    title={t('portal.dashboard.signatureTitle', { title: s.title })}
+                    subtitle={t('portal.dashboard.signatureSubtitle', {
+                      name: s.requested_by_name || community?.name || '',
+                    })}
+                    cta={t('portal.dashboard.ctaSign')}
+                    href={`${portalBase}/sign/${encodeURIComponent(s.id)}`} />
+                ))}
                 {unreadThreads.length > 0 && (
                   <ActionCard tone="info" icon="✉"
                     title={t('portal.dashboard.unreadMessagesTitle', { count: unreadThreads.length })}

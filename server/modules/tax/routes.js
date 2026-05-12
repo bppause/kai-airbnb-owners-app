@@ -2976,6 +2976,204 @@ module.exports = function createTaxRouter(deps) {
     res.json({ ok: true, note: row });
   });
 
+  // ── Phase 4n.24: e-signature requests ──────────────────────────────────
+  //
+  // Owner creates a request → customer sees it in the portal → customer
+  // reviews + types their legal name + clicks "I agree" → status flips
+  // to 'signed' with the typed name + IP + timestamp captured. ESIGN-Act
+  // compliant: typed name + clear consent language + audit trail = a
+  // valid e-signature in the US (and Colombia's Ley 527).
+  router.get('/admin/customers/:id/signature-requests', async (req, res) => {
+    const emp = await requireTaxEmployee(req, res); if (!emp) return;
+    const customerId = trim(req.params.id, 200);
+    if (!(await canEmployeeSeeCustomer(emp, customerId))) {
+      return res.status(403).json({ error: 'Not assigned to this customer.' });
+    }
+    const { data, error } = await supabase.from('tax_signature_requests')
+      .select('id, title, description, status, expires_at, signed_at, signer_name, signer_email, requested_by_email, requested_by_name, document_id, cancelled_at, created_at')
+      .eq('customer_id', customerId)
+      .order('created_at', { ascending: false }).limit(100);
+    if (error) return sendSupabaseError(res, error);
+    res.json({ requests: data || [] });
+  });
+
+  router.post('/admin/customers/:id/signature-requests', async (req, res) => {
+    const emp = await requireTaxEmployee(req, res); if (!emp) return;
+    const customerId = trim(req.params.id, 200);
+    if (!(await canEmployeeSeeCustomer(emp, customerId))) {
+      return res.status(403).json({ error: 'Not assigned to this customer.' });
+    }
+    const body = req.body || {};
+    const title = trim(body.title || '', 300);
+    if (!title) return res.status(400).json({ error: 'title required.' });
+    const description = trim(body.description || '', MAX_TEXT_LEN * 4);
+    const consentText = trim(body.consentText || '', MAX_TEXT_LEN * 2)
+      || `By typing my name and clicking "I agree", I acknowledge that this constitutes my legal electronic signature under the U.S. ESIGN Act and applicable state and international laws. I have read and agree to the contents of "${title}".`;
+    const documentId = trim(body.documentId || '', 200) || null;
+    let expiresAt = null;
+    if (body.expiresAt) {
+      const d = new Date(body.expiresAt);
+      if (!isNaN(d)) expiresAt = d.toISOString();
+    }
+
+    const { data: cust } = await supabase.from('tax_customers')
+      .select('id, community_id').eq('id', customerId).maybeSingle();
+    if (!cust) return res.status(404).json({ error: 'Customer not found.' });
+
+    const id = 'sig_' + uuidv4().slice(0, 12);
+    const row = {
+      id, community_id: cust.community_id, customer_id: customerId,
+      title, description, consent_text: consentText,
+      document_id: documentId,
+      requested_by_email: emp.email || '',
+      requested_by_name:  emp.name || emp.email || '',
+      expires_at: expiresAt,
+      status: 'pending',
+    };
+    const { error } = await supabase.from('tax_signature_requests').insert(row);
+    if (error) return sendSupabaseError(res, error);
+    try {
+      await auditLog({
+        entity: 'tax.signature_request', entityId: id, action: 'create',
+        actorEmail: emp.email || '', actorName: emp.name || '',
+        after: { customerId, title, hasDoc: !!documentId },
+      });
+    } catch (_e) {}
+    res.json({ ok: true, request: row });
+  });
+
+  router.post('/admin/customers/:id/signature-requests/:reqId/cancel', async (req, res) => {
+    const emp = await requireTaxEmployee(req, res); if (!emp) return;
+    const customerId = trim(req.params.id, 200);
+    const reqId = trim(req.params.reqId, 200);
+    if (!(await canEmployeeSeeCustomer(emp, customerId))) {
+      return res.status(403).json({ error: 'Not assigned to this customer.' });
+    }
+    const { data: existing } = await supabase.from('tax_signature_requests')
+      .select('id, status, customer_id').eq('id', reqId).maybeSingle();
+    if (!existing || existing.customer_id !== customerId) {
+      return res.status(404).json({ error: 'Request not found.' });
+    }
+    if (existing.status !== 'pending') {
+      return res.status(409).json({ error: `Cannot cancel a ${existing.status} request.` });
+    }
+    const { error } = await supabase.from('tax_signature_requests').update({
+      status: 'cancelled', cancelled_at: new Date().toISOString(),
+      cancelled_by_email: emp.email || '', updated_at: new Date().toISOString(),
+    }).eq('id', reqId);
+    if (error) return sendSupabaseError(res, error);
+    try {
+      await auditLog({
+        entity: 'tax.signature_request', entityId: reqId, action: 'cancel',
+        actorEmail: emp.email || '',
+      });
+    } catch (_e) {}
+    res.json({ ok: true });
+  });
+
+  // Customer-facing list — pending + completed for THIS signed-in customer.
+  router.get('/portal/signature-requests', async (req, res) => {
+    const customer = await requireTaxCustomer(req, res); if (!customer) return;
+    const { data, error } = await supabase.from('tax_signature_requests')
+      .select('id, title, description, status, expires_at, signed_at, requested_by_name, document_id, created_at')
+      .eq('customer_id', customer.id)
+      .order('created_at', { ascending: false }).limit(100);
+    if (error) return sendSupabaseError(res, error);
+    res.json({ requests: data || [] });
+  });
+
+  router.get('/portal/signature-requests/:id', async (req, res) => {
+    const customer = await requireTaxCustomer(req, res); if (!customer) return;
+    const reqId = trim(req.params.id, 200);
+    const { data: r, error } = await supabase.from('tax_signature_requests')
+      .select('*').eq('id', reqId).maybeSingle();
+    if (error) return sendSupabaseError(res, error);
+    if (!r || r.customer_id !== customer.id) {
+      return res.status(404).json({ error: 'Signature request not found.' });
+    }
+    res.json({ request: r });
+  });
+
+  router.post('/portal/signature-requests/:id/sign', async (req, res) => {
+    const customer = await requireTaxCustomer(req, res); if (!customer) return;
+    const reqId = trim(req.params.id, 200);
+    const body = req.body || {};
+    const signerName = trim(body.signerName || '', 200);
+    const consented  = body.consented === true || body.consented === 'true';
+    if (!signerName) return res.status(400).json({ error: 'Please type your legal name to sign.' });
+    if (!consented)  return res.status(400).json({ error: 'You must check the consent box to sign.' });
+    // Loose sanity check: typed name should be at least two characters.
+    if (signerName.length < 2) return res.status(400).json({ error: 'Name is too short.' });
+
+    const { data: existing } = await supabase.from('tax_signature_requests')
+      .select('id, status, customer_id, expires_at, consent_text, title').eq('id', reqId).maybeSingle();
+    if (!existing || existing.customer_id !== customer.id) {
+      return res.status(404).json({ error: 'Signature request not found.' });
+    }
+    if (existing.status !== 'pending') {
+      return res.status(409).json({ error: `This request is already ${existing.status}.` });
+    }
+    if (existing.expires_at && new Date(existing.expires_at) < new Date()) {
+      // Auto-flip to expired on the way out so the next read shows the
+      // correct state without needing a cron.
+      await supabase.from('tax_signature_requests').update({
+        status: 'expired', updated_at: new Date().toISOString(),
+      }).eq('id', reqId);
+      return res.status(409).json({ error: 'This request has expired.' });
+    }
+
+    const ip = trim((req.headers['x-forwarded-for'] || req.ip || '').toString().split(',')[0], 80);
+    const userAgent = trim(req.get('user-agent') || '', 500);
+    const signatureData = {
+      typed_name: signerName,
+      consent_text_snapshot: existing.consent_text || '',
+      consent_checked_at: new Date().toISOString(),
+      user_agent: userAgent,
+    };
+    const { error } = await supabase.from('tax_signature_requests').update({
+      status: 'signed',
+      signed_at: new Date().toISOString(),
+      signer_name: signerName,
+      signer_email: customer.email,
+      signer_ip: ip,
+      signature_data: signatureData,
+      updated_at: new Date().toISOString(),
+    }).eq('id', reqId);
+    if (error) return sendSupabaseError(res, error);
+    try {
+      await auditLog({
+        entity: 'tax.signature_request', entityId: reqId, action: 'sign',
+        actorEmail: customer.email, actorName: signerName,
+        after: { title: existing.title, ip, userAgent: userAgent.slice(0, 80) },
+      });
+    } catch (_e) {}
+    res.json({ ok: true });
+  });
+
+  router.post('/portal/signature-requests/:id/decline', async (req, res) => {
+    const customer = await requireTaxCustomer(req, res); if (!customer) return;
+    const reqId = trim(req.params.id, 200);
+    const { data: existing } = await supabase.from('tax_signature_requests')
+      .select('id, status, customer_id').eq('id', reqId).maybeSingle();
+    if (!existing || existing.customer_id !== customer.id) {
+      return res.status(404).json({ error: 'Signature request not found.' });
+    }
+    if (existing.status !== 'pending') {
+      return res.status(409).json({ error: `Cannot decline a ${existing.status} request.` });
+    }
+    const { error } = await supabase.from('tax_signature_requests').update({
+      status: 'declined', updated_at: new Date().toISOString(),
+    }).eq('id', reqId);
+    if (error) return sendSupabaseError(res, error);
+    try {
+      await auditLog({
+        entity: 'tax.signature_request', entityId: reqId, action: 'decline',
+        actorEmail: customer.email,
+      });
+    } catch (_e) {}
+    res.json({ ok: true });
+  });
+
   // ── GET /admin/customers/:id/relationships ── (global admin)
   router.get('/admin/customers/:id/relationships', async (req, res) => {
     if (!(await requireOwnerAdmin(req, res))) return;
