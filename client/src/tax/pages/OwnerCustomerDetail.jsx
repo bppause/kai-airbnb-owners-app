@@ -141,6 +141,9 @@ export default function OwnerCustomerDetail({ customerId }) {
 
       <ThreadsSection data={data} threadsBase={threadsBase} t={t} />
 
+      <TasksSection auth={auth} customer={c} customerId={customerId} community={community}
+                    locale={locale} t={t} />
+
       <NotesSection auth={auth} customerId={customerId} locale={locale} t={t} />
 
       <SignatureRequestsSection auth={auth} customerId={customerId} locale={locale} t={t} />
@@ -1718,5 +1721,236 @@ function ArchiveCustomerButton({ customer: c, auth, onChanged, t }) {
         }}>{msg.text}</span>
       )}
     </div>
+  );
+}
+
+// Phase: per-customer task list. Inline-edit status, add new tasks, mark
+// complete. Filters down to this customer's tasks via customerId on the
+// /admin/tasks endpoint.
+function TasksSection({ auth, customer, customerId, community, locale, t }) {
+  const [tasks, setTasks] = useState(null);
+  const [statuses, setStatuses] = useState([]);
+  const [employees, setEmployees] = useState([]);
+  const [products, setProducts] = useState([]);
+  const [err, setErr] = useState('');
+  const [adding, setAdding] = useState(false);
+
+  const load = () => {
+    taxApi.adminListTasks(auth, { communitySlug: community.id, customerId })
+      .then(d => setTasks(d.tasks || []))
+      .catch(e => setErr(e?.message || ''));
+  };
+  useEffect(() => {
+    if (!community) return;
+    load();
+    Promise.all([
+      taxApi.adminListTaskStatuses(auth, community.id).catch(() => ({ statuses: [] })),
+      taxApi.adminListEmployees(auth, community.id).catch(() => ({ employees: [] })),
+      taxApi.adminListProducts(auth, community.id).catch(() => ({ products: [] })),
+    ]).then(([s, e, p]) => {
+      setStatuses(s.statuses || []);
+      setEmployees((e.employees || []).filter(em => em.status !== 'archived'));
+      setProducts(p.products || []);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [community, customerId]);
+
+  const updateTask = async (id, patch) => {
+    try { await taxApi.adminUpdateTask(auth, id, patch); load(); }
+    catch (e) { setErr(e?.message || ''); }
+  };
+  const deleteTask = async (id) => {
+    if (!window.confirm(t('owner.tasks.deleteConfirm'))) return;
+    try { await taxApi.adminDeleteTask(auth, id); load(); }
+    catch (e) { setErr(e?.message || ''); }
+  };
+
+  return (
+    <section style={{ marginTop: 24 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <h3 style={{ margin: 0 }}>{t('owner.customer.section.tasks')}</h3>
+        <button type="button" className="tax-btn tax-btn--ghost tax-btn--sm"
+                onClick={() => setAdding(true)} style={{ color: 'var(--tax-brand-primary)' }}>
+          + {t('owner.tasks.add')}
+        </button>
+      </div>
+
+      {err && <div className="tax-msg tax-msg--error">{err}</div>}
+
+      {adding && (
+        <InlineAddTask auth={auth} community={community}
+                       customerId={customerId}
+                       statuses={statuses} employees={employees} products={products}
+                       locale={locale} t={t}
+                       onCreated={() => { setAdding(false); load(); }}
+                       onCancel={() => setAdding(false)} />
+      )}
+
+      {tasks === null ? <p style={{ color: 'var(--tax-muted)' }}>{t('loading')}</p>
+        : tasks.length === 0
+          ? <p style={{ color: 'var(--tax-muted)' }}>{t('owner.customer.tasks.empty')}</p>
+          : <div style={{ display: 'grid', gap: 6, marginTop: 8 }}>
+              {tasks.map(task => {
+                const status = statuses.find(s => s.key === task.status_key);
+                const statusBg = status?.color || '#9ca3af';
+                const product = task.product;
+                const assignee = task.assignee;
+                const overdue = task.due_date && task.due_date < new Date().toISOString().slice(0, 10) && !task.completed_at;
+                return (
+                  <div key={task.id} className="tax-contact-item"
+                       style={{ display: 'grid', gap: 6 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
+                      <div style={{ minWidth: 0, flex: 1 }}>
+                        <div style={{ fontWeight: 600 }}>{task.title}</div>
+                        <div style={{ marginTop: 2, fontSize: 12, color: 'var(--tax-muted)', display: 'flex', flexWrap: 'wrap', gap: 10 }}>
+                          {product && <span>{pickI18n(product.name_i18n, locale).value || product.slug}</span>}
+                          {assignee && <span>· {(assignee.name || assignee.email)}</span>}
+                          {task.due_date && (
+                            <span style={overdue ? { color: '#b91c1c', fontWeight: 600 } : undefined}>
+                              · {t('owner.tasks.due')}: {task.due_date}{overdue ? ` (${t('owner.tasks.overdue')})` : ''}
+                            </span>
+                          )}
+                          {task.priority !== 'normal' && <span>· {t(`owner.tasks.priority.${task.priority}`)}</span>}
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+                        <select value={task.status_key} onChange={e => updateTask(task.id, { statusKey: e.target.value })}
+                                style={{
+                                  padding: '4px 8px', borderRadius: 6, fontSize: 12, fontWeight: 600,
+                                  border: '1px solid var(--tax-border)',
+                                  background: `color-mix(in srgb, ${statusBg} 18%, #fff)`,
+                                }}>
+                          {statuses.map(s => (
+                            <option key={s.id} value={s.key}>{pickI18n(s.label_i18n, locale).value || s.key}</option>
+                          ))}
+                        </select>
+                        <button type="button" onClick={() => deleteTask(task.id)}
+                                className="tax-btn tax-btn--ghost tax-btn--sm"
+                                style={{ color: 'var(--tax-muted)' }}>×</button>
+                      </div>
+                    </div>
+                    {task.notes && (
+                      <div style={{ fontSize: 12, color: 'var(--tax-muted)', whiteSpace: 'pre-wrap' }}>
+                        {task.notes}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+      }
+    </section>
+  );
+}
+
+function InlineAddTask({ auth, community, customerId, statuses, employees, products, locale, t, onCreated, onCancel }) {
+  const [title, setTitle] = useState('');
+  const [productId, setProductId] = useState('');
+  const [assignedTo, setAssignedTo] = useState('');
+  const [dueDate, setDueDate] = useState('');
+  const [priority, setPriority] = useState('normal');
+  const [notes, setNotes] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+  const [suggestions, setSuggestions] = useState([]);
+
+  useEffect(() => {
+    const product = products.find(p => p.id === productId);
+    taxApi.adminTaskSuggestions(auth, product?.slug || '')
+      .then(d => setSuggestions(d.suggestions || []))
+      .catch(() => setSuggestions([]));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [productId]);
+
+  const onSave = async (e) => {
+    e?.preventDefault?.();
+    if (!title.trim()) { setErr(t('owner.tasks.errTitle')); return; }
+    setBusy(true); setErr('');
+    try {
+      await taxApi.adminCreateTask(auth, {
+        communitySlug: community.id,
+        title: title.trim(),
+        customerId,
+        productId: productId || null,
+        statusKey: statuses[0]?.key || 'not_started',
+        priority,
+        assignedEmployeeId: assignedTo || null,
+        dueDate: dueDate || null,
+        notes: notes.trim(),
+      });
+      onCreated();
+    } catch (e) { setErr(e?.message || ''); }
+    finally { setBusy(false); }
+  };
+
+  return (
+    <form onSubmit={onSave}
+          className="tax-form"
+          style={{ marginTop: 12, padding: 12, gap: 10 }}>
+      <div>
+        <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--tax-muted)' }}>{t('owner.tasks.field.title')}</label>
+        <input type="text" value={title} onChange={e => setTitle(e.target.value)}
+               maxLength={300} list="task-suggestions-inline" required autoFocus
+               style={{ width: '100%', padding: 8, border: '1px solid var(--tax-border)', borderRadius: 6 }} />
+        <datalist id="task-suggestions-inline">
+          {suggestions.map((s, i) => (
+            <option key={i} value={pickI18n(s, locale).value || s.en || s.es} />
+          ))}
+        </datalist>
+      </div>
+      <div className="tax-form__row2">
+        <div>
+          <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--tax-muted)' }}>{t('owner.tasks.field.service')}</label>
+          <select value={productId} onChange={e => setProductId(e.target.value)}
+                  style={{ width: '100%', padding: 6, border: '1px solid var(--tax-border)', borderRadius: 6 }}>
+            <option value="">—</option>
+            {products.map(p => (
+              <option key={p.id} value={p.id}>{pickI18n(p.name_i18n, locale).value || p.slug}</option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--tax-muted)' }}>{t('owner.tasks.field.owner')}</label>
+          <select value={assignedTo} onChange={e => setAssignedTo(e.target.value)}
+                  style={{ width: '100%', padding: 6, border: '1px solid var(--tax-border)', borderRadius: 6 }}>
+            <option value="">—</option>
+            {employees.map(em => (
+              <option key={em.id} value={em.id}>{(em.name || em.email)}</option>
+            ))}
+          </select>
+        </div>
+      </div>
+      <div className="tax-form__row2">
+        <div>
+          <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--tax-muted)' }}>{t('owner.tasks.field.due')}</label>
+          <input type="date" value={dueDate} onChange={e => setDueDate(e.target.value)}
+                 style={{ width: '100%', padding: 6, border: '1px solid var(--tax-border)', borderRadius: 6 }} />
+        </div>
+        <div>
+          <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--tax-muted)' }}>{t('owner.tasks.field.priority')}</label>
+          <select value={priority} onChange={e => setPriority(e.target.value)}
+                  style={{ width: '100%', padding: 6, border: '1px solid var(--tax-border)', borderRadius: 6 }}>
+            {['urgent','high','normal','low'].map(p => (
+              <option key={p} value={p}>{t(`owner.tasks.priority.${p}`)}</option>
+            ))}
+          </select>
+        </div>
+      </div>
+      <div>
+        <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--tax-muted)' }}>{t('owner.tasks.field.notes')}</label>
+        <textarea rows={2} value={notes} onChange={e => setNotes(e.target.value)} maxLength={4000}
+                  style={{ width: '100%', padding: 8, border: '1px solid var(--tax-border)', borderRadius: 6, fontFamily: 'inherit', fontSize: 13 }} />
+      </div>
+      {err && <div className="tax-msg tax-msg--error">{err}</div>}
+      <div style={{ display: 'flex', gap: 8 }}>
+        <button type="submit" className="tax-btn tax-btn--primary tax-btn--sm" disabled={busy}>
+          {busy ? t('lead.submitting') : t('owner.tasks.create')}
+        </button>
+        <button type="button" className="tax-btn tax-btn--ghost tax-btn--sm"
+                onClick={onCancel} style={{ color: 'var(--tax-text)' }}>
+          {t('preview.close')}
+        </button>
+      </div>
+    </form>
   );
 }

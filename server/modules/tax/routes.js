@@ -26,6 +26,7 @@ const {
   parsePersonName, normalizeNameParts, composePersonName,
   resolveNamePayload, firstNameOf, displayNameOf,
 } = require('./names');
+const { suggestionsForSlug } = require('./task-suggestions');
 
 const TAX_BUSINESS_TYPE = 'tax';
 const MAX_TEXT_LEN = 4000;
@@ -3449,6 +3450,298 @@ module.exports = function createTaxRouter(deps) {
       });
     } catch (_e) {}
     res.json({ ok: true, note: row });
+  });
+
+  // ── Task tracker ────────────────────────────────────────────────────────
+  // Replaces the owner's spreadsheet workflow. Tasks can be tied to a
+  // customer and/or a service (tax_products) or live as practice-wide
+  // todos. Status values are editable per community via the status-
+  // options endpoints below.
+
+  // GET /admin/task-statuses?communitySlug=
+  router.get('/admin/task-statuses', async (req, res) => {
+    if (!(await requireOwnerAdmin(req, res))) return;
+    const communitySlug = trim(req.query.communitySlug, 200);
+    if (!communitySlug) return res.status(400).json({ error: 'communitySlug required.' });
+    const { data, error } = await supabase.from('tax_task_status_options')
+      .select('id, key, label_i18n, color, display_order, is_terminal')
+      .eq('community_id', communitySlug)
+      .order('display_order', { ascending: true });
+    if (error) return sendSupabaseError(res, error);
+    res.json({ statuses: data || [] });
+  });
+
+  // POST /admin/task-statuses — add a new status option.
+  // body: { communitySlug, key, labelI18n, color?, displayOrder?, isTerminal? }
+  router.post('/admin/task-statuses', async (req, res) => {
+    if (!(await requireOwnerAdmin(req, res))) return;
+    const body = req.body || {};
+    const communitySlug = trim(body.communitySlug, 200);
+    const key = trim(body.key, 60).toLowerCase().replace(/[^a-z0-9_]/g, '_');
+    if (!communitySlug || !key) return res.status(400).json({ error: 'communitySlug and key required.' });
+    const labelI18n = (body.labelI18n && typeof body.labelI18n === 'object') ? {
+      en: String(body.labelI18n.en || '').slice(0, 80),
+      es: String(body.labelI18n.es || '').slice(0, 80),
+    } : { en: key, es: key };
+    const row = {
+      id: 'tas:' + communitySlug + ':' + key,
+      community_id: communitySlug,
+      key,
+      label_i18n: labelI18n,
+      color: trim(body.color, 24),
+      display_order: Number.isFinite(Number(body.displayOrder)) ? Number(body.displayOrder) : 100,
+      is_terminal: !!body.isTerminal,
+    };
+    const { error } = await supabase.from('tax_task_status_options').insert(row);
+    if (error) return sendSupabaseError(res, error);
+    res.json({ ok: true, status: row });
+  });
+
+  // PATCH /admin/task-statuses/:id
+  router.patch('/admin/task-statuses/:id', async (req, res) => {
+    if (!(await requireOwnerAdmin(req, res))) return;
+    const id = trim(req.params.id, 200);
+    const body = req.body || {};
+    const update = { updated_at: new Date().toISOString() };
+    if (body.labelI18n && typeof body.labelI18n === 'object') {
+      update.label_i18n = {
+        en: String(body.labelI18n.en || '').slice(0, 80),
+        es: String(body.labelI18n.es || '').slice(0, 80),
+      };
+    }
+    if (body.color !== undefined) update.color = trim(body.color, 24);
+    if (body.displayOrder !== undefined && Number.isFinite(Number(body.displayOrder))) {
+      update.display_order = Number(body.displayOrder);
+    }
+    if (body.isTerminal !== undefined) update.is_terminal = !!body.isTerminal;
+    if (Object.keys(update).length === 1) return res.status(400).json({ error: 'Nothing to update.' });
+    const { error } = await supabase.from('tax_task_status_options').update(update).eq('id', id);
+    if (error) return sendSupabaseError(res, error);
+    res.json({ ok: true });
+  });
+
+  // DELETE /admin/task-statuses/:id
+  // Refuses deletion when tasks still reference the key, to avoid orphans.
+  router.delete('/admin/task-statuses/:id', async (req, res) => {
+    if (!(await requireOwnerAdmin(req, res))) return;
+    const id = trim(req.params.id, 200);
+    const { data: opt } = await supabase.from('tax_task_status_options')
+      .select('community_id, key').eq('id', id).maybeSingle();
+    if (!opt) return res.status(404).json({ error: 'Status option not found.' });
+    const { count } = await supabase.from('tax_tasks')
+      .select('id', { count: 'exact', head: true })
+      .eq('community_id', opt.community_id).eq('status_key', opt.key);
+    if ((count || 0) > 0) {
+      return res.status(409).json({
+        error: 'status_in_use',
+        message: `Cannot delete — ${count} task(s) still use this status.`,
+      });
+    }
+    const { error } = await supabase.from('tax_task_status_options').delete().eq('id', id);
+    if (error) return sendSupabaseError(res, error);
+    res.json({ ok: true });
+  });
+
+  // GET /admin/task-suggestions?productSlug=  — default title suggestions.
+  router.get('/admin/task-suggestions', async (req, res) => {
+    if (!(await requireOwnerAdmin(req, res))) return;
+    const slug = trim(req.query.productSlug || '', 200);
+    res.json({ suggestions: suggestionsForSlug(slug) });
+  });
+
+  // GET /admin/tasks — list tasks with filters.
+  // Query params: communitySlug (req), status, priority, assignedTo,
+  //   customerId, productId, due ('overdue' | 'today' | 'week' | 'all'),
+  //   q (substring search), limit (default 200).
+  router.get('/admin/tasks', async (req, res) => {
+    const emp = await requireTaxEmployee(req, res); if (!emp) return;
+    const communitySlug = trim(req.query.communitySlug, 200) || emp.community_id;
+
+    let q = supabase.from('tax_tasks')
+      .select(`
+        id, community_id, customer_id, product_id, title, status_key, priority,
+        assigned_employee_id, created_by_employee_id,
+        due_date, notes, completed_at, created_at, updated_at,
+        customer:tax_customers ( id, name, first_name, middle_name, last_name, email ),
+        product:tax_products ( id, slug, name_i18n, category ),
+        assignee:tax_employees!tax_tasks_assigned_employee_id_fkey ( id, name, email ),
+        creator:tax_employees!tax_tasks_created_by_employee_id_fkey ( id, name, email )
+      `)
+      .eq('community_id', communitySlug);
+
+    // Non-admin staff scope: only tasks assigned to them or to customers
+    // they have visibility on. Admin sees everything.
+    if (emp.role !== 'admin') {
+      const visible = await getVisibleCustomerIdsForEmployee(emp);
+      if (Array.isArray(visible)) {
+        // Build an OR: assigned to me, OR customer in my scope, OR
+        // practice-wide (customer_id IS NULL) and assigned to me.
+        if (!visible.length) {
+          q = q.eq('assigned_employee_id', emp.id);
+        } else {
+          q = q.or(`assigned_employee_id.eq.${emp.id},customer_id.in.(${visible.join(',')})`);
+        }
+      }
+    }
+
+    if (req.query.status)     q = q.eq('status_key', trim(req.query.status, 60));
+    if (req.query.priority)   q = q.eq('priority', trim(req.query.priority, 20));
+    if (req.query.assignedTo) q = q.eq('assigned_employee_id', trim(req.query.assignedTo, 200));
+    if (req.query.customerId) q = q.eq('customer_id', trim(req.query.customerId, 200));
+    if (req.query.productId)  q = q.eq('product_id', trim(req.query.productId, 200));
+
+    const due = trim(req.query.due, 20);
+    if (due === 'overdue') {
+      q = q.lt('due_date', new Date().toISOString().slice(0, 10));
+    } else if (due === 'today') {
+      const today = new Date().toISOString().slice(0, 10);
+      q = q.eq('due_date', today);
+    } else if (due === 'week') {
+      const today = new Date();
+      const week = new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000);
+      q = q.gte('due_date', today.toISOString().slice(0, 10))
+           .lte('due_date', week.toISOString().slice(0, 10));
+    }
+
+    const search = trim(req.query.q || '', 200);
+    if (search) {
+      const safe = search.replace(/[,.%_()*]/g, ' ').trim();
+      if (safe) q = q.ilike('title', `%${safe}%`);
+    }
+
+    const limit = Math.min(500, Math.max(1, Number(req.query.limit) || 200));
+    q = q.order('due_date', { ascending: true, nullsFirst: false })
+         .order('created_at', { ascending: false })
+         .limit(limit);
+
+    const { data, error } = await q;
+    if (error) return sendSupabaseError(res, error);
+    res.json({ tasks: data || [] });
+  });
+
+  // POST /admin/tasks — create.
+  router.post('/admin/tasks', async (req, res) => {
+    const emp = await requireTaxEmployee(req, res); if (!emp) return;
+    const body = req.body || {};
+    const communitySlug = trim(body.communitySlug, 200) || emp.community_id;
+    if (communitySlug !== emp.community_id && emp.role !== 'admin') {
+      return res.status(403).json({ error: 'Cross-community task creation requires admin.' });
+    }
+    const title = trim(body.title, 300);
+    if (!title) return res.status(400).json({ error: 'Task title is required.' });
+
+    const customerId = trim(body.customerId || '', 200) || null;
+    if (customerId && !(await canEmployeeSeeCustomer(emp, customerId))) {
+      return res.status(403).json({ error: 'Not assigned to this customer.' });
+    }
+    const productId   = trim(body.productId   || '', 200) || null;
+    const statusKey   = trim(body.statusKey   || 'not_started', 60);
+    const priority    = ['urgent','high','normal','low'].includes(body.priority) ? body.priority : 'normal';
+    const assignedTo  = trim(body.assignedEmployeeId || '', 200) || null;
+    const dueDate     = body.dueDate ? String(body.dueDate).slice(0, 10) : null;
+    const notes       = trim(body.notes || '', MAX_TEXT_LEN);
+
+    const id = 'task_' + uuidv4().slice(0, 16);
+    const row = {
+      id,
+      community_id: communitySlug,
+      customer_id: customerId,
+      product_id: productId,
+      title,
+      status_key: statusKey,
+      priority,
+      assigned_employee_id: assignedTo,
+      created_by_employee_id: emp.id,
+      due_date: dueDate,
+      notes,
+    };
+    const { error } = await supabase.from('tax_tasks').insert(row);
+    if (error) return sendSupabaseError(res, error);
+    try {
+      await auditLog({
+        entity: 'tax.task', entityId: id, action: 'create',
+        actorEmail: emp.email || '', actorName: emp.name || '',
+        after: { title, customerId, productId, assignedTo, dueDate, priority, statusKey },
+      });
+    } catch (_e) {}
+    res.json({ ok: true, id, task: row });
+  });
+
+  // PATCH /admin/tasks/:id — partial update.
+  router.patch('/admin/tasks/:id', async (req, res) => {
+    const emp = await requireTaxEmployee(req, res); if (!emp) return;
+    const taskId = trim(req.params.id, 200);
+    const body = req.body || {};
+
+    const { data: cur, error: cErr } = await supabase.from('tax_tasks')
+      .select('id, community_id, customer_id, assigned_employee_id, status_key')
+      .eq('id', taskId).maybeSingle();
+    if (cErr) return sendSupabaseError(res, cErr);
+    if (!cur) return res.status(404).json({ error: 'Task not found.' });
+    if (cur.community_id !== emp.community_id) return res.status(403).json({ error: 'Wrong community.' });
+    if (emp.role !== 'admin') {
+      // staff can edit tasks they own or that are scoped to a customer they see
+      const isMine = cur.assigned_employee_id === emp.id;
+      const inScope = cur.customer_id && (await canEmployeeSeeCustomer(emp, cur.customer_id));
+      if (!isMine && !inScope) {
+        return res.status(403).json({ error: 'Not authorized to edit this task.' });
+      }
+    }
+
+    const update = { updated_at: new Date().toISOString() };
+    if (body.title !== undefined)              update.title = trim(body.title, 300);
+    if (body.statusKey !== undefined)          update.status_key = trim(body.statusKey, 60);
+    if (body.priority !== undefined && ['urgent','high','normal','low'].includes(body.priority)) {
+      update.priority = body.priority;
+    }
+    if (body.assignedEmployeeId !== undefined) update.assigned_employee_id = trim(body.assignedEmployeeId || '', 200) || null;
+    if (body.customerId !== undefined)         update.customer_id = trim(body.customerId || '', 200) || null;
+    if (body.productId !== undefined)          update.product_id = trim(body.productId || '', 200) || null;
+    if (body.dueDate !== undefined)            update.due_date = body.dueDate ? String(body.dueDate).slice(0, 10) : null;
+    if (body.notes !== undefined)              update.notes = trim(body.notes || '', MAX_TEXT_LEN);
+
+    // Auto-stamp completed_at when moving into a terminal status.
+    if (update.status_key && update.status_key !== cur.status_key) {
+      const { data: opt } = await supabase.from('tax_task_status_options')
+        .select('is_terminal').eq('community_id', cur.community_id).eq('key', update.status_key).maybeSingle();
+      if (opt?.is_terminal) update.completed_at = new Date().toISOString();
+      else update.completed_at = null;
+    }
+
+    if (Object.keys(update).length === 1) return res.status(400).json({ error: 'Nothing to update.' });
+
+    const { error } = await supabase.from('tax_tasks').update(update).eq('id', taskId);
+    if (error) return sendSupabaseError(res, error);
+    try {
+      await auditLog({
+        entity: 'tax.task', entityId: taskId, action: 'update',
+        actorEmail: emp.email || '', actorName: emp.name || '',
+        after: Object.keys(update).filter(k => k !== 'updated_at'),
+      });
+    } catch (_e) {}
+    res.json({ ok: true });
+  });
+
+  // DELETE /admin/tasks/:id
+  router.delete('/admin/tasks/:id', async (req, res) => {
+    const emp = await requireTaxEmployee(req, res); if (!emp) return;
+    const taskId = trim(req.params.id, 200);
+    const { data: cur } = await supabase.from('tax_tasks')
+      .select('id, community_id, assigned_employee_id, created_by_employee_id').eq('id', taskId).maybeSingle();
+    if (!cur) return res.status(404).json({ error: 'Task not found.' });
+    if (cur.community_id !== emp.community_id) return res.status(403).json({ error: 'Wrong community.' });
+    if (emp.role !== 'admin' && cur.assigned_employee_id !== emp.id && cur.created_by_employee_id !== emp.id) {
+      return res.status(403).json({ error: 'Only the assignee, creator, or an admin can delete this task.' });
+    }
+    const { error } = await supabase.from('tax_tasks').delete().eq('id', taskId);
+    if (error) return sendSupabaseError(res, error);
+    try {
+      await auditLog({
+        entity: 'tax.task', entityId: taskId, action: 'delete',
+        actorEmail: emp.email || '', actorName: emp.name || '',
+      });
+    } catch (_e) {}
+    res.json({ ok: true });
   });
 
   // ── Phase 4n.24: e-signature requests ──────────────────────────────────

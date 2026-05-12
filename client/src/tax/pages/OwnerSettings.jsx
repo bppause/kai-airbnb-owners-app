@@ -154,9 +154,217 @@ export default function OwnerSettings() {
         </div>
       </section>
 
+      <TaskStatusesSection auth={auth} community={community} t={t} />
+
       <CommunityContactSection settings={settings} auth={auth} community={community}
                                t={t} onSaved={load} />
     </EmployeeShell>
+  );
+}
+
+// Phase: editable status list for the task tracker. Owner can rename
+// labels, add new statuses (e.g., "Waiting on client"), reorder, and
+// mark which ones close the task (is_terminal stamps completed_at).
+// Deletion is refused server-side when tasks still reference the key.
+function TaskStatusesSection({ auth, community, t }) {
+  const [rows, setRows] = useState(null);
+  const [err, setErr] = useState('');
+  const [adding, setAdding] = useState(false);
+  const load = () => {
+    taxApi.adminListTaskStatuses(auth, community.id)
+      .then(d => setRows(d.statuses || []))
+      .catch(e => setErr(e?.message || ''));
+  };
+  useEffect(load, [community]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  return (
+    <section style={{ marginBottom: 32 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+        <h3 style={{ margin: 0 }}>{t('owner.settings.taskStatuses.title')}</h3>
+        {!adding && (
+          <button type="button" className="tax-btn tax-btn--ghost tax-btn--sm"
+                  onClick={() => setAdding(true)}>
+            + {t('owner.settings.taskStatuses.add')}
+          </button>
+        )}
+      </div>
+      <p style={{ color: 'var(--tax-muted)', marginTop: 0, marginBottom: 12, fontSize: 14 }}>
+        {t('owner.settings.taskStatuses.subtitle')}
+      </p>
+
+      {err && <div className="tax-msg tax-msg--error">{err}</div>}
+
+      {adding && (
+        <NewStatusForm auth={auth} community={community}
+                       onCreated={() => { setAdding(false); load(); }}
+                       onCancel={() => setAdding(false)} t={t} />
+      )}
+
+      {rows === null ? <p>{t('loading')}</p>
+        : rows.length === 0
+          ? <p style={{ color: 'var(--tax-muted)' }}>{t('owner.settings.taskStatuses.empty')}</p>
+          : <div style={{ display: 'grid', gap: 6 }}>
+              {rows.map(r => (
+                <StatusRow key={r.id} row={r} auth={auth} onChange={load} t={t} />
+              ))}
+            </div>
+      }
+    </section>
+  );
+}
+
+function StatusRow({ row, auth, onChange, t }) {
+  const [editing, setEditing] = useState(false);
+  const [en, setEn] = useState(row.label_i18n?.en || row.key);
+  const [es, setEs] = useState(row.label_i18n?.es || row.key);
+  const [color, setColor] = useState(row.color || '#9ca3af');
+  const [order, setOrder] = useState(String(row.display_order || 0));
+  const [terminal, setTerminal] = useState(!!row.is_terminal);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+
+  const onSave = async () => {
+    setBusy(true); setErr('');
+    try {
+      await taxApi.adminUpdateTaskStatus(auth, row.id, {
+        labelI18n: { en: en.trim(), es: es.trim() },
+        color, displayOrder: Number(order) || 0, isTerminal: terminal,
+      });
+      setEditing(false); onChange();
+    } catch (e) { setErr(e?.message || ''); }
+    finally { setBusy(false); }
+  };
+  const onDelete = async () => {
+    if (!window.confirm(t('owner.settings.taskStatuses.deleteConfirm'))) return;
+    setBusy(true); setErr('');
+    try { await taxApi.adminDeleteTaskStatus(auth, row.id); onChange(); }
+    catch (e) { setErr(e?.message || ''); }
+    finally { setBusy(false); }
+  };
+
+  return (
+    <div className="tax-contact-item" style={{ display: 'grid', gap: 6 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{
+            display: 'inline-block', width: 14, height: 14, borderRadius: 4,
+            background: row.color || '#9ca3af',
+          }} />
+          <strong>{row.label_i18n?.en || row.key}</strong>
+          <span style={{ color: 'var(--tax-muted)', fontSize: 12 }}>
+            · {row.label_i18n?.es || row.key} · key: {row.key} · {t('owner.settings.taskStatuses.order')}: {row.display_order}
+            {row.is_terminal && ` · ${t('owner.settings.taskStatuses.terminalBadge')}`}
+          </span>
+        </div>
+        <div style={{ display: 'flex', gap: 6 }}>
+          {!editing && (
+            <button type="button" onClick={() => setEditing(true)}
+                    className="tax-btn tax-btn--ghost tax-btn--sm"
+                    style={{ color: 'var(--tax-text)' }}>{t('owner.faq.editOverride')}</button>
+          )}
+          <button type="button" onClick={onDelete} disabled={busy}
+                  className="tax-btn tax-btn--ghost tax-btn--sm"
+                  style={{ color: 'var(--tax-error)', borderColor: 'var(--tax-error)' }}>×</button>
+        </div>
+      </div>
+      {editing && (
+        <div style={{ display: 'grid', gap: 8, padding: 10, background: 'var(--tax-bg-alt)', borderRadius: 6 }}>
+          <div className="tax-form__row2">
+            <input type="text" value={en} onChange={e => setEn(e.target.value)} placeholder="English"
+                   style={{ padding: 6, border: '1px solid var(--tax-border)', borderRadius: 6 }} />
+            <input type="text" value={es} onChange={e => setEs(e.target.value)} placeholder="Español"
+                   style={{ padding: 6, border: '1px solid var(--tax-border)', borderRadius: 6 }} />
+          </div>
+          <div style={{ display: 'flex', gap: 12, alignItems: 'center', fontSize: 13 }}>
+            <label>
+              {t('owner.settings.taskStatuses.color')}:&nbsp;
+              <input type="color" value={color} onChange={e => setColor(e.target.value)} />
+            </label>
+            <label>
+              {t('owner.settings.taskStatuses.order')}:&nbsp;
+              <input type="number" value={order} onChange={e => setOrder(e.target.value)}
+                     style={{ width: 70, padding: 4, border: '1px solid var(--tax-border)', borderRadius: 4 }} />
+            </label>
+            <label>
+              <input type="checkbox" checked={terminal} onChange={e => setTerminal(e.target.checked)} />
+              {' '}{t('owner.settings.taskStatuses.terminal')}
+            </label>
+          </div>
+          {err && <div className="tax-msg tax-msg--error">{err}</div>}
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button type="button" onClick={onSave} disabled={busy}
+                    className="tax-btn tax-btn--primary tax-btn--sm">
+              {busy ? t('lead.submitting') : t('owner.faq.saveOverride')}
+            </button>
+            <button type="button" onClick={() => setEditing(false)}
+                    className="tax-btn tax-btn--ghost tax-btn--sm" style={{ color: 'var(--tax-text)' }}>
+              {t('preview.close')}
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function NewStatusForm({ auth, community, onCreated, onCancel, t }) {
+  const [key, setKey] = useState('');
+  const [en, setEn] = useState('');
+  const [es, setEs] = useState('');
+  const [color, setColor] = useState('#6b7280');
+  const [order, setOrder] = useState('100');
+  const [terminal, setTerminal] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+  const onSave = async () => {
+    if (!key.trim() || (!en.trim() && !es.trim())) { setErr(t('owner.settings.taskStatuses.errFields')); return; }
+    setBusy(true); setErr('');
+    try {
+      await taxApi.adminCreateTaskStatus(auth, {
+        communitySlug: community.id, key: key.trim(),
+        labelI18n: { en: en.trim(), es: es.trim() },
+        color, displayOrder: Number(order) || 100, isTerminal: terminal,
+      });
+      onCreated();
+    } catch (e) { setErr(e?.message || ''); }
+    finally { setBusy(false); }
+  };
+  return (
+    <div style={{ display: 'grid', gap: 8, padding: 12, background: 'var(--tax-bg-alt)', borderRadius: 8, marginBottom: 12 }}>
+      <div className="tax-form__row2">
+        <input type="text" value={key} onChange={e => setKey(e.target.value)}
+               placeholder={t('owner.settings.taskStatuses.keyPlaceholder')}
+               style={{ padding: 6, border: '1px solid var(--tax-border)', borderRadius: 6 }} />
+        <input type="color" value={color} onChange={e => setColor(e.target.value)} />
+      </div>
+      <div className="tax-form__row2">
+        <input type="text" value={en} onChange={e => setEn(e.target.value)} placeholder="English label"
+               style={{ padding: 6, border: '1px solid var(--tax-border)', borderRadius: 6 }} />
+        <input type="text" value={es} onChange={e => setEs(e.target.value)} placeholder="Etiqueta en español"
+               style={{ padding: 6, border: '1px solid var(--tax-border)', borderRadius: 6 }} />
+      </div>
+      <div style={{ display: 'flex', gap: 12, alignItems: 'center', fontSize: 13 }}>
+        <label>
+          {t('owner.settings.taskStatuses.order')}:&nbsp;
+          <input type="number" value={order} onChange={e => setOrder(e.target.value)}
+                 style={{ width: 70, padding: 4, border: '1px solid var(--tax-border)', borderRadius: 4 }} />
+        </label>
+        <label>
+          <input type="checkbox" checked={terminal} onChange={e => setTerminal(e.target.checked)} />
+          {' '}{t('owner.settings.taskStatuses.terminal')}
+        </label>
+      </div>
+      {err && <div className="tax-msg tax-msg--error">{err}</div>}
+      <div style={{ display: 'flex', gap: 8 }}>
+        <button type="button" className="tax-btn tax-btn--primary tax-btn--sm" disabled={busy} onClick={onSave}>
+          {busy ? t('lead.submitting') : t('owner.settings.taskStatuses.create')}
+        </button>
+        <button type="button" className="tax-btn tax-btn--ghost tax-btn--sm" onClick={onCancel}
+                style={{ color: 'var(--tax-text)' }}>
+          {t('preview.close')}
+        </button>
+      </div>
+    </div>
   );
 }
 
