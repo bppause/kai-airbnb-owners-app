@@ -5,20 +5,7 @@ import { taxApi, setImpersonation } from '../api';
 import EmployeeShell from '../components/EmployeeShell';
 import OwnerSubscriptionsSection from '../components/OwnerSubscriptionsSection';
 
-// Phase 4n.17: humanize a last-sign-in timestamp for the page header.
-// Never-signed-in returns a clear "hasn't signed in" string so the admin
-// knows the account is still in invitation state.
-function formatLastSignIn(iso, locale, t) {
-  if (!iso) return t('owner.lastSignIn.never');
-  try {
-    const formatted = new Intl.DateTimeFormat(locale === 'en' ? 'en-US' : 'es-ES',
-      { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
-      .format(new Date(iso));
-    return t('owner.lastSignIn.recent', { date: formatted });
-  } catch (_e) {
-    return t('owner.lastSignIn.recent', { date: iso });
-  }
-}
+import { formatLastSignIn } from '../lib/lastSignIn';
 
 const CATEGORY_KEY = {
   business: 'portal.profile.category.business',

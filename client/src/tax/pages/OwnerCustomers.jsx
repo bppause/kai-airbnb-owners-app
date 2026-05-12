@@ -3,6 +3,7 @@ import { pickI18n, useT } from '../i18n';
 import { useEmployeeAuth } from '../auth/EmployeeAuthProvider';
 import { taxApi } from '../api';
 import EmployeeShell from '../components/EmployeeShell';
+import { formatLastSignInCompact } from '../lib/lastSignIn';
 
 // Category display order — surface business / individual first since most
 // customers are tagged with one of those. The relationship types themselves
@@ -386,8 +387,11 @@ export default function OwnerCustomers() {
                         </div>
                       )}
                     </div>
-                    <div style={{ flexShrink: 0, fontSize: 12, color: 'var(--tax-muted)' }}>
-                      {c.locale === 'en' ? 'EN' : 'ES'}
+                    <div style={{ flexShrink: 0, fontSize: 12, color: 'var(--tax-muted)', textAlign: 'right' }}>
+                      <div>{c.locale === 'en' ? 'EN' : 'ES'}</div>
+                      <div style={{ marginTop: 2, color: c.last_sign_in_at ? 'var(--tax-muted)' : '#b91c1c' }}>
+                        {formatLastSignInCompact(c.last_sign_in_at, locale, t)}
+                      </div>
                     </div>
                   </div>
                 </a>

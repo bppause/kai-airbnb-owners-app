@@ -3,9 +3,10 @@ import { useT } from '../i18n';
 import { useEmployeeAuth } from '../auth/EmployeeAuthProvider';
 import { taxApi, setImpersonation } from '../api';
 import EmployeeShell from '../components/EmployeeShell';
+import { formatLastSignInCompact } from '../lib/lastSignIn';
 
 export default function OwnerStaff() {
-  const { t } = useT();
+  const { t, locale } = useT();
   const { fbUser, employee, community } = useEmployeeAuth();
   const auth = { uid: fbUser?.uid, email: fbUser?.email, communitySlug: community?.id };
   const me = employee;
@@ -155,9 +156,12 @@ export default function OwnerStaff() {
                     </div>
                   </a>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
-                    <div style={{ fontSize: 12, color: 'var(--tax-muted)' }}>
-                      {(e.notification_channels || []).includes('email')
-                        ? t('owner.staff.channelBoth') : t('owner.staff.channelPortal')}
+                    <div style={{ fontSize: 12, color: 'var(--tax-muted)', textAlign: 'right' }}>
+                      <div>{(e.notification_channels || []).includes('email')
+                        ? t('owner.staff.channelBoth') : t('owner.staff.channelPortal')}</div>
+                      <div style={{ marginTop: 2, color: e.last_sign_in_at ? 'var(--tax-muted)' : '#b91c1c' }}>
+                        {formatLastSignInCompact(e.last_sign_in_at, locale, t)}
+                      </div>
                     </div>
                     {e.id !== me?.id && e.firebase_uid && (
                       <ImpersonateRowButton emp={e} auth={auth} community={community} t={t} />

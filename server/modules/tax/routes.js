@@ -568,7 +568,7 @@ module.exports = function createTaxRouter(deps) {
     let query = supabase.from('tax_customers')
       .select(`
         id, email, name, phone, whatsapp, address, preferred_communication_email,
-        locale, status, created_at,
+        locale, status, last_sign_in_at, created_at,
         tax_subscriptions ( id, product_id, status, active_schedule_slugs, reminder_channels, reminder_offsets_days )
       `)
       .eq('community_id', communitySlug);
