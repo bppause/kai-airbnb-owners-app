@@ -907,6 +907,8 @@
   "owner.leads.saveNotes": "Guardar notas",
   "owner.leads.action.markContacted": "Marcar contactado",
   "owner.leads.action.convert": "Convertir en cliente →",
+  "owner.leads.convert.confirm": "¿Convertir a {name} en cliente? Copiaremos su nombre, correo, teléfono e idioma en un nuevo registro de cliente (o lo enlazaremos a uno existente con el mismo correo) y marcaremos este prospecto como convertido.",
+  "owner.leads.action.viewCustomer": "Ver cliente →",
   "owner.leads.action.markConverted": "Marcar convertido",
   "owner.leads.action.close": "Cerrar",
   "owner.leads.action.reopen": "Reabrir",

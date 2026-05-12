@@ -241,6 +241,7 @@ export const taxApi = {
     return request('GET',  `/admin/leads?${qs.toString()}`, undefined, auth, { admin: true });
   },
   adminUpdateLead(auth, leadId, payload)         { return request('PUT',  `/admin/leads/${encodeURIComponent(leadId)}`, payload, auth, { admin: true }); },
+  adminConvertLead(auth, leadId)                 { return request('POST', `/admin/leads/${encodeURIComponent(leadId)}/convert`, {}, auth, { admin: true }); },
 
   // Phase 4d — admin overrides
   adminUpdateCustomer(auth, customerId, payload) { return request('PUT',  `/admin/customers/${encodeURIComponent(customerId)}`, payload, auth, { admin: true }); },

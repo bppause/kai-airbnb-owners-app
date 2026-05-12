@@ -2288,7 +2288,10 @@ alter table public.tax_employees
 alter table public.tax_leads
   add column if not exists first_name  text not null default '',
   add column if not exists middle_name text not null default '',
-  add column if not exists last_name   text not null default '';
+  add column if not exists last_name   text not null default '',
+  add column if not exists converted_customer_id text references public.tax_customers(id) on delete set null;
+create index if not exists idx_tax_leads_converted_customer
+  on public.tax_leads(converted_customer_id) where converted_customer_id is not null;
 
 -- ─── Long-form service descriptions ───────────────────────────────────────────
 -- Surfaced in the service-detail modal when present. `description_i18n`
