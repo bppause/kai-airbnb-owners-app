@@ -106,8 +106,23 @@ export default function OwnerCustomerDetail({ customerId }) {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'flex-end', flexShrink: 0 }}>
           <ImpersonateCustomerButton customer={c} auth={auth} community={community} t={t} />
           <SendWelcomeButton customer={c} auth={auth} t={t} />
+          <PromoteToStaffButton customer={c} auth={auth} onChanged={load} t={t} />
+          <ArchiveCustomerButton customer={c} auth={auth} onChanged={load} t={t} />
         </div>
       </div>
+
+      {c.status === 'archived' && (
+        <div className="tax-msg" style={{
+          background: 'color-mix(in srgb, #b91c1c 8%, #fff)',
+          borderLeft: '3px solid #b91c1c', color: '#7f1d1d',
+          padding: '10px 14px', marginTop: 8,
+        }}>
+          <strong>{t('owner.customer.archivedBanner.title')}</strong>
+          <div style={{ marginTop: 4, fontSize: 13 }}>
+            {t('owner.customer.archivedBanner.body')}
+          </div>
+        </div>
+      )}
 
       <ProfileSection customer={c} auth={auth} customerId={customerId} onChange={load} t={t} />
 
@@ -1145,6 +1160,105 @@ function SendWelcomeButton({ customer: c, auth, t }) {
               onClick={onClick} disabled={busy}
               style={{ color: 'var(--tax-brand-primary)', borderColor: 'var(--tax-brand-primary)' }}>
         {busy ? t('owner.customer.welcome.sending') : t('owner.customer.welcome.button')}
+      </button>
+      {msg.text && (
+        <span style={{
+          fontSize: 11,
+          color: msg.kind === 'success' ? 'var(--tax-success)' : 'var(--tax-error)',
+        }}>{msg.text}</span>
+      )}
+    </div>
+  );
+}
+
+// Phase 4n.15: promote an existing customer to staff/admin. Creates a
+// tax_employees row keyed by the same email so the existing dual-role
+// switch (staffAccess banner on the customer portal) lights up
+// automatically. Sends the welcome email by default.
+function PromoteToStaffButton({ customer: c, auth, onChanged, t }) {
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState({ kind: 'idle', text: '' });
+
+  const onClick = async () => {
+    const role = window.prompt(t('owner.customer.promote.rolePrompt'), 'staff');
+    if (!role) return;
+    const r = role.trim().toLowerCase();
+    if (r !== 'staff' && r !== 'admin') {
+      setMsg({ kind: 'error', text: t('owner.customer.promote.invalidRole') });
+      return;
+    }
+    if (!window.confirm(t('owner.customer.promote.confirm', { name: c.name || c.email, role: r }))) return;
+    setBusy(true); setMsg({ kind: 'idle', text: '' });
+    try {
+      const result = await taxApi.adminPromoteCustomerToStaff(auth, c.id, { role: r });
+      setMsg({ kind: 'success', text: t('owner.customer.promote.success', { role: r }) });
+      onChanged && onChanged();
+      return result;
+    } catch (e) {
+      if (e?.body?.error === 'already_employee') {
+        setMsg({ kind: 'error', text: t('owner.customer.promote.alreadyEmployee') });
+      } else {
+        setMsg({ kind: 'error', text: e?.message || t('respond.error.generic') });
+      }
+    } finally {
+      setBusy(false);
+      setTimeout(() => setMsg({ kind: 'idle', text: '' }), 8000);
+    }
+  };
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
+      <button type="button" className="tax-btn tax-btn--ghost tax-btn--sm"
+              onClick={onClick} disabled={busy}
+              style={{ color: 'var(--tax-brand-primary)', borderColor: 'var(--tax-brand-primary)' }}>
+        {busy ? t('lead.submitting') : t('owner.customer.promote.button')}
+      </button>
+      {msg.text && (
+        <span style={{
+          fontSize: 11,
+          color: msg.kind === 'success' ? 'var(--tax-success)' : 'var(--tax-error)',
+        }}>{msg.text}</span>
+      )}
+    </div>
+  );
+}
+
+// Phase 4n.15: archive (status='archived') a customer. Records retained;
+// relationships are deactivated so the cron stops generating periods.
+// When already archived, swaps to a "Restore" affordance.
+function ArchiveCustomerButton({ customer: c, auth, onChanged, t }) {
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState({ kind: 'idle', text: '' });
+  const isArchived = c.status === 'archived';
+
+  const onClick = async () => {
+    if (!isArchived) {
+      if (!window.confirm(t('owner.customer.archive.confirm', { name: c.name || c.email }))) return;
+    }
+    setBusy(true); setMsg({ kind: 'idle', text: '' });
+    try {
+      await taxApi.adminSetCustomerStatus(auth, c.id, {
+        status: isArchived ? 'active' : 'archived',
+      });
+      setMsg({ kind: 'success',
+        text: isArchived ? t('owner.customer.archive.restored') : t('owner.customer.archive.done') });
+      onChanged && onChanged();
+    } catch (e) {
+      setMsg({ kind: 'error', text: e?.message || t('respond.error.generic') });
+    } finally {
+      setBusy(false);
+      setTimeout(() => setMsg({ kind: 'idle', text: '' }), 6000);
+    }
+  };
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
+      <button type="button" className="tax-btn tax-btn--ghost tax-btn--sm"
+              onClick={onClick} disabled={busy}
+              style={{ color: '#b91c1c', borderColor: '#b91c1c' }}>
+        {busy
+          ? t('lead.submitting')
+          : (isArchived ? t('owner.customer.archive.restoreBtn') : t('owner.customer.archive.button'))}
       </button>
       {msg.text && (
         <span style={{
