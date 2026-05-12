@@ -802,6 +802,14 @@ alter table public.tax_customers add column if not exists whatsapp text not null
 alter table public.tax_customers add column if not exists address jsonb not null default '{}'::jsonb;
 alter table public.tax_customers add column if not exists preferred_communication_email text not null default '';
 
+-- Phase 4n.17: last-sign-in stamps. Updated each time the canonical
+-- /portal/me (customer) or /employee/me (employee) endpoints return
+-- successfully, so admins can see "has this person actually logged in
+-- lately?" on the detail pages. Stamps are throttled in the handlers
+-- (≥5min between writes) so we don't churn the row on every poll.
+alter table public.tax_customers add column if not exists last_sign_in_at timestamptz;
+alter table public.tax_employees add column if not exists last_sign_in_at timestamptz;
+
 -- Schedule definitions — one row per recurring filing under a product.
 -- A product like "Payroll Services" has multiple schedules (941 quarterly,
 -- W-2 January). When a customer subscribes to the product, periods are
