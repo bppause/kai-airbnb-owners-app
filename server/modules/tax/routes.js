@@ -45,6 +45,8 @@ module.exports = function createTaxRouter(deps) {
     sendTaxMessageEmployeeEmail,
     sendTaxWelcomeEmail,
     sendTaxStaffWelcomeEmail,
+    sendTaxSignatureRequestEmail,
+    sendTaxSignatureSignedEmail,
     previewTaxEmail,
     getTemplateDefaults,
     publicAppUrl,
@@ -3039,7 +3041,29 @@ module.exports = function createTaxRouter(deps) {
         after: { customerId, title, hasDoc: !!documentId },
       });
     } catch (_e) {}
-    res.json({ ok: true, request: row });
+
+    // Phase 4n.25: email the customer so they're not waiting for a coincidence
+    // login to discover the request. Resolution failure here is non-fatal —
+    // we want the request to exist even if the email is misconfigured.
+    let emailResult = { sent: false, skipped: true };
+    if (typeof sendTaxSignatureRequestEmail === 'function') {
+      try {
+        const [{ data: cust }, { data: community }] = await Promise.all([
+          supabase.from('tax_customers')
+            .select('id, community_id, email, name, locale, preferred_communication_email')
+            .eq('id', customerId).maybeSingle(),
+          supabase.from('communities')
+            .select('id, name').eq('id', cust?.community_id || emp.community_id).maybeSingle(),
+        ]);
+        if (cust) {
+          const signUrl = `${typeof publicAppUrl === 'function' ? publicAppUrl() : ''}/tax/${cust.community_id}/portal/sign/${encodeURIComponent(id)}`;
+          emailResult = await sendTaxSignatureRequestEmail({
+            cust, community, request: row, signUrl,
+          });
+        }
+      } catch (e) { warn('[tax-sig] request email failed', e?.message || e); }
+    }
+    res.json({ ok: true, request: row, customerEmail: emailResult });
   });
 
   router.post('/admin/customers/:id/signature-requests/:reqId/cancel', async (req, res) => {
@@ -3147,8 +3171,83 @@ module.exports = function createTaxRouter(deps) {
         after: { title: existing.title, ip, userAgent: userAgent.slice(0, 80) },
       });
     } catch (_e) {}
+
+    // Phase 4n.25: notify the practice (admins + assigned staff) per each
+    // employee's per-type notification preference. Mirrors the customer-
+    // message fan-out at line ~3640 — in-portal row always when the
+    // employee's signature_signed pref includes 'in_app', plus an email
+    // when the pref includes 'email'.
+    try {
+      await notifyPracticeSignatureSigned({
+        customerId: customer.id, customerEmail: customer.email,
+        communityId: customer.community_id,
+        requestId: reqId, requestTitle: existing.title,
+        signerName,
+      });
+    } catch (e) { warn('[tax-sig] practice fan-out failed', e?.message || e); }
+
     res.json({ ok: true });
   });
+
+  // Internal helper for /portal/signature-requests/:id/sign — fans the
+  // "customer signed" event out to all employees who should know.
+  async function notifyPracticeSignatureSigned({ customerId, customerEmail, communityId, requestId, requestTitle, signerName }) {
+    if (!supabase) return;
+    const [{ data: cust }, { data: community }, { data: admins }, { data: assignedRows }] = await Promise.all([
+      supabase.from('tax_customers')
+        .select('id, name, email, community_id').eq('id', customerId).maybeSingle(),
+      supabase.from('communities')
+        .select('id, name').eq('id', communityId).maybeSingle(),
+      supabase.from('tax_employees')
+        .select('id, email, name, locale, notification_channels, notification_prefs, preferred_communication_email, role, status')
+        .eq('community_id', communityId).eq('status', 'active').eq('role', 'admin'),
+      supabase.from('tax_employee_customer_assignments')
+        .select(`
+          id,
+          employee:tax_employees ( id, email, name, locale, notification_channels, notification_prefs, preferred_communication_email, role, status )
+        `).eq('customer_id', customerId).eq('active', true),
+    ]);
+    const recipientById = new Map();
+    for (const emp of admins || []) recipientById.set(emp.id, emp);
+    for (const row of assignedRows || []) {
+      const emp = row.employee;
+      if (emp && emp.status === 'active' && emp.role === 'staff') {
+        recipientById.set(emp.id, emp);
+      }
+    }
+    const empList = [...recipientById.values()];
+    const customerUrl = `${typeof publicAppUrl === 'function' ? publicAppUrl() : ''}/tax/${communityId}/employee/customers/${encodeURIComponent(customerId)}`;
+    const titleSnippet = (requestTitle || '').slice(0, 80);
+
+    for (const emp of empList) {
+      const channels = getEmployeeChannels(emp, 'signature_signed');
+      if (channels.includes('in_app')) {
+        await supabase.from('tax_employee_notifications').insert({
+          id: 'tenot_' + uuidv4().slice(0, 12),
+          community_id: communityId,
+          employee_id: emp.id,
+          type: 'signature_signed',
+          title_i18n: {
+            es: `${cust?.name || customerEmail} firmó: ${titleSnippet}`,
+            en: `${cust?.name || customerEmail} signed: ${titleSnippet}`,
+          },
+          body_i18n: {
+            es: `Firmado por ${signerName}. La firma quedó registrada.`,
+            en: `Signed by ${signerName}. Signature has been captured.`,
+          },
+          payload: { customerId, requestId },
+        });
+      }
+      if (channels.includes('email') && typeof sendTaxSignatureSignedEmail === 'function') {
+        try {
+          await sendTaxSignatureSignedEmail({
+            emp, customer: cust || { name: '', email: customerEmail },
+            community, request: { title: titleSnippet }, customerUrl,
+          });
+        } catch (e) { warn('[tax-sig] employee email failed', e?.message || e); }
+      }
+    }
+  }
 
   router.post('/portal/signature-requests/:id/decline', async (req, res) => {
     const customer = await requireTaxCustomer(req, res); if (!customer) return;
@@ -4212,6 +4311,15 @@ module.exports = function createTaxRouter(deps) {
       },
       default_channels: ['in_app'],
     },
+    {
+      key: 'signature_signed',
+      label_i18n: { en: 'Customer signed a request', es: 'Cliente firmó una solicitud' },
+      description_i18n: {
+        en: 'When a customer e-signs an engagement letter, 8879, or any signature request you sent.',
+        es: 'Cuando un cliente firma electrónicamente una carta de compromiso, 8879 u otra solicitud que envió.',
+      },
+      default_channels: ['in_app'],
+    },
   ];
 
   // Resolve the effective channel list for one notification type for one
@@ -4660,6 +4768,25 @@ module.exports = function createTaxRouter(deps) {
       newLeads = data || [];
     }
 
+    // Phase 4n.25: pending signatures — same scope rules as periods.
+    let pendingSignatures = [];
+    {
+      let q = supabase.from('tax_signature_requests')
+        .select('id, title, customer_id, created_at, requested_by_name, customer:tax_customers ( id, email, name )')
+        .eq('community_id', emp.community_id).eq('status', 'pending')
+        .order('created_at', { ascending: false }).limit(50);
+      if (Array.isArray(visible)) {
+        if (!visible.length) pendingSignatures = [];
+        else {
+          const { data } = await q.in('customer_id', visible);
+          pendingSignatures = data || [];
+        }
+      } else {
+        const { data } = await q;
+        pendingSignatures = data || [];
+      }
+    }
+
     res.json({
       asOf: today,
       windowDays,
@@ -4668,6 +4795,7 @@ module.exports = function createTaxRouter(deps) {
       recent: recentRows,
       unreadCount,
       newLeads,
+      pendingSignatures,
     });
   });
 
@@ -4721,6 +4849,7 @@ module.exports = function createTaxRouter(deps) {
   const TAX_EMAIL_TEMPLATE_KEYS = [
     'welcome_customer', 'welcome_staff', 'reminder', 'document',
     'message_to_customer', 'message_to_practice', 'message_to_employee', 'lead',
+    'signature_request', 'signature_signed',
   ];
   const TAX_EMAIL_TEMPLATE_LANGS = ['en', 'es'];
 

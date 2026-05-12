@@ -827,6 +827,10 @@
   "owner.emailTemplates.key.message_to_practice": "Message to practice (internal)",
   "owner.emailTemplates.key.message_to_employee": "Message to employee (internal)",
   "owner.emailTemplates.key.lead": "Lead notification (internal)",
+  "owner.emailTemplates.key.signature_request": "Signature request (to customer)",
+  "owner.emailTemplates.key.signature_signed": "Signature received (to practice)",
+  "employee.today.signaturesTitle": "Awaiting signature ({count})",
+  "employee.today.signatureRequestedBy": "sent by {name}",
 
   "owner.customer.subscription.addBtn": "Add subscription",
   "owner.customer.subscription.cancelAdd": "Cancel",
