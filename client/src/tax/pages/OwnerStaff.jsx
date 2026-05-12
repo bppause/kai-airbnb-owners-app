@@ -4,6 +4,7 @@ import { useEmployeeAuth } from '../auth/EmployeeAuthProvider';
 import { taxApi, setImpersonation } from '../api';
 import EmployeeShell from '../components/EmployeeShell';
 import { formatLastSignInCompact } from '../lib/lastSignIn';
+import { displayPersonName } from '../lib/personName';
 
 export default function OwnerStaff() {
   const { t, locale } = useT();
@@ -15,7 +16,7 @@ export default function OwnerStaff() {
   const [err, setErr] = useState('');
 
   const [adding, setAdding] = useState(false);
-  const [form, setForm] = useState({ name: '', email: '', role: 'staff', locale: 'en', sendWelcomeEmail: true });
+  const [form, setForm] = useState({ firstName: '', middleName: '', lastName: '', email: '', role: 'staff', locale: 'en', sendWelcomeEmail: true });
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState({ kind: 'idle', text: '' });
 
@@ -35,7 +36,9 @@ export default function OwnerStaff() {
       const result = await taxApi.adminCreateEmployee(auth, {
         communitySlug: community.id,
         email: form.email.trim().toLowerCase(),
-        name: form.name.trim(),
+        firstName: form.firstName.trim(),
+        middleName: form.middleName.trim(),
+        lastName: form.lastName.trim(),
         role: form.role,
         locale: form.locale,
         sendWelcomeEmail: form.sendWelcomeEmail,
@@ -50,7 +53,7 @@ export default function OwnerStaff() {
         ? t(`${baseKey}.withEmail`)
         : t(`${baseKey}.noEmail`);
       setMsg({ kind: 'success', text });
-      setForm({ name: '', email: '', role: 'staff', locale: 'en', sendWelcomeEmail: true });
+      setForm({ firstName: '', middleName: '', lastName: '', email: '', role: 'staff', locale: 'en', sendWelcomeEmail: true });
       setAdding(false);
       load();
     } catch (err) {
@@ -81,17 +84,27 @@ export default function OwnerStaff() {
 
       {adding && (
         <form className="tax-form" onSubmit={onAdd} noValidate style={{ marginBottom: 24 }}>
-          <div className="tax-form__row2">
+          <div className="tax-form__row3">
             <div>
-              <label htmlFor="os-name">{t('owner.staff.fieldName')}</label>
-              <input id="os-name" type="text" value={form.name}
-                     onChange={e => setForm(p => ({ ...p, name: e.target.value }))} maxLength={200} />
+              <label htmlFor="os-first">{t('owner.customers.fieldFirstName')}</label>
+              <input id="os-first" type="text" value={form.firstName}
+                     onChange={e => setForm(p => ({ ...p, firstName: e.target.value }))} maxLength={80} />
             </div>
             <div>
-              <label htmlFor="os-email">{t('owner.staff.fieldEmail')} *</label>
-              <input id="os-email" type="email" required value={form.email}
-                     onChange={e => setForm(p => ({ ...p, email: e.target.value }))} maxLength={200} />
+              <label htmlFor="os-middle">{t('owner.customers.fieldMiddleName')}</label>
+              <input id="os-middle" type="text" value={form.middleName}
+                     onChange={e => setForm(p => ({ ...p, middleName: e.target.value }))} maxLength={80} />
             </div>
+            <div>
+              <label htmlFor="os-last">{t('owner.customers.fieldLastName')}</label>
+              <input id="os-last" type="text" value={form.lastName}
+                     onChange={e => setForm(p => ({ ...p, lastName: e.target.value }))} maxLength={80} />
+            </div>
+          </div>
+          <div>
+            <label htmlFor="os-email">{t('owner.staff.fieldEmail')} *</label>
+            <input id="os-email" type="email" required value={form.email}
+                   onChange={e => setForm(p => ({ ...p, email: e.target.value }))} maxLength={200} />
           </div>
           <div className="tax-form__row2">
             <div>
@@ -138,7 +151,7 @@ export default function OwnerStaff() {
                   <a href={`${base}/${encodeURIComponent(e.id)}`}
                      style={{ textDecoration: 'none', color: 'inherit', minWidth: 0, flex: 1 }}>
                     <div style={{ fontWeight: 600 }}>
-                      {e.name || e.email}
+                      {displayPersonName(e) || e.email}
                       <span style={{
                         marginLeft: 8, padding: '1px 8px', borderRadius: 999,
                         background: e.role === 'admin' ? 'var(--tax-brand-primary)' : 'var(--tax-bg-alt)',

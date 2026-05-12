@@ -24,7 +24,8 @@ export default function EmployeeProfile() {
   const [notificationTypes, setNotificationTypes] = useState([]);
   const [prefs, setPrefs] = useState({});  // { typeKey: { in_app, email } }
   const [form, setForm] = useState({
-    name: '', phone: '', whatsapp: '', preferredEmail: '', locale: 'es',
+    firstName: '', middleName: '', lastName: '',
+    phone: '', whatsapp: '', preferredEmail: '', locale: 'es',
     addr: { line1: '', line2: '', city: '', state: '', postal_code: '', country: 'US' },
     inApp: true, email: false,
   });
@@ -36,7 +37,9 @@ export default function EmployeeProfile() {
     const a = employee.address || {};
     const ch = Array.isArray(employee.notificationChannels) ? employee.notificationChannels : ['in_app'];
     setForm({
-      name: employee.name || '',
+      firstName: employee.first_name || '',
+      middleName: employee.middle_name || '',
+      lastName: employee.last_name || '',
       phone: employee.phone || '',
       whatsapp: employee.whatsapp || '',
       preferredEmail: employee.preferredCommunicationEmail || '',
@@ -121,7 +124,9 @@ export default function EmployeeProfile() {
       const anyEmail = Object.values(prefs).some(p => p && p.email === true);
       const channels = anyEmail ? ['in_app', 'email'] : ['in_app'];
       await taxApi.updateEmployeeProfile(auth, {
-        name: form.name.trim(),
+        firstName: form.firstName.trim(),
+        middleName: form.middleName.trim(),
+        lastName: form.lastName.trim(),
         phone: form.phone.trim(),
         whatsapp: form.whatsapp.trim(),
         address,
@@ -144,22 +149,32 @@ export default function EmployeeProfile() {
       <h2 style={{ marginTop: 0 }}>{t('employee.profile.title')}</h2>
 
       <form className="tax-form" onSubmit={onSave} noValidate style={{ maxWidth: 720 }}>
-        <div className="tax-form__row2">
+        <div className="tax-form__row3">
           <div>
-            <label htmlFor="ep-name">{t('portal.profile.name')}</label>
-            <input id="ep-name" type="text" value={form.name}
-                   onChange={e => onField('name', e.target.value)} maxLength={200} />
+            <label htmlFor="ep-first">{t('owner.customers.fieldFirstName')}</label>
+            <input id="ep-first" type="text" value={form.firstName}
+                   onChange={e => onField('firstName', e.target.value)} maxLength={80} />
           </div>
           <div>
-            <label htmlFor="ep-login">
-              {t('portal.profile.email')}
-              <span style={{ color: 'var(--tax-muted)', fontWeight: 400, marginLeft: 6, fontSize: 12 }}>
-                ({t('portal.profile.email.readonly')})
-              </span>
-            </label>
-            <input id="ep-login" type="email" value={employee?.email || ''} readOnly
-                   style={{ background: 'var(--tax-bg-alt)', color: 'var(--tax-muted)' }} />
+            <label htmlFor="ep-middle">{t('owner.customers.fieldMiddleName')}</label>
+            <input id="ep-middle" type="text" value={form.middleName}
+                   onChange={e => onField('middleName', e.target.value)} maxLength={80} />
           </div>
+          <div>
+            <label htmlFor="ep-last">{t('owner.customers.fieldLastName')}</label>
+            <input id="ep-last" type="text" value={form.lastName}
+                   onChange={e => onField('lastName', e.target.value)} maxLength={80} />
+          </div>
+        </div>
+        <div>
+          <label htmlFor="ep-login">
+            {t('portal.profile.email')}
+            <span style={{ color: 'var(--tax-muted)', fontWeight: 400, marginLeft: 6, fontSize: 12 }}>
+              ({t('portal.profile.email.readonly')})
+            </span>
+          </label>
+          <input id="ep-login" type="email" value={employee?.email || ''} readOnly
+                 style={{ background: 'var(--tax-bg-alt)', color: 'var(--tax-muted)' }} />
         </div>
 
         <div className="tax-form__row2">

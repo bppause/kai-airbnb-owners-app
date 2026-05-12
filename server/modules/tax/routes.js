@@ -22,6 +22,10 @@ const express = require('express');
 const { v4: uuidv4 } = require('uuid');
 const { warn } = require('../../../logger');
 const { isValidEmail, normalizeLanguage } = require('../../core/utils');
+const {
+  parsePersonName, normalizeNameParts, composePersonName,
+  resolveNamePayload, firstNameOf, displayNameOf,
+} = require('./names');
 
 const TAX_BUSINESS_TYPE = 'tax';
 const MAX_TEXT_LEN = 4000;
@@ -56,6 +60,45 @@ module.exports = function createTaxRouter(deps) {
   } = deps;
 
   const router = express.Router();
+
+  // One-time backfill of structured-name parts for legacy rows where
+  // `name` was the only stored value. Fire-and-forget on first request:
+  // we run the backfill once per process, in the background, and only
+  // touch rows whose first_name/middle_name/last_name are all empty.
+  // Subsequent boots are no-ops (the WHERE filter excludes already-split
+  // rows). Errors are warned but never block routing.
+  let namesBackfillStarted = false;
+  function runNamesBackfillOnce() {
+    if (namesBackfillStarted) return;
+    namesBackfillStarted = true;
+    (async () => {
+      const tables = ['tax_customers', 'tax_employees', 'tax_leads'];
+      for (const table of tables) {
+        try {
+          const { data } = await supabase.from(table)
+            .select('id, name, first_name, middle_name, last_name')
+            .eq('first_name', '').eq('middle_name', '').eq('last_name', '')
+            .neq('name', '').limit(2000);
+          if (!data || !data.length) continue;
+          for (const row of data) {
+            const parts = normalizeNameParts(parsePersonName(row.name));
+            const composed = composePersonName(parts);
+            await supabase.from(table).update({
+              first_name: parts.first,
+              middle_name: parts.middle,
+              last_name: parts.last,
+              // Keep `name` synced to the normalized form so legacy
+              // displays stop being shouty.
+              name: composed || row.name,
+            }).eq('id', row.id);
+          }
+        } catch (e) {
+          warn(`[tax] names backfill failed on ${table}`, e?.message || e);
+        }
+      }
+    })();
+  }
+  router.use((req, _res, next) => { runNamesBackfillOnce(); next(); });
 
   // ── GET /health ─────────────────────────────────────────────────────────────
   // Lightweight readiness probe for Render and uptime checks. Confirms the tax
@@ -298,7 +341,8 @@ module.exports = function createTaxRouter(deps) {
     if (!requireSupabaseEnv(res)) return;
     const body = req.body || {};
     const communitySlug = trim(body.communitySlug, 200);
-    const name = trim(body.name, MAX_NAME_LEN);
+    const nameParts = resolveNamePayload(body);
+    const name = nameParts.name;
     const email = trim(body.email, MAX_NAME_LEN).toLowerCase();
     const phone = trim(body.phone, MAX_PHONE_LEN);
     // Phase 4n.12: accept multi-select. `productSlugs` is the new
@@ -338,6 +382,9 @@ module.exports = function createTaxRouter(deps) {
       id: 'lead_' + uuidv4().slice(0, 12),
       community_id: community.id,
       name, email, phone,
+      first_name: nameParts.first,
+      middle_name: nameParts.middle,
+      last_name: nameParts.last,
       product_slug: productSlug,
       product_slugs: productSlugs,
       message,
@@ -569,7 +616,7 @@ module.exports = function createTaxRouter(deps) {
   async function searchCustomers({ communitySlug, q, relationshipTypeIds, scopedCustomerIds }) {
     let query = supabase.from('tax_customers')
       .select(`
-        id, email, name, phone, whatsapp, address, preferred_communication_email,
+        id, email, name, first_name, middle_name, last_name, phone, whatsapp, address, preferred_communication_email,
         locale, status, last_sign_in_at, created_at,
         tax_subscriptions ( id, product_id, status, active_schedule_slugs, reminder_channels, reminder_offsets_days )
       `)
@@ -652,7 +699,7 @@ module.exports = function createTaxRouter(deps) {
     const body = req.body || {};
     const communitySlug = trim(body.communitySlug, 200);
     const email = trim(body.email, 200).toLowerCase();
-    const name = trim(body.name, MAX_NAME_LEN);
+    const np = resolveNamePayload(body);
     const phone = trim(body.phone, MAX_PHONE_LEN);
     const locale = (body.locale === 'en') ? 'en' : 'es';
     // Phase: relationships (array of type ids) + sendWelcomeEmail (bool,
@@ -671,7 +718,9 @@ module.exports = function createTaxRouter(deps) {
 
     const id = 'cust_' + uuidv4().slice(0, 16);
     const { error } = await supabase.from('tax_customers').insert({
-      id, community_id: communitySlug, email, name, phone, locale, status: 'active',
+      id, community_id: communitySlug, email,
+      name: np.name, first_name: np.first, middle_name: np.middle, last_name: np.last,
+      phone, locale, status: 'active',
     });
     if (error) return sendSupabaseError(res, error);
 
@@ -939,7 +988,7 @@ module.exports = function createTaxRouter(deps) {
     // duplicates and (in update mode) merge their fields. Index by lower-
     // cased email for case-insensitive matching.
     const { data: existing } = await supabase.from('tax_customers')
-      .select('id, email, name, phone, whatsapp, address, preferred_communication_email, locale, notes')
+      .select('id, email, name, first_name, middle_name, last_name, phone, whatsapp, address, preferred_communication_email, locale, notes')
       .eq('community_id', communitySlug);
     const byEmail = new Map();
     for (const c of existing || []) {
@@ -1016,7 +1065,18 @@ module.exports = function createTaxRouter(deps) {
         // preserved (no change); non-blank cells overwrite. Address
         // subfields update independently.
         const update = { updated_at: new Date().toISOString() };
-        if (r.name)  update.name  = r.name.slice(0, MAX_NAME_LEN);
+        if (r.name || r.first_name || r.middle_name || r.last_name) {
+          const np = resolveNamePayload({
+            name: r.name,
+            firstName: r.first_name,
+            middleName: r.middle_name,
+            lastName: r.last_name,
+          });
+          update.name = np.name;
+          update.first_name = np.first;
+          update.middle_name = np.middle;
+          update.last_name = np.last;
+        }
         if (r.phone) update.phone = r.phone.slice(0, MAX_PHONE_LEN);
         if (whatsapp !== null) update.whatsapp = whatsapp;
         if (preferredEmail)  update.preferred_communication_email = preferredEmail.slice(0, MAX_NAME_LEN);
@@ -1095,11 +1155,20 @@ module.exports = function createTaxRouter(deps) {
       else if (address.line1) address.country = 'US';
 
       const customerId = 'cust_' + uuidv4().slice(0, 16);
+      const np = resolveNamePayload({
+        name: r.name,
+        firstName: r.first_name,
+        middleName: r.middle_name,
+        lastName: r.last_name,
+      });
       const customerRow = {
         id: customerId,
         community_id: communitySlug,
         email,
-        name: (r.name || '').slice(0, MAX_NAME_LEN),
+        name: np.name,
+        first_name: np.first,
+        middle_name: np.middle,
+        last_name: np.last,
         phone: (r.phone || '').slice(0, MAX_PHONE_LEN),
         whatsapp: whatsapp || '',
         address,
@@ -1219,7 +1288,7 @@ module.exports = function createTaxRouter(deps) {
     if (!(await requireOwnerAdmin(req, res))) return;
     const id = trim(req.params.id, 200);
     const { data: cust, error: cErr } = await supabase.from('tax_customers')
-      .select('id, community_id, email, name, phone, whatsapp, address, preferred_communication_email, locale, status, notes, firebase_uid, last_sign_in_at, created_at, updated_at')
+      .select('id, community_id, email, name, first_name, middle_name, last_name, phone, whatsapp, address, preferred_communication_email, locale, status, notes, firebase_uid, last_sign_in_at, created_at, updated_at')
       .eq('id', id).maybeSingle();
     if (cErr) return sendSupabaseError(res, cErr);
     if (!cust) return res.status(404).json({ error: 'Customer not found.' });
@@ -1353,7 +1422,18 @@ module.exports = function createTaxRouter(deps) {
     const body = req.body || {};
     const update = { updated_at: new Date().toISOString() };
 
-    if (body.name !== undefined)  update.name  = trim(body.name, MAX_NAME_LEN);
+    // Name: accept either {firstName, middleName, lastName} or legacy {name}.
+    // Either form repopulates the three parts AND the denormalized `name`.
+    const sentNameField =
+      body.firstName !== undefined || body.middleName !== undefined ||
+      body.lastName  !== undefined || body.name       !== undefined;
+    if (sentNameField) {
+      const np = resolveNamePayload(body);
+      update.name = np.name;
+      update.first_name = np.first;
+      update.middle_name = np.middle;
+      update.last_name = np.last;
+    }
     if (body.phone !== undefined) update.phone = trim(body.phone, MAX_PHONE_LEN);
 
     if (body.whatsapp !== undefined) {
@@ -1699,7 +1779,7 @@ module.exports = function createTaxRouter(deps) {
     const communitySlug = trim(req.query.communitySlug, 200);
     if (!communitySlug) return res.status(400).json({ error: 'communitySlug required.' });
     let q = supabase.from('tax_leads')
-      .select('id, name, email, phone, product_slug, product_slugs, message, preferred_locale, status, notes, contacted_at, created_at')
+      .select('id, name, first_name, middle_name, last_name, email, phone, product_slug, product_slugs, message, preferred_locale, status, notes, contacted_at, created_at')
       .eq('community_id', communitySlug)
       .order('created_at', { ascending: false }).limit(500);
     const statusFilter = trim(req.query.status, 40);
@@ -1793,7 +1873,7 @@ module.exports = function createTaxRouter(deps) {
     if (imp === false) return null;            // invalid/expired token, 401 already sent
     if (imp) {
       const { data: customer, error } = await supabase.from('tax_customers')
-        .select('id, community_id, email, name, phone, whatsapp, address, preferred_communication_email, locale, status, firebase_uid, last_sign_in_at')
+        .select('id, community_id, email, name, first_name, middle_name, last_name, phone, whatsapp, address, preferred_communication_email, locale, status, firebase_uid, last_sign_in_at')
         .eq('id', imp.target_id).maybeSingle();
       if (error) { sendSupabaseError(res, error); return null; }
       if (!customer) { res.status(404).json({ error: 'Impersonation target not found.' }); return null; }
@@ -1810,7 +1890,7 @@ module.exports = function createTaxRouter(deps) {
       return null;
     }
     const { data: customer, error } = await supabase.from('tax_customers')
-      .select('id, community_id, email, name, phone, whatsapp, address, preferred_communication_email, locale, status, firebase_uid, last_sign_in_at')
+      .select('id, community_id, email, name, first_name, middle_name, last_name, phone, whatsapp, address, preferred_communication_email, locale, status, firebase_uid, last_sign_in_at')
       .eq('email', email).eq('community_id', communitySlug).maybeSingle();
     if (error) { sendSupabaseError(res, error); return null; }
     if (!customer) {
@@ -2095,8 +2175,15 @@ module.exports = function createTaxRouter(deps) {
 
     const update = { updated_at: new Date().toISOString() };
 
-    if (body.name !== undefined) {
-      update.name = trim(body.name, MAX_NAME_LEN);
+    const sentName =
+      body.firstName !== undefined || body.middleName !== undefined ||
+      body.lastName  !== undefined || body.name       !== undefined;
+    if (sentName) {
+      const np = resolveNamePayload(body);
+      update.name = np.name;
+      update.first_name = np.first;
+      update.middle_name = np.middle;
+      update.last_name = np.last;
     }
     if (body.phone !== undefined) {
       update.phone = trim(body.phone, MAX_PHONE_LEN);
@@ -2150,7 +2237,7 @@ module.exports = function createTaxRouter(deps) {
     } catch (_e) {}
 
     const { data: refreshed } = await supabase.from('tax_customers')
-      .select('id, email, name, phone, whatsapp, address, preferred_communication_email, locale, status')
+      .select('id, email, name, first_name, middle_name, last_name, phone, whatsapp, address, preferred_communication_email, locale, status')
       .eq('id', customer.id).maybeSingle();
     res.json({ ok: true, customer: refreshed });
   });
@@ -4439,7 +4526,7 @@ module.exports = function createTaxRouter(deps) {
     if (imp === false) return null;
     if (imp) {
       const { data: emp, error } = await supabase.from('tax_employees')
-        .select('id, community_id, email, name, phone, whatsapp, address, preferred_communication_email, locale, notification_channels, notification_prefs, role, status, firebase_uid, last_sign_in_at')
+        .select('id, community_id, email, name, first_name, middle_name, last_name, phone, whatsapp, address, preferred_communication_email, locale, notification_channels, notification_prefs, role, status, firebase_uid, last_sign_in_at')
         .eq('id', imp.target_id).maybeSingle();
       if (error) { sendSupabaseError(res, error); return null; }
       if (!emp) { res.status(404).json({ error: 'Impersonation target not found.' }); return null; }
@@ -4455,7 +4542,7 @@ module.exports = function createTaxRouter(deps) {
       return null;
     }
     const { data: emp, error } = await supabase.from('tax_employees')
-      .select('id, community_id, email, name, phone, whatsapp, address, preferred_communication_email, locale, notification_channels, notification_prefs, role, status, firebase_uid, last_sign_in_at')
+      .select('id, community_id, email, name, first_name, middle_name, last_name, phone, whatsapp, address, preferred_communication_email, locale, notification_channels, notification_prefs, role, status, firebase_uid, last_sign_in_at')
       .eq('email', email).eq('community_id', communitySlug).maybeSingle();
     if (error) { sendSupabaseError(res, error); return null; }
     if (!emp) {
@@ -4643,7 +4730,16 @@ module.exports = function createTaxRouter(deps) {
     const body = req.body || {};
     const update = { updated_at: new Date().toISOString() };
 
-    if (body.name !== undefined)  update.name  = trim(body.name, MAX_NAME_LEN);
+    const sentName =
+      body.firstName !== undefined || body.middleName !== undefined ||
+      body.lastName  !== undefined || body.name       !== undefined;
+    if (sentName) {
+      const np = resolveNamePayload(body);
+      update.name = np.name;
+      update.first_name = np.first;
+      update.middle_name = np.middle;
+      update.last_name = np.last;
+    }
     if (body.phone !== undefined) update.phone = trim(body.phone, MAX_PHONE_LEN);
 
     if (body.whatsapp !== undefined) {
@@ -4720,7 +4816,7 @@ module.exports = function createTaxRouter(deps) {
     } catch (_e) {}
 
     const { data: refreshed } = await supabase.from('tax_employees')
-      .select('id, community_id, email, name, phone, whatsapp, address, preferred_communication_email, locale, notification_channels, notification_prefs, role, status, firebase_uid, last_sign_in_at')
+      .select('id, community_id, email, name, first_name, middle_name, last_name, phone, whatsapp, address, preferred_communication_email, locale, notification_channels, notification_prefs, role, status, firebase_uid, last_sign_in_at')
       .eq('id', emp.id).maybeSingle();
     res.json({ ok: true, employee: pickEmployee(refreshed) });
   });
@@ -5286,7 +5382,7 @@ module.exports = function createTaxRouter(deps) {
     if (!(await requireOwnerAdmin(req, res))) return;
     const communitySlug = trim(req.query.communitySlug, 200);
     let q = supabase.from('tax_employees')
-      .select('id, community_id, email, name, role, status, notification_channels, created_at, firebase_uid, last_sign_in_at')
+      .select('id, community_id, email, name, first_name, middle_name, last_name, role, status, notification_channels, created_at, firebase_uid, last_sign_in_at')
       .order('created_at', { ascending: false }).limit(200);
     if (communitySlug) q = q.eq('community_id', communitySlug);
     const { data, error } = await q;
@@ -5299,7 +5395,7 @@ module.exports = function createTaxRouter(deps) {
     const body = req.body || {};
     const communitySlug = trim(body.communitySlug, 200);
     const email = trim(body.email, 200).toLowerCase();
-    const name = trim(body.name, MAX_NAME_LEN);
+    const np = resolveNamePayload(body);
     const role = (body.role === 'admin') ? 'admin' : 'staff';
     const locale = (body.locale === 'es') ? 'es' : 'en';
     // Default ON — mirrors the customer add flow. Owner can uncheck to add
@@ -5316,7 +5412,9 @@ module.exports = function createTaxRouter(deps) {
 
     const id = 'emp_' + uuidv4().slice(0, 12);
     const { error } = await supabase.from('tax_employees').insert({
-      id, community_id: communitySlug, email, name, role, locale,
+      id, community_id: communitySlug, email,
+      name: np.name, first_name: np.first, middle_name: np.middle, last_name: np.last,
+      role, locale,
     });
     if (error) return sendSupabaseError(res, error);
 
@@ -5389,7 +5487,7 @@ module.exports = function createTaxRouter(deps) {
   // builds the /employee URL, hands off to the sender. Audit-logged.
   async function sendWelcomeForEmployee(empId) {
     const { data: emp } = await supabase.from('tax_employees')
-      .select('id, community_id, email, name, role, locale, status')
+      .select('id, community_id, email, name, first_name, middle_name, last_name, role, locale, status')
       .eq('id', empId).maybeSingle();
     if (!emp) return { sent: false, error: 'Employee not found.' };
     if (emp.status !== 'active') return { sent: false, error: 'Employee is not active.' };

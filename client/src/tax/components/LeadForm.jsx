@@ -30,7 +30,8 @@ export default function LeadForm({ community, products }) {
   // client/server pair forgets to send the array (server falls back to the
   // legacy `productSlug` body field).
   const [form, setForm] = useState({
-    name: '', email: '', phone: '', productSlugs: [], message: '', website: '',
+    firstName: '', middleName: '', lastName: '',
+    email: '', phone: '', productSlugs: [], message: '', website: '',
   });
   const [status, setStatus] = useState({ kind: 'idle', message: '' });
 
@@ -50,7 +51,9 @@ export default function LeadForm({ community, products }) {
     try {
       await taxApi.submitLead({
         communitySlug: community.id,
-        name: form.name,
+        firstName: form.firstName,
+        middleName: form.middleName,
+        lastName: form.lastName,
         email: form.email,
         phone: form.phone,
         productSlugs: form.productSlugs,
@@ -59,7 +62,7 @@ export default function LeadForm({ community, products }) {
         website: form.website,
       });
       setStatus({ kind: 'success', message: '' });
-      setForm({ name: '', email: '', phone: '', productSlugs: [], message: '', website: '' });
+      setForm({ firstName: '', middleName: '', lastName: '', email: '', phone: '', productSlugs: [], message: '', website: '' });
     } catch (err) {
       const isNetwork = !err?.status;
       setStatus({
@@ -82,10 +85,22 @@ export default function LeadForm({ community, products }) {
 
   return (
     <form className="tax-form" onSubmit={onSubmit} noValidate>
-      <div>
-        <label htmlFor="lead-name">{t('lead.field.name')}</label>
-        <input id="lead-name" name="name" type="text" required autoComplete="name"
-               value={form.name} onChange={onChange} />
+      <div className="tax-form__row3">
+        <div>
+          <label htmlFor="lead-first">{t('lead.field.firstName')}</label>
+          <input id="lead-first" name="firstName" type="text" required autoComplete="given-name"
+                 value={form.firstName} onChange={onChange} maxLength={80} />
+        </div>
+        <div>
+          <label htmlFor="lead-middle">{t('lead.field.middleName')}</label>
+          <input id="lead-middle" name="middleName" type="text" autoComplete="additional-name"
+                 value={form.middleName} onChange={onChange} maxLength={80} />
+        </div>
+        <div>
+          <label htmlFor="lead-last">{t('lead.field.lastName')}</label>
+          <input id="lead-last" name="lastName" type="text" required autoComplete="family-name"
+                 value={form.lastName} onChange={onChange} maxLength={80} />
+        </div>
       </div>
       <div className="tax-form__row2">
         <div>

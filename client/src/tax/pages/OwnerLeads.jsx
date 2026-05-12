@@ -3,6 +3,7 @@ import { useT } from '../i18n';
 import { useEmployeeAuth } from '../auth/EmployeeAuthProvider';
 import { taxApi } from '../api';
 import EmployeeShell from '../components/EmployeeShell';
+import { displayPersonName } from '../lib/personName';
 
 const STATUS_VALUES = ['new', 'contacted', 'converted', 'closed'];
 
@@ -115,7 +116,7 @@ function LeadRow({ lead, auth, onChange, communitySlug, t }) {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
         <div style={{ minWidth: 0, flex: 1 }}>
           <div style={{ fontWeight: 600 }}>
-            {lead.name || lead.email}
+            {displayPersonName(lead) || lead.email}
             <span style={{
               marginLeft: 8, padding: '1px 8px', borderRadius: 999,
               background: b.bg, color: b.fg, fontSize: 11, fontWeight: 700, textTransform: 'uppercase',

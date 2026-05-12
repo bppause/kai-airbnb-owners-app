@@ -2269,3 +2269,23 @@ alter table public.tax_relationship_types
   add column if not exists community_id text references public.communities(id) on delete cascade;
 create index if not exists tax_relationship_types_community_idx
   on public.tax_relationship_types(community_id, active, display_order);
+
+-- ─── Structured person names (first / optional middle / last) ─────────────────
+-- All person tables (customers, employees, leads) gain three columns. The
+-- legacy `name` column remains as the canonical display value and is
+-- recomposed by the server whenever parts change. A one-time backfill runs
+-- at server boot for rows where parts are blank and `name` is not.
+alter table public.tax_customers
+  add column if not exists first_name  text not null default '',
+  add column if not exists middle_name text not null default '',
+  add column if not exists last_name   text not null default '';
+
+alter table public.tax_employees
+  add column if not exists first_name  text not null default '',
+  add column if not exists middle_name text not null default '',
+  add column if not exists last_name   text not null default '';
+
+alter table public.tax_leads
+  add column if not exists first_name  text not null default '',
+  add column if not exists middle_name text not null default '',
+  add column if not exists last_name   text not null default '';
