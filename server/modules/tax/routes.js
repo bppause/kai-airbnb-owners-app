@@ -1779,7 +1779,7 @@ module.exports = function createTaxRouter(deps) {
     const communitySlug = trim(req.query.communitySlug, 200);
     if (!communitySlug) return res.status(400).json({ error: 'communitySlug required.' });
     let q = supabase.from('tax_leads')
-      .select('id, name, first_name, middle_name, last_name, email, phone, product_slug, product_slugs, message, preferred_locale, status, notes, contacted_at, created_at')
+      .select('id, name, first_name, middle_name, last_name, email, phone, product_slug, product_slugs, message, preferred_locale, status, notes, contacted_at, converted_customer_id, created_at')
       .eq('community_id', communitySlug)
       .order('created_at', { ascending: false }).limit(500);
     const statusFilter = trim(req.query.status, 40);
@@ -1819,6 +1819,89 @@ module.exports = function createTaxRouter(deps) {
     const { error } = await supabase.from('tax_leads').update(update).eq('id', leadId);
     if (error) return sendSupabaseError(res, error);
     res.json({ ok: true });
+  });
+
+  // ── POST /admin/leads/:id/convert ────────────────────────────────────────
+  // Convert a lead into a customer in one click. Copies the lead's identity
+  // (name parts, email, phone, locale) into a new tax_customers row, drops
+  // the message + interested services into the customer's notes so the
+  // owner can review intent, marks the lead status='converted', and links
+  // the new customer back via converted_customer_id for the leads list.
+  //
+  // Idempotency: if a customer with the same email already exists in this
+  // community, we re-link the lead to that customer instead of erroring.
+  router.post('/admin/leads/:id/convert', async (req, res) => {
+    if (!(await requireOwnerAdmin(req, res))) return;
+    const leadId = trim(req.params.id, 200);
+
+    const { data: lead, error: lErr } = await supabase.from('tax_leads')
+      .select('id, community_id, name, first_name, middle_name, last_name, email, phone, product_slugs, product_slug, message, preferred_locale, status, converted_customer_id')
+      .eq('id', leadId).maybeSingle();
+    if (lErr) return sendSupabaseError(res, lErr);
+    if (!lead) return res.status(404).json({ error: 'Lead not found.' });
+
+    const email = String(lead.email || '').trim().toLowerCase();
+    if (!email) return res.status(400).json({ error: 'Lead has no email to convert.' });
+
+    const { data: existing } = await supabase.from('tax_customers')
+      .select('id, email')
+      .eq('community_id', lead.community_id).eq('email', email).maybeSingle();
+
+    let customerId;
+    let isExistingCustomer = false;
+
+    if (existing) {
+      customerId = existing.id;
+      isExistingCustomer = true;
+    } else {
+      // Compose parts from whichever shape the lead has — older rows may
+      // only have `name` populated until the boot backfill runs.
+      const parts = (lead.first_name || lead.middle_name || lead.last_name)
+        ? normalizeNameParts({ first: lead.first_name, middle: lead.middle_name, last: lead.last_name })
+        : normalizeNameParts(parsePersonName(lead.name));
+      const name = [parts.first, parts.middle, parts.last].filter(Boolean).join(' ');
+
+      // Carry the lead's intent into the customer's notes field so the
+      // owner has the context handy on the new customer's detail page.
+      const services = Array.isArray(lead.product_slugs) && lead.product_slugs.length
+        ? lead.product_slugs.join(', ')
+        : (lead.product_slug || '');
+      const noteLines = [
+        `Converted from lead ${lead.id}`,
+        services ? `Interested in: ${services}` : '',
+        lead.message ? `Original message:\n${lead.message}` : '',
+      ].filter(Boolean);
+
+      customerId = 'cust_' + uuidv4().slice(0, 16);
+      const { error: insErr } = await supabase.from('tax_customers').insert({
+        id: customerId,
+        community_id: lead.community_id,
+        email,
+        name, first_name: parts.first, middle_name: parts.middle, last_name: parts.last,
+        phone: lead.phone || '',
+        locale: lead.preferred_locale === 'en' ? 'en' : 'es',
+        status: 'active',
+        notes: noteLines.join('\n\n').slice(0, MAX_TEXT_LEN),
+      });
+      if (insErr) return sendSupabaseError(res, insErr);
+    }
+
+    const { error: updErr } = await supabase.from('tax_leads').update({
+      status: 'converted',
+      converted_customer_id: customerId,
+      updated_at: new Date().toISOString(),
+    }).eq('id', leadId);
+    if (updErr) return sendSupabaseError(res, updErr);
+
+    try {
+      await auditLog({
+        entity: 'tax.lead', entityId: leadId, action: 'convert',
+        actorEmail: trim(req.get('x-firebase-email') || req.get('x-admin-email') || '', 200).toLowerCase(),
+        after: { customerId, isExistingCustomer },
+      });
+    } catch (_e) {}
+
+    res.json({ ok: true, customerId, isExistingCustomer });
   });
 
   // ────────────────────────────────────────────────────────────────────────────

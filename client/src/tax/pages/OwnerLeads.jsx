@@ -105,11 +105,23 @@ function LeadRow({ lead, auth, onChange, communitySlug, t }) {
     finally { setBusy(false); }
   };
 
-  // "Convert to customer" deep-links into the customer-create form on
-  // /tax/{slug}/employee/customers — using URL fragments to prefill the
-  // form is over-engineering for v1, so we just navigate there and the
-  // owner clicks Add manually with the lead info in mind.
-  const convertHref = `/tax/${communitySlug}/employee/customers`;
+  // Convert this lead into a customer in one click. Server copies the
+  // identity, marks the lead converted, then we navigate to the new
+  // customer's detail page so the owner can verify and add relationship
+  // tags. If a customer with the same email already exists, we re-link
+  // (no duplicate) and route to that existing record.
+  const onConvert = async () => {
+    if (!window.confirm(t('owner.leads.convert.confirm',
+        { name: lead.name || lead.email }))) return;
+    setBusy(true); setErr('');
+    try {
+      const r = await taxApi.adminConvertLead(auth, lead.id);
+      const url = `/tax/${communitySlug}/employee/customers/${encodeURIComponent(r.customerId)}`;
+      window.location.href = url;
+    } catch (e) {
+      setErr(e?.message || t('respond.error.generic'));
+    } finally { setBusy(false); }
+  };
 
   return (
     <div className="tax-contact-item">
@@ -183,9 +195,17 @@ function LeadRow({ lead, auth, onChange, communitySlug, t }) {
               </button>
             )}
             {lead.status !== 'converted' && (
-              <a href={convertHref} className="tax-btn tax-btn--ghost tax-btn--sm"
-                 style={{ color: 'var(--tax-brand-primary)', borderColor: 'var(--tax-brand-primary)' }}>
+              <button type="button" onClick={onConvert} disabled={busy}
+                      className="tax-btn tax-btn--ghost tax-btn--sm"
+                      style={{ color: 'var(--tax-brand-primary)', borderColor: 'var(--tax-brand-primary)' }}>
                 {t('owner.leads.action.convert')}
+              </button>
+            )}
+            {lead.status === 'converted' && lead.converted_customer_id && (
+              <a href={`/tax/${communitySlug}/employee/customers/${encodeURIComponent(lead.converted_customer_id)}`}
+                 className="tax-btn tax-btn--ghost tax-btn--sm"
+                 style={{ color: 'var(--tax-brand-primary)', borderColor: 'var(--tax-brand-primary)' }}>
+                {t('owner.leads.action.viewCustomer')}
               </a>
             )}
             {lead.status !== 'converted' && (

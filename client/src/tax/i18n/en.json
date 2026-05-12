@@ -907,6 +907,8 @@
   "owner.leads.saveNotes": "Save notes",
   "owner.leads.action.markContacted": "Mark contacted",
   "owner.leads.action.convert": "Convert to customer →",
+  "owner.leads.convert.confirm": "Convert {name} into a customer? We'll copy their name, email, phone, and locale into a new customer record (or link to an existing one with the same email) and mark this lead as converted.",
+  "owner.leads.action.viewCustomer": "View customer →",
   "owner.leads.action.markConverted": "Mark converted",
   "owner.leads.action.close": "Close",
   "owner.leads.action.reopen": "Reopen",
