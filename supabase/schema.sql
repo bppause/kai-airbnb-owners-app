@@ -2298,3 +2298,103 @@ create index if not exists idx_tax_leads_converted_customer
 -- stays as the short one-liner; this is the optional richer copy.
 alter table public.tax_products
   add column if not exists long_description_i18n jsonb not null default '{}'::jsonb;
+
+-- ─── Industry best-practice default schedules ─────────────────────────────────
+-- Extends the original seed in this file with the schedules most tax
+-- practices need out of the box. Idempotent — `on conflict (id) do nothing`
+-- means re-running the file leaves existing rows alone.
+insert into public.tax_filing_schedules
+  (id, community_id, product_id, slug, jurisdiction, cadence, anchor_rule,
+   info_checklist, name_i18n, description_i18n, display_order) values
+
+-- Annual federal 1040 (individual) — calendar-year deadline April 15.
+('tax-america-services:fed-1040', 'tax-america-services', 'tax-america-services:individual-tax', 'fed-1040',
+  'federal', 'annual',
+  '{"type":"annual","date":"04-15"}'::jsonb,
+  '[
+    {"key":"w2_form","type":"file","required":true,"label_i18n":{"es":"Formulario(s) W-2","en":"W-2 form(s)"}},
+    {"key":"ten99_forms","type":"file","required":false,"label_i18n":{"es":"Formularios 1099 (si aplica)","en":"1099 forms (if any)"}},
+    {"key":"mortgage_interest","type":"currency","required":false,"label_i18n":{"es":"Interés hipotecario pagado (USD)","en":"Mortgage interest paid (USD)"}},
+    {"key":"charitable_giving","type":"currency","required":false,"label_i18n":{"es":"Donaciones caritativas (USD)","en":"Charitable contributions (USD)"}},
+    {"key":"medical_expenses","type":"currency","required":false,"label_i18n":{"es":"Gastos médicos (USD)","en":"Medical expenses (USD)"}},
+    {"key":"notes","type":"text","required":false,"label_i18n":{"es":"Algo más que debamos saber","en":"Anything else we should know"}}
+  ]'::jsonb,
+  '{"es":"Declaración Federal Anual 1040","en":"Federal 1040 — Annual Individual Return"}'::jsonb,
+  '{"es":"Declaración federal anual de impuesto sobre la renta. Vence el 15 de abril.","en":"Annual federal income tax return. Due April 15."}'::jsonb,
+  80),
+
+-- Annual federal 1120 (C-Corp) — April 15.
+('tax-america-services:fed-1120', 'tax-america-services', 'tax-america-services:business-tax', 'fed-1120',
+  'federal', 'annual',
+  '{"type":"annual","date":"04-15"}'::jsonb,
+  '[
+    {"key":"financial_statements","type":"file","required":true,"label_i18n":{"es":"Estados financieros de fin de año (P&G, balance)","en":"Year-end financial statements (P&L, balance sheet)"}},
+    {"key":"general_ledger","type":"file","required":false,"label_i18n":{"es":"Libro mayor / balance de prueba","en":"General ledger / trial balance"}},
+    {"key":"asset_acquisitions","type":"text","required":false,"label_i18n":{"es":"Compras o ventas de activos","en":"New asset purchases or dispositions"}},
+    {"key":"notes","type":"text","required":false,"label_i18n":{"es":"Notas","en":"Notes"}}
+  ]'::jsonb,
+  '{"es":"Declaración Anual Corporativa (1120)","en":"Federal 1120 — C-Corp Annual Return"}'::jsonb,
+  '{"es":"Declaración anual de impuesto sobre la renta para corporaciones C. Vence el 15 de abril.","en":"Annual income tax return for C-corporations. Due April 15."}'::jsonb,
+  90),
+
+-- Annual federal 1120-S (S-Corp) — March 15.
+('tax-america-services:fed-1120s', 'tax-america-services', 'tax-america-services:business-tax', 'fed-1120s',
+  'federal', 'annual',
+  '{"type":"annual","date":"03-15"}'::jsonb,
+  '[
+    {"key":"financial_statements","type":"file","required":true,"label_i18n":{"es":"Estados financieros de fin de año","en":"Year-end financial statements"}},
+    {"key":"shareholder_list","type":"text","required":true,"label_i18n":{"es":"Lista de accionistas con porcentaje de participación","en":"Shareholder list with ownership percentages"}},
+    {"key":"shareholder_distributions","type":"currency","required":false,"label_i18n":{"es":"Distribuciones totales a accionistas (USD)","en":"Total distributions to shareholders (USD)"}},
+    {"key":"reasonable_comp_paid","type":"currency","required":false,"label_i18n":{"es":"Compensación razonable pagada a propietarios-empleados (USD)","en":"Reasonable compensation paid to owner-employees (USD)"}},
+    {"key":"notes","type":"text","required":false,"label_i18n":{"es":"Notas","en":"Notes"}}
+  ]'::jsonb,
+  '{"es":"Declaración Anual S-Corp (1120-S)","en":"Federal 1120-S — S-Corp Annual Return"}'::jsonb,
+  '{"es":"Declaración anual de impuesto sobre la renta para corporaciones S. Vence el 15 de marzo. Se emiten K-1 a los accionistas.","en":"Annual income tax return for S-corporations. Due March 15. K-1s issued to shareholders."}'::jsonb,
+  100),
+
+-- Annual federal 1065 (Partnership / multi-member LLC) — March 15.
+('tax-america-services:fed-1065', 'tax-america-services', 'tax-america-services:business-tax', 'fed-1065',
+  'federal', 'annual',
+  '{"type":"annual","date":"03-15"}'::jsonb,
+  '[
+    {"key":"financial_statements","type":"file","required":true,"label_i18n":{"es":"Estados financieros de fin de año","en":"Year-end financial statements"}},
+    {"key":"partner_list","type":"text","required":true,"label_i18n":{"es":"Lista de socios con porcentaje de propiedad","en":"Partner list with ownership / profit-share percentages"}},
+    {"key":"partner_distributions","type":"currency","required":false,"label_i18n":{"es":"Distribuciones totales a socios (USD)","en":"Total distributions to partners (USD)"}},
+    {"key":"guaranteed_payments","type":"currency","required":false,"label_i18n":{"es":"Pagos garantizados a socios (USD)","en":"Guaranteed payments to partners (USD)"}},
+    {"key":"notes","type":"text","required":false,"label_i18n":{"es":"Notas","en":"Notes"}}
+  ]'::jsonb,
+  '{"es":"Declaración Anual de Sociedad (1065)","en":"Federal 1065 — Partnership Annual Return"}'::jsonb,
+  '{"es":"Declaración anual para sociedades y LLCs multi-miembro. Vence el 15 de marzo. Se emiten K-1 a los socios.","en":"Annual return for partnerships and multi-member LLCs. Due March 15. K-1s issued to partners."}'::jsonb,
+  110),
+
+-- Monthly bookkeeping close — internal practice cadence, due 15th of next month.
+('tax-america-services:bookkeeping-monthly', 'tax-america-services', 'tax-america-services:bookkeeping', 'bookkeeping-monthly',
+  'firm', 'monthly',
+  '{"type":"monthly_following","day":15}'::jsonb,
+  '[
+    {"key":"bank_statements","type":"file","required":true,"label_i18n":{"es":"Estado(s) de cuenta bancarios del mes (PDF)","en":"Bank statement(s) for the month (PDF)"}},
+    {"key":"credit_card_statements","type":"file","required":false,"label_i18n":{"es":"Estado(s) de tarjeta de crédito (PDF)","en":"Credit card statement(s) (PDF)"}},
+    {"key":"expense_receipts","type":"file","required":false,"label_i18n":{"es":"Recibos de gastos significativos","en":"Significant expense receipts"}},
+    {"key":"large_transactions","type":"text","required":false,"label_i18n":{"es":"Notas sobre transacciones grandes o inusuales","en":"Notes on large or unusual transactions"}}
+  ]'::jsonb,
+  '{"es":"Cierre Mensual de Contabilidad","en":"Monthly Bookkeeping Close"}'::jsonb,
+  '{"es":"Cierre mensual del período anterior. Entrega de estados financieros el día 15 del mes siguiente.","en":"Monthly close of the prior period. Financials delivered by the 15th."}'::jsonb,
+  120),
+
+-- IRS notice response — episodic, 30-day window.
+('tax-america-services:irs-notice', 'tax-america-services', 'tax-america-services:irs-representation', 'irs-notice',
+  'federal', 'annual',
+  '{"type":"annual","date":"12-31"}'::jsonb,
+  '[
+    {"key":"notice_copy","type":"file","required":true,"label_i18n":{"es":"Copia del aviso del IRS (todas las páginas)","en":"Copy of the IRS notice (all pages)"}},
+    {"key":"notice_number","type":"text","required":true,"label_i18n":{"es":"Número del aviso (ej., CP2000, LT11)","en":"Notice number (e.g., CP2000, LT11)"}},
+    {"key":"tax_year","type":"text","required":true,"label_i18n":{"es":"Año fiscal referenciado en el aviso","en":"Tax year referenced in the notice"}},
+    {"key":"response_deadline","type":"date","required":true,"label_i18n":{"es":"Fecha límite impresa en el aviso","en":"Response deadline printed on the notice"}},
+    {"key":"authorization_2848","type":"file","required":false,"label_i18n":{"es":"Formulario 2848 firmado si no lo tenemos","en":"Signed Form 2848 if not already on file"}},
+    {"key":"notes","type":"text","required":false,"label_i18n":{"es":"Contexto — qué estaba ocurriendo ese año","en":"Context — what was happening that year"}}
+  ]'::jsonb,
+  '{"es":"Respuesta a Aviso del IRS","en":"IRS Notice Response"}'::jsonb,
+  '{"es":"Respuesta al aviso del IRS. Ventana estatutaria de 30 días — ajuste según la fecha impresa.","en":"IRS notice response. Statutory 30-day window — adjust to the printed deadline."}'::jsonb,
+  130)
+
+on conflict (id) do nothing;

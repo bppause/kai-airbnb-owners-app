@@ -179,6 +179,204 @@ const TEMPLATES = [
     ],
     suggested_offsets: [2, 1],
   },
+
+  // ── Monthly bookkeeping close ───────────────────────────────────────────
+  // Standard industry practice: close the prior month's books by the 15th of
+  // the following month so financials are timely for management decisions.
+  {
+    id: 'monthly-bookkeeping-close',
+    category: 'business',
+    jurisdiction: 'firm',
+    suggested_slug: 'bookkeeping-monthly',
+    name_i18n: {
+      en: 'Monthly Bookkeeping Close',
+      es: 'Cierre Mensual de Contabilidad',
+    },
+    description_i18n: {
+      en: 'Monthly close of the prior period: bank + credit-card reconciliations, categorize expenses, deliver financials by the 15th.',
+      es: 'Cierre mensual del período anterior: conciliaciones bancarias y de tarjetas, categorización de gastos, entrega de estados financieros antes del día 15.',
+    },
+    cadence: 'monthly',
+    anchor_rule: { type: 'monthly_following', day: 15 },
+    info_checklist: [
+      { key: 'bank_statements', type: 'file', required: true,
+        label_i18n: { en: 'Bank statement(s) for the month (PDF)', es: 'Estado(s) de cuenta bancarios del mes (PDF)' } },
+      { key: 'credit_card_statements', type: 'file', required: false,
+        label_i18n: { en: 'Credit card statement(s) (PDF)', es: 'Estado(s) de tarjeta de crédito (PDF)' } },
+      { key: 'expense_receipts', type: 'file', required: false,
+        label_i18n: { en: 'Significant expense receipts (PDF/JPG)', es: 'Recibos de gastos significativos (PDF/JPG)' } },
+      { key: 'large_transactions', type: 'text', required: false,
+        label_i18n: { en: 'Notes on large or unusual transactions', es: 'Notas sobre transacciones grandes o inusuales' } },
+    ],
+    suggested_offsets: [10, 5, 2],
+  },
+
+  // ── Federal 1120 (C-Corp annual) ────────────────────────────────────────
+  // Due the 15th day of the 4th month after fiscal year end. For calendar-
+  // year corporations that's April 15. Owner can shift the anchor for fiscal
+  // year filers.
+  {
+    id: 'federal-1120-annual',
+    category: 'federal',
+    jurisdiction: 'federal',
+    suggested_slug: 'fed-1120',
+    name_i18n: {
+      en: 'Federal 1120 — C-Corporation Annual Return',
+      es: 'Federal 1120 — Declaración Anual de Corporación C',
+    },
+    description_i18n: {
+      en: 'Annual income tax return for C-corporations. Calendar-year due date is April 15.',
+      es: 'Declaración anual del impuesto sobre la renta para corporaciones C. Vence el 15 de abril para año fiscal calendario.',
+    },
+    cadence: 'annual',
+    anchor_rule: { type: 'annual', date: '04-15' },
+    info_checklist: [
+      { key: 'financial_statements', type: 'file', required: true,
+        label_i18n: { en: 'Year-end financial statements (P&L, balance sheet)', es: 'Estados financieros de fin de año (P&G, balance)' } },
+      { key: 'general_ledger', type: 'file', required: false,
+        label_i18n: { en: 'General ledger / trial balance', es: 'Libro mayor / balance de prueba' } },
+      { key: 'prior_return', type: 'file', required: false,
+        label_i18n: { en: 'Prior-year tax return (first year only)', es: 'Declaración del año anterior (solo el primer año)' } },
+      { key: 'asset_acquisitions', type: 'text', required: false,
+        label_i18n: { en: 'New asset purchases or dispositions', es: 'Compras o ventas de activos' } },
+      { key: 'notes', type: 'text', required: false,
+        label_i18n: { en: 'Anything else we should know', es: '¿Algo más que debamos saber?' } },
+    ],
+    suggested_offsets: [60, 30, 14, 7],
+  },
+
+  // ── Federal 1120-S (S-Corp annual) ──────────────────────────────────────
+  // Due the 15th day of the 3rd month after fiscal year end. Calendar-year
+  // S-corps file by March 15.
+  {
+    id: 'federal-1120s-annual',
+    category: 'federal',
+    jurisdiction: 'federal',
+    suggested_slug: 'fed-1120s',
+    name_i18n: {
+      en: 'Federal 1120-S — S-Corporation Annual Return',
+      es: 'Federal 1120-S — Declaración Anual de Corporación S',
+    },
+    description_i18n: {
+      en: 'Annual income tax return for S-corporations. Calendar-year due date is March 15. K-1s issued to shareholders.',
+      es: 'Declaración anual del impuesto sobre la renta para corporaciones S. Vence el 15 de marzo para año fiscal calendario. Se emiten K-1 a los accionistas.',
+    },
+    cadence: 'annual',
+    anchor_rule: { type: 'annual', date: '03-15' },
+    info_checklist: [
+      { key: 'financial_statements', type: 'file', required: true,
+        label_i18n: { en: 'Year-end financial statements (P&L, balance sheet)', es: 'Estados financieros de fin de año (P&G, balance)' } },
+      { key: 'shareholder_list', type: 'text', required: true,
+        label_i18n: { en: 'Shareholder list with ownership percentages', es: 'Lista de accionistas con porcentaje de participación' } },
+      { key: 'shareholder_distributions', type: 'currency', required: false,
+        label_i18n: { en: 'Total distributions to shareholders (USD)', es: 'Distribuciones totales a accionistas (USD)' } },
+      { key: 'reasonable_comp_paid', type: 'currency', required: false,
+        label_i18n: { en: 'Reasonable compensation paid to owner-employees (USD)', es: 'Compensación razonable pagada a propietarios-empleados (USD)' } },
+      { key: 'notes', type: 'text', required: false,
+        label_i18n: { en: 'Anything else we should know', es: '¿Algo más que debamos saber?' } },
+    ],
+    suggested_offsets: [60, 30, 14, 7],
+  },
+
+  // ── Federal 1065 (Partnership / Multi-member LLC annual) ────────────────
+  // Same March 15 due date as 1120-S. K-1s issued to partners.
+  {
+    id: 'federal-1065-annual',
+    category: 'federal',
+    jurisdiction: 'federal',
+    suggested_slug: 'fed-1065',
+    name_i18n: {
+      en: 'Federal 1065 — Partnership Annual Return',
+      es: 'Federal 1065 — Declaración Anual de Sociedad',
+    },
+    description_i18n: {
+      en: 'Annual return for partnerships and multi-member LLCs. Calendar-year due date is March 15. K-1s issued to partners.',
+      es: 'Declaración anual para sociedades y LLCs multi-miembro. Vence el 15 de marzo para año fiscal calendario. Se emiten K-1 a los socios.',
+    },
+    cadence: 'annual',
+    anchor_rule: { type: 'annual', date: '03-15' },
+    info_checklist: [
+      { key: 'financial_statements', type: 'file', required: true,
+        label_i18n: { en: 'Year-end financial statements (P&L, balance sheet)', es: 'Estados financieros de fin de año (P&G, balance)' } },
+      { key: 'partner_list', type: 'text', required: true,
+        label_i18n: { en: 'Partner list with ownership / profit-share percentages', es: 'Lista de socios con porcentaje de propiedad / participación' } },
+      { key: 'partner_distributions', type: 'currency', required: false,
+        label_i18n: { en: 'Total distributions to partners (USD)', es: 'Distribuciones totales a socios (USD)' } },
+      { key: 'guaranteed_payments', type: 'currency', required: false,
+        label_i18n: { en: 'Guaranteed payments to partners (USD)', es: 'Pagos garantizados a socios (USD)' } },
+      { key: 'notes', type: 'text', required: false,
+        label_i18n: { en: 'Anything else we should know', es: '¿Algo más que debamos saber?' } },
+    ],
+    suggested_offsets: [60, 30, 14, 7],
+  },
+
+  // ── State sales tax quarterly ───────────────────────────────────────────
+  // Generic state quarterly schedule for smaller-volume sellers (most states
+  // require quarterly if monthly sales tax is below a threshold). Owner
+  // edits the anchor + state for their jurisdiction after cloning.
+  {
+    id: 'state-sales-tax-quarterly',
+    category: 'state',
+    jurisdiction: 'state',
+    suggested_slug: 'state-sales-tax-quarterly',
+    name_i18n: {
+      en: 'State Sales Tax — Quarterly',
+      es: 'Impuesto Estatal sobre Ventas — Trimestral',
+    },
+    description_i18n: {
+      en: 'Quarterly sales tax remittance for lower-volume sellers. Default due dates align with calendar quarters — adjust per state.',
+      es: 'Remesa trimestral de impuesto sobre ventas para vendedores de menor volumen. Fechas predeterminadas en trimestres calendario — ajuste según el estado.',
+    },
+    cadence: 'quarterly',
+    anchor_rule: { type: 'fixed_quarterly', dates: ['04-30', '07-31', '10-31', '01-31'] },
+    info_checklist: [
+      { key: 'gross_sales', type: 'currency', required: true,
+        label_i18n: { en: 'Gross sales for the quarter (USD)', es: 'Ventas brutas del trimestre (USD)' } },
+      { key: 'taxable_sales', type: 'currency', required: true,
+        label_i18n: { en: 'Taxable sales (USD)', es: 'Ventas gravables (USD)' } },
+      { key: 'exempt_sales', type: 'currency', required: false,
+        label_i18n: { en: 'Exempt / non-taxable sales (USD)', es: 'Ventas exentas / no gravables (USD)' } },
+      { key: 'tax_collected', type: 'currency', required: true,
+        label_i18n: { en: 'Sales tax collected (USD)', es: 'Impuesto sobre ventas recaudado (USD)' } },
+    ],
+    suggested_offsets: [21, 7, 2],
+  },
+
+  // ── IRS notice response (ad-hoc) ────────────────────────────────────────
+  // Triggered when a client receives an IRS letter. Statutory response
+  // window is typically 30 days. Set as a one-off-style annual cadence so a
+  // single period gets generated; owner moves the due date manually.
+  {
+    id: 'irs-notice-response',
+    category: 'representation',
+    jurisdiction: 'federal',
+    suggested_slug: 'irs-notice-response',
+    name_i18n: {
+      en: 'IRS Notice Response (30-day window)',
+      es: 'Respuesta a Aviso del IRS (ventana de 30 días)',
+    },
+    description_i18n: {
+      en: 'Triggered when the client receives an IRS letter. Default 30-day response window — verify the deadline printed on the notice and adjust.',
+      es: 'Se activa cuando el cliente recibe una carta del IRS. Ventana predeterminada de 30 días — verifique la fecha impresa en el aviso y ajuste.',
+    },
+    cadence: 'annual',
+    anchor_rule: { type: 'annual', date: '12-31' },
+    info_checklist: [
+      { key: 'notice_copy', type: 'file', required: true,
+        label_i18n: { en: 'Copy of the IRS notice (all pages, PDF)', es: 'Copia del aviso del IRS (todas las páginas, PDF)' } },
+      { key: 'notice_number', type: 'text', required: true,
+        label_i18n: { en: 'Notice number (e.g., CP2000, LT11)', es: 'Número del aviso (ej., CP2000, LT11)' } },
+      { key: 'tax_year', type: 'text', required: true,
+        label_i18n: { en: 'Tax year referenced in the notice', es: 'Año fiscal referenciado en el aviso' } },
+      { key: 'response_deadline', type: 'date', required: true,
+        label_i18n: { en: 'Response deadline printed on the notice', es: 'Fecha límite impresa en el aviso' } },
+      { key: 'authorization_2848', type: 'file', required: false,
+        label_i18n: { en: 'Signed Form 2848 (Power of Attorney) if not already on file', es: 'Formulario 2848 (Poder Notarial) firmado si no lo tenemos' } },
+      { key: 'notes', type: 'text', required: false,
+        label_i18n: { en: 'Context — what was happening that year', es: 'Contexto — qué estaba ocurriendo ese año' } },
+    ],
+    suggested_offsets: [14, 7, 3, 1],
+  },
 ];
 
 function listTemplates() { return TEMPLATES; }
