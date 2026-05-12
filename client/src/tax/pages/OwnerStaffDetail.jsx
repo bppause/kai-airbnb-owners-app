@@ -1,10 +1,37 @@
-import { useEffect, useState } from 'react';
-import { useT } from '../i18n';
+import { useEffect, useMemo, useState } from 'react';
+import { pickI18n, useT } from '../i18n';
 import { useEmployeeAuth } from '../auth/EmployeeAuthProvider';
 import { taxApi, setImpersonation } from '../api';
 import EmployeeShell from '../components/EmployeeShell';
 
 import { formatLastSignIn } from '../lib/lastSignIn';
+
+// Category display order mirrors OwnerCustomers so the chip groups feel
+// consistent between the customer browser and the assignment manager.
+const CATEGORY_ORDER = ['business', 'individual', 'general', 'audit'];
+
+function groupTypesByCategory(types) {
+  const buckets = new Map();
+  for (const t of types) {
+    const c = t.category || 'other';
+    if (!buckets.has(c)) buckets.set(c, []);
+    buckets.get(c).push(t);
+  }
+  for (const arr of buckets.values()) {
+    arr.sort((a, b) => (a.display_order || 0) - (b.display_order || 0));
+  }
+  const known = CATEGORY_ORDER.filter(c => buckets.has(c));
+  const extras = Array.from(buckets.keys())
+    .filter(c => !CATEGORY_ORDER.includes(c)).sort();
+  return [...known, ...extras].map(c => ({ category: c, types: buckets.get(c) }));
+}
+
+// First-letter bucket for alphabet grouping. Falls back to "#" for rows
+// that don't start with a letter so digits/symbols don't get scattered.
+function bucketLetter(name) {
+  const first = (name || '').trim().charAt(0).toUpperCase();
+  return /[A-Z]/.test(first) ? first : '#';
+}
 
 // Owner-side view of a single employee. Profile is read-only (the employee
 // edits their own profile via /employee/profile); the action surface here is
@@ -108,18 +135,24 @@ export default function OwnerStaffDetail({ employeeId }) {
         <AssignmentManager
           assignments={assignments} customers={customers}
           empId={employeeId} auth={auth}
-          onChange={loadAssignments} t={t} />
+          onChange={loadAssignments} t={t}
+          locale={locale} community={community} />
       )}
     </EmployeeShell>
   );
 }
 
-// Phase 4n.19: unified assignment roster. One list of every customer in
-// the community with an "Assigned" checkbox per row + a "Lead" toggle when
-// assigned. Owner toggles multiple, sees the running count of pending
-// changes, and saves all in one click. Search filters the list so the
-// long customer rosters stay manageable.
-function AssignmentManager({ assignments, customers, empId, auth, onChange, t }) {
+// Unified assignment roster. One list of every customer in the community
+// with an "Assigned" checkbox per row + a "Lead" toggle when assigned.
+// Owner toggles multiple, sees the running count of pending changes, and
+// saves all in one click.
+//
+// Browsing mirrors the OwnerCustomers page so the experience feels the
+// same across the two screens: debounced search, relationship-type chip
+// filter, and an "Assigned / Unassigned / All" status pill. When no
+// search is active the rows are grouped alphabetically by first letter
+// so long rosters scan quickly.
+function AssignmentManager({ assignments, customers, empId, auth, onChange, t, locale, community }) {
   // Initial state derived from the server-side assignment list. We keep
   // these in refs-of-truth (initialAssigned / initialPrimary) so the diff
   // for Save is straightforward and a stale render doesn't cause spurious
@@ -129,9 +162,39 @@ function AssignmentManager({ assignments, customers, empId, auth, onChange, t })
 
   const [assignedSet, setAssignedSet] = useState(() => new Set(initialAssigned));
   const [primaryMap, setPrimaryMap] = useState(() => new Map(initialPrimary));
+  const [searchInput, setSearchInput] = useState('');
   const [query, setQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all'); // 'all' | 'assigned' | 'unassigned'
+  const [relationshipFilter, setRelationshipFilter] = useState([]); // type ids
+  const [allTypes, setAllTypes] = useState([]);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
+
+  // Debounce search input the same way OwnerCustomers does so big rosters
+  // don't restyle on every keystroke.
+  useEffect(() => {
+    const id = setTimeout(() => setQuery(searchInput.trim()), 200);
+    return () => clearTimeout(id);
+  }, [searchInput]);
+
+  // Load relationship-type catalog for the chip filter. Soft-fail: if
+  // the admin gate 403s for any reason, just hide the chip row.
+  useEffect(() => {
+    if (!auth?.uid || !community?.id) return;
+    taxApi.adminListRelationshipTypes(auth, { communitySlug: community.id })
+      .then(d => setAllTypes(d.types || []))
+      .catch(() => setAllTypes([]));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [auth?.uid, community?.id]);
+
+  const groupedTypes = useMemo(() => groupTypesByCategory(allTypes), [allTypes]);
+
+  const toggleRelationshipFilter = (typeId) =>
+    setRelationshipFilter(prev =>
+      prev.includes(typeId) ? prev.filter(id => id !== typeId) : [...prev, typeId]);
+  const clearFilters = () => {
+    setRelationshipFilter([]); setStatusFilter('all'); setSearchInput('');
+  };
 
   // Re-sync when the server-side assignments change (after a save).
   useEffect(() => {
@@ -198,20 +261,47 @@ function AssignmentManager({ assignments, customers, empId, auth, onChange, t })
     setPrimaryMap(new Map(initialPrimary));
   };
 
-  const q = query.trim().toLowerCase();
+  const q = query.toLowerCase();
   const filtered = (customers || []).filter(c => {
-    if (!q) return true;
-    return (c.name || '').toLowerCase().includes(q)
-        || (c.email || '').toLowerCase().includes(q);
+    if (statusFilter === 'assigned' && !assignedSet.has(c.id)) return false;
+    if (statusFilter === 'unassigned' && assignedSet.has(c.id)) return false;
+    if (relationshipFilter.length) {
+      const typeIds = new Set((c.relationships || []).map(r => r.relationship_type_id || r.type?.id));
+      const hit = relationshipFilter.some(id => typeIds.has(id));
+      if (!hit) return false;
+    }
+    if (q) {
+      const hay = `${c.name || ''} ${c.email || ''} ${c.phone || ''} ${c.whatsapp || ''}`.toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
+    return true;
   });
-  // Sort: assigned-first, then alphabetical. Owner can scan the assigned
-  // block at the top and add new ones below.
-  filtered.sort((a, b) => {
-    const aA = assignedSet.has(a.id) ? 0 : 1;
-    const bA = assignedSet.has(b.id) ? 0 : 1;
-    if (aA !== bA) return aA - bA;
-    return (a.name || a.email || '').localeCompare(b.name || b.email || '');
-  });
+
+  filtered.sort((a, b) =>
+    (a.name || a.email || '').localeCompare(b.name || b.email || ''));
+
+  // Group by first letter only when not searching — search results stay
+  // flat so the rows the owner is hunting for aren't broken across
+  // section headers. Status/relationship filters keep grouping.
+  const grouping = !q && filtered.length > 8;
+  const sections = (() => {
+    if (!grouping) return [{ letter: null, rows: filtered }];
+    const map = new Map();
+    for (const c of filtered) {
+      const l = bucketLetter(c.name || c.email);
+      if (!map.has(l)) map.set(l, []);
+      map.get(l).push(c);
+    }
+    return Array.from(map.entries())
+      .sort(([a], [b]) => {
+        if (a === '#') return 1;
+        if (b === '#') return -1;
+        return a.localeCompare(b);
+      })
+      .map(([letter, rows]) => ({ letter, rows }));
+  })();
+
+  const filtersActive = query || statusFilter !== 'all' || relationshipFilter.length;
 
   return (
     <>
@@ -219,7 +309,7 @@ function AssignmentManager({ assignments, customers, empId, auth, onChange, t })
         display: 'flex', gap: 8, alignItems: 'center',
         marginBottom: 10, flexWrap: 'wrap',
       }}>
-        <input type="search" value={query} onChange={e => setQuery(e.target.value)}
+        <input type="search" value={searchInput} onChange={e => setSearchInput(e.target.value)}
                placeholder={t('owner.staffDetail.searchPlaceholder')}
                style={{ flex: 1, minWidth: 240, padding: '8px 10px',
                         border: '1px solid var(--tax-border)', borderRadius: 8 }} />
@@ -231,13 +321,112 @@ function AssignmentManager({ assignments, customers, empId, auth, onChange, t })
         </span>
       </div>
 
+      {/* Status pill: All / Assigned / Unassigned. Mirrors the visual style
+          of the relationship chips below so the two filter rows feel
+          related. */}
+      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 10 }}>
+        {[
+          { key: 'all', label: t('owner.staffDetail.filter.all') },
+          { key: 'assigned', label: t('owner.staffDetail.filter.assigned') },
+          { key: 'unassigned', label: t('owner.staffDetail.filter.unassigned') },
+        ].map(opt => {
+          const active = statusFilter === opt.key;
+          return (
+            <button key={opt.key} type="button"
+                    onClick={() => setStatusFilter(opt.key)}
+                    style={{
+                      padding: '4px 12px', borderRadius: 999,
+                      background: active
+                        ? 'color-mix(in srgb, var(--tax-brand-primary) 12%, #fff)'
+                        : '#fff',
+                      color: active ? 'var(--tax-brand-primary)' : 'var(--tax-text)',
+                      border: '1px solid',
+                      borderColor: active
+                        ? 'color-mix(in srgb, var(--tax-brand-primary) 35%, #fff)'
+                        : 'var(--tax-border)',
+                      fontSize: 12, fontWeight: active ? 700 : 500, cursor: 'pointer',
+                    }}>
+              {opt.label}
+            </button>
+          );
+        })}
+        {filtersActive && (
+          <button type="button" onClick={clearFilters}
+                  style={{
+                    marginLeft: 4, border: 0, background: 'transparent',
+                    color: 'var(--tax-brand-primary)', cursor: 'pointer',
+                    fontSize: 11, fontWeight: 700, textTransform: 'uppercase',
+                  }}>
+            {t('owner.customers.clearFilters')}
+          </button>
+        )}
+      </div>
+
+      {allTypes.length > 0 && (
+        <div style={{ marginBottom: 14 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--tax-muted)',
+                        textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 6 }}>
+            {t('owner.customers.filterRelationships')}
+          </div>
+          <div style={{ display: 'grid', gap: 8 }}>
+            {groupedTypes.map(({ category, types }) => (
+              <div key={category}>
+                <div style={{
+                  fontSize: 11, fontWeight: 700, color: 'var(--tax-muted)',
+                  textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 4,
+                }}>
+                  {t(`owner.customers.category.${category}`, { _: category })}
+                </div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                  {types.map(tp => {
+                    const active = relationshipFilter.includes(tp.id);
+                    return (
+                      <button key={tp.id} type="button"
+                              onClick={() => toggleRelationshipFilter(tp.id)}
+                              style={{
+                                padding: '4px 10px', borderRadius: 999,
+                                background: active
+                                  ? 'color-mix(in srgb, var(--tax-brand-primary) 12%, #fff)'
+                                  : '#fff',
+                                color: active ? 'var(--tax-brand-primary)' : 'var(--tax-text)',
+                                border: '1px solid',
+                                borderColor: active
+                                  ? 'color-mix(in srgb, var(--tax-brand-primary) 35%, #fff)'
+                                  : 'var(--tax-border)',
+                                fontSize: 12, fontWeight: active ? 700 : 500, cursor: 'pointer',
+                              }}>
+                        {pickI18n(tp.name_i18n, locale).value || tp.slug}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {err && <div className="tax-msg tax-msg--error" style={{ marginBottom: 8 }}>{err}</div>}
 
       {(!customers || customers.length === 0) ? (
         <p style={{ color: 'var(--tax-muted)' }}>{t('owner.staffDetail.noCustomers')}</p>
+      ) : filtered.length === 0 ? (
+        <p style={{ color: 'var(--tax-muted)' }}>{t('owner.staffDetail.noMatch')}</p>
       ) : (
-        <div style={{ display: 'grid', gap: 6 }}>
-          {filtered.map(c => {
+        <div style={{ display: 'grid', gap: 14 }}>
+          {sections.map(({ letter, rows }) => (
+          <div key={letter || '_flat'} style={{ display: 'grid', gap: 6 }}>
+            {letter && (
+              <div style={{
+                position: 'sticky', top: 0, zIndex: 1,
+                padding: '4px 0', background: 'rgba(255,255,255,.96)',
+                fontSize: 11, fontWeight: 700, color: 'var(--tax-muted)',
+                letterSpacing: '.5px',
+              }}>
+                {letter}
+              </div>
+            )}
+            {rows.map(c => {
             const isAssigned = assignedSet.has(c.id);
             const wasAssigned = initialAssigned.has(c.id);
             const wasPrimary  = !!initialPrimary.get(c.id);
@@ -273,6 +462,8 @@ function AssignmentManager({ assignments, customers, empId, auth, onChange, t })
               </div>
             );
           })}
+          </div>
+          ))}
         </div>
       )}
 
