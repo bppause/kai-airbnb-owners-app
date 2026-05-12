@@ -1003,7 +1003,13 @@ module.exports = function createTaxSenders(deps) {
   // Staff onboarding email — sent when an owner adds an employee row.
   // Mirrors sendTaxWelcomeEmail but points at the /employee URL and uses
   // role-aware copy (admin vs staff). Locale follows emp.locale.
-  const sendTaxStaffWelcomeEmail = async ({ emp, community, employeeUrl }) => {
+  // Phase 4n.16: when the employee's email already has an account on the
+  // platform (either a tax_customers row, or just a Firebase sign-in from
+  // any other role), `existingAccount` is true and the sign-in instructions
+  // become "use your existing credentials" instead of "sign in for the
+  // first time / create a password". Caller (sendWelcomeForEmployee) does
+  // the lookup; promote-to-staff hard-codes it to true.
+  const sendTaxStaffWelcomeEmail = async ({ emp, community, employeeUrl, existingAccount = false }) => {
     if (!emailConfigured) return { sent: false, skipped: true, reason: 'email_not_configured' };
     const to = String(emp?.email || '').trim();
     if (!to) return { sent: false, skipped: true, reason: 'employee_email_missing' };
@@ -1059,28 +1065,59 @@ module.exports = function createTaxSenders(deps) {
       ...bullets,
     ];
 
-    const signInLines = lang === 'en' ? [
-      '',
-      'To sign in for the first time, visit:',
-      '',
-      `  ${employeeUrl}`,
-      '',
-      `You can sign in with Google or create a password using this email address (${to}).`,
-      '',
-      'If you have any questions about getting started, simply reply to this email.',
-    ] : [
-      '',
-      'Para iniciar sesión por primera vez, visite:',
-      '',
-      `  ${employeeUrl}`,
-      '',
-      `Puede iniciar sesión con Google o crear una contraseña usando este correo (${to}).`,
-      '',
-      'Si tiene alguna pregunta sobre cómo comenzar, simplemente responda a este correo.',
-    ];
+    // Sign-in copy branches on whether the user already has an identity on
+    // the platform. New users have to bootstrap (Google or first-time
+    // password); existing users just visit the staff URL.
+    const signInLines = existingAccount
+      ? (lang === 'en' ? [
+          '',
+          `You already have an account on this platform with ${to}. Sign in to the staff portal at:`,
+          '',
+          `  ${employeeUrl}`,
+          '',
+          'Use the same Google or email/password sign-in you already use — your existing identity will unlock the staff portal automatically.',
+          '',
+          'If you have any questions, simply reply to this email.',
+        ] : [
+          '',
+          `Ya tiene una cuenta en esta plataforma con ${to}. Inicie sesión en el portal del personal en:`,
+          '',
+          `  ${employeeUrl}`,
+          '',
+          'Use el mismo inicio de sesión (Google o correo/contraseña) que ya utiliza — su identidad actual desbloqueará el portal del personal automáticamente.',
+          '',
+          'Si tiene alguna pregunta, simplemente responda a este correo.',
+        ])
+      : (lang === 'en' ? [
+          '',
+          'To finish setting up, visit the staff portal and sign in for the first time:',
+          '',
+          `  ${employeeUrl}`,
+          '',
+          `You'll be asked to sign in with Google or create a password using this email address (${to}). The first sign-in links your account to this staff profile — there's nothing to install.`,
+          '',
+          'If you have any questions about getting started, simply reply to this email.',
+        ] : [
+          '',
+          'Para terminar de configurar, visite el portal del personal e inicie sesión por primera vez:',
+          '',
+          `  ${employeeUrl}`,
+          '',
+          `Le pedirá iniciar sesión con Google o crear una contraseña usando este correo (${to}). El primer inicio de sesión vincula su cuenta con este perfil del personal — no hay nada que instalar.`,
+          '',
+          'Si tiene alguna pregunta sobre cómo comenzar, simplemente responda a este correo.',
+        ]);
 
     const text = [...introLines, ...signInLines, '', closing].join('\n');
     const ctaLabel = lang === 'en' ? 'Open staff portal' : 'Abrir portal del personal';
+
+    const htmlSignInBlurb = existingAccount
+      ? (lang === 'en'
+          ? `You already have an account with ${to}. Use the same Google or email/password sign-in you already use — your existing identity will unlock the staff portal automatically.`
+          : `Ya tiene una cuenta con ${to}. Use el mismo inicio de sesión (Google o correo/contraseña) que ya utiliza — su identidad actual desbloqueará el portal del personal automáticamente.`)
+      : (lang === 'en'
+          ? `You'll be asked to sign in with Google or create a password using this email address (${to}). The first sign-in links your account to this staff profile.`
+          : `Le pedirá iniciar sesión con Google o crear una contraseña usando este correo (${to}). El primer inicio de sesión vincula su cuenta con este perfil del personal.`);
 
     const html = `
       <div style="font-family:Arial,sans-serif;max-width:640px;color:#111">
@@ -1093,15 +1130,11 @@ module.exports = function createTaxSenders(deps) {
           <a href="${employeeUrl}" style="background:#1d3a6d;color:#fff;text-decoration:none;padding:12px 22px;border-radius:8px;font-weight:600;display:inline-block">${escapeHtml(ctaLabel)}</a>
         </p>
         <p style="color:#666;font-size:13px">${escapeHtml(employeeUrl)}</p>
+        <p style="color:#444;font-size:14px">${escapeHtml(htmlSignInBlurb)}</p>
         <p style="color:#444;font-size:14px">
           ${escapeHtml(lang === 'en'
-            ? `You can sign in with Google or create a password using this email address (${to}).`
-            : `Puede iniciar sesión con Google o crear una contraseña usando este correo (${to}).`)}
-        </p>
-        <p style="color:#444;font-size:14px">
-          ${escapeHtml(lang === 'en'
-            ? 'If you have any questions about getting started, simply reply to this email.'
-            : 'Si tiene alguna pregunta sobre cómo comenzar, simplemente responda a este correo.')}
+            ? 'If you have any questions, simply reply to this email.'
+            : 'Si tiene alguna pregunta, simplemente responda a este correo.')}
         </p>
         <p style="white-space:pre-line">${escapeHtml(closing)}</p>
       </div>
