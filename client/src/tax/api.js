@@ -123,6 +123,7 @@ export const taxApi = {
   employeeAuthLink(payload)                     { return request('POST', '/employee/auth/link', payload); },
   getEmployeeMe(auth)                           { return request('GET',  '/employee/me', undefined, auth); },
   updateEmployeeProfile(auth, payload)          { return request('PUT',  '/employee/profile', payload, auth); },
+  getEmployeeNotificationTypes(auth)            { return request('GET',  '/employee/notification-types', undefined, auth); },
   getEmployeeThreads(auth)                      { return request('GET',  '/employee/threads', undefined, auth); },
   getEmployeeThread(auth, id)                   { return request('GET',  `/employee/threads/${encodeURIComponent(id)}`, undefined, auth); },
   postEmployeeMessage(auth, id, payload)        { return request('POST', `/employee/threads/${encodeURIComponent(id)}/messages`, payload, auth); },
