@@ -603,6 +603,8 @@
   "owner.staffDetail.filter.all": "All",
   "owner.staffDetail.filter.assigned": "Assigned",
   "owner.staffDetail.filter.unassigned": "Unassigned",
+  "owner.staffDetail.collapseAll": "Collapse all",
+  "owner.staffDetail.expandAll": "Expand all",
   "owner.staffDetail.noPendingChanges": "No changes — toggle a checkbox to assign or unassign.",
   "owner.staffDetail.pendingChanges": "{count} pending — {adds} to add, {removes} to remove, {primaries} lead changes",
   "owner.staffDetail.discardChanges": "Discard changes",

@@ -189,6 +189,37 @@ function AssignmentManager({ assignments, customers, empId, auth, onChange, t, l
 
   const groupedTypes = useMemo(() => groupTypesByCategory(allTypes), [allTypes]);
 
+  // Collapsible "Filter by service" section. Default collapsed when no
+  // chips are active; auto-opens once any chip is selected. Persists
+  // across reloads.
+  const [serviceFilterOpen, setServiceFilterOpen] = useState(() => {
+    try {
+      const saved = localStorage.getItem('tax.staffDetail.serviceFilterOpen');
+      if (saved === '1') return true;
+      if (saved === '0') return false;
+    } catch { /* ignore */ }
+    return false;
+  });
+  useEffect(() => {
+    try { localStorage.setItem('tax.staffDetail.serviceFilterOpen', serviceFilterOpen ? '1' : '0'); }
+    catch { /* ignore */ }
+  }, [serviceFilterOpen]);
+  useEffect(() => {
+    if (relationshipFilter.length > 0) setServiceFilterOpen(true);
+  }, [relationshipFilter.length]);
+
+  // Per-letter collapse state. Letters not in the map are treated as
+  // expanded (the natural state for grouping). Master Collapse/Expand
+  // sets every visible letter at once.
+  const [collapsedLetters, setCollapsedLetters] = useState(() => new Set());
+  const toggleLetter = (letter) => {
+    setCollapsedLetters(prev => {
+      const next = new Set(prev);
+      if (next.has(letter)) next.delete(letter); else next.add(letter);
+      return next;
+    });
+  };
+
   const toggleRelationshipFilter = (typeId) =>
     setRelationshipFilter(prev =>
       prev.includes(typeId) ? prev.filter(id => id !== typeId) : [...prev, typeId]);
@@ -364,10 +395,32 @@ function AssignmentManager({ assignments, customers, empId, auth, onChange, t, l
 
       {allTypes.length > 0 && (
         <div style={{ marginBottom: 14 }}>
-          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--tax-muted)',
-                        textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 6 }}>
-            {t('owner.customers.filterRelationships')}
-          </div>
+          <button type="button"
+                  onClick={() => setServiceFilterOpen(o => !o)}
+                  aria-expanded={serviceFilterOpen}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 8,
+                    width: '100%', textAlign: 'left',
+                    padding: 0, border: 0, background: 'transparent', cursor: 'pointer',
+                    fontSize: 11, fontWeight: 700, color: 'var(--tax-muted)',
+                    textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 6,
+                  }}>
+            <span style={{
+              display: 'inline-block', transition: 'transform .15s ease',
+              transform: serviceFilterOpen ? 'rotate(90deg)' : 'rotate(0deg)',
+              fontSize: 10,
+            }}>▶</span>
+            <span>{t('owner.customers.filterRelationships')}</span>
+            {relationshipFilter.length > 0 && (
+              <span style={{
+                padding: '1px 8px', borderRadius: 999, fontSize: 11, fontWeight: 700,
+                background: 'color-mix(in srgb, var(--tax-brand-primary) 12%, #fff)',
+                color: 'var(--tax-brand-primary)',
+                border: '1px solid color-mix(in srgb, var(--tax-brand-primary) 35%, #fff)',
+              }}>{relationshipFilter.length}</span>
+            )}
+          </button>
+          {serviceFilterOpen && (
           <div style={{ display: 'grid', gap: 8 }}>
             {groupedTypes.map(({ category, types }) => (
               <div key={category}>
@@ -403,6 +456,35 @@ function AssignmentManager({ assignments, customers, empId, auth, onChange, t, l
               </div>
             ))}
           </div>
+          )}
+        </div>
+      )}
+
+      {/* Master Collapse/Expand all letter sections. Only relevant when
+          the alphabet grouping is active (no search, enough rows). */}
+      {(!q && sections.length > 1 && sections[0].letter) && (
+        <div style={{
+          display: 'flex', justifyContent: 'flex-end',
+          marginBottom: 6, gap: 12,
+        }}>
+          <button type="button"
+                  onClick={() => setCollapsedLetters(new Set(sections.map(s => s.letter)))}
+                  style={{
+                    border: 0, background: 'transparent', cursor: 'pointer',
+                    color: 'var(--tax-brand-primary)', fontSize: 11,
+                    fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.5px',
+                  }}>
+            {t('owner.staffDetail.collapseAll')}
+          </button>
+          <button type="button"
+                  onClick={() => setCollapsedLetters(new Set())}
+                  style={{
+                    border: 0, background: 'transparent', cursor: 'pointer',
+                    color: 'var(--tax-brand-primary)', fontSize: 11,
+                    fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.5px',
+                  }}>
+            {t('owner.staffDetail.expandAll')}
+          </button>
         </div>
       )}
 
@@ -414,19 +496,35 @@ function AssignmentManager({ assignments, customers, empId, auth, onChange, t, l
         <p style={{ color: 'var(--tax-muted)' }}>{t('owner.staffDetail.noMatch')}</p>
       ) : (
         <div style={{ display: 'grid', gap: 14 }}>
-          {sections.map(({ letter, rows }) => (
+          {sections.map(({ letter, rows }) => {
+          const collapsed = letter && collapsedLetters.has(letter);
+          return (
           <div key={letter || '_flat'} style={{ display: 'grid', gap: 6 }}>
             {letter && (
-              <div style={{
-                position: 'sticky', top: 0, zIndex: 1,
-                padding: '4px 0', background: 'rgba(255,255,255,.96)',
-                fontSize: 11, fontWeight: 700, color: 'var(--tax-muted)',
-                letterSpacing: '.5px',
-              }}>
-                {letter}
-              </div>
+              <button type="button"
+                      onClick={() => toggleLetter(letter)}
+                      aria-expanded={!collapsed}
+                      style={{
+                        position: 'sticky', top: 0, zIndex: 1,
+                        display: 'flex', alignItems: 'center', gap: 8,
+                        width: '100%', textAlign: 'left',
+                        padding: '4px 0', border: 0,
+                        background: 'rgba(255,255,255,.96)', cursor: 'pointer',
+                        fontSize: 11, fontWeight: 700, color: 'var(--tax-muted)',
+                        letterSpacing: '.5px',
+                      }}>
+                <span style={{
+                  display: 'inline-block', transition: 'transform .15s ease',
+                  transform: collapsed ? 'rotate(0deg)' : 'rotate(90deg)',
+                  fontSize: 10,
+                }}>▶</span>
+                <span>{letter}</span>
+                <span style={{ color: 'var(--tax-muted)', fontWeight: 500 }}>
+                  ({rows.length})
+                </span>
+              </button>
             )}
-            {rows.map(c => {
+            {!collapsed && rows.map(c => {
             const isAssigned = assignedSet.has(c.id);
             const wasAssigned = initialAssigned.has(c.id);
             const wasPrimary  = !!initialPrimary.get(c.id);
@@ -463,7 +561,8 @@ function AssignmentManager({ assignments, customers, empId, auth, onChange, t, l
             );
           })}
           </div>
-          ))}
+          );
+          })}
         </div>
       )}
 
