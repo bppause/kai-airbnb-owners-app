@@ -505,6 +505,8 @@
   "owner.staffDetail.archive.done": "Miembro del personal quitado.",
   "owner.staffDetail.archive.restoreBtn": "Restaurar miembro",
   "owner.staffDetail.archive.restored": "Miembro restaurado.",
+  "owner.lastSignIn.never": "nunca ha iniciado sesión",
+  "owner.lastSignIn.recent": "último inicio {date}",
   "owner.staffDetail.archivedBanner.title": "Este miembro del personal está archivado",
   "owner.staffDetail.archivedBanner.body": "No puede iniciar sesión en el portal del personal y deja de aparecer en los envíos de mensajes. Se conservan los registros e historial. Haga clic en Restaurar para reactivarlo.",
   "owner.staff.empty": "Aún no hay personal.",

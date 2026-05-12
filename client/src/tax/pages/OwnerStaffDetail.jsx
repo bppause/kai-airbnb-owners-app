@@ -4,11 +4,26 @@ import { useEmployeeAuth } from '../auth/EmployeeAuthProvider';
 import { taxApi, setImpersonation } from '../api';
 import EmployeeShell from '../components/EmployeeShell';
 
+// Phase 4n.17: humanize a last-sign-in timestamp. Mirrors the helper in
+// OwnerCustomerDetail — kept inline rather than extracted because both
+// pages are otherwise self-contained.
+function formatLastSignIn(iso, locale, t) {
+  if (!iso) return t('owner.lastSignIn.never');
+  try {
+    const formatted = new Intl.DateTimeFormat(locale === 'en' ? 'en-US' : 'es-ES',
+      { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+      .format(new Date(iso));
+    return t('owner.lastSignIn.recent', { date: formatted });
+  } catch (_e) {
+    return t('owner.lastSignIn.recent', { date: iso });
+  }
+}
+
 // Owner-side view of a single employee. Profile is read-only (the employee
 // edits their own profile via /employee/profile); the action surface here is
 // the customer-assignment manager.
 export default function OwnerStaffDetail({ employeeId }) {
-  const { t } = useT();
+  const { t, locale } = useT();
   const { fbUser, employee: me, community } = useEmployeeAuth();
   const auth = { uid: fbUser?.uid, email: fbUser?.email, communitySlug: community?.id };
 
@@ -66,6 +81,7 @@ export default function OwnerStaffDetail({ employeeId }) {
             {!emp.firebase_uid && <> • <em>{t('owner.staff.notSignedInHint')}</em></>}
             {' • '}{(emp.notification_channels || []).includes('email')
                     ? t('owner.staff.channelBoth') : t('owner.staff.channelPortal')}
+            {' • '}{formatLastSignIn(emp.last_sign_in_at, locale, t)}
           </p>
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'flex-end', flexShrink: 0 }}>

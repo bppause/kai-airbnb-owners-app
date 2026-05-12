@@ -1217,7 +1217,7 @@ module.exports = function createTaxRouter(deps) {
     if (!(await requireOwnerAdmin(req, res))) return;
     const id = trim(req.params.id, 200);
     const { data: cust, error: cErr } = await supabase.from('tax_customers')
-      .select('id, community_id, email, name, phone, whatsapp, address, preferred_communication_email, locale, status, notes, firebase_uid, created_at, updated_at')
+      .select('id, community_id, email, name, phone, whatsapp, address, preferred_communication_email, locale, status, notes, firebase_uid, last_sign_in_at, created_at, updated_at')
       .eq('id', id).maybeSingle();
     if (cErr) return sendSupabaseError(res, cErr);
     if (!cust) return res.status(404).json({ error: 'Customer not found.' });
@@ -1766,7 +1766,7 @@ module.exports = function createTaxRouter(deps) {
     if (imp === false) return null;            // invalid/expired token, 401 already sent
     if (imp) {
       const { data: customer, error } = await supabase.from('tax_customers')
-        .select('id, community_id, email, name, phone, whatsapp, address, preferred_communication_email, locale, status, firebase_uid')
+        .select('id, community_id, email, name, phone, whatsapp, address, preferred_communication_email, locale, status, firebase_uid, last_sign_in_at')
         .eq('id', imp.target_id).maybeSingle();
       if (error) { sendSupabaseError(res, error); return null; }
       if (!customer) { res.status(404).json({ error: 'Impersonation target not found.' }); return null; }
@@ -1783,7 +1783,7 @@ module.exports = function createTaxRouter(deps) {
       return null;
     }
     const { data: customer, error } = await supabase.from('tax_customers')
-      .select('id, community_id, email, name, phone, whatsapp, address, preferred_communication_email, locale, status, firebase_uid')
+      .select('id, community_id, email, name, phone, whatsapp, address, preferred_communication_email, locale, status, firebase_uid, last_sign_in_at')
       .eq('email', email).eq('community_id', communitySlug).maybeSingle();
     if (error) { sendSupabaseError(res, error); return null; }
     if (!customer) {
@@ -1845,6 +1845,7 @@ module.exports = function createTaxRouter(deps) {
   // ── GET /portal/me ──
   router.get('/portal/me', async (req, res) => {
     const customer = await requireTaxCustomer(req, res); if (!customer) return;
+    stampLastSignIn('tax_customers', customer.id, customer.last_sign_in_at);
     const [{ data: community }, { data: subs }, { data: rels }, { data: companion }] = await Promise.all([
       supabase.from('communities')
         .select('id, name, logo_url, brand_primary_color, brand_secondary_color, default_locale, tax_allow_customer_notif_pref_change, contact_email, phone')
@@ -3837,7 +3838,7 @@ module.exports = function createTaxRouter(deps) {
     if (imp === false) return null;
     if (imp) {
       const { data: emp, error } = await supabase.from('tax_employees')
-        .select('id, community_id, email, name, phone, whatsapp, address, preferred_communication_email, locale, notification_channels, notification_prefs, role, status, firebase_uid')
+        .select('id, community_id, email, name, phone, whatsapp, address, preferred_communication_email, locale, notification_channels, notification_prefs, role, status, firebase_uid, last_sign_in_at')
         .eq('id', imp.target_id).maybeSingle();
       if (error) { sendSupabaseError(res, error); return null; }
       if (!emp) { res.status(404).json({ error: 'Impersonation target not found.' }); return null; }
@@ -3853,7 +3854,7 @@ module.exports = function createTaxRouter(deps) {
       return null;
     }
     const { data: emp, error } = await supabase.from('tax_employees')
-      .select('id, community_id, email, name, phone, whatsapp, address, preferred_communication_email, locale, notification_channels, notification_prefs, role, status, firebase_uid')
+      .select('id, community_id, email, name, phone, whatsapp, address, preferred_communication_email, locale, notification_channels, notification_prefs, role, status, firebase_uid, last_sign_in_at')
       .eq('email', email).eq('community_id', communitySlug).maybeSingle();
     if (error) { sendSupabaseError(res, error); return null; }
     if (!emp) {
@@ -3880,6 +3881,7 @@ module.exports = function createTaxRouter(deps) {
       locale: e.locale, role: e.role, status: e.status,
       notificationChannels: Array.isArray(e.notification_channels) ? e.notification_channels : ['in_app'],
       notificationPrefs: (e.notification_prefs && typeof e.notification_prefs === 'object') ? e.notification_prefs : {},
+      lastSignInAt: e.last_sign_in_at || null,
     };
   }
 
@@ -3967,6 +3969,7 @@ module.exports = function createTaxRouter(deps) {
   // ── GET /employee/me ──
   router.get('/employee/me', async (req, res) => {
     const emp = await requireTaxEmployee(req, res); if (!emp) return;
+    stampLastSignIn('tax_employees', emp.id, emp.last_sign_in_at);
     const [{ data: community }, assignments, { data: companion }] = await Promise.all([
       supabase.from('communities')
         .select('id, name, logo_url, brand_primary_color, brand_secondary_color, default_locale, contact_email, phone')
@@ -4086,7 +4089,7 @@ module.exports = function createTaxRouter(deps) {
     } catch (_e) {}
 
     const { data: refreshed } = await supabase.from('tax_employees')
-      .select('id, community_id, email, name, phone, whatsapp, address, preferred_communication_email, locale, notification_channels, notification_prefs, role, status, firebase_uid')
+      .select('id, community_id, email, name, phone, whatsapp, address, preferred_communication_email, locale, notification_channels, notification_prefs, role, status, firebase_uid, last_sign_in_at')
       .eq('id', emp.id).maybeSingle();
     res.json({ ok: true, employee: pickEmployee(refreshed) });
   });
@@ -4514,7 +4517,7 @@ module.exports = function createTaxRouter(deps) {
     if (!(await requireOwnerAdmin(req, res))) return;
     const communitySlug = trim(req.query.communitySlug, 200);
     let q = supabase.from('tax_employees')
-      .select('id, community_id, email, name, role, status, notification_channels, created_at, firebase_uid')
+      .select('id, community_id, email, name, role, status, notification_channels, created_at, firebase_uid, last_sign_in_at')
       .order('created_at', { ascending: false }).limit(200);
     if (communitySlug) q = q.eq('community_id', communitySlug);
     const { data, error } = await q;
@@ -4677,6 +4680,27 @@ module.exports = function createTaxRouter(deps) {
       if (Array.isArray(user) && user.length) return true;
     } catch (_e) { /* be permissive — falling back to "new user" is safe */ }
     return false;
+  }
+
+  // Phase 4n.17: throttled last-sign-in stamp. Fire-and-forget — never
+  // blocks the /me response. Skip the write when the existing stamp is
+  // newer than STAMP_THROTTLE_MS so we don't churn the row on polling
+  // loads (the customer portal calls /me on every page navigation).
+  const STAMP_THROTTLE_MS = 5 * 60 * 1000;
+  function stampLastSignIn(tableName, rowId, currentValue) {
+    if (!supabase || !rowId) return;
+    try {
+      if (currentValue) {
+        const last = new Date(currentValue).getTime();
+        if (Number.isFinite(last) && (Date.now() - last) < STAMP_THROTTLE_MS) return;
+      }
+    } catch (_e) { /* fall through and stamp */ }
+    const nowIso = new Date().toISOString();
+    supabase.from(tableName).update({ last_sign_in_at: nowIso }).eq('id', rowId)
+      .then(({ error }) => { if (error) warn(`[tax] ${tableName} last_sign_in_at update failed`, error.message); })
+      // .then on a Postgrest builder is thenable but doesn't reject normally
+      // — wrap any sync throw above just in case.
+      .catch(() => {});
   }
 
   // ── ADMIN: impersonation (admin-only "view as") ─────────────────────────
@@ -5093,6 +5117,7 @@ module.exports = function createTaxRouter(deps) {
       address: c.address || {},
       preferredCommunicationEmail: c.preferred_communication_email || '',
       locale: c.locale, status: c.status,
+      lastSignInAt: c.last_sign_in_at || null,
     };
   }
 
