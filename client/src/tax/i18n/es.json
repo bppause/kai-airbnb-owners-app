@@ -801,6 +801,7 @@
   "owner.services.created": "Servicio creado.",
   "owner.services.saved": "Guardado.",
   "owner.workflows.title": "Flujos por relación",
+  "owner.workflows.advanced": "Vista avanzada",
   "owner.workflows.subtitle": "Para cada tipo de relación, configure cuándo se envían los recordatorios de declaración y qué documentos adicionales se solicitan. Las anulaciones por cliente (en la suscripción) siguen prevaleciendo; las reglas de relación se aplican a todos los clientes con esa relación.",
   "owner.workflows.relationship": "Tipo de relación",
   "owner.workflows.noRelationships": "Aún no se han definido tipos de relación.",

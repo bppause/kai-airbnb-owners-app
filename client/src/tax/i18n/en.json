@@ -801,6 +801,7 @@
   "owner.services.created": "Service created.",
   "owner.services.saved": "Saved.",
   "owner.workflows.title": "Relationship workflows",
+  "owner.workflows.advanced": "Advanced view",
   "owner.workflows.subtitle": "For each relationship type, configure when filing reminders go out and which extra documents are requested. Per-customer overrides (on the subscription) still win; relationship rules apply to everyone with that relationship.",
   "owner.workflows.relationship": "Relationship type",
   "owner.workflows.noRelationships": "No relationship types are defined yet.",
