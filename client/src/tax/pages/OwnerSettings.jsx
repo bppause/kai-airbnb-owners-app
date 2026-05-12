@@ -58,11 +58,25 @@ export default function OwnerSettings() {
     }
   };
 
+  const onTogglePortalEnabled = async (enabled) => {
+    setBusy(true); setMsg({ kind: 'idle', text: '' });
+    try {
+      await taxApi.adminSetPortalEnabled(auth, { communitySlug: community.id, enabled });
+      setMsg({ kind: 'success', text: t('owner.settings.saved') });
+      load();
+    } catch (e) {
+      setMsg({ kind: 'error', text: e?.message || t('respond.error.generic') });
+    } finally {
+      setBusy(false);
+    }
+  };
+
   if (err) return <EmployeeShell community={community} active="settings"><div className="tax-msg tax-msg--error">{err}</div></EmployeeShell>;
   if (!settings) return <EmployeeShell community={community} active="settings"><p>{t('loading')}</p></EmployeeShell>;
 
   const allowChange = Boolean(settings.tax_allow_customer_notif_pref_change);
   const docsEnabled = Boolean(settings.tax_customer_documents_enabled);
+  const portalEnabled = Boolean(settings.tax_customer_portal_enabled);
 
   return (
     <EmployeeShell community={community} active="settings">
@@ -108,6 +122,46 @@ export default function OwnerSettings() {
               <div style={{ fontWeight: 600 }}>{t('owner.settings.notifLock.unlocked')}</div>
               <div style={{ color: 'var(--tax-muted)', fontSize: 13, marginTop: 4 }}>
                 {t('owner.settings.notifLock.unlockedHint')}
+              </div>
+            </div>
+          </label>
+        </div>
+      </section>
+
+      <section style={{ marginBottom: 32 }}>
+        <h3 style={{ marginBottom: 4 }}>{t('owner.settings.portal.title')}</h3>
+        <p style={{ color: 'var(--tax-muted)', marginTop: 0, marginBottom: 12, fontSize: 14 }}>
+          {t('owner.settings.portal.subtitle')}
+        </p>
+
+        <div style={{ display: 'grid', gap: 8, maxWidth: 560 }}>
+          <label style={{
+            display: 'flex', gap: 12, padding: 14, border: '1px solid var(--tax-border)', borderRadius: 8,
+            cursor: busy ? 'wait' : 'pointer',
+            background: !portalEnabled ? 'color-mix(in srgb, var(--tax-brand-primary) 6%, #fff)' : '#fff',
+          }}>
+            <input type="radio" name="portal-enabled" disabled={busy}
+                   checked={!portalEnabled} onChange={() => onTogglePortalEnabled(false)}
+                   style={{ marginTop: 2 }} />
+            <div>
+              <div style={{ fontWeight: 600 }}>{t('owner.settings.portal.off')}</div>
+              <div style={{ color: 'var(--tax-muted)', fontSize: 13, marginTop: 4 }}>
+                {t('owner.settings.portal.offHint')}
+              </div>
+            </div>
+          </label>
+          <label style={{
+            display: 'flex', gap: 12, padding: 14, border: '1px solid var(--tax-border)', borderRadius: 8,
+            cursor: busy ? 'wait' : 'pointer',
+            background: portalEnabled ? 'color-mix(in srgb, var(--tax-brand-primary) 6%, #fff)' : '#fff',
+          }}>
+            <input type="radio" name="portal-enabled" disabled={busy}
+                   checked={portalEnabled} onChange={() => onTogglePortalEnabled(true)}
+                   style={{ marginTop: 2 }} />
+            <div>
+              <div style={{ fontWeight: 600 }}>{t('owner.settings.portal.on')}</div>
+              <div style={{ color: 'var(--tax-muted)', fontSize: 13, marginTop: 4 }}>
+                {t('owner.settings.portal.onHint')}
               </div>
             </div>
           </label>

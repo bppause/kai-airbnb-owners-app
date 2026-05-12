@@ -2307,6 +2307,19 @@ alter table public.tax_products
 alter table public.communities
   add column if not exists tax_customer_documents_enabled boolean not null default false;
 
+-- ─── Customer portal — disabled by default ────────────────────────────────────
+-- Per-community switch. When false (the new default), the customer-facing
+-- portal is closed:
+--   • /tax/{slug} routes that require customer auth bounce to the landing
+--     page with a "portal closed" notice
+--   • Outgoing emails (reminders, welcome, document, signature, message)
+--     swap their portal links for the landing-page URL so customers don't
+--     hit a dead login screen
+-- Owner-side employee portal stays available either way. Owner can flip
+-- in Settings → Customer portal.
+alter table public.communities
+  add column if not exists tax_customer_portal_enabled boolean not null default false;
+
 -- ─── Task tracker (replaces the spreadsheet workflow) ──────────────────────────
 -- Per-community task list. Each task is optionally tied to a customer and a
 -- service (tax_products) so the page can group/filter the way the owner's

@@ -290,14 +290,18 @@ module.exports = function createTaxRemindersCron(deps) {
   }
 
   // ── Helpers ────────────────────────────────────────────────────────────────
-  async function dispatchOne({ row, sub, cust, sch, channel, offsetDays, extraDocs }) {
+  async function dispatchOne({ row, sub, cust, sch, channel, offsetDays, extraDocs, forced = false }) {
     // Pre-flight de-dup: skip if a sent log row already exists for this combo.
-    const { data: existing } = await supabase
-      .from('tax_reminder_log')
-      .select('id')
-      .eq('period_id', row.id).eq('channel', channel).eq('offset_days', offsetDays).eq('status', 'sent')
-      .maybeSingle();
-    if (existing?.id) return false;
+    // Manual "send reminder now" sets `forced` to bypass the check so the
+    // owner can re-send when needed.
+    if (!forced) {
+      const { data: existing } = await supabase
+        .from('tax_reminder_log')
+        .select('id')
+        .eq('period_id', row.id).eq('channel', channel).eq('offset_days', offsetDays).eq('status', 'sent')
+        .maybeSingle();
+      if (existing?.id) return false;
+    }
 
     const token = await ensureResponseToken(row);
     const magicUrl = `${publicAppUrl()}/tax/respond/${token.raw}`;
@@ -454,6 +458,73 @@ module.exports = function createTaxRemindersCron(deps) {
     return '';
   }
 
+  // ── Manual fire of one period (owner-triggered "Send reminder now") ───────
+  // Skips the offset-day window check but still respects the per-channel
+  // tax_reminder_log de-dup so we don't double-send if the cron has already
+  // fired today. Returns { sent: bool, channels: ['email', ...], skipped: [...] }.
+  async function fireForPeriod(periodId, { channels: requestedChannels, force = false } = {}) {
+    if (!isSupabaseConfigured) return { error: 'supabase_not_configured' };
+    const { data: row, error } = await supabase
+      .from('tax_filing_periods')
+      .select(`
+        id, community_id, subscription_id, customer_id, schedule_id, status,
+        workflow_rule_id, relationship_type_id,
+        period_label, period_start, period_end, due_date,
+        tax_subscriptions ( reminder_channels, reminder_offsets_days ),
+        tax_customers!inner ( id, email, name, locale, preferred_communication_email, community_id ),
+        tax_filing_schedules ( id, slug, name_i18n, description_i18n, info_checklist ),
+        tax_relationship_workflow_rules ( id, filing_schedule_slug, reminder_offsets_days, required_documents, name_i18n, description_i18n, info_checklist )
+      `)
+      .eq('id', periodId).maybeSingle();
+    if (error) return { error: error.message };
+    if (!row) return { error: 'period_not_found' };
+
+    const sub = row.tax_subscriptions || null;
+    const cust = row.tax_customers;
+    const ruleRow = row.tax_relationship_workflow_rules || null;
+    const schedRow = row.tax_filing_schedules || null;
+
+    const sch = {
+      id: schedRow?.id || ruleRow?.id || row.workflow_rule_id || '',
+      slug: schedRow?.slug || ruleRow?.filing_schedule_slug || '',
+      name_i18n:        firstNonEmptyI18n(ruleRow?.name_i18n, schedRow?.name_i18n),
+      description_i18n: firstNonEmptyI18n(ruleRow?.description_i18n, schedRow?.description_i18n),
+      info_checklist:   firstNonEmptyArray(ruleRow?.info_checklist, schedRow?.info_checklist),
+    };
+
+    let extraDocs = Array.isArray(ruleRow?.required_documents) ? ruleRow.required_documents : null;
+    if (!row.workflow_rule_id && schedRow?.slug) {
+      const merged = await resolveWorkflowRule(cust.id, row.community_id, schedRow.slug);
+      if (Array.isArray(merged?.required_documents)) extraDocs = merged.required_documents;
+    }
+
+    // Use days-until-due as the "offset" stamp so the per-channel log row
+    // is uniquely keyed even when the cron has already sent the normal
+    // offset's reminder.
+    const daysUntilDue = Math.ceil(
+      (new Date(row.due_date) - new Date(todayUtc())) / 86400000
+    );
+    const offsetDays = -Math.max(0, daysUntilDue) || -1; // negative = days before due
+
+    const channels = Array.isArray(requestedChannels) && requestedChannels.length
+      ? requestedChannels
+      : ['email'];
+
+    const results = [];
+    for (const channel of channels) {
+      const sent = await dispatchOne({
+        row, sub: sub || {}, cust, sch, channel, offsetDays, extraDocs,
+        forced: !!force,
+      });
+      results.push({ channel, sent });
+    }
+    return {
+      sent: results.some(r => r.sent),
+      channels: results.filter(r => r.sent).map(r => r.channel),
+      skipped: results.filter(r => !r.sent).map(r => r.channel),
+    };
+  }
+
   // ── Lifecycle ──────────────────────────────────────────────────────────────
   async function run() {
     if (!isSupabaseConfigured) return { skipped: true, reason: 'supabase_not_configured' };
@@ -476,5 +547,5 @@ module.exports = function createTaxRemindersCron(deps) {
     }, initialDelayMs);
   }
 
-  return { run, start };
+  return { run, start, fireForPeriod };
 };

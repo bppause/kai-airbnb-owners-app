@@ -71,6 +71,7 @@ export default function EmployeeShell({ community, active, children }) {
               <div className="tax-shell__group-label">{t('employee.nav.groupWork')}</div>
               {isAdmin && navLink('setup', `${base}/setup`, t('employee.nav.setup'))}
               {navLink('inbox', base, t('employee.nav.inbox'), unread)}
+              {employee && navLink('reminders', `${base}/reminders`, t('employee.nav.reminders'))}
               {employee && navLink('tasks', `${base}/tasks`, t('employee.nav.tasks'))}
               {employee && navLink('customers', `${base}/customers`, t('employee.nav.customers'))}
               {isAdmin && navLink('leads', `${base}/leads`, t('employee.nav.leads'))}
@@ -107,7 +108,7 @@ export default function EmployeeShell({ community, active, children }) {
             {/* Dual-role switch — surfaced when this email is ALSO a
                 tax_customers row in the same community. Hidden during
                 impersonation (the impersonator's identity drives this). */}
-            {!impersonation && customerAccess?.hasCustomerRow && community && (
+            {!impersonation && customerAccess?.hasCustomerRow && community && community.tax_customer_portal_enabled && (
               <a href={`/tax/${community.id}/portal`}
                  className="tax-btn tax-btn--ghost tax-btn--sm"
                  style={{ color: 'var(--tax-brand-primary)', borderColor: 'var(--tax-brand-primary)' }}>

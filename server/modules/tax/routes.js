@@ -58,9 +58,22 @@ module.exports = function createTaxRouter(deps) {
     isGlobalAdmin,
     isEnvGlobalAdminEmail,
     runReminderCron,
+    fireReminderForPeriod,
   } = deps;
 
   const router = express.Router();
+
+  // Builds a customer-facing URL: portal URL when the community has the
+  // portal enabled, otherwise the public landing page. Used by every email
+  // sender that would otherwise drop the customer onto a closed portal.
+  async function customerLandingOrPortalUrl(communityId, portalSuffix = '') {
+    const base = (typeof publicAppUrl === 'function' ? publicAppUrl() : '');
+    const { data: comm } = await supabase.from('communities')
+      .select('tax_customer_portal_enabled').eq('id', communityId).maybeSingle();
+    const portalOn = !!comm?.tax_customer_portal_enabled;
+    if (portalOn) return `${base}/tax/${communityId}/portal${portalSuffix}`;
+    return `${base}/tax/${communityId}`;
+  }
 
   // One-time backfill of structured-name parts for legacy rows where
   // `name` was the only stored value. Fire-and-forget on first request:
@@ -808,7 +821,7 @@ module.exports = function createTaxRouter(deps) {
         `).eq('customer_id', customerId).eq('active', true),
     ]);
 
-    const portalUrl = `${(typeof publicAppUrl === 'function' ? publicAppUrl() : '')}/tax/${cust.community_id}/portal`;
+    const portalUrl = await customerLandingOrPortalUrl(cust.community_id);
     const relationships = (rels || []).slice().sort((a, b) =>
       (a.type?.display_order || 0) - (b.type?.display_order || 0));
 
@@ -1537,6 +1550,28 @@ module.exports = function createTaxRouter(deps) {
     res.json({ ok: true, allowCustomerChange: allowChange });
   });
 
+  // Owner toggle for the customer portal itself. Default is OFF — when
+  // disabled, the portal routes redirect to the landing page and every
+  // outbound email swaps portal links for landing-page links.
+  router.put('/admin/community-settings/portal-enabled', async (req, res) => {
+    if (!(await requireOwnerAdmin(req, res))) return;
+    const communitySlug = trim(req.body?.communitySlug, 200);
+    const enabled = Boolean(req.body?.enabled);
+    if (!communitySlug) return res.status(400).json({ error: 'communitySlug required.' });
+    const { error } = await supabase.from('communities')
+      .update({ tax_customer_portal_enabled: enabled, updated_at: new Date().toISOString() })
+      .eq('id', communitySlug).eq('business_type', TAX_BUSINESS_TYPE);
+    if (error) return sendSupabaseError(res, error);
+    try {
+      await auditLog({
+        entity: 'tax.community.settings', entityId: communitySlug,
+        action: enabled ? 'portal_enable' : 'portal_disable',
+        actorEmail: trim(req.get('x-firebase-email') || req.get('x-admin-email') || '', 200).toLowerCase(),
+      });
+    } catch (_e) {}
+    res.json({ ok: true, enabled });
+  });
+
   // Owner toggle for customer-side document uploads. Default is OFF — the
   // schema column defaults to false. When enabled, the customer portal
   // exposes the Documents page and the upload endpoints accept new files;
@@ -1571,6 +1606,7 @@ module.exports = function createTaxRouter(deps) {
     const { data, error } = await supabase.from('communities')
       .select(`
         id, name, tax_allow_customer_notif_pref_change, tax_customer_documents_enabled,
+        tax_customer_portal_enabled,
         contact_email, phone, whatsapp,
         address_line1, address_line2, city, state, postal_code, country,
         default_locale
@@ -2101,6 +2137,19 @@ module.exports = function createTaxRouter(deps) {
       res.status(403).json({ error: 'Account collision. Contact your tax practice.' });
       return null;
     }
+    // Portal toggle: when the community has disabled the customer portal,
+    // every portal endpoint refuses with portal_disabled. The frontend
+    // catches this and bounces to the landing page.
+    const { data: portalComm } = await supabase.from('communities')
+      .select('tax_customer_portal_enabled')
+      .eq('id', communitySlug).maybeSingle();
+    if (!portalComm?.tax_customer_portal_enabled) {
+      res.status(403).json({
+        error: 'portal_disabled',
+        message: 'The customer portal is currently disabled. Contact your tax practice for next steps.',
+      });
+      return null;
+    }
     return customer;
   }
 
@@ -2160,7 +2209,7 @@ module.exports = function createTaxRouter(deps) {
     stampLastSignIn('tax_customers', customer.id, customer.last_sign_in_at);
     const [{ data: community }, { data: subs }, { data: rels }, { data: companion }] = await Promise.all([
       supabase.from('communities')
-        .select('id, name, logo_url, brand_primary_color, brand_secondary_color, default_locale, tax_allow_customer_notif_pref_change, tax_customer_documents_enabled, contact_email, phone')
+        .select('id, name, logo_url, brand_primary_color, brand_secondary_color, default_locale, tax_allow_customer_notif_pref_change, tax_customer_documents_enabled, tax_customer_portal_enabled, contact_email, phone')
         .eq('id', customer.community_id).maybeSingle(),
       supabase.from('tax_subscriptions')
         .select('id, product_id, status, reminder_channels, reminder_offsets_days')
@@ -2983,6 +3032,145 @@ module.exports = function createTaxRouter(deps) {
     } catch (e) {
       return res.status(500).json({ error: e?.message || 'send failed' });
     }
+  });
+
+  // ── Upcoming reminders page ─────────────────────────────────────────────
+  // Lists tax_filing_periods with their next-up reminder context, plus
+  // engagement (last reminder email + opened?). Filters mirror the
+  // customer-search UX: q (customer name/email), service (product_id),
+  // status, due window, assigned employee.
+  //
+  // Staff scope: non-admin sees only periods whose customer is in their
+  // assigned set (or assigned directly to them, when we add that).
+  router.get('/admin/upcoming-reminders', async (req, res) => {
+    const emp = await requireTaxEmployee(req, res); if (!emp) return;
+    const communitySlug = trim(req.query.communitySlug, 200) || emp.community_id;
+    if (communitySlug !== emp.community_id && emp.role !== 'admin') {
+      return res.status(403).json({ error: 'Cross-community access requires admin.' });
+    }
+
+    let q = supabase.from('tax_filing_periods')
+      .select(`
+        id, community_id, customer_id, schedule_id, workflow_rule_id,
+        period_label, due_date, status, info_received_at,
+        customer:tax_customers!inner ( id, email, name, first_name, middle_name, last_name, phone, locale ),
+        schedule:tax_filing_schedules ( id, slug, name_i18n, product_id ),
+        workflow:tax_relationship_workflow_rules ( id, filing_schedule_slug, name_i18n )
+      `)
+      .eq('community_id', communitySlug);
+
+    if (emp.role !== 'admin') {
+      const visible = await getVisibleCustomerIdsForEmployee(emp);
+      if (Array.isArray(visible)) {
+        if (!visible.length) return res.json({ rows: [] });
+        q = q.in('customer_id', visible);
+      }
+    }
+
+    // Status filter: default to "active" = pending + info_requested. Empty
+    // string or "all" returns everything.
+    const status = trim(req.query.status || '', 40);
+    if (!status || status === 'active') {
+      q = q.in('status', ['pending', 'info_requested']);
+    } else if (status !== 'all') {
+      q = q.eq('status', status);
+    }
+
+    // Due window. Defaults to "next 30 days" to keep the page focused.
+    const today = new Date().toISOString().slice(0, 10);
+    const due = trim(req.query.due || '', 20);
+    if (due === 'overdue') {
+      q = q.lt('due_date', today);
+    } else if (due === 'today') {
+      q = q.eq('due_date', today);
+    } else if (due === 'week') {
+      const wk = new Date(); wk.setUTCDate(wk.getUTCDate() + 7);
+      q = q.gte('due_date', today).lte('due_date', wk.toISOString().slice(0, 10));
+    } else if (due === 'month') {
+      const mo = new Date(); mo.setUTCDate(mo.getUTCDate() + 30);
+      q = q.gte('due_date', today).lte('due_date', mo.toISOString().slice(0, 10));
+    } else if (due === 'all') {
+      // no bound
+    } else {
+      // default: next 30 days (matches the cron lookahead).
+      const mo = new Date(); mo.setUTCDate(mo.getUTCDate() + 30);
+      q = q.gte('due_date', today).lte('due_date', mo.toISOString().slice(0, 10));
+    }
+
+    const productId = trim(req.query.productId || '', 200);
+    if (productId) {
+      const { data: schedIds } = await supabase.from('tax_filing_schedules')
+        .select('id').eq('community_id', communitySlug).eq('product_id', productId);
+      const ids = (schedIds || []).map(s => s.id);
+      if (!ids.length) return res.json({ rows: [] });
+      q = q.in('schedule_id', ids);
+    }
+
+    q = q.order('due_date', { ascending: true }).limit(500);
+    const { data: rows, error } = await q;
+    if (error) return sendSupabaseError(res, error);
+
+    // Customer-substring filter (name / email). Cheap client-side filter on
+    // the result set — fine while we cap at 500 rows.
+    let filtered = rows || [];
+    const search = trim(req.query.q || '', 200).toLowerCase();
+    if (search) {
+      filtered = filtered.filter(r => {
+        const c = r.customer || {};
+        const hay = `${c.name || ''} ${c.first_name || ''} ${c.last_name || ''} ${c.email || ''} ${c.phone || ''}`.toLowerCase();
+        return hay.includes(search);
+      });
+    }
+
+    // Engagement: latest sent reminder email per period + open/click stamps.
+    const periodIds = filtered.map(r => r.id);
+    let logsByPeriod = new Map();
+    if (periodIds.length) {
+      const { data: logs } = await supabase.from('email_delivery_logs')
+        .select('id, period_id, email_type, status, sent_at, delivered_at, opened_at, clicked_at, bounced_at, complained_at, open_count, click_count, created_at')
+        .in('period_id', periodIds)
+        .order('created_at', { ascending: false });
+      for (const l of logs || []) {
+        const cur = logsByPeriod.get(l.period_id);
+        if (!cur || new Date(l.created_at) > new Date(cur.created_at)) {
+          logsByPeriod.set(l.period_id, l);
+        }
+      }
+    }
+    const out = filtered.map(r => ({ ...r, lastEmail: logsByPeriod.get(r.id) || null }));
+    res.json({ rows: out });
+  });
+
+  // POST /admin/upcoming-reminders/:periodId/send — fire a reminder email now.
+  router.post('/admin/upcoming-reminders/:periodId/send', async (req, res) => {
+    const emp = await requireTaxEmployee(req, res); if (!emp) return;
+    if (typeof fireReminderForPeriod !== 'function') {
+      return res.status(500).json({ error: 'reminder sender not configured' });
+    }
+    const periodId = trim(req.params.periodId, 200);
+
+    const { data: period } = await supabase.from('tax_filing_periods')
+      .select('id, community_id, customer_id').eq('id', periodId).maybeSingle();
+    if (!period) return res.status(404).json({ error: 'Period not found.' });
+    if (period.community_id !== emp.community_id) return res.status(403).json({ error: 'Wrong community.' });
+    if (emp.role !== 'admin' && period.customer_id) {
+      const ok = await canEmployeeSeeCustomer(emp, period.customer_id);
+      if (!ok) return res.status(403).json({ error: 'Not assigned to this customer.' });
+    }
+
+    const r = await fireReminderForPeriod(periodId, {
+      channels: ['email'],
+      force: !!req.body?.force,
+    });
+    if (r.error) return res.status(500).json({ error: r.error });
+    try {
+      await auditLog({
+        entity: 'tax.filing_period', entityId: periodId, action: 'manual_reminder',
+        actorEmail: emp.email || '', actorName: emp.name || '',
+        after: { channels: r.channels || [], skipped: r.skipped || [] },
+      });
+    } catch (_e) {}
+    res.json({ ok: true, ...r });
   });
 
   // ── Phase 4n.10: workflow template library ──────────────────────────────
@@ -3822,7 +4010,7 @@ module.exports = function createTaxRouter(deps) {
             .select('id, name').eq('id', cust?.community_id || emp.community_id).maybeSingle(),
         ]);
         if (cust) {
-          const signUrl = `${typeof publicAppUrl === 'function' ? publicAppUrl() : ''}/tax/${cust.community_id}/portal/sign/${encodeURIComponent(id)}`;
+          const signUrl = await customerLandingOrPortalUrl(cust.community_id, `/sign/${encodeURIComponent(id)}`);
           emailResult = await sendTaxSignatureRequestEmail({
             cust, community, request: row, signUrl,
           });
@@ -4617,7 +4805,7 @@ module.exports = function createTaxRouter(deps) {
       supabase.from('communities').select('id, name, contact_email').eq('id', doc.community_id).maybeSingle(),
     ]);
     if (!cust) return;
-    const portalUrl = `${(typeof publicAppUrl === 'function' ? publicAppUrl() : '')}/tax/${doc.community_id}/portal`;
+    const portalUrl = await customerLandingOrPortalUrl(doc.community_id);
     await supabase.from('tax_notifications').insert({
       id: 'tnotif_' + uuidv4().slice(0, 12),
       community_id: doc.community_id,
@@ -4905,7 +5093,7 @@ module.exports = function createTaxRouter(deps) {
     });
 
     if (typeof sendTaxMessageEmail === 'function') {
-      const portalUrl = `${(typeof publicAppUrl === 'function' ? publicAppUrl() : '')}/tax/${thread.community_id}/portal/messages/${encodeURIComponent(thread.id)}`;
+      const portalUrl = await customerLandingOrPortalUrl(thread.community_id, `/messages/${encodeURIComponent(thread.id)}`);
       try { await sendTaxMessageEmail({ cust, community, thread, message: msg, portalUrl }); }
       catch (e) { warn('[tax-msg] customer email failed', e?.message || e); }
     }

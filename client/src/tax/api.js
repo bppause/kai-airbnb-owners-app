@@ -230,9 +230,21 @@ export const taxApi = {
   adminGetCommunitySettings(auth, communitySlug) { return request('GET',  `/admin/community-settings?communitySlug=${encodeURIComponent(communitySlug)}`, undefined, auth, { admin: true }); },
   adminSetNotifLock(auth, payload)               { return request('PUT',  '/admin/community-settings/notif-lock', payload, auth, { admin: true }); },
   adminSetDocumentsEnabled(auth, payload)        { return request('PUT',  '/admin/community-settings/documents-enabled', payload, auth, { admin: true }); },
+  adminSetPortalEnabled(auth, payload)           { return request('PUT',  '/admin/community-settings/portal-enabled', payload, auth, { admin: true }); },
 
   adminListProducts(auth, communitySlug)         { return request('GET',  `/admin/products?communitySlug=${encodeURIComponent(communitySlug)}`, undefined, auth, { admin: true }); },
   adminUpdateProduct(auth, productId, payload)   { return request('PUT',  `/admin/products/${encodeURIComponent(productId)}`, payload, auth, { admin: true }); },
+
+  adminListUpcomingReminders(auth, opts = {}) {
+    const qs = new URLSearchParams();
+    for (const k of ['communitySlug','status','due','productId','q']) {
+      if (opts[k] !== undefined && opts[k] !== '') qs.set(k, opts[k]);
+    }
+    return request('GET', `/admin/upcoming-reminders?${qs.toString()}`, undefined, auth);
+  },
+  adminSendReminderNow(auth, periodId, opts = {}) {
+    return request('POST', `/admin/upcoming-reminders/${encodeURIComponent(periodId)}/send`, opts, auth);
+  },
 
   // ── Tasks ────────────────────────────────────────────────────────────
   adminListTaskStatuses(auth, communitySlug) {
