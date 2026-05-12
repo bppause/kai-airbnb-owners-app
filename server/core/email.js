@@ -51,14 +51,34 @@ module.exports = function createEmailHelpers({ supabase, resend, emailConfigured
     return EMAIL_FROM;
   };
 
-  const sendSpanishEmail = async ({ to, subject, text, html, lang='es-CO' }) => {
+  const sendSpanishEmail = async ({ to, subject, text, html, lang='es-CO', replyTo, inReplyTo }) => {
     if (!emailConfigured) return { sent:false, skipped:true, reason:'Resend email is not configured. Add RESEND_API_KEY and EMAIL_FROM in Render.' };
     const recipients = normalizeRecipients(to);
     if (!recipients.length) return { sent:false, skipped:true, reason:'Recipient email is missing.' };
     const from = await getEffectiveEmailFrom(lang);
-    const { data, error: resendError } = await resend.emails.send({ from, to:recipients, subject, text, html });
+
+    // Phase 4n.27: stamp our own Message-ID so inbound replies can be
+    // matched back to this outbound row. Domain is derived from the
+    // configured EMAIL_FROM so RFC 5322 stays happy ("local@domain").
+    const fromDomain = (() => {
+      const m = String(from || '').match(/@([^>\s]+)/);
+      return (m ? m[1] : 'kai.local').toLowerCase();
+    })();
+    const messageBareId = uuidv4();
+    const messageIdHeader = `<${messageBareId}@${fromDomain}>`;
+    const headers = { 'Message-ID': messageIdHeader };
+    if (inReplyTo) headers['In-Reply-To'] = inReplyTo;
+    if (inReplyTo) headers['References'] = inReplyTo;
+    const sendArgs = { from, to:recipients, subject, text, html, headers };
+    if (replyTo) sendArgs.reply_to = replyTo;
+    const { data, error: resendError } = await resend.emails.send(sendArgs);
     if (resendError) throw new Error(resendError.message || JSON.stringify(resendError));
-    return { sent:true, skipped:false, id:data?.id || '' };
+    return {
+      sent:true, skipped:false,
+      id:data?.id || '',
+      messageId: messageBareId,   // bare uuid — what gets stored in DB
+      messageIdHeader,            // full <...@...> — what appears in headers
+    };
   };
 
   const getUserLanguageByEmail = async (email='') => {

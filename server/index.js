@@ -409,7 +409,7 @@ async function loadTaxEmailTemplate(communityId, key, lang) {
 // the /resend/webhook receiver can stamp open / click events. Different from
 // the generic logEmailDelivery (id-prefixed UUID); we need the message id as
 // the lookup key, plus customer_id for the badge on the customer detail page.
-async function logTaxEmailDelivery({ resendId, communityId, customerId, workflowRuleId, eventType, recipients, subject, relatedEntity, relatedId }) {
+async function logTaxEmailDelivery({ resendId, communityId, customerId, workflowRuleId, eventType, recipients, subject, relatedEntity, relatedId, outboundMessageId, threadId }) {
   if (!supabase) return;
   try {
     const { v4: uuidv4 } = require('uuid');
@@ -426,6 +426,8 @@ async function logTaxEmailDelivery({ resendId, communityId, customerId, workflow
       resend_id: resendId || null,
       customer_id: customerId || null,
       workflow_rule_id: workflowRuleId || null,
+      outbound_message_id: outboundMessageId || null,
+      thread_id: threadId || null,
       created_at: new Date().toISOString(),
     });
   } catch (e) {
