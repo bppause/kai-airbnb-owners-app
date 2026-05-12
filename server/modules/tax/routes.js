@@ -2917,6 +2917,65 @@ module.exports = function createTaxRouter(deps) {
     res.json({ ok: true });
   });
 
+  // ── Phase 4n.21: threaded customer notes ────────────────────────────────
+  //
+  // Any active employee in the customer's community can view + add notes.
+  // Notes are stamped with the author's email/name/role at write time so
+  // the timeline survives staff turnover (no FK to tax_employees).
+  // Delete is intentionally omitted in v1 — notes are an audit record;
+  // edits would defeat that. Owners can soft-delete via SQL if needed.
+  router.get('/admin/customers/:id/notes', async (req, res) => {
+    const emp = await requireTaxEmployee(req, res); if (!emp) return;
+    const customerId = trim(req.params.id, 200);
+    // Scope check: staff can only read notes for customers they're
+    // assigned to (or any customer when they're admin). Mirrors the
+    // customer-detail visibility already enforced elsewhere.
+    if (!(await canEmployeeSeeCustomer(emp, customerId))) {
+      return res.status(403).json({ error: 'Not assigned to this customer.' });
+    }
+    const { data, error } = await supabase.from('tax_customer_notes')
+      .select('id, body, author_email, author_name, author_role, created_at')
+      .eq('customer_id', customerId)
+      .order('created_at', { ascending: false }).limit(200);
+    if (error) return sendSupabaseError(res, error);
+    res.json({ notes: data || [] });
+  });
+
+  router.post('/admin/customers/:id/notes', async (req, res) => {
+    const emp = await requireTaxEmployee(req, res); if (!emp) return;
+    const customerId = trim(req.params.id, 200);
+    const body = trim(req.body?.body || '', MAX_TEXT_LEN);
+    if (!body) return res.status(400).json({ error: 'Note body is required.' });
+    if (!(await canEmployeeSeeCustomer(emp, customerId))) {
+      return res.status(403).json({ error: 'Not assigned to this customer.' });
+    }
+    const { data: cust } = await supabase.from('tax_customers')
+      .select('id, community_id').eq('id', customerId).maybeSingle();
+    if (!cust) return res.status(404).json({ error: 'Customer not found.' });
+    if (cust.community_id !== emp.community_id) {
+      return res.status(403).json({ error: 'Customer is in a different community.' });
+    }
+
+    const noteId = 'note_' + uuidv4().slice(0, 12);
+    const row = {
+      id: noteId, community_id: cust.community_id, customer_id: customerId,
+      body,
+      author_email: emp.email || '',
+      author_name:  emp.name || emp.email || '',
+      author_role:  emp.role === 'admin' ? 'admin' : 'staff',
+    };
+    const { error } = await supabase.from('tax_customer_notes').insert(row);
+    if (error) return sendSupabaseError(res, error);
+    try {
+      await auditLog({
+        entity: 'tax.customer_note', entityId: noteId, action: 'create',
+        actorEmail: emp.email || '', actorName: emp.name || '',
+        after: { customerId, length: body.length },
+      });
+    } catch (_e) {}
+    res.json({ ok: true, note: row });
+  });
+
   // ── GET /admin/customers/:id/relationships ── (global admin)
   router.get('/admin/customers/:id/relationships', async (req, res) => {
     if (!(await requireOwnerAdmin(req, res))) return;

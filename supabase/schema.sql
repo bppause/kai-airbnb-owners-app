@@ -1735,6 +1735,24 @@ create index if not exists tax_employees_community_idx
 alter table public.tax_employees
   add column if not exists notification_prefs jsonb not null default '{}'::jsonb;
 
+-- Phase 4n.21: threaded customer notes. The existing tax_customers.notes
+-- is a single overwritable text blob — fine for "this customer prefers
+-- WhatsApp" stuck-on-the-row context, but no good for a multi-entry
+-- timeline. This table is the timeline.
+create table if not exists public.tax_customer_notes (
+  id            text primary key,
+  community_id  text not null references public.communities(id) on delete cascade,
+  customer_id   text not null references public.tax_customers(id) on delete cascade,
+  body          text not null default '',
+  author_email  text not null default '',
+  author_name   text not null default '',
+  author_role   text not null default 'staff',   -- 'admin' | 'staff'
+  created_at    timestamptz not null default now()
+);
+create index if not exists idx_tax_customer_notes_customer
+  on public.tax_customer_notes(customer_id, created_at desc);
+alter table public.tax_customer_notes disable row level security;
+
 -- Employee in-portal notifications. Kept separate from tax_notifications
 -- (customer-scoped) because the access patterns differ — employees query
 -- their own inbox in aggregate, customers see their own bell only.

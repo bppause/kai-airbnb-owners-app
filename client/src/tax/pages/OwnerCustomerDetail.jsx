@@ -138,6 +138,8 @@ export default function OwnerCustomerDetail({ customerId }) {
 
       <ThreadsSection data={data} threadsBase={threadsBase} t={t} />
 
+      <NotesSection auth={auth} customerId={customerId} locale={locale} t={t} />
+
       <FilingsSection data={data} auth={auth} onChange={load} locale={locale} t={t} />
 
       <OwnerSubscriptionsSection
@@ -392,6 +394,109 @@ function WorkflowOverrideModal({ auth, customerId, workflow, locale, t, onClose,
 }
 
 // Phase 4n: per-customer reminder send + open/click timeline. Engagement
+// Phase 4n.21: threaded customer notes. Any employee assigned to this
+// customer (admins always) can add a note. Notes are append-only — the
+// author + timestamp are baked at write so the audit trail survives staff
+// turnover.
+function NotesSection({ auth, customerId, locale, t }) {
+  const [notes, setNotes] = useState(null);
+  const [draft, setDraft] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+
+  function load() {
+    setErr('');
+    taxApi.adminListCustomerNotes(auth, customerId)
+      .then(d => setNotes(d.notes || []))
+      .catch(e => setErr(e?.message || t('error.loadFailed')));
+  }
+  useEffect(load, [customerId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function onSubmit(e) {
+    e.preventDefault();
+    const body = draft.trim();
+    if (!body) return;
+    setBusy(true); setErr('');
+    try {
+      await taxApi.adminCreateCustomerNote(auth, customerId, { body });
+      setDraft('');
+      load();
+    } catch (e2) {
+      setErr(e2?.message || t('respond.error.generic'));
+    } finally { setBusy(false); }
+  }
+
+  function fmt(iso) {
+    try {
+      return new Intl.DateTimeFormat(locale === 'en' ? 'en-US' : 'es-ES',
+        { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+        .format(new Date(iso));
+    } catch (_e) { return iso; }
+  }
+
+  return (
+    <section className="tax-section" style={{ paddingTop: 0 }}>
+      <h3>{t('owner.customer.section.notes')}</h3>
+      <p style={{ color: 'var(--tax-muted)', fontSize: 13, margin: '0 0 12px' }}>
+        {t('owner.customer.notes.hint')}
+      </p>
+
+      <form onSubmit={onSubmit} style={{ marginBottom: 12 }}>
+        <textarea value={draft} onChange={e => setDraft(e.target.value)}
+                  rows={3} maxLength={4000}
+                  placeholder={t('owner.customer.notes.placeholder')}
+                  style={{ width: '100%' }} />
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 8 }}>
+          <span style={{ fontSize: 12, color: 'var(--tax-muted)' }}>
+            {t('owner.customer.notes.author')}
+          </span>
+          <button type="submit" className="tax-btn tax-btn--primary tax-btn--sm"
+                  disabled={busy || !draft.trim()}>
+            {busy ? t('lead.submitting') : t('owner.customer.notes.addBtn')}
+          </button>
+        </div>
+      </form>
+
+      {err && <div className="tax-msg tax-msg--error">{err}</div>}
+
+      {notes === null && <p>{t('loading')}</p>}
+      {notes && notes.length === 0 && (
+        <p style={{ color: 'var(--tax-muted)' }}>{t('owner.customer.notes.empty')}</p>
+      )}
+      {notes && notes.length > 0 && (
+        <div style={{ display: 'grid', gap: 8 }}>
+          {notes.map(n => (
+            <div key={n.id} style={{
+              padding: '10px 12px', border: '1px solid var(--tax-border)',
+              borderRadius: 8, background: '#fff',
+            }}>
+              <div style={{
+                display: 'flex', justifyContent: 'space-between', gap: 8,
+                fontSize: 12, color: 'var(--tax-muted)', marginBottom: 4,
+              }}>
+                <span>
+                  <strong style={{ color: 'var(--tax-text)' }}>
+                    {n.author_name || n.author_email || t('owner.customer.notes.unknownAuthor')}
+                  </strong>
+                  {n.author_role === 'admin' && (
+                    <span style={{
+                      marginLeft: 6, padding: '0 6px', borderRadius: 999,
+                      background: 'var(--tax-brand-primary)', color: '#fff',
+                      fontSize: 10, fontWeight: 700,
+                    }}>ADMIN</span>
+                  )}
+                </span>
+                <span>{fmt(n.created_at)}</span>
+              </div>
+              <div style={{ whiteSpace: 'pre-wrap', fontSize: 14 }}>{n.body}</div>
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
 // summary at the top + a colored pill per row makes "did this customer
 // actually read it" answerable at a glance. Apple Mail Privacy caveat is
 // shown inline so the team doesn't over-trust open counts.
