@@ -4,6 +4,7 @@ import { useEmployeeAuth } from '../auth/EmployeeAuthProvider';
 import { taxApi } from '../api';
 import EmployeeShell from '../components/EmployeeShell';
 import EmailPreviewModal from '../components/EmailPreviewModal';
+import ChecklistField from '../components/ChecklistField';
 import { generatePeriods, upcomingReminderFires, todayIsoUtc } from '../lib/schedulePeriods';
 
 // Phase 4j: for each (relationship_type, filing_schedule) the owner can
@@ -258,182 +259,27 @@ export default function OwnerRelationshipWorkflows() {
               const k = `${activeRel}|${sch.slug}`;
               const st = getEditState(activeRel, sch.slug);
               const r = ruleFor(activeRel, sch.slug);
-              const isOverride = !!r;
-              const mkey = msg[k];
               return (
-                <section key={sch.id} style={{
-                  border: '1px solid var(--tax-border)', borderRadius: 8, padding: 16,
-                  background: 'var(--tax-bg)',
-                }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 12, flexWrap: 'wrap' }}>
-                    <div>
-                      <div style={{ fontWeight: 700 }}>{pickI18n(sch.name_i18n, locale).value || sch.slug}</div>
-                      <div style={{ fontSize: 12, color: 'var(--tax-muted)' }}>
-                        <code>{sch.slug}</code> · {sch.cadence}
-                      </div>
-                    </div>
-                    <span style={{
-                      padding: '2px 10px', borderRadius: 999, fontSize: 12, fontWeight: 600,
-                      background: isOverride ? 'var(--tax-brand-primary)' : 'var(--tax-bg-alt)',
-                      color: isOverride ? '#fff' : 'var(--tax-muted)',
-                    }}>
-                      {isOverride ? t('owner.workflows.statusOverride') : t('owner.workflows.statusDefault')}
-                    </span>
-                  </div>
-
-                  <div style={{ marginTop: 12 }}>
-                    <label htmlFor={`off-${k}`} style={{ display: 'block', fontSize: 13, marginBottom: 4 }}>
-                      {t('owner.workflows.offsetsLabel')}
-                    </label>
-                    <input id={`off-${k}`} type="text" value={st.offsetsInput}
-                           placeholder="14, 7, 2"
-                           onChange={e => setEditState(activeRel, sch.slug, { offsetsInput: e.target.value })}
-                           style={{ width: 220 }} />
-                    <p style={{ margin: '4px 0 0', fontSize: 12, color: 'var(--tax-muted)' }}>
-                      {t('owner.workflows.offsetsHint')}
-                    </p>
-                  </div>
-
-                  <div style={{ marginTop: 16 }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-                      <span style={{ fontSize: 13, fontWeight: 600 }}>{t('owner.workflows.docsLabel')}</span>
-                      <button type="button" className="tax-btn tax-btn--ghost tax-btn--sm"
-                              onClick={() => addDoc(activeRel, sch.slug)}>
-                        + {t('owner.workflows.addDoc')}
-                      </button>
-                    </div>
-                    <p style={{ margin: '0 0 8px', fontSize: 12, color: 'var(--tax-muted)' }}>
-                      {t('owner.workflows.docsHint')}
-                    </p>
-                    {st.docs.length === 0 && (
-                      <p style={{ color: 'var(--tax-muted)', fontSize: 13 }}>{t('owner.workflows.docsEmpty')}</p>
-                    )}
-                    {st.docs.map((d, i) => (
-                      <div key={i} style={{
-                        display: 'grid', gap: 8, padding: 8, marginTop: 8,
-                        gridTemplateColumns: '1fr 1fr 1fr 110px 60px 32px',
-                        alignItems: 'center', border: '1px dashed var(--tax-border)', borderRadius: 6,
-                      }}>
-                        <input type="text" value={d.key} placeholder={t('owner.workflows.docKey')}
-                               onChange={e => updateDoc(activeRel, sch.slug, i, { key: e.target.value })} />
-                        <input type="text" value={d.label_i18n?.en || ''} placeholder={t('owner.workflows.docLabelEn')}
-                               onChange={e => updateDoc(activeRel, sch.slug, i, { label_i18n: { ...(d.label_i18n || {}), en: e.target.value } })} />
-                        <input type="text" value={d.label_i18n?.es || ''} placeholder={t('owner.workflows.docLabelEs')}
-                               onChange={e => updateDoc(activeRel, sch.slug, i, { label_i18n: { ...(d.label_i18n || {}), es: e.target.value } })} />
-                        <select value={d.type || 'text'} onChange={e => updateDoc(activeRel, sch.slug, i, { type: e.target.value })}>
-                          {DOC_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
-                        </select>
-                        <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12 }}>
-                          <input type="checkbox" checked={d.required !== false}
-                                 onChange={e => updateDoc(activeRel, sch.slug, i, { required: e.target.checked })} />
-                          {t('owner.workflows.docRequired')}
-                        </label>
-                        <button type="button" className="tax-btn tax-btn--ghost tax-btn--sm"
-                                onClick={() => removeDoc(activeRel, sch.slug, i)}
-                                aria-label={t('owner.workflows.removeDoc')}>×</button>
-                      </div>
-                    ))}
-                  </div>
-
-                  {(() => {
-                    const today = todayIsoUtc();
+                <WorkflowCard key={sch.id}
+                  sch={sch} st={st} rule={r} mkey={msg[k]} busy={!!busy[k]}
+                  activeRel={activeRel} locale={locale} t={t} auth={auth} community={community}
+                  parseOffsets={parseOffsets} fmtDate={fmtDate}
+                  SYSTEM_DEFAULT_OFFSETS={SYSTEM_DEFAULT_OFFSETS} HORIZONS={HORIZONS}
+                  setEditState={setEditState}
+                  addDoc={addDoc} updateDoc={updateDoc} removeDoc={removeDoc}
+                  onSave={() => onSave(activeRel, sch.slug)}
+                  onReset={() => onReset(activeRel, sch.slug)}
+                  onPreviewEmail={() => {
                     const { offsets, usingDefault } = parseOffsets(st.offsetsInput);
                     const effective = usingDefault ? SYSTEM_DEFAULT_OFFSETS : offsets;
-                    const periods = generatePeriods(sch.anchor_rule, today, 16);
-                    const previewable = effective.length > 0 && periods.length > 0;
-                    return (
-                      <div style={{
-                        marginTop: 16, padding: 12, borderRadius: 8,
-                        background: 'var(--tax-bg-alt)', border: '1px solid var(--tax-border)',
-                      }}>
-                        <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 4 }}>
-                          {t('owner.workflows.previewTitle')}
-                        </div>
-                        <p style={{ margin: '0 0 8px', fontSize: 12, color: 'var(--tax-muted)' }}>
-                          {usingDefault
-                            ? t('owner.workflows.previewUsingDefault', { offsets: SYSTEM_DEFAULT_OFFSETS.join(', ') })
-                            : t('owner.workflows.previewUsingCustom', { offsets: effective.join(', ') })}
-                          {' · '}{t('owner.workflows.previewToday', { date: fmtDate(today) })}
-                        </p>
-                        {!periods.length && (
-                          <p style={{ margin: 0, fontSize: 12, color: 'var(--tax-muted)' }}>
-                            {t('owner.workflows.previewUnsupported')}
-                          </p>
-                        )}
-                        {periods.length > 0 && !effective.length && (
-                          <p style={{ margin: 0, fontSize: 12, color: 'var(--tax-muted)' }}>
-                            {t('owner.workflows.previewNoOffsets')}
-                          </p>
-                        )}
-                        {previewable && (
-                          <div style={{ display: 'grid', gap: 6, fontSize: 13 }}>
-                            {HORIZONS.map(days => {
-                              const fires = upcomingReminderFires(periods, effective, today, days);
-                              return (
-                                <div key={days} style={{ display: 'grid', gridTemplateColumns: '110px 1fr', gap: 8, alignItems: 'baseline' }}>
-                                  <strong style={{ color: 'var(--tax-text)' }}>
-                                    {t('owner.workflows.previewHorizon', { days })}
-                                  </strong>
-                                  <span style={{ color: fires.length ? 'var(--tax-text)' : 'var(--tax-muted)' }}>
-                                    {fires.length
-                                      ? fires.map(f =>
-                                          `${fmtDate(f.dateIso)} (T-${f.offset}d, ${t('owner.workflows.previewDueShort')} ${fmtDate(f.dueDate)})`
-                                        ).join(' · ')
-                                      : t('owner.workflows.previewNone')}
-                                  </span>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })()}
-
-                  {mkey?.text && (
-                    <div className={`tax-msg tax-msg--${mkey.kind === 'error' ? 'error' : 'success'}`} style={{ marginTop: 12 }}>
-                      {mkey.text}
-                    </div>
-                  )}
-
-                  {r && <EngagementBar ruleId={r.id} auth={auth} t={t} />}
-
-                  <div style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
-                    <button type="button" className="tax-btn tax-btn--primary tax-btn--sm"
-                            disabled={!!busy[k]} onClick={() => onSave(activeRel, sch.slug)}>
-                      {busy[k] ? t('lead.submitting') : t('owner.workflows.saveBtn')}
-                    </button>
-                    <button type="button" className="tax-btn tax-btn--ghost tax-btn--sm"
-                            onClick={() => {
-                              const { offsets, usingDefault } = parseOffsets(st.offsetsInput);
-                              const effective = usingDefault ? SYSTEM_DEFAULT_OFFSETS : offsets;
-                              setPreview({
-                                extraDocs: Array.isArray(st.docs) ? st.docs : [],
-                                offsetDays: effective[0] || 14,
-                              });
-                            }}>
-                      {t('owner.workflows.previewEmailBtn')}
-                    </button>
-                    {r && (
-                      <button type="button" className="tax-btn tax-btn--ghost tax-btn--sm"
-                              onClick={() => setTestSend({ ruleId: r.id, name: pickI18n(sch.name_i18n, locale).value || sch.slug })}>
-                        {t('owner.workflows.sendTestBtn')}
-                      </button>
-                    )}
-                    {r && (
-                      <button type="button" className="tax-btn tax-btn--ghost tax-btn--sm"
-                              onClick={() => setHistoryFor({ ruleId: r.id, name: pickI18n(sch.name_i18n, locale).value || sch.slug })}>
-                        {t('owner.workflows.historyBtn')}
-                      </button>
-                    )}
-                    {isOverride && (
-                      <button type="button" className="tax-btn tax-btn--ghost tax-btn--sm"
-                              disabled={!!busy[k]} onClick={() => onReset(activeRel, sch.slug)}>
-                        {t('owner.workflows.resetBtn')}
-                      </button>
-                    )}
-                  </div>
-                </section>
+                    setPreview({
+                      extraDocs: Array.isArray(st.docs) ? st.docs : [],
+                      offsetDays: effective[0] || 14,
+                    });
+                  }}
+                  onTestSend={() => r && setTestSend({ ruleId: r.id, name: pickI18n(sch.name_i18n, locale).value || sch.slug })}
+                  onHistory={() => r && setHistoryFor({ ruleId: r.id, name: pickI18n(sch.name_i18n, locale).value || sch.slug })}
+                />
               );
             })}
           </div>
@@ -527,6 +373,499 @@ export default function OwnerRelationshipWorkflows() {
       />
     </EmployeeShell>
   );
+}
+
+// Phase 4n.22: tabbed workflow editor. Owner sees one card per workflow
+// configured for the active relationship. Collapsed = one-line summary.
+// Expanded = five tabs that mirror the lifecycle: Service, Schedule,
+// Form, Reminders, and the customer Journey. Existing handlers (save,
+// reset, preview, test, history) are surfaced as a single action row
+// at the bottom of every tab so the owner never has to scroll to find
+// "Save".
+function WorkflowCard({
+  sch, st, rule, mkey, busy,
+  activeRel, locale, t, auth, community,
+  parseOffsets, fmtDate, SYSTEM_DEFAULT_OFFSETS, HORIZONS,
+  setEditState, addDoc, updateDoc, removeDoc,
+  onSave, onReset, onPreviewEmail, onTestSend, onHistory,
+}) {
+  const [expanded, setExpanded] = useState(true);
+  const [tab, setTab] = useState('schedule');
+  const isOverride = !!rule;
+  const name = pickI18n(sch.name_i18n, locale).value || sch.slug;
+  const description = pickI18n(sch.description_i18n, locale).value || '';
+
+  const { offsets: rawOffsets, usingDefault } = parseOffsets(st.offsetsInput);
+  const effectiveOffsets = usingDefault ? SYSTEM_DEFAULT_OFFSETS : rawOffsets;
+  const today = todayIsoUtc();
+  const periods = generatePeriods(sch.anchor_rule, today, 8);
+
+  const tabs = [
+    { key: 'service',   label: t('owner.workflows.tab.service') },
+    { key: 'schedule',  label: t('owner.workflows.tab.schedule') },
+    { key: 'form',      label: t('owner.workflows.tab.form'),
+      badge: st.docs.length || null },
+    { key: 'reminders', label: t('owner.workflows.tab.reminders'),
+      badge: effectiveOffsets.length || null },
+    { key: 'journey',   label: t('owner.workflows.tab.journey') },
+  ];
+
+  return (
+    <section style={{
+      border: '1px solid var(--tax-border)', borderRadius: 10,
+      background: 'var(--tax-bg)', overflow: 'hidden',
+    }}>
+      {/* ── Header ─────────────────────────────────────────────────── */}
+      <header style={{
+        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+        gap: 12, padding: '12px 16px', cursor: 'pointer',
+        background: expanded ? 'var(--tax-bg-alt)' : '#fff',
+        borderBottom: expanded ? '1px solid var(--tax-border)' : 'none',
+      }} onClick={() => setExpanded(v => !v)}>
+        <div style={{ minWidth: 0, flex: 1 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+            <strong style={{ fontSize: 15 }}>{name}</strong>
+            <span style={{
+              padding: '1px 8px', borderRadius: 999, fontSize: 11, fontWeight: 700,
+              background: 'var(--tax-bg-alt)', color: 'var(--tax-muted)',
+              textTransform: 'uppercase', letterSpacing: '.04em',
+            }}>{sch.cadence}</span>
+            <span style={{
+              padding: '2px 10px', borderRadius: 999, fontSize: 12, fontWeight: 600,
+              background: isOverride ? 'var(--tax-brand-primary)' : 'var(--tax-bg-alt)',
+              color: isOverride ? '#fff' : 'var(--tax-muted)',
+            }}>
+              {isOverride ? t('owner.workflows.statusOverride') : t('owner.workflows.statusDefault')}
+            </span>
+          </div>
+          <div style={{ fontSize: 12, color: 'var(--tax-muted)', marginTop: 2 }}>
+            <code>{sch.slug}</code>
+            {' · '}{t('owner.workflows.cardSummary', {
+              offsets: effectiveOffsets.join(', ') || '—',
+              docs: st.docs.length,
+            })}
+          </div>
+        </div>
+        <span aria-hidden="true" style={{
+          fontSize: 14, color: 'var(--tax-muted)',
+          transform: expanded ? 'rotate(180deg)' : 'rotate(0)',
+          transition: 'transform .12s ease',
+        }}>▾</span>
+      </header>
+
+      {expanded && (
+        <>
+          {/* ── Tab bar ──────────────────────────────────────────── */}
+          <nav role="tablist" style={{
+            display: 'flex', gap: 4, padding: '8px 12px',
+            borderBottom: '1px solid var(--tax-border)',
+            background: '#fff', overflowX: 'auto',
+          }}>
+            {tabs.map(t1 => {
+              const isActive = tab === t1.key;
+              return (
+                <button key={t1.key} type="button" role="tab" aria-selected={isActive}
+                        onClick={() => setTab(t1.key)}
+                        style={{
+                          padding: '6px 12px', borderRadius: 6,
+                          border: '1px solid transparent', cursor: 'pointer',
+                          background: isActive ? 'color-mix(in srgb, var(--tax-brand-primary) 10%, #fff)' : 'transparent',
+                          color: isActive ? 'var(--tax-brand-primary)' : 'var(--tax-text)',
+                          fontWeight: isActive ? 700 : 500,
+                          fontSize: 13, whiteSpace: 'nowrap',
+                          display: 'inline-flex', alignItems: 'center', gap: 6,
+                        }}>
+                  {t1.label}
+                  {t1.badge != null && (
+                    <span style={{
+                      minWidth: 18, padding: '0 6px', borderRadius: 999, fontSize: 11,
+                      background: isActive ? 'var(--tax-brand-primary)' : 'var(--tax-bg-alt)',
+                      color: isActive ? '#fff' : 'var(--tax-muted)',
+                      textAlign: 'center',
+                    }}>{t1.badge}</span>
+                  )}
+                </button>
+              );
+            })}
+          </nav>
+
+          {/* ── Tab content ──────────────────────────────────────── */}
+          <div style={{ padding: 16 }}>
+            {tab === 'service' && (
+              <ServiceTab sch={sch} name={name} description={description} t={t} />
+            )}
+            {tab === 'schedule' && (
+              <ScheduleTab sch={sch} periods={periods} fmtDate={fmtDate} t={t} />
+            )}
+            {tab === 'form' && (
+              <FormTab st={st} addDoc={() => addDoc(activeRel, sch.slug)}
+                       updateDoc={(i, patch) => updateDoc(activeRel, sch.slug, i, patch)}
+                       removeDoc={i => removeDoc(activeRel, sch.slug, i)}
+                       auth={auth} locale={locale} t={t} />
+            )}
+            {tab === 'reminders' && (
+              <RemindersTab st={st} sch={sch} activeRel={activeRel}
+                            effectiveOffsets={effectiveOffsets}
+                            usingDefault={usingDefault} periods={periods}
+                            SYSTEM_DEFAULT_OFFSETS={SYSTEM_DEFAULT_OFFSETS}
+                            HORIZONS={HORIZONS}
+                            setEditState={setEditState}
+                            fmtDate={fmtDate} today={today} t={t}
+                            onPreviewEmail={onPreviewEmail} />
+            )}
+            {tab === 'journey' && (
+              <JourneyTab effectiveOffsets={effectiveOffsets}
+                          periods={periods} docs={st.docs}
+                          fmtDate={fmtDate} t={t} />
+            )}
+
+            {mkey?.text && (
+              <div className={`tax-msg tax-msg--${mkey.kind === 'error' ? 'error' : 'success'}`}
+                   style={{ marginTop: 12 }}>{mkey.text}</div>
+            )}
+
+            {rule && (
+              <div style={{ marginTop: 12 }}>
+                <EngagementBar ruleId={rule.id} auth={auth} t={t} />
+              </div>
+            )}
+
+            {/* ── Persistent action row ─────────────────────────── */}
+            <div style={{
+              display: 'flex', gap: 8, marginTop: 16, flexWrap: 'wrap',
+              borderTop: '1px solid var(--tax-border)', paddingTop: 12,
+            }}>
+              <button type="button" className="tax-btn tax-btn--primary tax-btn--sm"
+                      disabled={busy} onClick={onSave}>
+                {busy ? t('lead.submitting') : t('owner.workflows.saveBtn')}
+              </button>
+              <button type="button" className="tax-btn tax-btn--ghost tax-btn--sm"
+                      onClick={onPreviewEmail}>
+                {t('owner.workflows.previewEmailBtn')}
+              </button>
+              {rule && (
+                <button type="button" className="tax-btn tax-btn--ghost tax-btn--sm"
+                        onClick={onTestSend}>
+                  {t('owner.workflows.sendTestBtn')}
+                </button>
+              )}
+              {rule && (
+                <button type="button" className="tax-btn tax-btn--ghost tax-btn--sm"
+                        onClick={onHistory}>
+                  {t('owner.workflows.historyBtn')}
+                </button>
+              )}
+              {isOverride && (
+                <button type="button" className="tax-btn tax-btn--ghost tax-btn--sm"
+                        disabled={busy} onClick={onReset}
+                        style={{ marginLeft: 'auto', color: '#b91c1c', borderColor: '#b91c1c' }}>
+                  {t('owner.workflows.resetBtn')}
+                </button>
+              )}
+            </div>
+          </div>
+        </>
+      )}
+    </section>
+  );
+}
+
+// ── Tab: Service — read-only descriptor of what this workflow IS. ───────
+function ServiceTab({ sch, name, description, t }) {
+  return (
+    <div style={{ display: 'grid', gap: 12 }}>
+      <Row label={t('owner.workflows.tabService.name')} value={name} />
+      {description && (
+        <Row label={t('owner.workflows.tabService.description')} value={description} />
+      )}
+      <Row label={t('owner.workflows.tabService.slug')} value={<code>{sch.slug}</code>} />
+      <Row label={t('owner.workflows.tabService.cadence')} value={sch.cadence} />
+      {sch.jurisdiction && (
+        <Row label={t('owner.workflows.tabService.jurisdiction')} value={sch.jurisdiction} />
+      )}
+      <p style={{ margin: '4px 0 0', fontSize: 12, color: 'var(--tax-muted)' }}>
+        {t('owner.workflows.tabService.note')}
+      </p>
+    </div>
+  );
+}
+function Row({ label, value }) {
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: '160px 1fr', gap: 10, alignItems: 'baseline' }}>
+      <div style={{ fontSize: 12, color: 'var(--tax-muted)', textTransform: 'uppercase', letterSpacing: '.04em' }}>{label}</div>
+      <div style={{ fontSize: 14 }}>{value}</div>
+    </div>
+  );
+}
+
+// ── Tab: Schedule — when this workflow's filings are actually due. ──────
+function ScheduleTab({ sch, periods, fmtDate, t }) {
+  return (
+    <div>
+      <p style={{ margin: '0 0 8px', fontSize: 13, color: 'var(--tax-muted)' }}>
+        {t('owner.workflows.tabSchedule.intro', { cadence: sch.cadence })}
+      </p>
+      {periods.length === 0 ? (
+        <p style={{ color: 'var(--tax-muted)' }}>{t('owner.workflows.previewUnsupported')}</p>
+      ) : (
+        <ol style={{ listStyle: 'none', padding: 0, margin: 0, display: 'grid', gap: 6 }}>
+          {periods.slice(0, 6).map((p, i) => (
+            <li key={p.dueDate} style={{
+              display: 'grid', gridTemplateColumns: '36px 1fr', gap: 10, alignItems: 'center',
+              padding: '8px 12px', border: '1px solid var(--tax-border)', borderRadius: 8,
+              background: i === 0 ? 'color-mix(in srgb, var(--tax-brand-primary) 6%, #fff)' : '#fff',
+            }}>
+              <div style={{
+                width: 32, height: 32, borderRadius: 6, display: 'grid', placeItems: 'center',
+                background: 'var(--tax-bg-alt)', color: 'var(--tax-brand-primary)', fontWeight: 700,
+              }}>{i + 1}</div>
+              <div>
+                <div style={{ fontWeight: 600 }}>{p.periodLabel || sch.cadence}</div>
+                <div style={{ fontSize: 12, color: 'var(--tax-muted)' }}>
+                  {t('owner.workflows.tabSchedule.dueOn', { date: fmtDate(p.dueDate) })}
+                </div>
+              </div>
+            </li>
+          ))}
+        </ol>
+      )}
+    </div>
+  );
+}
+
+// ── Tab: Form — checklist editor (left) + live customer form preview (right). ──
+function FormTab({ st, addDoc, updateDoc, removeDoc, auth, locale, t }) {
+  return (
+    <div style={{ display: 'grid', gap: 16, gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)' }}>
+      <div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+          <span style={{ fontSize: 13, fontWeight: 600 }}>{t('owner.workflows.docsLabel')}</span>
+          <button type="button" className="tax-btn tax-btn--ghost tax-btn--sm" onClick={addDoc}>
+            + {t('owner.workflows.addDoc')}
+          </button>
+        </div>
+        <p style={{ margin: '0 0 8px', fontSize: 12, color: 'var(--tax-muted)' }}>
+          {t('owner.workflows.docsHint')}
+        </p>
+        {st.docs.length === 0 && (
+          <p style={{ color: 'var(--tax-muted)', fontSize: 13 }}>{t('owner.workflows.docsEmpty')}</p>
+        )}
+        <div style={{ display: 'grid', gap: 8 }}>
+          {st.docs.map((d, i) => (
+            <div key={i} style={{
+              display: 'grid', gap: 6, padding: 8,
+              gridTemplateColumns: '1fr 1fr',
+              border: '1px dashed var(--tax-border)', borderRadius: 6,
+            }}>
+              <input type="text" value={d.key} placeholder={t('owner.workflows.docKey')}
+                     onChange={e => updateDoc(i, { key: e.target.value })} />
+              <select value={d.type || 'text'} onChange={e => updateDoc(i, { type: e.target.value })}>
+                {DOC_TYPES.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+              </select>
+              <input type="text" value={d.label_i18n?.en || ''} placeholder={t('owner.workflows.docLabelEn')}
+                     onChange={e => updateDoc(i, { label_i18n: { ...(d.label_i18n || {}), en: e.target.value } })} />
+              <input type="text" value={d.label_i18n?.es || ''} placeholder={t('owner.workflows.docLabelEs')}
+                     onChange={e => updateDoc(i, { label_i18n: { ...(d.label_i18n || {}), es: e.target.value } })} />
+              <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12 }}>
+                <input type="checkbox" checked={d.required !== false}
+                       onChange={e => updateDoc(i, { required: e.target.checked })} />
+                {t('owner.workflows.docRequired')}
+              </label>
+              <button type="button" className="tax-btn tax-btn--ghost tax-btn--sm"
+                      onClick={() => removeDoc(i)}>×</button>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Live preview — the same <ChecklistField> the customer sees. */}
+      <div style={{
+        background: 'var(--tax-bg-alt)', borderRadius: 8, padding: 12,
+        border: '1px solid var(--tax-border)', minHeight: 200,
+      }}>
+        <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '.06em',
+                      color: 'var(--tax-muted)', fontWeight: 700, marginBottom: 8 }}>
+          {t('owner.workflows.tabForm.previewLabel')}
+        </div>
+        {st.docs.length === 0 ? (
+          <p style={{ margin: 0, fontSize: 13, color: 'var(--tax-muted)' }}>
+            {t('owner.workflows.tabForm.previewEmpty')}
+          </p>
+        ) : (
+          <div className="tax-form" style={{ background: '#fff', padding: 12, borderRadius: 6 }}>
+            {st.docs.filter(d => d.key).map(d => (
+              <ChecklistField key={d.key} item={d} fieldIdPrefix={`prv-${d.key}`}
+                              value="" onChange={() => {}}
+                              auth={auth} supportsFileUpload={false} />
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── Tab: Reminders — when emails fire + horizon previews. ────────────────
+function RemindersTab({
+  st, activeRel, sch, effectiveOffsets, usingDefault, periods,
+  SYSTEM_DEFAULT_OFFSETS, HORIZONS, setEditState, fmtDate, today, t, onPreviewEmail,
+}) {
+  const k = `${activeRel}|${sch.slug}`;
+  return (
+    <div style={{ display: 'grid', gap: 16 }}>
+      <div>
+        <label htmlFor={`off-${k}`} style={{ display: 'block', fontSize: 13, marginBottom: 4 }}>
+          {t('owner.workflows.offsetsLabel')}
+        </label>
+        <input id={`off-${k}`} type="text" value={st.offsetsInput}
+               placeholder="14, 7, 2"
+               onChange={e => setEditState(activeRel, sch.slug, { offsetsInput: e.target.value })}
+               style={{ width: 220 }} />
+        <p style={{ margin: '4px 0 0', fontSize: 12, color: 'var(--tax-muted)' }}>
+          {t('owner.workflows.offsetsHint')}
+        </p>
+      </div>
+
+      <div style={{
+        padding: 12, borderRadius: 8,
+        background: 'var(--tax-bg-alt)', border: '1px solid var(--tax-border)',
+      }}>
+        <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 4 }}>
+          {t('owner.workflows.previewTitle')}
+        </div>
+        <p style={{ margin: '0 0 8px', fontSize: 12, color: 'var(--tax-muted)' }}>
+          {usingDefault
+            ? t('owner.workflows.previewUsingDefault', { offsets: SYSTEM_DEFAULT_OFFSETS.join(', ') })
+            : t('owner.workflows.previewUsingCustom', { offsets: effectiveOffsets.join(', ') })}
+          {' · '}{t('owner.workflows.previewToday', { date: fmtDate(today) })}
+        </p>
+        {!periods.length && (
+          <p style={{ margin: 0, fontSize: 12, color: 'var(--tax-muted)' }}>
+            {t('owner.workflows.previewUnsupported')}
+          </p>
+        )}
+        {periods.length > 0 && !effectiveOffsets.length && (
+          <p style={{ margin: 0, fontSize: 12, color: 'var(--tax-muted)' }}>
+            {t('owner.workflows.previewNoOffsets')}
+          </p>
+        )}
+        {periods.length > 0 && effectiveOffsets.length > 0 && (
+          <div style={{ display: 'grid', gap: 6, fontSize: 13 }}>
+            {HORIZONS.map(days => {
+              const fires = upcomingReminderFires(periods, effectiveOffsets, today, days);
+              return (
+                <div key={days} style={{ display: 'grid', gridTemplateColumns: '110px 1fr', gap: 8, alignItems: 'baseline' }}>
+                  <strong style={{ color: 'var(--tax-text)' }}>
+                    {t('owner.workflows.previewHorizon', { days })}
+                  </strong>
+                  <span style={{ color: fires.length ? 'var(--tax-text)' : 'var(--tax-muted)' }}>
+                    {fires.length
+                      ? fires.map(f =>
+                          `${fmtDate(f.dateIso)} (T-${f.offset}d, ${t('owner.workflows.previewDueShort')} ${fmtDate(f.dueDate)})`
+                        ).join(' · ')
+                      : t('owner.workflows.previewNone')}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      <div>
+        <p style={{ margin: '0 0 4px', fontSize: 13, color: 'var(--tax-muted)' }}>
+          {t('owner.workflows.tabReminders.emailHint')}
+        </p>
+        <button type="button" className="tax-btn tax-btn--ghost tax-btn--sm" onClick={onPreviewEmail}>
+          {t('owner.workflows.previewEmailBtn')}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ── Tab: Journey — chronological strip showing what the customer experiences. ──
+function JourneyTab({ effectiveOffsets, periods, docs, fmtDate, t }) {
+  const sortedOffsets = [...effectiveOffsets].sort((a, b) => b - a);
+  const firstDue = periods[0]?.dueDate;
+  // Steps are displayed chronologically in the customer's perspective.
+  const steps = [
+    {
+      key: 'enroll',
+      label: t('owner.workflows.tabJourney.enroll.label'),
+      detail: t('owner.workflows.tabJourney.enroll.detail'),
+      tone: 'muted',
+    },
+    ...sortedOffsets.map((o, i) => ({
+      key: `rem-${o}-${i}`,
+      label: t('owner.workflows.tabJourney.reminder.label', { days: o }),
+      detail: firstDue
+        ? t('owner.workflows.tabJourney.reminder.detail', {
+            date: fmtDate(reminderFireDateFor(firstDue, o)),
+            count: i + 1,
+          })
+        : t('owner.workflows.tabJourney.reminder.noPeriod'),
+      tone: 'warn',
+    })),
+    {
+      key: 'due',
+      label: t('owner.workflows.tabJourney.due.label'),
+      detail: firstDue ? fmtDate(firstDue) : t('owner.workflows.tabJourney.due.noPeriod'),
+      tone: 'danger',
+    },
+    {
+      key: 'fillForm',
+      label: t('owner.workflows.tabJourney.fillForm.label'),
+      detail: t('owner.workflows.tabJourney.fillForm.detail', { count: docs.length }),
+      tone: 'info',
+    },
+    {
+      key: 'submitted',
+      label: t('owner.workflows.tabJourney.submitted.label'),
+      detail: t('owner.workflows.tabJourney.submitted.detail'),
+      tone: 'ok',
+    },
+  ];
+  const toneBg = {
+    muted: 'var(--tax-bg-alt)', warn: '#fef3c7', danger: '#fee2e2',
+    info: '#dbeafe', ok: '#dcfce7',
+  };
+  const toneText = {
+    muted: 'var(--tax-muted)', warn: '#854d0e', danger: '#b91c1c',
+    info: '#1e40af', ok: '#166534',
+  };
+  return (
+    <div>
+      <p style={{ margin: '0 0 12px', fontSize: 13, color: 'var(--tax-muted)' }}>
+        {t('owner.workflows.tabJourney.intro')}
+      </p>
+      <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 8 }}>
+        {steps.map((s, idx) => (
+          <div key={s.key} style={{
+            flex: '0 0 auto', minWidth: 160, maxWidth: 220,
+            padding: '10px 12px', borderRadius: 8,
+            background: toneBg[s.tone], color: toneText[s.tone],
+            border: '1px solid color-mix(in srgb, ' + toneText[s.tone] + ' 25%, transparent)',
+            display: 'flex', flexDirection: 'column', gap: 4,
+          }}>
+            <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.04em' }}>
+              {t('owner.workflows.tabJourney.step', { n: idx + 1 })}
+            </div>
+            <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--tax-text)' }}>{s.label}</div>
+            <div style={{ fontSize: 12 }}>{s.detail}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function reminderFireDateFor(dueIso, daysBefore) {
+  try {
+    const d = new Date(dueIso + 'T00:00:00Z');
+    d.setUTCDate(d.getUTCDate() - Math.abs(daysBefore));
+    return d.toISOString().slice(0, 10);
+  } catch (_e) { return dueIso; }
 }
 
 // Phase 4n.10: catalog browser. Lists hard-coded templates grouped by
