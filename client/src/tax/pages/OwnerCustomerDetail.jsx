@@ -127,6 +127,8 @@ export default function OwnerCustomerDetail({ customerId }) {
         </div>
       )}
 
+      <ActivityTimelineSection auth={auth} customerId={customerId} locale={locale} t={t} />
+
       <ProfileSection customer={c} auth={auth} customerId={customerId} onChange={load} t={t} />
 
       <RelationshipsSection
@@ -400,6 +402,170 @@ function WorkflowOverrideModal({ auth, customerId, workflow, locale, t, onClose,
 // customer (admins always) can add a note. Notes are append-only — the
 // author + timestamp are baked at write so the audit trail survives staff
 // turnover.
+// Phase 4n.27: per-customer activity timeline. Merged chronological feed
+// of notes, signatures, filings, threads, and email engagement so staff
+// can answer "what's been going on with this customer?" in one scan
+// instead of scrolling 7 sibling sections.
+function ActivityTimelineSection({ auth, customerId, locale, t }) {
+  const [events, setEvents] = useState(null);
+  const [filter, setFilter] = useState('all');
+  const [err, setErr] = useState('');
+  useEffect(() => {
+    setErr(''); setEvents(null);
+    taxApi.adminGetCustomerActivity(auth, customerId, 100)
+      .then(d => setEvents(d.events || []))
+      .catch(e => setErr(e?.message || ''));
+  }, [customerId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  function fmt(iso) {
+    if (!iso) return '';
+    try {
+      return new Intl.DateTimeFormat(locale === 'en' ? 'en-US' : 'es-ES',
+        { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+        .format(new Date(iso));
+    } catch (_e) { return iso; }
+  }
+  function relTime(iso) {
+    if (!iso) return '';
+    try {
+      const diffMs = Date.now() - new Date(iso).getTime();
+      const diffMin = Math.round(diffMs / 60000);
+      if (diffMin < 1) return t('owner.activity.justNow');
+      if (diffMin < 60) return t('owner.activity.minutesAgo', { n: diffMin });
+      if (diffMin < 60 * 24) return t('owner.activity.hoursAgo', { n: Math.round(diffMin / 60) });
+      const days = Math.round(diffMin / (60 * 24));
+      if (days < 14) return t('owner.activity.daysAgo', { n: days });
+      return fmt(iso);
+    } catch (_e) { return fmt(iso); }
+  }
+
+  // Filter chips group multiple kinds. "All" / "Messages" / "Emails" /
+  // "Signatures" / "Filings" / "Notes" — keeps the scan-time small when
+  // a customer has lots of events.
+  const FILTER_GROUPS = {
+    all: () => true,
+    messages: e => e.kind === 'message_in' || e.kind === 'message_out' || e.kind === 'thread_created',
+    emails: e => e.kind.startsWith('email_'),
+    signatures: e => e.kind.startsWith('sig_'),
+    filings: e => e.kind.startsWith('filing_'),
+    notes: e => e.kind === 'note_added',
+  };
+  const shown = (events || []).filter(FILTER_GROUPS[filter] || (() => true));
+
+  if (err) return null;
+
+  return (
+    <section className="tax-section" style={{ paddingTop: 0 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 12, flexWrap: 'wrap' }}>
+        <h3 style={{ margin: 0 }}>{t('owner.activity.title')}</h3>
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+          {['all', 'messages', 'emails', 'signatures', 'filings', 'notes'].map(f => {
+            const isActive = filter === f;
+            return (
+              <button key={f} type="button"
+                      onClick={() => setFilter(f)}
+                      style={{
+                        padding: '4px 10px', borderRadius: 999, fontSize: 12, fontWeight: 600,
+                        border: `1px solid ${isActive ? 'var(--tax-brand-primary)' : 'var(--tax-border)'}`,
+                        background: isActive ? 'var(--tax-brand-primary)' : '#fff',
+                        color: isActive ? '#fff' : 'var(--tax-text)',
+                        cursor: 'pointer',
+                      }}>
+                {t(`owner.activity.filter.${f}`)}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {events === null && <p style={{ marginTop: 12 }}>{t('loading')}</p>}
+      {events && shown.length === 0 && (
+        <p style={{ color: 'var(--tax-muted)', marginTop: 12 }}>
+          {t('owner.activity.empty')}
+        </p>
+      )}
+      {events && shown.length > 0 && (
+        <div style={{ marginTop: 16, position: 'relative' }}>
+          {/* Vertical rail behind the dots. */}
+          <div style={{
+            position: 'absolute', left: 11, top: 6, bottom: 6, width: 2,
+            background: 'var(--tax-border)',
+          }} />
+          <div style={{ display: 'grid', gap: 12 }}>
+            {shown.map((e, i) => (
+              <ActivityRow key={i} event={e} fmt={fmt} relTime={relTime} t={t} />
+            ))}
+          </div>
+        </div>
+      )}
+    </section>
+  );
+}
+
+function ActivityRow({ event, fmt, relTime, t }) {
+  const ICON = {
+    note_added: '📝',
+    sig_requested: '✎',  sig_signed: '✓',  sig_declined: '✕',  sig_cancelled: '⊘',
+    filing_responded: '📥',  filing_filed: '🗂️',
+    message_in: '↳',  message_out: '↲',  thread_created: '💬',
+    email_sent: '✉',  email_delivered: '✉',  email_opened: '👁',  email_clicked: '🖱',
+    email_bounced: '!',
+    customer_created: '★',
+    audit: '⚙',
+  };
+  const TONE = {
+    ok: { bg: '#dcfce7', fg: '#166534' },
+    info: { bg: '#dbeafe', fg: '#1e40af' },
+    warn: { bg: '#fef3c7', fg: '#854d0e' },
+    danger: { bg: '#fee2e2', fg: '#b91c1c' },
+    muted: { bg: 'var(--tax-bg-alt)', fg: 'var(--tax-muted)' },
+  };
+  const tone = TONE[event.tone] || TONE.muted;
+  const icon = ICON[event.kind] || '•';
+
+  return (
+    <div style={{
+      display: 'grid', gridTemplateColumns: '24px 1fr', gap: 12, alignItems: 'flex-start',
+      paddingLeft: 0, position: 'relative',
+    }}>
+      <div style={{
+        width: 24, height: 24, borderRadius: '50%',
+        background: tone.bg, color: tone.fg,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        fontSize: 13, fontWeight: 700, flexShrink: 0,
+        boxShadow: '0 0 0 2px #fff',
+      }} aria-hidden="true">{icon}</div>
+      <div style={{ minWidth: 0 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'baseline', flexWrap: 'wrap' }}>
+          <strong style={{ fontSize: 14 }}>{event.title}</strong>
+          <span style={{ fontSize: 12, color: 'var(--tax-muted)', whiteSpace: 'nowrap' }}
+                title={fmt(event.ts)}>
+            {relTime(event.ts)}
+          </span>
+        </div>
+        {event.detail && (
+          <div style={{ fontSize: 13, color: 'var(--tax-muted)', marginTop: 2,
+                        whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+            {event.detail.length > 280 ? event.detail.slice(0, 280) + '…' : event.detail}
+          </div>
+        )}
+        {event.actor && (
+          <div style={{ fontSize: 12, color: 'var(--tax-muted)', marginTop: 2 }}>
+            {t('owner.activity.by', { name: event.actor })}
+            {event.actorRole === 'admin' && (
+              <span style={{
+                marginLeft: 6, padding: '0 6px', borderRadius: 999,
+                background: 'var(--tax-brand-primary)', color: '#fff',
+                fontSize: 10, fontWeight: 700,
+              }}>ADMIN</span>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function NotesSection({ auth, customerId, locale, t }) {
   const [notes, setNotes] = useState(null);
   const [draft, setDraft] = useState('');
