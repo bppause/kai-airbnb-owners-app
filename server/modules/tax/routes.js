@@ -4361,6 +4361,118 @@ module.exports = function createTaxRouter(deps) {
   });
 
   // ── GET /employee/notifications ──
+  // ── Phase 4n.23: practice triage / "today" dashboard ────────────────────
+  //
+  // Bundles the four signals staff actually look at every morning into one
+  // round trip, scoped to what the caller is allowed to see (admins → the
+  // whole community; staff → only their assigned customers).
+  //
+  //   overdue       — filings past due_date with status still pending /
+  //                   info_requested. Sorted oldest-first so the worst-
+  //                   neglected sit at the top.
+  //   dueSoon       — same status filter, due_date within the next N days
+  //                   (default 7).
+  //   recent        — filings whose status flipped to info_received in the
+  //                   last N days (default 7) — confirms what just came
+  //                   in without scrolling Customers.
+  //   unreadCount   — threads with practice_unread=true visible to caller.
+  //   newLeads      — tax_leads with status='new' (admins only); empty
+  //                   for staff since leads are a community-level queue.
+  router.get('/employee/triage', async (req, res) => {
+    const emp = await requireTaxEmployee(req, res); if (!emp) return;
+    const windowDays = Math.max(1, Math.min(60, parseInt(req.query.windowDays, 10) || 7));
+    const today = (new Date()).toISOString().slice(0, 10);
+    const windowEnd = (() => {
+      const d = new Date(today + 'T00:00:00Z');
+      d.setUTCDate(d.getUTCDate() + windowDays);
+      return d.toISOString().slice(0, 10);
+    })();
+    const recentSince = (() => {
+      const d = new Date(today + 'T00:00:00Z');
+      d.setUTCDate(d.getUTCDate() - windowDays);
+      return d.toISOString();
+    })();
+
+    // Scope filter: admins see everything, staff intersect with their
+    // assigned customer ids. An empty array → staff with no assignments →
+    // short-circuit every period query.
+    const visible = await getVisibleCustomerIdsForEmployee(emp);
+
+    async function periodSelect(builder) {
+      let q = builder.select(`
+        id, customer_id, due_date, status, period_label,
+        customer:tax_customers ( id, email, name, locale ),
+        workflow:tax_relationship_workflow_rules ( id, filing_schedule_slug, name_i18n ),
+        schedule:tax_filing_schedules ( id, slug, name_i18n )
+      `).eq('community_id', emp.community_id);
+      if (Array.isArray(visible)) {
+        if (!visible.length) return [];
+        q = q.in('customer_id', visible);
+      }
+      return q;
+    }
+
+    const overdueQ = await periodSelect(supabase.from('tax_filing_periods'));
+    const overdueRows = Array.isArray(overdueQ) && !overdueQ.length ? []
+      : (await (overdueQ.in('status', ['pending', 'info_requested'])
+                .lt('due_date', today)
+                .order('due_date', { ascending: true })
+                .limit(50))).data || [];
+
+    const dueSoonQ = await periodSelect(supabase.from('tax_filing_periods'));
+    const dueSoonRows = Array.isArray(dueSoonQ) && !dueSoonQ.length ? []
+      : (await (dueSoonQ.in('status', ['pending', 'info_requested'])
+                .gte('due_date', today).lte('due_date', windowEnd)
+                .order('due_date', { ascending: true })
+                .limit(50))).data || [];
+
+    const recentQ = await periodSelect(supabase.from('tax_filing_periods'));
+    const recentRows = Array.isArray(recentQ) && !recentQ.length ? []
+      : (await (recentQ.eq('status', 'info_received')
+                .gte('info_received_at', recentSince)
+                .order('info_received_at', { ascending: false })
+                .limit(20))).data || [];
+
+    // Unread thread count: staff only sees threads for assigned customers.
+    let unreadCount = 0;
+    {
+      let q = supabase.from('tax_message_threads')
+        .select('id', { count: 'exact', head: true })
+        .eq('community_id', emp.community_id)
+        .eq('practice_unread', true);
+      if (Array.isArray(visible)) {
+        if (!visible.length) unreadCount = 0;
+        else {
+          const { count } = await q.in('customer_id', visible);
+          unreadCount = count || 0;
+        }
+      } else {
+        const { count } = await q;
+        unreadCount = count || 0;
+      }
+    }
+
+    // Leads are a community-level queue; only admins see them in triage.
+    let newLeads = [];
+    if (emp.role === 'admin') {
+      const { data } = await supabase.from('tax_leads')
+        .select('id, name, email, product_slug, product_slugs, created_at')
+        .eq('community_id', emp.community_id).eq('status', 'new')
+        .order('created_at', { ascending: false }).limit(10);
+      newLeads = data || [];
+    }
+
+    res.json({
+      asOf: today,
+      windowDays,
+      overdue: overdueRows,
+      dueSoon: dueSoonRows,
+      recent: recentRows,
+      unreadCount,
+      newLeads,
+    });
+  });
+
   router.get('/employee/notifications', async (req, res) => {
     const emp = await requireTaxEmployee(req, res); if (!emp) return;
     const { data, error } = await supabase.from('tax_employee_notifications')
