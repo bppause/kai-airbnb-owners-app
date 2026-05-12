@@ -201,6 +201,7 @@ export const taxApi = {
   // Customer notes — admin-scoped routes; auth headers are admin headers.
   adminListCustomerNotes(auth, customerId) { return request('GET', `/admin/customers/${encodeURIComponent(customerId)}/notes`, undefined, auth, { admin: true }); },
   adminCreateCustomerNote(auth, customerId, payload) { return request('POST', `/admin/customers/${encodeURIComponent(customerId)}/notes`, payload, auth, { admin: true }); },
+  getEmployeeTriage(auth, windowDays = 7) { return request('GET', `/employee/triage?windowDays=${windowDays}`, undefined, auth); },
   adminListCustomerWorkflowOverrides(auth, customerId) { return request('GET', `/admin/customers/${encodeURIComponent(customerId)}/workflow-overrides`, undefined, auth, { admin: true }); },
   adminUpsertCustomerWorkflowOverride(auth, customerId, ruleId, payload) { return request('PUT', `/admin/customers/${encodeURIComponent(customerId)}/workflow-overrides/${encodeURIComponent(ruleId)}`, payload, auth, { admin: true }); },
   adminDeleteCustomerWorkflowOverride(auth, customerId, ruleId) { return request('DELETE', `/admin/customers/${encodeURIComponent(customerId)}/workflow-overrides/${encodeURIComponent(ruleId)}`, undefined, auth, { admin: true }); },
