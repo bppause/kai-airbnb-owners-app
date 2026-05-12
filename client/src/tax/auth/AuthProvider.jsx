@@ -75,6 +75,15 @@ export function TaxAuthProvider({ communitySlug, children }) {
         if (err?.body?.error === 'wrong_portal') {
           setError(err.body.message || 'You have an account in a different role at this practice.');
           setRedirectTo(err.body.redirectTo || '');
+        } else if (err?.body?.error === 'portal_disabled') {
+          // Bounce the customer to the public landing page — that page
+          // surfaces the practice's contact info so they can reach out
+          // by phone / WhatsApp / email.
+          if (typeof window !== 'undefined' && communitySlug) {
+            window.location.replace(`/tax/${communitySlug}?portalClosed=1`);
+            return;
+          }
+          setError(err.body.message || 'The customer portal is currently disabled.');
         } else {
           setError(err?.message || 'Could not link your account.');
         }

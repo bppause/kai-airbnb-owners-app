@@ -468,6 +468,7 @@ const taxRouter = taxModule.createRouter({
   isGlobalAdmin,
   isEnvGlobalAdminEmail,
   runReminderCron: taxRemindersCron.run,
+  fireReminderForPeriod: taxRemindersCron.fireForPeriod,
 });
 app.use('/api/m/tax', taxRouter);
 // Tax reminder cron — walks subscriptions, generates filing periods, fires
