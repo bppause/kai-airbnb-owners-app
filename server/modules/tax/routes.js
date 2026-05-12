@@ -1365,11 +1365,71 @@ module.exports = function createTaxRouter(deps) {
     const communitySlug = trim(req.query.communitySlug, 200);
     if (!communitySlug) return res.status(400).json({ error: 'communitySlug required.' });
     const { data, error } = await supabase.from('communities')
-      .select('id, name, tax_allow_customer_notif_pref_change, contact_email, phone, default_locale')
+      .select(`
+        id, name, tax_allow_customer_notif_pref_change,
+        contact_email, phone, whatsapp,
+        address_line1, address_line2, city, state, postal_code, country,
+        default_locale
+      `)
       .eq('id', communitySlug).eq('business_type', TAX_BUSINESS_TYPE).maybeSingle();
     if (error) return sendSupabaseError(res, error);
     if (!data) return res.status(404).json({ error: 'Community not found.' });
     res.json({ settings: data });
+  });
+
+  // Phase 4n.14: contact-info editor for the public landing page. Admin-only;
+  // every field is optional (empty string clears it). WhatsApp must be
+  // E.164 — same normalizer the customer/employee profile editors use.
+  router.put('/admin/community-settings/contact', async (req, res) => {
+    if (!(await requireOwnerAdmin(req, res))) return;
+    const body = req.body || {};
+    const communitySlug = trim(body.communitySlug, 200);
+    if (!communitySlug) return res.status(400).json({ error: 'communitySlug required.' });
+
+    const update = { updated_at: new Date().toISOString() };
+    const txt = (k, max = 200) => {
+      if (body[k] === undefined) return;
+      update[k] = trim(String(body[k] || ''), max);
+    };
+    txt('phone',         MAX_PHONE_LEN);
+    txt('contact_email', MAX_NAME_LEN);
+    txt('address_line1', 400);
+    txt('address_line2', 400);
+    txt('city',          200);
+    txt('state',         200);
+    txt('postal_code',   60);
+    txt('country',       100);
+    if (body.whatsapp !== undefined) {
+      const raw = String(body.whatsapp || '').trim();
+      if (raw === '') update.whatsapp = '';
+      else {
+        const norm = normalizeWhatsapp(raw);
+        if (!norm) {
+          return res.status(400).json({ error: 'whatsapp_invalid',
+            message: 'WhatsApp must be in international format, e.g., +14155551234.' });
+        }
+        update.whatsapp = norm;
+      }
+    }
+    if (Object.keys(update).length === 1) {
+      return res.status(400).json({ error: 'Nothing to update.' });
+    }
+    if (update.contact_email && !isValidEmail(update.contact_email)) {
+      return res.status(400).json({ error: 'contact_email_invalid',
+        message: 'Contact email is not a valid address.' });
+    }
+
+    const { error } = await supabase.from('communities').update(update)
+      .eq('id', communitySlug).eq('business_type', TAX_BUSINESS_TYPE);
+    if (error) return sendSupabaseError(res, error);
+    try {
+      await auditLog({
+        entity: 'tax.community.contact', entityId: communitySlug,
+        action: 'update_contact', actorEmail: '',
+        after: Object.keys(update).filter(k => k !== 'updated_at'),
+      });
+    } catch (_e) {}
+    res.json({ ok: true });
   });
 
   // GET /admin/products?communitySlug=  — products with their schedules.

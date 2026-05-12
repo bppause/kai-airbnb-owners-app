@@ -100,34 +100,159 @@ export default function OwnerSettings() {
         </div>
       </section>
 
-      <section>
-        <h3 style={{ marginBottom: 4 }}>{t('owner.settings.community.title')}</h3>
-        <p style={{ color: 'var(--tax-muted)', marginTop: 0, marginBottom: 12, fontSize: 14 }}>
-          {t('owner.settings.community.subtitle')}
-        </p>
+      <CommunityContactSection settings={settings} auth={auth} community={community}
+                               t={t} onSaved={load} />
+    </EmployeeShell>
+  );
+}
+
+// Phase 4n.14: contact-card editor. Phone, WhatsApp, contact email, and
+// address fields drive the public landing page "Visit us" card + the map
+// embed. Name and default locale stay read-only here — they live on the
+// platform community editor for now.
+function CommunityContactSection({ settings, auth, community, t, onSaved }) {
+  const [form, setForm] = useState({
+    contact_email: '', phone: '', whatsapp: '',
+    address_line1: '', address_line2: '',
+    city: '', state: '', postal_code: '', country: '',
+  });
+  const [editing, setEditing] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState({ kind: 'idle', text: '' });
+
+  useEffect(() => {
+    if (!settings) return;
+    setForm({
+      contact_email: settings.contact_email || '',
+      phone: settings.phone || '',
+      whatsapp: settings.whatsapp || '',
+      address_line1: settings.address_line1 || '',
+      address_line2: settings.address_line2 || '',
+      city: settings.city || '',
+      state: settings.state || '',
+      postal_code: settings.postal_code || '',
+      country: settings.country || '',
+    });
+  }, [settings]);
+
+  const onField = (k, v) => setForm(p => ({ ...p, [k]: v }));
+
+  const onSave = async () => {
+    setBusy(true); setMsg({ kind: 'idle', text: '' });
+    try {
+      await taxApi.adminUpdateCommunityContact(auth, {
+        communitySlug: community.id,
+        contact_email: form.contact_email.trim(),
+        phone: form.phone.trim(),
+        whatsapp: form.whatsapp.trim(),
+        address_line1: form.address_line1.trim(),
+        address_line2: form.address_line2.trim(),
+        city: form.city.trim(),
+        state: form.state.trim(),
+        postal_code: form.postal_code.trim(),
+        country: form.country.trim(),
+      });
+      setMsg({ kind: 'success', text: t('owner.settings.saved') });
+      setEditing(false);
+      onSaved();
+    } catch (e) {
+      setMsg({ kind: 'error', text: e?.message || t('respond.error.generic') });
+    } finally { setBusy(false); }
+  };
+
+  return (
+    <section>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 12 }}>
+        <div>
+          <h3 style={{ marginBottom: 4 }}>{t('owner.settings.community.title')}</h3>
+          <p style={{ color: 'var(--tax-muted)', marginTop: 0, marginBottom: 12, fontSize: 14 }}>
+            {t('owner.settings.community.subtitle')}
+          </p>
+        </div>
+        {!editing && (
+          <button type="button" className="tax-btn tax-btn--ghost tax-btn--sm"
+                  onClick={() => setEditing(true)}>
+            {t('owner.settings.community.editBtn')}
+          </button>
+        )}
+      </div>
+
+      {msg.text && (
+        <div className={`tax-msg tax-msg--${msg.kind === 'error' ? 'error' : 'success'}`}
+             style={{ marginBottom: 12 }}>{msg.text}</div>
+      )}
+
+      {!editing ? (
         <div className="tax-contact-grid">
-          <div className="tax-contact-item">
-            <div className="tax-contact-item__label">{t('owner.settings.community.name')}</div>
-            <div className="tax-contact-item__value">{settings.name}</div>
+          <ReadRow label={t('owner.settings.community.name')}         value={settings.name} />
+          <ReadRow label={t('owner.settings.community.contactEmail')} value={settings.contact_email} />
+          <ReadRow label={t('owner.settings.community.phone')}        value={settings.phone} />
+          <ReadRow label={t('owner.settings.community.whatsapp')}     value={settings.whatsapp} />
+          <ReadRow label={t('owner.settings.community.address')}      value={[settings.address_line1, settings.address_line2, settings.city, settings.state, settings.postal_code, settings.country].filter(Boolean).join(', ')} />
+          <ReadRow label={t('owner.settings.community.defaultLocale')} value={settings.default_locale === 'en' ? 'English' : 'Español'} />
+        </div>
+      ) : (
+        <div style={{ display: 'grid', gap: 12, maxWidth: 720 }}>
+          <Field id="cs-email" label={t('owner.settings.community.contactEmail')}
+                 type="email" value={form.contact_email}
+                 onChange={v => onField('contact_email', v)} />
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            <Field id="cs-phone" label={t('owner.settings.community.phone')}
+                   type="tel" value={form.phone} onChange={v => onField('phone', v)} />
+            <Field id="cs-wa" label={t('owner.settings.community.whatsapp')}
+                   placeholder="+14155551234"
+                   hint={t('owner.settings.community.whatsappHint')}
+                   value={form.whatsapp} onChange={v => onField('whatsapp', v)} />
           </div>
-          <div className="tax-contact-item">
-            <div className="tax-contact-item__label">{t('owner.settings.community.contactEmail')}</div>
-            <div className="tax-contact-item__value">{settings.contact_email || '—'}</div>
+          <Field id="cs-a1" label={t('owner.settings.community.addressLine1')}
+                 value={form.address_line1} onChange={v => onField('address_line1', v)} />
+          <Field id="cs-a2" label={t('owner.settings.community.addressLine2')}
+                 value={form.address_line2} onChange={v => onField('address_line2', v)} />
+          <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr', gap: 12 }}>
+            <Field id="cs-city" label={t('owner.settings.community.city')}
+                   value={form.city} onChange={v => onField('city', v)} />
+            <Field id="cs-state" label={t('owner.settings.community.state')}
+                   value={form.state} onChange={v => onField('state', v)} />
+            <Field id="cs-zip" label={t('owner.settings.community.postalCode')}
+                   value={form.postal_code} onChange={v => onField('postal_code', v)} />
           </div>
-          <div className="tax-contact-item">
-            <div className="tax-contact-item__label">{t('owner.settings.community.phone')}</div>
-            <div className="tax-contact-item__value">{settings.phone || '—'}</div>
-          </div>
-          <div className="tax-contact-item">
-            <div className="tax-contact-item__label">{t('owner.settings.community.whatsapp')}</div>
-            <div className="tax-contact-item__value">{settings.whatsapp || '—'}</div>
-          </div>
-          <div className="tax-contact-item">
-            <div className="tax-contact-item__label">{t('owner.settings.community.defaultLocale')}</div>
-            <div className="tax-contact-item__value">{settings.default_locale === 'en' ? 'English' : 'Español'}</div>
+          <Field id="cs-country" label={t('owner.settings.community.country')}
+                 value={form.country} onChange={v => onField('country', v)} />
+
+          <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+            <button type="button" className="tax-btn tax-btn--primary tax-btn--sm"
+                    disabled={busy} onClick={onSave}>
+              {busy ? t('lead.submitting') : t('owner.settings.community.saveBtn')}
+            </button>
+            <button type="button" className="tax-btn tax-btn--ghost tax-btn--sm"
+                    disabled={busy} onClick={() => setEditing(false)}>
+              {t('preview.close')}
+            </button>
           </div>
         </div>
-      </section>
-    </EmployeeShell>
+      )}
+    </section>
+  );
+}
+
+function ReadRow({ label, value }) {
+  return (
+    <div className="tax-contact-item">
+      <div className="tax-contact-item__label">{label}</div>
+      <div className="tax-contact-item__value">{value || '—'}</div>
+    </div>
+  );
+}
+
+function Field({ id, label, type, value, onChange, placeholder, hint }) {
+  return (
+    <div>
+      <label htmlFor={id} style={{ display: 'block', fontSize: 13, marginBottom: 4 }}>{label}</label>
+      <input id={id} type={type || 'text'} value={value || ''}
+             placeholder={placeholder || ''}
+             onChange={e => onChange(e.target.value)}
+             style={{ width: '100%' }} />
+      {hint && <p style={{ margin: '4px 0 0', fontSize: 12, color: 'var(--tax-muted)' }}>{hint}</p>}
+    </div>
   );
 }
