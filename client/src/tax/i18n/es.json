@@ -52,6 +52,13 @@
   "contact.address": "Dirección",
   "contact.phone": "Teléfono",
   "contact.email": "Correo",
+  "contact.whatsapp": "WhatsApp",
+  "contact.whatsapp.chatBtn": "Chatear por WhatsApp",
+  "contact.whatsapp.prefill": "Hola {name}, tengo una pregunta sobre sus servicios.",
+  "contact.directions": "Cómo llegar",
+  "contact.directions.openInMaps": "Abrir en Google Maps",
+  "contact.map.title": "Ubicación de la oficina en Google Maps",
+  "owner.settings.community.whatsapp": "WhatsApp",
 
   "footer.copyright": "© {year} {name}. Todos los derechos reservados.",
   "footer.poweredBy": "Plataforma de servicios fiscales",

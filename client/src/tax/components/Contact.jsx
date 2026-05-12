@@ -1,15 +1,43 @@
 import { useT } from '../i18n';
 import LeadForm from './LeadForm';
 
+// Address used for two purposes:
+//   1. Plaintext on the contact card.
+//   2. Encoded as a Google Maps query for the embed iframe + the
+//      "Get directions" link (no API key needed for either).
 function buildAddress(c) {
   const lines = [c.address_line1, c.address_line2].filter(Boolean);
   const cityLine = [c.city, c.state, c.postal_code].filter(Boolean).join(', ');
   return [...lines, cityLine, c.country].filter(Boolean).join(' • ');
 }
+function buildMapQuery(c) {
+  return [c.address_line1, c.address_line2, c.city, c.state, c.postal_code, c.country]
+    .filter(Boolean).join(', ');
+}
+// E.164 numbers stored as `+14155551234`; wa.me wants digits only.
+function waDigits(raw) {
+  return String(raw || '').trim().replace(/^\+/, '').replace(/\D+/g, '');
+}
 
 export default function Contact({ community, products }) {
   const { t } = useT();
   const address = buildAddress(community);
+  const mapQuery = buildMapQuery(community);
+  const hasMap = !!mapQuery;
+  const embedSrc = hasMap
+    ? `https://www.google.com/maps?q=${encodeURIComponent(mapQuery)}&output=embed`
+    : '';
+  const directionsHref = hasMap
+    ? `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(mapQuery)}`
+    : '';
+
+  const waNumber = waDigits(community.whatsapp);
+  const waHref = waNumber
+    ? `https://wa.me/${waNumber}?text=${encodeURIComponent(
+        t('contact.whatsapp.prefill', { name: community.name || '' })
+      )}`
+    : '';
+
   return (
     <section className="tax-section tax-section--alt" id="contact">
       <div className="tax-container">
@@ -25,21 +53,68 @@ export default function Contact({ community, products }) {
                 <div className="tax-contact-item">
                   <div className="tax-contact-item__label">{t('contact.address')}</div>
                   <div className="tax-contact-item__value">{address}</div>
+                  {hasMap && (
+                    <a href={directionsHref} target="_blank" rel="noopener noreferrer"
+                       style={{ display: 'inline-block', marginTop: 6, fontSize: 13, fontWeight: 600 }}>
+                      {t('contact.directions')} ↗
+                    </a>
+                  )}
                 </div>
               )}
               {community.phone && (
                 <div className="tax-contact-item">
                   <div className="tax-contact-item__label">{t('contact.phone')}</div>
-                  <div className="tax-contact-item__value"><a href={`tel:${community.phone}`}>{community.phone}</a></div>
+                  <div className="tax-contact-item__value">
+                    <a href={`tel:${community.phone}`}>{community.phone}</a>
+                  </div>
+                </div>
+              )}
+              {waNumber && (
+                <div className="tax-contact-item">
+                  <div className="tax-contact-item__label">{t('contact.whatsapp')}</div>
+                  <div className="tax-contact-item__value">
+                    <a href={waHref} target="_blank" rel="noopener noreferrer"
+                       style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                      <span aria-hidden="true">💬</span>
+                      <span>{t('contact.whatsapp.chatBtn')}</span>
+                    </a>
+                  </div>
                 </div>
               )}
               {community.contact_email && (
                 <div className="tax-contact-item">
                   <div className="tax-contact-item__label">{t('contact.email')}</div>
-                  <div className="tax-contact-item__value"><a href={`mailto:${community.contact_email}`}>{community.contact_email}</a></div>
+                  <div className="tax-contact-item__value">
+                    <a href={`mailto:${community.contact_email}`}>{community.contact_email}</a>
+                  </div>
                 </div>
               )}
             </div>
+
+            {hasMap && (
+              <div style={{
+                marginTop: 16, borderRadius: 12, overflow: 'hidden',
+                border: '1px solid var(--tax-border)', boxShadow: 'var(--tax-shadow-sm)',
+              }}>
+                <iframe
+                  title={t('contact.map.title')}
+                  src={embedSrc}
+                  style={{ width: '100%', height: 260, border: 0, display: 'block' }}
+                  loading="lazy"
+                  referrerPolicy="no-referrer-when-downgrade"
+                  allowFullScreen
+                />
+                <a href={directionsHref} target="_blank" rel="noopener noreferrer"
+                   style={{
+                     display: 'block', padding: '10px 12px', textAlign: 'center',
+                     background: 'var(--tax-bg-alt)', fontSize: 13, fontWeight: 600,
+                     textDecoration: 'none', color: 'var(--tax-brand-primary)',
+                     borderTop: '1px solid var(--tax-border)',
+                   }}>
+                  {t('contact.directions.openInMaps')}
+                </a>
+              </div>
+            )}
           </div>
         </div>
       </div>

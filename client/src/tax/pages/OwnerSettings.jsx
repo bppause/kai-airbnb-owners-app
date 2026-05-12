@@ -119,6 +119,10 @@ export default function OwnerSettings() {
             <div className="tax-contact-item__value">{settings.phone || '—'}</div>
           </div>
           <div className="tax-contact-item">
+            <div className="tax-contact-item__label">{t('owner.settings.community.whatsapp')}</div>
+            <div className="tax-contact-item__value">{settings.whatsapp || '—'}</div>
+          </div>
+          <div className="tax-contact-item">
             <div className="tax-contact-item__label">{t('owner.settings.community.defaultLocale')}</div>
             <div className="tax-contact-item__value">{settings.default_locale === 'en' ? 'English' : 'Español'}</div>
           </div>

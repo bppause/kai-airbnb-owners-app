@@ -610,6 +610,9 @@ alter table public.communities add column if not exists tagline_en text not null
 alter table public.communities add column if not exists brand_primary_color text not null default '';
 alter table public.communities add column if not exists brand_secondary_color text not null default '';
 alter table public.communities add column if not exists default_locale text not null default 'es';
+-- Phase 4n.13: community-level WhatsApp for click-to-chat from the public
+-- landing page. Same E.164 format expected by normalizeWhatsapp().
+alter table public.communities add column if not exists whatsapp text not null default '';
 do $$ begin
   alter table public.communities add constraint communities_default_locale_chk
     check (default_locale in ('en','es'));
