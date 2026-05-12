@@ -1735,6 +1735,41 @@ create index if not exists tax_employees_community_idx
 alter table public.tax_employees
   add column if not exists notification_prefs jsonb not null default '{}'::jsonb;
 
+-- Phase 4n.24: e-signature requests. Owner creates a request → customer
+-- sees it in the portal → customer reviews and signs by typing their
+-- legal name + clicking "I agree". The consent text + typed name + IP +
+-- timestamp constitute the e-signature record (US ESIGN Act §101(g)).
+-- signature_data is a JSONB envelope so future variants (drawn signature
+-- dataURL, hardware-token signatures) can layer in without a migration.
+create table if not exists public.tax_signature_requests (
+  id                  text primary key,
+  community_id        text not null references public.communities(id) on delete cascade,
+  customer_id         text not null references public.tax_customers(id) on delete cascade,
+  requested_by_email  text not null default '',
+  requested_by_name   text not null default '',
+  title               text not null,
+  description         text not null default '',
+  document_id         text references public.tax_documents(id) on delete set null,
+  status              text not null default 'pending'
+                      check (status in ('pending','signed','declined','cancelled','expired')),
+  consent_text        text not null default '',
+  expires_at          timestamptz,
+  signed_at           timestamptz,
+  signer_name         text not null default '',
+  signer_email        text not null default '',
+  signer_ip           text not null default '',
+  signature_data      jsonb,
+  cancelled_at        timestamptz,
+  cancelled_by_email  text not null default '',
+  created_at          timestamptz not null default now(),
+  updated_at          timestamptz not null default now()
+);
+create index if not exists idx_tax_signature_requests_customer
+  on public.tax_signature_requests(customer_id, created_at desc);
+create index if not exists idx_tax_signature_requests_status
+  on public.tax_signature_requests(community_id, status, created_at desc);
+alter table public.tax_signature_requests disable row level security;
+
 -- Phase 4n.21: threaded customer notes. The existing tax_customers.notes
 -- is a single overwritable text blob — fine for "this customer prefers
 -- WhatsApp" stuck-on-the-row context, but no good for a multi-entry

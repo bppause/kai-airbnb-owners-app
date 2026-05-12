@@ -202,6 +202,15 @@ export const taxApi = {
   adminListCustomerNotes(auth, customerId) { return request('GET', `/admin/customers/${encodeURIComponent(customerId)}/notes`, undefined, auth, { admin: true }); },
   adminCreateCustomerNote(auth, customerId, payload) { return request('POST', `/admin/customers/${encodeURIComponent(customerId)}/notes`, payload, auth, { admin: true }); },
   getEmployeeTriage(auth, windowDays = 7) { return request('GET', `/employee/triage?windowDays=${windowDays}`, undefined, auth); },
+
+  // Phase 4n.24: signature requests
+  adminListSignatureRequests(auth, customerId) { return request('GET', `/admin/customers/${encodeURIComponent(customerId)}/signature-requests`, undefined, auth, { admin: true }); },
+  adminCreateSignatureRequest(auth, customerId, payload) { return request('POST', `/admin/customers/${encodeURIComponent(customerId)}/signature-requests`, payload, auth, { admin: true }); },
+  adminCancelSignatureRequest(auth, customerId, reqId) { return request('POST', `/admin/customers/${encodeURIComponent(customerId)}/signature-requests/${encodeURIComponent(reqId)}/cancel`, {}, auth, { admin: true }); },
+  getPortalSignatureRequests(auth) { return request('GET', '/portal/signature-requests', undefined, auth); },
+  getPortalSignatureRequest(auth, id) { return request('GET', `/portal/signature-requests/${encodeURIComponent(id)}`, undefined, auth); },
+  signPortalSignatureRequest(auth, id, payload) { return request('POST', `/portal/signature-requests/${encodeURIComponent(id)}/sign`, payload, auth); },
+  declinePortalSignatureRequest(auth, id) { return request('POST', `/portal/signature-requests/${encodeURIComponent(id)}/decline`, {}, auth); },
   adminListCustomerWorkflowOverrides(auth, customerId) { return request('GET', `/admin/customers/${encodeURIComponent(customerId)}/workflow-overrides`, undefined, auth, { admin: true }); },
   adminUpsertCustomerWorkflowOverride(auth, customerId, ruleId, payload) { return request('PUT', `/admin/customers/${encodeURIComponent(customerId)}/workflow-overrides/${encodeURIComponent(ruleId)}`, payload, auth, { admin: true }); },
   adminDeleteCustomerWorkflowOverride(auth, customerId, ruleId) { return request('DELETE', `/admin/customers/${encodeURIComponent(customerId)}/workflow-overrides/${encodeURIComponent(ruleId)}`, undefined, auth, { admin: true }); },

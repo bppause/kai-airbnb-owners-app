@@ -15,6 +15,7 @@ import Respond from './pages/Respond';
 import PortalLogin from './pages/PortalLogin';
 import PortalDashboard from './pages/PortalDashboard';
 import PortalFiling from './pages/PortalFiling';
+import PortalSignatureRequest from './pages/PortalSignatureRequest';
 import PortalProfile from './pages/PortalProfile';
 import PortalFaqs from './pages/PortalFaqs';
 import PortalDocuments from './pages/PortalDocuments';
@@ -97,6 +98,7 @@ function parseTaxPath() {
       return { route: 'portal-messages', slug, threadId: parts[4] ? decodeURIComponent(parts[4]) : '' };
     }
     if (parts[3] === 'filings' && parts[4]) return { route: 'portal-filing', slug, filingId: decodeURIComponent(parts[4]) };
+    if (parts[3] === 'sign' && parts[4]) return { route: 'portal-signature', slug, requestId: decodeURIComponent(parts[4]) };
     return { route: 'portal-dashboard', slug };
   }
   return { route: 'landing', slug };
@@ -168,6 +170,7 @@ function PortalGate({ parsed, community }) {
   if (parsed.route === 'portal-help') return <PortalHelp />;
   if (parsed.route === 'portal-messages') return <PortalMessages threadId={parsed.threadId} />;
   if (parsed.route === 'portal-filing') return <PortalFiling filingId={parsed.filingId} />;
+  if (parsed.route === 'portal-signature') return <PortalSignatureRequest requestId={parsed.requestId} />;
   return <PortalDashboard />;
 }
 
