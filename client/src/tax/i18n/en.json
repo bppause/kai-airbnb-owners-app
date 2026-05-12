@@ -506,6 +506,7 @@
   "owner.staffDetail.archive.restoreBtn": "Restore staff member",
   "owner.staffDetail.archive.restored": "Staff member restored.",
   "owner.lastSignIn.never": "never signed in",
+  "owner.lastSignIn.neverCompact": "never signed in",
   "owner.lastSignIn.recent": "last sign-in {date}",
   "owner.staffDetail.archivedBanner.title": "This staff member is archived",
   "owner.staffDetail.archivedBanner.body": "They cannot sign in to the staff portal and no longer appear in message fan-outs. Records and history are retained. Click Restore to bring them back.",
