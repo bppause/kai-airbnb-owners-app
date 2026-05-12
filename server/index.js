@@ -184,6 +184,17 @@ app.post('/api/m/tax/resend/webhook',
   express.raw({ type: '*/*', limit: '1mb' }),
   taxResendWebhook.handle);
 
+// Phase 4n.27: Resend Inbound (customer replies → portal threads). Separate
+// secret so it can be disabled independently of the outbound webhook.
+const taxResendInbound = require('./modules/tax/resend-inbound')({
+  supabase,
+  isSupabaseConfigured: Boolean(SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY),
+  signingSecret: process.env.RESEND_INBOUND_SECRET || '',
+});
+app.post('/api/m/tax/email/inbound',
+  express.raw({ type: '*/*', limit: '5mb' }),
+  taxResendInbound.handle);
+
 app.use(express.json({ limit: '15mb' })); // photos stored as base64: 3 × ≤600KB each ≈ ≤2MB total
 
 // Serve built React app

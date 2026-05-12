@@ -2919,6 +2919,207 @@ module.exports = function createTaxRouter(deps) {
     res.json({ ok: true });
   });
 
+  // ── Phase 4n.27: per-customer activity timeline ─────────────────────────
+  //
+  // Aggregates every meaningful event involving this customer into one
+  // chronological feed. Lets the owner answer "what's been going on with
+  // Maria?" without scrolling through 7 sibling sections. Sources:
+  //   • tax_customer_notes               → note_added
+  //   • tax_signature_requests           → sig_requested / sig_signed
+  //                                        / sig_declined / sig_cancelled
+  //   • tax_filing_periods (info_received_at, filed_at)
+  //                                      → filing_responded / filing_filed
+  //   • tax_message_threads              → thread_created / thread_message
+  //   • email_delivery_logs              → reminder_sent / reminder_opened
+  //                                        / reminder_clicked / bounced
+  //   • audit_logs (entity=tax.customer) → status / contact / promote events
+  //
+  // Same scope rules as the rest of customer detail: admin → any customer
+  // in the community; staff → only customers they're assigned to.
+  router.get('/admin/customers/:id/activity', async (req, res) => {
+    const emp = await requireTaxEmployee(req, res); if (!emp) return;
+    const customerId = trim(req.params.id, 200);
+    if (!(await canEmployeeSeeCustomer(emp, customerId))) {
+      return res.status(403).json({ error: 'Not assigned to this customer.' });
+    }
+    const limit = Math.max(10, Math.min(200, parseInt(req.query.limit, 10) || 100));
+
+    const events = [];
+    function push(ts, evt) {
+      if (!ts) return;
+      events.push({ ts, ...evt });
+    }
+
+    const [
+      notesQ, sigsQ, periodsQ, threadsQ, emailLogsQ, customerQ, auditQ,
+    ] = await Promise.all([
+      supabase.from('tax_customer_notes')
+        .select('id, body, author_email, author_name, author_role, created_at')
+        .eq('customer_id', customerId).order('created_at', { ascending: false }).limit(limit),
+      supabase.from('tax_signature_requests')
+        .select('id, title, status, requested_by_name, signer_name, signed_at, cancelled_at, created_at, updated_at')
+        .eq('customer_id', customerId).order('created_at', { ascending: false }).limit(limit),
+      supabase.from('tax_filing_periods')
+        .select(`
+          id, period_label, due_date, info_received_at, filed_at, status,
+          workflow:tax_relationship_workflow_rules ( id, name_i18n, filing_schedule_slug ),
+          schedule:tax_filing_schedules ( id, slug, name_i18n )
+        `)
+        .eq('customer_id', customerId).order('due_date', { ascending: false }).limit(limit),
+      supabase.from('tax_message_threads')
+        .select('id, subject, last_message_at, last_message_preview, last_message_by_role, created_at')
+        .eq('customer_id', customerId).order('last_message_at', { ascending: false, nullsFirst: false }).limit(50),
+      supabase.from('email_delivery_logs')
+        .select('id, event_type, subject, created_at, delivered_at, opened_at, clicked_at, bounced_at')
+        .eq('customer_id', customerId).order('created_at', { ascending: false }).limit(limit),
+      supabase.from('tax_customers')
+        .select('email, name, created_at').eq('id', customerId).maybeSingle(),
+      supabase.from('audit_logs')
+        .select('id, entity, action, before_data, after_data, actor_email, actor_name, created_at')
+        .or(`entity_id.eq.${customerId},and(entity.eq.tax.customer,entity_id.eq.${customerId})`)
+        .order('created_at', { ascending: false }).limit(50),
+    ]);
+
+    for (const n of (notesQ.data || [])) {
+      push(n.created_at, {
+        kind: 'note_added', tone: 'info',
+        title: 'Note added', detail: n.body.slice(0, 200),
+        actor: n.author_name || n.author_email, actorRole: n.author_role,
+        ref: { kind: 'note', id: n.id },
+      });
+    }
+
+    for (const s of (sigsQ.data || [])) {
+      push(s.created_at, {
+        kind: 'sig_requested', tone: 'info',
+        title: `Signature requested: ${s.title}`,
+        actor: s.requested_by_name || null, ref: { kind: 'signature', id: s.id },
+      });
+      if (s.status === 'signed' && s.signed_at) {
+        push(s.signed_at, {
+          kind: 'sig_signed', tone: 'ok',
+          title: `Signed: ${s.title}`, actor: s.signer_name,
+          ref: { kind: 'signature', id: s.id },
+        });
+      } else if (s.status === 'declined') {
+        push(s.updated_at, {
+          kind: 'sig_declined', tone: 'warn',
+          title: `Declined to sign: ${s.title}`, actor: null,
+          ref: { kind: 'signature', id: s.id },
+        });
+      } else if (s.status === 'cancelled') {
+        push(s.cancelled_at || s.updated_at, {
+          kind: 'sig_cancelled', tone: 'muted',
+          title: `Signature cancelled: ${s.title}`,
+          ref: { kind: 'signature', id: s.id },
+        });
+      }
+    }
+
+    for (const p of (periodsQ.data || [])) {
+      const filingName = (p.workflow?.name_i18n && (p.workflow.name_i18n.es || p.workflow.name_i18n.en))
+                     || (p.schedule?.name_i18n && (p.schedule.name_i18n.es || p.schedule.name_i18n.en))
+                     || p.workflow?.filing_schedule_slug || p.schedule?.slug || 'Filing';
+      if (p.info_received_at) {
+        push(p.info_received_at, {
+          kind: 'filing_responded', tone: 'ok',
+          title: `Customer submitted info: ${filingName}`,
+          detail: p.period_label || p.due_date,
+          ref: { kind: 'period', id: p.id },
+        });
+      }
+      if (p.filed_at) {
+        push(p.filed_at, {
+          kind: 'filing_filed', tone: 'ok',
+          title: `Filed: ${filingName}`,
+          detail: p.period_label || p.due_date,
+          ref: { kind: 'period', id: p.id },
+        });
+      }
+    }
+
+    for (const th of (threadsQ.data || [])) {
+      if (th.last_message_at) {
+        const byRole = th.last_message_by_role === 'customer' ? 'customer' : 'practice';
+        push(th.last_message_at, {
+          kind: byRole === 'customer' ? 'message_in' : 'message_out',
+          tone: byRole === 'customer' ? 'info' : 'muted',
+          title: byRole === 'customer'
+            ? `Customer messaged: ${th.subject || ''}`
+            : `Practice replied: ${th.subject || ''}`,
+          detail: (th.last_message_preview || '').slice(0, 200),
+          ref: { kind: 'thread', id: th.id },
+        });
+      } else if (th.created_at) {
+        push(th.created_at, {
+          kind: 'thread_created', tone: 'muted',
+          title: `Thread started: ${th.subject || ''}`,
+          ref: { kind: 'thread', id: th.id },
+        });
+      }
+    }
+
+    for (const e of (emailLogsQ.data || [])) {
+      const label = e.event_type === 'reminder' ? 'Reminder' : (e.event_type || 'Email');
+      push(e.created_at, {
+        kind: 'email_sent', tone: 'muted',
+        title: `${label} sent`, detail: e.subject || '',
+        ref: { kind: 'email', id: e.id },
+      });
+      if (e.delivered_at && e.delivered_at !== e.created_at) {
+        push(e.delivered_at, {
+          kind: 'email_delivered', tone: 'muted',
+          title: `${label} delivered`, ref: { kind: 'email', id: e.id },
+        });
+      }
+      if (e.opened_at) {
+        push(e.opened_at, {
+          kind: 'email_opened', tone: 'ok',
+          title: `${label} opened`, detail: e.subject || '',
+          ref: { kind: 'email', id: e.id },
+        });
+      }
+      if (e.clicked_at) {
+        push(e.clicked_at, {
+          kind: 'email_clicked', tone: 'ok',
+          title: `${label} link clicked`, detail: e.subject || '',
+          ref: { kind: 'email', id: e.id },
+        });
+      }
+      if (e.bounced_at) {
+        push(e.bounced_at, {
+          kind: 'email_bounced', tone: 'warn',
+          title: `${label} bounced`, ref: { kind: 'email', id: e.id },
+        });
+      }
+    }
+
+    // Customer creation marker so the timeline has a clean "start of
+    // relationship" entry.
+    if (customerQ.data?.created_at) {
+      push(customerQ.data.created_at, {
+        kind: 'customer_created', tone: 'muted',
+        title: `Customer added to the practice`,
+      });
+    }
+
+    for (const a of (auditQ.data || [])) {
+      if (a.entity !== 'tax.customer' && a.entity !== 'tax.customer.contact') continue;
+      push(a.created_at, {
+        kind: 'audit', tone: 'muted',
+        title: `${a.entity}.${a.action}`,
+        detail: a.before_data && a.after_data
+          ? `${JSON.stringify(a.before_data).slice(0, 100)} → ${JSON.stringify(a.after_data).slice(0, 100)}`
+          : '',
+        actor: a.actor_name || a.actor_email || null,
+        ref: { kind: 'audit', id: a.id },
+      });
+    }
+
+    events.sort((a, b) => String(b.ts).localeCompare(String(a.ts)));
+    res.json({ events: events.slice(0, limit) });
+  });
+
   // ── Phase 4n.21: threaded customer notes ────────────────────────────────
   //
   // Any active employee in the customer's community can view + add notes.

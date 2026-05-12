@@ -498,8 +498,15 @@ alter table public.email_delivery_logs add column if not exists complained_at ti
 alter table public.email_delivery_logs add column if not exists open_count int not null default 0;
 alter table public.email_delivery_logs add column if not exists click_count int not null default 0;
 alter table public.email_delivery_logs add column if not exists customer_id text;
+-- Phase 4n.27: capture the SMTP Message-ID of outbound mail so the inbound
+-- webhook can match `In-Reply-To` headers back to the originating outbound
+-- row (and thus the customer + optional thread). thread_id is stamped when
+-- the outbound email is itself a thread reply.
+alter table public.email_delivery_logs add column if not exists outbound_message_id text;
+alter table public.email_delivery_logs add column if not exists thread_id text;
 create index if not exists idx_email_delivery_logs_resend_id on public.email_delivery_logs(resend_id) where resend_id is not null;
 create index if not exists idx_email_delivery_logs_customer_event on public.email_delivery_logs(customer_id, event_type, created_at desc) where customer_id is not null;
+create index if not exists idx_email_delivery_logs_msgid on public.email_delivery_logs(outbound_message_id) where outbound_message_id is not null;
 
 -- Phase 4n.3: owner-created filing schedules. Adds 'weekly' to the cadence
 -- check constraint so we can support `weekly_following` anchor rules. The
