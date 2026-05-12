@@ -233,6 +233,28 @@ export const taxApi = {
 
   adminListProducts(auth, communitySlug)         { return request('GET',  `/admin/products?communitySlug=${encodeURIComponent(communitySlug)}`, undefined, auth, { admin: true }); },
   adminUpdateProduct(auth, productId, payload)   { return request('PUT',  `/admin/products/${encodeURIComponent(productId)}`, payload, auth, { admin: true }); },
+
+  // ── Tasks ────────────────────────────────────────────────────────────
+  adminListTaskStatuses(auth, communitySlug) {
+    return request('GET', `/admin/task-statuses?communitySlug=${encodeURIComponent(communitySlug)}`, undefined, auth, { admin: true });
+  },
+  adminCreateTaskStatus(auth, payload)        { return request('POST',   '/admin/task-statuses', payload, auth, { admin: true }); },
+  adminUpdateTaskStatus(auth, id, payload)    { return request('PATCH',  `/admin/task-statuses/${encodeURIComponent(id)}`, payload, auth, { admin: true }); },
+  adminDeleteTaskStatus(auth, id)             { return request('DELETE', `/admin/task-statuses/${encodeURIComponent(id)}`, undefined, auth, { admin: true }); },
+  adminTaskSuggestions(auth, productSlug) {
+    const qs = productSlug ? `?productSlug=${encodeURIComponent(productSlug)}` : '';
+    return request('GET', `/admin/task-suggestions${qs}`, undefined, auth, { admin: true });
+  },
+  adminListTasks(auth, opts = {}) {
+    const qs = new URLSearchParams();
+    for (const k of ['communitySlug','status','priority','assignedTo','customerId','productId','due','q','limit']) {
+      if (opts[k] !== undefined && opts[k] !== '') qs.set(k, opts[k]);
+    }
+    return request('GET', `/admin/tasks?${qs.toString()}`, undefined, auth);
+  },
+  adminCreateTask(auth, payload)              { return request('POST',   '/admin/tasks', payload, auth); },
+  adminUpdateTask(auth, id, payload)          { return request('PATCH',  `/admin/tasks/${encodeURIComponent(id)}`, payload, auth); },
+  adminDeleteTask(auth, id)                   { return request('DELETE', `/admin/tasks/${encodeURIComponent(id)}`, undefined, auth); },
   adminAddSubscription(auth, customerId, payload){ return request('POST', `/admin/customers/${encodeURIComponent(customerId)}/subscriptions`, payload, auth, { admin: true }); },
   adminUpdateSubscription(auth, subId, payload)  { return request('PUT',  `/admin/subscriptions/${encodeURIComponent(subId)}`, payload, auth, { admin: true }); },
   adminCancelSubscription(auth, subId)           { return request('DELETE', `/admin/subscriptions/${encodeURIComponent(subId)}`, undefined, auth, { admin: true }); },

@@ -2307,6 +2307,68 @@ alter table public.tax_products
 alter table public.communities
   add column if not exists tax_customer_documents_enabled boolean not null default false;
 
+-- ─── Task tracker (replaces the spreadsheet workflow) ──────────────────────────
+-- Per-community task list. Each task is optionally tied to a customer and a
+-- service (tax_products) so the page can group/filter the way the owner's
+-- spreadsheet did. Status values are editable per community via
+-- tax_task_status_options below — `status_key` references one of those keys.
+
+create table if not exists public.tax_task_status_options (
+  id            text primary key,
+  community_id  text not null references public.communities(id) on delete cascade,
+  key           text not null,
+  label_i18n    jsonb not null default '{}'::jsonb,
+  color         text not null default '',     -- optional hex/css for the badge
+  display_order int not null default 0,
+  is_terminal   boolean not null default false, -- true for "Completed"-style states
+  created_at    timestamptz not null default now(),
+  updated_at    timestamptz not null default now(),
+  unique (community_id, key)
+);
+alter table public.tax_task_status_options disable row level security;
+create index if not exists tax_task_status_options_community_idx
+  on public.tax_task_status_options(community_id, display_order);
+
+create table if not exists public.tax_tasks (
+  id                       text primary key,
+  community_id             text not null references public.communities(id) on delete cascade,
+  customer_id              text references public.tax_customers(id) on delete cascade,
+  product_id               text references public.tax_products(id) on delete set null,
+  title                    text not null,
+  status_key               text not null default 'not_started',
+  priority                 text not null default 'normal'
+                             check (priority in ('urgent','high','normal','low')),
+  assigned_employee_id     text references public.tax_employees(id) on delete set null,
+  created_by_employee_id   text references public.tax_employees(id) on delete set null,
+  due_date                 date,
+  notes                    text not null default '',
+  completed_at             timestamptz,
+  created_at               timestamptz not null default now(),
+  updated_at               timestamptz not null default now()
+);
+alter table public.tax_tasks disable row level security;
+create index if not exists tax_tasks_community_idx
+  on public.tax_tasks(community_id, status_key, due_date);
+create index if not exists tax_tasks_customer_idx
+  on public.tax_tasks(customer_id, created_at desc) where customer_id is not null;
+create index if not exists tax_tasks_assignee_idx
+  on public.tax_tasks(assigned_employee_id, status_key, due_date) where assigned_employee_id is not null;
+create index if not exists tax_tasks_product_idx
+  on public.tax_tasks(product_id, status_key) where product_id is not null;
+
+-- Seed the three default status options for tax-america-services. New
+-- communities provisioned via the platform endpoint should mirror this
+-- (handled in server code on community create).
+insert into public.tax_task_status_options
+  (id, community_id, key, label_i18n, color, display_order, is_terminal) values
+  ('tas:tax-america-services:not_started', 'tax-america-services', 'not_started',
+   '{"en":"Not started","es":"No iniciado"}'::jsonb, '#9ca3af', 10, false),
+  ('tas:tax-america-services:in_progress', 'tax-america-services', 'in_progress',
+   '{"en":"In progress","es":"En progreso"}'::jsonb, '#f59e0b', 20, false),
+  ('tas:tax-america-services:completed',   'tax-america-services', 'completed',
+   '{"en":"Completed","es":"Completado"}'::jsonb,   '#10b981', 30, true)
+on conflict (id) do nothing;
+
 -- ─── Industry best-practice default schedules ─────────────────────────────────
 -- Extends the original seed in this file with the schedules most tax
 -- practices need out of the box. Idempotent — `on conflict (id) do nothing`
