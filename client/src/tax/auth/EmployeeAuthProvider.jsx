@@ -27,6 +27,9 @@ export function TaxEmployeeAuthProvider({ communitySlug, children }) {
   const [me, setMe] = useState(null);
   const [status, setStatus] = useState(firebaseReady ? 'loading' : 'error');
   const [error, setError] = useState(firebaseReady ? '' : 'Firebase is not configured.');
+  // Phase 4n.18: stashed redirect when the server says this email belongs
+  // to the customer portal instead.
+  const [redirectTo, setRedirectTo] = useState('');
   const [impersonation, setImpersonationState] = useState(() => {
     const imp = getImpersonation();
     return imp && imp.targetType === 'employee' ? imp : null;
@@ -45,7 +48,7 @@ export function TaxEmployeeAuthProvider({ communitySlug, children }) {
     if (impersonation) return;
     if (!fbUser) return;
     let cancelled = false;
-    setStatus('linking'); setError('');
+    setStatus('linking'); setError(''); setRedirectTo('');
     (async () => {
       try {
         await taxApi.employeeAuthLink({ uid: fbUser.uid, email: fbUser.email, communitySlug });
@@ -56,7 +59,12 @@ export function TaxEmployeeAuthProvider({ communitySlug, children }) {
         if (cancelled) return;
         setMe(null);
         setStatus('error');
-        setError(err?.message || 'Could not link your staff account.');
+        if (err?.body?.error === 'wrong_portal') {
+          setError(err.body.message || 'You have an account in a different role at this practice.');
+          setRedirectTo(err.body.redirectTo || '');
+        } else {
+          setError(err?.message || 'Could not link your staff account.');
+        }
       }
     })();
     return () => { cancelled = true; };
@@ -132,7 +140,7 @@ export function TaxEmployeeAuthProvider({ communitySlug, children }) {
     // "Switch to customer view" link in EmployeeShell.
     customerAccess: me?.customerAccess || { hasCustomerRow: false },
     impersonation,
-    status, error,
+    status, error, redirectTo,
     signOut, refreshMe, exitImpersonation,
   };
   return <EmpAuthCtx.Provider value={value}>{children}</EmpAuthCtx.Provider>;

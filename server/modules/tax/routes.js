@@ -1755,6 +1755,31 @@ module.exports = function createTaxRouter(deps) {
   // function shape stays the same; only the implementation hardens.
   // ────────────────────────────────────────────────────────────────────────────
 
+  // Phase 4n.18: a user who has only a tax_employees row in this community
+  // (or only a tax_customers row, when hitting /employee) used to see
+  // "Account not provisioned" — opaque and dead-ended. Now we detect the
+  // mismatch and return a `wrong_portal` payload that the client renders
+  // as "Sign in at the staff portal instead" with a redirect button.
+  async function detectCrossPortalRedirect({ email, communitySlug, currentType }) {
+    if (!email || !communitySlug) return null;
+    try {
+      if (currentType === 'customer') {
+        const { data: emp } = await supabase.from('tax_employees')
+          .select('id, status').eq('email', email).eq('community_id', communitySlug).maybeSingle();
+        if (emp && emp.status !== 'archived') {
+          return { type: 'employee', redirectTo: `/tax/${communitySlug}/employee` };
+        }
+      } else if (currentType === 'employee') {
+        const { data: cust } = await supabase.from('tax_customers')
+          .select('id, status').eq('email', email).eq('community_id', communitySlug).maybeSingle();
+        if (cust && cust.status !== 'archived') {
+          return { type: 'customer', redirectTo: `/tax/${communitySlug}/portal` };
+        }
+      }
+    } catch (_e) { /* fall through — caller still returns the 403 */ }
+    return null;
+  }
+
   async function requireTaxCustomer(req, res) {
     if (!requireSupabaseEnv(res)) return null;
 
@@ -1787,7 +1812,17 @@ module.exports = function createTaxRouter(deps) {
       .eq('email', email).eq('community_id', communitySlug).maybeSingle();
     if (error) { sendSupabaseError(res, error); return null; }
     if (!customer) {
-      res.status(403).json({ error: 'Account not provisioned. Contact your tax practice.' });
+      const redirect = await detectCrossPortalRedirect({ email, communitySlug, currentType: 'customer' });
+      if (redirect) {
+        res.status(403).json({
+          error: 'wrong_portal',
+          message: 'You have a staff account at this practice. Sign in at the staff portal instead.',
+          redirectTo: redirect.redirectTo,
+          accountType: redirect.type,
+        });
+      } else {
+        res.status(403).json({ error: 'Account not provisioned. Contact your tax practice.' });
+      }
       return null;
     }
     if (customer.status !== 'active') {
@@ -1818,6 +1853,15 @@ module.exports = function createTaxRouter(deps) {
       .eq('email', email).eq('community_id', communitySlug).maybeSingle();
     if (error) return sendSupabaseError(res, error);
     if (!customer) {
+      const redirect = await detectCrossPortalRedirect({ email, communitySlug, currentType: 'customer' });
+      if (redirect) {
+        return res.status(403).json({
+          error: 'wrong_portal',
+          message: 'You have a staff account at this practice. Sign in at the staff portal instead.',
+          redirectTo: redirect.redirectTo,
+          accountType: redirect.type,
+        });
+      }
       return res.status(403).json({ error: 'Account not provisioned. Contact your tax practice.' });
     }
     if (customer.status !== 'active') {
@@ -3858,7 +3902,17 @@ module.exports = function createTaxRouter(deps) {
       .eq('email', email).eq('community_id', communitySlug).maybeSingle();
     if (error) { sendSupabaseError(res, error); return null; }
     if (!emp) {
-      res.status(403).json({ error: 'Account not provisioned. Contact your practice administrator.' });
+      const redirect = await detectCrossPortalRedirect({ email, communitySlug, currentType: 'employee' });
+      if (redirect) {
+        res.status(403).json({
+          error: 'wrong_portal',
+          message: 'You have a customer account at this practice. Sign in at the customer portal instead.',
+          redirectTo: redirect.redirectTo,
+          accountType: redirect.type,
+        });
+      } else {
+        res.status(403).json({ error: 'Account not provisioned. Contact your practice administrator.' });
+      }
       return null;
     }
     if (emp.status !== 'active') {
@@ -3947,7 +4001,18 @@ module.exports = function createTaxRouter(deps) {
       .select('id, community_id, email, name, locale, status, firebase_uid, role')
       .eq('email', email).eq('community_id', communitySlug).maybeSingle();
     if (error) return sendSupabaseError(res, error);
-    if (!emp) return res.status(403).json({ error: 'Account not provisioned. Contact your practice administrator.' });
+    if (!emp) {
+      const redirect = await detectCrossPortalRedirect({ email, communitySlug, currentType: 'employee' });
+      if (redirect) {
+        return res.status(403).json({
+          error: 'wrong_portal',
+          message: 'You have a customer account at this practice. Sign in at the customer portal instead.',
+          redirectTo: redirect.redirectTo,
+          accountType: redirect.type,
+        });
+      }
+      return res.status(403).json({ error: 'Account not provisioned. Contact your practice administrator.' });
+    }
     if (emp.status !== 'active') return res.status(403).json({ error: 'Account is not active.' });
     if (emp.firebase_uid && emp.firebase_uid !== uid) {
       return res.status(403).json({ error: 'Account collision. Contact your practice administrator.' });
