@@ -299,7 +299,16 @@ module.exports = function createTaxRouter(deps) {
     const name = trim(body.name, MAX_NAME_LEN);
     const email = trim(body.email, MAX_NAME_LEN).toLowerCase();
     const phone = trim(body.phone, MAX_PHONE_LEN);
-    const productSlug = trim(body.productSlug, 200);
+    // Phase 4n.12: accept multi-select. `productSlugs` is the new
+    // source-of-truth; fall back to the legacy single `productSlug` so
+    // older clients keep working until they redeploy.
+    const productSlugsRaw = Array.isArray(body.productSlugs) ? body.productSlugs
+                          : (body.productSlug ? [body.productSlug] : []);
+    const productSlugs = productSlugsRaw
+      .map(s => trim(s, 200)).filter(Boolean)
+      .filter((s, i, arr) => arr.indexOf(s) === i)    // dedupe
+      .slice(0, 20);                                  // cap so we can't be flooded
+    const productSlug = productSlugs[0] || '';
     const message = trim(body.message, MAX_TEXT_LEN);
     const preferredLocale = localeOf(body.locale);
     const userAgent = trim(req.get('user-agent') || '', 500);
@@ -328,6 +337,7 @@ module.exports = function createTaxRouter(deps) {
       community_id: community.id,
       name, email, phone,
       product_slug: productSlug,
+      product_slugs: productSlugs,
       message,
       preferred_locale: preferredLocale,
       status: 'new',
@@ -344,7 +354,7 @@ module.exports = function createTaxRouter(deps) {
       await auditLog({
         entity: 'tax.lead', entityId: inserted.id,
         action: 'create', actorEmail: email, actorName: name,
-        after: { communityId: community.id, productSlug, preferredLocale },
+        after: { communityId: community.id, productSlugs, preferredLocale },
       });
     } catch (e) { warn('[tax] audit log failed', e?.message || e); }
 
@@ -1529,7 +1539,7 @@ module.exports = function createTaxRouter(deps) {
     const communitySlug = trim(req.query.communitySlug, 200);
     if (!communitySlug) return res.status(400).json({ error: 'communitySlug required.' });
     let q = supabase.from('tax_leads')
-      .select('id, name, email, phone, product_slug, message, preferred_locale, status, notes, contacted_at, created_at')
+      .select('id, name, email, phone, product_slug, product_slugs, message, preferred_locale, status, notes, contacted_at, created_at')
       .eq('community_id', communitySlug)
       .order('created_at', { ascending: false }).limit(500);
     const statusFilter = trim(req.query.status, 40);

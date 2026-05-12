@@ -129,7 +129,12 @@ function LeadRow({ lead, auth, onChange, communitySlug, t }) {
           <div style={{ fontSize: 13, color: 'var(--tax-muted)', marginTop: 2 }}>
             <a href={`mailto:${lead.email}`}>{lead.email}</a>
             {lead.phone ? <> • {lead.phone}</> : null}
-            {lead.product_slug ? <> • {lead.product_slug}</> : null}
+            {(() => {
+              const services = Array.isArray(lead.product_slugs) && lead.product_slugs.length
+                ? lead.product_slugs
+                : (lead.product_slug ? [lead.product_slug] : []);
+              return services.length ? <> • {services.join(', ')}</> : null;
+            })()}
             <> • {new Date(lead.created_at).toLocaleDateString()}</>
           </div>
         </div>

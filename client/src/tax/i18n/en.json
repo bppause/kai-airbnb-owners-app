@@ -24,6 +24,8 @@
   "lead.field.phone": "Phone (optional)",
   "lead.field.product": "Service of interest",
   "lead.field.product.placeholder": "Select a service…",
+  "lead.field.services": "Services you're interested in",
+  "lead.field.services.hint": "Pick one or more — we'll route your inquiry to the right specialist.",
   "lead.field.message": "Message",
   "lead.field.message.placeholder": "Briefly describe what you need help with.",
   "lead.submit": "Send request",

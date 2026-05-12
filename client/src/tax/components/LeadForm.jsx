@@ -4,12 +4,23 @@ import { taxApi } from '../api';
 
 export default function LeadForm({ community, products }) {
   const { locale, t } = useT();
+  // Phase 4n.12: multi-select services. `productSlugs` is the live state;
+  // submitted as an array. Submission still degrades gracefully if a future
+  // client/server pair forgets to send the array (server falls back to the
+  // legacy `productSlug` body field).
   const [form, setForm] = useState({
-    name: '', email: '', phone: '', productSlug: '', message: '', website: '',
+    name: '', email: '', phone: '', productSlugs: [], message: '', website: '',
   });
   const [status, setStatus] = useState({ kind: 'idle', message: '' });
 
   const onChange = (e) => setForm(f => ({ ...f, [e.target.name]: e.target.value }));
+
+  const toggleService = (slug) => setForm(f => ({
+    ...f,
+    productSlugs: f.productSlugs.includes(slug)
+      ? f.productSlugs.filter(s => s !== slug)
+      : [...f.productSlugs, slug],
+  }));
 
   const onSubmit = async (e) => {
     e.preventDefault();
@@ -21,13 +32,13 @@ export default function LeadForm({ community, products }) {
         name: form.name,
         email: form.email,
         phone: form.phone,
-        productSlug: form.productSlug,
+        productSlugs: form.productSlugs,
         message: form.message,
         locale,
         website: form.website,
       });
       setStatus({ kind: 'success', message: '' });
-      setForm({ name: '', email: '', phone: '', productSlug: '', message: '', website: '' });
+      setForm({ name: '', email: '', phone: '', productSlugs: [], message: '', website: '' });
     } catch (err) {
       const isNetwork = !err?.status;
       setStatus({
@@ -68,13 +79,27 @@ export default function LeadForm({ community, products }) {
         </div>
       </div>
       <div>
-        <label htmlFor="lead-product">{t('lead.field.product')}</label>
-        <select id="lead-product" name="productSlug" value={form.productSlug} onChange={onChange}>
-          <option value="">{t('lead.field.product.placeholder')}</option>
-          {products.map(p => (
-            <option key={p.id} value={p.slug}>{pickI18n(p.name_i18n, locale).value}</option>
-          ))}
-        </select>
+        <label>{t('lead.field.services')}</label>
+        <p style={{ margin: '4px 0 8px', fontSize: 13, color: 'var(--tax-muted)' }}>
+          {t('lead.field.services.hint')}
+        </p>
+        <div role="group" aria-label={t('lead.field.services')}
+             style={{ display: 'grid', gap: 6 }}>
+          {products.map(p => {
+            const label = pickI18n(p.name_i18n, locale).value || p.slug;
+            const checked = form.productSlugs.includes(p.slug);
+            return (
+              <label key={p.id} style={{
+                display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer',
+                padding: '8px 12px', border: '1px solid var(--tax-border)', borderRadius: 8,
+                background: checked ? 'color-mix(in srgb, var(--tax-brand-primary) 8%, #fff)' : 'transparent',
+              }}>
+                <input type="checkbox" checked={checked} onChange={() => toggleService(p.slug)} />
+                <span>{label}</span>
+              </label>
+            );
+          })}
+        </div>
       </div>
       <div>
         <label htmlFor="lead-message">{t('lead.field.message')}</label>

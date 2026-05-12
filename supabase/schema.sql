@@ -755,6 +755,13 @@ create index if not exists idx_tax_leads_community on public.tax_leads(community
 create index if not exists idx_tax_leads_status on public.tax_leads(community_id, status);
 create index if not exists idx_tax_leads_email on public.tax_leads(email);
 
+-- Phase 4n.12: multi-service leads. The landing page lets a prospect pick
+-- one or more services they're interested in. product_slug stays for
+-- backwards-compat (and convenience — populated with the first slug)
+-- but product_slugs is the source of truth from now on.
+alter table public.tax_leads
+  add column if not exists product_slugs text[] not null default '{}'::text[];
+
 alter table public.tax_products disable row level security;
 alter table public.tax_leads disable row level security;
 
