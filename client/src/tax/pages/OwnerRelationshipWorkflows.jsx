@@ -41,6 +41,19 @@ export default function OwnerRelationshipWorkflows() {
   const [msg, setMsg] = useState({});                 // same key → {kind,text}
   const [preview, setPreview] = useState(null);       // { lang, extraDocs, offsetDays }
 
+  // Advanced view: hides the Service / Form / Journey tabs by default so
+  // the editor focuses on what most owners care about — Schedule +
+  // Reminders. Power users toggle this on to see the full lifecycle.
+  // Persisted in localStorage so the choice survives reloads.
+  const [advanced, setAdvanced] = useState(() => {
+    try { return localStorage.getItem('tax.workflows.advanced') === '1'; }
+    catch { return false; }
+  });
+  useEffect(() => {
+    try { localStorage.setItem('tax.workflows.advanced', advanced ? '1' : '0'); }
+    catch { /* ignore */ }
+  }, [advanced]);
+
   const load = () => {
     if (!fbUser || !community) return;
     setLoading(true); setErr('');
@@ -202,8 +215,21 @@ export default function OwnerRelationshipWorkflows() {
 
   return (
     <EmployeeShell community={community} active="workflows">
-      <h2 style={{ marginTop: 0 }}>{t('owner.workflows.title')}</h2>
-      <p className="tax-section__lede">{t('owner.workflows.subtitle')}</p>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap' }}>
+        <div style={{ minWidth: 0 }}>
+          <h2 style={{ margin: 0 }}>{t('owner.workflows.title')}</h2>
+          <p className="tax-section__lede">{t('owner.workflows.subtitle')}</p>
+        </div>
+        <label style={{
+          display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 13,
+          padding: '6px 12px', border: '1px solid var(--tax-border)', borderRadius: 999,
+          background: advanced ? 'color-mix(in srgb, var(--tax-brand-primary) 10%, #fff)' : '#fff',
+          cursor: 'pointer',
+        }}>
+          <input type="checkbox" checked={advanced} onChange={e => setAdvanced(e.target.checked)} />
+          {t('owner.workflows.advanced')}
+        </label>
+      </div>
 
       {err && <div className="tax-msg tax-msg--error">{err}</div>}
       {loading && <p>{t('loading')}</p>}
@@ -308,6 +334,7 @@ export default function OwnerRelationshipWorkflows() {
                 <WorkflowCard key={sch.id}
                   sch={sch} st={st} rule={r} mkey={msg[k]} busy={!!busy[k]}
                   activeRel={activeRel} locale={locale} t={t} auth={auth} community={community}
+                  advanced={advanced}
                   parseOffsets={parseOffsets} fmtDate={fmtDate}
                   SYSTEM_DEFAULT_OFFSETS={SYSTEM_DEFAULT_OFFSETS} HORIZONS={HORIZONS}
                   setEditState={setEditState}
@@ -429,13 +456,18 @@ export default function OwnerRelationshipWorkflows() {
 // "Save".
 function WorkflowCard({
   sch, st, rule, mkey, busy,
-  activeRel, locale, t, auth, community,
+  activeRel, locale, t, auth, community, advanced,
   parseOffsets, fmtDate, SYSTEM_DEFAULT_OFFSETS, HORIZONS,
   setEditState, addDoc, updateDoc, removeDoc,
   onSave, onReset, onPreviewEmail, onTestSend, onHistory,
 }) {
   const [expanded, setExpanded] = useState(true);
   const [tab, setTab] = useState('schedule');
+  // If the active tab is one that's hidden by the basic view, fall back
+  // to Schedule so the panel stays in sync with the visible tab bar.
+  useEffect(() => {
+    if (!advanced && !['schedule', 'reminders'].includes(tab)) setTab('schedule');
+  }, [advanced, tab]);
   const isOverride = !!rule;
   const name = pickI18n(sch.name_i18n, locale).value || sch.slug;
   const description = pickI18n(sch.description_i18n, locale).value || '';
@@ -445,15 +477,19 @@ function WorkflowCard({
   const today = todayIsoUtc();
   const periods = generatePeriods(sch.anchor_rule, today, 8);
 
-  const tabs = [
-    { key: 'service',   label: t('owner.workflows.tab.service') },
-    { key: 'schedule',  label: t('owner.workflows.tab.schedule') },
-    { key: 'form',      label: t('owner.workflows.tab.form'),
+  // Basic view = email reminders only. Service / Form / Journey are
+  // power-user tabs hidden until the Advanced toggle on the page header
+  // flips on.
+  const ALL_TABS = [
+    { key: 'service',   label: t('owner.workflows.tab.service'),   advanced: true },
+    { key: 'schedule',  label: t('owner.workflows.tab.schedule'),  advanced: false },
+    { key: 'form',      label: t('owner.workflows.tab.form'),      advanced: true,
       badge: st.docs.length || null },
-    { key: 'reminders', label: t('owner.workflows.tab.reminders'),
+    { key: 'reminders', label: t('owner.workflows.tab.reminders'), advanced: false,
       badge: effectiveOffsets.length || null },
-    { key: 'journey',   label: t('owner.workflows.tab.journey') },
+    { key: 'journey',   label: t('owner.workflows.tab.journey'),   advanced: true },
   ];
+  const tabs = ALL_TABS.filter(tt => advanced || !tt.advanced);
 
   return (
     <section style={{
