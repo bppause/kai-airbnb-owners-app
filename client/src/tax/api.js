@@ -198,6 +198,9 @@ export const taxApi = {
   adminUpdateCommunityContact(auth, payload) { return request('PUT', '/admin/community-settings/contact', payload, auth, { admin: true }); },
   adminPromoteCustomerToStaff(auth, customerId, payload) { return request('POST', `/admin/customers/${encodeURIComponent(customerId)}/promote-to-staff`, payload, auth, { admin: true }); },
   adminSetCustomerStatus(auth, customerId, payload) { return request('PUT', `/admin/customers/${encodeURIComponent(customerId)}/status`, payload, auth, { admin: true }); },
+  // Customer notes — admin-scoped routes; auth headers are admin headers.
+  adminListCustomerNotes(auth, customerId) { return request('GET', `/admin/customers/${encodeURIComponent(customerId)}/notes`, undefined, auth, { admin: true }); },
+  adminCreateCustomerNote(auth, customerId, payload) { return request('POST', `/admin/customers/${encodeURIComponent(customerId)}/notes`, payload, auth, { admin: true }); },
   adminListCustomerWorkflowOverrides(auth, customerId) { return request('GET', `/admin/customers/${encodeURIComponent(customerId)}/workflow-overrides`, undefined, auth, { admin: true }); },
   adminUpsertCustomerWorkflowOverride(auth, customerId, ruleId, payload) { return request('PUT', `/admin/customers/${encodeURIComponent(customerId)}/workflow-overrides/${encodeURIComponent(ruleId)}`, payload, auth, { admin: true }); },
   adminDeleteCustomerWorkflowOverride(auth, customerId, ruleId) { return request('DELETE', `/admin/customers/${encodeURIComponent(customerId)}/workflow-overrides/${encodeURIComponent(ruleId)}`, undefined, auth, { admin: true }); },
