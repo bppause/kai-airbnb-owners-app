@@ -241,6 +241,7 @@ module.exports = function createTaxSenders(deps) {
       try {
         await logTaxEmailDelivery({
           resendId: result.id || '',
+          outboundMessageId: result.messageId || '',
           communityId: cust.community_id || '',
           customerId: cust.id || '',
           workflowRuleId: workflowRuleId || row?.workflow_rule_id || '',
@@ -720,9 +721,25 @@ module.exports = function createTaxSenders(deps) {
     const finalCopy = await applyOverride({
       communityId: cust.community_id, key: 'document', lang, vars, defaults,
     });
-    return sendSpanishEmail({
+    const result = await sendSpanishEmail({
       to, subject: finalCopy.subject, text: finalCopy.text, html: finalCopy.html, lang: langTag,
     });
+    if (result && result.sent && typeof logTaxEmailDelivery === 'function') {
+      try {
+        await logTaxEmailDelivery({
+          resendId: result.id || '',
+          outboundMessageId: result.messageId || '',
+          communityId: cust.community_id || '',
+          customerId: cust.id || '',
+          eventType: 'document',
+          recipients: [to],
+          subject: finalCopy.subject,
+          relatedEntity: 'tax.document',
+          relatedId: doc?.id || '',
+        });
+      } catch (_e) {}
+    }
+    return result;
   };
 
   // ── Phase 4n.25: signature-request emails ────────────────────────────────
@@ -789,9 +806,25 @@ module.exports = function createTaxSenders(deps) {
     const finalCopy = await applyOverride({
       communityId: cust.community_id, key: 'signature_request', lang, vars, defaults,
     });
-    return sendSpanishEmail({
+    const result = await sendSpanishEmail({
       to, subject: finalCopy.subject, text: finalCopy.text, html: finalCopy.html, lang: langTag,
     });
+    if (result && result.sent && typeof logTaxEmailDelivery === 'function') {
+      try {
+        await logTaxEmailDelivery({
+          resendId: result.id || '',
+          outboundMessageId: result.messageId || '',
+          communityId: cust.community_id || '',
+          customerId: cust.id || '',
+          eventType: 'signature_request',
+          recipients: [to],
+          subject: finalCopy.subject,
+          relatedEntity: 'tax.signature_request',
+          relatedId: request?.id || '',
+        });
+      } catch (_e) {}
+    }
+    return result;
   };
 
   // Practice-facing notification when a customer signs. Sent to one
@@ -917,9 +950,26 @@ module.exports = function createTaxSenders(deps) {
     const msgFinal = await applyOverride({
       communityId: cust.community_id, key: 'message_to_customer', lang, vars: msgVars, defaults: msgDefaults,
     });
-    return sendSpanishEmail({
+    const msgResult = await sendSpanishEmail({
       to, subject: msgFinal.subject, text: msgFinal.text, html: msgFinal.html, lang: langTag,
     });
+    if (msgResult && msgResult.sent && typeof logTaxEmailDelivery === 'function') {
+      try {
+        await logTaxEmailDelivery({
+          resendId: msgResult.id || '',
+          outboundMessageId: msgResult.messageId || '',
+          communityId: cust.community_id || '',
+          customerId: cust.id || '',
+          eventType: 'message_to_customer',
+          recipients: [to],
+          subject: msgFinal.subject,
+          relatedEntity: 'tax.thread',
+          relatedId: thread?.id || '',
+          threadId: thread?.id || '',
+        });
+      } catch (_e) {}
+    }
+    return msgResult;
   };
 
   // ── Practice notification email (Phase 2f) ───────────────────────────────
@@ -1167,9 +1217,25 @@ module.exports = function createTaxSenders(deps) {
     const wFinal = await applyOverride({
       communityId: cust.community_id, key: 'welcome_customer', lang, vars: wVars, defaults: wDefaults,
     });
-    return sendSpanishEmail({
+    const wResult = await sendSpanishEmail({
       to, subject: wFinal.subject, text: wFinal.text, html: wFinal.html, lang: langTag,
     });
+    if (wResult && wResult.sent && typeof logTaxEmailDelivery === 'function') {
+      try {
+        await logTaxEmailDelivery({
+          resendId: wResult.id || '',
+          outboundMessageId: wResult.messageId || '',
+          communityId: cust.community_id || '',
+          customerId: cust.id || '',
+          eventType: 'welcome_customer',
+          recipients: [to],
+          subject: wFinal.subject,
+          relatedEntity: 'tax.customer',
+          relatedId: cust.id || '',
+        });
+      } catch (_e) {}
+    }
+    return wResult;
   };
 
   // Staff onboarding email — sent when an owner adds an employee row.
