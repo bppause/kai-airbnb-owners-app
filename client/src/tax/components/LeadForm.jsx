@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { pickI18n, useT } from '../i18n';
 import { taxApi } from '../api';
 
@@ -7,7 +7,7 @@ import { taxApi } from '../api';
 // service the owner has configured.
 const CATEGORY_ORDER = ['tax_prep', 'recurring', 'one_off', 'custom'];
 
-export default function LeadForm({ community, products }) {
+export default function LeadForm({ community, products, initialProductSlug }) {
   const { locale, t } = useT();
 
   // Group services by category, preserving the owner-defined display_order
@@ -34,6 +34,17 @@ export default function LeadForm({ community, products }) {
     email: '', phone: '', productSlugs: [], message: '', website: '',
   });
   const [status, setStatus] = useState({ kind: 'idle', message: '' });
+
+  // When the visitor clicks "Request this service" inside a card's modal,
+  // Landing passes the slug down here. Add it to the selection (don't
+  // replace — they may already have picked others) and flash a soft
+  // highlight so they can see what changed when they land at the form.
+  useEffect(() => {
+    if (!initialProductSlug) return;
+    setForm(f => f.productSlugs.includes(initialProductSlug)
+      ? f
+      : { ...f, productSlugs: [...f.productSlugs, initialProductSlug] });
+  }, [initialProductSlug]);
 
   const onChange = (e) => setForm(f => ({ ...f, [e.target.name]: e.target.value }));
 

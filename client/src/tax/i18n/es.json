@@ -13,6 +13,11 @@
 
   "services.heading": "Nuestros servicios",
   "services.subheading": "Elige el servicio que necesitas y te contactaremos en menos de un día hábil.",
+  "services.card.learnMore": "Saber más",
+  "services.card.openAria": "Ver detalles de {name}",
+  "services.modal.close": "Cerrar",
+  "services.modal.requires": "Lo que necesitamos de ti",
+  "services.modal.requestCta": "Solicitar este servicio",
   "services.category.tax_prep": "Preparación de impuestos",
   "services.category.recurring": "Servicios continuos",
   "services.category.one_off": "Servicios puntuales",

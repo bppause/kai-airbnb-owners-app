@@ -19,7 +19,7 @@ function waDigits(raw) {
   return String(raw || '').trim().replace(/^\+/, '').replace(/\D+/g, '');
 }
 
-export default function Contact({ community, products }) {
+export default function Contact({ community, products, initialProductSlug }) {
   const { t } = useT();
   const address = buildAddress(community);
   const mapQuery = buildMapQuery(community);
@@ -45,7 +45,8 @@ export default function Contact({ community, products }) {
         <p className="tax-section__lede">{t('lead.subheading')}</p>
 
         <div className="tax-contact-layout">
-          <LeadForm community={community} products={products} />
+          <LeadForm community={community} products={products}
+                    initialProductSlug={initialProductSlug} />
           <div>
             <h3 style={{ marginTop: 0 }}>{t('contact.heading')}</h3>
             <div className="tax-contact-grid">

@@ -2289,3 +2289,9 @@ alter table public.tax_leads
   add column if not exists first_name  text not null default '',
   add column if not exists middle_name text not null default '',
   add column if not exists last_name   text not null default '';
+
+-- ─── Long-form service descriptions ───────────────────────────────────────────
+-- Surfaced in the service-detail modal when present. `description_i18n`
+-- stays as the short one-liner; this is the optional richer copy.
+alter table public.tax_products
+  add column if not exists long_description_i18n jsonb not null default '{}'::jsonb;

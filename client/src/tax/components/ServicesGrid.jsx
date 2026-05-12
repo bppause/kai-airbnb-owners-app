@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from 'react';
 import { pickI18n, useT } from '../i18n';
 
 const ICON_LETTER = {
@@ -5,8 +6,16 @@ const ICON_LETTER = {
   building: 'BF', stamp: 'NT', globe: 'TR', scales: 'IRS', calculator: 'ST',
 };
 
-export default function ServicesGrid({ products }) {
+export default function ServicesGrid({ products, onRequestService }) {
   const { locale, t } = useT();
+  const [openId, setOpenId] = useState(null);
+  const open = products.find(p => p.id === openId) || null;
+
+  const onRequest = (slug) => {
+    setOpenId(null);
+    if (typeof onRequestService === 'function') onRequestService(slug);
+  };
+
   return (
     <section className="tax-section" id="services">
       <div className="tax-container">
@@ -18,16 +27,112 @@ export default function ServicesGrid({ products }) {
             const desc = pickI18n(p.description_i18n, locale).value;
             const categoryLabel = t(`services.category.${p.category}`);
             return (
-              <article className="tax-service-card" key={p.id}>
+              <button type="button" key={p.id}
+                      className="tax-service-card tax-service-card--button"
+                      onClick={() => setOpenId(p.id)}
+                      aria-label={t('services.card.openAria', { name })}>
                 <div className="tax-service-card__icon">{ICON_LETTER[p.icon] || '•'}</div>
                 <span className="tax-service-card__category">{categoryLabel}</span>
                 <h3>{name}</h3>
                 <p>{desc}</p>
-              </article>
+                <span className="tax-service-card__more">
+                  {t('services.card.learnMore')} →
+                </span>
+              </button>
             );
           })}
         </div>
       </div>
+      {open && (
+        <ServiceDetailModal
+          product={open}
+          locale={locale}
+          t={t}
+          onClose={() => setOpenId(null)}
+          onRequest={() => onRequest(open.slug)}
+        />
+      )}
     </section>
+  );
+}
+
+// Modal overlay shown when a service card is clicked. Surfaces the full
+// description plus any owner-configured rich detail fields, with a CTA
+// that hands the slug to LeadForm via the parent's onRequestService.
+//
+// Accessibility:
+//   • Esc closes
+//   • backdrop click closes (but content clicks don't bubble)
+//   • returns focus to the trigger button on close (browser default —
+//     React preserves the focused element when the button re-renders)
+function ServiceDetailModal({ product, locale, t, onClose, onRequest }) {
+  const closeRef = useRef(null);
+
+  useEffect(() => {
+    const onKey = (e) => { if (e.key === 'Escape') onClose(); };
+    document.addEventListener('keydown', onKey);
+    // Lock body scroll while the modal is open. Restored on unmount.
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    // Focus the close button so screen-reader users land on a known anchor.
+    closeRef.current?.focus();
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      document.body.style.overflow = prevOverflow;
+    };
+  }, [onClose]);
+
+  const name = pickI18n(product.name_i18n, locale).value;
+  const desc = pickI18n(product.description_i18n, locale).value;
+  const longDesc = pickI18n(product.long_description_i18n, locale).value;
+  const categoryLabel = t(`services.category.${product.category}`);
+
+  // Optional bullet lists pulled from owner-configured fields. Each field
+  // is a JSONB array on tax_products. We render the localized strings if
+  // present; missing fields just collapse out of the modal.
+  const requires = Array.isArray(product.required_documents)
+    ? product.required_documents : [];
+  const requiresLabels = requires.map(d => {
+    if (typeof d === 'string') return d;
+    if (d && typeof d === 'object') return pickI18n(d.name_i18n || d.label_i18n || {}, locale).value || d.name || d.label || '';
+    return '';
+  }).filter(Boolean);
+
+  return (
+    <div className="tax-modal" role="dialog" aria-modal="true" aria-labelledby="svcmodal-title"
+         onClick={onClose}>
+      <div className="tax-modal__panel" onClick={e => e.stopPropagation()}>
+        <button type="button" ref={closeRef} className="tax-modal__close"
+                onClick={onClose} aria-label={t('services.modal.close')}>×</button>
+        <span className="tax-service-card__category">{categoryLabel}</span>
+        <h3 id="svcmodal-title" className="tax-modal__title">{name}</h3>
+        <p className="tax-modal__desc">{desc}</p>
+        {longDesc && (
+          <div className="tax-modal__longdesc">
+            {longDesc.split(/\n{2,}/).map((para, i) => (
+              <p key={i}>{para}</p>
+            ))}
+          </div>
+        )}
+        {requiresLabels.length > 0 && (
+          <div className="tax-modal__section">
+            <h4>{t('services.modal.requires')}</h4>
+            <ul>
+              {requiresLabels.map((r, i) => <li key={i}>{r}</li>)}
+            </ul>
+          </div>
+        )}
+        <div className="tax-modal__actions">
+          <button type="button" className="tax-btn tax-btn--primary"
+                  onClick={onRequest}>
+            {t('services.modal.requestCta')}
+          </button>
+          <button type="button" className="tax-btn tax-btn--ghost"
+                  onClick={onClose} style={{ color: 'var(--tax-text)' }}>
+            {t('services.modal.close')}
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }

@@ -25,6 +25,21 @@ function setMeta(name, content, attr = 'name') {
 export default function Landing({ communitySlug }) {
   const { locale, setLocale, t } = useT();
   const [state, setState] = useState({ kind: 'loading', data: null, error: '' });
+  // Selected service from a "Request this service" click in the service
+  // modal. Passed down to LeadForm so the chip is pre-checked when the
+  // visitor lands at the contact form.
+  const [pendingService, setPendingService] = useState(null);
+
+  const onRequestService = (slug) => {
+    setPendingService(slug);
+    // Defer the scroll until React has time to render the updated form
+    // state (so the chip pre-check is visible by the time the user
+    // arrives at the section).
+    setTimeout(() => {
+      const el = document.getElementById('contact');
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 50);
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -88,9 +103,10 @@ export default function Landing({ communitySlug }) {
     <div className="tax-app" style={brandStyle}>
       <Header community={community} />
       <Hero community={community} />
-      <ServicesGrid products={products} />
+      <ServicesGrid products={products} onRequestService={onRequestService} />
       <About />
-      <Contact community={community} products={products} />
+      <Contact community={community} products={products}
+               initialProductSlug={pendingService} />
       <Footer community={community} />
     </div>
   );
