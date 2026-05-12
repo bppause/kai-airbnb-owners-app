@@ -231,27 +231,72 @@ export default function OwnerRelationshipWorkflows() {
             <p style={{ color: 'var(--tax-muted)' }}>{t('owner.workflows.noSchedules')}</p>
           )}
 
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', margin: '12px 0' }}>
-            {unconfiguredSchedules.length > 0 && (
+          {configuredSchedules.length === 0 ? (
+            // Phase 4n.26: hero empty state — three big action cards instead
+            // of a tiny "use the buttons above" line. Owners new to a
+            // relationship type land here first; this is where they decide
+            // whether to clone a template, enable an existing schedule, or
+            // build from scratch.
+            <div style={{
+              marginTop: 24, padding: '32px 24px', borderRadius: 12,
+              background: 'var(--tax-bg-alt)', border: '1px solid var(--tax-border)',
+              textAlign: 'center',
+            }}>
+              <div style={{ fontSize: 36, marginBottom: 8 }} aria-hidden="true">⚙️</div>
+              <h3 style={{ margin: '0 0 6px', fontSize: 18 }}>
+                {t('owner.workflows.empty.title')}
+              </h3>
+              <p style={{
+                margin: '0 auto 20px', maxWidth: 520,
+                fontSize: 14, color: 'var(--tax-muted)',
+              }}>
+                {t('owner.workflows.empty.body')}
+              </p>
+              <div style={{
+                display: 'grid', gap: 12,
+                gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+                maxWidth: 720, margin: '0 auto', textAlign: 'left',
+              }}>
+                <EmptyChoiceCard
+                  recommended
+                  icon="📚"
+                  title={t('owner.workflows.empty.template.title')}
+                  body={t('owner.workflows.empty.template.body')}
+                  cta={t('owner.workflows.fromTemplateBtn')}
+                  onClick={() => setShowTemplateLibrary(true)} />
+                <EmptyChoiceCard
+                  icon="✚"
+                  title={t('owner.workflows.empty.create.title')}
+                  body={t('owner.workflows.empty.create.body')}
+                  cta={t('owner.workflows.createNewBtn')}
+                  onClick={() => setShowCreateModal(true)} />
+                {unconfiguredSchedules.length > 0 && (
+                  <EmptyChoiceCard
+                    icon="🔗"
+                    title={t('owner.workflows.empty.existing.title')}
+                    body={t('owner.workflows.empty.existing.body', { count: unconfiguredSchedules.length })}
+                    cta={t('owner.workflows.addExistingBtn')}
+                    onClick={() => setShowAddPicker(true)} />
+                )}
+              </div>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', margin: '12px 0' }}>
+              {unconfiguredSchedules.length > 0 && (
+                <button type="button" className="tax-btn tax-btn--ghost tax-btn--sm"
+                        onClick={() => setShowAddPicker(true)}>
+                  + {t('owner.workflows.addExistingBtn')}
+                </button>
+              )}
               <button type="button" className="tax-btn tax-btn--ghost tax-btn--sm"
-                      onClick={() => setShowAddPicker(true)}>
-                + {t('owner.workflows.addExistingBtn')}
+                      onClick={() => setShowTemplateLibrary(true)}>
+                + {t('owner.workflows.fromTemplateBtn')}
               </button>
-            )}
-            <button type="button" className="tax-btn tax-btn--ghost tax-btn--sm"
-                    onClick={() => setShowTemplateLibrary(true)}>
-              + {t('owner.workflows.fromTemplateBtn')}
-            </button>
-            <button type="button" className="tax-btn tax-btn--primary tax-btn--sm"
-                    onClick={() => setShowCreateModal(true)}>
-              + {t('owner.workflows.createNewBtn')}
-            </button>
-          </div>
-
-          {configuredSchedules.length === 0 && enabledSchedules.length > 0 && (
-            <p style={{ color: 'var(--tax-muted)' }}>
-              {t('owner.workflows.noConfiguredForRel')}
-            </p>
+              <button type="button" className="tax-btn tax-btn--primary tax-btn--sm"
+                      onClick={() => setShowCreateModal(true)}>
+                + {t('owner.workflows.createNewBtn')}
+              </button>
+            </div>
           )}
 
           <div style={{ display: 'grid', gap: 16 }}>
@@ -857,6 +902,43 @@ function JourneyTab({ effectiveOffsets, periods, docs, fmtDate, t }) {
         ))}
       </div>
     </div>
+  );
+}
+
+// Phase 4n.26: single choice card on the empty-state hero. `recommended`
+// gives the primary card a brand-tinted border + "Recommended" pill so a
+// new owner has an obvious starting point instead of having to think
+// about which of three buttons to click.
+function EmptyChoiceCard({ icon, title, body, cta, onClick, recommended }) {
+  return (
+    <button type="button" onClick={onClick}
+            style={{
+              textAlign: 'left', display: 'flex', flexDirection: 'column',
+              gap: 8, padding: 16, borderRadius: 10, cursor: 'pointer',
+              background: '#fff',
+              border: `1px solid ${recommended ? 'var(--tax-brand-primary)' : 'var(--tax-border)'}`,
+              boxShadow: recommended ? '0 1px 0 var(--tax-brand-primary)' : 'none',
+            }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <span style={{ fontSize: 22 }} aria-hidden="true">{icon}</span>
+        {recommended && (
+          <span style={{
+            padding: '2px 8px', borderRadius: 999, fontSize: 10, fontWeight: 700,
+            background: 'var(--tax-brand-primary)', color: '#fff',
+            textTransform: 'uppercase', letterSpacing: '.04em',
+          }}>Recommended</span>
+        )}
+      </div>
+      <div style={{ fontWeight: 700, fontSize: 14 }}>{title}</div>
+      <div style={{ fontSize: 13, color: 'var(--tax-muted)', lineHeight: 1.4 }}>{body}</div>
+      <div style={{
+        marginTop: 'auto', paddingTop: 4,
+        fontSize: 13, fontWeight: 600,
+        color: recommended ? 'var(--tax-brand-primary)' : 'var(--tax-text)',
+      }}>
+        {cta} →
+      </div>
+    </button>
   );
 }
 
