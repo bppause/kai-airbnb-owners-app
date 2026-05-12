@@ -52,6 +52,13 @@
   "contact.address": "Address",
   "contact.phone": "Phone",
   "contact.email": "Email",
+  "contact.whatsapp": "WhatsApp",
+  "contact.whatsapp.chatBtn": "Chat on WhatsApp",
+  "contact.whatsapp.prefill": "Hi {name}, I have a question about your services.",
+  "contact.directions": "Get directions",
+  "contact.directions.openInMaps": "Open in Google Maps",
+  "contact.map.title": "Office location on Google Maps",
+  "owner.settings.community.whatsapp": "WhatsApp",
 
   "footer.copyright": "© {year} {name}. All rights reserved.",
   "footer.poweredBy": "Tax services platform",
