@@ -285,6 +285,13 @@
   "employee.profile.channels.email": "Email",
   "employee.profile.channels.emailHint": "delivers to your sign-in email or preferred address",
   "employee.profile.channels.atLeastOne": "Please choose at least one notification channel.",
+  "employee.profile.notifications.title": "Notification preferences",
+  "employee.profile.notifications.hint": "Pick how each event reaches you. Portal notifications are on by default; email is opt-in per event. The welcome email is sent once when your account is created and can't be turned off.",
+  "employee.profile.notifications.col.event": "Event",
+  "employee.profile.notifications.col.inApp": "In portal",
+  "employee.profile.notifications.col.email": "Email",
+  "employee.profile.notifications.welcome.label": "Welcome email",
+  "employee.profile.notifications.welcome.hint": "Sent once when your account is created.",
 
   "employee.profile.assignments.title": "Your assigned customers",
   "employee.profile.assignments.adminBanner": "All customers in this community",

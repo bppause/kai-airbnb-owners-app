@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useT } from '../i18n';
+import { pickI18n, useT } from '../i18n';
 import { useEmployeeAuth } from '../auth/EmployeeAuthProvider';
 import { taxApi } from '../api';
 import EmployeeShell from '../components/EmployeeShell';
@@ -18,6 +18,11 @@ export default function EmployeeProfile() {
   const { fbUser, employee, community, assignments, refreshMe } = useEmployeeAuth();
   const auth = { uid: fbUser?.uid, email: fbUser?.email, communitySlug: community?.id };
 
+  // Phase 4n.11: per-type prefs replace the global inApp/email pair. Keep
+  // the legacy fields populated alongside for backwards compat — they only
+  // matter if the user clears all per-type prefs.
+  const [notificationTypes, setNotificationTypes] = useState([]);
+  const [prefs, setPrefs] = useState({});  // { typeKey: { in_app, email } }
   const [form, setForm] = useState({
     name: '', phone: '', whatsapp: '', preferredEmail: '', locale: 'es',
     addr: { line1: '', line2: '', city: '', state: '', postal_code: '', country: 'US' },
@@ -47,6 +52,48 @@ export default function EmployeeProfile() {
     });
   }, [employee]);
 
+  // Phase 4n.11: fetch the notification-type catalog + this employee's
+  // current per-type prefs. Falls back to the type's default_channels when
+  // no pref is stored for a type.
+  useEffect(() => {
+    if (!fbUser || !community) return;
+    let cancelled = false;
+    taxApi.getEmployeeNotificationTypes(auth)
+      .then(d => {
+        if (cancelled) return;
+        const types = d.types || [];
+        const storedPrefs = d.prefs || {};
+        const fallbackCh = Array.isArray(employee?.notificationChannels) && employee.notificationChannels.length
+          ? employee.notificationChannels : ['in_app'];
+        const initial = {};
+        for (const tp of types) {
+          if (storedPrefs[tp.key]) {
+            initial[tp.key] = {
+              in_app: storedPrefs[tp.key].in_app !== false,
+              email:  storedPrefs[tp.key].email === true,
+            };
+          } else {
+            const def = Array.isArray(tp.default_channels) ? tp.default_channels : ['in_app'];
+            // First-load fallback uses the legacy global toggle so existing
+            // opt-ins don't silently flip back to portal-only.
+            initial[tp.key] = {
+              in_app: fallbackCh.includes('in_app') || def.includes('in_app'),
+              email:  fallbackCh.includes('email')  || def.includes('email'),
+            };
+          }
+        }
+        setNotificationTypes(types);
+        setPrefs(initial);
+      })
+      .catch(() => { /* falls back to empty matrix; legacy toggle still works */ });
+    return () => { cancelled = true; };
+  }, [fbUser, community, employee?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const setPref = (typeKey, channel, on) => setPrefs(p => ({
+    ...p,
+    [typeKey]: { ...(p[typeKey] || {}), [channel]: on },
+  }));
+
   const onField = (k, v) => setForm(p => ({ ...p, [k]: v }));
   const onAddr  = (k, v) => setForm(p => ({ ...p, addr: { ...p.addr, [k]: v } }));
 
@@ -61,10 +108,6 @@ export default function EmployeeProfile() {
       setMsg({ kind: 'error', text: t('portal.profile.whatsapp.invalid') });
       return;
     }
-    if (!form.inApp && !form.email) {
-      setMsg({ kind: 'error', text: t('employee.profile.channels.atLeastOne') });
-      return;
-    }
     setBusy(true); setMsg({ kind: 'idle', text: '' });
     try {
       const address = {};
@@ -72,9 +115,11 @@ export default function EmployeeProfile() {
         const v = String(form.addr[k] || '').trim();
         if (v) address[k] = v;
       }
-      const channels = [];
-      if (form.inApp) channels.push('in_app');
-      if (form.email) channels.push('email');
+      // Derive the legacy global channel array from the per-type matrix
+      // so older code paths still resolve sensibly. in_app always on as a
+      // baseline; include email if any per-type pref opts in.
+      const anyEmail = Object.values(prefs).some(p => p && p.email === true);
+      const channels = anyEmail ? ['in_app', 'email'] : ['in_app'];
       await taxApi.updateEmployeeProfile(auth, {
         name: form.name.trim(),
         phone: form.phone.trim(),
@@ -82,6 +127,7 @@ export default function EmployeeProfile() {
         address,
         preferredCommunicationEmail: form.preferredEmail.trim(),
         notificationChannels: channels,
+        notificationPrefs: prefs,
         locale: form.locale,
       });
       setMsg({ kind: 'success', text: t('portal.profile.saved') });
@@ -220,27 +266,61 @@ export default function EmployeeProfile() {
 
         <fieldset style={{ border: '1px solid var(--tax-border)', borderRadius: 8, padding: 16, margin: 0 }}>
           <legend style={{ padding: '0 8px', fontWeight: 600, fontSize: 14 }}>
-            {t('employee.profile.channels.title')}
+            {t('employee.profile.notifications.title')}
           </legend>
           <p style={{ color: 'var(--tax-muted)', fontSize: 13, margin: '0 0 12px' }}>
-            {t('employee.profile.channels.hint')}
+            {t('employee.profile.notifications.hint')}
           </p>
-          <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', marginBottom: 8 }}>
-            <input type="checkbox" checked={form.inApp}
-                   onChange={e => onField('inApp', e.target.checked)} />
-            <span>{t('employee.profile.channels.inApp')}</span>
-            <span style={{ color: 'var(--tax-muted)', fontSize: 12, marginLeft: 4 }}>
-              {t('employee.profile.channels.inAppHint')}
-            </span>
-          </label>
-          <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
-            <input type="checkbox" checked={form.email}
-                   onChange={e => onField('email', e.target.checked)} />
-            <span>{t('employee.profile.channels.email')}</span>
-            <span style={{ color: 'var(--tax-muted)', fontSize: 12, marginLeft: 4 }}>
-              {t('employee.profile.channels.emailHint')}
-            </span>
-          </label>
+
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
+              <thead>
+                <tr style={{ textAlign: 'left', background: 'var(--tax-bg-alt)' }}>
+                  <th style={{ padding: '8px 10px' }}>{t('employee.profile.notifications.col.event')}</th>
+                  <th style={{ padding: '8px 10px', textAlign: 'center', width: 110 }}>{t('employee.profile.notifications.col.inApp')}</th>
+                  <th style={{ padding: '8px 10px', textAlign: 'center', width: 110 }}>{t('employee.profile.notifications.col.email')}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {/* Welcome row — pinned, read-only. Sent once on creation. */}
+                <tr style={{ borderTop: '1px solid var(--tax-border)' }}>
+                  <td style={{ padding: '8px 10px' }}>
+                    <div style={{ fontWeight: 600 }}>{t('employee.profile.notifications.welcome.label')}</div>
+                    <div style={{ fontSize: 12, color: 'var(--tax-muted)' }}>
+                      {t('employee.profile.notifications.welcome.hint')}
+                    </div>
+                  </td>
+                  <td style={{ padding: '8px 10px', textAlign: 'center', color: 'var(--tax-muted)' }}>—</td>
+                  <td style={{ padding: '8px 10px', textAlign: 'center' }}>
+                    <input type="checkbox" checked readOnly disabled />
+                  </td>
+                </tr>
+                {notificationTypes.map(tp => {
+                  const p = prefs[tp.key] || { in_app: true, email: false };
+                  return (
+                    <tr key={tp.key} style={{ borderTop: '1px solid var(--tax-border)' }}>
+                      <td style={{ padding: '8px 10px' }}>
+                        <div style={{ fontWeight: 600 }}>
+                          {pickI18n(tp.label_i18n, form.locale).value || tp.key}
+                        </div>
+                        <div style={{ fontSize: 12, color: 'var(--tax-muted)' }}>
+                          {pickI18n(tp.description_i18n, form.locale).value || ''}
+                        </div>
+                      </td>
+                      <td style={{ padding: '8px 10px', textAlign: 'center' }}>
+                        <input type="checkbox" checked={!!p.in_app}
+                               onChange={e => setPref(tp.key, 'in_app', e.target.checked)} />
+                      </td>
+                      <td style={{ padding: '8px 10px', textAlign: 'center' }}>
+                        <input type="checkbox" checked={!!p.email}
+                               onChange={e => setPref(tp.key, 'email', e.target.checked)} />
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         </fieldset>
 
         {msg.text && (

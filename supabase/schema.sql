@@ -1681,7 +1681,15 @@ create table if not exists public.tax_employees (
   locale                          text not null default 'en',
   -- Notification channel preferences for THIS employee. Defaults to portal-
   -- only ([in_app]); employees may include 'email' through the profile page.
+  -- Phase 4n.11: superseded by per-type `notification_prefs` below — kept as
+  -- the migration-compatible default when no per-type pref is set.
   notification_channels           text[] not null default array['in_app']::text[],
+  -- Phase 4n.11: per-notification-type channel map. Shape:
+  --   { "<type>": { "in_app": bool, "email": bool }, ... }
+  -- Missing keys fall back to notification_channels above (legacy global
+  -- toggle). The 'welcome' type is implicit and always email-only — sent
+  -- once on employee creation; not stored here.
+  notification_prefs              jsonb not null default '{}'::jsonb,
   role                            text not null default 'staff',
   status                          text not null default 'active',
   firebase_uid                    text not null default '',
@@ -1703,6 +1711,11 @@ do $$ begin
 exception when duplicate_object then null; end $$;
 create index if not exists tax_employees_community_idx
   on public.tax_employees(community_id, status);
+
+-- Phase 4n.11: per-type notification preference. Idempotent for existing
+-- tenants whose tax_employees was created before this column landed.
+alter table public.tax_employees
+  add column if not exists notification_prefs jsonb not null default '{}'::jsonb;
 
 -- Employee in-portal notifications. Kept separate from tax_notifications
 -- (customer-scoped) because the access patterns differ — employees query

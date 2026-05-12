@@ -3582,12 +3582,12 @@ module.exports = function createTaxRouter(deps) {
     // assigned to. The two sets are merged + deduped before delivery.
     const [{ data: admins }, { data: assignedRows }] = await Promise.all([
       supabase.from('tax_employees')
-        .select('id, email, name, locale, notification_channels, preferred_communication_email, role, status')
+        .select('id, email, name, locale, notification_channels, notification_prefs, preferred_communication_email, role, status')
         .eq('community_id', thread.community_id).eq('status', 'active').eq('role', 'admin'),
       supabase.from('tax_employee_customer_assignments')
         .select(`
           id,
-          employee:tax_employees ( id, email, name, locale, notification_channels, preferred_communication_email, role, status )
+          employee:tax_employees ( id, email, name, locale, notification_channels, notification_prefs, preferred_communication_email, role, status )
         `)
         .eq('customer_id', customerId).eq('active', true),
     ]);
@@ -3602,25 +3602,29 @@ module.exports = function createTaxRouter(deps) {
     const empList = [...recipientById.values()];
 
     for (const emp of empList) {
-      // In-app notification row, regardless of email preference.
-      await supabase.from('tax_employee_notifications').insert({
-        id: 'tenot_' + uuidv4().slice(0, 12),
-        community_id: thread.community_id,
-        employee_id: emp.id,
-        type: 'message',
-        title_i18n: {
-          es: `Nuevo mensaje del cliente${cust.name ? ` (${cust.name})` : ''}`,
-          en: `New customer message${cust.name ? ` (${cust.name})` : ''}`,
-        },
-        body_i18n: {
-          es: thread.last_message_preview || '',
-          en: thread.last_message_preview || '',
-        },
-        payload: { threadId: thread.id, customerId: cust.id },
-      });
+      // Phase 4n.11: per-type channel resolution (replaces the global
+      // notification_channels lookup). in_app + email are independent
+      // toggles; in_app stays on as a safety net when both are off.
+      const channels = getEmployeeChannels(emp, 'new_message');
 
-      // Email when the employee opted in. Default is portal-only.
-      const channels = Array.isArray(emp.notification_channels) ? emp.notification_channels : [];
+      if (channels.includes('in_app')) {
+        await supabase.from('tax_employee_notifications').insert({
+          id: 'tenot_' + uuidv4().slice(0, 12),
+          community_id: thread.community_id,
+          employee_id: emp.id,
+          type: 'message',
+          title_i18n: {
+            es: `Nuevo mensaje del cliente${cust.name ? ` (${cust.name})` : ''}`,
+            en: `New customer message${cust.name ? ` (${cust.name})` : ''}`,
+          },
+          body_i18n: {
+            es: thread.last_message_preview || '',
+            en: thread.last_message_preview || '',
+          },
+          payload: { threadId: thread.id, customerId: cust.id },
+        });
+      }
+
       if (channels.includes('email') && typeof sendTaxMessageEmployeeEmail === 'function') {
         try {
           await sendTaxMessageEmployeeEmail({
@@ -3665,7 +3669,7 @@ module.exports = function createTaxRouter(deps) {
     if (imp === false) return null;
     if (imp) {
       const { data: emp, error } = await supabase.from('tax_employees')
-        .select('id, community_id, email, name, phone, whatsapp, address, preferred_communication_email, locale, notification_channels, role, status, firebase_uid')
+        .select('id, community_id, email, name, phone, whatsapp, address, preferred_communication_email, locale, notification_channels, notification_prefs, role, status, firebase_uid')
         .eq('id', imp.target_id).maybeSingle();
       if (error) { sendSupabaseError(res, error); return null; }
       if (!emp) { res.status(404).json({ error: 'Impersonation target not found.' }); return null; }
@@ -3681,7 +3685,7 @@ module.exports = function createTaxRouter(deps) {
       return null;
     }
     const { data: emp, error } = await supabase.from('tax_employees')
-      .select('id, community_id, email, name, phone, whatsapp, address, preferred_communication_email, locale, notification_channels, role, status, firebase_uid')
+      .select('id, community_id, email, name, phone, whatsapp, address, preferred_communication_email, locale, notification_channels, notification_prefs, role, status, firebase_uid')
       .eq('email', email).eq('community_id', communitySlug).maybeSingle();
     if (error) { sendSupabaseError(res, error); return null; }
     if (!emp) {
@@ -3707,8 +3711,57 @@ module.exports = function createTaxRouter(deps) {
       preferredCommunicationEmail: e.preferred_communication_email || '',
       locale: e.locale, role: e.role, status: e.status,
       notificationChannels: Array.isArray(e.notification_channels) ? e.notification_channels : ['in_app'],
+      notificationPrefs: (e.notification_prefs && typeof e.notification_prefs === 'object') ? e.notification_prefs : {},
     };
   }
+
+  // ── Phase 4n.11: per-type employee notification preferences ─────────────
+  //
+  // Each notification type can be toggled on/off per channel (in_app, email).
+  // The `welcome` type is implicit: sent once at employee creation, always
+  // email, not configurable. New types added in the future just register
+  // here — the UI auto-picks them up via GET /employee/notification-types.
+  const EMPLOYEE_NOTIFICATION_TYPES = [
+    {
+      key: 'new_message',
+      label_i18n: { en: 'New customer message', es: 'Nuevo mensaje del cliente' },
+      description_i18n: {
+        en: 'When a customer assigned to you (or any customer in the community for admins) posts a message.',
+        es: 'Cuando un cliente asignado a usted (o cualquier cliente para administradores) envía un mensaje.',
+      },
+      default_channels: ['in_app'],
+    },
+  ];
+
+  // Resolve the effective channel list for one notification type for one
+  // employee. Precedence:
+  //   1. notification_prefs[type] (per-type, set via the profile UI)
+  //   2. notification_channels (legacy global toggle, pre-Phase 4n.11)
+  //   3. type's default_channels (typically ['in_app'])
+  // Safety: returns ['in_app'] if every channel ends up off — better to send
+  // a portal nudge than nothing at all.
+  function getEmployeeChannels(employee, type) {
+    const prefs = (employee && employee.notification_prefs) || {};
+    const perType = prefs[type];
+    if (perType && typeof perType === 'object') {
+      const channels = [];
+      if (perType.in_app !== false) channels.push('in_app');
+      if (perType.email === true)   channels.push('email');
+      return channels.length ? channels : ['in_app'];
+    }
+    const legacy = Array.isArray(employee?.notification_channels) ? employee.notification_channels : null;
+    if (legacy && legacy.length) return legacy;
+    const tp = EMPLOYEE_NOTIFICATION_TYPES.find(t => t.key === type);
+    return tp?.default_channels || ['in_app'];
+  }
+
+  router.get('/employee/notification-types', async (req, res) => {
+    const emp = await requireTaxEmployee(req, res); if (!emp) return;
+    res.json({
+      types: EMPLOYEE_NOTIFICATION_TYPES,
+      prefs: (emp.notification_prefs && typeof emp.notification_prefs === 'object') ? emp.notification_prefs : {},
+    });
+  });
 
   // ── POST /employee/auth/link ──
   router.post('/employee/auth/link', async (req, res) => {
@@ -3825,6 +3878,25 @@ module.exports = function createTaxRouter(deps) {
       update.notification_channels = ['in_app', 'email'].filter(c => channels.includes(c));
     }
 
+    // Phase 4n.11: per-type prefs. Body shape:
+    //   { notificationPrefs: { "<typeKey>": { in_app: bool, email: bool } } }
+    // Unknown type keys are dropped. Empty object clears all prefs (falls
+    // back to legacy notification_channels or defaults).
+    if (body.notificationPrefs !== undefined) {
+      const raw = (body.notificationPrefs && typeof body.notificationPrefs === 'object' && !Array.isArray(body.notificationPrefs))
+        ? body.notificationPrefs : {};
+      const allowedKeys = new Set(EMPLOYEE_NOTIFICATION_TYPES.map(t => t.key));
+      const cleaned = {};
+      for (const [k, v] of Object.entries(raw)) {
+        if (!allowedKeys.has(k) || !v || typeof v !== 'object') continue;
+        cleaned[k] = {
+          in_app: v.in_app !== false,
+          email:  v.email === true,
+        };
+      }
+      update.notification_prefs = cleaned;
+    }
+
     if (body.locale !== undefined) {
       const v = String(body.locale || '').trim().toLowerCase();
       if (v !== 'en' && v !== 'es') {
@@ -3846,7 +3918,7 @@ module.exports = function createTaxRouter(deps) {
     } catch (_e) {}
 
     const { data: refreshed } = await supabase.from('tax_employees')
-      .select('id, community_id, email, name, phone, whatsapp, address, preferred_communication_email, locale, notification_channels, role, status, firebase_uid')
+      .select('id, community_id, email, name, phone, whatsapp, address, preferred_communication_email, locale, notification_channels, notification_prefs, role, status, firebase_uid')
       .eq('id', emp.id).maybeSingle();
     res.json({ ok: true, employee: pickEmployee(refreshed) });
   });

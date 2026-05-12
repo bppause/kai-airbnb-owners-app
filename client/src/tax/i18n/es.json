@@ -285,6 +285,13 @@
   "employee.profile.channels.email": "Correo electrónico",
   "employee.profile.channels.emailHint": "se envía a su correo de inicio de sesión o al preferido",
   "employee.profile.channels.atLeastOne": "Por favor elija al menos un canal de notificación.",
+  "employee.profile.notifications.title": "Preferencias de notificaciones",
+  "employee.profile.notifications.hint": "Elija cómo le llega cada evento. Las notificaciones en el portal están activas por defecto; el correo es opt-in por evento. El correo de bienvenida se envía una sola vez al crear su cuenta y no se puede desactivar.",
+  "employee.profile.notifications.col.event": "Evento",
+  "employee.profile.notifications.col.inApp": "En el portal",
+  "employee.profile.notifications.col.email": "Correo",
+  "employee.profile.notifications.welcome.label": "Correo de bienvenida",
+  "employee.profile.notifications.welcome.hint": "Se envía una vez al crear su cuenta.",
 
   "employee.profile.assignments.title": "Sus clientes asignados",
   "employee.profile.assignments.adminBanner": "Todos los clientes de esta oficina",
