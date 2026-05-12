@@ -16,12 +16,21 @@ const ENTITY_OPTIONS = [
   'tax.lead',
   'tax.filing_response',
   'tax.customer',
+  'tax.customer.contact',
+  'tax.customer_note',
+  'tax.customer_relationship',
+  'tax.customer_workflow_override',
   'tax.document',
   'tax.message_thread',
-  'tax.customer_relationship',
   'tax.employee',
   'tax.employee_assignment',
   'tax.impersonation',
+  'tax.relationship_workflow_rule',
+  'tax.filing_schedule',
+  'tax.email_template',
+  'tax.signature_request',
+  'tax.workflow_template',
+  'tax.community.contact',
 ];
 
 export default function OwnerAudit() {

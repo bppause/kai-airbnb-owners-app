@@ -4905,7 +4905,12 @@ module.exports = function createTaxRouter(deps) {
     // short-circuit every period query.
     const visible = await getVisibleCustomerIdsForEmployee(emp);
 
-    async function periodSelect(builder) {
+    // BUG fix: this must be synchronous so callers can chain more filters
+    // before executing. Supabase query builders are thenable, so an `await`
+    // on the builder would execute the query prematurely. Returns the
+    // chainable builder, or `null` to signal "skip" (staff with no
+    // assignments) — caller checks for null and skips the chain.
+    function periodSelect(builder) {
       let q = builder.select(`
         id, customer_id, due_date, status, period_label,
         customer:tax_customers ( id, email, name, locale ),
@@ -4913,32 +4918,32 @@ module.exports = function createTaxRouter(deps) {
         schedule:tax_filing_schedules ( id, slug, name_i18n )
       `).eq('community_id', emp.community_id);
       if (Array.isArray(visible)) {
-        if (!visible.length) return [];
+        if (!visible.length) return null;
         q = q.in('customer_id', visible);
       }
       return q;
     }
 
-    const overdueQ = await periodSelect(supabase.from('tax_filing_periods'));
-    const overdueRows = Array.isArray(overdueQ) && !overdueQ.length ? []
-      : (await (overdueQ.in('status', ['pending', 'info_requested'])
+    const overdueQ = periodSelect(supabase.from('tax_filing_periods'));
+    const overdueRows = !overdueQ ? []
+      : (await overdueQ.in('status', ['pending', 'info_requested'])
                 .lt('due_date', today)
                 .order('due_date', { ascending: true })
-                .limit(50))).data || [];
+                .limit(50)).data || [];
 
-    const dueSoonQ = await periodSelect(supabase.from('tax_filing_periods'));
-    const dueSoonRows = Array.isArray(dueSoonQ) && !dueSoonQ.length ? []
-      : (await (dueSoonQ.in('status', ['pending', 'info_requested'])
+    const dueSoonQ = periodSelect(supabase.from('tax_filing_periods'));
+    const dueSoonRows = !dueSoonQ ? []
+      : (await dueSoonQ.in('status', ['pending', 'info_requested'])
                 .gte('due_date', today).lte('due_date', windowEnd)
                 .order('due_date', { ascending: true })
-                .limit(50))).data || [];
+                .limit(50)).data || [];
 
-    const recentQ = await periodSelect(supabase.from('tax_filing_periods'));
-    const recentRows = Array.isArray(recentQ) && !recentQ.length ? []
-      : (await (recentQ.eq('status', 'info_received')
+    const recentQ = periodSelect(supabase.from('tax_filing_periods'));
+    const recentRows = !recentQ ? []
+      : (await recentQ.eq('status', 'info_received')
                 .gte('info_received_at', recentSince)
                 .order('info_received_at', { ascending: false })
-                .limit(20))).data || [];
+                .limit(20)).data || [];
 
     // Unread thread count: staff only sees threads for assigned customers.
     let unreadCount = 0;
