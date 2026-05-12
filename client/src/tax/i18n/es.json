@@ -603,6 +603,8 @@
   "owner.staffDetail.filter.all": "Todos",
   "owner.staffDetail.filter.assigned": "Asignados",
   "owner.staffDetail.filter.unassigned": "Sin asignar",
+  "owner.staffDetail.collapseAll": "Contraer todo",
+  "owner.staffDetail.expandAll": "Expandir todo",
   "owner.staffDetail.noPendingChanges": "Sin cambios — marque una casilla para asignar o quitar.",
   "owner.staffDetail.pendingChanges": "{count} pendientes — {adds} a agregar, {removes} a quitar, {primaries} cambios de lead",
   "owner.staffDetail.discardChanges": "Descartar cambios",

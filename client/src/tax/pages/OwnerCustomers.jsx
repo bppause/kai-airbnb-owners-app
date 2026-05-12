@@ -98,6 +98,27 @@ export default function OwnerCustomers() {
 
   const groupedTypes = useMemo(() => groupByCategory(allTypes), [allTypes]);
 
+  // Collapsible "Filter by service" section. Default = collapsed if no
+  // filter is active, expanded once a chip is picked. Persists across
+  // reloads so a user who likes the chips visible keeps them visible.
+  const [serviceFilterOpen, setServiceFilterOpen] = useState(() => {
+    try {
+      const saved = localStorage.getItem('tax.customers.serviceFilterOpen');
+      if (saved === '1') return true;
+      if (saved === '0') return false;
+    } catch { /* ignore */ }
+    return false;
+  });
+  useEffect(() => {
+    try { localStorage.setItem('tax.customers.serviceFilterOpen', serviceFilterOpen ? '1' : '0'); }
+    catch { /* ignore */ }
+  }, [serviceFilterOpen]);
+  // Auto-open the section the first time a chip is selected, so the
+  // user always sees the active filter.
+  useEffect(() => {
+    if (relationshipFilter.length > 0) setServiceFilterOpen(true);
+  }, [relationshipFilter.length]);
+
   const toggleRelationshipFilter = (typeId) =>
     setRelationshipFilter(prev =>
       prev.includes(typeId) ? prev.filter(id => id !== typeId) : [...prev, typeId]);
@@ -292,21 +313,48 @@ export default function OwnerCustomers() {
 
       {allTypes.length > 0 && (
         <div style={{ marginBottom: 16 }}>
-          <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--tax-muted)',
-                        textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 6 }}>
-            {t('owner.customers.filterRelationships')}
+          <button type="button"
+                  onClick={() => setServiceFilterOpen(o => !o)}
+                  aria-expanded={serviceFilterOpen}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 8,
+                    width: '100%', textAlign: 'left',
+                    padding: 0, border: 0, background: 'transparent', cursor: 'pointer',
+                    fontSize: 12, fontWeight: 700, color: 'var(--tax-muted)',
+                    textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 6,
+                  }}>
+            <span style={{
+              display: 'inline-block', transition: 'transform .15s ease',
+              transform: serviceFilterOpen ? 'rotate(90deg)' : 'rotate(0deg)',
+              fontSize: 10,
+            }}>▶</span>
+            <span>{t('owner.customers.filterRelationships')}</span>
             {relationshipFilter.length > 0 && (
-              <button type="button"
-                      onClick={() => setRelationshipFilter([])}
-                      style={{
-                        marginLeft: 10, border: 0, background: 'transparent',
-                        color: 'var(--tax-brand-primary)', cursor: 'pointer',
-                        fontSize: 11, fontWeight: 700, textTransform: 'uppercase',
-                      }}>
-                {t('owner.customers.clearFilters')}
-              </button>
+              <span style={{
+                padding: '1px 8px', borderRadius: 999, fontSize: 11, fontWeight: 700,
+                background: 'color-mix(in srgb, var(--tax-brand-primary) 12%, #fff)',
+                color: 'var(--tax-brand-primary)',
+                border: '1px solid color-mix(in srgb, var(--tax-brand-primary) 35%, #fff)',
+              }}>{relationshipFilter.length}</span>
             )}
-          </div>
+            {relationshipFilter.length > 0 && (
+              <span role="button" tabIndex={0}
+                    onClick={(e) => { e.stopPropagation(); setRelationshipFilter([]); }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.stopPropagation(); e.preventDefault(); setRelationshipFilter([]);
+                      }
+                    }}
+                    style={{
+                      marginLeft: 'auto',
+                      color: 'var(--tax-brand-primary)', cursor: 'pointer',
+                      fontSize: 11, fontWeight: 700, textTransform: 'uppercase',
+                    }}>
+                {t('owner.customers.clearFilters')}
+              </span>
+            )}
+          </button>
+          {serviceFilterOpen && (
           <div style={{ display: 'grid', gap: 10 }}>
             {groupedTypes.map(({ category, types }) => (
               <div key={category}>
@@ -342,6 +390,7 @@ export default function OwnerCustomers() {
               </div>
             ))}
           </div>
+          )}
         </div>
       )}
 
