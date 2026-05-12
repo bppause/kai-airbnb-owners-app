@@ -231,6 +231,7 @@ export const taxApi = {
   adminSetNotifLock(auth, payload)               { return request('PUT',  '/admin/community-settings/notif-lock', payload, auth, { admin: true }); },
 
   adminListProducts(auth, communitySlug)         { return request('GET',  `/admin/products?communitySlug=${encodeURIComponent(communitySlug)}`, undefined, auth, { admin: true }); },
+  adminUpdateProduct(auth, productId, payload)   { return request('PUT',  `/admin/products/${encodeURIComponent(productId)}`, payload, auth, { admin: true }); },
   adminAddSubscription(auth, customerId, payload){ return request('POST', `/admin/customers/${encodeURIComponent(customerId)}/subscriptions`, payload, auth, { admin: true }); },
   adminUpdateSubscription(auth, subId, payload)  { return request('PUT',  `/admin/subscriptions/${encodeURIComponent(subId)}`, payload, auth, { admin: true }); },
   adminCancelSubscription(auth, subId)           { return request('DELETE', `/admin/subscriptions/${encodeURIComponent(subId)}`, undefined, auth, { admin: true }); },

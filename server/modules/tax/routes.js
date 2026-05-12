@@ -1621,13 +1621,92 @@ module.exports = function createTaxRouter(deps) {
     if (!communitySlug) return res.status(400).json({ error: 'communitySlug required.' });
     const { data, error } = await supabase.from('tax_products')
       .select(`
-        id, slug, category, display_order, name_i18n, description_i18n,
+        id, slug, category, enabled, display_order, icon,
+        name_i18n, description_i18n, long_description_i18n, required_documents,
         schedules:tax_filing_schedules ( id, slug, jurisdiction, cadence, enabled, name_i18n, info_checklist )
       `)
       .eq('community_id', communitySlug)
       .order('display_order', { ascending: true });
     if (error) return sendSupabaseError(res, error);
     res.json({ products: data || [] });
+  });
+
+  // ── PUT /admin/products/:id ─────────────────────────────────────────────
+  // Owner-admin override of service-card copy. Editable fields:
+  //   • name_i18n             { en, es }
+  //   • description_i18n      short one-liner shown on the card
+  //   • long_description_i18n richer prose shown in the detail modal
+  //   • required_documents    array of strings (or {label_i18n}) shown as a
+  //                           "what we'll need from you" bullet list
+  //   • enabled               toggle the card on/off without deleting
+  // Other fields (slug, category, workflow, sla_hours, pricing) stay
+  // owner-edit-via-SQL for now.
+  router.put('/admin/products/:id', async (req, res) => {
+    if (!(await requireOwnerAdmin(req, res))) return;
+    const productId = trim(req.params.id, 200);
+    const body = req.body || {};
+
+    // Pull current row so we can confirm community scope before write.
+    const { data: cur, error: cErr } = await supabase.from('tax_products')
+      .select('id, community_id').eq('id', productId).maybeSingle();
+    if (cErr) return sendSupabaseError(res, cErr);
+    if (!cur) return res.status(404).json({ error: 'Product not found.' });
+
+    const update = { updated_at: new Date().toISOString() };
+    if (body.nameI18n && typeof body.nameI18n === 'object') {
+      update.name_i18n = {
+        en: String(body.nameI18n.en || '').slice(0, MAX_NAME_LEN),
+        es: String(body.nameI18n.es || '').slice(0, MAX_NAME_LEN),
+      };
+    }
+    if (body.descriptionI18n && typeof body.descriptionI18n === 'object') {
+      update.description_i18n = {
+        en: String(body.descriptionI18n.en || '').slice(0, MAX_TEXT_LEN),
+        es: String(body.descriptionI18n.es || '').slice(0, MAX_TEXT_LEN),
+      };
+    }
+    if (body.longDescriptionI18n && typeof body.longDescriptionI18n === 'object') {
+      update.long_description_i18n = {
+        en: String(body.longDescriptionI18n.en || '').slice(0, MAX_TEXT_LEN),
+        es: String(body.longDescriptionI18n.es || '').slice(0, MAX_TEXT_LEN),
+      };
+    }
+    if (Array.isArray(body.requiredDocuments)) {
+      // Each entry is either a string (single-language label) or a
+      // localized object {en, es}. Cap each entry length and total count.
+      update.required_documents = body.requiredDocuments.slice(0, 30).map(d => {
+        if (typeof d === 'string') return String(d).slice(0, MAX_NAME_LEN);
+        if (d && typeof d === 'object') {
+          return {
+            en: String(d.en || '').slice(0, MAX_NAME_LEN),
+            es: String(d.es || '').slice(0, MAX_NAME_LEN),
+          };
+        }
+        return '';
+      }).filter(d => (typeof d === 'string' ? d : (d.en || d.es)));
+    }
+    if (body.enabled !== undefined) update.enabled = !!body.enabled;
+    if (body.displayOrder !== undefined) {
+      const n = Number(body.displayOrder);
+      if (!Number.isNaN(n)) update.display_order = Math.max(0, Math.min(10000, Math.round(n)));
+    }
+
+    if (Object.keys(update).length === 1) {
+      return res.status(400).json({ error: 'Nothing to update.' });
+    }
+
+    const { error } = await supabase.from('tax_products').update(update).eq('id', productId);
+    if (error) return sendSupabaseError(res, error);
+
+    try {
+      await auditLog({
+        entity: 'tax.product', entityId: productId, action: 'update',
+        actorEmail: trim(req.get('x-firebase-email') || req.get('x-admin-email') || '', 200).toLowerCase(),
+        after: Object.keys(update).filter(k => k !== 'updated_at'),
+      });
+    } catch (_e) {}
+
+    res.json({ ok: true });
   });
 
   // POST /admin/customers/:id/subscriptions — body { productId,

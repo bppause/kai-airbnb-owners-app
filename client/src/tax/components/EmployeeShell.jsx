@@ -82,11 +82,12 @@ export default function EmployeeShell({ community, active, children }) {
             {isAdmin && (
               <div className="tax-shell__group">
                 <div className="tax-shell__group-label">{t('employee.nav.groupConfigure')}</div>
-                {navLink('services',        `${base}/services`,        t('employee.nav.services'))}
-                {navLink('workflows',       `${base}/workflows`,       t('employee.nav.workflows'))}
-                {navLink('email-templates', `${base}/email-templates`, t('employee.nav.emailTemplates'))}
-                {navLink('articles',        `${base}/articles`,        t('employee.nav.articles'))}
-                {navLink('faqs',            `${base}/faqs`,            t('employee.nav.faqsAdmin'))}
+                {navLink('services',         `${base}/services`,         t('employee.nav.services'))}
+                {navLink('service-catalog',  `${base}/service-catalog`,  t('employee.nav.serviceCatalog'))}
+                {navLink('workflows',        `${base}/workflows`,        t('employee.nav.workflows'))}
+                {navLink('email-templates',  `${base}/email-templates`,  t('employee.nav.emailTemplates'))}
+                {navLink('articles',         `${base}/articles`,         t('employee.nav.articles'))}
+                {navLink('faqs',             `${base}/faqs`,             t('employee.nav.faqsAdmin'))}
                 {navLink('staff',           `${base}/staff`,           t('employee.nav.staff'))}
                 {navLink('settings',        `${base}/settings`,        t('employee.nav.settings'))}
                 {navLink('audit',           `${base}/audit`,           t('employee.nav.audit'))}
