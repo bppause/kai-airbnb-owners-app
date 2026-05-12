@@ -68,11 +68,29 @@ export default function OwnerStaffDetail({ employeeId }) {
                     ? t('owner.staff.channelBoth') : t('owner.staff.channelPortal')}
           </p>
         </div>
-        {/* No self-impersonation — admin viewing their own row shouldn't try. */}
-        {emp.id !== me?.id && (
-          <ImpersonateEmployeeButton employee={emp} auth={auth} community={community} t={t} />
-        )}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'flex-end', flexShrink: 0 }}>
+          {/* No self-impersonation — admin viewing their own row shouldn't try. */}
+          {emp.id !== me?.id && emp.firebase_uid && emp.status === 'active' && (
+            <ImpersonateEmployeeButton employee={emp} auth={auth} community={community} t={t} />
+          )}
+          {emp.id !== me?.id && (
+            <ArchiveEmployeeButton emp={emp} auth={auth} onChanged={loadEmployee} t={t} />
+          )}
+        </div>
       </div>
+
+      {emp.status === 'archived' && (
+        <div className="tax-msg" style={{
+          background: 'color-mix(in srgb, #b91c1c 8%, #fff)',
+          borderLeft: '3px solid #b91c1c', color: '#7f1d1d',
+          padding: '10px 14px', marginTop: 12,
+        }}>
+          <strong>{t('owner.staffDetail.archivedBanner.title')}</strong>
+          <div style={{ marginTop: 4, fontSize: 13 }}>
+            {t('owner.staffDetail.archivedBanner.body')}
+          </div>
+        </div>
+      )}
 
       <h3 style={{ marginTop: 32 }}>{t('owner.staffDetail.assignments')}</h3>
       {emp.role === 'admin' ? (
@@ -232,6 +250,53 @@ function ImpersonateEmployeeButton({ employee: emp, auth, community, t }) {
         {busy ? t('impersonation.starting') : t('impersonation.viewAsEmployee')}
       </button>
       {err && <span style={{ color: 'var(--tax-error)', fontSize: 11 }}>{err}</span>}
+    </div>
+  );
+}
+
+// Phase 4n.16: archive (status='archived') an employee. Soft-delete to
+// retain audit history + past assignments. When already archived, swaps
+// to a "Restore" affordance.
+function ArchiveEmployeeButton({ emp, auth, onChanged, t }) {
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState({ kind: 'idle', text: '' });
+  const isArchived = emp.status === 'archived';
+
+  const onClick = async () => {
+    if (!isArchived) {
+      if (!window.confirm(t('owner.staffDetail.archive.confirm', { name: emp.name || emp.email }))) return;
+    }
+    setBusy(true); setMsg({ kind: 'idle', text: '' });
+    try {
+      await taxApi.adminSetEmployeeStatus(auth, emp.id, {
+        status: isArchived ? 'active' : 'archived',
+      });
+      setMsg({ kind: 'success',
+        text: isArchived ? t('owner.staffDetail.archive.restored') : t('owner.staffDetail.archive.done') });
+      onChanged && onChanged();
+    } catch (e) {
+      setMsg({ kind: 'error', text: e?.message || t('respond.error.generic') });
+    } finally {
+      setBusy(false);
+      setTimeout(() => setMsg({ kind: 'idle', text: '' }), 6000);
+    }
+  };
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
+      <button type="button" className="tax-btn tax-btn--ghost tax-btn--sm"
+              onClick={onClick} disabled={busy}
+              style={{ color: '#b91c1c', borderColor: '#b91c1c' }}>
+        {busy
+          ? t('lead.submitting')
+          : (isArchived ? t('owner.staffDetail.archive.restoreBtn') : t('owner.staffDetail.archive.button'))}
+      </button>
+      {msg.text && (
+        <span style={{
+          fontSize: 11,
+          color: msg.kind === 'success' ? 'var(--tax-success)' : 'var(--tax-error)',
+        }}>{msg.text}</span>
+      )}
     </div>
   );
 }

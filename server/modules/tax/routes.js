@@ -4536,6 +4536,12 @@ module.exports = function createTaxRouter(deps) {
     if (!communitySlug || !email) return res.status(400).json({ error: 'communitySlug and email required.' });
     if (!isValidEmail(email)) return res.status(400).json({ error: 'Email is not valid.' });
 
+    // Phase 4n.16: detect-before-insert so the response can tell the client
+    // whether to render the "existing user" or "new user" success message.
+    // The welcome sender repeats this lookup (so it stays correct on a
+    // manual resend); the client gets it via the create response.
+    const isExistingUser = await hasExistingAccountForEmail(email, communitySlug);
+
     const id = 'emp_' + uuidv4().slice(0, 12);
     const { error } = await supabase.from('tax_employees').insert({
       id, community_id: communitySlug, email, name, role, locale,
@@ -4547,7 +4553,51 @@ module.exports = function createTaxRouter(deps) {
       welcomeResult = await sendWelcomeForEmployee(id);
     }
 
-    res.json({ ok: true, id, welcomeEmail: welcomeResult });
+    res.json({ ok: true, id, isExistingUser, welcomeEmail: welcomeResult });
+  });
+
+  // Phase 4n.16: archive (or restore) an employee. Soft-delete via status —
+  // mirrors the customer flow. Archived employees:
+  //   • can no longer sign in (requireTaxEmployee rejects non-active)
+  //   • drop out of the message fan-out (admin + assigned queries filter
+  //     status='active')
+  //   • are preserved so audit history + past assignments stay intact
+  // Restoring flips status back without re-creating any links.
+  router.put('/admin/employees/:id/status', async (req, res) => {
+    if (!(await requireOwnerAdmin(req, res))) return;
+    const empId = trim(req.params.id, 200);
+    const body = req.body || {};
+    const status = String(body.status || '').toLowerCase();
+    if (!['active', 'paused', 'archived'].includes(status)) {
+      return res.status(400).json({ error: 'status must be active|paused|archived.' });
+    }
+    const { data: existing } = await supabase.from('tax_employees')
+      .select('id, status, email, community_id').eq('id', empId).maybeSingle();
+    if (!existing) return res.status(404).json({ error: 'Employee not found.' });
+
+    const { error } = await supabase.from('tax_employees')
+      .update({ status, updated_at: new Date().toISOString() })
+      .eq('id', empId);
+    if (error) return sendSupabaseError(res, error);
+
+    // When archiving a staff member, deactivate their customer assignments
+    // so the message fan-out and engagement queries don't keep returning
+    // them. The assignment rows are retained for audit history.
+    if (status === 'archived') {
+      await supabase.from('tax_employee_customer_assignments')
+        .update({ active: false, updated_at: new Date().toISOString() })
+        .eq('employee_id', empId).eq('active', true);
+    }
+
+    try {
+      await auditLog({
+        entity: 'tax.employee', entityId: empId, action: 'set_status',
+        actorEmail: '',
+        before: { status: existing.status },
+        after: { status },
+      });
+    } catch (_e) {}
+    res.json({ ok: true, status });
   });
 
   // POST /admin/employees/:id/send-welcome
@@ -4577,15 +4627,22 @@ module.exports = function createTaxRouter(deps) {
 
     const employeeUrl = `${(typeof publicAppUrl === 'function' ? publicAppUrl() : '')}/tax/${emp.community_id}/employee`;
 
+    // Phase 4n.16: detect existing account so the welcome email's sign-in
+    // instructions are accurate. Existing customers in the same community,
+    // or a Firebase identity that's already linked elsewhere on the
+    // platform (app_users), both count as "existing".
+    const existingAccount = await hasExistingAccountForEmail(emp.email, emp.community_id);
+
     let result = { sent: false, skipped: true, reason: 'no_sender' };
     if (typeof sendTaxStaffWelcomeEmail === 'function') {
       try {
-        result = await sendTaxStaffWelcomeEmail({ emp, community, employeeUrl });
+        result = await sendTaxStaffWelcomeEmail({ emp, community, employeeUrl, existingAccount });
       } catch (e) {
         warn('[tax] staff welcome email failed', e?.message || e);
         result = { sent: false, error: e?.message || 'Send failed.' };
       }
     }
+    result.existingAccount = existingAccount;
     try {
       await auditLog({
         entity: 'tax.employee', entityId: empId,
@@ -4595,6 +4652,31 @@ module.exports = function createTaxRouter(deps) {
       });
     } catch (_e) {}
     return result;
+  }
+
+  // Phase 4n.16: cheap existence check. Looks across the obvious places
+  // someone might already have a Firebase identity tied to this email:
+  //   1. tax_customers in the same community  (almost always the case
+  //      when an owner is "promoting" a customer to staff)
+  //   2. tax_customers in OTHER communities    (dual-tenant practitioners)
+  //   3. app_users                              (anyone who's signed into
+  //      the Kai parent app — covers dual-role)
+  // Returning `true` from any of these is enough for the welcome email's
+  // copy to switch to "use your existing sign-in".
+  async function hasExistingAccountForEmail(emailIn, communityId) {
+    const email = String(emailIn || '').trim().toLowerCase();
+    if (!email) return false;
+    try {
+      const [{ data: cust }, { data: user }] = await Promise.all([
+        supabase.from('tax_customers')
+          .select('id, firebase_uid').eq('email', email).limit(1),
+        supabase.from('app_users')
+          .select('uid').eq('email', email).limit(1),
+      ]);
+      if (Array.isArray(cust) && cust.some(c => c.id || c.firebase_uid)) return true;
+      if (Array.isArray(user) && user.length) return true;
+    } catch (_e) { /* be permissive — falling back to "new user" is safe */ }
+    return false;
   }
 
   // ── ADMIN: impersonation (admin-only "view as") ─────────────────────────

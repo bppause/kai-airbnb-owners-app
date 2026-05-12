@@ -31,7 +31,7 @@ export default function OwnerStaff() {
     if (!form.email.trim()) { setMsg({ kind: 'error', text: t('owner.customers.errEmailRequired') }); return; }
     setBusy(true); setMsg({ kind: 'idle', text: '' });
     try {
-      await taxApi.adminCreateEmployee(auth, {
+      const result = await taxApi.adminCreateEmployee(auth, {
         communitySlug: community.id,
         email: form.email.trim().toLowerCase(),
         name: form.name.trim(),
@@ -39,7 +39,16 @@ export default function OwnerStaff() {
         locale: form.locale,
         sendWelcomeEmail: form.sendWelcomeEmail,
       });
-      setMsg({ kind: 'success', text: t('owner.staff.addedSuccess') });
+      // Phase 4n.16: messaging branches on whether the email already had an
+      // account on the platform. Existing users (customer accounts, dual
+      // tenants, etc.) sign in with their existing credentials; new users
+      // bootstrap on first visit.
+      const isExisting = !!result?.isExistingUser;
+      const baseKey = isExisting ? 'owner.staff.addedSuccess.existing' : 'owner.staff.addedSuccess.new';
+      const text = form.sendWelcomeEmail
+        ? t(`${baseKey}.withEmail`)
+        : t(`${baseKey}.noEmail`);
+      setMsg({ kind: 'success', text });
       setForm({ name: '', email: '', role: 'staff', locale: 'en', sendWelcomeEmail: true });
       setAdding(false);
       load();
