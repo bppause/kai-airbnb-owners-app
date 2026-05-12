@@ -804,6 +804,104 @@ module.exports = function createTaxRouter(deps) {
   // entry in the errors array (so the importer can see which rows were
   // skipped). Per-row errors don't fail the whole batch — the response
   // summarizes created / skipped / errors.
+  // ── Phase 4n.15: dual-role + lifecycle ──────────────────────────────────
+  //
+  // Promote an existing customer to a staff/admin employee. Creates a
+  // tax_employees row with the same email so the existing dual-role
+  // auth wiring (staffAccess / customerAccess flags on /portal/me +
+  // /employee/me) lights up automatically. Sends the welcome email by
+  // default — owner can suppress with sendWelcomeEmail: false.
+  router.post('/admin/customers/:id/promote-to-staff', async (req, res) => {
+    if (!(await requireOwnerAdmin(req, res))) return;
+    const customerId = trim(req.params.id, 200);
+    const body = req.body || {};
+    const role = body.role === 'admin' ? 'admin' : 'staff';
+    const overrideName = trim(body.name || '', MAX_NAME_LEN);
+    const sendWelcome = body.sendWelcomeEmail === false ? false : true;
+
+    const { data: cust } = await supabase.from('tax_customers')
+      .select('id, community_id, email, name, locale')
+      .eq('id', customerId).maybeSingle();
+    if (!cust) return res.status(404).json({ error: 'Customer not found.' });
+
+    const { data: existing } = await supabase.from('tax_employees')
+      .select('id, role, status')
+      .eq('community_id', cust.community_id).eq('email', cust.email).maybeSingle();
+    if (existing) {
+      return res.status(409).json({
+        error: 'already_employee',
+        message: 'This customer already has a staff account.',
+        employeeId: existing.id,
+      });
+    }
+
+    const empId = 'emp_' + uuidv4().slice(0, 12);
+    const { error } = await supabase.from('tax_employees').insert({
+      id: empId, community_id: cust.community_id,
+      email: cust.email,
+      name: overrideName || cust.name || '',
+      role, locale: cust.locale === 'es' ? 'es' : 'en',
+    });
+    if (error) return sendSupabaseError(res, error);
+
+    try {
+      await auditLog({
+        entity: 'tax.employee', entityId: empId, action: 'promote_from_customer',
+        actorEmail: '',
+        after: { customerId, role, email: cust.email, community: cust.community_id },
+      });
+    } catch (_e) {}
+
+    let welcomeResult = { sent: false, skipped: true };
+    if (sendWelcome) welcomeResult = await sendWelcomeForEmployee(empId);
+
+    res.json({ ok: true, employeeId: empId, welcomeEmail: welcomeResult });
+  });
+
+  // Archive (or restore) a customer. Soft-delete via status — tax practices
+  // typically must retain customer records for compliance, so this is a
+  // status flip rather than a hard delete. Archiving also deactivates the
+  // customer's relationships so the relationship-driven cron stops
+  // generating new periods.
+  router.put('/admin/customers/:id/status', async (req, res) => {
+    if (!(await requireOwnerAdmin(req, res))) return;
+    const customerId = trim(req.params.id, 200);
+    const body = req.body || {};
+    const status = String(body.status || '').toLowerCase();
+    if (!['active', 'paused', 'archived'].includes(status)) {
+      return res.status(400).json({ error: 'status must be active|paused|archived.' });
+    }
+
+    const { data: existing } = await supabase.from('tax_customers')
+      .select('id, status, community_id, email').eq('id', customerId).maybeSingle();
+    if (!existing) return res.status(404).json({ error: 'Customer not found.' });
+
+    const { error } = await supabase.from('tax_customers')
+      .update({ status, updated_at: new Date().toISOString() })
+      .eq('id', customerId);
+    if (error) return sendSupabaseError(res, error);
+
+    // When archiving, deactivate relationships so the cron stops generating
+    // periods for this customer. Restoring (-> active) leaves the existing
+    // relationship rows untouched — owner can re-activate per-relationship
+    // via the existing customer-detail editor.
+    if (status === 'archived') {
+      await supabase.from('tax_customer_relationships')
+        .update({ active: false, updated_at: new Date().toISOString() })
+        .eq('customer_id', customerId).eq('active', true);
+    }
+
+    try {
+      await auditLog({
+        entity: 'tax.customer', entityId: customerId, action: 'set_status',
+        actorEmail: '',
+        before: { status: existing.status },
+        after: { status },
+      });
+    } catch (_e) {}
+    res.json({ ok: true, status });
+  });
+
   router.post('/admin/customers/import', async (req, res) => {
     if (!(await requireOwnerAdmin(req, res))) return;
     const body = req.body || {};
