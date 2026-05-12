@@ -2299,6 +2299,14 @@ create index if not exists idx_tax_leads_converted_customer
 alter table public.tax_products
   add column if not exists long_description_i18n jsonb not null default '{}'::jsonb;
 
+-- ─── Customer document upload — disabled by default ────────────────────────────
+-- Per-community switch. When false (the new default), the customer portal
+-- hides the Documents page and rejects upload calls server-side. Owner-side
+-- access to existing documents stays available — the toggle only gates
+-- *new* customer uploads. Owner can flip in Settings.
+alter table public.communities
+  add column if not exists tax_customer_documents_enabled boolean not null default false;
+
 -- ─── Industry best-practice default schedules ─────────────────────────────────
 -- Extends the original seed in this file with the schedules most tax
 -- practices need out of the box. Idempotent — `on conflict (id) do nothing`

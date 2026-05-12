@@ -109,24 +109,33 @@ export default function PortalDocuments() {
 
       {err && <div className="tax-msg tax-msg--error">{err}</div>}
 
-      <div style={{
-        background: '#f4f7fb', borderRadius: 12, padding: 20, marginBottom: 24,
-        border: '1px dashed color-mix(in srgb, var(--tax-brand-primary) 40%, #fff)',
-        textAlign: 'center',
-      }}>
-        <p style={{ margin: '0 0 12px', color: 'var(--tax-muted)' }}>
-          {t('portal.documents.uploadHint')}
-        </p>
-        <button type="button" className="tax-btn tax-btn--primary"
-                onClick={onUploadClick} disabled={uploading}>
-          {uploading ? t('portal.documents.uploading_short') : t('portal.documents.uploadBtn')}
-        </button>
-        <input ref={fileRef} type="file" style={{ display: 'none' }} onChange={onFile}
-               accept=".pdf,.jpg,.jpeg,.png,.gif,.webp,.heic,.heif,.doc,.docx,.xls,.xlsx,.csv,.txt" />
-        <p style={{ margin: '12px 0 0', fontSize: 12, color: 'var(--tax-muted)' }}>
-          {t('portal.documents.limits')}
-        </p>
-      </div>
+      {community?.tax_customer_documents_enabled ? (
+        <div style={{
+          background: '#f4f7fb', borderRadius: 12, padding: 20, marginBottom: 24,
+          border: '1px dashed color-mix(in srgb, var(--tax-brand-primary) 40%, #fff)',
+          textAlign: 'center',
+        }}>
+          <p style={{ margin: '0 0 12px', color: 'var(--tax-muted)' }}>
+            {t('portal.documents.uploadHint')}
+          </p>
+          <button type="button" className="tax-btn tax-btn--primary"
+                  onClick={onUploadClick} disabled={uploading}>
+            {uploading ? t('portal.documents.uploading_short') : t('portal.documents.uploadBtn')}
+          </button>
+          <input ref={fileRef} type="file" style={{ display: 'none' }} onChange={onFile}
+                 accept=".pdf,.jpg,.jpeg,.png,.gif,.webp,.heic,.heif,.doc,.docx,.xls,.xlsx,.csv,.txt" />
+          <p style={{ margin: '12px 0 0', fontSize: 12, color: 'var(--tax-muted)' }}>
+            {t('portal.documents.limits')}
+          </p>
+        </div>
+      ) : (
+        <div className="tax-msg" style={{
+          background: 'var(--tax-bg-alt)', color: 'var(--tax-muted)',
+          padding: '12px 14px', marginBottom: 24, fontSize: 14,
+        }}>
+          {t('portal.documents.uploadsDisabled')}
+        </div>
+      )}
 
       {uploadMsg.text && (
         <div className={`tax-msg tax-msg--${uploadMsg.kind === 'error' ? 'error' : 'success'}`}

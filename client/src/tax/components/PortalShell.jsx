@@ -73,7 +73,9 @@ export default function PortalShell({ community, active, children }) {
                 }}>{unread}</span>
               )}
             </a>
-            <a href={`${base}/documents`} className={active === 'documents' ? 'active' : ''} onClick={closeMenu}>{t('portal.nav.documents')}</a>
+            {community?.tax_customer_documents_enabled && (
+              <a href={`${base}/documents`} className={active === 'documents' ? 'active' : ''} onClick={closeMenu}>{t('portal.nav.documents')}</a>
+            )}
             <a href={`${base}/faqs`} className={active === 'faqs' ? 'active' : ''} onClick={closeMenu}>{t('portal.nav.faqs')}</a>
             <a href={`${base}/help`} className={active === 'help' ? 'active' : ''} onClick={closeMenu}>{t('portal.nav.help')}</a>
             <a href={`${base}/profile`} className={active === 'profile' ? 'active' : ''} onClick={closeMenu}>{t('portal.nav.profile')}</a>
