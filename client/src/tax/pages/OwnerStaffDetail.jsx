@@ -127,99 +127,199 @@ export default function OwnerStaffDetail({ employeeId }) {
   );
 }
 
+// Phase 4n.19: unified assignment roster. One list of every customer in
+// the community with an "Assigned" checkbox per row + a "Lead" toggle when
+// assigned. Owner toggles multiple, sees the running count of pending
+// changes, and saves all in one click. Search filters the list so the
+// long customer rosters stay manageable.
 function AssignmentManager({ assignments, customers, empId, auth, onChange, t }) {
-  const [picking, setPicking] = useState(false);
-  const [customerId, setCustomerId] = useState('');
-  const [isPrimary, setIsPrimary] = useState(false);
+  // Initial state derived from the server-side assignment list. We keep
+  // these in refs-of-truth (initialAssigned / initialPrimary) so the diff
+  // for Save is straightforward and a stale render doesn't cause spurious
+  // POST/DELETEs.
+  const initialAssigned = new Set((assignments || []).map(a => a.customer_id));
+  const initialPrimary = new Map((assignments || []).map(a => [a.customer_id, !!a.is_primary]));
+
+  const [assignedSet, setAssignedSet] = useState(() => new Set(initialAssigned));
+  const [primaryMap, setPrimaryMap] = useState(() => new Map(initialPrimary));
+  const [query, setQuery] = useState('');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
 
-  const assignedIds = new Set((assignments || []).map(a => a.customer_id));
-  const available = (customers || []).filter(c => !assignedIds.has(c.id));
+  // Re-sync when the server-side assignments change (after a save).
+  useEffect(() => {
+    setAssignedSet(new Set((assignments || []).map(a => a.customer_id)));
+    setPrimaryMap(new Map((assignments || []).map(a => [a.customer_id, !!a.is_primary])));
+  }, [assignments]);
 
-  const onAssign = async () => {
-    if (!customerId) return;
+  // Compute pending diffs once per render.
+  const toAdd = [];
+  const toRemove = [];
+  const toUpdatePrimary = [];
+  for (const c of customers || []) {
+    const wasAssigned = initialAssigned.has(c.id);
+    const isAssigned  = assignedSet.has(c.id);
+    if (!wasAssigned && isAssigned) toAdd.push({ id: c.id, isPrimary: !!primaryMap.get(c.id) });
+    else if (wasAssigned && !isAssigned) toRemove.push(c.id);
+    else if (wasAssigned && isAssigned) {
+      const wasPrimary = !!initialPrimary.get(c.id);
+      const isPrimary  = !!primaryMap.get(c.id);
+      if (wasPrimary !== isPrimary) toUpdatePrimary.push({ id: c.id, isPrimary });
+    }
+  }
+  const pendingCount = toAdd.length + toRemove.length + toUpdatePrimary.length;
+
+  const onToggle = (cid) => {
+    setAssignedSet(prev => {
+      const next = new Set(prev);
+      if (next.has(cid)) {
+        next.delete(cid);
+        // Lead flag is meaningless on an unassigned customer; clear it.
+        setPrimaryMap(m => { const mm = new Map(m); mm.delete(cid); return mm; });
+      } else {
+        next.add(cid);
+      }
+      return next;
+    });
+  };
+  const onPrimary = (cid, value) => {
+    setPrimaryMap(prev => { const mm = new Map(prev); mm.set(cid, !!value); return mm; });
+  };
+
+  const onSave = async () => {
+    if (!pendingCount) return;
     setBusy(true); setErr('');
     try {
-      await taxApi.adminAddEmployeeAssignment(auth, empId, { customerId, isPrimary });
-      setCustomerId(''); setIsPrimary(false); setPicking(false);
+      await Promise.all([
+        ...toAdd.map(a => taxApi.adminAddEmployeeAssignment(auth, empId, {
+          customerId: a.id, isPrimary: a.isPrimary,
+        })),
+        // The POST endpoint upserts on (employee_id, customer_id) so it
+        // doubles as the "change is_primary" path.
+        ...toUpdatePrimary.map(a => taxApi.adminAddEmployeeAssignment(auth, empId, {
+          customerId: a.id, isPrimary: a.isPrimary,
+        })),
+        ...toRemove.map(cid => taxApi.adminRemoveEmployeeAssignment(auth, empId, cid)),
+      ]);
       onChange();
     } catch (e) { setErr(e?.message || ''); }
     finally { setBusy(false); }
   };
-  const onUnassign = async (a) => {
-    if (!window.confirm(t('owner.staffDetail.confirmUnassign', { name: a.customer?.name || a.customer?.email || '' }))) return;
-    try {
-      await taxApi.adminRemoveEmployeeAssignment(auth, empId, a.customer_id);
-      onChange();
-    } catch (e) { setErr(e?.message || ''); }
+
+  const onResetDraft = () => {
+    setAssignedSet(new Set(initialAssigned));
+    setPrimaryMap(new Map(initialPrimary));
   };
+
+  const q = query.trim().toLowerCase();
+  const filtered = (customers || []).filter(c => {
+    if (!q) return true;
+    return (c.name || '').toLowerCase().includes(q)
+        || (c.email || '').toLowerCase().includes(q);
+  });
+  // Sort: assigned-first, then alphabetical. Owner can scan the assigned
+  // block at the top and add new ones below.
+  filtered.sort((a, b) => {
+    const aA = assignedSet.has(a.id) ? 0 : 1;
+    const bA = assignedSet.has(b.id) ? 0 : 1;
+    if (aA !== bA) return aA - bA;
+    return (a.name || a.email || '').localeCompare(b.name || b.email || '');
+  });
 
   return (
     <>
-      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
-        {available.length > 0 && (
-          <button type="button" className="tax-btn tax-btn--primary tax-btn--sm"
-                  onClick={() => setPicking(p => !p)}>
-            {picking ? t('owner.staffDetail.cancelAssign') : t('owner.staffDetail.assignBtn')}
-          </button>
-        )}
+      <div style={{
+        display: 'flex', gap: 8, alignItems: 'center',
+        marginBottom: 10, flexWrap: 'wrap',
+      }}>
+        <input type="search" value={query} onChange={e => setQuery(e.target.value)}
+               placeholder={t('owner.staffDetail.searchPlaceholder')}
+               style={{ flex: 1, minWidth: 240, padding: '8px 10px',
+                        border: '1px solid var(--tax-border)', borderRadius: 8 }} />
+        <span style={{ fontSize: 13, color: 'var(--tax-muted)' }}>
+          {t('owner.staffDetail.assignedCount', {
+            assigned: assignedSet.size,
+            total: (customers || []).length,
+          })}
+        </span>
       </div>
 
-      {picking && (
-        <div className="tax-contact-item" style={{ marginBottom: 12 }}>
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-            <select value={customerId} onChange={e => setCustomerId(e.target.value)}
-                    style={{ padding: '8px 10px', border: '1px solid var(--tax-border)',
-                             borderRadius: 8, minWidth: 280 }}>
-              <option value="">{t('owner.staffDetail.chooseCustomer')}</option>
-              {available.map(c => (
-                <option key={c.id} value={c.id}>{c.name || c.email} ({c.email})</option>
-              ))}
-            </select>
-            <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 14 }}>
-              <input type="checkbox" checked={isPrimary} onChange={e => setIsPrimary(e.target.checked)} />
-              {t('owner.staffDetail.markPrimary')}
-            </label>
-            <button type="button" className="tax-btn tax-btn--primary tax-btn--sm"
-                    onClick={onAssign} disabled={!customerId || busy}>
-              {busy ? t('lead.submitting') : t('owner.staffDetail.confirmAssign')}
-            </button>
-          </div>
+      {err && <div className="tax-msg tax-msg--error" style={{ marginBottom: 8 }}>{err}</div>}
+
+      {(!customers || customers.length === 0) ? (
+        <p style={{ color: 'var(--tax-muted)' }}>{t('owner.staffDetail.noCustomers')}</p>
+      ) : (
+        <div style={{ display: 'grid', gap: 6 }}>
+          {filtered.map(c => {
+            const isAssigned = assignedSet.has(c.id);
+            const wasAssigned = initialAssigned.has(c.id);
+            const wasPrimary  = !!initialPrimary.get(c.id);
+            const isPrimary   = !!primaryMap.get(c.id);
+            const changed = (isAssigned !== wasAssigned)
+                         || (isAssigned && wasAssigned && (isPrimary !== wasPrimary));
+            return (
+              <div key={c.id} style={{
+                display: 'flex', alignItems: 'center', gap: 12,
+                padding: '8px 12px', borderRadius: 8,
+                border: '1px solid var(--tax-border)',
+                background: changed ? 'color-mix(in srgb, var(--tax-brand-primary) 6%, #fff)' : '#fff',
+              }}>
+                <input type="checkbox" checked={isAssigned} onChange={() => onToggle(c.id)} />
+                <div style={{ minWidth: 0, flex: 1 }}>
+                  <div style={{ fontWeight: 600 }}>{c.name || c.email}</div>
+                  <div style={{ fontSize: 12, color: 'var(--tax-muted)' }}>{c.email}</div>
+                </div>
+                {wasAssigned && (
+                  <span style={{
+                    padding: '2px 8px', borderRadius: 999, fontSize: 11, fontWeight: 700,
+                    background: 'var(--tax-bg-alt)', color: 'var(--tax-muted)',
+                  }}>{t('owner.staffDetail.alreadyAssigned')}</span>
+                )}
+                <label style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 6,
+                  fontSize: 13, opacity: isAssigned ? 1 : 0.4,
+                }}>
+                  <input type="checkbox" checked={isPrimary} disabled={!isAssigned}
+                         onChange={e => onPrimary(c.id, e.target.checked)} />
+                  {t('owner.staffDetail.markPrimary')}
+                </label>
+              </div>
+            );
+          })}
         </div>
       )}
-      {err && <div className="tax-msg tax-msg--error">{err}</div>}
 
-      {assignments === null ? <p>{t('loading')}</p>
-        : assignments.length === 0
-          ? <p style={{ color: 'var(--tax-muted)' }}>{t('employee.profile.assignments.empty')}</p>
-          : <div style={{ display: 'grid', gap: 8 }}>
-              {assignments.map(a => (
-                <div key={a.id} className="tax-contact-item"
-                     style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
-                  <div style={{ minWidth: 0, flex: 1 }}>
-                    <div style={{ fontWeight: 600 }}>
-                      {a.customer?.name || a.customer?.email}
-                      {a.is_primary && (
-                        <span style={{
-                          marginLeft: 8, padding: '1px 8px', borderRadius: 999,
-                          background: 'var(--tax-brand-primary)', color: '#fff',
-                          fontSize: 11, fontWeight: 700,
-                        }}>{t('employee.profile.assignments.primary')}</span>
-                      )}
-                    </div>
-                    <div style={{ fontSize: 12, color: 'var(--tax-muted)', marginTop: 2 }}>
-                      {a.customer?.email}
-                    </div>
-                  </div>
-                  <button type="button" className="tax-btn tax-btn--ghost tax-btn--sm"
-                          onClick={() => onUnassign(a)}
-                          style={{ color: 'var(--tax-error)', borderColor: 'var(--tax-error)' }}>
-                    {t('owner.staffDetail.unassign')}
-                  </button>
-                </div>
-              ))}
-            </div>}
+      <div style={{
+        position: 'sticky', bottom: 0,
+        marginTop: 16, padding: '10px 12px',
+        background: 'rgba(255,255,255,.96)', borderRadius: 10,
+        border: '1px solid var(--tax-border)',
+        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+        gap: 12, flexWrap: 'wrap',
+      }}>
+        <div style={{ fontSize: 13, color: 'var(--tax-muted)' }}>
+          {pendingCount === 0
+            ? t('owner.staffDetail.noPendingChanges')
+            : t('owner.staffDetail.pendingChanges', {
+                count: pendingCount,
+                adds: toAdd.length,
+                removes: toRemove.length,
+                primaries: toUpdatePrimary.length,
+              })}
+        </div>
+        <div style={{ display: 'flex', gap: 8 }}>
+          {pendingCount > 0 && (
+            <button type="button" className="tax-btn tax-btn--ghost tax-btn--sm"
+                    onClick={onResetDraft} disabled={busy}>
+              {t('owner.staffDetail.discardChanges')}
+            </button>
+          )}
+          <button type="button" className="tax-btn tax-btn--primary tax-btn--sm"
+                  onClick={onSave} disabled={!pendingCount || busy}>
+            {busy ? t('lead.submitting') : t('owner.staffDetail.saveAssignments')}
+          </button>
+        </div>
+      </div>
     </>
   );
 }
