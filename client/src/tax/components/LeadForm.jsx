@@ -1,15 +1,47 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { pickI18n, useT } from '../i18n';
 import { taxApi } from '../api';
 
+// Canonical group order. Categories not in this list slot in after the
+// known ones under the "other" bucket so the form never silently hides a
+// service the owner has configured.
+const CATEGORY_ORDER = ['tax_prep', 'recurring', 'one_off', 'custom'];
+
 export default function LeadForm({ community, products }) {
   const { locale, t } = useT();
+
+  // Group services by category, preserving the owner-defined display_order
+  // inside each group. Caller already sorts `products` by display_order.
+  const groups = useMemo(() => {
+    const buckets = new Map();
+    for (const p of products || []) {
+      const cat = CATEGORY_ORDER.includes(p.category) ? p.category : 'other';
+      if (!buckets.has(cat)) buckets.set(cat, []);
+      buckets.get(cat).push(p);
+    }
+    const ordered = [];
+    for (const cat of [...CATEGORY_ORDER, 'other']) {
+      if (buckets.has(cat)) ordered.push({ cat, items: buckets.get(cat) });
+    }
+    return ordered;
+  }, [products]);
+  // Phase 4n.12: multi-select services. `productSlugs` is the live state;
+  // submitted as an array. Submission still degrades gracefully if a future
+  // client/server pair forgets to send the array (server falls back to the
+  // legacy `productSlug` body field).
   const [form, setForm] = useState({
-    name: '', email: '', phone: '', productSlug: '', message: '', website: '',
+    name: '', email: '', phone: '', productSlugs: [], message: '', website: '',
   });
   const [status, setStatus] = useState({ kind: 'idle', message: '' });
 
   const onChange = (e) => setForm(f => ({ ...f, [e.target.name]: e.target.value }));
+
+  const toggleService = (slug) => setForm(f => ({
+    ...f,
+    productSlugs: f.productSlugs.includes(slug)
+      ? f.productSlugs.filter(s => s !== slug)
+      : [...f.productSlugs, slug],
+  }));
 
   const onSubmit = async (e) => {
     e.preventDefault();
@@ -21,13 +53,13 @@ export default function LeadForm({ community, products }) {
         name: form.name,
         email: form.email,
         phone: form.phone,
-        productSlug: form.productSlug,
+        productSlugs: form.productSlugs,
         message: form.message,
         locale,
         website: form.website,
       });
       setStatus({ kind: 'success', message: '' });
-      setForm({ name: '', email: '', phone: '', productSlug: '', message: '', website: '' });
+      setForm({ name: '', email: '', phone: '', productSlugs: [], message: '', website: '' });
     } catch (err) {
       const isNetwork = !err?.status;
       setStatus({
@@ -68,13 +100,46 @@ export default function LeadForm({ community, products }) {
         </div>
       </div>
       <div>
-        <label htmlFor="lead-product">{t('lead.field.product')}</label>
-        <select id="lead-product" name="productSlug" value={form.productSlug} onChange={onChange}>
-          <option value="">{t('lead.field.product.placeholder')}</option>
-          {products.map(p => (
-            <option key={p.id} value={p.slug}>{pickI18n(p.name_i18n, locale).value}</option>
+        <label>{t('lead.field.services')}</label>
+        <p style={{ margin: '4px 0 8px', fontSize: 13, color: 'var(--tax-muted)' }}>
+          {t('lead.field.services.hint')}
+        </p>
+        <div role="group" aria-label={t('lead.field.services')}
+             style={{ display: 'grid', gap: 16 }}>
+          {groups.map(g => (
+            <div key={g.cat}>
+              <div style={{
+                fontSize: 12, textTransform: 'uppercase', letterSpacing: '.06em',
+                color: 'var(--tax-muted)', fontWeight: 700, marginBottom: 8,
+              }}>
+                {t(`lead.field.services.cat.${g.cat}`)}
+              </div>
+              <div style={{ display: 'grid', gap: 6 }}>
+                {g.items.map(p => {
+                  const label = pickI18n(p.name_i18n, locale).value || p.slug;
+                  const desc  = pickI18n(p.description_i18n, locale).value || '';
+                  const checked = form.productSlugs.includes(p.slug);
+                  return (
+                    <label key={p.id} style={{
+                      display: 'flex', alignItems: 'flex-start', gap: 10, cursor: 'pointer',
+                      padding: '10px 12px', border: '1px solid var(--tax-border)', borderRadius: 8,
+                      background: checked ? 'color-mix(in srgb, var(--tax-brand-primary) 8%, #fff)' : 'transparent',
+                    }}>
+                      <input type="checkbox" checked={checked} onChange={() => toggleService(p.slug)}
+                             style={{ marginTop: 3 }} />
+                      <div style={{ minWidth: 0 }}>
+                        <div style={{ fontWeight: 600 }}>{label}</div>
+                        {desc && (
+                          <div style={{ fontSize: 13, color: 'var(--tax-muted)', marginTop: 2 }}>{desc}</div>
+                        )}
+                      </div>
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
           ))}
-        </select>
+        </div>
       </div>
       <div>
         <label htmlFor="lead-message">{t('lead.field.message')}</label>

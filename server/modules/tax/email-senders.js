@@ -51,13 +51,20 @@ module.exports = function createTaxSenders(deps) {
     const to = String(community?.contact_email || '').trim();
     if (!to) return { sent: false, skipped: true, reason: 'Community has no contact_email.' };
 
+    // Phase 4n.12: render the full set of services the lead picked. Prefer
+    // product_slugs[] (new) and fall back to product_slug for legacy rows.
+    const services = (Array.isArray(lead.product_slugs) && lead.product_slugs.length)
+      ? lead.product_slugs
+      : (lead.product_slug ? [lead.product_slug] : []);
+    const servicesLabel = services.length ? services.join(', ') : '—';
+
     const lines = [
       `New lead via ${community.name} landing page:`,
       '',
       `Name:    ${lead.name}`,
       `Email:   ${lead.email}`,
       `Phone:   ${lead.phone || '—'}`,
-      `Service: ${lead.product_slug || '—'}`,
+      `Services: ${servicesLabel}`,
       `Locale:  ${lead.preferred_locale}`,
       '',
       'Message:',
@@ -75,7 +82,7 @@ module.exports = function createTaxSenders(deps) {
           <tr><td style="padding:6px 8px;color:#555">Name</td><td style="padding:6px 8px"><strong>${escapeHtml(lead.name)}</strong></td></tr>
           <tr><td style="padding:6px 8px;color:#555">Email</td><td style="padding:6px 8px"><a href="mailto:${escapeHtml(lead.email)}">${escapeHtml(lead.email)}</a></td></tr>
           <tr><td style="padding:6px 8px;color:#555">Phone</td><td style="padding:6px 8px">${escapeHtml(lead.phone || '—')}</td></tr>
-          <tr><td style="padding:6px 8px;color:#555">Service</td><td style="padding:6px 8px">${escapeHtml(lead.product_slug || '—')}</td></tr>
+          <tr><td style="padding:6px 8px;color:#555">Services</td><td style="padding:6px 8px">${escapeHtml(servicesLabel)}</td></tr>
           <tr><td style="padding:6px 8px;color:#555">Locale</td><td style="padding:6px 8px">${escapeHtml(lead.preferred_locale)}</td></tr>
         </table>
         <h3>Message</h3>
@@ -91,7 +98,9 @@ module.exports = function createTaxSenders(deps) {
     const vars = {
       practice_name: community.name,
       lead_name: lead.name, lead_email: lead.email, lead_phone: lead.phone || '',
-      lead_service: lead.product_slug || '', lead_locale: lead.preferred_locale,
+      lead_service: servicesLabel,             // backwards-compat alias
+      lead_services: servicesLabel,            // new — preferred placeholder
+      lead_locale: lead.preferred_locale,
       lead_message: lead.message || '', lead_id: lead.id, lead_submitted: lead.created_at,
     };
     const finalCopy = await applyOverride({
