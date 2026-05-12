@@ -314,15 +314,17 @@ function AssignmentManager({ assignments, customers, empId, auth, onChange, t, l
   // Group by first letter only when not searching — search results stay
   // flat so the rows the owner is hunting for aren't broken across
   // section headers. Status/relationship filters keep grouping.
-  const grouping = !q && filtered.length > 8;
   const sections = (() => {
-    if (!grouping) return [{ letter: null, rows: filtered }];
+    if (q) return [{ letter: null, rows: filtered }];
     const map = new Map();
     for (const c of filtered) {
       const l = bucketLetter(c.name || c.email);
       if (!map.has(l)) map.set(l, []);
       map.get(l).push(c);
     }
+    // Skip grouping when everything falls under one letter — a single
+    // header with the same content underneath looks like a bug.
+    if (map.size <= 1) return [{ letter: null, rows: filtered }];
     return Array.from(map.entries())
       .sort(([a], [b]) => {
         if (a === '#') return 1;
