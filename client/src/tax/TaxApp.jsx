@@ -150,7 +150,7 @@ function PortalRoot({ parsed }) {
 }
 
 function PortalGate({ parsed, community }) {
-  const { status, error, signOut } = useTaxAuth();
+  const { status, error, redirectTo, signOut } = useTaxAuth();
 
   if (status === 'unauthenticated') {
     return <PortalLogin community={community} />;
@@ -159,19 +159,7 @@ function PortalGate({ parsed, community }) {
     return <div className="tax-fullscreen"><div className="tax-fullscreen__inner">Loading…</div></div>;
   }
   if (status === 'error') {
-    return (
-      <div className="tax-fullscreen">
-        <div className="tax-fullscreen__inner" style={{ maxWidth: 460 }}>
-          <div className="tax-msg tax-msg--error" role="alert" style={{ textAlign: 'left' }}>
-            <strong>Sign-in problem</strong>
-            <div style={{ marginTop: 6 }}>{error}</div>
-          </div>
-          <button type="button" className="tax-btn tax-btn--primary" style={{ marginTop: 16 }} onClick={signOut}>
-            Try a different account
-          </button>
-        </div>
-      </div>
-    );
+    return <SignInProblem error={error} redirectTo={redirectTo} signOut={signOut} />;
   }
   // status === 'ready'
   if (parsed.route === 'portal-profile') return <PortalProfile />;
@@ -213,7 +201,7 @@ function EmployeeRoot({ parsed }) {
 }
 
 function EmployeeGate({ parsed, community }) {
-  const { status, error, signOut } = useEmployeeAuth();
+  const { status, error, redirectTo, signOut } = useEmployeeAuth();
 
   if (status === 'unauthenticated') {
     return <PortalLogin community={community}
@@ -224,19 +212,7 @@ function EmployeeGate({ parsed, community }) {
     return <div className="tax-fullscreen"><div className="tax-fullscreen__inner">Loading…</div></div>;
   }
   if (status === 'error') {
-    return (
-      <div className="tax-fullscreen">
-        <div className="tax-fullscreen__inner" style={{ maxWidth: 460 }}>
-          <div className="tax-msg tax-msg--error" role="alert" style={{ textAlign: 'left' }}>
-            <strong>Sign-in problem</strong>
-            <div style={{ marginTop: 6 }}>{error}</div>
-          </div>
-          <button type="button" className="tax-btn tax-btn--primary" style={{ marginTop: 16 }} onClick={signOut}>
-            Try a different account
-          </button>
-        </div>
-      </div>
-    );
+    return <SignInProblem error={error} redirectTo={redirectTo} signOut={signOut} />;
   }
   if (parsed.route === 'employee-profile') return <EmployeeProfile />;
   if (parsed.route === 'employee-thread') return <EmployeeThread threadId={parsed.threadId} />;
@@ -310,4 +286,37 @@ function PlatformGate({ parsed }) {
   }
   if (parsed.route === 'platform-create') return <PlatformCommunityCreate />;
   return <PlatformDashboard />;
+}
+
+// Phase 4n.18: shared sign-in error block for both the customer portal and
+// the staff portal. When the server returned a `wrong_portal` payload, the
+// auth provider stashes a redirectTo — we render a prominent "Go to the
+// correct portal" CTA so the user isn't stuck with just "Try a different
+// account". The fallback wording covers every other 403 (not provisioned,
+// account collision, etc.).
+function SignInProblem({ error, redirectTo, signOut }) {
+  const isWrongPortal = !!redirectTo;
+  return (
+    <div className="tax-fullscreen">
+      <div className="tax-fullscreen__inner" style={{ maxWidth: 480 }}>
+        <div className="tax-msg tax-msg--error" role="alert" style={{ textAlign: 'left' }}>
+          <strong>{isWrongPortal ? 'Sign in at a different portal' : 'Sign-in problem'}</strong>
+          <div style={{ marginTop: 6 }}>{error}</div>
+        </div>
+        <div style={{ display: 'flex', gap: 8, marginTop: 16, flexWrap: 'wrap' }}>
+          {isWrongPortal && (
+            <a href={redirectTo} className="tax-btn tax-btn--primary"
+               style={{ textDecoration: 'none' }}>
+              Go to the right portal
+            </a>
+          )}
+          <button type="button"
+                  className={isWrongPortal ? 'tax-btn tax-btn--ghost' : 'tax-btn tax-btn--primary'}
+                  onClick={signOut}>
+            Try a different account
+          </button>
+        </div>
+      </div>
+    </div>
+  );
 }

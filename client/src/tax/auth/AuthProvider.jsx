@@ -34,6 +34,10 @@ export function TaxAuthProvider({ communitySlug, children }) {
   const [me, setMe] = useState(null);
   const [status, setStatus] = useState(firebaseReady ? 'loading' : 'error');
   const [error, setError] = useState(firebaseReady ? '' : 'Firebase is not configured.');
+  // Phase 4n.18: when the server returns `wrong_portal`, stash the URL so
+  // the gate can render a "Go to staff portal" button instead of the bare
+  // error string. Cleared on every link attempt.
+  const [redirectTo, setRedirectTo] = useState('');
   // Impersonation state lives in sessionStorage; we mirror it into React so
   // children get clean reactive access and the Exit button can update it.
   const [impersonation, setImpersonationState] = useState(() => {
@@ -57,7 +61,7 @@ export function TaxAuthProvider({ communitySlug, children }) {
     if (impersonation) return;          // impersonation path below handles it
     if (!fbUser) return;
     let cancelled = false;
-    setStatus('linking'); setError('');
+    setStatus('linking'); setError(''); setRedirectTo('');
     (async () => {
       try {
         await taxApi.authLink({ uid: fbUser.uid, email: fbUser.email, communitySlug });
@@ -68,7 +72,12 @@ export function TaxAuthProvider({ communitySlug, children }) {
         if (cancelled) return;
         setMe(null);
         setStatus('error');
-        setError(err?.message || 'Could not link your account.');
+        if (err?.body?.error === 'wrong_portal') {
+          setError(err.body.message || 'You have an account in a different role at this practice.');
+          setRedirectTo(err.body.redirectTo || '');
+        } else {
+          setError(err?.message || 'Could not link your account.');
+        }
       }
     })();
     return () => { cancelled = true; };
@@ -158,7 +167,7 @@ export function TaxAuthProvider({ communitySlug, children }) {
     // memorizing the /employee URL.
     staffAccess: me?.staffAccess || { hasEmployeeRow: false, role: null },
     impersonation,
-    status, error,
+    status, error, redirectTo,
     signOut, refreshMe, exitImpersonation,
   };
   return <AuthCtx.Provider value={value}>{children}</AuthCtx.Provider>;
