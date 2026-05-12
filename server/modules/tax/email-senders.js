@@ -438,6 +438,44 @@ module.exports = function createTaxSenders(deps) {
   // factored placeholder version so the Email Templates form prefills with
   // realistic starting text. `hasFactoredDefault` stays true for every known
   // key now that they're all wired.
+  function buildSignatureRequestTemplate(lang) {
+    const useEn = lang === 'en';
+    const greeting = useEn ? 'Dear {{customer_name}},' : 'Estimado/a {{customer_name}}:';
+    const closing = useEn ? 'Sincerely,\n{{practice_name}}' : 'Atentamente,\n{{practice_name}}';
+    const subject = useEn
+      ? 'Please review and sign: {{title}}'
+      : 'Por favor revise y firme: {{title}}';
+    const intro = useEn
+      ? `{{practice_name}} has sent you a document to review and sign:\n\n  • {{title}}\n\n{{description}}`
+      : `{{practice_name}} le ha enviado un documento para revisar y firmar:\n\n  • {{title}}\n\n{{description}}`;
+    const ctaText = useEn
+      ? 'Click the secure link below to review the details and sign by typing your legal name. The signature is captured with a timestamp and your IP for our records.'
+      : 'Haga clic en el enlace seguro abajo para revisar los detalles y firmar escribiendo su nombre legal. La firma se registra con fecha y su dirección IP para nuestros archivos.';
+    const ctaLabel = useEn ? 'Review and sign' : 'Revisar y firmar';
+    const text = [greeting, '', intro, '', ctaText, '{{sign_url}}', '', closing].join('\n');
+    const html = wrapHtml(`
+      <p>${greeting}</p>
+      <p style="white-space:pre-line">${intro}</p>
+      <p>${ctaText}</p>
+      ${ctaButton('{{sign_url}}', ctaLabel)}
+      <p style="color:#666;font-size:13px">{{sign_url}}</p>
+      <p style="white-space:pre-line">${closing}</p>
+    `);
+    return { subject, text, html };
+  }
+
+  function buildSignatureSignedTemplate(lang) {
+    const useEn = lang === 'en';
+    const subject = useEn
+      ? '{{customer_name}} signed: {{title}}'
+      : '{{customer_name}} firmó: {{title}}';
+    const body = useEn
+      ? `Hi {{employee_name}},\n\n{{customer_name}} ({{customer_email}}) just signed "{{title}}". The signature, timestamp, and IP have been captured in the audit trail.\n\nOpen the customer's record:\n{{customer_url}}\n\n{{practice_name}}`
+      : `Hola {{employee_name}}:\n\n{{customer_name}} ({{customer_email}}) acaba de firmar "{{title}}". La firma, fecha y IP quedaron registradas en la pista de auditoría.\n\nAbrir el registro del cliente:\n{{customer_url}}\n\n{{practice_name}}`;
+    const html = wrapHtml(`<p style="white-space:pre-line">${body}</p>`);
+    return { subject, text: body, html };
+  }
+
   const TEMPLATE_BUILDERS = {
     welcome_customer:    buildWelcomeCustomerTemplate,
     welcome_staff:       buildWelcomeStaffTemplate,
@@ -447,6 +485,8 @@ module.exports = function createTaxSenders(deps) {
     message_to_practice: buildMessageToPracticeTemplate,
     message_to_employee: buildMessageToEmployeeTemplate,
     lead:                buildLeadTemplate,
+    signature_request:   buildSignatureRequestTemplate,
+    signature_signed:    buildSignatureSignedTemplate,
   };
   function getTemplateDefaults({ key, lang }) {
     const useLang = lang === 'en' ? 'en' : 'es';
@@ -518,6 +558,18 @@ module.exports = function createTaxSenders(deps) {
         lead_message: useEn ? 'I just moved to Cartagena and need help with my US return.' : 'Acabo de mudarme a Cartagena y necesito ayuda con mi declaración de EE. UU.',
         lead_id: 'lead_preview123',
         lead_submitted: '2026-05-11T14:30:00Z',
+      },
+      signature_request: {
+        title: useEn ? '2026 Engagement Letter' : 'Carta de compromiso 2026',
+        description: useEn
+          ? 'Standard engagement terms for the 2026 tax season.'
+          : 'Términos estándar de compromiso para la temporada 2026.',
+        sign_url: 'https://example.com/tax/portal/sign/sig_preview',
+      },
+      signature_signed: {
+        employee_name: useEn ? 'Carlos Mendoza' : 'Carlos Mendoza',
+        title: useEn ? '2026 Engagement Letter' : 'Carta de compromiso 2026',
+        customer_url: 'https://example.com/tax/employee/customers/cust_preview',
       },
     };
     return { ...base, ...(perKey[key] || {}) };
@@ -667,6 +719,126 @@ module.exports = function createTaxSenders(deps) {
     };
     const finalCopy = await applyOverride({
       communityId: cust.community_id, key: 'document', lang, vars, defaults,
+    });
+    return sendSpanishEmail({
+      to, subject: finalCopy.subject, text: finalCopy.text, html: finalCopy.html, lang: langTag,
+    });
+  };
+
+  // ── Phase 4n.25: signature-request emails ────────────────────────────────
+  // Customer-facing nudge when an owner creates a signature request.
+  // Lives at template key 'signature_request'. Sign URL points at the
+  // customer portal's sign page.
+  const sendTaxSignatureRequestEmail = async ({ cust, community, request, signUrl }) => {
+    if (!emailConfigured) return { sent: false, skipped: true, reason: 'email_not_configured' };
+    const to = String(cust?.preferred_communication_email || cust?.email || '').trim();
+    if (!to) return { sent: false, skipped: true, reason: 'customer_email_missing' };
+
+    const lang = cust.locale === 'en' ? 'en' : 'es';
+    const langTag = lang === 'en' ? 'en' : 'es-CO';
+    const practiceName = community?.name || 'Tax America Services';
+    const formalGreeting = formalSalutation(cust.name, lang);
+    const closing = lang === 'en'
+      ? `Sincerely,\n${practiceName}` : `Atentamente,\n${practiceName}`;
+
+    const subject = lang === 'en'
+      ? `Please review and sign: ${request.title}`
+      : `Por favor revise y firme: ${request.title}`;
+    const intro = lang === 'en'
+      ? `${practiceName} has sent you a document to review and sign:`
+      : `${practiceName} le ha enviado un documento para revisar y firmar:`;
+    const ctaText = lang === 'en'
+      ? `Click the secure link below to review the details and sign by typing your legal name. The signature is captured with a timestamp and your IP for our records.`
+      : `Haga clic en el enlace seguro abajo para revisar los detalles y firmar escribiendo su nombre legal. La firma se registra con fecha y su dirección IP para nuestros archivos.`;
+    const ctaLabel = lang === 'en' ? 'Review and sign' : 'Revisar y firmar';
+
+    const text = [
+      formalGreeting, '', intro, `  • ${request.title}`,
+      request.description ? '' : null,
+      request.description ? request.description : null,
+      '', ctaText, signUrl || '', '', closing,
+    ].filter(s => s !== null).join('\n');
+
+    const html = `
+      <div style="font-family:Arial,sans-serif;max-width:640px;color:#111">
+        <p>${escapeHtml(formalGreeting)}</p>
+        <p>${escapeHtml(intro)}</p>
+        <p style="background:#f4f7fb;border-left:3px solid #1d3a6d;padding:10px 14px;border-radius:6px;margin:16px 0">
+          <strong>${escapeHtml(request.title)}</strong>
+        </p>
+        ${request.description ? `
+          <p style="white-space:pre-line;color:#444">${escapeHtml(request.description)}</p>
+        ` : ''}
+        <p>${escapeHtml(ctaText)}</p>
+        ${signUrl ? `
+          <p style="margin:24px 0">
+            <a href="${signUrl}" style="background:#1d3a6d;color:#fff;text-decoration:none;padding:12px 22px;border-radius:8px;font-weight:600;display:inline-block">${escapeHtml(ctaLabel)}</a>
+          </p>
+          <p style="color:#666;font-size:13px">${escapeHtml(signUrl)}</p>
+        ` : ''}
+        <p style="white-space:pre-line">${escapeHtml(closing)}</p>
+      </div>
+    `;
+
+    const defaults = { subject, text, html };
+    const vars = {
+      customer_name: cust.name || '', practice_name: practiceName,
+      title: request.title || '', description: request.description || '',
+      sign_url: signUrl || '',
+    };
+    const finalCopy = await applyOverride({
+      communityId: cust.community_id, key: 'signature_request', lang, vars, defaults,
+    });
+    return sendSpanishEmail({
+      to, subject: finalCopy.subject, text: finalCopy.text, html: finalCopy.html, lang: langTag,
+    });
+  };
+
+  // Practice-facing notification when a customer signs. Sent to one
+  // employee at a time so the fan-out caller can dedupe + honor each
+  // employee's per-type notification preference.
+  const sendTaxSignatureSignedEmail = async ({ emp, customer, community, request, customerUrl }) => {
+    if (!emailConfigured) return { sent: false, skipped: true, reason: 'email_not_configured' };
+    const to = String(emp?.preferred_communication_email || emp?.email || '').trim();
+    if (!to) return { sent: false, skipped: true, reason: 'employee_email_missing' };
+
+    const lang = emp.locale === 'en' ? 'en' : 'es';
+    const langTag = lang === 'en' ? 'en' : 'es-CO';
+    const practiceName = community?.name || 'Tax America Services';
+    const custName = customer?.name || customer?.email || 'Customer';
+
+    const subject = lang === 'en'
+      ? `${custName} signed: ${request.title}`
+      : `${custName} firmó: ${request.title}`;
+    const body = lang === 'en'
+      ? `Hi ${emp.name || ''},\n\n${custName} just signed "${request.title}". The signature, timestamp, and IP have been captured in the audit trail.\n\nOpen the customer's record:\n${customerUrl || ''}\n\n${practiceName}`
+      : `Hola ${emp.name || ''},\n\n${custName} acaba de firmar "${request.title}". La firma, fecha y IP quedaron registradas en la pista de auditoría.\n\nAbrir el registro del cliente:\n${customerUrl || ''}\n\n${practiceName}`;
+    const html = `
+      <div style="font-family:Arial,sans-serif;max-width:640px;color:#111">
+        <p>${escapeHtml(lang === 'en' ? 'Hi' : 'Hola')} ${escapeHtml(emp.name || '')},</p>
+        <p>${escapeHtml(lang === 'en'
+          ? `${custName} just signed "${request.title}".`
+          : `${custName} acaba de firmar "${request.title}".`)}</p>
+        <p style="color:#444;font-size:14px">${escapeHtml(lang === 'en'
+          ? 'The signature, timestamp, and IP have been captured in the audit trail.'
+          : 'La firma, fecha y IP quedaron registradas en la pista de auditoría.')}</p>
+        ${customerUrl ? `
+          <p style="margin:24px 0">
+            <a href="${customerUrl}" style="background:#1d3a6d;color:#fff;text-decoration:none;padding:12px 22px;border-radius:8px;font-weight:600;display:inline-block">${escapeHtml(lang === 'en' ? 'Open customer' : 'Abrir cliente')}</a>
+          </p>
+        ` : ''}
+        <p style="white-space:pre-line">${escapeHtml(practiceName)}</p>
+      </div>
+    `;
+
+    const defaults = { subject, text: body, html };
+    const vars = {
+      employee_name: emp.name || '', practice_name: practiceName,
+      customer_name: custName, customer_email: customer?.email || '',
+      title: request.title || '', customer_url: customerUrl || '',
+    };
+    const finalCopy = await applyOverride({
+      communityId: community?.id, key: 'signature_signed', lang, vars, defaults,
     });
     return sendSpanishEmail({
       to, subject: finalCopy.subject, text: finalCopy.text, html: finalCopy.html, lang: langTag,
@@ -1163,6 +1335,8 @@ module.exports = function createTaxSenders(deps) {
     sendTaxMessageEmployeeEmail,
     sendTaxWelcomeEmail,
     sendTaxStaffWelcomeEmail,
+    sendTaxSignatureRequestEmail,
+    sendTaxSignatureSignedEmail,
     previewTaxEmail,
     getTemplateDefaults,
   };

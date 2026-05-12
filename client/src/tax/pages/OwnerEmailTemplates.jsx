@@ -21,6 +21,8 @@ const PLACEHOLDER_REF = {
   message_to_practice: ['customer_name', 'customer_email', 'practice_name', 'thread_subject', 'thread_id', 'message_preview'],
   message_to_employee: ['customer_name', 'customer_email', 'employee_name', 'practice_name', 'thread_subject', 'message_preview'],
   lead:                ['practice_name', 'lead_name', 'lead_email', 'lead_phone', 'lead_service', 'lead_locale', 'lead_message', 'lead_id', 'lead_submitted'],
+  signature_request:   ['customer_name', 'practice_name', 'title', 'description', 'sign_url'],
+  signature_signed:    ['employee_name', 'practice_name', 'customer_name', 'customer_email', 'title', 'customer_url'],
 };
 
 export default function OwnerEmailTemplates() {

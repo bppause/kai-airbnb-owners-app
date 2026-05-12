@@ -827,6 +827,10 @@
   "owner.emailTemplates.key.message_to_practice": "Mensaje a la oficina (interno)",
   "owner.emailTemplates.key.message_to_employee": "Mensaje al empleado (interno)",
   "owner.emailTemplates.key.lead": "Notificación de prospecto (interno)",
+  "owner.emailTemplates.key.signature_request": "Solicitud de firma (al cliente)",
+  "owner.emailTemplates.key.signature_signed": "Firma recibida (a la oficina)",
+  "employee.today.signaturesTitle": "Esperando firma ({count})",
+  "employee.today.signatureRequestedBy": "enviado por {name}",
 
   "owner.customer.subscription.addBtn": "Agregar suscripción",
   "owner.customer.subscription.cancelAdd": "Cancelar",

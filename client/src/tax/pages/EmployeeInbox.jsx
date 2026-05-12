@@ -133,7 +133,8 @@ function TodayInbox({ auth, community, t }) {
   }
   if (!data) return null;
 
-  const total = data.overdue.length + data.dueSoon.length + data.unreadCount + data.newLeads.length;
+  const pendingSignatures = data.pendingSignatures || [];
+  const total = data.overdue.length + data.dueSoon.length + data.unreadCount + data.newLeads.length + pendingSignatures.length;
   const allCaughtUp = total === 0;
 
   return (
@@ -198,6 +199,31 @@ function TodayInbox({ auth, community, t }) {
                   </div>
                   <div style={{ fontSize: 12, color: 'var(--tax-muted)', flexShrink: 0 }}>
                     {relTime(l.created_at)}
+                  </div>
+                </a>
+              ))}
+            </Bucket>
+          )}
+          {pendingSignatures.length > 0 && (
+            <Bucket tone="warn"
+                    title={t('employee.today.signaturesTitle', { count: pendingSignatures.length })}
+                    empty="">
+              {pendingSignatures.map(s => (
+                <a key={s.id}
+                   href={`/tax/${community.id}/employee/customers/${encodeURIComponent(s.customer_id)}`}
+                   className="tax-contact-item"
+                   style={{ display: 'flex', textDecoration: 'none', color: 'inherit',
+                            justifyContent: 'space-between', gap: 12 }}>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontWeight: 600 }}>
+                      {s.customer?.name || s.customer?.email || s.customer_id}
+                    </div>
+                    <div style={{ fontSize: 12, color: 'var(--tax-muted)' }}>
+                      {s.title}{s.requested_by_name ? ` · ${t('employee.today.signatureRequestedBy', { name: s.requested_by_name })}` : ''}
+                    </div>
+                  </div>
+                  <div style={{ fontSize: 12, color: 'var(--tax-muted)', flexShrink: 0 }}>
+                    {relTime(s.created_at)}
                   </div>
                 </a>
               ))}
