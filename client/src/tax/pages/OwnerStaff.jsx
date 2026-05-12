@@ -1,13 +1,14 @@
 import { useEffect, useState } from 'react';
 import { useT } from '../i18n';
 import { useEmployeeAuth } from '../auth/EmployeeAuthProvider';
-import { taxApi } from '../api';
+import { taxApi, setImpersonation } from '../api';
 import EmployeeShell from '../components/EmployeeShell';
 
 export default function OwnerStaff() {
   const { t } = useT();
   const { fbUser, employee, community } = useEmployeeAuth();
   const auth = { uid: fbUser?.uid, email: fbUser?.email, communitySlug: community?.id };
+  const me = employee;
 
   const [employees, setEmployees] = useState(null);
   const [err, setErr] = useState('');
@@ -122,36 +123,84 @@ export default function OwnerStaff() {
           ? <p style={{ color: 'var(--tax-muted)' }}>{t('owner.staff.empty')}</p>
           : <div style={{ display: 'grid', gap: 8 }}>
               {employees.map(e => (
-                <a key={e.id} href={`${base}/${encodeURIComponent(e.id)}`}
-                   className="tax-contact-item" style={{ textDecoration: 'none', color: 'inherit' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
-                    <div style={{ minWidth: 0, flex: 1 }}>
-                      <div style={{ fontWeight: 600 }}>
-                        {e.name || e.email}
-                        <span style={{
-                          marginLeft: 8, padding: '1px 8px', borderRadius: 999,
-                          background: e.role === 'admin' ? 'var(--tax-brand-primary)' : 'var(--tax-bg-alt)',
-                          color: e.role === 'admin' ? '#fff' : 'var(--tax-muted)',
-                          fontSize: 11, fontWeight: 700, textTransform: 'uppercase',
-                        }}>{e.role}</span>
-                        {e.firebase_uid ? null : (
-                          <span style={{ marginLeft: 6, fontSize: 11, color: 'var(--tax-muted)' }}>
-                            ({t('owner.staff.notSignedIn')})
-                          </span>
-                        )}
-                      </div>
-                      <div style={{ fontSize: 13, color: 'var(--tax-muted)', marginTop: 2 }}>
-                        {e.email}
-                      </div>
+                <div key={e.id} className="tax-contact-item"
+                     style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center' }}>
+                  <a href={`${base}/${encodeURIComponent(e.id)}`}
+                     style={{ textDecoration: 'none', color: 'inherit', minWidth: 0, flex: 1 }}>
+                    <div style={{ fontWeight: 600 }}>
+                      {e.name || e.email}
+                      <span style={{
+                        marginLeft: 8, padding: '1px 8px', borderRadius: 999,
+                        background: e.role === 'admin' ? 'var(--tax-brand-primary)' : 'var(--tax-bg-alt)',
+                        color: e.role === 'admin' ? '#fff' : 'var(--tax-muted)',
+                        fontSize: 11, fontWeight: 700, textTransform: 'uppercase',
+                      }}>{e.role}</span>
+                      {e.firebase_uid ? null : (
+                        <span style={{ marginLeft: 6, fontSize: 11, color: 'var(--tax-muted)' }}>
+                          ({t('owner.staff.notSignedIn')})
+                        </span>
+                      )}
                     </div>
-                    <div style={{ flexShrink: 0, fontSize: 12, color: 'var(--tax-muted)' }}>
+                    <div style={{ fontSize: 13, color: 'var(--tax-muted)', marginTop: 2 }}>
+                      {e.email}
+                    </div>
+                  </a>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
+                    <div style={{ fontSize: 12, color: 'var(--tax-muted)' }}>
                       {(e.notification_channels || []).includes('email')
                         ? t('owner.staff.channelBoth') : t('owner.staff.channelPortal')}
                     </div>
+                    {e.id !== me?.id && e.firebase_uid && (
+                      <ImpersonateRowButton emp={e} auth={auth} community={community} t={t} />
+                    )}
                   </div>
-                </a>
+                </div>
               ))}
             </div>}
     </EmployeeShell>
+  );
+}
+
+// Compact row-level "View as employee" button. Mirrors
+// ImpersonateEmployeeButton on the staff detail page — same confirm dialog,
+// same POST /admin/impersonation/start, same sessionStorage + redirect.
+// Hidden for the current admin's own row and for staff who haven't yet
+// signed in (no firebase_uid to swap into).
+function ImpersonateRowButton({ emp, auth, community, t }) {
+  const [busy, setBusy] = useState(false);
+  const onClick = async (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!window.confirm(t('impersonation.confirm.employee', { name: emp.name || emp.email }))) return;
+    setBusy(true);
+    try {
+      const r = await taxApi.adminStartImpersonation(auth, {
+        communitySlug: community.id,
+        targetType: 'employee',
+        targetId: emp.id,
+      });
+      setImpersonation({
+        token: r.token,
+        targetType: 'employee',
+        targetId: emp.id,
+        targetEmail: emp.email,
+        targetName: emp.name || emp.email,
+        communitySlug: community.id,
+        realAdminEmail: auth.adminEmail || auth.email,
+        realAdminUid: auth.uid,
+        expiresAt: r.expiresAt,
+      });
+      window.location.href = `/tax/${community.id}/employee`;
+    } catch (err) {
+      window.alert(err?.message || t('respond.error.generic'));
+      setBusy(false);
+    }
+  };
+  return (
+    <button type="button" className="tax-btn tax-btn--ghost tax-btn--sm"
+            onClick={onClick} disabled={busy}
+            style={{ color: '#b91c1c', borderColor: '#b91c1c' }}>
+      {busy ? t('impersonation.starting') : t('impersonation.viewAsEmployee')}
+    </button>
   );
 }
