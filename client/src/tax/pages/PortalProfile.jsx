@@ -27,7 +27,8 @@ export default function PortalProfile() {
 
   // ── Profile form state (Phase 2e) ───────────────────────────────────────
   const [form, setForm] = useState({
-    name: '', phone: '', whatsapp: '', preferredEmail: '', locale: 'es',
+    firstName: '', middleName: '', lastName: '',
+    phone: '', whatsapp: '', preferredEmail: '', locale: 'es',
     addr: { line1: '', line2: '', city: '', state: '', postal_code: '', country: 'US' },
   });
   const [savingProfile, setSavingProfile] = useState(false);
@@ -39,7 +40,9 @@ export default function PortalProfile() {
     if (!customer) return;
     const a = customer.address || {};
     setForm({
-      name: customer.name || '',
+      firstName: customer.first_name || '',
+      middleName: customer.middle_name || '',
+      lastName: customer.last_name || '',
       phone: customer.phone || '',
       whatsapp: customer.whatsapp || '',
       preferredEmail: customer.preferredCommunicationEmail || '',
@@ -78,7 +81,9 @@ export default function PortalProfile() {
         if (v) address[k] = v;
       }
       await taxApi.updateProfile(auth, {
-        name: form.name.trim(),
+        firstName: form.firstName.trim(),
+        middleName: form.middleName.trim(),
+        lastName: form.lastName.trim(),
         phone: form.phone.trim(),
         whatsapp: form.whatsapp.trim(),
         address,
@@ -128,22 +133,32 @@ export default function PortalProfile() {
 
       {/* ── Editable profile form ─────────────────────────────────────── */}
       <form className="tax-form" onSubmit={onSaveProfile} noValidate style={{ maxWidth: 720 }}>
-        <div className="tax-form__row2">
+        <div className="tax-form__row3">
           <div>
-            <label htmlFor="pp-name">{t('portal.profile.name')}</label>
-            <input id="pp-name" type="text" value={form.name}
-                   onChange={e => onField('name', e.target.value)} maxLength={200} />
+            <label htmlFor="pp-first">{t('owner.customers.fieldFirstName')}</label>
+            <input id="pp-first" type="text" value={form.firstName}
+                   onChange={e => onField('firstName', e.target.value)} maxLength={80} />
           </div>
           <div>
-            <label htmlFor="pp-login-email">
-              {t('portal.profile.email')}
-              <span style={{ color: 'var(--tax-muted)', fontWeight: 400, marginLeft: 6, fontSize: 12 }}>
-                ({t('portal.profile.email.readonly')})
-              </span>
-            </label>
-            <input id="pp-login-email" type="email" value={customer?.email || ''} readOnly
-                   style={{ background: 'var(--tax-bg-alt)', color: 'var(--tax-muted)' }} />
+            <label htmlFor="pp-middle">{t('owner.customers.fieldMiddleName')}</label>
+            <input id="pp-middle" type="text" value={form.middleName}
+                   onChange={e => onField('middleName', e.target.value)} maxLength={80} />
           </div>
+          <div>
+            <label htmlFor="pp-last">{t('owner.customers.fieldLastName')}</label>
+            <input id="pp-last" type="text" value={form.lastName}
+                   onChange={e => onField('lastName', e.target.value)} maxLength={80} />
+          </div>
+        </div>
+        <div>
+          <label htmlFor="pp-login-email">
+            {t('portal.profile.email')}
+            <span style={{ color: 'var(--tax-muted)', fontWeight: 400, marginLeft: 6, fontSize: 12 }}>
+              ({t('portal.profile.email.readonly')})
+            </span>
+          </label>
+          <input id="pp-login-email" type="email" value={customer?.email || ''} readOnly
+                 style={{ background: 'var(--tax-bg-alt)', color: 'var(--tax-muted)' }} />
         </div>
 
         <div className="tax-form__row2">

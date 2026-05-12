@@ -6,6 +6,7 @@ import EmployeeShell from '../components/EmployeeShell';
 import OwnerSubscriptionsSection from '../components/OwnerSubscriptionsSection';
 
 import { formatLastSignIn } from '../lib/lastSignIn';
+import { displayPersonName } from '../lib/personName';
 
 const CATEGORY_KEY = {
   business: 'portal.profile.category.business',
@@ -99,7 +100,7 @@ export default function OwnerCustomerDetail({ customerId }) {
       <a href={back} style={{ fontSize: 14, color: 'var(--tax-muted)' }}>← {t('owner.customer.back')}</a>
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, marginTop: 8 }}>
         <div style={{ minWidth: 0, flex: 1 }}>
-          <h2 style={{ margin: 0, marginBottom: 4 }}>{c.name || c.email}</h2>
+          <h2 style={{ margin: 0, marginBottom: 4 }}>{displayPersonName(c) || c.email}</h2>
           <p style={{ color: 'var(--tax-muted)', marginTop: 0, fontSize: 13 }}>
             {c.email}{c.phone ? ` • ${c.phone}` : ''}{c.whatsapp ? ` • WhatsApp ${c.whatsapp}` : ''}
             {' • '}{c.locale === 'en' ? 'English' : 'Español'}
@@ -959,7 +960,9 @@ function SummaryStat({ label, value, accent }) {
 function ProfileSection({ customer: c, auth, customerId, onChange, t }) {
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState({
-    name: c.name || '',
+    firstName: c.first_name || '',
+    middleName: c.middle_name || '',
+    lastName: c.last_name || '',
     phone: c.phone || '',
     whatsapp: c.whatsapp || '',
     preferredEmail: c.preferred_communication_email || '',
@@ -1035,7 +1038,9 @@ function ProfileSection({ customer: c, auth, customerId, onChange, t }) {
     }
     try {
       await taxApi.adminUpdateCustomer(auth, customerId, {
-        name: form.name.trim(),
+        firstName: form.firstName.trim(),
+        middleName: form.middleName.trim(),
+        lastName: form.lastName.trim(),
         phone: form.phone.trim(),
         whatsapp: form.whatsapp.trim(),
         preferredCommunicationEmail: form.preferredEmail.trim(),
@@ -1053,21 +1058,31 @@ function ProfileSection({ customer: c, auth, customerId, onChange, t }) {
     <section style={{ marginTop: 24 }}>
       <h3>{t('owner.customer.section.profile')}</h3>
       <form className="tax-form" onSubmit={onSave} noValidate style={{ maxWidth: 720 }}>
-        <div className="tax-form__row2">
+        <div className="tax-form__row3">
           <div>
-            <label htmlFor="ocp-name">{t('portal.profile.name')}</label>
-            <input id="ocp-name" type="text" value={form.name}
-                   onChange={e => setForm(p => ({ ...p, name: e.target.value }))} maxLength={200} />
+            <label htmlFor="ocp-first">{t('owner.customers.fieldFirstName')}</label>
+            <input id="ocp-first" type="text" value={form.firstName}
+                   onChange={e => setForm(p => ({ ...p, firstName: e.target.value }))} maxLength={80} />
           </div>
           <div>
-            <label htmlFor="ocp-status">{t('owner.customer.status')}</label>
-            <select id="ocp-status" value={form.status}
-                    onChange={e => setForm(p => ({ ...p, status: e.target.value }))}>
-              <option value="active">{t('owner.customer.profile.status.active')}</option>
-              <option value="paused">{t('owner.customer.profile.status.paused')}</option>
-              <option value="archived">{t('owner.customer.profile.status.archived')}</option>
-            </select>
+            <label htmlFor="ocp-middle">{t('owner.customers.fieldMiddleName')}</label>
+            <input id="ocp-middle" type="text" value={form.middleName}
+                   onChange={e => setForm(p => ({ ...p, middleName: e.target.value }))} maxLength={80} />
           </div>
+          <div>
+            <label htmlFor="ocp-last">{t('owner.customers.fieldLastName')}</label>
+            <input id="ocp-last" type="text" value={form.lastName}
+                   onChange={e => setForm(p => ({ ...p, lastName: e.target.value }))} maxLength={80} />
+          </div>
+        </div>
+        <div>
+          <label htmlFor="ocp-status">{t('owner.customer.status')}</label>
+          <select id="ocp-status" value={form.status}
+                  onChange={e => setForm(p => ({ ...p, status: e.target.value }))}>
+            <option value="active">{t('owner.customer.profile.status.active')}</option>
+            <option value="paused">{t('owner.customer.profile.status.paused')}</option>
+            <option value="archived">{t('owner.customer.profile.status.archived')}</option>
+          </select>
         </div>
         <div className="tax-form__row2">
           <div>
@@ -1520,7 +1535,7 @@ function ImpersonateCustomerButton({ customer, auth, community, t }) {
   const [err, setErr] = useState('');
 
   const onClick = async () => {
-    if (!window.confirm(t('impersonation.confirm.customer', { name: customer.name || customer.email }))) return;
+    if (!window.confirm(t('impersonation.confirm.customer', { name: displayPersonName(customer) || customer.email }))) return;
     setBusy(true); setErr('');
     try {
       const r = await taxApi.adminStartImpersonation(auth, {
@@ -1533,7 +1548,7 @@ function ImpersonateCustomerButton({ customer, auth, community, t }) {
         targetType: 'customer',
         targetId: customer.id,
         targetEmail: customer.email,
-        targetName: customer.name || customer.email,
+        targetName: displayPersonName(customer) || customer.email,
         communitySlug: community.id,
         realAdminEmail: auth.adminEmail || auth.email,
         realAdminUid: auth.uid,
@@ -1568,7 +1583,7 @@ function SendWelcomeButton({ customer: c, auth, t }) {
 
   const onClick = async () => {
     if (!window.confirm(t('owner.customer.welcome.confirm', {
-      name: c.name || c.email, lang: c.locale === 'en' ? 'English' : 'Español',
+      name: displayPersonName(c) || c.email, lang: c.locale === 'en' ? 'English' : 'Español',
     }))) return;
     setBusy(true); setMsg({ kind: 'idle', text: '' });
     try {
@@ -1623,7 +1638,7 @@ function PromoteToStaffButton({ customer: c, auth, onChanged, t }) {
       setMsg({ kind: 'error', text: t('owner.customer.promote.invalidRole') });
       return;
     }
-    if (!window.confirm(t('owner.customer.promote.confirm', { name: c.name || c.email, role: r }))) return;
+    if (!window.confirm(t('owner.customer.promote.confirm', { name: displayPersonName(c) || c.email, role: r }))) return;
     setBusy(true); setMsg({ kind: 'idle', text: '' });
     try {
       const result = await taxApi.adminPromoteCustomerToStaff(auth, c.id, { role: r });
@@ -1669,7 +1684,7 @@ function ArchiveCustomerButton({ customer: c, auth, onChanged, t }) {
 
   const onClick = async () => {
     if (!isArchived) {
-      if (!window.confirm(t('owner.customer.archive.confirm', { name: c.name || c.email }))) return;
+      if (!window.confirm(t('owner.customer.archive.confirm', { name: displayPersonName(c) || c.email }))) return;
     }
     setBusy(true); setMsg({ kind: 'idle', text: '' });
     try {

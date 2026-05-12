@@ -4,6 +4,7 @@ import { useEmployeeAuth } from '../auth/EmployeeAuthProvider';
 import { taxApi } from '../api';
 import EmployeeShell from '../components/EmployeeShell';
 import { formatLastSignInCompact } from '../lib/lastSignIn';
+import { displayPersonName } from '../lib/personName';
 
 // Category display order — surface business / individual first since most
 // customers are tagged with one of those. The relationship types themselves
@@ -56,7 +57,8 @@ export default function OwnerCustomers() {
   const [adding, setAdding] = useState(false);
   const [importing, setImporting] = useState(false);
   const [form, setForm] = useState({
-    name: '', email: '', phone: '', locale: 'es',
+    firstName: '', middleName: '', lastName: '',
+    email: '', phone: '', locale: 'es',
     relationshipTypeIds: [],
     sendWelcomeEmail: true,                       // default behavior per owner spec
   });
@@ -131,7 +133,9 @@ export default function OwnerCustomers() {
       const r = await taxApi.adminCreateCustomer(auth, {
         communitySlug: community.id,
         email: form.email.trim().toLowerCase(),
-        name: form.name.trim(),
+        firstName: form.firstName.trim(),
+        middleName: form.middleName.trim(),
+        lastName: form.lastName.trim(),
         phone: form.phone.trim(),
         locale: form.locale,
         relationshipTypeIds: form.relationshipTypeIds,
@@ -141,7 +145,7 @@ export default function OwnerCustomers() {
       // server; we just trust the response for the redirect. The detail
       // page can re-send manually if needed.
       setAddMsg({ kind: 'success', text: t('owner.customers.addedSuccess') });
-      setForm({ name: '', email: '', phone: '', locale: 'es', relationshipTypeIds: [], sendWelcomeEmail: true });
+      setForm({ firstName: '', middleName: '', lastName: '', email: '', phone: '', locale: 'es', relationshipTypeIds: [], sendWelcomeEmail: true });
       window.location.href = `/tax/${community.id}/employee/customers/${encodeURIComponent(r.id)}`;
     } catch (err) {
       setAddMsg({ kind: 'error', text: err?.message || t('respond.error.generic') });
@@ -195,32 +199,42 @@ export default function OwnerCustomers() {
 
       {isAdmin && adding && (
         <form className="tax-form" onSubmit={onAdd} noValidate style={{ marginBottom: 24 }}>
-          <div className="tax-form__row2">
+          <div className="tax-form__row3">
             <div>
-              <label htmlFor="oc-name">{t('owner.customers.fieldName')}</label>
-              <input id="oc-name" type="text" value={form.name}
-                     onChange={e => setForm(p => ({ ...p, name: e.target.value }))} maxLength={200} />
+              <label htmlFor="oc-first">{t('owner.customers.fieldFirstName')}</label>
+              <input id="oc-first" type="text" value={form.firstName}
+                     onChange={e => setForm(p => ({ ...p, firstName: e.target.value }))} maxLength={80} />
             </div>
+            <div>
+              <label htmlFor="oc-middle">{t('owner.customers.fieldMiddleName')}</label>
+              <input id="oc-middle" type="text" value={form.middleName}
+                     onChange={e => setForm(p => ({ ...p, middleName: e.target.value }))} maxLength={80} />
+            </div>
+            <div>
+              <label htmlFor="oc-last">{t('owner.customers.fieldLastName')}</label>
+              <input id="oc-last" type="text" value={form.lastName}
+                     onChange={e => setForm(p => ({ ...p, lastName: e.target.value }))} maxLength={80} />
+            </div>
+          </div>
+          <div className="tax-form__row2">
             <div>
               <label htmlFor="oc-email">{t('owner.customers.fieldEmail')} *</label>
               <input id="oc-email" type="email" required value={form.email}
                      onChange={e => setForm(p => ({ ...p, email: e.target.value }))} maxLength={200} />
             </div>
-          </div>
-          <div className="tax-form__row2">
             <div>
-              <label htmlFor="oc-phone">{t('owner.customers.fieldPhone')}</label>
-              <input id="oc-phone" type="tel" value={form.phone}
+              <label htmlFor="oc-phone-row">{t('owner.customers.fieldPhone')}</label>
+              <input id="oc-phone-row" type="tel" value={form.phone}
                      onChange={e => setForm(p => ({ ...p, phone: e.target.value }))} maxLength={40} />
             </div>
-            <div>
-              <label htmlFor="oc-locale">{t('owner.customers.fieldLocale')}</label>
-              <select id="oc-locale" value={form.locale}
-                      onChange={e => setForm(p => ({ ...p, locale: e.target.value }))}>
-                <option value="es">Español</option>
-                <option value="en">English</option>
-              </select>
-            </div>
+          </div>
+          <div>
+            <label htmlFor="oc-locale">{t('owner.customers.fieldLocale')}</label>
+            <select id="oc-locale" value={form.locale}
+                    onChange={e => setForm(p => ({ ...p, locale: e.target.value }))}>
+              <option value="es">Español</option>
+              <option value="en">English</option>
+            </select>
           </div>
 
           {/* Service relationships — chip picker over the 13 relationship
@@ -407,7 +421,7 @@ export default function OwnerCustomers() {
                    className="tax-contact-item" style={{ textDecoration: 'none', color: 'inherit' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
                     <div style={{ minWidth: 0, flex: 1 }}>
-                      <div style={{ fontWeight: 600 }}>{c.name || c.email}</div>
+                      <div style={{ fontWeight: 600 }}>{displayPersonName(c) || c.email}</div>
                       <div style={{ fontSize: 13, color: 'var(--tax-muted)', marginTop: 2 }}>
                         {c.email}
                         {c.phone ? ` • ${c.phone}` : ''}

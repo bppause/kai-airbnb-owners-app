@@ -3,6 +3,7 @@ import LocaleSwitcher from './LocaleSwitcher';
 import { useT } from '../i18n';
 import { useEmployeeAuth } from '../auth/EmployeeAuthProvider';
 import { taxApi } from '../api';
+import { firstNameOf, displayPersonName } from '../lib/personName';
 import ImpersonationBanner from './ImpersonationBanner';
 
 // Phase 4l: sidebar shell. Replaces the 13-item horizontal nav with a
@@ -130,7 +131,7 @@ export default function EmployeeShell({ community, active, children }) {
           <main className="tax-shell__content">
             {employee && (
               <div style={{ color: 'var(--tax-muted)', fontSize: 14, marginBottom: 16 }}>
-                {t('employee.greeting', { name: employee.name || employee.email })}
+                {t('employee.greeting', { name: firstNameOf(employee) || displayPersonName(employee) || employee.email })}
               </div>
             )}
             {children}

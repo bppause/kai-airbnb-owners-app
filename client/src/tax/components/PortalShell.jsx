@@ -3,6 +3,7 @@ import LocaleSwitcher from './LocaleSwitcher';
 import { useT } from '../i18n';
 import { useTaxAuth } from '../auth/AuthProvider';
 import { taxApi } from '../api';
+import { firstNameOf, displayPersonName } from '../lib/personName';
 import ImpersonationBanner from './ImpersonationBanner';
 
 // Chrome shared by every portal page. Below 720px the horizontal nav
@@ -96,7 +97,7 @@ export default function PortalShell({ community, active, children }) {
       <div className="tax-container" style={{ paddingTop: 24 }}>
         {customer && (
           <div style={{ color: 'var(--tax-muted)', fontSize: 14, marginBottom: 16 }}>
-            {t('portal.greeting', { name: customer.name || customer.email })}
+            {t('portal.greeting', { name: firstNameOf(customer) || displayPersonName(customer) || customer.email })}
           </div>
         )}
         {children}

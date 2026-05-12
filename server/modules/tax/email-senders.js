@@ -8,6 +8,7 @@
 'use strict';
 
 const { escapeHtml } = require('../../core/utils');
+const { firstNameOf, displayNameOf } = require('./names');
 
 module.exports = function createTaxSenders(deps) {
   const { sendSpanishEmail, emailConfigured, loadTaxEmailTemplate, logTaxEmailDelivery } = deps;
@@ -97,7 +98,9 @@ module.exports = function createTaxSenders(deps) {
     };
     const vars = {
       practice_name: community.name,
-      lead_name: lead.name, lead_email: lead.email, lead_phone: lead.phone || '',
+      lead_name: displayNameOf(lead) || lead.name || '',
+      lead_first_name: firstNameOf(lead),
+      lead_email: lead.email, lead_phone: lead.phone || '',
       lead_service: servicesLabel,             // backwards-compat alias
       lead_services: servicesLabel,            // new — preferred placeholder
       lead_locale: lead.preferred_locale,
@@ -209,7 +212,7 @@ module.exports = function createTaxSenders(deps) {
 
     const defaults = { subject, text, html };
     const vars = {
-      customer_name: cust.name || '', practice_name: 'Tax America Services',
+      customer_name: displayNameOf(cust) || cust.name || '', customer_first_name: firstNameOf(cust), practice_name: 'Tax America Services',
       filing_name: filingName, filing_description: filingDesc || '',
       period_label: row.period_label, due_date: row.due_date,
       offset_days: Math.abs(offsetDays), magic_url: magicUrl,
@@ -715,7 +718,7 @@ module.exports = function createTaxSenders(deps) {
 
     const defaults = { subject, text, html };
     const vars = {
-      customer_name: cust.name || '', practice_name: practiceName,
+      customer_name: displayNameOf(cust) || cust.name || '', customer_first_name: firstNameOf(cust), practice_name: practiceName,
       file_name: doc.file_name || '', portal_url: portalUrl || '',
     };
     const finalCopy = await applyOverride({
@@ -799,7 +802,7 @@ module.exports = function createTaxSenders(deps) {
 
     const defaults = { subject, text, html };
     const vars = {
-      customer_name: cust.name || '', practice_name: practiceName,
+      customer_name: displayNameOf(cust) || cust.name || '', customer_first_name: firstNameOf(cust), practice_name: practiceName,
       title: request.title || '', description: request.description || '',
       sign_url: signUrl || '',
     };
@@ -866,7 +869,7 @@ module.exports = function createTaxSenders(deps) {
 
     const defaults = { subject, text: body, html };
     const vars = {
-      employee_name: emp.name || '', practice_name: practiceName,
+      employee_name: displayNameOf(emp) || emp.name || '', employee_first_name: firstNameOf(emp), practice_name: practiceName,
       customer_name: custName, customer_email: customer?.email || '',
       title: request.title || '', customer_url: customerUrl || '',
     };
@@ -942,7 +945,7 @@ module.exports = function createTaxSenders(deps) {
 
     const msgDefaults = { subject, text, html };
     const msgVars = {
-      customer_name: cust.name || '', practice_name: practiceName,
+      customer_name: displayNameOf(cust) || cust.name || '', customer_first_name: firstNameOf(cust), practice_name: practiceName,
       thread_subject: thread?.subject || '', portal_url: portalUrl || '',
       author_name: message?.author_name || practiceName,
       message_preview: message?.body || '',
@@ -1210,7 +1213,7 @@ module.exports = function createTaxSenders(deps) {
 
     const wDefaults = { subject, text, html };
     const wVars = {
-      customer_name: cust.name || '', practice_name: practiceName,
+      customer_name: displayNameOf(cust) || cust.name || '', customer_first_name: firstNameOf(cust), practice_name: practiceName,
       customer_email: to, portal_url: portalUrl || '',
       relationships_list: relNames.join(', '),
     };
@@ -1380,7 +1383,7 @@ module.exports = function createTaxSenders(deps) {
 
     const sDefaults = { subject, text, html };
     const sVars = {
-      staff_name: emp.name || '', practice_name: practiceName,
+      staff_name: displayNameOf(emp) || emp.name || '', staff_first_name: firstNameOf(emp), practice_name: practiceName,
       staff_email: to, role: emp.role || 'staff', role_label: roleLabel,
       employee_url: employeeUrl || '',
     };

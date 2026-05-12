@@ -5,6 +5,7 @@ import { taxApi, setImpersonation } from '../api';
 import EmployeeShell from '../components/EmployeeShell';
 
 import { formatLastSignIn } from '../lib/lastSignIn';
+import { displayPersonName } from '../lib/personName';
 
 // Category display order mirrors OwnerCustomers so the chip groups feel
 // consistent between the customer browser and the assignment manager.
@@ -81,7 +82,7 @@ export default function OwnerStaffDetail({ employeeId }) {
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, marginTop: 8 }}>
         <div style={{ minWidth: 0, flex: 1 }}>
           <h2 style={{ margin: 0, marginBottom: 4 }}>
-            {emp.name || emp.email}
+            {displayPersonName(emp) || emp.email}
             <span style={{
               marginLeft: 12, padding: '2px 10px', borderRadius: 999,
               background: emp.role === 'admin' ? 'var(--tax-brand-primary)' : 'var(--tax-bg-alt)',
@@ -309,7 +310,7 @@ function AssignmentManager({ assignments, customers, empId, auth, onChange, t, l
   });
 
   filtered.sort((a, b) =>
-    (a.name || a.email || '').localeCompare(b.name || b.email || ''));
+    (displayPersonName(a) || a.email || '').localeCompare(displayPersonName(b) || b.email || ''));
 
   // Group by first letter only when not searching — search results stay
   // flat so the rows the owner is hunting for aren't broken across
@@ -318,7 +319,7 @@ function AssignmentManager({ assignments, customers, empId, auth, onChange, t, l
     if (q) return [{ letter: null, rows: filtered }];
     const map = new Map();
     for (const c of filtered) {
-      const l = bucketLetter(c.name || c.email);
+      const l = bucketLetter(displayPersonName(c) || c.email);
       if (!map.has(l)) map.set(l, []);
       map.get(l).push(c);
     }
@@ -542,7 +543,7 @@ function AssignmentManager({ assignments, customers, empId, auth, onChange, t, l
               }}>
                 <input type="checkbox" checked={isAssigned} onChange={() => onToggle(c.id)} />
                 <div style={{ minWidth: 0, flex: 1 }}>
-                  <div style={{ fontWeight: 600 }}>{c.name || c.email}</div>
+                  <div style={{ fontWeight: 600 }}>{displayPersonName(c) || c.email}</div>
                   <div style={{ fontSize: 12, color: 'var(--tax-muted)' }}>{c.email}</div>
                 </div>
                 {wasAssigned && (
@@ -611,7 +612,7 @@ function ImpersonateEmployeeButton({ employee: emp, auth, community, t }) {
   const [err, setErr] = useState('');
 
   const onClick = async () => {
-    if (!window.confirm(t('impersonation.confirm.employee', { name: emp.name || emp.email }))) return;
+    if (!window.confirm(t('impersonation.confirm.employee', { name: displayPersonName(emp) || emp.email }))) return;
     setBusy(true); setErr('');
     try {
       const r = await taxApi.adminStartImpersonation(auth, {
@@ -624,7 +625,7 @@ function ImpersonateEmployeeButton({ employee: emp, auth, community, t }) {
         targetType: 'employee',
         targetId: emp.id,
         targetEmail: emp.email,
-        targetName: emp.name || emp.email,
+        targetName: displayPersonName(emp) || emp.email,
         communitySlug: community.id,
         realAdminEmail: auth.adminEmail || auth.email,
         realAdminUid: auth.uid,
@@ -659,7 +660,7 @@ function ArchiveEmployeeButton({ emp, auth, onChanged, t }) {
 
   const onClick = async () => {
     if (!isArchived) {
-      if (!window.confirm(t('owner.staffDetail.archive.confirm', { name: emp.name || emp.email }))) return;
+      if (!window.confirm(t('owner.staffDetail.archive.confirm', { name: displayPersonName(emp) || emp.email }))) return;
     }
     setBusy(true); setMsg({ kind: 'idle', text: '' });
     try {
