@@ -327,7 +327,7 @@ module.exports = function createTaxRouter(deps) {
 
     const { data: products, error: pErr } = await supabase
       .from('tax_products')
-      .select('id, slug, category, enabled, display_order, name_i18n, description_i18n, icon')
+      .select('id, slug, category, enabled, display_order, name_i18n, description_i18n, long_description_i18n, required_documents, icon')
       .eq('community_id', slug)
       .eq('enabled', true)
       .order('display_order', { ascending: true });

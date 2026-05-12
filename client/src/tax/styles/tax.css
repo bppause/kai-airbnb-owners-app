@@ -150,6 +150,57 @@
 }
 .tax-service-card h3 { margin: 4px 0 0; font-size: 17px; }
 .tax-service-card p { margin: 0; color: var(--tax-muted); font-size: 14px; }
+/* Clickable-card variant: same look but reset button defaults. */
+.tax-service-card--button {
+  font: inherit; color: inherit; text-align: left; cursor: pointer;
+  width: 100%;
+}
+.tax-service-card--button:focus-visible {
+  outline: 2px solid var(--tax-brand-primary); outline-offset: 2px;
+}
+.tax-service-card__more {
+  margin-top: auto; padding-top: 6px;
+  color: var(--tax-brand-primary); font-size: 13px; font-weight: 600;
+}
+
+/* ── Service-detail modal ───────────────────────────────────────────────── */
+.tax-modal {
+  position: fixed; inset: 0; z-index: 100;
+  background: rgba(15, 23, 42, .55);
+  display: flex; align-items: flex-start; justify-content: center;
+  padding: 40px 16px; overflow-y: auto;
+  animation: tax-modal-fade .12s ease;
+}
+@keyframes tax-modal-fade { from { opacity: 0 } to { opacity: 1 } }
+.tax-modal__panel {
+  position: relative; background: #fff;
+  border-radius: var(--tax-radius);
+  box-shadow: 0 20px 60px rgba(15, 23, 42, .25);
+  width: 100%; max-width: 560px;
+  padding: 32px 28px 24px; display: grid; gap: 12px;
+  animation: tax-modal-pop .15s ease;
+}
+@keyframes tax-modal-pop { from { transform: translateY(8px); opacity: 0 } to { transform: translateY(0); opacity: 1 } }
+.tax-modal__close {
+  position: absolute; top: 10px; right: 12px;
+  border: 0; background: transparent; cursor: pointer;
+  font-size: 26px; line-height: 1; color: var(--tax-muted);
+  padding: 4px 10px; border-radius: 6px;
+}
+.tax-modal__close:hover { background: var(--tax-bg-alt); color: var(--tax-text); }
+.tax-modal__title { margin: 0; font-size: 22px; }
+.tax-modal__desc { margin: 0; color: var(--tax-muted); font-size: 15px; }
+.tax-modal__longdesc { display: grid; gap: 10px; }
+.tax-modal__longdesc p { margin: 0; font-size: 14px; line-height: 1.55; }
+.tax-modal__section h4 {
+  margin: 8px 0 4px; font-size: 12px; text-transform: uppercase;
+  letter-spacing: .5px; color: var(--tax-muted);
+}
+.tax-modal__section ul { margin: 0; padding-left: 18px; font-size: 14px; line-height: 1.55; }
+.tax-modal__actions {
+  display: flex; gap: 8px; margin-top: 12px;
+  padding-top: 12px; border-top: 1px solid var(--tax-border);
+}
 
 /* ── Lead form ──────────────────────────────────────────────────────────── */
 .tax-form {
