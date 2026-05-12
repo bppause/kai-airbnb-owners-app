@@ -1536,6 +1536,29 @@ module.exports = function createTaxRouter(deps) {
     res.json({ ok: true, allowCustomerChange: allowChange });
   });
 
+  // Owner toggle for customer-side document uploads. Default is OFF — the
+  // schema column defaults to false. When enabled, the customer portal
+  // exposes the Documents page and the upload endpoints accept new files;
+  // when disabled, both UI and API reject.
+  router.put('/admin/community-settings/documents-enabled', async (req, res) => {
+    if (!(await requireOwnerAdmin(req, res))) return;
+    const communitySlug = trim(req.body?.communitySlug, 200);
+    const enabled = Boolean(req.body?.enabled);
+    if (!communitySlug) return res.status(400).json({ error: 'communitySlug required.' });
+    const { error } = await supabase.from('communities')
+      .update({ tax_customer_documents_enabled: enabled, updated_at: new Date().toISOString() })
+      .eq('id', communitySlug).eq('business_type', TAX_BUSINESS_TYPE);
+    if (error) return sendSupabaseError(res, error);
+    try {
+      await auditLog({
+        entity: 'tax.community.settings', entityId: communitySlug,
+        action: enabled ? 'documents_enable' : 'documents_disable',
+        actorEmail: trim(req.get('x-firebase-email') || req.get('x-admin-email') || '', 200).toLowerCase(),
+      });
+    } catch (_e) {}
+    res.json({ ok: true, enabled });
+  });
+
   // ── Phase 4b admin endpoints ───────────────────────────────────────────────
 
   // GET /admin/community-settings?communitySlug=  — companion read for the
@@ -1546,7 +1569,7 @@ module.exports = function createTaxRouter(deps) {
     if (!communitySlug) return res.status(400).json({ error: 'communitySlug required.' });
     const { data, error } = await supabase.from('communities')
       .select(`
-        id, name, tax_allow_customer_notif_pref_change,
+        id, name, tax_allow_customer_notif_pref_change, tax_customer_documents_enabled,
         contact_email, phone, whatsapp,
         address_line1, address_line2, city, state, postal_code, country,
         default_locale
@@ -2136,7 +2159,7 @@ module.exports = function createTaxRouter(deps) {
     stampLastSignIn('tax_customers', customer.id, customer.last_sign_in_at);
     const [{ data: community }, { data: subs }, { data: rels }, { data: companion }] = await Promise.all([
       supabase.from('communities')
-        .select('id, name, logo_url, brand_primary_color, brand_secondary_color, default_locale, tax_allow_customer_notif_pref_change, contact_email, phone')
+        .select('id, name, logo_url, brand_primary_color, brand_secondary_color, default_locale, tax_allow_customer_notif_pref_change, tax_customer_documents_enabled, contact_email, phone')
         .eq('id', customer.community_id).maybeSingle(),
       supabase.from('tax_subscriptions')
         .select('id, product_id, status, reminder_channels, reminder_offsets_days')
@@ -4056,6 +4079,16 @@ module.exports = function createTaxRouter(deps) {
   // PUTs the file directly to Supabase Storage and calls /finalize.
   router.post('/portal/documents/upload-url', async (req, res) => {
     const customer = await requireTaxCustomer(req, res); if (!customer) return;
+    // Per-community gate: when documents uploads are disabled, refuse with
+    // a 403 so any stale client UI surfaces a clear error rather than
+    // succeeding silently.
+    const { data: comm } = await supabase.from('communities')
+      .select('tax_customer_documents_enabled')
+      .eq('id', customer.community_id).maybeSingle();
+    if (!comm?.tax_customer_documents_enabled) {
+      return res.status(403).json({ error: 'documents_disabled',
+        message: 'Document uploads are disabled for this practice.' });
+    }
     const body = req.body || {};
     const fileName = sanitizeFileName(body.fileName);
     const mimeType = trim(body.mimeType, 200).toLowerCase();

@@ -229,6 +229,7 @@ export const taxApi = {
   // Phase 4b — subscriptions, leads, community settings
   adminGetCommunitySettings(auth, communitySlug) { return request('GET',  `/admin/community-settings?communitySlug=${encodeURIComponent(communitySlug)}`, undefined, auth, { admin: true }); },
   adminSetNotifLock(auth, payload)               { return request('PUT',  '/admin/community-settings/notif-lock', payload, auth, { admin: true }); },
+  adminSetDocumentsEnabled(auth, payload)        { return request('PUT',  '/admin/community-settings/documents-enabled', payload, auth, { admin: true }); },
 
   adminListProducts(auth, communitySlug)         { return request('GET',  `/admin/products?communitySlug=${encodeURIComponent(communitySlug)}`, undefined, auth, { admin: true }); },
   adminUpdateProduct(auth, productId, payload)   { return request('PUT',  `/admin/products/${encodeURIComponent(productId)}`, payload, auth, { admin: true }); },
