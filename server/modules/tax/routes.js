@@ -1154,26 +1154,10 @@ module.exports = function createTaxRouter(deps) {
       } catch (e) { warn('[tax-task-cron] svc gen failed', e?.message || e); }
     }
 
-    // Back-compat: also walk the legacy relationship table for
-    // tenants that haven't been migrated yet. The generators are
-    // idempotent, so a customer with both rows just no-ops the
-    // second pass.
-    const { data: relRows } = await supabase
-      .from('tax_customer_relationships')
-      .select('customer_id, relationship_type_id')
-      .eq('active', true)
-      .limit(20000);
-    for (const r of relRows || []) {
-      scanned++;
-      try {
-        const out = await generateTasksForRelationship({
-          customerId: r.customer_id,
-          relationshipTypeId: r.relationship_type_id,
-          actorEmail: 'task-cron',
-        });
-        created += out.created || 0;
-      } catch (e) { warn('[tax-task-cron] rel gen failed', e?.message || e); }
-    }
+    // Phase 4n.50: the legacy tax_customer_relationships table is
+    // retired for customer tagging — services drive everything now,
+    // and the schema migration cleared those rows. The cron loop
+    // intentionally no longer iterates that table.
     return { scanned, created };
   }
 

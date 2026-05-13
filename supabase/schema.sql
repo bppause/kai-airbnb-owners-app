@@ -2923,3 +2923,17 @@ alter table public.communities
   add column if not exists tax_task_priority_colors jsonb not null default '{}'::jsonb;
 alter table public.communities
   add column if not exists tax_task_urgency_colors  jsonb not null default '{}'::jsonb;
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- Phase 4n.50 — retire legacy per-customer relationship tags
+--
+-- Customer-side tagging now lives in tax_customer_services (Phase
+-- 4n.48). The tax_customer_relationships table stayed around as
+-- backwards-compat for the daily cron, but the customer detail UI
+-- no longer authors it and the new generator path (services →
+-- auto-tasks) covers the same ground. Clear the rows so the
+-- "ghost tags" don't keep surfacing in any old report. The
+-- relationship_types catalog itself stays — FAQs and articles
+-- still categorize by it.
+-- ═══════════════════════════════════════════════════════════════════════════════
+delete from public.tax_customer_relationships;
