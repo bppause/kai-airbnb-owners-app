@@ -3635,6 +3635,175 @@ module.exports = function createTaxRouter(deps) {
   //     }],
   //   }
   // Staff see only customers in their assignment set.
+  // ── GET /admin/dashboard ────────────────────────────────────────────────
+  // Today-page feed for the staff portal. One call returns the four KPI
+  // numbers + three short lists the operator most needs at a glance:
+  //   • Top urgent tasks (overdue + due-today), capped at 8
+  //   • Newest leads from the last 7 days, capped at 6
+  //   • Customers needing attention (sorted by overdue count), capped at 5
+  // Staff users get every list scoped to their assigned customers; admin
+  // sees the whole community.
+  router.get('/admin/dashboard', async (req, res) => {
+    const emp = await requireTaxEmployee(req, res); if (!emp) return;
+    const communitySlug = trim(req.query.communitySlug, 200) || emp.community_id;
+    if (communitySlug !== emp.community_id && emp.role !== 'admin') {
+      return res.status(403).json({ error: 'Wrong community.' });
+    }
+
+    const today = new Date().toISOString().slice(0, 10);
+    const ninetyDaysAgo = new Date(); ninetyDaysAgo.setUTCDate(ninetyDaysAgo.getUTCDate() - 90);
+    const thirtyDaysAgo = new Date(); thirtyDaysAgo.setUTCDate(thirtyDaysAgo.getUTCDate() - 30);
+    const sevenDaysAgo  = new Date(); sevenDaysAgo.setUTCDate(sevenDaysAgo.getUTCDate() - 7);
+
+    // Determine the visible-customers set ONCE; reuse across queries.
+    let allowedCustomerIds = null; // null = all (admin)
+    if (emp.role !== 'admin') {
+      const visible = await getVisibleCustomerIdsForEmployee(emp);
+      allowedCustomerIds = Array.isArray(visible) ? visible : [];
+    }
+    const scopedToNothing = Array.isArray(allowedCustomerIds) && allowedCustomerIds.length === 0;
+
+    // Terminal statuses to exclude from "open" counts.
+    const { data: statusOpts } = await supabase.from('tax_task_status_options')
+      .select('key, is_terminal').eq('community_id', communitySlug);
+    const terminalKeys = (statusOpts || []).filter(s => s.is_terminal).map(s => s.key);
+
+    // Open tasks (everything not completed and not in a terminal status).
+    let openQ = supabase.from('tax_tasks')
+      .select(`
+        id, customer_id, product_id, title, status_key, priority, due_date, completed_at,
+        assigned_employee_id,
+        customer:tax_customers ( id, name, business_name, first_name, middle_name, last_name, email ),
+        product:tax_products ( id, slug, name_i18n )
+      `)
+      .eq('community_id', communitySlug)
+      .is('archived_at', null)
+      .is('completed_at', null);
+    if (terminalKeys.length) openQ = openQ.not('status_key', 'in', `(${terminalKeys.map(k => `"${k}"`).join(',')})`);
+    if (scopedToNothing) openQ = openQ.eq('id', '__none__'); // returns nothing
+    else if (allowedCustomerIds) openQ = openQ.in('customer_id', allowedCustomerIds);
+    const { data: openTasks, error: openErr } = await openQ.limit(2000);
+    if (openErr) return sendSupabaseError(res, openErr);
+
+    // Completion rate over the last 30 days. Count tasks that completed
+    // in the window vs tasks whose due_date fell in the window.
+    let completedQ = supabase.from('tax_tasks')
+      .select('id', { count: 'exact', head: true })
+      .eq('community_id', communitySlug)
+      .gte('completed_at', thirtyDaysAgo.toISOString())
+      .is('archived_at', null);
+    if (scopedToNothing) completedQ = completedQ.eq('id', '__none__');
+    else if (allowedCustomerIds) completedQ = completedQ.in('customer_id', allowedCustomerIds);
+    const { count: completedCount } = await completedQ;
+
+    let dueQ = supabase.from('tax_tasks')
+      .select('id', { count: 'exact', head: true })
+      .eq('community_id', communitySlug)
+      .gte('due_date', thirtyDaysAgo.toISOString().slice(0, 10))
+      .lte('due_date', today)
+      .is('archived_at', null);
+    if (scopedToNothing) dueQ = dueQ.eq('id', '__none__');
+    else if (allowedCustomerIds) dueQ = dueQ.in('customer_id', allowedCustomerIds);
+    const { count: dueCount } = await dueQ;
+
+    // Leads — admin only (staff can't access leads in this app). Last 7
+    // days + 30-day conversion rate.
+    let newLeads = [];
+    let newLeads7d = 0;
+    let leadsCount30d = 0;
+    let convertedCount30d = 0;
+    if (emp.role === 'admin') {
+      const { data: recent } = await supabase.from('tax_leads')
+        .select('id, community_id, name, first_name, last_name, email, phone, product_slugs, product_slug, message, status, created_at')
+        .eq('community_id', communitySlug)
+        .gte('created_at', sevenDaysAgo.toISOString())
+        .order('created_at', { ascending: false })
+        .limit(50);
+      newLeads = (recent || []).filter(l => l.status !== 'converted' && l.status !== 'closed').slice(0, 6);
+      newLeads7d = (recent || []).length;
+
+      const { count: leadCount } = await supabase.from('tax_leads')
+        .select('id', { count: 'exact', head: true })
+        .eq('community_id', communitySlug)
+        .gte('created_at', thirtyDaysAgo.toISOString());
+      leadsCount30d = leadCount || 0;
+
+      const { count: convCount } = await supabase.from('tax_leads')
+        .select('id', { count: 'exact', head: true })
+        .eq('community_id', communitySlug)
+        .eq('status', 'converted')
+        .gte('updated_at', thirtyDaysAgo.toISOString());
+      convertedCount30d = convCount || 0;
+    }
+
+    // Tally KPIs + sort the urgent task list.
+    let dueToday = 0, overdue = 0, inProgress = 0;
+    const taskHealthByCustomer = new Map();
+    for (const t of openTasks || []) {
+      if (t.due_date === today) dueToday++;
+      if (t.due_date && t.due_date < today) overdue++;
+      if (t.status_key === 'in_progress') inProgress++;
+      if (!t.customer_id) continue;
+      const slot = taskHealthByCustomer.get(t.customer_id)
+                || { customer: t.customer, open: 0, overdue: 0 };
+      slot.open++;
+      if (t.due_date && t.due_date < today) slot.overdue++;
+      taskHealthByCustomer.set(t.customer_id, slot);
+    }
+
+    // Sort tasks so the most urgent surface first: overdue → due today
+    // → upcoming. Within each bucket, highest priority first.
+    const priorityRank = { urgent: 0, high: 1, normal: 2, low: 3 };
+    const sortedTasks = (openTasks || []).slice().sort((a, b) => {
+      const aOverdue = a.due_date && a.due_date < today ? 0 : 1;
+      const bOverdue = b.due_date && b.due_date < today ? 0 : 1;
+      if (aOverdue !== bOverdue) return aOverdue - bOverdue;
+      const aToday = a.due_date === today ? 0 : 1;
+      const bToday = b.due_date === today ? 0 : 1;
+      if (aToday !== bToday) return aToday - bToday;
+      const pa = priorityRank[a.priority] ?? 4;
+      const pb = priorityRank[b.priority] ?? 4;
+      if (pa !== pb) return pa - pb;
+      return (a.due_date || '9999-99-99').localeCompare(b.due_date || '9999-99-99');
+    });
+    const urgentTasks = sortedTasks.slice(0, 8);
+
+    // Customers needing attention — sorted by overdue desc, open desc.
+    const needsAttention = Array.from(taskHealthByCustomer.entries())
+      .map(([id, slot]) => ({ id, ...slot }))
+      .filter(s => s.overdue > 0)
+      .sort((a, b) => (b.overdue - a.overdue) || (b.open - a.open))
+      .slice(0, 5);
+
+    res.json({
+      role: emp.role,
+      kpis: {
+        tasks_due_today: dueToday,
+        tasks_overdue: overdue,
+        tasks_in_progress: inProgress,
+        tasks_open_total: (openTasks || []).length,
+        new_leads_7d: newLeads7d,
+        completion_rate_30d: {
+          completed: completedCount || 0,
+          due: dueCount || 0,
+          pct: (dueCount || 0) > 0
+            ? Math.round(((completedCount || 0) / (dueCount || 1)) * 100)
+            : null,
+        },
+        lead_conversion_30d: {
+          converted: convertedCount30d,
+          total: leadsCount30d,
+          pct: leadsCount30d > 0
+            ? Math.round((convertedCount30d / leadsCount30d) * 100)
+            : null,
+        },
+      },
+      urgentTasks,
+      newLeads,
+      needsAttention,
+    });
+  });
+
   router.get('/admin/progress', async (req, res) => {
     const emp = await requireTaxEmployee(req, res); if (!emp) return;
     const communitySlug = trim(req.query.communitySlug, 200) || emp.community_id;
