@@ -1093,22 +1093,45 @@ module.exports = function createTaxRouter(deps) {
       }
       if (!rows.length) continue;
 
-      const onConflict = isAutoTask
-        ? 'customer_id,service_auto_task_id,period_key'
-        : isProductCadence
-          ? 'customer_id,product_id,period_key'
-          : 'customer_id,schedule_id,period_key';
-      const { error: upsertErr, count } = await supabase.from('tax_tasks')
-        .upsert(rows, {
-          onConflict,
-          ignoreDuplicates: true,
-          count: 'exact',
-        });
-      if (upsertErr) {
-        warn('[tax-task-gen] upsert failed', upsertErr.message);
+      // Idempotency by SELECT-then-INSERT. The partial unique indexes
+      // on tax_tasks (all gated on `archived_at is null`) can't be
+      // used as ON CONFLICT arbiters without a matching WHERE
+      // predicate on the INSERT statement, which PostgREST's upsert
+      // helper doesn't emit — the upsert would error out and zero
+      // rows would land. Looking up existing period_keys for this
+      // (customer, arbiter) and inserting only the missing rows is
+      // equivalent and unambiguous.
+      const periodKeys = rows.map(r => r.period_key);
+      let existingKeys = new Set();
+      if (periodKeys.length) {
+        let existingQ = supabase.from('tax_tasks')
+          .select('period_key')
+          .eq('customer_id', cust.id)
+          .in('period_key', periodKeys)
+          .is('archived_at', null);
+        if (isAutoTask) {
+          existingQ = existingQ.eq('service_auto_task_id', sched.service_auto_task_id);
+        } else if (isProductCadence) {
+          existingQ = existingQ.eq('product_id', sched.product_id).is('schedule_id', null);
+        } else {
+          existingQ = existingQ.eq('schedule_id', sched.id);
+        }
+        const { data: existing, error: selErr } = await existingQ;
+        if (selErr) {
+          warn('[tax-task-gen] dedup select failed', selErr.message);
+          continue;
+        }
+        existingKeys = new Set((existing || []).map(r => r.period_key));
+      }
+      const fresh = rows.filter(r => !existingKeys.has(r.period_key));
+      if (!fresh.length) continue;
+      const { error: insertErr, count } = await supabase.from('tax_tasks')
+        .insert(fresh, { count: 'exact' });
+      if (insertErr) {
+        warn('[tax-task-gen] insert failed', insertErr.message);
         continue;
       }
-      created += count || rows.length;
+      created += count || fresh.length;
     }
 
     if (created > 0) {
@@ -1303,11 +1326,31 @@ module.exports = function createTaxRouter(deps) {
         });
       }
       if (!rows.length) continue;
-      const { count } = await supabase.from('tax_tasks').upsert(rows, {
-        onConflict: 'customer_id,service_auto_task_id,period_key',
-        ignoreDuplicates: true, count: 'exact',
-      });
-      created += count || rows.length;
+      // SELECT existing keys, INSERT only what's missing. See the
+      // note in generateTasksForRelationship for why we avoid
+      // PostgREST upsert here — the partial unique index can't be
+      // inferred as an ON CONFLICT arbiter.
+      const periodKeys = rows.map(r => r.period_key);
+      const { data: existing, error: selErr } = await supabase.from('tax_tasks')
+        .select('period_key')
+        .eq('customer_id', cust.id)
+        .eq('service_auto_task_id', at.id)
+        .in('period_key', periodKeys)
+        .is('archived_at', null);
+      if (selErr) {
+        warn('[tax-task-gen-direct] dedup select failed', selErr.message);
+        continue;
+      }
+      const existingKeys = new Set((existing || []).map(r => r.period_key));
+      const fresh = rows.filter(r => !existingKeys.has(r.period_key));
+      if (!fresh.length) continue;
+      const { error: insertErr, count } = await supabase.from('tax_tasks')
+        .insert(fresh, { count: 'exact' });
+      if (insertErr) {
+        warn('[tax-task-gen-direct] insert failed', insertErr.message);
+        continue;
+      }
+      created += count || fresh.length;
     }
     if (created > 0) {
       try {
@@ -2586,11 +2629,35 @@ module.exports = function createTaxRouter(deps) {
       if (error) return sendSupabaseError(res, error);
     }
 
+    // Fan out task generation to every customer currently tagged
+    // with this service so a freshly-added auto-task immediately
+    // produces tasks (otherwise the owner has to wait for the daily
+    // cron, which feels broken). Idempotent — existing periods are
+    // no-ops, only the new auto-task's periods show up.
+    let tasksCreated = 0;
+    try {
+      const { data: tagged } = await supabase.from('tax_customer_services')
+        .select('customer_id').eq('product_id', productId).eq('active', true);
+      const actorEmail = trim(req.get('x-firebase-email') || req.get('x-admin-email') || '', 200).toLowerCase();
+      for (const row of tagged || []) {
+        try {
+          const r = await generateTasksForService({
+            customerId: row.customer_id, productId, actorEmail,
+          });
+          tasksCreated += r.created || 0;
+        } catch (e) {
+          warn('[tax-auto-tasks-replace] fanout gen failed', e?.message || e);
+        }
+      }
+    } catch (e) {
+      warn('[tax-auto-tasks-replace] fanout query failed', e?.message || e);
+    }
+
     try {
       await auditLog({
         entity: 'tax.product', entityId: productId, action: 'auto_tasks_replace',
         actorEmail: trim(req.get('x-firebase-email') || req.get('x-admin-email') || '', 200).toLowerCase(),
-        after: { updated: updates.length, inserted: inserts.length, deleted: removeIds.length },
+        after: { updated: updates.length, inserted: inserts.length, deleted: removeIds.length, tasksCreated },
       });
     } catch (_e) {}
 
@@ -2598,7 +2665,7 @@ module.exports = function createTaxRouter(deps) {
       .select('id, community_id, product_id, title_i18n, description_i18n, cadence_kind, anchor_rule, default_priority, display_order, active')
       .eq('product_id', productId)
       .order('display_order', { ascending: true });
-    res.json({ ok: true, autoTasks: fresh || [] });
+    res.json({ ok: true, autoTasks: fresh || [], tasksCreated });
   });
 
   // ── DELETE /admin/products/:id ──────────────────────────────────────────
@@ -4213,7 +4280,7 @@ module.exports = function createTaxRouter(deps) {
     let q = supabase.from('tax_tasks')
       .select(`
         id, customer_id, product_id, status_key, due_date, completed_at,
-        customer:tax_customers ( id, name, first_name, middle_name, last_name, email ),
+        customer:tax_customers ( id, name, business_name, first_name, middle_name, last_name, email ),
         product:tax_products ( id, slug, name_i18n )
       `)
       .eq('community_id', communitySlug)
@@ -5008,7 +5075,7 @@ module.exports = function createTaxRouter(deps) {
         id, community_id, customer_id, product_id, title, status_key, priority,
         assigned_employee_id, created_by_employee_id,
         due_date, notes, completed_at, created_at, updated_at,
-        customer:tax_customers ( id, name, first_name, middle_name, last_name, email ),
+        customer:tax_customers ( id, name, business_name, first_name, middle_name, last_name, email, phone, whatsapp, address ),
         product:tax_products ( id, slug, name_i18n, category ),
         assignee:tax_employees!tax_tasks_assigned_employee_id_fkey ( id, name, email ),
         creator:tax_employees!tax_tasks_created_by_employee_id_fkey ( id, name, email )
@@ -5056,10 +5123,43 @@ module.exports = function createTaxRouter(deps) {
            .lte('due_date', horizon.toISOString().slice(0, 10));
     }
 
+    // Search spans the task title and the customer's contact fields:
+    // company name, person name, email, phone, WhatsApp, and the
+    // free-text portions of the address JSON. Customer-side matches
+    // are resolved by pre-fetching matching customer IDs in this
+    // community, then OR-joining to the task query so a single search
+    // box covers both.
     const search = trim(req.query.q || '', 200);
     if (search) {
       const safe = search.replace(/[,.%_()*]/g, ' ').trim();
-      if (safe) q = q.ilike('title', `%${safe}%`);
+      if (safe) {
+        const like = `%${safe}%`;
+        let matchedCustomerIds = [];
+        try {
+          const { data: matched } = await supabase.from('tax_customers')
+            .select('id')
+            .eq('community_id', communitySlug)
+            .or([
+              `name.ilike.${like}`,
+              `business_name.ilike.${like}`,
+              `first_name.ilike.${like}`,
+              `last_name.ilike.${like}`,
+              `email.ilike.${like}`,
+              `phone.ilike.${like}`,
+              `whatsapp.ilike.${like}`,
+              `address::text.ilike.${like}`,
+            ].join(','))
+            .limit(500);
+          matchedCustomerIds = (matched || []).map(r => r.id);
+        } catch (e) {
+          warn('[tax-tasks-search] customer prefetch failed', e?.message || e);
+        }
+        const orClauses = [`title.ilike.${like}`];
+        if (matchedCustomerIds.length) {
+          orClauses.push(`customer_id.in.(${matchedCustomerIds.join(',')})`);
+        }
+        q = q.or(orClauses.join(','));
+      }
     }
 
     const limit = Math.min(500, Math.max(1, Number(req.query.limit) || 200));

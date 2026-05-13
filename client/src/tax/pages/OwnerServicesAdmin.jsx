@@ -501,6 +501,11 @@ function buildAnchorRuleFromForm(at) {
 // live preview of the next 3 due dates. Designed to stack — owner
 // can add many.
 function AutoTaskEditor({ value: at, index, serviceName, onChange, onRemove, t }) {
+  // Default: collapsed for existing rows (so a service with many
+  // auto-tasks scans like a list), expanded for new ones the owner
+  // just clicked + Add for.
+  const [expanded, setExpanded] = useState(!at.id);
+
   const preview = useMemo(() => {
     if (!at.cadenceKind || at.cadenceKind === 'none') return [];
     try { return generatePeriods(buildAnchorRuleFromForm(at), new Date(), 3); }
@@ -509,22 +514,73 @@ function AutoTaskEditor({ value: at, index, serviceName, onChange, onRemove, t }
 
   const titleLive = at.titleEn || at.titleEs || `${t('owner.services.autoTasks.untitled')} #${index + 1}`;
 
+  // Single-line cadence summary for the collapsed header — e.g.
+  // "Monthly · day 15", "Annual · Jan 15", "Weekly · Monday".
+  const WEEKDAYS = [
+    t('owner.services.weekday.sun', { _: 'Sun' }),
+    t('owner.services.weekday.mon'),
+    t('owner.services.weekday.tue'),
+    t('owner.services.weekday.wed'),
+    t('owner.services.weekday.thu'),
+    t('owner.services.weekday.fri'),
+    t('owner.services.weekday.sat', { _: 'Sat' }),
+  ];
+  const MONTHS_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  let cadenceSummary = '';
+  if (at.cadenceKind === 'weekly') {
+    cadenceSummary = `${t('owner.services.cadence.weekly')} · ${WEEKDAYS[Number(at.weekday) || 1]}`;
+  } else if (at.cadenceKind === 'monthly') {
+    cadenceSummary = `${t('owner.services.cadence.monthly')} · ${t('owner.services.cadence.dayLabel')} ${at.day}`;
+  } else if (at.cadenceKind === 'quarterly') {
+    cadenceSummary = `${t('owner.services.cadence.quarterly')} · ${t('owner.services.cadence.dayLabel')} ${at.day}`;
+  } else if (at.cadenceKind === 'annual') {
+    const m = MONTHS_SHORT[(Number(at.month) || 1) - 1] || '';
+    cadenceSummary = `${t('owner.services.cadence.annual')} · ${m} ${at.day}`;
+  } else {
+    cadenceSummary = t('owner.services.cadence.none');
+  }
+
   return (
     <div style={{
-      padding: 12, borderRadius: 8,
+      padding: expanded ? 12 : '8px 12px', borderRadius: 8,
       background: '#fff', border: '1px solid var(--tax-border)',
-      display: 'grid', gap: 10,
+      display: 'grid', gap: expanded ? 10 : 0,
     }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8 }}>
-        <div style={{ fontWeight: 600, fontSize: 13 }}>
-          {titleLive}
+      <button type="button"
+              onClick={() => setExpanded(v => !v)}
+              aria-expanded={expanded}
+              style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                gap: 8, padding: 0, border: 0, background: 'transparent',
+                cursor: 'pointer', textAlign: 'left', width: '100%',
+              }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0, flex: 1 }}>
+          <span aria-hidden="true" style={{
+            color: 'var(--tax-muted)', fontSize: 11,
+            transition: 'transform .12s ease',
+            transform: expanded ? 'rotate(90deg)' : 'rotate(0deg)',
+          }}>▶</span>
+          <span style={{ fontWeight: 600, fontSize: 13, whiteSpace: 'nowrap',
+                          overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            {titleLive}
+          </span>
+          <span style={{ fontSize: 11, color: 'var(--tax-muted)' }}>
+            · {cadenceSummary}
+            {at.defaultPriority && at.defaultPriority !== 'normal'
+              ? ` · ${t(`owner.tasks.priority.${at.defaultPriority}`)}`
+              : ''}
+          </span>
         </div>
-        <button type="button" onClick={onRemove}
-                style={{ border: 0, background: 'transparent', cursor: 'pointer',
-                         color: 'var(--tax-error)', fontSize: 12, fontWeight: 600 }}>
+        <span onClick={(e) => { e.stopPropagation(); onRemove(); }}
+              role="button" tabIndex={0}
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); onRemove(); } }}
+              style={{ color: 'var(--tax-error)', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
           × {t('owner.services.autoTasks.remove')}
-        </button>
-      </div>
+        </span>
+      </button>
+
+      {expanded && (
+      <>
 
       <div className="tax-form__row2">
         <div>
@@ -661,6 +717,8 @@ function AutoTaskEditor({ value: at, index, serviceName, onChange, onRemove, t }
             ))}
           </ul>
         </div>
+      )}
+      </>
       )}
     </div>
   );
