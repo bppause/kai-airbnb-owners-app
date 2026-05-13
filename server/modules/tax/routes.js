@@ -358,6 +358,50 @@ module.exports = function createTaxRouter(deps) {
     res.json({ community, products: products || [] });
   });
 
+  // ── GET /community/:slug/faqs ───────────────────────────────────────────
+  // Public landing-page feed of FAQs. Surfaces the merged "effective"
+  // set across every active relationship type for the community (no
+  // customer filter — anyone reading the marketing page sees the full
+  // catalog grouped by relationship). Empty `groups` is a legitimate
+  // result for new communities; the frontend hides the section.
+  router.get('/community/:slug/faqs', async (req, res) => {
+    if (!requireSupabaseEnv(res)) return;
+    const slug = trim(req.params.slug, 200);
+    if (!slug) return res.status(400).json({ error: 'Community slug required.' });
+    const { data: community } = await supabase.from('communities')
+      .select('id, business_type').eq('id', slug).maybeSingle();
+    if (!community || community.business_type !== TAX_BUSINESS_TYPE) {
+      return res.status(404).json({ error: 'Tax community not found.' });
+    }
+    try {
+      const data = await loadEffectiveFaqs({ communityId: slug, filterTypeIds: null });
+      res.json(data);
+    } catch (e) { res.status(500).json({ error: e?.message || 'Failed to load FAQs.' }); }
+  });
+
+  // ── GET /community/:slug/articles ───────────────────────────────────────
+  // Public landing-page feed of help articles. Surfaces the effective
+  // owner-audience articles (the "How we work" set the practice
+  // publishes), no customer filter. relationship_type joined so the
+  // frontend can group by service if helpful.
+  router.get('/community/:slug/articles', async (req, res) => {
+    if (!requireSupabaseEnv(res)) return;
+    const slug = trim(req.params.slug, 200);
+    if (!slug) return res.status(400).json({ error: 'Community slug required.' });
+    const { data: community } = await supabase.from('communities')
+      .select('id, business_type').eq('id', slug).maybeSingle();
+    if (!community || community.business_type !== TAX_BUSINESS_TYPE) {
+      return res.status(404).json({ error: 'Tax community not found.' });
+    }
+    try {
+      const articles = await loadEffectiveHelp({
+        communityId: slug, audience: 'customer',
+        customerRelationshipTypeIds: null,
+      });
+      res.json({ articles: Array.isArray(articles) ? articles : [] });
+    } catch (e) { res.status(500).json({ error: e?.message || 'Failed to load articles.' }); }
+  });
+
   // ── POST /leads ─────────────────────────────────────────────────────────────
   router.post('/leads', async (req, res) => {
     if (!requireSupabaseEnv(res)) return;

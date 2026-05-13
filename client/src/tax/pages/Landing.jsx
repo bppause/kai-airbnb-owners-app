@@ -4,6 +4,8 @@ import { taxApi } from '../api';
 import Header from '../components/Header';
 import Hero from '../components/Hero';
 import ServicesGrid from '../components/ServicesGrid';
+import FaqsSection from '../components/FaqsSection';
+import ArticlesSection from '../components/ArticlesSection';
 import About from '../components/About';
 import Contact from '../components/Contact';
 import Footer from '../components/Footer';
@@ -104,6 +106,8 @@ export default function Landing({ communitySlug }) {
       <Header community={community} />
       <Hero community={community} />
       <ServicesGrid products={products} onRequestService={onRequestService} />
+      <ArticlesSection communitySlug={communitySlug} />
+      <FaqsSection communitySlug={communitySlug} />
       <About />
       <Contact community={community} products={products}
                initialProductSlug={pendingService} />
