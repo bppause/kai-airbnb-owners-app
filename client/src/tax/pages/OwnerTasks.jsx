@@ -1648,6 +1648,24 @@ function TaskHover({ task, statuses, community, locale, t, children, side = 'bel
                 <span>{pickI18n(product.name_i18n, locale).value || product.slug}</span>
               </>
             )}
+            {task.auto_task && (
+              <>
+                <span style={{ color: 'var(--tax-muted)' }}>{t('owner.tasks.field.taskTemplate')}</span>
+                <span>{pickI18n(task.auto_task.title_i18n, locale).value || '—'}</span>
+                {task.auto_task.cadence_kind && task.auto_task.cadence_kind !== 'none' && (
+                  <>
+                    <span style={{ color: 'var(--tax-muted)' }}>{t('owner.tasks.field.frequency')}</span>
+                    <span>
+                      <span style={{
+                        display: 'inline-block', padding: '1px 8px', borderRadius: 999,
+                        background: 'var(--tax-bg-alt)', color: 'var(--tax-text)',
+                        fontSize: 11, fontWeight: 700,
+                      }}>{formatFrequency(task.auto_task.cadence_kind, task.auto_task.anchor_rule, t, locale)}</span>
+                    </span>
+                  </>
+                )}
+              </>
+            )}
             <span style={{ color: 'var(--tax-muted)' }}>{t('owner.tasks.field.priority')}</span>
             <span>
               <span style={{
