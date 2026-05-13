@@ -241,6 +241,10 @@ export const taxApi = {
 
   adminListProducts(auth, communitySlug)         { return request('GET',  `/admin/products?communitySlug=${encodeURIComponent(communitySlug)}`, undefined, auth, { admin: true }); },
   adminUpdateProduct(auth, productId, payload)   { return request('PUT',  `/admin/products/${encodeURIComponent(productId)}`, payload, auth, { admin: true }); },
+  adminDeleteProduct(auth, productId, opts = {}) {
+    const qs = opts.force ? '?force=1' : '';
+    return request('DELETE', `/admin/products/${encodeURIComponent(productId)}${qs}`, undefined, auth, { admin: true });
+  },
 
   adminListUpcomingReminders(auth, opts = {}) {
     const qs = new URLSearchParams();
