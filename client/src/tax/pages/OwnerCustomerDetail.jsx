@@ -3,7 +3,6 @@ import { pickI18n, useT } from '../i18n';
 import { useEmployeeAuth } from '../auth/EmployeeAuthProvider';
 import { taxApi, setImpersonation } from '../api';
 import EmployeeShell from '../components/EmployeeShell';
-import OwnerSubscriptionsSection from '../components/OwnerSubscriptionsSection';
 
 import { formatLastSignIn } from '../lib/lastSignIn';
 import { displayPersonName } from '../lib/personName';
@@ -93,7 +92,6 @@ export default function OwnerCustomerDetail({ customerId }) {
 
   const c = data.customer;
   const back = community ? `/tax/${community.id}/employee/customers` : '#';
-  const threadsBase = community ? `/tax/${community.id}/employee/threads` : '#';
 
   return (
     <EmployeeShell community={community} active="customers">
@@ -128,42 +126,34 @@ export default function OwnerCustomerDetail({ customerId }) {
         </div>
       )}
 
-      <ActivityTimelineSection auth={auth} customerId={customerId} locale={locale} t={t} />
-
+      {/* Phase 4n.41: simplified customer record. Retired sections
+          (Workflow Overrides, Reminder Activity, Inbox Threads,
+          Filings, Subscription Offsets) live as dead code below but
+          no longer render — workflows and customer-facing reminders
+          are gone, and tasks replaced filing-periods. The order
+          mirrors the new task-first model: Profile → who they are,
+          Relationships → which services drive their tasks, Tasks →
+          the work itself, Notes → internal commentary, the rest as
+          supporting context. */}
       <ProfileSection customer={c} auth={auth} customerId={customerId} onChange={load} t={t} />
 
       <RelationshipsSection
         data={data} types={types} auth={auth} customerId={customerId}
         onChange={load} locale={locale} t={t} />
 
-      <DocumentsSection
-        data={data} auth={auth} customerId={customerId} onChange={load} t={t} />
-
-      <ThreadsSection data={data} threadsBase={threadsBase} t={t} />
-
       <TasksSection auth={auth} customer={c} customerId={customerId} community={community}
                     locale={locale} t={t} />
 
       <NotesSection auth={auth} customerId={customerId} locale={locale} t={t} />
 
+      <DocumentsSection
+        data={data} auth={auth} customerId={customerId} onChange={load} t={t} />
+
       <SignatureRequestsSection auth={auth} customerId={customerId} locale={locale} t={t} />
 
-      <FilingsSection data={data} auth={auth} onChange={load} locale={locale} t={t} />
-
-      <OwnerSubscriptionsSection
-        customer={data.customer}
-        subscriptions={data.subscriptions}
-        auth={auth}
-        onChange={load}
-        locale={locale}
-        t={t} />
-
-      <ReminderActivitySection data={data} locale={locale} t={t} />
-
-      <WorkflowOverridesSection
-        auth={auth} customerId={customerId} locale={locale} t={t} />
-
       <AssignmentsSection data={data} t={t} />
+
+      <ActivityTimelineSection auth={auth} customerId={customerId} locale={locale} t={t} />
     </EmployeeShell>
   );
 }
@@ -173,233 +163,7 @@ export default function OwnerCustomerDetail({ customerId }) {
 // shows whether an override row exists. Click "Customize" → modal with a
 // checklist editor and optional reminder offsets; Save upserts the row.
 // Reset deletes the row, falling back to the workflow rule's defaults.
-function WorkflowOverridesSection({ auth, customerId, locale, t }) {
-  const [items, setItems] = useState(null);
-  const [editing, setEditing] = useState(null);     // { rule, override }
-  const [err, setErr] = useState('');
-  function load() {
-    setErr('');
-    taxApi.adminListCustomerWorkflowOverrides(auth, customerId)
-      .then(d => setItems(d.workflows || []))
-      .catch(e => setErr(e?.message || t('error.loadFailed')));
-  }
-  useEffect(load, [customerId]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  return (
-    <section className="tax-section" style={{ paddingTop: 0 }}>
-      <h3>{t('owner.customer.section.workflowOverrides')}</h3>
-      <p style={{ color: 'var(--tax-muted)', fontSize: 13, margin: '0 0 12px' }}>
-        {t('owner.customer.workflowOverrides.note')}
-      </p>
-      {err && <div className="tax-msg tax-msg--error">{err}</div>}
-      {items === null && <p>{t('loading')}</p>}
-      {items !== null && items.length === 0 && (
-        <p style={{ color: 'var(--tax-muted)' }}>
-          {t('owner.customer.workflowOverrides.empty')}
-        </p>
-      )}
-      {items !== null && items.length > 0 && (
-        <div style={{ display: 'grid', gap: 8 }}>
-          {items.map(w => {
-            const name = pickI18n(w.rule.name_i18n, locale).value || w.rule.filing_schedule_slug;
-            const hasOverride = !!w.override;
-            const effectiveOffsets = hasOverride && Array.isArray(w.override.reminder_offsets_days) && w.override.reminder_offsets_days.length
-              ? w.override.reminder_offsets_days
-              : (Array.isArray(w.rule.reminder_offsets_days) ? w.rule.reminder_offsets_days : []);
-            const effectiveDocs = hasOverride && Array.isArray(w.override.custom_info_checklist) && w.override.custom_info_checklist.length
-              ? w.override.custom_info_checklist
-              : (Array.isArray(w.rule.info_checklist) ? w.rule.info_checklist : []);
-            return (
-              <div key={w.rule.id} style={{
-                display: 'flex', alignItems: 'center', gap: 12, justifyContent: 'space-between',
-                padding: '10px 12px', border: '1px solid var(--tax-border)', borderRadius: 8,
-              }}>
-                <div style={{ minWidth: 0 }}>
-                  <div style={{ fontWeight: 600 }}>{name}</div>
-                  <div style={{ fontSize: 12, color: 'var(--tax-muted)' }}>
-                    <code>{w.rule.filing_schedule_slug}</code> · {w.rule.cadence || '—'} ·{' '}
-                    {t('owner.customer.workflowOverrides.offsets', { offsets: effectiveOffsets.join(', ') || '—' })} ·{' '}
-                    {t('owner.customer.workflowOverrides.docCount', { count: effectiveDocs.length })}
-                  </div>
-                </div>
-                <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
-                  {hasOverride && (
-                    <span style={{
-                      padding: '2px 10px', borderRadius: 999, fontSize: 12, fontWeight: 600,
-                      background: 'var(--tax-brand-primary)', color: '#fff',
-                    }}>{t('owner.customer.workflowOverrides.badge')}</span>
-                  )}
-                  <button type="button" className="tax-btn tax-btn--ghost tax-btn--sm"
-                          onClick={() => setEditing(w)}>
-                    {hasOverride
-                      ? t('owner.customer.workflowOverrides.editBtn')
-                      : t('owner.customer.workflowOverrides.customizeBtn')}
-                  </button>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
-
-      {editing && (
-        <WorkflowOverrideModal
-          auth={auth} customerId={customerId} t={t} locale={locale}
-          workflow={editing}
-          onClose={() => setEditing(null)}
-          onChange={() => { setEditing(null); load(); }}
-        />
-      )}
-    </section>
-  );
-}
-
-function WorkflowOverrideModal({ auth, customerId, workflow, locale, t, onClose, onChange }) {
-  const rule = workflow.rule;
-  const override = workflow.override;
-  const startingOffsets = (override?.reminder_offsets_days && override.reminder_offsets_days.length)
-    ? override.reminder_offsets_days
-    : (rule.reminder_offsets_days || []);
-  const startingDocs = (override?.custom_info_checklist && override.custom_info_checklist.length)
-    ? override.custom_info_checklist
-    : (rule.info_checklist || []);
-  const [offsetsInput, setOffsetsInput] = useState(startingOffsets.join(', '));
-  const [docs, setDocs] = useState(startingDocs.map(d => ({ ...d, label_i18n: { ...(d.label_i18n || {}) } })));
-  const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState('');
-
-  const ruleName = pickI18n(rule.name_i18n, locale).value || rule.filing_schedule_slug;
-
-  function addDoc() {
-    setDocs(prev => [...prev, { key: '', label_i18n: { en: '', es: '' }, type: 'text', required: true }]);
-  }
-  function updateDoc(idx, patch) {
-    setDocs(prev => prev.map((d, i) => i === idx ? { ...d, ...patch } : d));
-  }
-  function removeDoc(idx) { setDocs(prev => prev.filter((_, i) => i !== idx)); }
-
-  async function save() {
-    setBusy(true); setErr('');
-    const offsets = String(offsetsInput || '').split(/[\s,;]+/).map(s => parseInt(s, 10))
-      .filter(n => Number.isFinite(n) && n >= 0 && n <= 365);
-    try {
-      await taxApi.adminUpsertCustomerWorkflowOverride(auth, customerId, rule.id, {
-        reminderOffsetsDays: offsets,
-        customInfoChecklist: docs,
-      });
-      onChange();
-    } catch (e) { setErr(e?.message || t('respond.error.generic')); }
-    finally { setBusy(false); }
-  }
-  async function reset() {
-    if (!override) { onClose(); return; }
-    if (!window.confirm(t('owner.customer.workflowOverrides.resetConfirm'))) return;
-    setBusy(true); setErr('');
-    try {
-      await taxApi.adminDeleteCustomerWorkflowOverride(auth, customerId, rule.id);
-      onChange();
-    } catch (e) { setErr(e?.message || t('respond.error.generic')); }
-    finally { setBusy(false); }
-  }
-
-  return (
-    <div onClick={onClose} style={{
-      position: 'fixed', inset: 0, background: 'rgba(15,23,42,.55)',
-      zIndex: 1000, display: 'flex', alignItems: 'flex-start', justifyContent: 'center',
-      padding: 16, overflow: 'auto',
-    }}>
-      <div onClick={e => e.stopPropagation()} style={{
-        background: 'var(--tax-bg)', borderRadius: 12, maxWidth: 720, width: '100%',
-        margin: '40px 0', border: '1px solid var(--tax-border)',
-      }}>
-        <div style={{ padding: '14px 18px', borderBottom: '1px solid var(--tax-border)',
-                      display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <strong>{t('owner.customer.workflowOverrides.modalTitle', { name: ruleName })}</strong>
-          <button type="button" className="tax-btn tax-btn--ghost tax-btn--sm" onClick={onClose}>
-            {t('preview.close')}
-          </button>
-        </div>
-        <div style={{ padding: 18, display: 'grid', gap: 12 }}>
-          {err && <div className="tax-msg tax-msg--error">{err}</div>}
-
-          <div>
-            <label style={{ display: 'block', fontSize: 13, marginBottom: 4 }}>
-              {t('owner.workflows.offsetsLabel')}
-            </label>
-            <input type="text" value={offsetsInput}
-                   placeholder={t('owner.customer.workflowOverrides.offsetsPlaceholder')}
-                   onChange={e => setOffsetsInput(e.target.value)}
-                   style={{ width: 240 }} />
-            <p style={{ margin: '4px 0 0', fontSize: 12, color: 'var(--tax-muted)' }}>
-              {t('owner.customer.workflowOverrides.offsetsHint', {
-                offsets: (rule.reminder_offsets_days || []).join(', ') || '14, 7, 3' })}
-            </p>
-          </div>
-
-          <div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-              <span style={{ fontSize: 13, fontWeight: 600 }}>{t('owner.workflows.docsLabel')}</span>
-              <button type="button" className="tax-btn tax-btn--ghost tax-btn--sm" onClick={addDoc}>
-                + {t('owner.workflows.addDoc')}
-              </button>
-            </div>
-            {docs.length === 0 && (
-              <p style={{ color: 'var(--tax-muted)', fontSize: 13 }}>{t('owner.workflows.docsEmpty')}</p>
-            )}
-            {docs.map((d, i) => (
-              <div key={i} style={{
-                display: 'grid', gap: 8, padding: 8, marginTop: 8,
-                gridTemplateColumns: '1fr 1fr 1fr 110px 60px 32px',
-                alignItems: 'center', border: '1px dashed var(--tax-border)', borderRadius: 6,
-              }}>
-                <input type="text" value={d.key} placeholder={t('owner.workflows.docKey')}
-                       onChange={e => updateDoc(i, { key: e.target.value })} />
-                <input type="text" value={d.label_i18n?.en || ''} placeholder={t('owner.workflows.docLabelEn')}
-                       onChange={e => updateDoc(i, { label_i18n: { ...(d.label_i18n || {}), en: e.target.value } })} />
-                <input type="text" value={d.label_i18n?.es || ''} placeholder={t('owner.workflows.docLabelEs')}
-                       onChange={e => updateDoc(i, { label_i18n: { ...(d.label_i18n || {}), es: e.target.value } })} />
-                <select value={d.type || 'text'} onChange={e => updateDoc(i, { type: e.target.value })}>
-                  <option value="currency">currency</option>
-                  <option value="number">number</option>
-                  <option value="text">text</option>
-                  <option value="date">date</option>
-                  <option value="file">file</option>
-                </select>
-                <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12 }}>
-                  <input type="checkbox" checked={d.required !== false}
-                         onChange={e => updateDoc(i, { required: e.target.checked })} />
-                  {t('owner.workflows.docRequired')}
-                </label>
-                <button type="button" className="tax-btn tax-btn--ghost tax-btn--sm"
-                        onClick={() => removeDoc(i)} aria-label={t('owner.workflows.removeDoc')}>×</button>
-              </div>
-            ))}
-          </div>
-
-          <div style={{ display: 'flex', gap: 8, justifyContent: 'space-between', marginTop: 8 }}>
-            <div>
-              {override && (
-                <button type="button" className="tax-btn tax-btn--ghost tax-btn--sm"
-                        disabled={busy} onClick={reset}>
-                  {t('owner.customer.workflowOverrides.removeBtn')}
-                </button>
-              )}
-            </div>
-            <div style={{ display: 'flex', gap: 8 }}>
-              <button type="button" className="tax-btn tax-btn--ghost tax-btn--sm" onClick={onClose}>
-                {t('preview.close')}
-              </button>
-              <button type="button" className="tax-btn tax-btn--primary tax-btn--sm"
-                      disabled={busy} onClick={save}>
-                {busy ? t('lead.submitting') : t('owner.customer.workflowOverrides.saveBtn')}
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 // Phase 4n: per-customer reminder send + open/click timeline. Engagement
 // Phase 4n.21: threaded customer notes. Any employee assigned to this
@@ -832,129 +596,7 @@ function SignatureRequestsSection({ auth, customerId, locale, t }) {
 // summary at the top + a colored pill per row makes "did this customer
 // actually read it" answerable at a glance. Apple Mail Privacy caveat is
 // shown inline so the team doesn't over-trust open counts.
-function ReminderActivitySection({ data, locale, t }) {
-  const logs = Array.isArray(data?.emailLogs) ? data.emailLogs : [];
-  function fmt(iso, withTime = true) {
-    if (!iso) return '—';
-    try {
-      const opts = withTime
-        ? { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }
-        : { year: 'numeric', month: 'short', day: 'numeric' };
-      return new Intl.DateTimeFormat(locale === 'en' ? 'en-US' : 'es-ES', opts)
-        .format(new Date(iso));
-    } catch (_e) { return iso; }
-  }
 
-  const sent = logs.length;
-  const opened = logs.filter(l => l.opened_at).length;
-  const clicked = logs.filter(l => l.clicked_at).length;
-  const pct = (n) => sent ? Math.round((n / sent) * 100) : 0;
-
-  const Pill = ({ kind, label }) => {
-    const colors = {
-      ok:   { bg: '#dcfce7', fg: '#166534', border: '#bbf7d0' },  // green
-      warn: { bg: '#fef9c3', fg: '#854d0e', border: '#fde68a' },  // amber
-      muted:{ bg: '#f1f5f9', fg: '#64748b', border: '#e2e8f0' },  // gray
-    }[kind] || { bg: '#f1f5f9', fg: '#64748b', border: '#e2e8f0' };
-    return (
-      <span style={{
-        display: 'inline-block', padding: '2px 10px', borderRadius: 999,
-        background: colors.bg, color: colors.fg, border: `1px solid ${colors.border}`,
-        fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap',
-      }}>{label}</span>
-    );
-  };
-
-  return (
-    <section className="tax-section" style={{ paddingTop: 0 }}>
-      <h3>{t('owner.customer.section.reminderActivity')}</h3>
-
-      {sent > 0 && (
-        <div style={{
-          display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
-          gap: 12, margin: '0 0 12px',
-        }}>
-          <SummaryStat label={t('owner.customer.reminderActivity.sent')} value={sent} t={t} />
-          <SummaryStat label={t('owner.customer.reminderActivity.opened')}
-                       value={`${opened} (${pct(opened)}%)`}
-                       accent={opened > 0 ? 'ok' : 'muted'} t={t} />
-          <SummaryStat label={t('owner.customer.reminderActivity.clicked')}
-                       value={`${clicked} (${pct(clicked)}%)`}
-                       accent={clicked > 0 ? 'ok' : 'warn'} t={t} />
-        </div>
-      )}
-
-      <p style={{ color: 'var(--tax-muted)', fontSize: 13, margin: '0 0 12px' }}>
-        {t('owner.customer.reminderActivity.note')}
-      </p>
-
-      {logs.length === 0 ? (
-        <p style={{ color: 'var(--tax-muted)' }}>{t('owner.customer.reminderActivity.empty')}</p>
-      ) : (
-        <div style={{ overflowX: 'auto', border: '1px solid var(--tax-border)', borderRadius: 8 }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-            <thead>
-              <tr style={{ background: 'var(--tax-bg-alt)', textAlign: 'left' }}>
-                <th style={{ padding: '8px 10px' }}>{t('owner.customer.reminderActivity.sent')}</th>
-                <th style={{ padding: '8px 10px' }}>{t('owner.customer.reminderActivity.subject')}</th>
-                <th style={{ padding: '8px 10px' }}>{t('owner.customer.reminderActivity.engagement')}</th>
-                <th style={{ padding: '8px 10px' }}>{t('owner.customer.reminderActivity.timeline')}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {logs.map(l => {
-                const openedPill = l.opened_at
-                  ? <Pill kind="ok" label={`${t('owner.customer.reminderActivity.openedShort')}${l.open_count > 1 ? ` ×${l.open_count}` : ''}`} />
-                  : <Pill kind="muted" label={t('owner.customer.reminderActivity.notOpened')} />;
-                const clickedPill = l.clicked_at
-                  ? <Pill kind="ok" label={`${t('owner.customer.reminderActivity.clickedShort')}${l.click_count > 1 ? ` ×${l.click_count}` : ''}`} />
-                  : <Pill kind="muted" label={t('owner.customer.reminderActivity.notClicked')} />;
-                const deliveredPill = l.delivered_at
-                  ? <Pill kind="muted" label={t('owner.customer.reminderActivity.deliveredShort')} />
-                  : <Pill kind="warn" label={t('owner.customer.reminderActivity.pendingShort')} />;
-                return (
-                  <tr key={l.id} style={{ borderTop: '1px solid var(--tax-border)' }}>
-                    <td style={{ padding: '8px 10px', whiteSpace: 'nowrap' }}>{fmt(l.created_at, false)}</td>
-                    <td style={{ padding: '8px 10px' }}>{l.subject || '—'}</td>
-                    <td style={{ padding: '8px 10px' }}>
-                      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                        {deliveredPill}{openedPill}{clickedPill}
-                      </div>
-                    </td>
-                    <td style={{ padding: '8px 10px', fontSize: 12, color: 'var(--tax-muted)' }}>
-                      {l.opened_at && <div>{t('owner.customer.reminderActivity.opened')}: {fmt(l.opened_at)}</div>}
-                      {l.clicked_at && <div>{t('owner.customer.reminderActivity.clicked')}: {fmt(l.clicked_at)}</div>}
-                      {!l.opened_at && !l.clicked_at && '—'}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </section>
-  );
-}
-
-function SummaryStat({ label, value, accent }) {
-  const ring = {
-    ok:    'var(--tax-success)',
-    warn:  '#d97706',
-    muted: 'var(--tax-border)',
-  }[accent] || 'var(--tax-border)';
-  return (
-    <div style={{
-      padding: 12, borderRadius: 8, background: 'var(--tax-bg-alt)',
-      border: `1px solid ${ring}`,
-    }}>
-      <div style={{ fontSize: 12, color: 'var(--tax-muted)', textTransform: 'uppercase', letterSpacing: '.04em' }}>
-        {label}
-      </div>
-      <div style={{ fontSize: 22, fontWeight: 700, marginTop: 2 }}>{value}</div>
-    </div>
-  );
-}
 
 // Phase 4d: profile is now editable from the admin side. The login email
 // stays read-only — it's the Firebase identity. Customer self-serves the
@@ -1385,35 +1027,6 @@ function DocumentsSection({ data, auth, customerId, onChange, t }) {
   );
 }
 
-function ThreadsSection({ data, threadsBase, t }) {
-  const threads = data.threads || [];
-  return (
-    <section style={{ marginTop: 32 }}>
-      <h3>{t('owner.customer.section.threads')}</h3>
-      {threads.length === 0
-        ? <p style={{ color: 'var(--tax-muted)' }}>{t('owner.customer.thread.empty')}</p>
-        : <div style={{ display: 'grid', gap: 8 }}>
-            {threads.map(th => (
-              <a key={th.id} href={`${threadsBase}/${encodeURIComponent(th.id)}`}
-                 className="tax-contact-item"
-                 style={{
-                   textDecoration: 'none', color: 'inherit',
-                   borderLeft: th.practice_unread ? '3px solid var(--tax-brand-secondary)' : '3px solid transparent',
-                 }}>
-                <div style={{ fontWeight: th.practice_unread ? 700 : 600 }}>
-                  {th.subject || t('portal.messages.untitled')}
-                </div>
-                <div style={{ fontSize: 13, color: 'var(--tax-muted)', marginTop: 4,
-                              overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {th.last_message_preview || ''}
-                </div>
-              </a>
-            ))}
-          </div>
-      }
-    </section>
-  );
-}
 
 // Phase 4d: per-period status override. Most filings auto-advance via the
 // reminder cron (pending → info_requested when a reminder fires, →
@@ -1421,80 +1034,7 @@ function ThreadsSection({ data, threadsBase, t }) {
 // uses this to mark a period as 'skipped' (business was closed that
 // month) or to manually flag as 'filed' after submitting through agency
 // portal outside the platform.
-function FilingsSection({ data, auth, onChange, locale, t }) {
-  const periods = data.periods || [];
-  const STATUS = ['pending', 'info_requested', 'info_received', 'in_prep', 'filed', 'skipped'];
 
-  return (
-    <section style={{ marginTop: 32 }}>
-      <h3>{t('owner.customer.section.filings')}</h3>
-      {periods.length === 0
-        ? <p style={{ color: 'var(--tax-muted)' }}>{t('owner.customer.filings.empty')}</p>
-        : <div style={{ display: 'grid', gap: 8 }}>
-            {periods.map(p => (
-              <FilingRow key={p.id} period={p} statuses={STATUS}
-                         auth={auth} onChange={onChange} locale={locale} t={t} />
-            ))}
-          </div>}
-      <p style={{ color: 'var(--tax-muted)', fontSize: 13, marginTop: 8 }}>
-        {t('owner.customer.filings.hint')}
-      </p>
-    </section>
-  );
-}
-
-function FilingRow({ period: p, statuses, auth, onChange, locale, t }) {
-  const [status, setStatus] = useState(p.status);
-  const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState('');
-
-  // Reset to server value when the parent reloads (e.g., after save).
-  useEffect(() => { setStatus(p.status); }, [p.status]);
-
-  const dirty = status !== p.status;
-  const onSave = async () => {
-    setBusy(true); setErr('');
-    try {
-      await taxApi.adminUpdatePeriod(auth, p.id, { status });
-      onChange();
-    } catch (e) { setErr(e?.message || ''); }
-    finally { setBusy(false); }
-  };
-
-  const filingName = pickI18n(p.workflow?.name_i18n || p.schedule?.name_i18n, locale).value
-    || p.workflow?.filing_schedule_slug || p.schedule?.slug || '—';
-
-  return (
-    <div className="tax-contact-item" style={{
-      display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12,
-      opacity: (p.status === 'filed' || p.status === 'skipped') ? 0.75 : 1,
-    }}>
-      <div style={{ minWidth: 0, flex: 1 }}>
-        <div style={{ fontWeight: 600 }}>{filingName}</div>
-        <div style={{ fontSize: 13, color: 'var(--tax-muted)', marginTop: 2 }}>
-          {p.period_label} • {t('portal.dashboard.due')} {p.due_date}
-          {p.schedule?.jurisdiction ? ` • ${p.schedule.jurisdiction}` : ''}
-        </div>
-      </div>
-      <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexShrink: 0 }}>
-        <select value={status} onChange={e => setStatus(e.target.value)}
-                disabled={busy}
-                style={{ padding: '6px 8px', border: '1px solid var(--tax-border)', borderRadius: 6, fontSize: 13 }}>
-          {statuses.map(s => (
-            <option key={s} value={s}>{t(`owner.customer.filings.status.${s}`)}</option>
-          ))}
-        </select>
-        {dirty && (
-          <button type="button" className="tax-btn tax-btn--primary tax-btn--sm"
-                  onClick={onSave} disabled={busy}>
-            {busy ? t('lead.submitting') : t('owner.customer.filings.save')}
-          </button>
-        )}
-        {err && <span style={{ color: 'var(--tax-error)', fontSize: 12 }}>{err}</span>}
-      </div>
-    </div>
-  );
-}
 
 function AssignmentsSection({ data, t }) {
   const assignments = data.assignments || [];
