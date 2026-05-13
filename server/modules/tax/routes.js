@@ -973,26 +973,51 @@ module.exports = function createTaxRouter(deps) {
       || (statusOpts || [])[0]?.key
       || 'not_started';
 
-    // Phase 4n.38: prefer the relationship type's directly-linked
-    // product when it has a cadence configured. This is the new
-    // first-class path — services own their schedule. Fall back to
-    // the legacy workflow_rule → filing_schedule chain when the
-    // relationship type predates the migration.
+    // Phase 4n.46: walk the per-service auto-tasks list. Each
+    // auto-task is its own generation unit — a service can have many
+    // (Bookkeeping = monthly reconciliation + quarterly P&L +
+    // annual close). Fall back to the legacy product-cadence
+    // single-stream path when a service has no auto-tasks yet, then
+    // to the workflow_rule chain for even older tenants.
     const { data: relType } = await supabase.from('tax_relationship_types')
       .select('id, product_id').eq('id', relationshipTypeId).maybeSingle();
     let productSchedules = [];
     if (relType?.product_id) {
-      const { data: prod } = await supabase.from('tax_products')
-        .select('id, slug, community_id, name_i18n, cadence_kind, anchor_rule')
-        .eq('id', relType.product_id).maybeSingle();
-      if (prod && prod.cadence_kind && prod.cadence_kind !== 'none') {
-        productSchedules = [{
-          id: prod.id, slug: prod.slug,
-          name_i18n: prod.name_i18n || {},
-          anchor_rule: prod.anchor_rule || {},
-          product_id: prod.id,
-          source: 'product_cadence',
-        }];
+      const { data: autoTasks } = await supabase.from('tax_service_auto_tasks')
+        .select('id, title_i18n, cadence_kind, anchor_rule, default_priority, display_order')
+        .eq('product_id', relType.product_id)
+        .eq('active', true)
+        .order('display_order', { ascending: true });
+      if (autoTasks && autoTasks.length) {
+        for (const at of autoTasks) {
+          if (!at.cadence_kind || at.cadence_kind === 'none') continue;
+          productSchedules.push({
+            id: at.id,
+            slug: `at-${at.id}`,
+            name_i18n: at.title_i18n || {},
+            anchor_rule: at.anchor_rule || {},
+            product_id: relType.product_id,
+            service_auto_task_id: at.id,
+            priority: at.default_priority || 'normal',
+            source: 'auto_task',
+          });
+        }
+      }
+      // Backwards-compat single-cadence path — only used when the
+      // service hasn't been migrated to auto-tasks yet.
+      if (!productSchedules.length) {
+        const { data: prod } = await supabase.from('tax_products')
+          .select('id, slug, community_id, name_i18n, cadence_kind, anchor_rule')
+          .eq('id', relType.product_id).maybeSingle();
+        if (prod && prod.cadence_kind && prod.cadence_kind !== 'none') {
+          productSchedules = [{
+            id: prod.id, slug: prod.slug,
+            name_i18n: prod.name_i18n || {},
+            anchor_rule: prod.anchor_rule || {},
+            product_id: prod.id,
+            source: 'product_cadence',
+          }];
+        }
       }
     }
 
@@ -1034,38 +1059,45 @@ module.exports = function createTaxRouter(deps) {
         sched.name_i18n?.[cust.locale === 'en' ? 'en' : 'es']
         || sched.name_i18n?.en || sched.name_i18n?.es || sched.slug;
 
-      const usingProductCadence = sched.source === 'product_cadence';
+      const isAutoTask = sched.source === 'auto_task';
+      const isProductCadence = sched.source === 'product_cadence';
       const rows = [];
       for (const p of periods) {
         if (!p.dueDate) continue;
         if (p.dueDate > cutoffIso) break;
         if (p.dueDate < todayIso) continue;
-        const periodKey = `${sched.slug}:${p.periodStart || p.dueDate}`;
+        // Period key namespaces by source so auto-task and legacy
+        // rows never collide on the partial unique indexes.
+        const periodKey = isAutoTask
+          ? `at:${sched.service_auto_task_id}:${p.periodStart || p.dueDate}`
+          : `${sched.slug}:${p.periodStart || p.dueDate}`;
         rows.push({
           id: 'task_' + uuidv4().slice(0, 12),
           community_id: cust.community_id,
           customer_id: cust.id,
           product_id: sched.product_id || null,
           relationship_type_id: relationshipTypeId,
-          // Product-cadence rows aren't anchored to a filing_schedules
-          // row, so schedule_id stays null and the
-          // (customer_id, product_id, period_key) partial index
-          // enforces idempotency instead.
-          schedule_id: usingProductCadence ? null : sched.id,
+          // Auto-task and product-cadence rows aren't anchored to a
+          // filing_schedules row; the appropriate partial unique
+          // index handles idempotency on each path.
+          schedule_id: (isAutoTask || isProductCadence) ? null : sched.id,
+          service_auto_task_id: isAutoTask ? sched.service_auto_task_id : null,
           period_key: periodKey,
           source: 'relationship_schedule',
           title: `${scheduleName} — ${p.periodLabel || p.dueDate}`,
           status_key: defaultStatus,
-          priority: 'normal',
+          priority: sched.priority || 'normal',
           due_date: p.dueDate,
           notes: '',
         });
       }
       if (!rows.length) continue;
 
-      const onConflict = usingProductCadence
-        ? 'customer_id,product_id,period_key'
-        : 'customer_id,schedule_id,period_key';
+      const onConflict = isAutoTask
+        ? 'customer_id,service_auto_task_id,period_key'
+        : isProductCadence
+          ? 'customer_id,product_id,period_key'
+          : 'customer_id,schedule_id,period_key';
       const { error: upsertErr, count } = await supabase.from('tax_tasks')
         .upsert(rows, {
           onConflict,
@@ -2261,6 +2293,127 @@ module.exports = function createTaxRouter(deps) {
     } catch (_e) {}
 
     res.json({ ok: true });
+  });
+
+  // ── GET /admin/products/:id/auto-tasks ──────────────────────────────────
+  // List the recurring auto-tasks owned by a service. One service can
+  // have many — a Bookkeeping engagement might have a monthly
+  // reconciliation + quarterly P&L + annual close, each its own
+  // row. Generator walks every active row when a customer is tagged.
+  router.get('/admin/products/:id/auto-tasks', async (req, res) => {
+    if (!(await requireOwnerAdmin(req, res, 'manage_services'))) return;
+    const productId = trim(req.params.id, 200);
+    const { data: prod } = await supabase.from('tax_products')
+      .select('id, community_id').eq('id', productId).maybeSingle();
+    if (!prod) return res.status(404).json({ error: 'Product not found.' });
+    const { data, error } = await supabase.from('tax_service_auto_tasks')
+      .select('id, community_id, product_id, title_i18n, description_i18n, cadence_kind, anchor_rule, default_priority, display_order, active')
+      .eq('product_id', productId)
+      .order('display_order', { ascending: true });
+    if (error) return sendSupabaseError(res, error);
+    res.json({ autoTasks: data || [] });
+  });
+
+  // ── PUT /admin/products/:id/auto-tasks ──────────────────────────────────
+  // Bulk-replace the auto-tasks for one service. Body:
+  //   { autoTasks: [
+  //       { id?, titleI18n, descriptionI18n, cadenceKind, anchorRule,
+  //         defaultPriority, displayOrder, active },
+  //       ...
+  //   ] }
+  // Rows with an `id` matching an existing row are UPDATEd; rows
+  // without are INSERTed; existing rows not present in the payload
+  // are DELETEd. Each delete is FK-safe because tax_tasks
+  // .service_auto_task_id is ON DELETE SET NULL.
+  router.put('/admin/products/:id/auto-tasks', async (req, res) => {
+    if (!(await requireOwnerAdmin(req, res, 'manage_services'))) return;
+    const productId = trim(req.params.id, 200);
+    const { data: prod } = await supabase.from('tax_products')
+      .select('id, community_id').eq('id', productId).maybeSingle();
+    if (!prod) return res.status(404).json({ error: 'Product not found.' });
+
+    const incoming = Array.isArray(req.body?.autoTasks) ? req.body.autoTasks : [];
+    const ALLOWED_CADENCE = new Set(['none','weekly','monthly','quarterly','annual']);
+    const ALLOWED_PRIORITY = new Set(['urgent','high','normal','low']);
+    const sanitized = incoming.map((row, i) => {
+      const cadence = ALLOWED_CADENCE.has(row.cadenceKind) ? row.cadenceKind : 'monthly';
+      const priority = ALLOWED_PRIORITY.has(row.defaultPriority) ? row.defaultPriority : 'normal';
+      return {
+        idIfExisting: typeof row.id === 'string' && row.id ? row.id : null,
+        title_i18n: {
+          en: String(row.titleI18n?.en || '').slice(0, MAX_NAME_LEN),
+          es: String(row.titleI18n?.es || '').slice(0, MAX_NAME_LEN),
+        },
+        description_i18n: {
+          en: String(row.descriptionI18n?.en || '').slice(0, MAX_TEXT_LEN),
+          es: String(row.descriptionI18n?.es || '').slice(0, MAX_TEXT_LEN),
+        },
+        cadence_kind: cadence,
+        anchor_rule: (row.anchorRule && typeof row.anchorRule === 'object') ? row.anchorRule : {},
+        default_priority: priority,
+        display_order: Number.isFinite(Number(row.displayOrder))
+          ? Math.max(0, Math.min(10000, Math.round(Number(row.displayOrder))))
+          : (i + 1) * 10,
+        active: row.active === false ? false : true,
+      };
+    });
+    // Drop rows whose titles are entirely empty — likely placeholders
+    // the owner added then abandoned.
+    const valid = sanitized.filter(r => r.title_i18n.en || r.title_i18n.es);
+
+    const { data: existing } = await supabase.from('tax_service_auto_tasks')
+      .select('id').eq('product_id', productId);
+    const existingIds = new Set((existing || []).map(r => r.id));
+    const keepIds = new Set();
+    const inserts = [];
+    const updates = [];
+    for (const row of valid) {
+      const { idIfExisting, ...rest } = row;
+      if (idIfExisting && existingIds.has(idIfExisting)) {
+        keepIds.add(idIfExisting);
+        updates.push({ id: idIfExisting, ...rest, updated_at: new Date().toISOString() });
+      } else {
+        inserts.push({
+          id: 'sat_' + uuidv4().slice(0, 16),
+          community_id: prod.community_id,
+          product_id: productId,
+          ...rest,
+        });
+      }
+    }
+    const removeIds = Array.from(existingIds).filter(id => !keepIds.has(id));
+
+    // Apply changes. Each statement is independent so a partial
+    // failure surfaces clearly. Updates run first so the owner
+    // doesn't lose history if an insert errors.
+    for (const u of updates) {
+      const { error } = await supabase.from('tax_service_auto_tasks')
+        .update(u).eq('id', u.id);
+      if (error) return sendSupabaseError(res, error);
+    }
+    if (inserts.length) {
+      const { error } = await supabase.from('tax_service_auto_tasks').insert(inserts);
+      if (error) return sendSupabaseError(res, error);
+    }
+    if (removeIds.length) {
+      const { error } = await supabase.from('tax_service_auto_tasks')
+        .delete().in('id', removeIds);
+      if (error) return sendSupabaseError(res, error);
+    }
+
+    try {
+      await auditLog({
+        entity: 'tax.product', entityId: productId, action: 'auto_tasks_replace',
+        actorEmail: trim(req.get('x-firebase-email') || req.get('x-admin-email') || '', 200).toLowerCase(),
+        after: { updated: updates.length, inserted: inserts.length, deleted: removeIds.length },
+      });
+    } catch (_e) {}
+
+    const { data: fresh } = await supabase.from('tax_service_auto_tasks')
+      .select('id, community_id, product_id, title_i18n, description_i18n, cadence_kind, anchor_rule, default_priority, display_order, active')
+      .eq('product_id', productId)
+      .order('display_order', { ascending: true });
+    res.json({ ok: true, autoTasks: fresh || [] });
   });
 
   // ── DELETE /admin/products/:id ──────────────────────────────────────────

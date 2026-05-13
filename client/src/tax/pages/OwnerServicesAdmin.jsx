@@ -206,15 +206,24 @@ function ProductEditor({ product: p, auth, community, relTypes = [], onDone, onC
   const [order, setOrder] = useState(String(p.display_order || 0));
   const [videoUrl, setVideoUrl] = useState(p.video_url || '');
 
-  // Phase 4n.38: Internal section (employee portal). Drives task
-  // generation when a customer is tagged with the linked relationship.
-  const [cadenceKind, setCadenceKind] = useState(p.cadence_kind || 'none');
-  const anchorRule = p.anchor_rule && typeof p.anchor_rule === 'object' ? p.anchor_rule : {};
-  const [cadenceDay, setCadenceDay] = useState(String(anchorRule.day || 15));
-  const [cadenceMonth, setCadenceMonth] = useState(String(anchorRule.month || 1));
-  const [cadenceWeekday, setCadenceWeekday] = useState(String(anchorRule.weekday ?? 1));
-  const [empNotesEn, setEmpNotesEn] = useState(p.employee_notes_i18n?.en || '');
-  const [empNotesEs, setEmpNotesEs] = useState(p.employee_notes_i18n?.es || '');
+  // Phase 4n.46: Internal section. A service owns a list of
+  // auto-tasks instead of a single cadence — each auto-task is its
+  // own generation unit (monthly reconciliation + quarterly P&L +
+  // annual close = three auto-tasks on the Bookkeeping service).
+  // List is loaded from the server on mount; the form maintains a
+  // local working copy and the bulk-replace PUT pushes the diff on
+  // Save.
+  const [autoTasks, setAutoTasks] = useState([]);
+  const [autoTasksLoaded, setAutoTasksLoaded] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+    taxApi.adminListAutoTasks(auth, p.id)
+      .then(d => { if (!cancelled) { setAutoTasks((d.autoTasks || []).map(at => normalizeAutoTaskForEdit(at))); setAutoTasksLoaded(true); } })
+      .catch(() => { if (!cancelled) setAutoTasksLoaded(true); });
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [p.id]);
+
   // Which relationship type points at THIS product, if any. Owner picks
   // from the existing community-scoped types; "(none)" clears the link.
   const linkedRel = relTypes.find(rt => rt.product_id === p.id) || null;
@@ -228,21 +237,18 @@ function ProductEditor({ product: p, auth, community, relTypes = [], onDone, onC
   const addReq = () => setReqs(prev => [...prev, { en: '', es: '' }]);
   const removeReq = (i) => setReqs(prev => prev.filter((_, idx) => idx !== i));
 
-  const buildAnchorRule = () => {
-    if (cadenceKind === 'monthly') {
-      return { type: 'monthly_following', day: Number(cadenceDay) || 15 };
-    }
-    if (cadenceKind === 'quarterly') {
-      return { type: 'quarterly_following', day: Number(cadenceDay) || 15 };
-    }
-    if (cadenceKind === 'weekly') {
-      return { type: 'weekly_following', weekday: Number(cadenceWeekday) || 1 };
-    }
-    if (cadenceKind === 'annual') {
-      return { type: 'annual', month: Number(cadenceMonth) || 1, day: Number(cadenceDay) || 15 };
-    }
-    return {};
-  };
+  const addAutoTask = () => setAutoTasks(prev => [...prev, {
+    id: null,
+    titleEn: '', titleEs: '',
+    descriptionEn: '', descriptionEs: '',
+    cadenceKind: 'monthly',
+    day: '15', weekday: '1', month: '1',
+    defaultPriority: 'normal',
+  }]);
+  const updateAutoTask = (idx, patch) =>
+    setAutoTasks(prev => prev.map((at, i) => i === idx ? { ...at, ...patch } : at));
+  const removeAutoTask = (idx) =>
+    setAutoTasks(prev => prev.filter((_, i) => i !== idx));
 
   const onSave = async () => {
     setBusy(true); setErr('');
@@ -257,14 +263,25 @@ function ProductEditor({ product: p, auth, community, relTypes = [], onDone, onC
         requiredDocuments: cleanedReqs,
         displayOrder: Number(order) || 0,
         videoUrl: videoUrl.trim(),
-        cadenceKind,
-        anchorRule: buildAnchorRule(),
-        employeeNotesI18n: { en: empNotesEn.trim(), es: empNotesEs.trim() },
+        // Phase 4n.46: the product-level cadence + employee_notes
+        // fields are no longer authored from the editor. Server
+        // keeps the columns for legacy fallback when a service has
+        // no auto-tasks yet.
       });
 
-      // Relationship-type linkage. If the link changed, clear the old
-      // one and set the new. Server PUT rejects cross-community
-      // products so we don't need to validate here.
+      // Bulk-replace the auto-tasks list. The server diffs against
+      // the existing rows — updates, inserts, deletes accordingly.
+      await taxApi.adminReplaceAutoTasks(auth, p.id, autoTasks.map((at, i) => ({
+        id: at.id || undefined,
+        titleI18n: { en: at.titleEn.trim(), es: at.titleEs.trim() },
+        descriptionI18n: { en: at.descriptionEn.trim(), es: at.descriptionEs.trim() },
+        cadenceKind: at.cadenceKind,
+        anchorRule: buildAnchorRuleFromForm(at),
+        defaultPriority: at.defaultPriority,
+        displayOrder: (i + 1) * 10,
+        active: true,
+      })));
+
       if (linkedRel?.id !== linkedRelId) {
         if (linkedRel?.id) {
           await taxApi.adminUpdateRelationshipType(auth, linkedRel.id, {
@@ -401,90 +418,31 @@ function ProductEditor({ product: p, auth, community, relTypes = [], onDone, onC
       </div>
 
       <div>
-        <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--tax-muted)' }}>
-          {t('owner.services.cadence')}
-        </label>
-        <select value={cadenceKind} onChange={e => setCadenceKind(e.target.value)}
-                style={{ width: '100%', padding: 8, border: '1px solid var(--tax-border)', borderRadius: 6 }}>
-          <option value="none">{t('owner.services.cadence.none')}</option>
-          <option value="weekly">{t('owner.services.cadence.weekly')}</option>
-          <option value="monthly">{t('owner.services.cadence.monthly')}</option>
-          <option value="quarterly">{t('owner.services.cadence.quarterly')}</option>
-          <option value="annual">{t('owner.services.cadence.annual')}</option>
-        </select>
-        <p style={{ margin: '4px 0 0', fontSize: 11, color: 'var(--tax-muted)' }}>
-          {t('owner.services.cadenceHint')}
-        </p>
-      </div>
-
-      {cadenceKind === 'weekly' && (
-        <div>
-          <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--tax-muted)' }}>
-            {t('owner.services.cadence.weekdayLabel')}
-          </label>
-          <select value={cadenceWeekday} onChange={e => setCadenceWeekday(e.target.value)}
-                  style={{ padding: 8, border: '1px solid var(--tax-border)', borderRadius: 6 }}>
-            <option value="1">{t('owner.services.weekday.mon')}</option>
-            <option value="2">{t('owner.services.weekday.tue')}</option>
-            <option value="3">{t('owner.services.weekday.wed')}</option>
-            <option value="4">{t('owner.services.weekday.thu')}</option>
-            <option value="5">{t('owner.services.weekday.fri')}</option>
-          </select>
-        </div>
-      )}
-      {(cadenceKind === 'monthly' || cadenceKind === 'quarterly') && (
-        <div>
-          <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--tax-muted)' }}>
-            {t('owner.services.cadence.dayLabel')}
-          </label>
-          <input type="number" min="1" max="28" value={cadenceDay} onChange={e => setCadenceDay(e.target.value)}
-                 style={{ width: 100, padding: 8, border: '1px solid var(--tax-border)', borderRadius: 6 }} />
-          <p style={{ margin: '4px 0 0', fontSize: 11, color: 'var(--tax-muted)' }}>
-            {t('owner.services.cadence.dayHint')}
-          </p>
-        </div>
-      )}
-      {cadenceKind === 'annual' && (
-        <div className="tax-form__row2">
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 6 }}>
           <div>
-            <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--tax-muted)' }}>
-              {t('owner.services.cadence.monthLabel')}
-            </label>
-            <input type="number" min="1" max="12" value={cadenceMonth} onChange={e => setCadenceMonth(e.target.value)}
-                   style={{ width: 100, padding: 8, border: '1px solid var(--tax-border)', borderRadius: 6 }} />
+            <div style={{ fontSize: 13, fontWeight: 700 }}>{t('owner.services.autoTasks.heading')}</div>
+            <div style={{ fontSize: 11, color: 'var(--tax-muted)', marginTop: 2 }}>
+              {t('owner.services.autoTasks.subheading')}
+            </div>
           </div>
-          <div>
-            <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--tax-muted)' }}>
-              {t('owner.services.cadence.dayLabel')}
-            </label>
-            <input type="number" min="1" max="28" value={cadenceDay} onChange={e => setCadenceDay(e.target.value)}
-                   style={{ width: 100, padding: 8, border: '1px solid var(--tax-border)', borderRadius: 6 }} />
-          </div>
+          <button type="button" onClick={addAutoTask}
+                  className="tax-btn tax-btn--ghost tax-btn--sm"
+                  style={{ color: 'var(--tax-brand-primary)', borderColor: 'var(--tax-brand-primary)' }}>
+            + {t('owner.services.autoTasks.add')}
+          </button>
         </div>
-      )}
-
-      <TaskPreview cadenceKind={cadenceKind}
-                   anchorRule={buildAnchorRule()}
-                   serviceName={nameEn || nameEs || p.slug}
-                   t={t} />
-
-      <div className="tax-form__row2">
-        <div>
-          <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--tax-muted)' }}>
-            {t('owner.services.employeeNotesEn')}
-          </label>
-          <textarea rows={3} value={empNotesEn} onChange={e => setEmpNotesEn(e.target.value)} maxLength={4000}
-                    placeholder={t('owner.services.employeeNotesPlaceholder')}
-                    style={{ width: '100%', padding: 8, border: '1px solid var(--tax-border)', borderRadius: 6, fontFamily: 'inherit', fontSize: 13 }} />
-        </div>
-        <div>
-          <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--tax-muted)' }}>
-            {t('owner.services.employeeNotesEs')}
-          </label>
-          <textarea rows={3} value={empNotesEs} onChange={e => setEmpNotesEs(e.target.value)} maxLength={4000}
-                    placeholder={t('owner.services.employeeNotesPlaceholder')}
-                    style={{ width: '100%', padding: 8, border: '1px solid var(--tax-border)', borderRadius: 6, fontFamily: 'inherit', fontSize: 13 }} />
-        </div>
+        {!autoTasksLoaded ? <p style={{ color: 'var(--tax-muted)', fontSize: 13 }}>{t('loading')}</p>
+          : autoTasks.length === 0
+            ? <p style={{ color: 'var(--tax-muted)', fontSize: 13 }}>{t('owner.services.autoTasks.empty')}</p>
+            : <div style={{ display: 'grid', gap: 10 }}>
+                {autoTasks.map((at, i) => (
+                  <AutoTaskEditor key={at.id || `new-${i}`} value={at} index={i}
+                                  serviceName={nameEn || nameEs || p.slug}
+                                  onChange={patch => updateAutoTask(i, patch)}
+                                  onRemove={() => removeAutoTask(i)}
+                                  t={t} />
+                ))}
+              </div>}
       </div>
 
       {err && <div className="tax-msg tax-msg--error">{err}</div>}
@@ -545,51 +503,200 @@ function SectionHeader({ emoji, label, hint, tone = 'homepage' }) {
 //
 // We show the next 6 dates derived from the current anchor_rule;
 // the actual generator's look-ahead is the community's
-// tax_task_lookahead_months setting (default 6 months), so this is
-// a faithful preview of the first few periods.
-function TaskPreview({ cadenceKind, anchorRule, serviceName, t }) {
-  const periods = useMemo(() => {
-    if (!cadenceKind || cadenceKind === 'none') return [];
-    try { return generatePeriods(anchorRule, new Date(), 6); }
+
+// Map a server auto-task row to the editor's working shape (separate
+// fields for cadence inputs that conditional renders read from).
+function normalizeAutoTaskForEdit(row) {
+  const a = row.anchor_rule && typeof row.anchor_rule === 'object' ? row.anchor_rule : {};
+  return {
+    id: row.id || null,
+    titleEn: row.title_i18n?.en || '',
+    titleEs: row.title_i18n?.es || '',
+    descriptionEn: row.description_i18n?.en || '',
+    descriptionEs: row.description_i18n?.es || '',
+    cadenceKind: row.cadence_kind || 'monthly',
+    day:     String(a.day ?? 15),
+    weekday: String(a.weekday ?? 1),
+    month:   String(a.month ?? 1),
+    defaultPriority: row.default_priority || 'normal',
+  };
+}
+
+// Reverse of normalizeAutoTaskForEdit — produce the anchor_rule
+// shape the generator (schedulePeriods.generatePeriods) expects.
+function buildAnchorRuleFromForm(at) {
+  if (at.cadenceKind === 'monthly')   return { type: 'monthly_following',   day: Number(at.day) || 15 };
+  if (at.cadenceKind === 'quarterly') return { type: 'quarterly_following', day: Number(at.day) || 15 };
+  if (at.cadenceKind === 'weekly')    return { type: 'weekly_following',    weekday: Number(at.weekday) || 1 };
+  if (at.cadenceKind === 'annual')    return { type: 'annual',
+                                                month: Number(at.month) || 1, day: Number(at.day) || 15 };
+  return {};
+}
+
+// One row in the auto-tasks list. Inline title + cadence config +
+// live preview of the next 3 due dates. Designed to stack — owner
+// can add many.
+function AutoTaskEditor({ value: at, index, serviceName, onChange, onRemove, t }) {
+  const preview = useMemo(() => {
+    if (!at.cadenceKind || at.cadenceKind === 'none') return [];
+    try { return generatePeriods(buildAnchorRuleFromForm(at), new Date(), 3); }
     catch { return []; }
-  }, [cadenceKind, JSON.stringify(anchorRule)]);
+  }, [at.cadenceKind, at.day, at.weekday, at.month]);
+
+  const titleLive = at.titleEn || at.titleEs || `${t('owner.services.autoTasks.untitled')} #${index + 1}`;
 
   return (
     <div style={{
-      padding: '12px 14px', borderRadius: 8,
-      background: '#fff', border: '1px dashed #d97706',
+      padding: 12, borderRadius: 8,
+      background: '#fff', border: '1px solid var(--tax-border)',
+      display: 'grid', gap: 10,
     }}>
-      <div style={{ fontSize: 11, fontWeight: 700, color: '#9a3412',
-                     textTransform: 'uppercase', letterSpacing: '.05em' }}>
-        {t('owner.services.preview.title')}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8 }}>
+        <div style={{ fontWeight: 600, fontSize: 13 }}>
+          {titleLive}
+        </div>
+        <button type="button" onClick={onRemove}
+                style={{ border: 0, background: 'transparent', cursor: 'pointer',
+                         color: 'var(--tax-error)', fontSize: 12, fontWeight: 600 }}>
+          × {t('owner.services.autoTasks.remove')}
+        </button>
       </div>
-      {cadenceKind === 'none' ? (
-        <p style={{ margin: '6px 0 0', fontSize: 13, color: 'var(--tax-muted)' }}>
-          {t('owner.services.preview.noneHint')}
-        </p>
-      ) : periods.length === 0 ? (
-        <p style={{ margin: '6px 0 0', fontSize: 13, color: 'var(--tax-muted)' }}>
-          {t('owner.services.preview.empty')}
-        </p>
-      ) : (
-        <>
-          <p style={{ margin: '4px 0 8px', fontSize: 12, color: 'var(--tax-muted)' }}>
-            {t('owner.services.preview.intro', { count: periods.length })}
-          </p>
-          <ul style={{ margin: 0, paddingLeft: 20, fontSize: 13 }}>
-            {periods.map((p, i) => (
-              <li key={i} style={{ marginTop: 3 }}>
+
+      <div className="tax-form__row2">
+        <div>
+          <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--tax-muted)' }}>
+            {t('owner.services.autoTasks.titleEn')}
+          </label>
+          <input type="text" value={at.titleEn} maxLength={200}
+                 onChange={e => onChange({ titleEn: e.target.value })}
+                 placeholder="e.g. Monthly reconciliation"
+                 style={{ width: '100%', padding: 8, border: '1px solid var(--tax-border)', borderRadius: 6 }} />
+        </div>
+        <div>
+          <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--tax-muted)' }}>
+            {t('owner.services.autoTasks.titleEs')}
+          </label>
+          <input type="text" value={at.titleEs} maxLength={200}
+                 onChange={e => onChange({ titleEs: e.target.value })}
+                 placeholder="p. ej. Conciliación mensual"
+                 style={{ width: '100%', padding: 8, border: '1px solid var(--tax-border)', borderRadius: 6 }} />
+        </div>
+      </div>
+
+      <div className="tax-form__row2">
+        <div>
+          <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--tax-muted)' }}>
+            {t('owner.services.cadence')}
+          </label>
+          <select value={at.cadenceKind} onChange={e => onChange({ cadenceKind: e.target.value })}
+                  style={{ width: '100%', padding: 8, border: '1px solid var(--tax-border)', borderRadius: 6 }}>
+            <option value="weekly">{t('owner.services.cadence.weekly')}</option>
+            <option value="monthly">{t('owner.services.cadence.monthly')}</option>
+            <option value="quarterly">{t('owner.services.cadence.quarterly')}</option>
+            <option value="annual">{t('owner.services.cadence.annual')}</option>
+          </select>
+        </div>
+        <div>
+          <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--tax-muted)' }}>
+            {t('owner.services.autoTasks.priority')}
+          </label>
+          <select value={at.defaultPriority} onChange={e => onChange({ defaultPriority: e.target.value })}
+                  style={{ width: '100%', padding: 8, border: '1px solid var(--tax-border)', borderRadius: 6 }}>
+            <option value="low">{t('owner.tasks.priority.low')}</option>
+            <option value="normal">{t('owner.tasks.priority.normal')}</option>
+            <option value="high">{t('owner.tasks.priority.high')}</option>
+            <option value="urgent">{t('owner.tasks.priority.urgent')}</option>
+          </select>
+        </div>
+      </div>
+
+      {at.cadenceKind === 'weekly' && (
+        <div>
+          <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--tax-muted)' }}>
+            {t('owner.services.cadence.weekdayLabel')}
+          </label>
+          <select value={at.weekday} onChange={e => onChange({ weekday: e.target.value })}
+                  style={{ padding: 8, border: '1px solid var(--tax-border)', borderRadius: 6 }}>
+            <option value="1">{t('owner.services.weekday.mon')}</option>
+            <option value="2">{t('owner.services.weekday.tue')}</option>
+            <option value="3">{t('owner.services.weekday.wed')}</option>
+            <option value="4">{t('owner.services.weekday.thu')}</option>
+            <option value="5">{t('owner.services.weekday.fri')}</option>
+          </select>
+        </div>
+      )}
+      {(at.cadenceKind === 'monthly' || at.cadenceKind === 'quarterly') && (
+        <div>
+          <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--tax-muted)' }}>
+            {t('owner.services.cadence.dayLabel')}
+          </label>
+          <input type="number" min="1" max="28" value={at.day}
+                 onChange={e => onChange({ day: e.target.value })}
+                 style={{ width: 100, padding: 8, border: '1px solid var(--tax-border)', borderRadius: 6 }} />
+        </div>
+      )}
+      {at.cadenceKind === 'annual' && (
+        <div className="tax-form__row2">
+          <div>
+            <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--tax-muted)' }}>
+              {t('owner.services.cadence.monthLabel')}
+            </label>
+            <input type="number" min="1" max="12" value={at.month}
+                   onChange={e => onChange({ month: e.target.value })}
+                   style={{ width: 100, padding: 8, border: '1px solid var(--tax-border)', borderRadius: 6 }} />
+          </div>
+          <div>
+            <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--tax-muted)' }}>
+              {t('owner.services.cadence.dayLabel')}
+            </label>
+            <input type="number" min="1" max="28" value={at.day}
+                   onChange={e => onChange({ day: e.target.value })}
+                   style={{ width: 100, padding: 8, border: '1px solid var(--tax-border)', borderRadius: 6 }} />
+          </div>
+        </div>
+      )}
+
+      <div className="tax-form__row2">
+        <div>
+          <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--tax-muted)' }}>
+            {t('owner.services.autoTasks.notesEn')}
+          </label>
+          <textarea rows={2} value={at.descriptionEn} maxLength={4000}
+                    onChange={e => onChange({ descriptionEn: e.target.value })}
+                    placeholder={t('owner.services.autoTasks.notesPlaceholder')}
+                    style={{ width: '100%', padding: 8, border: '1px solid var(--tax-border)', borderRadius: 6, fontFamily: 'inherit', fontSize: 13 }} />
+        </div>
+        <div>
+          <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--tax-muted)' }}>
+            {t('owner.services.autoTasks.notesEs')}
+          </label>
+          <textarea rows={2} value={at.descriptionEs} maxLength={4000}
+                    onChange={e => onChange({ descriptionEs: e.target.value })}
+                    placeholder={t('owner.services.autoTasks.notesPlaceholder')}
+                    style={{ width: '100%', padding: 8, border: '1px solid var(--tax-border)', borderRadius: 6, fontFamily: 'inherit', fontSize: 13 }} />
+        </div>
+      </div>
+
+      {preview.length > 0 && (
+        <div style={{
+          padding: '8px 10px', borderRadius: 6,
+          background: 'color-mix(in srgb, #d97706 8%, #fff)',
+          fontSize: 12,
+        }}>
+          <div style={{ color: 'var(--tax-muted)', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.04em' }}>
+            {t('owner.services.autoTasks.previewTitle')}
+          </div>
+          <ul style={{ margin: '4px 0 0', paddingLeft: 18 }}>
+            {preview.map((p, i) => (
+              <li key={i}>
                 <strong>{p.dueDate}</strong>
                 <span style={{ color: 'var(--tax-muted)' }}>
-                  {' — '}{serviceName || ''}{p.periodLabel ? ` (${p.periodLabel})` : ''}
+                  {' — '}{titleLive}{p.periodLabel ? ` (${p.periodLabel})` : ''}
                 </span>
               </li>
             ))}
           </ul>
-          <p style={{ margin: '8px 0 0', fontSize: 11, color: 'var(--tax-muted)' }}>
-            {t('owner.services.preview.footnote')}
-          </p>
-        </>
+        </div>
       )}
     </div>
   );
