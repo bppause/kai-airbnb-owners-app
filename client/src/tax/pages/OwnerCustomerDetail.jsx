@@ -149,7 +149,14 @@ export default function OwnerCustomerDetail({ customerId }) {
       <DocumentsSection
         data={data} auth={auth} customerId={customerId} onChange={load} t={t} />
 
-      <SignatureRequestsSection auth={auth} customerId={customerId} locale={locale} t={t} />
+      {/* Phase 4n.41: Signature Requests require the customer portal
+          to complete (customer types their name in /portal/sign/:id).
+          With the portal off, owners could still create requests but
+          customers couldn't sign — gate the section on portal-enabled
+          so it doesn't show a half-broken surface. */}
+      {community?.tax_customer_portal_enabled && (
+        <SignatureRequestsSection auth={auth} customerId={customerId} locale={locale} t={t} />
+      )}
 
       <AssignmentsSection data={data} t={t} />
 
