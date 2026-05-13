@@ -2506,6 +2506,16 @@ create unique index if not exists tax_tasks_product_period_unique
   on public.tax_tasks(customer_id, product_id, period_key)
   where period_key is not null and archived_at is null and schedule_id is null;
 
+-- Phase 4n.39: per-community task look-ahead window. The task
+-- generator creates one task per upcoming period out to this many
+-- months ahead. A daily cron re-runs the generator across every
+-- active customer relationship to keep the window rolling so the
+-- Tasks page never runs dry. Owner can stretch (12, 18) or shorten
+-- (3) via Settings.
+alter table public.communities
+  add column if not exists tax_task_lookahead_months smallint not null default 6
+    check (tax_task_lookahead_months between 1 and 24);
+
 -- Seed the three default status options for tax-america-services. New
 -- communities provisioned via the platform endpoint should mirror this
 -- (handled in server code on community create).

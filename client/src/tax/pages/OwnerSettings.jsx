@@ -58,6 +58,27 @@ export default function OwnerSettings() {
     }
   };
 
+  const onSaveLookahead = async (months) => {
+    setBusy(true); setMsg({ kind: 'idle', text: '' });
+    try {
+      await taxApi.adminSetTaskLookahead(auth, { communitySlug: community.id, months });
+      setMsg({ kind: 'success', text: t('owner.settings.saved') });
+      load();
+    } catch (e) {
+      setMsg({ kind: 'error', text: e?.message || t('respond.error.generic') });
+    } finally { setBusy(false); }
+  };
+  const onRefreshTasksNow = async () => {
+    setBusy(true); setMsg({ kind: 'idle', text: '' });
+    try {
+      const r = await taxApi.adminRefreshTasks(auth);
+      setMsg({ kind: 'success',
+        text: t('owner.settings.lookahead.refreshed', { scanned: r.scanned || 0, created: r.created || 0 }) });
+    } catch (e) {
+      setMsg({ kind: 'error', text: e?.message || t('respond.error.generic') });
+    } finally { setBusy(false); }
+  };
+
   const onToggleRemindersEnabled = async (enabled) => {
     setBusy(true); setMsg({ kind: 'idle', text: '' });
     try {
@@ -91,6 +112,7 @@ export default function OwnerSettings() {
   const docsEnabled = Boolean(settings.tax_customer_documents_enabled);
   const portalEnabled = Boolean(settings.tax_customer_portal_enabled);
   const remindersEnabled = Boolean(settings.tax_customer_reminders_enabled);
+  const lookaheadMonths = Number(settings.tax_task_lookahead_months) || 6;
 
   return (
     <EmployeeShell community={community} active="settings">
@@ -140,6 +162,15 @@ export default function OwnerSettings() {
             </div>
           </label>
         </div>
+      </section>
+
+      <section style={{ marginBottom: 32 }}>
+        <h3 style={{ marginBottom: 4 }}>{t('owner.settings.lookahead.title')}</h3>
+        <p style={{ color: 'var(--tax-muted)', marginTop: 0, marginBottom: 12, fontSize: 14 }}>
+          {t('owner.settings.lookahead.subtitle')}
+        </p>
+        <LookaheadEditor initial={lookaheadMonths} busy={busy}
+                         onSave={onSaveLookahead} onRefresh={onRefreshTasksNow} t={t} />
       </section>
 
       <section style={{ marginBottom: 32 }}>
@@ -623,6 +654,38 @@ function Field({ id, label, type, value, onChange, placeholder, hint }) {
              onChange={e => onChange(e.target.value)}
              style={{ width: '100%' }} />
       {hint && <p style={{ margin: '4px 0 0', fontSize: 12, color: 'var(--tax-muted)' }}>{hint}</p>}
+    </div>
+  );
+}
+
+function LookaheadEditor({ initial, busy, onSave, onRefresh, t }) {
+  const [draft, setDraft] = useState(String(initial));
+  const dirty = String(initial) !== String(draft);
+  return (
+    <div style={{ display: 'grid', gap: 10, maxWidth: 560 }}>
+      <label style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+        <span style={{ fontSize: 13 }}>{t('owner.settings.lookahead.label')}</span>
+        <input type="number" min="1" max="24" value={draft}
+               onChange={e => setDraft(e.target.value)} disabled={busy}
+               style={{ width: 80, padding: '6px 8px', border: '1px solid var(--tax-border)', borderRadius: 6 }} />
+        <button type="button" className="tax-btn tax-btn--primary tax-btn--sm"
+                disabled={busy || !dirty
+                          || !Number.isFinite(Number(draft))
+                          || Number(draft) < 1 || Number(draft) > 24}
+                onClick={() => onSave(Math.max(1, Math.min(24, Math.round(Number(draft) || 6))))}>
+          {t('owner.settings.lookahead.save')}
+        </button>
+      </label>
+      <div>
+        <button type="button" className="tax-btn tax-btn--ghost tax-btn--sm"
+                disabled={busy} onClick={onRefresh}
+                style={{ color: 'var(--tax-brand-primary)', borderColor: 'var(--tax-brand-primary)' }}>
+          {t('owner.settings.lookahead.refreshNow')}
+        </button>
+        <p style={{ margin: '6px 0 0', fontSize: 11, color: 'var(--tax-muted)' }}>
+          {t('owner.settings.lookahead.refreshHint')}
+        </p>
+      </div>
     </div>
   );
 }
