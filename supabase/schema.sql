@@ -2832,3 +2832,24 @@ where p.cadence_kind is not null
     select 1 from public.tax_service_auto_tasks sat
     where sat.product_id = p.id
   );
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- Phase 4n.47 — urgency model simplified to two thresholds
+--
+-- Drop the "upcoming" / blue band. New defaults map to "no color
+-- by default, orange 7 days before, red 2 days before or past
+-- due". The `tax_task_upcoming_days` column stays on the table for
+-- back-compat but the UI no longer reads or writes it.
+-- ═══════════════════════════════════════════════════════════════════════════════
+alter table public.communities
+  alter column tax_task_urgent_days set default 2;
+
+-- Migrate existing tenants who haven't customized: bring them to
+-- the new defaults silently. Owners who set their own values are
+-- left alone (the WHERE keeps the migration narrow).
+update public.communities
+   set tax_task_urgent_days = 2
+ where tax_task_urgent_days = 3
+   and tax_task_soon_days   = 7
+   and tax_task_upcoming_days = 30
+   and business_type = 'tax';

@@ -257,7 +257,7 @@ function FilterBar({ filters, setFilters, statuses, employees, products, onClear
   );
 }
 
-function TaskRow({ task, auth, statuses, employees, customerById, employeeById, productById, isAdmin, onEdit, onChange, locale, t }) {
+function TaskRow({ task, auth, community, statuses, employees, customerById, employeeById, productById, isAdmin, onEdit, onChange, locale, t }) {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
   const [showNotes, setShowNotes] = useState(false);
@@ -269,6 +269,12 @@ function TaskRow({ task, auth, statuses, employees, customerById, employeeById, 
   const statusLabel = status ? (pickI18n(status.label_i18n, locale).value || status.key) : task.status_key;
   const statusBg = status?.color || '#9ca3af';
   const overdue = task.due_date && task.due_date < new Date().toISOString().slice(0, 10) && !task.completed_at;
+  // Phase 4n.47: due-date color treatment shared with Calendar +
+  // Kanban. Completed tasks always render neutral — there's no
+  // "urgency" once the work is done.
+  const thresholds = resolveThresholds(community);
+  const urgency = task.completed_at ? 'later' : urgencyOf(task.due_date, thresholds);
+  const due = colorOf(urgency);
   const prCol = PRIORITY_COLOR[task.priority] || PRIORITY_COLOR.normal;
 
   const update = async (patch) => {
@@ -317,9 +323,20 @@ function TaskRow({ task, auth, statuses, employees, customerById, employeeById, 
                 {displayPersonName(assignee) || assignee.email}</span>
             )}
             {task.due_date && (
-              <span style={overdue ? { color: '#b91c1c', fontWeight: 600 } : undefined}>
-                <strong>{t('owner.tasks.due')}:</strong> {task.due_date}
-                {overdue && ` (${t('owner.tasks.overdue')})`}
+              <span>
+                <strong>{t('owner.tasks.due')}:</strong>{' '}
+                {urgency === 'later' ? (
+                  <span style={{ color: 'var(--tax-muted)' }}>{task.due_date}</span>
+                ) : (
+                  <span style={{
+                    padding: '1px 8px', borderRadius: 999,
+                    background: due.bg, color: due.fg,
+                    fontWeight: 700, fontSize: 11, whiteSpace: 'nowrap',
+                  }}>
+                    {task.due_date}
+                    {urgency === 'overdue' && ` · ${t('owner.tasks.urgency.overdue')}`}
+                  </span>
+                )}
               </span>
             )}
             <span style={{ color: 'var(--tax-muted)' }}>
@@ -937,7 +954,7 @@ function TasksGroupedList({ tasks, groupBy, community, statuses, employees,
     return (
       <div style={{ display: 'grid', gap: 8 }}>
         {tasks.map(task => (
-          <TaskRow key={task.id} task={task} auth={auth}
+          <TaskRow key={task.id} task={task} auth={auth} community={community}
                    statuses={statuses} employees={employees}
                    customerById={customerById} employeeById={employeeById}
                    productById={productById} isAdmin={isAdmin}
@@ -1000,7 +1017,7 @@ function TasksGroupedList({ tasks, groupBy, community, statuses, employees,
             </h3>
             <div style={{ display: 'grid', gap: 8 }}>
               {g.items.map(task => (
-                <TaskRow key={task.id} task={task} auth={auth}
+                <TaskRow key={task.id} task={task} auth={auth} community={community}
                          statuses={statuses} employees={employees}
                          customerById={customerById} employeeById={employeeById}
                          productById={productById} isAdmin={isAdmin}
@@ -1200,13 +1217,24 @@ function TasksKanban({ tasks, statuses, community, auth, onChange, onEdit, local
                style={{
                  background: 'var(--tax-bg-alt)', borderRadius: 8,
                  padding: 8, minHeight: 200,
+                 // Phase 4n.47: each column carries the status's
+                 // owner-configured color along its top, so the
+                 // Kanban inherits the same color language the chip
+                 // uses in the List view.
+                 borderTop: `3px solid ${col.color || '#9ca3af'}`,
                }}>
             <div style={{
               padding: '4px 6px 8px', fontSize: 12, fontWeight: 700,
               color: 'var(--tax-muted)', textTransform: 'uppercase', letterSpacing: '.04em',
-              display: 'flex', justifyContent: 'space-between',
+              display: 'flex', justifyContent: 'space-between', alignItems: 'center',
             }}>
-              <span>{pickI18n(col.label_i18n, locale).value || col.key}</span>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                <span style={{
+                  width: 10, height: 10, borderRadius: 999,
+                  background: col.color || '#9ca3af',
+                }} />
+                {pickI18n(col.label_i18n, locale).value || col.key}
+              </span>
               <span style={{ fontWeight: 500 }}>· {items.length}</span>
             </div>
             <div style={{ display: 'grid', gap: 6 }}>
