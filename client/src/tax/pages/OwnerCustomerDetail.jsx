@@ -1537,11 +1537,18 @@ function InlineAddTask({ auth, community, customerId, statuses, employees, produ
 // use" surface. Adding a service immediately fires the task
 // generator for it; removing a service hard-deletes the untouched
 // auto-tasks (same safety rule as relationship removal).
+
+// Phase 4n.50: chip-toggle pattern for tagging services. Mirrors
+// how the legacy "relationship chips" worked — one click to add,
+// one click on a tagged chip's × to remove. Tagged services sit in
+// a filled row at the top; untagged services sit below as a row of
+// outlined chips the owner can click to add. Same data flow as the
+// dropdown variant: each toggle fires the generator immediately so
+// the team has tasks queued before the screen settles.
 function ServicesSection({ community, auth, customerId, locale, t }) {
   const [services, setServices] = useState(null);
   const [products, setProducts] = useState([]);
-  const [productId, setProductId] = useState('');
-  const [busy, setBusy] = useState(false);
+  const [busyId, setBusyId] = useState(null);
   const [err, setErr] = useState('');
   const [msg, setMsg] = useState('');
 
@@ -1560,34 +1567,34 @@ function ServicesSection({ community, auth, customerId, locale, t }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [auth?.uid, community?.id, customerId]);
 
-  const tagged = new Set((services || []).map(s => s.product_id));
-  const choices = products.filter(p => !tagged.has(p.id));
+  const taggedByProduct = new Map((services || []).map(s => [s.product_id, s]));
+  const taggedIds = new Set(taggedByProduct.keys());
+  const untagged = products.filter(p => !taggedIds.has(p.id));
 
-  const onAdd = async () => {
-    if (!productId) return;
-    setBusy(true); setErr(''); setMsg('');
+  const onAdd = async (product) => {
+    setBusyId(product.id); setErr(''); setMsg('');
     try {
-      const r = await taxApi.adminAddCustomerService(auth, customerId, { productId });
-      setProductId('');
+      const r = await taxApi.adminAddCustomerService(auth, customerId, { productId: product.id });
+      const name = pickI18n(product.name_i18n, locale).value || product.slug;
       setMsg(r.tasksCreated
-        ? t('owner.customer.services.addedWithTasks', { count: r.tasksCreated })
-        : t('owner.customer.services.added'));
+        ? t('owner.customer.services.addedWithTasks', { count: r.tasksCreated, name })
+        : t('owner.customer.services.addedNamed', { name }));
       load();
     } catch (e) { setErr(e?.message || ''); }
-    finally { setBusy(false); }
+    finally { setBusyId(null); }
   };
   const onRemove = async (link) => {
     const name = pickI18n(link.product?.name_i18n, locale).value || link.product?.slug || '';
     if (!window.confirm(t('owner.customer.services.removeConfirm', { name }))) return;
-    setBusy(true); setErr(''); setMsg('');
+    setBusyId(link.id); setErr(''); setMsg('');
     try {
       const r = await taxApi.adminRemoveCustomerService(auth, customerId, link.id);
       setMsg(r.tasksDeleted
-        ? t('owner.customer.services.removedWithTasks', { count: r.tasksDeleted })
-        : t('owner.customer.services.removed'));
+        ? t('owner.customer.services.removedWithTasks', { count: r.tasksDeleted, name })
+        : t('owner.customer.services.removedNamed', { name }));
       load();
     } catch (e) { setErr(e?.message || ''); }
-    finally { setBusy(false); }
+    finally { setBusyId(null); }
   };
 
   return (
@@ -1604,49 +1611,89 @@ function ServicesSection({ community, auth, customerId, locale, t }) {
         fontSize: 13, marginBottom: 8,
       }}>{msg}</div>}
 
-      <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
-        <select value={productId} onChange={e => setProductId(e.target.value)} disabled={busy}
-                style={{ padding: '6px 10px', border: '1px solid var(--tax-border)', borderRadius: 6, minWidth: 240 }}>
-          <option value="">{t('owner.customer.services.addPicker')}</option>
-          {choices.map(p => (
-            <option key={p.id} value={p.id}>
-              {pickI18n(p.name_i18n, locale).value || p.slug}
-            </option>
-          ))}
-        </select>
-        <button type="button" className="tax-btn tax-btn--primary tax-btn--sm"
-                onClick={onAdd} disabled={busy || !productId}>
-          + {t('owner.customer.services.addBtn')}
-        </button>
-      </div>
-
       {services === null ? <p style={{ color: 'var(--tax-muted)' }}>{t('loading')}</p>
-        : services.length === 0
-          ? <p style={{ color: 'var(--tax-muted)', fontSize: 13 }}>{t('owner.customer.services.empty')}</p>
-          : <div style={{ display: 'grid', gap: 6 }}>
-              {services.map(link => {
-                const name = pickI18n(link.product?.name_i18n, locale).value || link.product?.slug || '';
-                return (
-                  <div key={link.id} className="tax-contact-item" style={{
-                    display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12,
-                  }}>
-                    <div>
-                      <div style={{ fontWeight: 600 }}>{name}</div>
-                      {link.product?.category && (
-                        <div style={{ fontSize: 11, color: 'var(--tax-muted)', textTransform: 'uppercase', letterSpacing: '.04em', marginTop: 2 }}>
-                          {link.product.category}
-                        </div>
-                      )}
-                    </div>
-                    <button type="button" className="tax-btn tax-btn--ghost tax-btn--sm"
-                            onClick={() => onRemove(link)} disabled={busy}
-                            style={{ color: 'var(--tax-error)' }}>
-                      × {t('owner.customer.services.remove')}
-                    </button>
-                  </div>
-                );
-              })}
-            </div>}
+        : (
+          <>
+            <div style={{
+              fontSize: 11, fontWeight: 700, color: 'var(--tax-muted)',
+              textTransform: 'uppercase', letterSpacing: '.05em', marginBottom: 6,
+            }}>
+              {t('owner.customer.services.taggedHeading')}
+            </div>
+            {services.length === 0 ? (
+              <p style={{ color: 'var(--tax-muted)', fontSize: 13, marginBottom: 14 }}>
+                {t('owner.customer.services.empty')}
+              </p>
+            ) : (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 14 }}>
+                {services.map(link => {
+                  const name = pickI18n(link.product?.name_i18n, locale).value || link.product?.slug || '';
+                  const isBusy = busyId === link.id;
+                  return (
+                    <span key={link.id} style={{
+                      display: 'inline-flex', alignItems: 'center', gap: 6,
+                      padding: '4px 4px 4px 12px', borderRadius: 999,
+                      background: 'color-mix(in srgb, var(--tax-brand-primary) 14%, #fff)',
+                      color: 'var(--tax-brand-primary)',
+                      border: '1px solid color-mix(in srgb, var(--tax-brand-primary) 28%, #fff)',
+                      fontSize: 13, fontWeight: 600,
+                      opacity: isBusy ? 0.5 : 1,
+                    }}>
+                      {name}
+                      <button type="button"
+                              onClick={() => onRemove(link)} disabled={isBusy}
+                              aria-label={t('owner.customer.services.remove')}
+                              style={{
+                                border: 0, background: 'transparent',
+                                color: 'var(--tax-brand-primary)',
+                                cursor: isBusy ? 'wait' : 'pointer',
+                                padding: '0 6px',
+                                fontSize: 16, lineHeight: 1, fontWeight: 700,
+                              }}>×</button>
+                    </span>
+                  );
+                })}
+              </div>
+            )}
+
+            {untagged.length > 0 && (
+              <>
+                <div style={{
+                  fontSize: 11, fontWeight: 700, color: 'var(--tax-muted)',
+                  textTransform: 'uppercase', letterSpacing: '.05em', marginBottom: 6,
+                }}>
+                  {t('owner.customer.services.availableHeading')}
+                </div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                  {untagged.map(p => {
+                    const name = pickI18n(p.name_i18n, locale).value || p.slug;
+                    const isBusy = busyId === p.id;
+                    return (
+                      <button key={p.id} type="button"
+                              onClick={() => onAdd(p)} disabled={isBusy}
+                              style={{
+                                padding: '4px 12px', borderRadius: 999,
+                                background: '#fff',
+                                color: 'var(--tax-text)',
+                                border: '1px solid var(--tax-border)',
+                                fontSize: 13, fontWeight: 500,
+                                cursor: isBusy ? 'wait' : 'pointer',
+                                opacity: isBusy ? 0.5 : 1,
+                              }}>
+                        + {name}
+                      </button>
+                    );
+                  })}
+                </div>
+              </>
+            )}
+            {untagged.length === 0 && services.length > 0 && (
+              <p style={{ color: 'var(--tax-muted)', fontSize: 12, marginTop: 4 }}>
+                {t('owner.customer.services.allTagged')}
+              </p>
+            )}
+          </>
+        )}
     </section>
   );
 }
