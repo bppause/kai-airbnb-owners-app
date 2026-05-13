@@ -61,6 +61,15 @@ export default function OwnerTasks() {
   useEffect(() => {
     try { localStorage.setItem('tax.tasks.groupBy', groupBy); } catch { /* ignore */ }
   }, [groupBy]);
+  // Sort key persisted per browser so the operator's order sticks.
+  // Server interprets the key — see /admin/tasks.
+  const [sortKey, setSortKey] = useState(() => {
+    try { return localStorage.getItem('tax.tasks.sort') || 'dueAsc'; }
+    catch { return 'dueAsc'; }
+  });
+  useEffect(() => {
+    try { localStorage.setItem('tax.tasks.sort', sortKey); } catch { /* ignore */ }
+  }, [sortKey]);
   const [mine, setMine] = useState(false);
 
   const load = () => {
@@ -77,13 +86,31 @@ export default function OwnerTasks() {
       customerId: flat(filters.customerId),
       due: filters.due,
       q: filters.q,
+      sort: sortKey,
     };
     // Mine-toggle overrides the assignedTo filter for the duration
     // of the toggle. Turning Mine off keeps whatever the picker
     // had selected before.
     if (mine && employee?.id) merged.assignedTo = employee.id;
     taxApi.adminListTasks(auth, merged)
-      .then(d => setTasks(d.tasks || []))
+      .then(d => {
+        const rows = d.tasks || [];
+        // Priority is a text column server-side so the rank ordering
+        // (urgent > high > normal > low) is applied here. Other sort
+        // keys are already handled by the SQL ORDER BY.
+        if (sortKey === 'priority') {
+          const rank = { urgent: 0, high: 1, normal: 2, low: 3 };
+          rows.sort((a, b) => {
+            const ar = rank[a.priority] ?? 99;
+            const br = rank[b.priority] ?? 99;
+            if (ar !== br) return ar - br;
+            const ad = a.due_date || '9999-12-31';
+            const bd = b.due_date || '9999-12-31';
+            return ad.localeCompare(bd);
+          });
+        }
+        setTasks(rows);
+      })
       .catch(e => setErr(e?.message || t('error.loadFailed')));
   };
 
@@ -119,7 +146,7 @@ export default function OwnerTasks() {
     searchTimer.current = setTimeout(load, 200);
     return () => { if (searchTimer.current) clearTimeout(searchTimer.current); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fbUser, community, filters, mine, employee?.id]);
+  }, [fbUser, community, filters, mine, employee?.id, sortKey]);
 
   const employeeById = useMemo(() => new Map(employees.map(e => [e.id, e])), [employees]);
   const customerById = useMemo(() => new Map(customers.map(c => [c.id, c])), [customers]);
@@ -178,6 +205,7 @@ export default function OwnerTasks() {
         filters={filters} setFilters={setFilters}
         view={view} setView={setView}
         groupBy={groupBy} setGroupBy={setGroupBy}
+        sortKey={sortKey} setSortKey={setSortKey}
         t={t}
       />
 
@@ -1117,7 +1145,7 @@ function InlineCustomerCreateModal({ auth, community, relationshipTypes, locale,
 }
 
 // ─── Toolbar: My-tasks toggle + due chips + view-mode + group-by ─────────
-function TaskToolbar({ mine, setMine, filters, setFilters, view, setView, groupBy, setGroupBy, t }) {
+function TaskToolbar({ mine, setMine, filters, setFilters, view, setView, groupBy, setGroupBy, sortKey, setSortKey, t }) {
   const DUE_CHIPS = [
     { key: '',         label: t('owner.tasks.chip.all') },
     { key: 'overdue',  label: t('owner.tasks.chip.overdue') },
@@ -1156,6 +1184,21 @@ function TaskToolbar({ mine, setMine, filters, setFilters, view, setView, groupB
               <option value="service">{t('owner.tasks.groupBy.service')}</option>
               <option value="customer">{t('owner.tasks.groupBy.customer')}</option>
               <option value="dueBucket">{t('owner.tasks.groupBy.dueBucket')}</option>
+            </select>
+          </label>
+        )}
+        {view === 'list' && (
+          <label style={{ display: 'inline-flex', gap: 6, alignItems: 'center', fontSize: 12 }}>
+            <span style={{ color: 'var(--tax-muted)', textTransform: 'uppercase', letterSpacing: '.04em', fontWeight: 700 }}>
+              {t('owner.tasks.sort.label')}
+            </span>
+            <select value={sortKey} onChange={e => setSortKey(e.target.value)}
+                    style={{ padding: '4px 6px', border: '1px solid var(--tax-border)', borderRadius: 6, fontSize: 12 }}>
+              <option value="dueAsc">{t('owner.tasks.sort.dueAsc')}</option>
+              <option value="dueDesc">{t('owner.tasks.sort.dueDesc')}</option>
+              <option value="priority">{t('owner.tasks.sort.priority')}</option>
+              <option value="createdDesc">{t('owner.tasks.sort.createdDesc')}</option>
+              <option value="createdAsc">{t('owner.tasks.sort.createdAsc')}</option>
             </select>
           </label>
         )}
