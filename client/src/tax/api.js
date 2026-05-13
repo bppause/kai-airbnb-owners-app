@@ -155,6 +155,9 @@ export const taxApi = {
     return request('GET',  path, undefined, auth);
   },
   adminCreateCustomer(auth, payload)            { return request('POST', '/admin/customers', payload, auth, { admin: true }); },
+  adminCustomerDefaultProduct(auth, customerId) {
+    return request('GET', `/admin/customers/${encodeURIComponent(customerId)}/default-product`, undefined, auth);
+  },
   adminImportCustomers(auth, payload)           { return request('POST', '/admin/customers/import', payload, auth, { admin: true }); },
   adminGetCustomer(auth, id)                    { return request('GET',  `/admin/customers/${encodeURIComponent(id)}`, undefined, auth, { admin: true }); },
   adminSendWelcomeEmail(auth, id)               { return request('POST', `/admin/customers/${encodeURIComponent(id)}/send-welcome`, {}, auth, { admin: true }); },

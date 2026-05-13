@@ -37,6 +37,8 @@ export default function OwnerTasks() {
   const [tasks, setTasks] = useState(null);
   const [err, setErr] = useState('');
   const [showAdd, setShowAdd] = useState(false);
+  const [editingTask, setEditingTask] = useState(null);
+  const [relationshipTypes, setRelationshipTypes] = useState([]);
 
   const [filters, setFilters] = useState({
     status: '', priority: '', assignedTo: '', productId: '', due: '',
@@ -59,11 +61,17 @@ export default function OwnerTasks() {
       taxApi.adminListEmployees(auth, community.id).catch(() => ({ employees: [] })),
       taxApi.adminListCustomers(auth, community.id).catch(() => ({ customers: [] })),
       taxApi.adminListProducts(auth, community.id).catch(() => ({ products: [] })),
-    ]).then(([s, e, c, p]) => {
+      // Admin-only — non-admins can't quick-create a customer, so the
+      // listing endpoint (which is admin-gated) is skipped for them.
+      isAdmin
+        ? taxApi.adminListRelationshipTypes(auth, { communitySlug: community.id }).catch(() => ({ types: [] }))
+        : Promise.resolve({ types: [] }),
+    ]).then(([s, e, c, p, rt]) => {
       setStatuses(s.statuses || []);
       setEmployees((e.employees || []).filter(em => em.status !== 'archived'));
       setCustomers(c.customers || []);
       setProducts(p.products || []);
+      setRelationshipTypes((rt.types || []).filter(r => r.active !== false));
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fbUser, community]);
@@ -105,12 +113,28 @@ export default function OwnerTasks() {
       </div>
 
       {showAdd && (
-        <AddTaskModal
-          auth={auth} community={community}
-          statuses={statuses} employees={employees} customers={customers} products={products}
+        <TaskFormModal
+          mode="create"
+          auth={auth} community={community} isAdmin={isAdmin}
+          statuses={statuses} employees={employees} customers={customers}
+          products={products} relationshipTypes={relationshipTypes}
           defaultAssignee={employee?.id || ''} locale={locale} t={t}
+          onCustomersChanged={(c) => setCustomers(prev => [c, ...prev])}
           onClose={() => setShowAdd(false)}
-          onCreated={() => { setShowAdd(false); load(); }}
+          onSaved={() => { setShowAdd(false); load(); }}
+        />
+      )}
+
+      {editingTask && (
+        <TaskFormModal
+          mode="edit" task={editingTask}
+          auth={auth} community={community} isAdmin={isAdmin}
+          statuses={statuses} employees={employees} customers={customers}
+          products={products} relationshipTypes={relationshipTypes}
+          defaultAssignee={employee?.id || ''} locale={locale} t={t}
+          onCustomersChanged={(c) => setCustomers(prev => [c, ...prev])}
+          onClose={() => setEditingTask(null)}
+          onSaved={() => { setEditingTask(null); load(); }}
         />
       )}
 
@@ -132,6 +156,7 @@ export default function OwnerTasks() {
                          statuses={statuses} employees={employees}
                          customerById={customerById} employeeById={employeeById}
                          productById={productById} isAdmin={isAdmin}
+                         onEdit={() => setEditingTask(task)}
                          onChange={load} locale={locale} t={t} />
               ))}
             </div>
@@ -193,7 +218,7 @@ function FilterBar({ filters, setFilters, statuses, employees, products, onClear
   );
 }
 
-function TaskRow({ task, auth, statuses, employees, customerById, employeeById, productById, isAdmin, onChange, locale, t }) {
+function TaskRow({ task, auth, statuses, employees, customerById, employeeById, productById, isAdmin, onEdit, onChange, locale, t }) {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
   const [showNotes, setShowNotes] = useState(false);
@@ -275,6 +300,11 @@ function TaskRow({ task, auth, statuses, employees, customerById, employeeById, 
               <option key={s.id} value={s.key}>{pickI18n(s.label_i18n, locale).value || s.key}</option>
             ))}
           </select>
+          <button type="button" onClick={onEdit} disabled={busy}
+                  className="tax-btn tax-btn--ghost tax-btn--sm"
+                  style={{ color: 'var(--tax-brand-primary)', borderColor: 'var(--tax-brand-primary)' }}>
+            {t('owner.tasks.edit')}
+          </button>
           {(isAdmin || task.assigned_employee_id === auth?.uid) && (
             <button type="button" onClick={onDelete} disabled={busy}
                     className="tax-btn tax-btn--ghost tax-btn--sm"
@@ -306,22 +336,36 @@ function TaskRow({ task, auth, statuses, employees, customerById, employeeById, 
   );
 }
 
-function AddTaskModal({ auth, community, statuses, employees, customers, products, defaultAssignee, locale, t, onClose, onCreated }) {
-  const [title, setTitle] = useState('');
-  const [customerId, setCustomerId] = useState('');
-  const [productId, setProductId] = useState('');
-  const [statusKey, setStatusKey] = useState(statuses[0]?.key || 'not_started');
-  const [priority, setPriority] = useState('normal');
-  const [assignedTo, setAssignedTo] = useState(defaultAssignee);
-  const [dueDate, setDueDate] = useState('');
-  const [notes, setNotes] = useState('');
+// Unified create + edit modal. Customer picker is a typeahead with an
+// inline "+ New customer" affordance; picking a customer auto-fills the
+// service from the customer's first active relationship (best-effort —
+// stays blank if no workflow rule chains to a product).
+function TaskFormModal({
+  mode, task, auth, community, isAdmin,
+  statuses, employees, customers, products, relationshipTypes,
+  defaultAssignee, locale, t,
+  onCustomersChanged, onClose, onSaved,
+}) {
+  const isEdit = mode === 'edit';
+  const [title, setTitle] = useState(isEdit ? (task.title || '') : '');
+  const [customerId, setCustomerId] = useState(isEdit ? (task.customer_id || '') : '');
+  const [productId, setProductId] = useState(isEdit ? (task.product_id || '') : '');
+  const [productAutoFilledFor, setProductAutoFilledFor] = useState('');
+  const [statusKey, setStatusKey] = useState(
+    isEdit ? task.status_key : (statuses[0]?.key || 'not_started')
+  );
+  const [priority, setPriority] = useState(isEdit ? task.priority : 'normal');
+  const [assignedTo, setAssignedTo] = useState(
+    isEdit ? (task.assigned_employee_id || '') : defaultAssignee
+  );
+  const [dueDate, setDueDate] = useState(isEdit ? (task.due_date || '') : '');
+  const [notes, setNotes] = useState(isEdit ? (task.notes || '') : '');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
   const [suggestions, setSuggestions] = useState([]);
+  const [showInlineCreate, setShowInlineCreate] = useState(false);
+  const [defaultProductHint, setDefaultProductHint] = useState(null);
 
-  // Load product-specific title suggestions whenever the service picker
-  // changes. Falls back to the generic "Common" bucket when no service is
-  // selected.
   useEffect(() => {
     const product = products.find(p => p.id === productId);
     taxApi.adminTaskSuggestions(auth, product?.slug || '')
@@ -341,13 +385,33 @@ function AddTaskModal({ auth, community, statuses, employees, customers, product
     };
   }, [onClose]);
 
+  // When the customer changes, fetch their default product and pre-fill —
+  // but only if the user hasn't manually overridden it. We track which
+  // customer the auto-fill came from so a later edit to the same customer
+  // doesn't stomp a manual choice.
+  useEffect(() => {
+    if (!customerId) { setDefaultProductHint(null); return; }
+    if (productAutoFilledFor === customerId) return;
+    taxApi.adminCustomerDefaultProduct(auth, customerId)
+      .then(d => {
+        setDefaultProductHint(d?.productId ? d : null);
+        // Only auto-fill if the field is currently empty. Avoid clobbering
+        // the existing selection on an edit-mode open.
+        if (d?.productId && !productId) {
+          setProductId(d.productId);
+          setProductAutoFilledFor(customerId);
+        }
+      })
+      .catch(() => setDefaultProductHint(null));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [customerId]);
+
   const onSave = async (e) => {
     e?.preventDefault?.();
     if (!title.trim()) { setErr(t('owner.tasks.errTitle')); return; }
     setBusy(true); setErr('');
     try {
-      await taxApi.adminCreateTask(auth, {
-        communitySlug: community.id,
+      const payload = {
         title: title.trim(),
         customerId: customerId || null,
         productId: productId || null,
@@ -355,8 +419,13 @@ function AddTaskModal({ auth, community, statuses, employees, customers, product
         assignedEmployeeId: assignedTo || null,
         dueDate: dueDate || null,
         notes: notes.trim(),
-      });
-      onCreated();
+      };
+      if (isEdit) {
+        await taxApi.adminUpdateTask(auth, task.id, payload);
+      } else {
+        await taxApi.adminCreateTask(auth, { communitySlug: community.id, ...payload });
+      }
+      onSaved();
     } catch (e) { setErr(e?.message || ''); }
     finally { setBusy(false); }
   };
@@ -366,7 +435,9 @@ function AddTaskModal({ auth, community, statuses, employees, customers, product
       <div className="tax-modal__panel" style={{ maxWidth: 640 }} onClick={e => e.stopPropagation()}>
         <button type="button" className="tax-modal__close"
                 onClick={onClose} aria-label={t('preview.close')}>×</button>
-        <h3 className="tax-modal__title">{t('owner.tasks.add')}</h3>
+        <h3 className="tax-modal__title">
+          {isEdit ? t('owner.tasks.editTitle') : t('owner.tasks.add')}
+        </h3>
         <form onSubmit={onSave} className="tax-form" style={{ boxShadow: 'none', padding: 0, border: 0 }}>
           <div>
             <label>{t('owner.tasks.field.title')}</label>
@@ -379,28 +450,35 @@ function AddTaskModal({ auth, community, statuses, employees, customers, product
             </datalist>
           </div>
 
+          <div>
+            <label>{t('owner.tasks.field.customer')}</label>
+            <CustomerCombobox
+              customers={customers} value={customerId} onChange={setCustomerId}
+              isAdmin={isAdmin} onAddNew={() => setShowInlineCreate(true)}
+              locale={locale} t={t}
+            />
+            {defaultProductHint?.relationshipName_i18n && productId === defaultProductHint.productId && (
+              <p style={{ margin: '4px 0 0', fontSize: 11, color: 'var(--tax-muted)' }}>
+                {t('owner.tasks.field.serviceAutoFilled', {
+                  relationship: pickI18n(defaultProductHint.relationshipName_i18n, locale).value || ''
+                })}
+              </p>
+            )}
+          </div>
+
           <div className="tax-form__row2">
             <div>
               <label>{t('owner.tasks.field.service')}</label>
-              <select value={productId} onChange={e => setProductId(e.target.value)}>
+              <select value={productId} onChange={e => {
+                setProductId(e.target.value);
+                setProductAutoFilledFor(customerId);  // mark as user-edited
+              }}>
                 <option value="">{t('owner.tasks.field.servicePractice')}</option>
                 {products.map(p => (
                   <option key={p.id} value={p.id}>{pickI18n(p.name_i18n, locale).value || p.slug}</option>
                 ))}
               </select>
             </div>
-            <div>
-              <label>{t('owner.tasks.field.customer')}</label>
-              <select value={customerId} onChange={e => setCustomerId(e.target.value)}>
-                <option value="">{t('owner.tasks.field.customerNone')}</option>
-                {customers.map(c => (
-                  <option key={c.id} value={c.id}>{displayPersonName(c) || c.email}</option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          <div className="tax-form__row2">
             <div>
               <label>{t('owner.tasks.field.owner')}</label>
               <select value={assignedTo} onChange={e => setAssignedTo(e.target.value)}>
@@ -410,6 +488,9 @@ function AddTaskModal({ auth, community, statuses, employees, customers, product
                 ))}
               </select>
             </div>
+          </div>
+
+          <div className="tax-form__row2">
             <div>
               <label>{t('owner.tasks.field.priority')}</label>
               <select value={priority} onChange={e => setPriority(e.target.value)}>
@@ -418,9 +499,6 @@ function AddTaskModal({ auth, community, statuses, employees, customers, product
                 ))}
               </select>
             </div>
-          </div>
-
-          <div className="tax-form__row2">
             <div>
               <label>{t('owner.tasks.field.status')}</label>
               <select value={statusKey} onChange={e => setStatusKey(e.target.value)}>
@@ -429,10 +507,11 @@ function AddTaskModal({ auth, community, statuses, employees, customers, product
                 ))}
               </select>
             </div>
-            <div>
-              <label>{t('owner.tasks.field.due')}</label>
-              <input type="date" value={dueDate} onChange={e => setDueDate(e.target.value)} />
-            </div>
+          </div>
+
+          <div>
+            <label>{t('owner.tasks.field.due')}</label>
+            <input type="date" value={dueDate} onChange={e => setDueDate(e.target.value)} />
           </div>
 
           <div>
@@ -444,7 +523,243 @@ function AddTaskModal({ auth, community, statuses, employees, customers, product
 
           <div style={{ display: 'flex', gap: 8 }}>
             <button type="submit" className="tax-btn tax-btn--primary" disabled={busy}>
-              {busy ? t('lead.submitting') : t('owner.tasks.create')}
+              {busy ? t('lead.submitting')
+                    : (isEdit ? t('owner.tasks.save') : t('owner.tasks.create'))}
+            </button>
+            <button type="button" className="tax-btn tax-btn--ghost"
+                    onClick={onClose} style={{ color: 'var(--tax-text)' }}>
+              {t('preview.close')}
+            </button>
+          </div>
+        </form>
+      </div>
+
+      {showInlineCreate && (
+        <InlineCustomerCreateModal
+          auth={auth} community={community}
+          relationshipTypes={relationshipTypes}
+          locale={locale} t={t}
+          onClose={() => setShowInlineCreate(false)}
+          onCreated={(c) => {
+            setShowInlineCreate(false);
+            onCustomersChanged?.(c);
+            setCustomerId(c.id);
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+// Searchable customer combobox. Renders an input + dropdown; matches
+// against name, email, phone. When non-admin or no match, only existing
+// customers can be selected. Admins also see a "+ New customer" entry
+// at the bottom that opens an inline-create modal.
+function CustomerCombobox({ customers, value, onChange, isAdmin, onAddNew, locale, t }) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState('');
+  const inputRef = useRef(null);
+
+  const selected = customers.find(c => c.id === value) || null;
+  const display = selected ? (displayPersonName(selected) || selected.email) : '';
+
+  // Re-seed the visible input when the parent changes value (e.g. inline-
+  // create just picked a new customer).
+  useEffect(() => { if (!open) setQuery(''); }, [value, open]);
+
+  const filtered = (() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return customers.slice(0, 20);
+    return customers.filter(c => {
+      const hay = `${c.name || ''} ${c.first_name || ''} ${c.last_name || ''} ${c.email || ''} ${c.phone || ''}`.toLowerCase();
+      return hay.includes(q);
+    }).slice(0, 30);
+  })();
+
+  return (
+    <div style={{ position: 'relative' }}>
+      <input
+        ref={inputRef} type="text"
+        value={open ? query : display}
+        onFocus={() => setOpen(true)}
+        onChange={e => { setOpen(true); setQuery(e.target.value); }}
+        onBlur={() => setTimeout(() => setOpen(false), 150)}
+        placeholder={t('owner.tasks.field.customerSearch')}
+        autoComplete="off"
+      />
+      {value && !open && (
+        <button type="button"
+                onClick={() => { onChange(''); setQuery(''); inputRef.current?.focus(); }}
+                aria-label={t('owner.tasks.field.customerClear')}
+                style={{
+                  position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)',
+                  border: 0, background: 'transparent', cursor: 'pointer',
+                  fontSize: 18, color: 'var(--tax-muted)', lineHeight: 1,
+                }}>×</button>
+      )}
+      {open && (
+        <div style={{
+          position: 'absolute', top: 'calc(100% + 2px)', left: 0, right: 0,
+          maxHeight: 280, overflowY: 'auto',
+          background: '#fff', border: '1px solid var(--tax-border)',
+          borderRadius: 6, boxShadow: '0 8px 16px rgba(0,0,0,.08)',
+          zIndex: 50,
+        }}>
+          <button type="button" onMouseDown={e => { e.preventDefault(); onChange(''); setOpen(false); }}
+                  style={comboItemStyle(value === '')}>
+            <span style={{ color: 'var(--tax-muted)' }}>
+              {t('owner.tasks.field.customerNone')}
+            </span>
+          </button>
+          {filtered.length === 0 && (
+            <div style={{ padding: '10px 12px', fontSize: 13, color: 'var(--tax-muted)' }}>
+              {t('owner.tasks.field.customerNoMatch')}
+            </div>
+          )}
+          {filtered.map(c => {
+            const name = displayPersonName(c) || c.email;
+            return (
+              <button key={c.id} type="button"
+                      onMouseDown={e => { e.preventDefault(); onChange(c.id); setOpen(false); }}
+                      style={comboItemStyle(value === c.id)}>
+                <div style={{ fontWeight: 500 }}>{name}</div>
+                <div style={{ fontSize: 11, color: 'var(--tax-muted)' }}>
+                  {c.email}{c.phone ? ` · ${c.phone}` : ''}
+                </div>
+              </button>
+            );
+          })}
+          {isAdmin && (
+            <button type="button" onMouseDown={e => { e.preventDefault(); onAddNew(); setOpen(false); }}
+                    style={{
+                      ...comboItemStyle(false),
+                      borderTop: '1px solid var(--tax-border)',
+                      color: 'var(--tax-brand-primary)', fontWeight: 600,
+                    }}>
+              + {t('owner.tasks.field.customerCreate')}
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function comboItemStyle(active) {
+  return {
+    display: 'block', width: '100%', textAlign: 'left',
+    padding: '8px 12px', border: 0, cursor: 'pointer',
+    background: active ? 'color-mix(in srgb, var(--tax-brand-primary) 10%, #fff)' : 'transparent',
+    fontSize: 13,
+  };
+}
+
+// Lightweight inline customer-create. Asks for the minimum the welcome-
+// email path needs (email, name) plus the first relationship type so the
+// "default service" lookup has something to chain on after creation.
+function InlineCustomerCreateModal({ auth, community, relationshipTypes, locale, t, onClose, onCreated }) {
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
+  const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
+  const [relTypeId, setRelTypeId] = useState('');
+  const [sendWelcome, setSendWelcome] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+
+  useEffect(() => {
+    const onKey = (e) => { if (e.key === 'Escape') onClose(); };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
+  const onSubmit = async (e) => {
+    e?.preventDefault?.();
+    if (!email.trim() || !firstName.trim()) {
+      setErr(t('owner.tasks.customerCreateErr')); return;
+    }
+    setBusy(true); setErr('');
+    try {
+      const resp = await taxApi.adminCreateCustomer(auth, {
+        communitySlug: community.id,
+        email: email.trim(),
+        firstName: firstName.trim(),
+        lastName: lastName.trim(),
+        phone: phone.trim(),
+        locale,
+        relationshipTypeIds: relTypeId ? [relTypeId] : [],
+        sendWelcomeEmail: sendWelcome,
+      });
+      const relRows = relTypeId ? [{
+        relationship_type_id: relTypeId, active: true,
+        type: relationshipTypes.find(r => r.id === relTypeId) || null,
+      }] : [];
+      onCreated({
+        id: resp.id, email: email.trim(),
+        first_name: firstName.trim(), last_name: lastName.trim(),
+        name: `${firstName.trim()} ${lastName.trim()}`.trim(),
+        phone: phone.trim(), locale, status: 'active',
+        relationships: relRows,
+      });
+    } catch (e) { setErr(e?.message || ''); }
+    finally { setBusy(false); }
+  };
+
+  return (
+    <div className="tax-modal" role="dialog" aria-modal="true"
+         onClick={onClose}
+         style={{ zIndex: 60 }}>
+      <div className="tax-modal__panel" style={{ maxWidth: 480 }} onClick={e => e.stopPropagation()}>
+        <button type="button" className="tax-modal__close"
+                onClick={onClose} aria-label={t('preview.close')}>×</button>
+        <h3 className="tax-modal__title">{t('owner.tasks.field.customerCreate')}</h3>
+        <form onSubmit={onSubmit} className="tax-form" style={{ boxShadow: 'none', padding: 0, border: 0 }}>
+          <div className="tax-form__row2">
+            <div>
+              <label>{t('owner.tasks.field.firstName')}</label>
+              <input type="text" value={firstName} onChange={e => setFirstName(e.target.value)}
+                     maxLength={200} required autoFocus />
+            </div>
+            <div>
+              <label>{t('owner.tasks.field.lastName')}</label>
+              <input type="text" value={lastName} onChange={e => setLastName(e.target.value)} maxLength={200} />
+            </div>
+          </div>
+          <div className="tax-form__row2">
+            <div>
+              <label>{t('owner.tasks.field.emailLabel')}</label>
+              <input type="email" value={email} onChange={e => setEmail(e.target.value)}
+                     maxLength={200} required />
+            </div>
+            <div>
+              <label>{t('owner.tasks.field.phoneLabel')}</label>
+              <input type="tel" value={phone} onChange={e => setPhone(e.target.value)} maxLength={50} />
+            </div>
+          </div>
+          {relationshipTypes.length > 0 && (
+            <div>
+              <label>{t('owner.tasks.field.relationship')}</label>
+              <select value={relTypeId} onChange={e => setRelTypeId(e.target.value)}>
+                <option value="">{t('owner.tasks.field.relationshipNone')}</option>
+                {relationshipTypes.map(rt => (
+                  <option key={rt.id} value={rt.id}>{pickI18n(rt.name_i18n, locale).value || rt.slug}</option>
+                ))}
+              </select>
+              <p style={{ margin: '4px 0 0', fontSize: 11, color: 'var(--tax-muted)' }}>
+                {t('owner.tasks.field.relationshipHint')}
+              </p>
+            </div>
+          )}
+          <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13 }}>
+            <input type="checkbox" checked={sendWelcome} onChange={e => setSendWelcome(e.target.checked)} />
+            {t('owner.tasks.field.sendWelcome')}
+          </label>
+
+          {err && <div className="tax-msg tax-msg--error">{err}</div>}
+
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button type="submit" className="tax-btn tax-btn--primary" disabled={busy}>
+              {busy ? t('lead.submitting') : t('owner.tasks.customerCreateBtn')}
             </button>
             <button type="button" className="tax-btn tax-btn--ghost"
                     onClick={onClose} style={{ color: 'var(--tax-text)' }}>
