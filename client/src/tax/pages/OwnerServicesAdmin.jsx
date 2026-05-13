@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { pickI18n, useT } from '../i18n';
 import { useEmployeeAuth } from '../auth/EmployeeAuthProvider';
 import { taxApi } from '../api';
 import EmployeeShell from '../components/EmployeeShell';
+import { generatePeriods } from '../lib/schedulePeriods';
 
 // Owner-admin editor for the landing-page service cards. Mirrors the
 // OwnerFaqAdmin / OwnerHelpAdmin layout — each row is one tax_products
@@ -378,7 +379,7 @@ function ProductEditor({ product: p, auth, community, relTypes = [], onDone, onC
       </div>
 
       <SectionHeader emoji="🛠" label={t('owner.services.section.internal')}
-                     hint={t('owner.services.section.internalHint')} />
+                     hint={t('owner.services.section.internalHint')} tone="internal" />
 
       <div>
         <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--tax-muted)' }}>
@@ -462,6 +463,11 @@ function ProductEditor({ product: p, auth, community, relTypes = [], onDone, onC
         </div>
       )}
 
+      <TaskPreview cadenceKind={cadenceKind}
+                   anchorRule={buildAnchorRule()}
+                   serviceName={nameEn || nameEs || p.slug}
+                   t={t} />
+
       <div className="tax-form__row2">
         <div>
           <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--tax-muted)' }}>
@@ -500,15 +506,91 @@ function ProductEditor({ product: p, auth, community, relTypes = [], onDone, onC
 // Small banner heading that delineates the Homepage section (public
 // marketing copy) from the Internal section (cadence, relationship
 // tag, employee notes — only visible inside the staff portal).
-function SectionHeader({ emoji, label, hint }) {
+function SectionHeader({ emoji, label, hint, tone = 'homepage' }) {
+  // Two visual tones — homepage = blue (public marketing surface),
+  // internal = amber (operational surface). The contrast makes it
+  // impossible to confuse which audience an edit affects.
+  const palette = tone === 'internal'
+    ? { bg: 'color-mix(in srgb, #d97706 14%, #fff)',
+        bar: '#d97706',
+        tag: { bg: '#fed7aa', fg: '#7c2d12' },
+        tagLabel: 'STAFF PORTAL' }
+    : { bg: 'color-mix(in srgb, #2563eb 12%, #fff)',
+        bar: '#2563eb',
+        tag: { bg: '#dbeafe', fg: '#1e3a8a' },
+        tagLabel: 'PUBLIC SITE' };
   return (
     <div style={{
-      marginTop: 6, padding: '8px 12px', borderRadius: 8,
-      background: 'color-mix(in srgb, var(--tax-brand-primary) 8%, #fff)',
-      borderLeft: '3px solid var(--tax-brand-primary)',
+      marginTop: 10, padding: '10px 14px', borderRadius: 8,
+      background: palette.bg,
+      borderLeft: `4px solid ${palette.bar}`,
     }}>
-      <div style={{ fontWeight: 700, fontSize: 13 }}>{emoji} {label}</div>
-      {hint && <div style={{ fontSize: 11, color: 'var(--tax-muted)', marginTop: 2 }}>{hint}</div>}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+        <span style={{ fontWeight: 700, fontSize: 14 }}>{emoji} {label}</span>
+        <span style={{
+          padding: '1px 8px', borderRadius: 999,
+          background: palette.tag.bg, color: palette.tag.fg,
+          fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.05em',
+        }}>{palette.tagLabel}</span>
+      </div>
+      {hint && <div style={{ fontSize: 12, color: 'var(--tax-muted)', marginTop: 4 }}>{hint}</div>}
+    </div>
+  );
+}
+
+// Concrete preview of what tasks the generator will create for a
+// customer tagged with this service's relationship. Recomputes on
+// every cadence/day change so the owner sees the impact of their
+// edits before saving.
+//
+// We show the next 6 dates derived from the current anchor_rule;
+// the actual generator's look-ahead is the community's
+// tax_task_lookahead_months setting (default 6 months), so this is
+// a faithful preview of the first few periods.
+function TaskPreview({ cadenceKind, anchorRule, serviceName, t }) {
+  const periods = useMemo(() => {
+    if (!cadenceKind || cadenceKind === 'none') return [];
+    try { return generatePeriods(anchorRule, new Date(), 6); }
+    catch { return []; }
+  }, [cadenceKind, JSON.stringify(anchorRule)]);
+
+  return (
+    <div style={{
+      padding: '12px 14px', borderRadius: 8,
+      background: '#fff', border: '1px dashed #d97706',
+    }}>
+      <div style={{ fontSize: 11, fontWeight: 700, color: '#9a3412',
+                     textTransform: 'uppercase', letterSpacing: '.05em' }}>
+        {t('owner.services.preview.title')}
+      </div>
+      {cadenceKind === 'none' ? (
+        <p style={{ margin: '6px 0 0', fontSize: 13, color: 'var(--tax-muted)' }}>
+          {t('owner.services.preview.noneHint')}
+        </p>
+      ) : periods.length === 0 ? (
+        <p style={{ margin: '6px 0 0', fontSize: 13, color: 'var(--tax-muted)' }}>
+          {t('owner.services.preview.empty')}
+        </p>
+      ) : (
+        <>
+          <p style={{ margin: '4px 0 8px', fontSize: 12, color: 'var(--tax-muted)' }}>
+            {t('owner.services.preview.intro', { count: periods.length })}
+          </p>
+          <ul style={{ margin: 0, paddingLeft: 20, fontSize: 13 }}>
+            {periods.map((p, i) => (
+              <li key={i} style={{ marginTop: 3 }}>
+                <strong>{p.dueDate}</strong>
+                <span style={{ color: 'var(--tax-muted)' }}>
+                  {' — '}{serviceName || ''}{p.periodLabel ? ` (${p.periodLabel})` : ''}
+                </span>
+              </li>
+            ))}
+          </ul>
+          <p style={{ margin: '8px 0 0', fontSize: 11, color: 'var(--tax-muted)' }}>
+            {t('owner.services.preview.footnote')}
+          </p>
+        </>
+      )}
     </div>
   );
 }
