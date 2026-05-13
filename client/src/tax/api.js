@@ -252,9 +252,11 @@ export const taxApi = {
     return request('DELETE', `/admin/products/${encodeURIComponent(productId)}${qs}`, undefined, auth, { admin: true });
   },
 
-  adminTaskProgress(auth, communitySlug) {
+  adminTaskProgress(auth, opts = {}) {
     const qs = new URLSearchParams();
-    if (communitySlug) qs.set('communitySlug', communitySlug);
+    if (opts.communitySlug) qs.set('communitySlug', opts.communitySlug);
+    if (opts.assignedTo)    qs.set('assignedTo', opts.assignedTo);
+    if (opts.customerId)    qs.set('customerId', opts.customerId);
     return request('GET', `/admin/progress?${qs.toString()}`, undefined, auth);
   },
   adminSetRemindersEnabled(auth, payload) {

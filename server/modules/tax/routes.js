@@ -3565,6 +3565,10 @@ module.exports = function createTaxRouter(deps) {
       if (Array.isArray(visible)) allowedCustomers = new Set(visible);
     }
 
+    // Optional filters applied at the SQL layer so the rollup recomputes
+    // automatically — KPI cards reflect only what's visible.
+    const filterAssignee = trim(req.query.assignedTo || '', 200);
+    const filterCustomer = trim(req.query.customerId || '', 200);
     let q = supabase.from('tax_tasks')
       .select(`
         id, customer_id, product_id, status_key, due_date, completed_at,
@@ -3574,6 +3578,8 @@ module.exports = function createTaxRouter(deps) {
       .eq('community_id', communitySlug)
       .is('archived_at', null)
       .limit(5000);
+    if (filterAssignee) q = q.eq('assigned_employee_id', filterAssignee);
+    if (filterCustomer) q = q.eq('customer_id', filterCustomer);
     const { data: tasks, error } = await q;
     if (error) return sendSupabaseError(res, error);
 
