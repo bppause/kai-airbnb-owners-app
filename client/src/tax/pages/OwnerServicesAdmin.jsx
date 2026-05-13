@@ -18,13 +18,18 @@ export default function OwnerServicesAdmin() {
   const auth = { uid: fbUser?.uid, email: fbUser?.email, communitySlug: community?.id };
 
   const [products, setProducts] = useState(null);
+  const [relTypes, setRelTypes] = useState([]);
   const [err, setErr] = useState('');
 
   const load = () => {
     if (!fbUser || !community) return;
-    taxApi.adminListProducts(auth, community.id)
-      .then(d => setProducts(d.products || []))
-      .catch(e => setErr(e?.message || t('error.loadFailed')));
+    Promise.all([
+      taxApi.adminListProducts(auth, community.id),
+      taxApi.adminListRelationshipTypes(auth, { communitySlug: community.id }).catch(() => ({ types: [] })),
+    ]).then(([p, r]) => {
+      setProducts(p.products || []);
+      setRelTypes((r.types || []).filter(rt => rt.active !== false));
+    }).catch(e => setErr(e?.message || t('error.loadFailed')));
   };
   useEffect(load, [fbUser, community]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -37,7 +42,7 @@ export default function OwnerServicesAdmin() {
   return (
     <EmployeeShell community={community} active="service-catalog">
       <h2 style={{ margin: 0 }}>{t('owner.services.title')}</h2>
-      <p className="tax-section__lede">{t('owner.services.subtitle')}</p>
+      <p className="tax-section__lede">{t('owner.services.subtitleUnified')}</p>
 
       {err && <div className="tax-msg tax-msg--error">{err}</div>}
 
@@ -47,6 +52,7 @@ export default function OwnerServicesAdmin() {
           : <div style={{ display: 'grid', gap: 10 }}>
               {products.map(p => (
                 <ServiceRow key={p.id} product={p} auth={auth}
+                            community={community} relTypes={relTypes}
                             onChange={load} locale={locale} t={t} />
               ))}
             </div>}
@@ -54,7 +60,7 @@ export default function OwnerServicesAdmin() {
   );
 }
 
-function ServiceRow({ product: p, auth, onChange, locale, t }) {
+function ServiceRow({ product: p, auth, community, relTypes, onChange, locale, t }) {
   const [editing, setEditing] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
@@ -160,6 +166,7 @@ function ServiceRow({ product: p, auth, onChange, locale, t }) {
 
       {editing ? (
         <ProductEditor product={p} auth={auth}
+                       community={community} relTypes={relTypes}
                        onDone={() => { setEditing(false); onChange(); }}
                        onCancel={() => setEditing(false)} t={t} />
       ) : (
@@ -184,21 +191,34 @@ function ServiceRow({ product: p, auth, onChange, locale, t }) {
   );
 }
 
-function ProductEditor({ product: p, auth, onDone, onCancel, t }) {
+function ProductEditor({ product: p, auth, community, relTypes = [], onDone, onCancel, t }) {
   const [nameEn, setNameEn] = useState(p.name_i18n?.en || '');
   const [nameEs, setNameEs] = useState(p.name_i18n?.es || '');
   const [descEn, setDescEn] = useState(p.description_i18n?.en || '');
   const [descEs, setDescEs] = useState(p.description_i18n?.es || '');
   const [longEn, setLongEn] = useState(p.long_description_i18n?.en || '');
   const [longEs, setLongEs] = useState(p.long_description_i18n?.es || '');
-  // required_documents accepts strings or {en,es} objects. Surface as
-  // bilingual rows so the owner can author both languages at once.
   const initialReqs = Array.isArray(p.required_documents) ? p.required_documents : [];
   const [reqs, setReqs] = useState(() => initialReqs.map(d => (
     typeof d === 'string' ? { en: d, es: '' } : { en: d.en || '', es: d.es || '' }
   )));
   const [order, setOrder] = useState(String(p.display_order || 0));
   const [videoUrl, setVideoUrl] = useState(p.video_url || '');
+
+  // Phase 4n.38: Internal section (employee portal). Drives task
+  // generation when a customer is tagged with the linked relationship.
+  const [cadenceKind, setCadenceKind] = useState(p.cadence_kind || 'none');
+  const anchorRule = p.anchor_rule && typeof p.anchor_rule === 'object' ? p.anchor_rule : {};
+  const [cadenceDay, setCadenceDay] = useState(String(anchorRule.day || 15));
+  const [cadenceMonth, setCadenceMonth] = useState(String(anchorRule.month || 1));
+  const [cadenceWeekday, setCadenceWeekday] = useState(String(anchorRule.weekday ?? 1));
+  const [empNotesEn, setEmpNotesEn] = useState(p.employee_notes_i18n?.en || '');
+  const [empNotesEs, setEmpNotesEs] = useState(p.employee_notes_i18n?.es || '');
+  // Which relationship type points at THIS product, if any. Owner picks
+  // from the existing community-scoped types; "(none)" clears the link.
+  const linkedRel = relTypes.find(rt => rt.product_id === p.id) || null;
+  const [linkedRelId, setLinkedRelId] = useState(linkedRel?.id || '');
+
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
 
@@ -206,6 +226,22 @@ function ProductEditor({ product: p, auth, onDone, onCancel, t }) {
     setReqs(prev => prev.map((r, idx) => idx === i ? { ...r, [lang]: v } : r));
   const addReq = () => setReqs(prev => [...prev, { en: '', es: '' }]);
   const removeReq = (i) => setReqs(prev => prev.filter((_, idx) => idx !== i));
+
+  const buildAnchorRule = () => {
+    if (cadenceKind === 'monthly') {
+      return { type: 'monthly_following', day: Number(cadenceDay) || 15 };
+    }
+    if (cadenceKind === 'quarterly') {
+      return { type: 'quarterly_following', day: Number(cadenceDay) || 15 };
+    }
+    if (cadenceKind === 'weekly') {
+      return { type: 'weekly_following', weekday: Number(cadenceWeekday) || 1 };
+    }
+    if (cadenceKind === 'annual') {
+      return { type: 'annual', month: Number(cadenceMonth) || 1, day: Number(cadenceDay) || 15 };
+    }
+    return {};
+  };
 
   const onSave = async () => {
     setBusy(true); setErr('');
@@ -220,7 +256,26 @@ function ProductEditor({ product: p, auth, onDone, onCancel, t }) {
         requiredDocuments: cleanedReqs,
         displayOrder: Number(order) || 0,
         videoUrl: videoUrl.trim(),
+        cadenceKind,
+        anchorRule: buildAnchorRule(),
+        employeeNotesI18n: { en: empNotesEn.trim(), es: empNotesEs.trim() },
       });
+
+      // Relationship-type linkage. If the link changed, clear the old
+      // one and set the new. Server PUT rejects cross-community
+      // products so we don't need to validate here.
+      if (linkedRel?.id !== linkedRelId) {
+        if (linkedRel?.id) {
+          await taxApi.adminUpdateRelationshipType(auth, linkedRel.id, {
+            communitySlug: community.id, productId: '',
+          });
+        }
+        if (linkedRelId) {
+          await taxApi.adminUpdateRelationshipType(auth, linkedRelId, {
+            communitySlug: community.id, productId: p.id,
+          });
+        }
+      }
       onDone();
     } catch (e) { setErr(e?.message || ''); }
     finally { setBusy(false); }
@@ -229,6 +284,8 @@ function ProductEditor({ product: p, auth, onDone, onCancel, t }) {
   return (
     <div style={{ marginTop: 12, padding: 12, background: 'var(--tax-bg-alt)',
                   borderRadius: 8, display: 'grid', gap: 12 }}>
+      <SectionHeader emoji="🏠" label={t('owner.services.section.homepage')}
+                     hint={t('owner.services.section.homepageHint')} />
       <div className="tax-form__row2">
         <div>
           <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--tax-muted)' }}>{t('owner.services.nameEn')}</label>
@@ -320,6 +377,110 @@ function ProductEditor({ product: p, auth, onDone, onCancel, t }) {
         </label>
       </div>
 
+      <SectionHeader emoji="🛠" label={t('owner.services.section.internal')}
+                     hint={t('owner.services.section.internalHint')} />
+
+      <div>
+        <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--tax-muted)' }}>
+          {t('owner.services.relationshipTag')}
+        </label>
+        <select value={linkedRelId} onChange={e => setLinkedRelId(e.target.value)}
+                style={{ width: '100%', padding: 8, border: '1px solid var(--tax-border)', borderRadius: 6 }}>
+          <option value="">{t('owner.services.relationshipTagNone')}</option>
+          {relTypes.map(rt => (
+            <option key={rt.id} value={rt.id}>
+              {(rt.name_i18n?.en || rt.name_i18n?.es || rt.slug)}
+              {rt.product_id && rt.product_id !== p.id ? ' (linked to another service)' : ''}
+            </option>
+          ))}
+        </select>
+        <p style={{ margin: '4px 0 0', fontSize: 11, color: 'var(--tax-muted)' }}>
+          {t('owner.services.relationshipTagHint')}
+        </p>
+      </div>
+
+      <div>
+        <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--tax-muted)' }}>
+          {t('owner.services.cadence')}
+        </label>
+        <select value={cadenceKind} onChange={e => setCadenceKind(e.target.value)}
+                style={{ width: '100%', padding: 8, border: '1px solid var(--tax-border)', borderRadius: 6 }}>
+          <option value="none">{t('owner.services.cadence.none')}</option>
+          <option value="weekly">{t('owner.services.cadence.weekly')}</option>
+          <option value="monthly">{t('owner.services.cadence.monthly')}</option>
+          <option value="quarterly">{t('owner.services.cadence.quarterly')}</option>
+          <option value="annual">{t('owner.services.cadence.annual')}</option>
+        </select>
+        <p style={{ margin: '4px 0 0', fontSize: 11, color: 'var(--tax-muted)' }}>
+          {t('owner.services.cadenceHint')}
+        </p>
+      </div>
+
+      {cadenceKind === 'weekly' && (
+        <div>
+          <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--tax-muted)' }}>
+            {t('owner.services.cadence.weekdayLabel')}
+          </label>
+          <select value={cadenceWeekday} onChange={e => setCadenceWeekday(e.target.value)}
+                  style={{ padding: 8, border: '1px solid var(--tax-border)', borderRadius: 6 }}>
+            <option value="1">{t('owner.services.weekday.mon')}</option>
+            <option value="2">{t('owner.services.weekday.tue')}</option>
+            <option value="3">{t('owner.services.weekday.wed')}</option>
+            <option value="4">{t('owner.services.weekday.thu')}</option>
+            <option value="5">{t('owner.services.weekday.fri')}</option>
+          </select>
+        </div>
+      )}
+      {(cadenceKind === 'monthly' || cadenceKind === 'quarterly') && (
+        <div>
+          <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--tax-muted)' }}>
+            {t('owner.services.cadence.dayLabel')}
+          </label>
+          <input type="number" min="1" max="28" value={cadenceDay} onChange={e => setCadenceDay(e.target.value)}
+                 style={{ width: 100, padding: 8, border: '1px solid var(--tax-border)', borderRadius: 6 }} />
+          <p style={{ margin: '4px 0 0', fontSize: 11, color: 'var(--tax-muted)' }}>
+            {t('owner.services.cadence.dayHint')}
+          </p>
+        </div>
+      )}
+      {cadenceKind === 'annual' && (
+        <div className="tax-form__row2">
+          <div>
+            <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--tax-muted)' }}>
+              {t('owner.services.cadence.monthLabel')}
+            </label>
+            <input type="number" min="1" max="12" value={cadenceMonth} onChange={e => setCadenceMonth(e.target.value)}
+                   style={{ width: 100, padding: 8, border: '1px solid var(--tax-border)', borderRadius: 6 }} />
+          </div>
+          <div>
+            <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--tax-muted)' }}>
+              {t('owner.services.cadence.dayLabel')}
+            </label>
+            <input type="number" min="1" max="28" value={cadenceDay} onChange={e => setCadenceDay(e.target.value)}
+                   style={{ width: 100, padding: 8, border: '1px solid var(--tax-border)', borderRadius: 6 }} />
+          </div>
+        </div>
+      )}
+
+      <div className="tax-form__row2">
+        <div>
+          <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--tax-muted)' }}>
+            {t('owner.services.employeeNotesEn')}
+          </label>
+          <textarea rows={3} value={empNotesEn} onChange={e => setEmpNotesEn(e.target.value)} maxLength={4000}
+                    placeholder={t('owner.services.employeeNotesPlaceholder')}
+                    style={{ width: '100%', padding: 8, border: '1px solid var(--tax-border)', borderRadius: 6, fontFamily: 'inherit', fontSize: 13 }} />
+        </div>
+        <div>
+          <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--tax-muted)' }}>
+            {t('owner.services.employeeNotesEs')}
+          </label>
+          <textarea rows={3} value={empNotesEs} onChange={e => setEmpNotesEs(e.target.value)} maxLength={4000}
+                    placeholder={t('owner.services.employeeNotesPlaceholder')}
+                    style={{ width: '100%', padding: 8, border: '1px solid var(--tax-border)', borderRadius: 6, fontFamily: 'inherit', fontSize: 13 }} />
+        </div>
+      </div>
+
       {err && <div className="tax-msg tax-msg--error">{err}</div>}
 
       <div style={{ display: 'flex', gap: 8 }}>
@@ -332,6 +493,22 @@ function ProductEditor({ product: p, auth, onDone, onCancel, t }) {
           {t('owner.services.cancel')}
         </button>
       </div>
+    </div>
+  );
+}
+
+// Small banner heading that delineates the Homepage section (public
+// marketing copy) from the Internal section (cadence, relationship
+// tag, employee notes — only visible inside the staff portal).
+function SectionHeader({ emoji, label, hint }) {
+  return (
+    <div style={{
+      marginTop: 6, padding: '8px 12px', borderRadius: 8,
+      background: 'color-mix(in srgb, var(--tax-brand-primary) 8%, #fff)',
+      borderLeft: '3px solid var(--tax-brand-primary)',
+    }}>
+      <div style={{ fontWeight: 700, fontSize: 13 }}>{emoji} {label}</div>
+      {hint && <div style={{ fontSize: 11, color: 'var(--tax-muted)', marginTop: 2 }}>{hint}</div>}
     </div>
   );
 }

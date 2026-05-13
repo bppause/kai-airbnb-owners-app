@@ -2478,6 +2478,34 @@ alter table public.tax_relationship_default_faqs
 alter table public.tax_relationship_faqs
   add column if not exists video_url text not null default '';
 
+-- Phase 4n.38: services own their task schedule directly. The old
+-- "workflow rule + filing schedule" indirection retires — each
+-- tax_products row carries its cadence and anchor_rule, and each
+-- tax_relationship_types row points at a default product so the
+-- task generator can resolve "this customer is tagged with X →
+-- create tasks on Y cadence" in one hop.
+alter table public.tax_products
+  add column if not exists cadence_kind text not null default 'none'
+    check (cadence_kind in ('none','weekly','monthly','quarterly','annual'));
+alter table public.tax_products
+  add column if not exists anchor_rule jsonb not null default '{}'::jsonb;
+alter table public.tax_products
+  add column if not exists employee_notes_i18n jsonb not null default '{}'::jsonb;
+alter table public.tax_relationship_types
+  add column if not exists product_id text
+    references public.tax_products(id) on delete set null;
+create index if not exists tax_relationship_types_product_idx
+  on public.tax_relationship_types(product_id) where product_id is not null;
+
+-- Second partial unique index so product-cadence rows (schedule_id is
+-- null, since they're not anchored to a tax_filing_schedules row) get
+-- their own idempotency key on (customer, product, period). The
+-- existing (customer_id, schedule_id, period_key) index covers
+-- legacy workflow-rule-driven rows.
+create unique index if not exists tax_tasks_product_period_unique
+  on public.tax_tasks(customer_id, product_id, period_key)
+  where period_key is not null and archived_at is null and schedule_id is null;
+
 -- Seed the three default status options for tax-america-services. New
 -- communities provisioned via the platform endpoint should mirror this
 -- (handled in server code on community create).
