@@ -772,7 +772,39 @@ module.exports = function createTaxRouter(deps) {
       arr.push(r);
       byCustomer.set(r.customer_id, arr);
     }
-    return (customers || []).map(c => ({ ...c, relationships: byCustomer.get(c.id) || [] }));
+
+    // Phase 4n.44: per-customer task health. Counts open + overdue
+    // tasks so the customer list can show a small chip at a glance.
+    // Done in one extra query keyed by customer_id; the counts are
+    // computed in JS off the lightweight task rows since Supabase
+    // doesn't expose a sane GROUP BY through PostgREST.
+    const today = new Date().toISOString().slice(0, 10);
+    const { data: openTasks } = await supabase.from('tax_tasks')
+      .select('customer_id, status_key, due_date, completed_at')
+      .eq('community_id', communitySlug)
+      .in('customer_id', ids)
+      .is('archived_at', null)
+      .is('completed_at', null);
+    const { data: statusOpts } = await supabase.from('tax_task_status_options')
+      .select('key, is_terminal').eq('community_id', communitySlug);
+    const terminalKeys = new Set((statusOpts || []).filter(s => s.is_terminal).map(s => s.key));
+    const healthByCustomer = new Map();
+    for (const t of openTasks || []) {
+      if (t.completed_at) continue;
+      if (terminalKeys.has(t.status_key)) continue;
+      const slot = healthByCustomer.get(t.customer_id)
+                || { open: 0, overdue: 0, in_progress: 0 };
+      slot.open += 1;
+      if (t.status_key === 'in_progress') slot.in_progress += 1;
+      if (t.due_date && t.due_date < today) slot.overdue += 1;
+      healthByCustomer.set(t.customer_id, slot);
+    }
+
+    return (customers || []).map(c => ({
+      ...c,
+      relationships: byCustomer.get(c.id) || [],
+      health: healthByCustomer.get(c.id) || { open: 0, overdue: 0, in_progress: 0 },
+    }));
   }
 
   function parseCsvList(raw) {
@@ -2519,6 +2551,50 @@ module.exports = function createTaxRouter(deps) {
       if (insErr) return sendSupabaseError(res, insErr);
     }
 
+    // Phase 4n.44: optionally attach relationships at conversion
+    // time. The new Convert dialog pre-fills the picker from the
+    // lead's product_slugs, so by the time we land here the owner
+    // has confirmed which services this customer is signing up for.
+    // Each successful relationship insert kicks off task generation
+    // for that (customer, relationship_type) so the team has work
+    // queued the moment the convert succeeds.
+    const requestedRels = Array.isArray(req.body?.relationshipTypeIds)
+      ? req.body.relationshipTypeIds.map(s => String(s)).filter(Boolean) : [];
+    let relationshipsAdded = 0;
+    let tasksCreated = 0;
+    if (requestedRels.length) {
+      const { data: types } = await supabase.from('tax_relationship_types')
+        .select('id, community_id').eq('active', true);
+      const validTypeIds = new Set((types || [])
+        .filter(t => t.community_id == null || t.community_id === lead.community_id)
+        .map(t => t.id));
+      const valid = requestedRels.filter(id => validTypeIds.has(id));
+      if (valid.length) {
+        const rows = valid.map(typeId => ({
+          id: 'crel_' + uuidv4().slice(0, 12),
+          customer_id: customerId,
+          relationship_type_id: typeId,
+          created_by_email: trim(req.get('x-admin-email') || '', 200).toLowerCase() || 'lead_convert',
+          active: true,
+        }));
+        const { error: relErr } = await supabase.from('tax_customer_relationships').upsert(rows, {
+          onConflict: 'customer_id,relationship_type_id',
+        });
+        if (!relErr) {
+          relationshipsAdded = valid.length;
+          for (const typeId of valid) {
+            try {
+              const r = await generateTasksForRelationship({
+                customerId, relationshipTypeId: typeId,
+                actorEmail: 'lead_convert',
+              });
+              tasksCreated += r.created || 0;
+            } catch (e) { warn('[tax-lead-convert] task gen failed', e?.message || e); }
+          }
+        }
+      }
+    }
+
     const { error: updErr } = await supabase.from('tax_leads').update({
       status: 'converted',
       converted_customer_id: customerId,
@@ -2530,11 +2606,11 @@ module.exports = function createTaxRouter(deps) {
       await auditLog({
         entity: 'tax.lead', entityId: leadId, action: 'convert',
         actorEmail: trim(req.get('x-firebase-email') || req.get('x-admin-email') || '', 200).toLowerCase(),
-        after: { customerId, isExistingCustomer },
+        after: { customerId, isExistingCustomer, relationshipsAdded, tasksCreated },
       });
     } catch (_e) {}
 
-    res.json({ ok: true, customerId, isExistingCustomer });
+    res.json({ ok: true, customerId, isExistingCustomer, relationshipsAdded, tasksCreated });
   });
 
   // ────────────────────────────────────────────────────────────────────────────
