@@ -2422,6 +2422,46 @@ create index if not exists tax_tasks_assignee_idx
 create index if not exists tax_tasks_product_idx
   on public.tax_tasks(product_id, status_key) where product_id is not null;
 
+-- Phase 4n.36: tasks linked to a (customer, relationship_type) get
+-- auto-generated when the relationship is added, and archived when
+-- it's removed. `source` distinguishes auto-generated rows from
+-- owner-authored tasks so the UI can label them and the cascade
+-- archive only touches generator output. `archived_at` is the
+-- soft-delete stamp — archived rows are excluded from list queries
+-- but kept for audit history.
+alter table public.tax_tasks
+  add column if not exists relationship_type_id text
+    references public.tax_relationship_types(id) on delete set null;
+alter table public.tax_tasks
+  add column if not exists schedule_id text
+    references public.tax_filing_schedules(id) on delete set null;
+alter table public.tax_tasks
+  add column if not exists source text not null default 'manual'
+    check (source in ('manual','relationship_schedule'));
+alter table public.tax_tasks
+  add column if not exists archived_at timestamptz;
+alter table public.tax_tasks
+  add column if not exists period_key text;
+create index if not exists tax_tasks_relationship_idx
+  on public.tax_tasks(relationship_type_id, archived_at)
+  where relationship_type_id is not null;
+-- Per-customer / per-schedule uniqueness on the period_key keeps the
+-- task generator idempotent. A period_key is something like
+-- "{schedule_slug}:{period_start}" so re-running the generator never
+-- creates duplicate rows for the same upcoming period.
+create unique index if not exists tax_tasks_period_unique
+  on public.tax_tasks(customer_id, schedule_id, period_key)
+  where period_key is not null and archived_at is null;
+
+-- Phase 4n.36: per-community switch for the existing customer-facing
+-- reminder cron. Defaults to FALSE because the practice now manages
+-- recurring work through internal tasks instead of customer emails.
+-- Owners can flip back to true in Settings if they want emails to
+-- keep flowing.
+alter table public.communities
+  add column if not exists tax_customer_reminders_enabled boolean
+    not null default false;
+
 -- Seed the three default status options for tax-america-services. New
 -- communities provisioned via the platform endpoint should mirror this
 -- (handled in server code on community create).

@@ -144,6 +144,15 @@ module.exports = function createTaxRemindersCron(deps) {
   async function fireReminders() {
     const today = todayUtc();
 
+    // Phase 4n.36: customer-facing reminders are gated per community.
+    // Default is OFF (the practice now manages recurring work through
+    // tasks instead of emails). Build the allow-set first so we can
+    // skip filing periods for communities that haven't opted in.
+    const { data: optedIn } = await supabase.from('communities')
+      .select('id').eq('tax_customer_reminders_enabled', true);
+    const allowedCommunities = new Set((optedIn || []).map(c => c.id));
+    if (!allowedCommunities.size) return 0;
+
     const { data: rows, error } = await supabase
       .from('tax_filing_periods')
       .select(`
@@ -176,6 +185,7 @@ module.exports = function createTaxRemindersCron(deps) {
 
     let fired = 0;
     for (const row of rows || []) {
+      if (!allowedCommunities.has(row.community_id)) continue;
       const sub = row.tax_subscriptions || null;
       const cust = row.tax_customers;
       const ruleRow = row.tax_relationship_workflow_rules || null;

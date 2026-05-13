@@ -246,6 +246,15 @@ export const taxApi = {
     return request('DELETE', `/admin/products/${encodeURIComponent(productId)}${qs}`, undefined, auth, { admin: true });
   },
 
+  adminTaskProgress(auth, communitySlug) {
+    const qs = new URLSearchParams();
+    if (communitySlug) qs.set('communitySlug', communitySlug);
+    return request('GET', `/admin/progress?${qs.toString()}`, undefined, auth);
+  },
+  adminSetRemindersEnabled(auth, payload) {
+    return request('PUT', '/admin/community-settings/reminders-enabled', payload, auth, { admin: true });
+  },
+
   adminListUpcomingReminders(auth, opts = {}) {
     const qs = new URLSearchParams();
     for (const k of ['communitySlug','status','due','productId','q']) {
