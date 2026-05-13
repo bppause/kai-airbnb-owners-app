@@ -246,6 +246,7 @@ function OverrideEditor({ article, auth, onDone, onCancel, initialTitle, initial
   const [titleEs, setTitleEs] = useState(initialTitle.es);
   const [bodyEn, setBodyEn] = useState(initialBody.en);
   const [bodyEs, setBodyEs] = useState(initialBody.es);
+  const [videoUrl, setVideoUrl] = useState(article.video_url || '');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
 
@@ -258,6 +259,7 @@ function OverrideEditor({ article, auth, onDone, onCancel, initialTitle, initial
         communitySlug: auth.communitySlug,
         titleI18n: { en: titleEn.trim(), es: titleEs.trim() },
         bodyI18n: { en: bodyEn.trim(), es: bodyEs.trim() },
+        videoUrl: videoUrl.trim(),
         visible: true,
       });
       onDone();
@@ -292,6 +294,13 @@ function OverrideEditor({ article, auth, onDone, onCancel, initialTitle, initial
         </div>
       </div>
 
+      <div>
+        <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--tax-muted)' }}>{t('owner.help.videoUrl')}</label>
+        <input type="url" value={videoUrl} onChange={e => setVideoUrl(e.target.value)} maxLength={500}
+               placeholder="https://youtube.com/watch?v=…"
+               style={{ width: '100%', padding: 8, border: '1px solid var(--tax-border)', borderRadius: 6 }} />
+      </div>
+
       {err && <div className="tax-msg tax-msg--error">{err}</div>}
 
       <div style={{ display: 'flex', gap: 8 }}>
@@ -316,6 +325,7 @@ function CustomCreateForm({ audience, types, auth, onDone, onCancel, locale, t }
   const [bodyEn, setBodyEn] = useState('');
   const [bodyEs, setBodyEs] = useState('');
   const [displayOrder, setDisplayOrder] = useState('1000');
+  const [videoUrl, setVideoUrl] = useState('');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
 
@@ -332,6 +342,7 @@ function CustomCreateForm({ audience, types, auth, onDone, onCancel, locale, t }
         titleI18n: { en: titleEn.trim(), es: titleEs.trim() },
         bodyI18n:  { en: bodyEn.trim(),  es: bodyEs.trim()  },
         displayOrder: Number(displayOrder) || 1000,
+        videoUrl: videoUrl.trim(),
       });
       onDone();
     } catch (e) { setErr(e?.message || ''); }
@@ -394,6 +405,13 @@ function CustomCreateForm({ audience, types, auth, onDone, onCancel, locale, t }
           <input type="number" value={displayOrder} onChange={e => setDisplayOrder(e.target.value)} min="0" max="10000"
                  style={{ width: 80, padding: '4px 6px', border: '1px solid var(--tax-border)', borderRadius: 4 }} />
         </label>
+      </div>
+
+      <div>
+        <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--tax-muted)' }}>{t('owner.help.videoUrl')}</label>
+        <input type="url" value={videoUrl} onChange={e => setVideoUrl(e.target.value)} maxLength={500}
+               placeholder="https://youtube.com/watch?v=…"
+               style={{ width: '100%', padding: 8, border: '1px solid var(--tax-border)', borderRadius: 6 }} />
       </div>
 
       {err && <div className="tax-msg tax-msg--error">{err}</div>}

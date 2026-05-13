@@ -349,7 +349,7 @@ module.exports = function createTaxRouter(deps) {
 
     const { data: products, error: pErr } = await supabase
       .from('tax_products')
-      .select('id, slug, category, enabled, display_order, name_i18n, description_i18n, long_description_i18n, required_documents, icon')
+      .select('id, slug, category, enabled, display_order, name_i18n, description_i18n, long_description_i18n, required_documents, icon, video_url')
       .eq('community_id', slug)
       .eq('enabled', true)
       .order('display_order', { ascending: true });
@@ -1930,7 +1930,7 @@ module.exports = function createTaxRouter(deps) {
     const { data, error } = await supabase.from('tax_products')
       .select(`
         id, slug, category, enabled, display_order, icon,
-        name_i18n, description_i18n, long_description_i18n, required_documents,
+        name_i18n, description_i18n, long_description_i18n, required_documents, video_url,
         schedules:tax_filing_schedules ( id, slug, jurisdiction, cadence, enabled, name_i18n, info_checklist )
       `)
       .eq('community_id', communitySlug)
@@ -1994,6 +1994,9 @@ module.exports = function createTaxRouter(deps) {
       }).filter(d => (typeof d === 'string' ? d : (d.en || d.es)));
     }
     if (body.enabled !== undefined) update.enabled = !!body.enabled;
+    if (body.videoUrl !== undefined) {
+      update.video_url = String(body.videoUrl || '').trim().slice(0, 500);
+    }
     if (body.displayOrder !== undefined) {
       const n = Number(body.displayOrder);
       if (!Number.isNaN(n)) update.display_order = Math.max(0, Math.min(10000, Math.round(n)));
@@ -4859,6 +4862,7 @@ module.exports = function createTaxRouter(deps) {
       question_i18n: safeI18n(body.questionI18n),
       answer_i18n: safeI18n(body.answerI18n),
       visible: body.visible === false ? false : true,
+      video_url: String(body.videoUrl || '').trim().slice(0, 500),
       updated_at: new Date().toISOString(),
     }, { onConflict: 'community_id,relationship_type_id,default_faq_id' });
     if (error) return sendSupabaseError(res, error);
@@ -4883,6 +4887,7 @@ module.exports = function createTaxRouter(deps) {
       question_i18n: safeI18n(req.body?.questionI18n),
       answer_i18n: safeI18n(req.body?.answerI18n),
       visible: true,
+      video_url: String(req.body?.videoUrl || '').trim().slice(0, 500),
     });
     if (error) return sendSupabaseError(res, error);
     res.json({ ok: true, id: customId });
@@ -4973,6 +4978,7 @@ module.exports = function createTaxRouter(deps) {
           display_order: ov.display_order ?? d.display_order,
           title_i18n: ov.title_i18n && Object.keys(ov.title_i18n).length ? ov.title_i18n : d.title_i18n,
           body_i18n:  ov.body_i18n  && Object.keys(ov.body_i18n).length  ? ov.body_i18n  : d.body_i18n,
+          video_url: ov.video_url || d.video_url || '',
           source_note: d.source_note,
         });
       } else {
@@ -5011,6 +5017,7 @@ module.exports = function createTaxRouter(deps) {
       title_i18n: safeI18n(body.titleI18n),
       body_i18n: safeI18n(body.bodyI18n),
       visible: body.visible === false ? false : true,
+      video_url: String(body.videoUrl || '').trim().slice(0, 500),
       updated_at: new Date().toISOString(),
     }, { onConflict: 'community_id,default_help_article_id' });
     if (error) return sendSupabaseError(res, error);
@@ -5040,6 +5047,7 @@ module.exports = function createTaxRouter(deps) {
       audience, relationship_type_id: relationshipTypeId,
       category, display_order: displayOrder,
       title_i18n: titleI18n, body_i18n: bodyI18n, visible: true,
+      video_url: String(body.videoUrl || '').trim().slice(0, 500),
     });
     if (error) return sendSupabaseError(res, error);
     res.json({ ok: true, id });
@@ -7074,7 +7082,7 @@ module.exports = function createTaxRouter(deps) {
     let defaultsQ = supabase.from('tax_help_articles')
       .select(`
         id, audience, relationship_type_id, category, display_order,
-        title_i18n, body_i18n, source_note,
+        title_i18n, body_i18n, source_note, video_url,
         type:tax_relationship_types ( id, category, slug, name_i18n )
       `)
       .eq('audience', audience).eq('active', true);
@@ -7093,7 +7101,7 @@ module.exports = function createTaxRouter(deps) {
     const { data: community, error: cErr } = await supabase.from('tax_community_help_articles')
       .select(`
         id, default_help_article_id, audience, relationship_type_id, category,
-        display_order, title_i18n, body_i18n, visible, source_note,
+        display_order, title_i18n, body_i18n, visible, source_note, video_url,
         type:tax_relationship_types ( id, category, slug, name_i18n )
       `)
       .eq('community_id', communityId).eq('audience', audience);
@@ -7123,6 +7131,7 @@ module.exports = function createTaxRouter(deps) {
           display_order: ov.display_order ?? d.display_order,
           title_i18n: ov.title_i18n && Object.keys(ov.title_i18n).length ? ov.title_i18n : d.title_i18n,
           body_i18n:  ov.body_i18n  && Object.keys(ov.body_i18n).length  ? ov.body_i18n  : d.body_i18n,
+          video_url: ov.video_url || d.video_url || '',
           source_note: d.source_note,
         });
       } else {
@@ -7164,10 +7173,10 @@ module.exports = function createTaxRouter(deps) {
     const typeIds = typeRows.map(t => t.id);
     const [defaults, overrides] = await Promise.all([
       supabase.from('tax_relationship_default_faqs')
-        .select('id, relationship_type_id, display_order, question_i18n, answer_i18n, source_note')
+        .select('id, relationship_type_id, display_order, question_i18n, answer_i18n, source_note, video_url')
         .in('relationship_type_id', typeIds),
       supabase.from('tax_relationship_faqs')
-        .select('id, relationship_type_id, default_faq_id, display_order, question_i18n, answer_i18n, visible')
+        .select('id, relationship_type_id, default_faq_id, display_order, question_i18n, answer_i18n, visible, video_url')
         .eq('community_id', communityId)
         .in('relationship_type_id', typeIds),
     ]);
@@ -7195,6 +7204,7 @@ module.exports = function createTaxRouter(deps) {
             display_order: ov.display_order ?? d.display_order,
             question_i18n: ov.question_i18n || d.question_i18n,
             answer_i18n: ov.answer_i18n || d.answer_i18n,
+            video_url: ov.video_url || d.video_url || '',
             source_note: d.source_note,
           });
         } else {
@@ -7203,6 +7213,7 @@ module.exports = function createTaxRouter(deps) {
             display_order: d.display_order,
             question_i18n: d.question_i18n,
             answer_i18n: d.answer_i18n,
+            video_url: d.video_url || '',
             source_note: d.source_note,
           });
         }
@@ -7213,6 +7224,7 @@ module.exports = function createTaxRouter(deps) {
           display_order: c.display_order,
           question_i18n: c.question_i18n,
           answer_i18n: c.answer_i18n,
+          video_url: c.video_url || '',
         });
       }
       items.sort((a, b) => a.display_order - b.display_order);

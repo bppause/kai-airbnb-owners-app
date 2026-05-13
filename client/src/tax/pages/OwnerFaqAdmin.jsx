@@ -198,6 +198,7 @@ function FaqRow({ faq, auth, community, onChange, locale, t }) {
           faq={faq} auth={auth} community={community}
           defaultIdForOverride={defaultIdForOverride}
           initialQ={{ en: titleEn, es: titleEs }} initialA={{ en: bodyEn, es: bodyEs }}
+          initialVideoUrl={faq.video_url || ''}
           onDone={() => { setEditing(false); onChange(); }}
           onCancel={() => setEditing(false)} t={t} />
       ) : (
@@ -210,11 +211,12 @@ function FaqRow({ faq, auth, community, onChange, locale, t }) {
   );
 }
 
-function OverrideEditor({ auth, community, defaultIdForOverride, initialQ, initialA, onDone, onCancel, t }) {
+function OverrideEditor({ auth, community, defaultIdForOverride, initialQ, initialA, initialVideoUrl = '', onDone, onCancel, t }) {
   const [qEn, setQEn] = useState(initialQ.en);
   const [qEs, setQEs] = useState(initialQ.es);
   const [aEn, setAEn] = useState(initialA.en);
   const [aEs, setAEs] = useState(initialA.es);
+  const [videoUrl, setVideoUrl] = useState(initialVideoUrl);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
 
@@ -225,6 +227,7 @@ function OverrideEditor({ auth, community, defaultIdForOverride, initialQ, initi
         communitySlug: community.id,
         questionI18n: { en: qEn.trim(), es: qEs.trim() },
         answerI18n:   { en: aEn.trim(), es: aEs.trim() },
+        videoUrl: videoUrl.trim(),
         visible: true,
       });
       onDone();
@@ -258,6 +261,12 @@ function OverrideEditor({ auth, community, defaultIdForOverride, initialQ, initi
                     style={{ width: '100%', padding: 8, border: '1px solid var(--tax-border)', borderRadius: 6, fontFamily: 'inherit', fontSize: 13 }} />
         </div>
       </div>
+      <div>
+        <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--tax-muted)' }}>{t('owner.faq.videoUrl')}</label>
+        <input type="url" value={videoUrl} onChange={e => setVideoUrl(e.target.value)} maxLength={500}
+               placeholder="https://youtube.com/watch?v=…"
+               style={{ width: '100%', padding: 8, border: '1px solid var(--tax-border)', borderRadius: 6 }} />
+      </div>
       {err && <div className="tax-msg tax-msg--error">{err}</div>}
       <div style={{ display: 'flex', gap: 8 }}>
         <button type="button" className="tax-btn tax-btn--primary tax-btn--sm"
@@ -279,6 +288,7 @@ function CustomCreateForm({ groups, auth, customTypeId, setCustomTypeId, onDone,
   const [aEn, setAEn] = useState('');
   const [aEs, setAEs] = useState('');
   const [displayOrder, setDisplayOrder] = useState('1000');
+  const [videoUrl, setVideoUrl] = useState('');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
 
@@ -296,6 +306,7 @@ function CustomCreateForm({ groups, auth, customTypeId, setCustomTypeId, onDone,
         displayOrder: Number(displayOrder) || 1000,
         questionI18n: { en: qEn.trim(), es: qEs.trim() },
         answerI18n:   { en: aEn.trim(), es: aEs.trim() },
+        videoUrl: videoUrl.trim(),
       });
       onDone();
     } catch (e) { setErr(e?.message || ''); }
@@ -345,6 +356,13 @@ function CustomCreateForm({ groups, auth, customTypeId, setCustomTypeId, onDone,
           <input type="number" value={displayOrder} onChange={e => setDisplayOrder(e.target.value)} min="0" max="10000"
                  style={{ width: 80, padding: '4px 6px', border: '1px solid var(--tax-border)', borderRadius: 4 }} />
         </label>
+      </div>
+
+      <div>
+        <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--tax-muted)' }}>{t('owner.faq.videoUrl')}</label>
+        <input type="url" value={videoUrl} onChange={e => setVideoUrl(e.target.value)} maxLength={500}
+               placeholder="https://youtube.com/watch?v=…"
+               style={{ width: '100%', padding: 8, border: '1px solid var(--tax-border)', borderRadius: 6 }} />
       </div>
 
       {err && <div className="tax-msg tax-msg--error">{err}</div>}

@@ -11,6 +11,8 @@
 import { useEffect, useState } from 'react';
 import { TaxLocaleProvider } from './i18n';
 import Landing from './pages/Landing';
+import PublicFaqs from './pages/PublicFaqs';
+import PublicArticles from './pages/PublicArticles';
 import Respond from './pages/Respond';
 import PortalLogin from './pages/PortalLogin';
 import PortalDashboard from './pages/PortalDashboard';
@@ -68,6 +70,10 @@ function parseTaxPath() {
     return { route: 'platform-dashboard' };
   }
   const slug = parts[1] || DEFAULT_COMMUNITY_SLUG;
+  // Public sub-pages — accessible without auth. Sit alongside the
+  // landing page at /tax/:slug/{faqs,articles}.
+  if (parts[2] === 'faqs')     return { route: 'public-faqs', slug };
+  if (parts[2] === 'articles') return { route: 'public-articles', slug };
   if (parts[2] === 'employee') {
     if (parts[3] === 'profile') return { route: 'employee-profile', slug };
     if (parts[3] === 'threads' && parts[4]) return { route: 'employee-thread', slug, threadId: decodeURIComponent(parts[4]) };
@@ -124,7 +130,11 @@ export default function TaxApp() {
             ? <EmployeeRoot parsed={parsed} />
             : parsed.route.startsWith('portal')
               ? <PortalRoot parsed={parsed} />
-              : <Landing communitySlug={parsed.slug} />}
+              : parsed.route === 'public-faqs'
+                ? <PublicFaqs communitySlug={parsed.slug} />
+                : parsed.route === 'public-articles'
+                  ? <PublicArticles communitySlug={parsed.slug} />
+                  : <Landing communitySlug={parsed.slug} />}
     </TaxLocaleProvider>
   );
 }
