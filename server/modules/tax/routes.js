@@ -984,7 +984,7 @@ module.exports = function createTaxRouter(deps) {
     let productSchedules = [];
     if (relType?.product_id) {
       const { data: autoTasks } = await supabase.from('tax_service_auto_tasks')
-        .select('id, title_i18n, cadence_kind, anchor_rule, default_priority, display_order')
+        .select('id, title_i18n, cadence_kind, anchor_rule, default_priority, default_assignee_employee_id, display_order')
         .eq('product_id', relType.product_id)
         .eq('active', true)
         .order('display_order', { ascending: true });
@@ -999,6 +999,7 @@ module.exports = function createTaxRouter(deps) {
             product_id: relType.product_id,
             service_auto_task_id: at.id,
             priority: at.default_priority || 'normal',
+            assignedEmployeeId: at.default_assignee_employee_id || null,
             source: 'auto_task',
           });
         }
@@ -1087,6 +1088,11 @@ module.exports = function createTaxRouter(deps) {
           title: `${scheduleName} — ${p.periodLabel || p.dueDate}`,
           status_key: defaultStatus,
           priority: sched.priority || 'normal',
+          // Pre-route the new task to the auto-task's default owner
+          // when one is configured (Phase 4n.51). Falls back to
+          // unassigned so the existing behavior is preserved when
+          // the column is null.
+          assigned_employee_id: isAutoTask ? (sched.assignedEmployeeId || null) : null,
           due_date: p.dueDate,
           notes: '',
         });
@@ -1293,7 +1299,7 @@ module.exports = function createTaxRouter(deps) {
     const defaultStatus = (statusOpts || []).find(s => !s.is_terminal)?.key
       || (statusOpts || [])[0]?.key || 'not_started';
     const { data: autoTasks } = await supabase.from('tax_service_auto_tasks')
-      .select('id, title_i18n, cadence_kind, anchor_rule, default_priority')
+      .select('id, title_i18n, cadence_kind, anchor_rule, default_priority, default_assignee_employee_id')
       .eq('product_id', productId).eq('active', true);
     let created = 0;
     for (const at of autoTasks || []) {
@@ -1321,6 +1327,7 @@ module.exports = function createTaxRouter(deps) {
           title: `${titleBase} — ${p.periodLabel || p.dueDate}`,
           status_key: defaultStatus,
           priority: at.default_priority || 'normal',
+          assigned_employee_id: at.default_assignee_employee_id || null,
           due_date: p.dueDate,
           notes: '',
         });
@@ -2535,7 +2542,7 @@ module.exports = function createTaxRouter(deps) {
       .select('id, community_id').eq('id', productId).maybeSingle();
     if (!prod) return res.status(404).json({ error: 'Product not found.' });
     const { data, error } = await supabase.from('tax_service_auto_tasks')
-      .select('id, community_id, product_id, title_i18n, description_i18n, cadence_kind, anchor_rule, default_priority, display_order, active')
+      .select('id, community_id, product_id, title_i18n, description_i18n, cadence_kind, anchor_rule, default_priority, default_assignee_employee_id, display_order, active')
       .eq('product_id', productId)
       .order('display_order', { ascending: true });
     if (error) return sendSupabaseError(res, error);
@@ -2579,6 +2586,10 @@ module.exports = function createTaxRouter(deps) {
         cadence_kind: cadence,
         anchor_rule: (row.anchorRule && typeof row.anchorRule === 'object') ? row.anchorRule : {},
         default_priority: priority,
+        default_assignee_employee_id:
+          row.defaultAssigneeEmployeeId
+            ? trim(row.defaultAssigneeEmployeeId, 200) || null
+            : null,
         display_order: Number.isFinite(Number(row.displayOrder))
           ? Math.max(0, Math.min(10000, Math.round(Number(row.displayOrder))))
           : (i + 1) * 10,
@@ -2662,7 +2673,7 @@ module.exports = function createTaxRouter(deps) {
     } catch (_e) {}
 
     const { data: fresh } = await supabase.from('tax_service_auto_tasks')
-      .select('id, community_id, product_id, title_i18n, description_i18n, cadence_kind, anchor_rule, default_priority, display_order, active')
+      .select('id, community_id, product_id, title_i18n, description_i18n, cadence_kind, anchor_rule, default_priority, default_assignee_employee_id, display_order, active')
       .eq('product_id', productId)
       .order('display_order', { ascending: true });
     res.json({ ok: true, autoTasks: fresh || [], tasksCreated });
