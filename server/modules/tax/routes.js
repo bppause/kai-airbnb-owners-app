@@ -27,6 +27,11 @@ const {
   resolveNamePayload, firstNameOf, displayNameOf,
 } = require('./names');
 const { suggestionsForSlug } = require('./task-suggestions');
+const {
+  PERMISSIONS: TAX_PERMISSIONS,
+  hasEmployeePermission,
+  sanitizePermissions,
+} = require('./permissions');
 
 const TAX_BUSINESS_TYPE = 'tax';
 const MAX_TEXT_LEN = 4000;
@@ -288,16 +293,13 @@ module.exports = function createTaxRouter(deps) {
   //       admin employees use the dashboard without being in the env var).
   // Returns { email, source, employee? } on success; writes 403 + returns
   // null on failure. Always await this.
-  async function requireOwnerAdmin(req, res) {
+  // Resolves the caller to either a global admin (email allow-list) or a
+  // role='admin' tax_employees row. When `permissionKey` is supplied, the
+  // employee's `permissions` map is also checked — owners can revoke
+  // individual keys per employee (the user requested "default = same as
+  // owner"). Global-admin actors always pass regardless of the key.
+  async function requireOwnerAdmin(req, res, permissionKey = null) {
     if (!requireSupabaseEnv(res)) return null;
-    // (a) Global admin email header (legacy curl callers + dashboard fallback).
-    //
-    // Bug fix: previously this called `isGlobalAdmin(headerEmail)` as if it
-    // were sync, but the canonical helper is async with (uid, email) signature
-    // and returns a Promise (always truthy). For env-list-only checks the
-    // sync `isEnvGlobalAdminEmail(email)` is correct; falls back to the
-    // async version for DB-role-aware checks when the env helper isn't
-    // wired in.
     const headerEmail = trim(req.get('x-admin-email') || req.query.adminEmail || '', 200).toLowerCase();
     if (headerEmail) {
       const envOk = typeof isEnvGlobalAdminEmail === 'function' && isEnvGlobalAdminEmail(headerEmail);
@@ -306,17 +308,22 @@ module.exports = function createTaxRouter(deps) {
         : false;
       if (envOk || dbOk) return { email: headerEmail, source: 'global' };
     }
-    // (b) role='admin' employee with Firebase headers (same triple as
-    // requireTaxEmployee). Community match is enforced via x-tax-community.
     const uid = trim(req.get('x-firebase-uid') || '', 200);
     const email = trim(req.get('x-firebase-email') || '', 200).toLowerCase();
     const communitySlug = trim(req.get('x-tax-community') || '', 200);
     if (uid && email && communitySlug) {
       const { data: emp } = await supabase.from('tax_employees')
-        .select('id, community_id, email, role, status, firebase_uid')
+        .select('id, community_id, email, role, status, firebase_uid, permissions')
         .eq('email', email).eq('community_id', communitySlug).maybeSingle();
       if (emp && emp.status === 'active' && emp.role === 'admin' &&
           (!emp.firebase_uid || emp.firebase_uid === uid)) {
+        if (permissionKey && !hasEmployeePermission(emp, permissionKey)) {
+          res.status(403).json({
+            error: 'permission_revoked',
+            message: `Your owner revoked the "${permissionKey}" permission.`,
+          });
+          return null;
+        }
         return { email, source: 'employee', employee: emp };
       }
     }
@@ -1515,7 +1522,7 @@ module.exports = function createTaxRouter(deps) {
   // ids are community-scoped. For multi-community deployments, Phase 5 will
   // add explicit per-community filtering.
   router.get('/admin/audit', async (req, res) => {
-    if (!(await requireOwnerAdmin(req, res))) return;
+    if (!(await requireOwnerAdmin(req, res, 'view_audit_logs'))) return;
     const { entity, action, actor, dateFrom, dateTo, limit: limitParam, offset: offsetParam } = req.query || {};
 
     let q = supabase.from('audit_logs')
@@ -1539,7 +1546,7 @@ module.exports = function createTaxRouter(deps) {
   });
 
   router.put('/admin/community-settings/notif-lock', async (req, res) => {
-    if (!(await requireOwnerAdmin(req, res))) return;
+    if (!(await requireOwnerAdmin(req, res, 'manage_settings'))) return;
     const communitySlug = trim(req.body?.communitySlug, 200);
     const allowChange = Boolean(req.body?.allowCustomerChange);
     if (!communitySlug) return res.status(400).json({ error: 'communitySlug required.' });
@@ -1554,7 +1561,7 @@ module.exports = function createTaxRouter(deps) {
   // disabled, the portal routes redirect to the landing page and every
   // outbound email swaps portal links for landing-page links.
   router.put('/admin/community-settings/portal-enabled', async (req, res) => {
-    if (!(await requireOwnerAdmin(req, res))) return;
+    if (!(await requireOwnerAdmin(req, res, 'manage_settings'))) return;
     const communitySlug = trim(req.body?.communitySlug, 200);
     const enabled = Boolean(req.body?.enabled);
     if (!communitySlug) return res.status(400).json({ error: 'communitySlug required.' });
@@ -1577,7 +1584,7 @@ module.exports = function createTaxRouter(deps) {
   // exposes the Documents page and the upload endpoints accept new files;
   // when disabled, both UI and API reject.
   router.put('/admin/community-settings/documents-enabled', async (req, res) => {
-    if (!(await requireOwnerAdmin(req, res))) return;
+    if (!(await requireOwnerAdmin(req, res, 'manage_settings'))) return;
     const communitySlug = trim(req.body?.communitySlug, 200);
     const enabled = Boolean(req.body?.enabled);
     if (!communitySlug) return res.status(400).json({ error: 'communitySlug required.' });
@@ -1621,7 +1628,7 @@ module.exports = function createTaxRouter(deps) {
   // every field is optional (empty string clears it). WhatsApp must be
   // E.164 — same normalizer the customer/employee profile editors use.
   router.put('/admin/community-settings/contact', async (req, res) => {
-    if (!(await requireOwnerAdmin(req, res))) return;
+    if (!(await requireOwnerAdmin(req, res, 'manage_settings'))) return;
     const body = req.body || {};
     const communitySlug = trim(body.communitySlug, 200);
     if (!communitySlug) return res.status(400).json({ error: 'communitySlug required.' });
@@ -1702,7 +1709,7 @@ module.exports = function createTaxRouter(deps) {
   // Other fields (slug, category, workflow, sla_hours, pricing) stay
   // owner-edit-via-SQL for now.
   router.put('/admin/products/:id', async (req, res) => {
-    if (!(await requireOwnerAdmin(req, res))) return;
+    if (!(await requireOwnerAdmin(req, res, 'manage_services'))) return;
     const productId = trim(req.params.id, 200);
     const body = req.body || {};
 
@@ -1932,7 +1939,7 @@ module.exports = function createTaxRouter(deps) {
   // 'contacted' for the first time stamps contacted_at; transitioning to
   // any other status leaves the existing stamp in place.
   router.put('/admin/leads/:id', async (req, res) => {
-    if (!(await requireOwnerAdmin(req, res))) return;
+    if (!(await requireOwnerAdmin(req, res, 'manage_leads'))) return;
     const leadId = trim(req.params.id, 200);
     const body = req.body || {};
     const update = { updated_at: new Date().toISOString() };
@@ -1970,7 +1977,7 @@ module.exports = function createTaxRouter(deps) {
   // Idempotency: if a customer with the same email already exists in this
   // community, we re-link the lead to that customer instead of erroring.
   router.post('/admin/leads/:id/convert', async (req, res) => {
-    if (!(await requireOwnerAdmin(req, res))) return;
+    if (!(await requireOwnerAdmin(req, res, 'manage_leads'))) return;
     const leadId = trim(req.params.id, 200);
 
     const { data: lead, error: lErr } = await supabase.from('tax_leads')
@@ -2608,7 +2615,7 @@ module.exports = function createTaxRouter(deps) {
   // Create a community-scoped relationship type. Owner can pick any of the
   // 4 standard categories. Slug must be unique within the community.
   router.post('/admin/relationship-types', async (req, res) => {
-    if (!(await requireOwnerAdmin(req, res))) return;
+    if (!(await requireOwnerAdmin(req, res, 'manage_services'))) return;
     const body = req.body || {};
     const communitySlug = trim(body.communitySlug, 200);
     const category = trim(body.category, 40);
@@ -2655,7 +2662,7 @@ module.exports = function createTaxRouter(deps) {
 
   // ── PUT /admin/relationship-types/:id ── (community-scoped only)
   router.put('/admin/relationship-types/:id', async (req, res) => {
-    if (!(await requireOwnerAdmin(req, res))) return;
+    if (!(await requireOwnerAdmin(req, res, 'manage_services'))) return;
     const id = trim(req.params.id, 200);
     const body = req.body || {};
     const communitySlug = trim(body.communitySlug, 200);
@@ -2726,7 +2733,7 @@ module.exports = function createTaxRouter(deps) {
   // canonical anchor_rule shapes; supported types: weekly_following,
   // monthly_following, quarterly_following, annual.
   router.post('/admin/filing-schedules', async (req, res) => {
-    if (!(await requireOwnerAdmin(req, res))) return;
+    if (!(await requireOwnerAdmin(req, res, 'manage_workflows'))) return;
     const body = req.body || {};
     const communitySlug = trim(body.communitySlug, 200);
     if (!communitySlug) return res.status(400).json({ error: 'communitySlug required.' });
@@ -3144,6 +3151,9 @@ module.exports = function createTaxRouter(deps) {
   // POST /admin/upcoming-reminders/:periodId/send — fire a reminder email now.
   router.post('/admin/upcoming-reminders/:periodId/send', async (req, res) => {
     const emp = await requireTaxEmployee(req, res); if (!emp) return;
+    if (!hasEmployeePermission(emp, 'send_reminders')) {
+      return res.status(403).json({ error: 'permission_revoked', message: 'send_reminders revoked.' });
+    }
     if (typeof fireReminderForPeriod !== 'function') {
       return res.status(500).json({ error: 'reminder sender not configured' });
     }
@@ -3185,7 +3195,7 @@ module.exports = function createTaxRouter(deps) {
   });
 
   router.post('/admin/workflow-templates/:templateId/clone', async (req, res) => {
-    if (!(await requireOwnerAdmin(req, res))) return;
+    if (!(await requireOwnerAdmin(req, res, 'manage_workflows'))) return;
     const body = req.body || {};
     const communitySlug = trim(body.communitySlug, 200);
     const templateId = trim(req.params.templateId, 200);
@@ -4153,12 +4163,12 @@ module.exports = function createTaxRouter(deps) {
       supabase.from('communities')
         .select('id, name').eq('id', communityId).maybeSingle(),
       supabase.from('tax_employees')
-        .select('id, email, name, locale, notification_channels, notification_prefs, preferred_communication_email, role, status')
+        .select('id, email, name, locale, notification_channels, notification_prefs, permissions, preferred_communication_email, role, status')
         .eq('community_id', communityId).eq('status', 'active').eq('role', 'admin'),
       supabase.from('tax_employee_customer_assignments')
         .select(`
           id,
-          employee:tax_employees ( id, email, name, locale, notification_channels, notification_prefs, preferred_communication_email, role, status )
+          employee:tax_employees ( id, email, name, locale, notification_channels, notification_prefs, permissions, preferred_communication_email, role, status )
         `).eq('customer_id', customerId).eq('active', true),
     ]);
     const recipientById = new Map();
@@ -5193,12 +5203,12 @@ module.exports = function createTaxRouter(deps) {
     // assigned to. The two sets are merged + deduped before delivery.
     const [{ data: admins }, { data: assignedRows }] = await Promise.all([
       supabase.from('tax_employees')
-        .select('id, email, name, locale, notification_channels, notification_prefs, preferred_communication_email, role, status')
+        .select('id, email, name, locale, notification_channels, notification_prefs, permissions, preferred_communication_email, role, status')
         .eq('community_id', thread.community_id).eq('status', 'active').eq('role', 'admin'),
       supabase.from('tax_employee_customer_assignments')
         .select(`
           id,
-          employee:tax_employees ( id, email, name, locale, notification_channels, notification_prefs, preferred_communication_email, role, status )
+          employee:tax_employees ( id, email, name, locale, notification_channels, notification_prefs, permissions, preferred_communication_email, role, status )
         `)
         .eq('customer_id', customerId).eq('active', true),
     ]);
@@ -5280,7 +5290,7 @@ module.exports = function createTaxRouter(deps) {
     if (imp === false) return null;
     if (imp) {
       const { data: emp, error } = await supabase.from('tax_employees')
-        .select('id, community_id, email, name, first_name, middle_name, last_name, phone, whatsapp, address, preferred_communication_email, locale, notification_channels, notification_prefs, role, status, firebase_uid, last_sign_in_at')
+        .select('id, community_id, email, name, first_name, middle_name, last_name, phone, whatsapp, address, preferred_communication_email, locale, notification_channels, notification_prefs, permissions, role, status, firebase_uid, last_sign_in_at')
         .eq('id', imp.target_id).maybeSingle();
       if (error) { sendSupabaseError(res, error); return null; }
       if (!emp) { res.status(404).json({ error: 'Impersonation target not found.' }); return null; }
@@ -5296,7 +5306,7 @@ module.exports = function createTaxRouter(deps) {
       return null;
     }
     const { data: emp, error } = await supabase.from('tax_employees')
-      .select('id, community_id, email, name, first_name, middle_name, last_name, phone, whatsapp, address, preferred_communication_email, locale, notification_channels, notification_prefs, role, status, firebase_uid, last_sign_in_at')
+      .select('id, community_id, email, name, first_name, middle_name, last_name, phone, whatsapp, address, preferred_communication_email, locale, notification_channels, notification_prefs, permissions, role, status, firebase_uid, last_sign_in_at')
       .eq('email', email).eq('community_id', communitySlug).maybeSingle();
     if (error) { sendSupabaseError(res, error); return null; }
     if (!emp) {
@@ -5333,6 +5343,11 @@ module.exports = function createTaxRouter(deps) {
       locale: e.locale, role: e.role, status: e.status,
       notificationChannels: Array.isArray(e.notification_channels) ? e.notification_channels : ['in_app'],
       notificationPrefs: (e.notification_prefs && typeof e.notification_prefs === 'object') ? e.notification_prefs : {},
+      // Effective permissions map. Only revoked keys are stored
+      // (defaulting to false); everything absent is granted. Clients
+      // use this to hide nav links and to gray out actions early —
+      // server still re-checks on each protected endpoint.
+      permissions: (e.permissions && typeof e.permissions === 'object') ? e.permissions : {},
       lastSignInAt: e.last_sign_in_at || null,
     };
   }
@@ -5570,7 +5585,7 @@ module.exports = function createTaxRouter(deps) {
     } catch (_e) {}
 
     const { data: refreshed } = await supabase.from('tax_employees')
-      .select('id, community_id, email, name, first_name, middle_name, last_name, phone, whatsapp, address, preferred_communication_email, locale, notification_channels, notification_prefs, role, status, firebase_uid, last_sign_in_at')
+      .select('id, community_id, email, name, first_name, middle_name, last_name, phone, whatsapp, address, preferred_communication_email, locale, notification_channels, notification_prefs, permissions, role, status, firebase_uid, last_sign_in_at')
       .eq('id', emp.id).maybeSingle();
     res.json({ ok: true, employee: pickEmployee(refreshed) });
   });
@@ -5921,7 +5936,7 @@ module.exports = function createTaxRouter(deps) {
   });
 
   router.put('/admin/email-templates/:key/:lang', async (req, res) => {
-    if (!(await requireOwnerAdmin(req, res))) return;
+    if (!(await requireOwnerAdmin(req, res, 'manage_email_templates'))) return;
     const body = req.body || {};
     const communitySlug = trim(body.communitySlug, 200);
     const key = trim(req.params.key, 60);
@@ -5953,7 +5968,7 @@ module.exports = function createTaxRouter(deps) {
 
   // DELETE → revert to hardcoded default
   router.delete('/admin/email-templates/:key/:lang', async (req, res) => {
-    if (!(await requireOwnerAdmin(req, res))) return;
+    if (!(await requireOwnerAdmin(req, res, 'manage_email_templates'))) return;
     const communitySlug = trim(req.query.communitySlug, 200);
     const key = trim(req.params.key, 60);
     const lang = trim(req.params.lang, 10);
@@ -6136,7 +6151,7 @@ module.exports = function createTaxRouter(deps) {
     if (!(await requireOwnerAdmin(req, res))) return;
     const communitySlug = trim(req.query.communitySlug, 200);
     let q = supabase.from('tax_employees')
-      .select('id, community_id, email, name, first_name, middle_name, last_name, role, status, notification_channels, created_at, firebase_uid, last_sign_in_at')
+      .select('id, community_id, email, name, first_name, middle_name, last_name, role, status, notification_channels, permissions, created_at, firebase_uid, last_sign_in_at')
       .order('created_at', { ascending: false }).limit(200);
     if (communitySlug) q = q.eq('community_id', communitySlug);
     const { data, error } = await q;
@@ -6145,7 +6160,7 @@ module.exports = function createTaxRouter(deps) {
   });
 
   router.post('/admin/employees', async (req, res) => {
-    if (!(await requireOwnerAdmin(req, res))) return;
+    if (!(await requireOwnerAdmin(req, res, 'manage_employees'))) return;
     const body = req.body || {};
     const communitySlug = trim(body.communitySlug, 200);
     const email = trim(body.email, 200).toLowerCase();
@@ -6187,8 +6202,56 @@ module.exports = function createTaxRouter(deps) {
   //     status='active')
   //   • are preserved so audit history + past assignments stay intact
   // Restoring flips status back without re-creating any links.
-  router.put('/admin/employees/:id/status', async (req, res) => {
+  // GET /admin/permissions — registry. Surfaces the permission keys
+  // available for delegation so the Team UI can render the right
+  // toggles without hard-coding the list client-side.
+  router.get('/admin/permissions', async (req, res) => {
     if (!(await requireOwnerAdmin(req, res))) return;
+    res.json({ permissions: TAX_PERMISSIONS });
+  });
+
+  // PUT /admin/employees/:id/permissions — replace the permission
+  // overrides for one employee. Body: { permissions: { manage_settings: false, ... } }.
+  // Only `false` entries are persisted (granted keys default-on); the
+  // sanitizer drops unknown keys.
+  router.put('/admin/employees/:id/permissions', async (req, res) => {
+    const actor = await requireOwnerAdmin(req, res, 'manage_employees');
+    if (!actor) return;
+    const empId = trim(req.params.id, 200);
+    const sanitized = sanitizePermissions(req.body?.permissions);
+
+    const { data: existing } = await supabase.from('tax_employees')
+      .select('id, email, community_id, role, permissions').eq('id', empId).maybeSingle();
+    if (!existing) return res.status(404).json({ error: 'Employee not found.' });
+
+    // Block an owner-admin from accidentally locking themselves out of
+    // employee management (only path back is direct DB access).
+    if (actor.source === 'employee' && actor.employee?.id === empId
+        && sanitized.manage_employees === false) {
+      return res.status(409).json({
+        error: 'cannot_revoke_self',
+        message: 'You can\'t revoke your own manage_employees permission.',
+      });
+    }
+
+    const { error } = await supabase.from('tax_employees')
+      .update({ permissions: sanitized, updated_at: new Date().toISOString() })
+      .eq('id', empId);
+    if (error) return sendSupabaseError(res, error);
+
+    try {
+      await auditLog({
+        entity: 'tax.employee', entityId: empId, action: 'set_permissions',
+        actorEmail: actor.email || '',
+        before: { permissions: existing.permissions || {} },
+        after:  { permissions: sanitized },
+      });
+    } catch (_e) {}
+    res.json({ ok: true, permissions: sanitized });
+  });
+
+  router.put('/admin/employees/:id/status', async (req, res) => {
+    if (!(await requireOwnerAdmin(req, res, 'manage_employees'))) return;
     const empId = trim(req.params.id, 200);
     const body = req.body || {};
     const status = String(body.status || '').toLowerCase();

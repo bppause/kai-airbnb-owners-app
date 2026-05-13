@@ -186,6 +186,10 @@ export const taxApi = {
   adminCreateEmployee(auth, payload)            { return request('POST', '/admin/employees', payload, auth, { admin: true }); },
   adminSendStaffWelcomeEmail(auth, id)          { return request('POST', `/admin/employees/${encodeURIComponent(id)}/send-welcome`, {}, auth, { admin: true }); },
   adminSetEmployeeStatus(auth, id, payload)     { return request('PUT', `/admin/employees/${encodeURIComponent(id)}/status`, payload, auth, { admin: true }); },
+  adminListPermissions(auth)                    { return request('GET', '/admin/permissions', undefined, auth, { admin: true }); },
+  adminSetEmployeePermissions(auth, id, permissions) {
+    return request('PUT', `/admin/employees/${encodeURIComponent(id)}/permissions`, { permissions }, auth, { admin: true });
+  },
 
   adminListEmailTemplates(auth, communitySlug)  { return request('GET',  `/admin/email-templates?communitySlug=${encodeURIComponent(communitySlug)}`, undefined, auth, { admin: true }); },
   adminUpdateEmailTemplate(auth, key, lang, payload) { return request('PUT', `/admin/email-templates/${encodeURIComponent(key)}/${encodeURIComponent(lang)}`, payload, auth, { admin: true }); },

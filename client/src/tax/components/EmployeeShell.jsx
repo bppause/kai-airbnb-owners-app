@@ -19,6 +19,10 @@ export default function EmployeeShell({ community, active, children }) {
   const { fbUser, employee, signOut, impersonation, exitImpersonation, customerAccess } = useEmployeeAuth();
   const base = community ? `/tax/${community.id}/employee` : '#';
   const isAdmin = employee?.role === 'admin';
+  // Permission gate for nav links — owner-revoked keys hide their
+  // corresponding sidebar items. Server re-checks each request, so this
+  // is UX hygiene, not a security boundary.
+  const perm = (key) => (employee?.permissions?.[key] !== false);
 
   // Mobile menu open/closed.
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -74,25 +78,26 @@ export default function EmployeeShell({ community, active, children }) {
               {employee && navLink('reminders', `${base}/reminders`, t('employee.nav.reminders'))}
               {employee && navLink('tasks', `${base}/tasks`, t('employee.nav.tasks'))}
               {employee && navLink('customers', `${base}/customers`, t('employee.nav.customers'))}
-              {isAdmin && navLink('leads', `${base}/leads`, t('employee.nav.leads'))}
+              {isAdmin && perm('manage_leads') &&
+                navLink('leads', `${base}/leads`, t('employee.nav.leads'))}
             </div>
 
-            {/* Configure group — admin only. Order goes from "what the
-                business does" (services, workflows) → "how it talks to
-                customers" (emails, articles, faqs) → "who runs it"
-                (staff, settings) → "what happened" (audit). */}
+            {/* Configure group — admin role + per-permission. Each link
+                stays hidden when the owner revoked the corresponding
+                permission for this employee. The owner themselves
+                (`permissions[*] !== false` by default) sees every link. */}
             {isAdmin && (
               <div className="tax-shell__group">
                 <div className="tax-shell__group-label">{t('employee.nav.groupConfigure')}</div>
-                {navLink('services',         `${base}/services`,         t('employee.nav.services'))}
-                {navLink('service-catalog',  `${base}/service-catalog`,  t('employee.nav.serviceCatalog'))}
-                {navLink('workflows',        `${base}/workflows`,        t('employee.nav.workflows'))}
-                {navLink('email-templates',  `${base}/email-templates`,  t('employee.nav.emailTemplates'))}
-                {navLink('articles',         `${base}/articles`,         t('employee.nav.articles'))}
-                {navLink('faqs',             `${base}/faqs`,             t('employee.nav.faqsAdmin'))}
-                {navLink('staff',           `${base}/staff`,           t('employee.nav.staff'))}
-                {navLink('settings',        `${base}/settings`,        t('employee.nav.settings'))}
-                {navLink('audit',           `${base}/audit`,           t('employee.nav.audit'))}
+                {perm('manage_services')        && navLink('services',         `${base}/services`,         t('employee.nav.services'))}
+                {perm('manage_services')        && navLink('service-catalog',  `${base}/service-catalog`,  t('employee.nav.serviceCatalog'))}
+                {perm('manage_workflows')       && navLink('workflows',        `${base}/workflows`,        t('employee.nav.workflows'))}
+                {perm('manage_email_templates') && navLink('email-templates',  `${base}/email-templates`,  t('employee.nav.emailTemplates'))}
+                {                                  navLink('articles',         `${base}/articles`,         t('employee.nav.articles'))}
+                {                                  navLink('faqs',             `${base}/faqs`,             t('employee.nav.faqsAdmin'))}
+                {perm('manage_employees')       && navLink('staff',           `${base}/staff`,           t('employee.nav.staff'))}
+                {perm('manage_settings')        && navLink('settings',        `${base}/settings`,        t('employee.nav.settings'))}
+                {perm('view_audit_logs')        && navLink('audit',           `${base}/audit`,           t('employee.nav.audit'))}
               </div>
             )}
 

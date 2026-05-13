@@ -123,6 +123,11 @@ export default function OwnerStaffDetail({ employeeId }) {
         </div>
       )}
 
+      {/* Permissions card — owner can revoke specific powers from this
+          employee. Self-edit is blocked server-side for manage_employees
+          so the owner can't accidentally lock themselves out. */}
+      <PermissionsCard emp={emp} me={me} auth={auth} onSaved={loadEmployee} t={t} />
+
       <h3 style={{ marginTop: 32 }}>{t('owner.staffDetail.assignments')}</h3>
       {emp.role === 'admin' ? (
         <div className="tax-msg" style={{ background: 'color-mix(in srgb, var(--tax-brand-primary) 8%, #fff)',
@@ -601,6 +606,131 @@ function AssignmentManager({ assignments, customers, empId, auth, onChange, t, l
         </div>
       </div>
     </>
+  );
+}
+
+// Permissions delegation card. Each registered permission key is shown
+// with a toggle; on = granted (default), off = revoked. We start from
+// the server's registry so adding a new key on the server surfaces it
+// here without a frontend change.
+function PermissionsCard({ emp, me, auth, onSaved, t }) {
+  const [registry, setRegistry] = useState(null);
+  const [draft, setDraft] = useState(() => emp.permissions || {});
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState({ kind: 'idle', text: '' });
+
+  useEffect(() => { setDraft(emp.permissions || {}); }, [emp.permissions]);
+
+  useEffect(() => {
+    taxApi.adminListPermissions(auth)
+      .then(d => setRegistry(d.permissions || []))
+      .catch(() => setRegistry([]));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  if (registry === null) return null;
+  if (!registry.length) return null;
+
+  const isGranted = (key) => draft[key] !== false;
+  const toggle = (key) => setDraft(prev => {
+    const next = { ...prev };
+    if (next[key] === false) delete next[key];
+    else next[key] = false;
+    return next;
+  });
+  const dirty = JSON.stringify(draft) !== JSON.stringify(emp.permissions || {});
+
+  const onSave = async () => {
+    setBusy(true); setMsg({ kind: 'idle', text: '' });
+    try {
+      // Strip every key that's `true` — the server stores only revoked
+      // entries. Sending `true` is harmless (sanitizer drops it) but
+      // keeping the payload minimal makes the audit log readable.
+      const payload = {};
+      for (const k of Object.keys(draft)) if (draft[k] === false) payload[k] = false;
+      await taxApi.adminSetEmployeePermissions(auth, emp.id, payload);
+      setMsg({ kind: 'success', text: t('owner.permissions.saved') });
+      onSaved && onSaved();
+    } catch (e) {
+      setMsg({ kind: 'error', text: e?.message || '' });
+    } finally { setBusy(false); }
+  };
+  const onReset = () => setDraft(emp.permissions || {});
+
+  const revokedCount = Object.values(draft).filter(v => v === false).length;
+  const isSelf = me?.id === emp.id;
+
+  return (
+    <section style={{ marginTop: 32 }}>
+      <h3 style={{ margin: 0 }}>{t('owner.permissions.heading')}</h3>
+      <p className="tax-section__lede" style={{ marginTop: 4, marginBottom: 12 }}>
+        {t('owner.permissions.sub', { defaultText: '' })}
+      </p>
+      {isSelf && (
+        <div className="tax-msg" style={{
+          background: 'color-mix(in srgb, #92400e 8%, #fff)',
+          borderLeft: '3px solid #92400e', color: '#7c2d12',
+          padding: '8px 12px', marginBottom: 10, fontSize: 13,
+        }}>
+          {t('owner.permissions.selfWarning')}
+        </div>
+      )}
+      <div style={{ display: 'grid', gap: 6, maxWidth: 720 }}>
+        {registry.map(p => {
+          const granted = isGranted(p.key);
+          return (
+            <label key={p.key} style={{
+              display: 'flex', gap: 12, padding: '10px 12px',
+              border: '1px solid var(--tax-border)', borderRadius: 8,
+              background: granted ? '#fff' : 'color-mix(in srgb, #b91c1c 5%, #fff)',
+              cursor: 'pointer',
+            }}>
+              <input type="checkbox" checked={granted} onChange={() => toggle(p.key)}
+                     disabled={busy} style={{ marginTop: 2 }} />
+              <div style={{ minWidth: 0, flex: 1 }}>
+                <div style={{ fontWeight: 600 }}>
+                  {t(p.labelKey, { _: p.key })}
+                  {!granted && (
+                    <span style={{
+                      marginLeft: 8, padding: '1px 8px', borderRadius: 999,
+                      fontSize: 11, fontWeight: 700, textTransform: 'uppercase',
+                      background: '#fee2e2', color: '#991b1b',
+                    }}>{t('owner.permissions.revoked')}</span>
+                  )}
+                </div>
+                <div style={{ fontSize: 12, color: 'var(--tax-muted)', marginTop: 2 }}>
+                  {t(p.descKey, { _: '' })}
+                </div>
+              </div>
+            </label>
+          );
+        })}
+      </div>
+
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 10, flexWrap: 'wrap' }}>
+        <span style={{ fontSize: 13, color: 'var(--tax-muted)' }}>
+          {revokedCount === 0
+            ? t('owner.permissions.allGranted')
+            : t('owner.permissions.someRevoked', { count: revokedCount })}
+        </span>
+        {dirty && (
+          <button type="button" className="tax-btn tax-btn--ghost tax-btn--sm"
+                  onClick={onReset} disabled={busy} style={{ color: 'var(--tax-text)' }}>
+            {t('owner.permissions.reset')}
+          </button>
+        )}
+        <button type="button" className="tax-btn tax-btn--primary tax-btn--sm"
+                onClick={onSave} disabled={!dirty || busy}>
+          {busy ? t('lead.submitting') : t('owner.permissions.save')}
+        </button>
+        {msg.text && (
+          <span style={{ fontSize: 12,
+                         color: msg.kind === 'success' ? 'var(--tax-success)' : 'var(--tax-error)' }}>
+            {msg.text}
+          </span>
+        )}
+      </div>
+    </section>
   );
 }
 
