@@ -81,6 +81,7 @@ export const taxApi = {
   getCommunity(slug)              { return request('GET',  `/community/${encodeURIComponent(slug)}`); },
   getCommunityFaqs(slug)          { return request('GET',  `/community/${encodeURIComponent(slug)}/faqs`); },
   getCommunityArticles(slug)      { return request('GET',  `/community/${encodeURIComponent(slug)}/articles`); },
+  getCommunityTeam(slug)          { return request('GET',  `/community/${encodeURIComponent(slug)}/team`); },
   submitLead(payload)             { return request('POST', '/leads', payload); },
   getResponse(token)              { return request('GET',  `/respond/${encodeURIComponent(token)}`); },
   submitResponse(token, payload)  { return request('POST', `/respond/${encodeURIComponent(token)}`, payload); },
@@ -191,6 +192,9 @@ export const taxApi = {
   adminListPermissions(auth)                    { return request('GET', '/admin/permissions', undefined, auth, { admin: true }); },
   adminSetEmployeePermissions(auth, id, permissions) {
     return request('PUT', `/admin/employees/${encodeURIComponent(id)}/permissions`, { permissions }, auth, { admin: true });
+  },
+  adminSetEmployeePublicProfile(auth, id, payload) {
+    return request('PUT', `/admin/employees/${encodeURIComponent(id)}/public-profile`, payload, auth, { admin: true });
   },
 
   adminListEmailTemplates(auth, communitySlug)  { return request('GET',  `/admin/email-templates?communitySlug=${encodeURIComponent(communitySlug)}`, undefined, auth, { admin: true }); },

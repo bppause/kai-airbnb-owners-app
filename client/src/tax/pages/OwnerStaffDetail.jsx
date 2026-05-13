@@ -126,6 +126,7 @@ export default function OwnerStaffDetail({ employeeId }) {
       {/* Permissions card — owner can revoke specific powers from this
           employee. Self-edit is blocked server-side for manage_employees
           so the owner can't accidentally lock themselves out. */}
+      <PublicProfileCard emp={emp} auth={auth} onSaved={loadEmployee} t={t} />
       <PermissionsCard emp={emp} me={me} auth={auth} onSaved={loadEmployee} t={t} />
 
       <h3 style={{ marginTop: 32 }}>{t('owner.staffDetail.assignments')}</h3>
@@ -613,6 +614,179 @@ function AssignmentManager({ assignments, customers, empId, auth, onChange, t, l
 // with a toggle; on = granted (default), off = revoked. We start from
 // the server's registry so adding a new key on the server surfaces it
 // here without a frontend change.
+// Public profile card. Lets the owner publish this employee on the
+// landing page's "Meet the team" section with a photo, a short title,
+// and a bilingual bio. Default visibility is OFF — the owner explicitly
+// turns it on per employee so nobody is published by surprise.
+function PublicProfileCard({ emp, auth, onSaved, t }) {
+  const [draft, setDraft] = useState({
+    showOnHomepage: !!emp.show_on_homepage,
+    photoUrl: emp.photo_url || '',
+    titleEn: emp.title_i18n?.en || '',
+    titleEs: emp.title_i18n?.es || '',
+    bioEn: emp.bio_i18n?.en || '',
+    bioEs: emp.bio_i18n?.es || '',
+    displayOrder: String(emp.homepage_display_order ?? 100),
+  });
+  useEffect(() => {
+    setDraft({
+      showOnHomepage: !!emp.show_on_homepage,
+      photoUrl: emp.photo_url || '',
+      titleEn: emp.title_i18n?.en || '',
+      titleEs: emp.title_i18n?.es || '',
+      bioEn: emp.bio_i18n?.en || '',
+      bioEs: emp.bio_i18n?.es || '',
+      displayOrder: String(emp.homepage_display_order ?? 100),
+    });
+  }, [emp]);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState({ kind: 'idle', text: '' });
+
+  const dirty = draft.showOnHomepage !== !!emp.show_on_homepage
+             || draft.photoUrl !== (emp.photo_url || '')
+             || draft.titleEn !== (emp.title_i18n?.en || '')
+             || draft.titleEs !== (emp.title_i18n?.es || '')
+             || draft.bioEn !== (emp.bio_i18n?.en || '')
+             || draft.bioEs !== (emp.bio_i18n?.es || '')
+             || Number(draft.displayOrder) !== (emp.homepage_display_order ?? 100);
+
+  const set = (k, v) => setDraft(prev => ({ ...prev, [k]: v }));
+
+  const onSave = async () => {
+    setBusy(true); setMsg({ kind: 'idle', text: '' });
+    try {
+      await taxApi.adminSetEmployeePublicProfile(auth, emp.id, {
+        showOnHomepage: draft.showOnHomepage,
+        photoUrl: draft.photoUrl.trim(),
+        titleI18n: { en: draft.titleEn.trim(), es: draft.titleEs.trim() },
+        bioI18n: { en: draft.bioEn.trim(), es: draft.bioEs.trim() },
+        displayOrder: Number(draft.displayOrder) || 100,
+      });
+      setMsg({ kind: 'success', text: t('owner.publicProfile.saved') });
+      onSaved && onSaved();
+    } catch (e) {
+      setMsg({ kind: 'error', text: e?.message || '' });
+    } finally { setBusy(false); }
+  };
+
+  return (
+    <section style={{ marginTop: 32 }}>
+      <h3 style={{ margin: 0 }}>{t('owner.publicProfile.heading')}</h3>
+      <p className="tax-section__lede" style={{ marginTop: 4, marginBottom: 12 }}>
+        {t('owner.publicProfile.sub')}
+      </p>
+
+      <div style={{
+        display: 'grid', gap: 12, maxWidth: 720,
+        padding: 14, border: '1px solid var(--tax-border)', borderRadius: 8,
+        background: draft.showOnHomepage
+          ? 'color-mix(in srgb, var(--tax-brand-primary) 6%, #fff)' : '#fff',
+      }}>
+        <label style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+          <input type="checkbox" checked={draft.showOnHomepage}
+                 onChange={e => set('showOnHomepage', e.target.checked)} disabled={busy} />
+          <span style={{ fontWeight: 600 }}>{t('owner.publicProfile.showOnHomepage')}</span>
+        </label>
+        <p style={{ margin: '0 0 4px', fontSize: 12, color: 'var(--tax-muted)' }}>
+          {t('owner.publicProfile.showHint')}
+        </p>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: 14, alignItems: 'start' }}>
+          <div style={{
+            width: 96, height: 96, borderRadius: '50%', overflow: 'hidden',
+            background: 'var(--tax-bg-alt)', display: 'flex',
+            alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+          }}>
+            {draft.photoUrl
+              ? <img src={draft.photoUrl} alt=""
+                     style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                     onError={(e) => { e.currentTarget.style.display = 'none'; }} />
+              : <span style={{ fontSize: 11, color: 'var(--tax-muted)' }}>
+                  {t('owner.publicProfile.noPhoto')}
+                </span>}
+          </div>
+          <div>
+            <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--tax-muted)' }}>
+              {t('owner.publicProfile.photoUrl')}
+            </label>
+            <input type="url" value={draft.photoUrl}
+                   onChange={e => set('photoUrl', e.target.value)} disabled={busy}
+                   maxLength={1000}
+                   placeholder="https://… (paste a direct image link)"
+                   style={{ width: '100%', padding: 8, border: '1px solid var(--tax-border)', borderRadius: 6 }} />
+            <p style={{ margin: '4px 0 0', fontSize: 11, color: 'var(--tax-muted)' }}>
+              {t('owner.publicProfile.photoHint')}
+            </p>
+          </div>
+        </div>
+
+        <div className="tax-form__row2">
+          <div>
+            <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--tax-muted)' }}>
+              {t('owner.publicProfile.titleEn')}
+            </label>
+            <input type="text" value={draft.titleEn} maxLength={200} disabled={busy}
+                   onChange={e => set('titleEn', e.target.value)}
+                   placeholder="e.g. Senior Tax Preparer"
+                   style={{ width: '100%', padding: 8, border: '1px solid var(--tax-border)', borderRadius: 6 }} />
+          </div>
+          <div>
+            <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--tax-muted)' }}>
+              {t('owner.publicProfile.titleEs')}
+            </label>
+            <input type="text" value={draft.titleEs} maxLength={200} disabled={busy}
+                   onChange={e => set('titleEs', e.target.value)}
+                   placeholder="p. ej. Preparadora de Impuestos Senior"
+                   style={{ width: '100%', padding: 8, border: '1px solid var(--tax-border)', borderRadius: 6 }} />
+          </div>
+        </div>
+
+        <div className="tax-form__row2">
+          <div>
+            <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--tax-muted)' }}>
+              {t('owner.publicProfile.bioEn')}
+            </label>
+            <textarea rows={4} value={draft.bioEn} maxLength={4000} disabled={busy}
+                      onChange={e => set('bioEn', e.target.value)}
+                      placeholder={t('owner.publicProfile.bioPlaceholder')}
+                      style={{ width: '100%', padding: 8, border: '1px solid var(--tax-border)', borderRadius: 6, fontFamily: 'inherit', fontSize: 13 }} />
+          </div>
+          <div>
+            <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--tax-muted)' }}>
+              {t('owner.publicProfile.bioEs')}
+            </label>
+            <textarea rows={4} value={draft.bioEs} maxLength={4000} disabled={busy}
+                      onChange={e => set('bioEs', e.target.value)}
+                      placeholder={t('owner.publicProfile.bioPlaceholder')}
+                      style={{ width: '100%', padding: 8, border: '1px solid var(--tax-border)', borderRadius: 6, fontFamily: 'inherit', fontSize: 13 }} />
+          </div>
+        </div>
+
+        <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: 'var(--tax-muted)' }}>
+          {t('owner.publicProfile.displayOrder')}:
+          <input type="number" value={draft.displayOrder} disabled={busy}
+                 onChange={e => set('displayOrder', e.target.value)}
+                 min="0" max="10000"
+                 style={{ width: 80, padding: '4px 6px', border: '1px solid var(--tax-border)', borderRadius: 4 }} />
+        </label>
+
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+          <button type="button" className="tax-btn tax-btn--primary tax-btn--sm"
+                  onClick={onSave} disabled={busy || !dirty}>
+            {busy ? t('lead.submitting') : t('owner.publicProfile.save')}
+          </button>
+          {msg.text && (
+            <span style={{ fontSize: 12,
+                           color: msg.kind === 'success' ? 'var(--tax-success)' : 'var(--tax-error)' }}>
+              {msg.text}
+            </span>
+          )}
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function PermissionsCard({ emp, me, auth, onSaved, t }) {
   const [registry, setRegistry] = useState(null);
   const [draft, setDraft] = useState(() => emp.permissions || {});

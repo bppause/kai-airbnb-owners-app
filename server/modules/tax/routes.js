@@ -379,6 +379,30 @@ module.exports = function createTaxRouter(deps) {
     } catch (e) { res.status(500).json({ error: e?.message || 'Failed to load FAQs.' }); }
   });
 
+  // ── GET /community/:slug/team ───────────────────────────────────────────
+  // Public feed of employees the owner has opted into the Meet-the-team
+  // section. name, optional title + photo + bilingual bio. Hidden
+  // employees never appear; the section renders iff at least one row.
+  router.get('/community/:slug/team', async (req, res) => {
+    if (!requireSupabaseEnv(res)) return;
+    const slug = trim(req.params.slug, 200);
+    if (!slug) return res.status(400).json({ error: 'Community slug required.' });
+    const { data: community } = await supabase.from('communities')
+      .select('id, business_type').eq('id', slug).maybeSingle();
+    if (!community || community.business_type !== TAX_BUSINESS_TYPE) {
+      return res.status(404).json({ error: 'Tax community not found.' });
+    }
+    const { data, error } = await supabase.from('tax_employees')
+      .select('id, name, first_name, middle_name, last_name, photo_url, title_i18n, bio_i18n, homepage_display_order')
+      .eq('community_id', slug)
+      .eq('show_on_homepage', true)
+      .eq('status', 'active')
+      .order('homepage_display_order', { ascending: true })
+      .limit(50);
+    if (error) return sendSupabaseError(res, error);
+    res.json({ members: data || [] });
+  });
+
   // ── GET /community/:slug/articles ───────────────────────────────────────
   // Public landing-page feed of help articles. Surfaces the effective
   // owner-audience articles (the "How we work" set the practice
@@ -6761,7 +6785,7 @@ module.exports = function createTaxRouter(deps) {
     if (!(await requireOwnerAdmin(req, res))) return;
     const communitySlug = trim(req.query.communitySlug, 200);
     let q = supabase.from('tax_employees')
-      .select('id, community_id, email, name, first_name, middle_name, last_name, role, status, notification_channels, permissions, created_at, firebase_uid, last_sign_in_at')
+      .select('id, community_id, email, name, first_name, middle_name, last_name, role, status, notification_channels, permissions, show_on_homepage, photo_url, title_i18n, bio_i18n, homepage_display_order, created_at, firebase_uid, last_sign_in_at')
       .order('created_at', { ascending: false }).limit(200);
     if (communitySlug) q = q.eq('community_id', communitySlug);
     const { data, error } = await q;
@@ -6858,6 +6882,56 @@ module.exports = function createTaxRouter(deps) {
       });
     } catch (_e) {}
     res.json({ ok: true, permissions: sanitized });
+  });
+
+  // PUT /admin/employees/:id/public-profile — owner sets the homepage
+  // profile fields (visibility, photo URL, title, bio, display order).
+  // Gated on manage_employees so a delegated co-admin can curate the
+  // team page without other admin powers.
+  router.put('/admin/employees/:id/public-profile', async (req, res) => {
+    const actor = await requireOwnerAdmin(req, res, 'manage_employees');
+    if (!actor) return;
+    const empId = trim(req.params.id, 200);
+    const body = req.body || {};
+
+    const { data: existing } = await supabase.from('tax_employees')
+      .select('id, community_id').eq('id', empId).maybeSingle();
+    if (!existing) return res.status(404).json({ error: 'Employee not found.' });
+
+    const update = { updated_at: new Date().toISOString() };
+    if (body.showOnHomepage !== undefined) update.show_on_homepage = !!body.showOnHomepage;
+    if (body.photoUrl !== undefined) {
+      update.photo_url = String(body.photoUrl || '').trim().slice(0, 1000);
+    }
+    if (body.titleI18n && typeof body.titleI18n === 'object') {
+      update.title_i18n = {
+        en: String(body.titleI18n.en || '').slice(0, 200),
+        es: String(body.titleI18n.es || '').slice(0, 200),
+      };
+    }
+    if (body.bioI18n && typeof body.bioI18n === 'object') {
+      update.bio_i18n = {
+        en: String(body.bioI18n.en || '').slice(0, MAX_TEXT_LEN),
+        es: String(body.bioI18n.es || '').slice(0, MAX_TEXT_LEN),
+      };
+    }
+    if (Number.isFinite(Number(body.displayOrder))) {
+      update.homepage_display_order = Math.max(0, Math.min(10000, Math.round(Number(body.displayOrder))));
+    }
+    if (Object.keys(update).length === 1) {
+      return res.status(400).json({ error: 'Nothing to update.' });
+    }
+
+    const { error } = await supabase.from('tax_employees').update(update).eq('id', empId);
+    if (error) return sendSupabaseError(res, error);
+    try {
+      await auditLog({
+        entity: 'tax.employee', entityId: empId, action: 'public_profile_update',
+        actorEmail: actor.email || '',
+        after: Object.keys(update).filter(k => k !== 'updated_at'),
+      });
+    } catch (_e) {}
+    res.json({ ok: true });
   });
 
   router.put('/admin/employees/:id/status', async (req, res) => {

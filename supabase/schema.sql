@@ -2516,6 +2516,26 @@ alter table public.communities
   add column if not exists tax_task_lookahead_months smallint not null default 6
     check (tax_task_lookahead_months between 1 and 24);
 
+-- Phase 4n.40: optional public profile for each employee. When an
+-- owner enables `show_on_homepage`, the employee's name + photo +
+-- short bio surface on the landing page in a Meet-the-team section.
+-- Default OFF so existing employees don't leak onto the public site
+-- on schema-apply. bio_i18n is { en, es } so the section can render
+-- in either locale.
+alter table public.tax_employees
+  add column if not exists show_on_homepage boolean not null default false;
+alter table public.tax_employees
+  add column if not exists photo_url text not null default '';
+alter table public.tax_employees
+  add column if not exists title_i18n jsonb not null default '{}'::jsonb;
+alter table public.tax_employees
+  add column if not exists bio_i18n jsonb not null default '{}'::jsonb;
+alter table public.tax_employees
+  add column if not exists homepage_display_order int not null default 100;
+create index if not exists tax_employees_homepage_idx
+  on public.tax_employees(community_id, homepage_display_order)
+  where show_on_homepage = true and status = 'active';
+
 -- Seed the three default status options for tax-america-services. New
 -- communities provisioned via the platform endpoint should mirror this
 -- (handled in server code on community create).
