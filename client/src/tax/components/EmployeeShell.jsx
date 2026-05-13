@@ -75,6 +75,13 @@ export default function EmployeeShell({ community, active, children }) {
                 Three top-level groups for now; a Today dashboard
                 will land above Operations in Round 2. */}
 
+            {/* Today — the new operations dashboard. Single entry at
+                the top so it's the first thing the eye hits. The
+                /employee route now defaults here. */}
+            <div className="tax-shell__group">
+              {employee && navLink('dashboard', `${base}/dashboard`, t('employee.nav.dashboard'))}
+            </div>
+
             {/* Operations — the day-to-day work surfaces. Leads sits
                 here because converting them IS operational work. */}
             <div className="tax-shell__group">

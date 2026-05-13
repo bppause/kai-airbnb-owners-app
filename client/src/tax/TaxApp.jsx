@@ -23,6 +23,7 @@ import PortalFaqs from './pages/PortalFaqs';
 import PortalDocuments from './pages/PortalDocuments';
 import PortalMessages from './pages/PortalMessages';
 import EmployeeInbox from './pages/EmployeeInbox';
+import OwnerDashboard from './pages/OwnerDashboard';
 import EmployeeThread from './pages/EmployeeThread';
 import EmployeeProfile from './pages/EmployeeProfile';
 import OwnerCustomers from './pages/OwnerCustomers';
@@ -100,7 +101,9 @@ function parseTaxPath() {
     if (parts[3] === 'service-catalog') return { route: 'owner-service-catalog', slug };
     if (parts[3] === 'audit')    return { route: 'owner-audit', slug };
     if (parts[3] === 'help')     return { route: 'employee-help', slug };
-    return { route: 'employee-inbox', slug };
+    if (parts[3] === 'dashboard' || !parts[3]) return { route: 'owner-dashboard', slug };
+    if (parts[3] === 'inbox')    return { route: 'employee-inbox', slug };
+    return { route: 'owner-dashboard', slug };
   }
   if (parts[2] === 'portal') {
     if (parts[3] === 'profile') return { route: 'portal-profile', slug };
@@ -255,7 +258,9 @@ function EmployeeGate({ parsed, community }) {
   if (parsed.route === 'owner-services') return <OwnerRelationshipTypes />;
   if (parsed.route === 'owner-setup') return <OwnerSetup />;
   if (parsed.route === 'employee-help') return <EmployeeHelp />;
-  return <EmployeeInbox />;
+  if (parsed.route === 'employee-inbox') return <EmployeeInbox />;
+  if (parsed.route === 'owner-dashboard') return <OwnerDashboard />;
+  return <OwnerDashboard />;
 }
 
 // Phase 5: platform subtree. Mounts the TaxPlatformAuthProvider — no

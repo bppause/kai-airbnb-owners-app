@@ -252,6 +252,10 @@ export const taxApi = {
     return request('DELETE', `/admin/products/${encodeURIComponent(productId)}${qs}`, undefined, auth, { admin: true });
   },
 
+  adminDashboard(auth, communitySlug) {
+    const qs = communitySlug ? `?communitySlug=${encodeURIComponent(communitySlug)}` : '';
+    return request('GET', `/admin/dashboard${qs}`, undefined, auth);
+  },
   adminTaskProgress(auth, opts = {}) {
     const qs = new URLSearchParams();
     if (opts.communitySlug) qs.set('communitySlug', opts.communitySlug);
