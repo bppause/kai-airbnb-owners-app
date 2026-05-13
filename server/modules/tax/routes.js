@@ -349,7 +349,7 @@ module.exports = function createTaxRouter(deps) {
 
     const { data: products, error: pErr } = await supabase
       .from('tax_products')
-      .select('id, slug, category, enabled, display_order, name_i18n, description_i18n, long_description_i18n, required_documents, icon, video_url')
+      .select('id, slug, category, enabled, display_order, name_i18n, description_i18n, long_description_i18n, required_documents, icon, video_url, cadence_kind, anchor_rule, employee_notes_i18n')
       .eq('community_id', slug)
       .eq('enabled', true)
       .order('display_order', { ascending: true });
@@ -893,18 +893,6 @@ module.exports = function createTaxRouter(deps) {
       .select('id, community_id, locale').eq('id', customerId).maybeSingle();
     if (!cust) return { created: 0, skipped: 'customer_not_found' };
 
-    const { data: rules } = await supabase.from('tax_relationship_workflow_rules')
-      .select('id, community_id, filing_schedule_slug, active, name_i18n')
-      .eq('relationship_type_id', relationshipTypeId).eq('active', true);
-    if (!rules || !rules.length) return { created: 0, skipped: 'no_workflow_rule' };
-
-    // Prefer community-scoped rules; fall back to global defaults.
-    rules.sort((a, b) => {
-      const aCom = a.community_id === cust.community_id ? 0 : 1;
-      const bCom = b.community_id === cust.community_id ? 0 : 1;
-      return aCom - bCom;
-    });
-
     const todayIso = new Date().toISOString().slice(0, 10);
     const cutoff = new Date();
     cutoff.setUTCMonth(cutoff.getUTCMonth() + RELATIONSHIP_TASK_LOOKAHEAD_MONTHS);
@@ -919,15 +907,57 @@ module.exports = function createTaxRouter(deps) {
       || (statusOpts || [])[0]?.key
       || 'not_started';
 
+    // Phase 4n.38: prefer the relationship type's directly-linked
+    // product when it has a cadence configured. This is the new
+    // first-class path — services own their schedule. Fall back to
+    // the legacy workflow_rule → filing_schedule chain when the
+    // relationship type predates the migration.
+    const { data: relType } = await supabase.from('tax_relationship_types')
+      .select('id, product_id').eq('id', relationshipTypeId).maybeSingle();
+    let productSchedules = [];
+    if (relType?.product_id) {
+      const { data: prod } = await supabase.from('tax_products')
+        .select('id, slug, community_id, name_i18n, cadence_kind, anchor_rule')
+        .eq('id', relType.product_id).maybeSingle();
+      if (prod && prod.cadence_kind && prod.cadence_kind !== 'none') {
+        productSchedules = [{
+          id: prod.id, slug: prod.slug,
+          name_i18n: prod.name_i18n || {},
+          anchor_rule: prod.anchor_rule || {},
+          product_id: prod.id,
+          source: 'product_cadence',
+        }];
+      }
+    }
+
+    let legacySchedules = [];
+    if (!productSchedules.length) {
+      const { data: rules } = await supabase.from('tax_relationship_workflow_rules')
+        .select('id, community_id, filing_schedule_slug, active, name_i18n')
+        .eq('relationship_type_id', relationshipTypeId).eq('active', true);
+      if (rules && rules.length) {
+        rules.sort((a, b) => {
+          const aCom = a.community_id === cust.community_id ? 0 : 1;
+          const bCom = b.community_id === cust.community_id ? 0 : 1;
+          return aCom - bCom;
+        });
+        for (const rule of rules) {
+          const { data: sched } = await supabase.from('tax_filing_schedules')
+            .select('id, slug, community_id, anchor_rule, name_i18n, product_id, cadence')
+            .eq('community_id', cust.community_id)
+            .eq('slug', rule.filing_schedule_slug).maybeSingle();
+          if (sched) legacySchedules.push({ ...sched, source: 'workflow_rule' });
+        }
+      }
+    }
+
+    const allSchedules = productSchedules.length ? productSchedules : legacySchedules;
+    if (!allSchedules.length) return { created: 0, skipped: 'no_schedule' };
+
     let created = 0;
     const seenScheduleIds = new Set();
 
-    for (const rule of rules) {
-      const { data: sched } = await supabase.from('tax_filing_schedules')
-        .select('id, slug, community_id, anchor_rule, name_i18n, product_id, cadence')
-        .eq('community_id', cust.community_id)
-        .eq('slug', rule.filing_schedule_slug).maybeSingle();
-      if (!sched) continue;
+    for (const sched of allSchedules) {
       if (seenScheduleIds.has(sched.id)) continue;
       seenScheduleIds.add(sched.id);
 
@@ -938,6 +968,7 @@ module.exports = function createTaxRouter(deps) {
         sched.name_i18n?.[cust.locale === 'en' ? 'en' : 'es']
         || sched.name_i18n?.en || sched.name_i18n?.es || sched.slug;
 
+      const usingProductCadence = sched.source === 'product_cadence';
       const rows = [];
       for (const p of periods) {
         if (!p.dueDate) continue;
@@ -950,7 +981,11 @@ module.exports = function createTaxRouter(deps) {
           customer_id: cust.id,
           product_id: sched.product_id || null,
           relationship_type_id: relationshipTypeId,
-          schedule_id: sched.id,
+          // Product-cadence rows aren't anchored to a filing_schedules
+          // row, so schedule_id stays null and the
+          // (customer_id, product_id, period_key) partial index
+          // enforces idempotency instead.
+          schedule_id: usingProductCadence ? null : sched.id,
           period_key: periodKey,
           source: 'relationship_schedule',
           title: `${scheduleName} — ${p.periodLabel || p.dueDate}`,
@@ -962,15 +997,12 @@ module.exports = function createTaxRouter(deps) {
       }
       if (!rows.length) continue;
 
-      // Idempotent upsert on the partial unique index
-      // (customer_id, schedule_id, period_key) — re-running the
-      // generator for the same relationship is a no-op for existing
-      // periods. If a previous archive left period_key + archived_at
-      // set, we don't hit the partial index (which is WHERE
-      // archived_at IS NULL) so a fresh add re-creates the task.
+      const onConflict = usingProductCadence
+        ? 'customer_id,product_id,period_key'
+        : 'customer_id,schedule_id,period_key';
       const { error: upsertErr, count } = await supabase.from('tax_tasks')
         .upsert(rows, {
-          onConflict: 'customer_id,schedule_id,period_key',
+          onConflict,
           ignoreDuplicates: true,
           count: 'exact',
         });
@@ -1931,6 +1963,7 @@ module.exports = function createTaxRouter(deps) {
       .select(`
         id, slug, category, enabled, display_order, icon,
         name_i18n, description_i18n, long_description_i18n, required_documents, video_url,
+        cadence_kind, anchor_rule, employee_notes_i18n,
         schedules:tax_filing_schedules ( id, slug, jurisdiction, cadence, enabled, name_i18n, info_checklist )
       `)
       .eq('community_id', communitySlug)
@@ -1996,6 +2029,21 @@ module.exports = function createTaxRouter(deps) {
     if (body.enabled !== undefined) update.enabled = !!body.enabled;
     if (body.videoUrl !== undefined) {
       update.video_url = String(body.videoUrl || '').trim().slice(0, 500);
+    }
+    if (body.cadenceKind !== undefined) {
+      const allowed = ['none','weekly','monthly','quarterly','annual'];
+      const k = String(body.cadenceKind || 'none');
+      update.cadence_kind = allowed.includes(k) ? k : 'none';
+    }
+    if (body.anchorRule !== undefined) {
+      update.anchor_rule = (body.anchorRule && typeof body.anchorRule === 'object')
+        ? body.anchorRule : {};
+    }
+    if (body.employeeNotesI18n && typeof body.employeeNotesI18n === 'object') {
+      update.employee_notes_i18n = {
+        en: String(body.employeeNotesI18n.en || '').slice(0, MAX_TEXT_LEN),
+        es: String(body.employeeNotesI18n.es || '').slice(0, MAX_TEXT_LEN),
+      };
     }
     if (body.displayOrder !== undefined) {
       const n = Number(body.displayOrder);
@@ -2915,7 +2963,7 @@ module.exports = function createTaxRouter(deps) {
     const communitySlug = trim(req.query.communitySlug, 200);
     const includeInactive = req.query.includeInactive === '1' || req.query.includeInactive === 'true';
     let q = supabase.from('tax_relationship_types')
-      .select('id, community_id, category, slug, name_i18n, description_i18n, display_order, active')
+      .select('id, community_id, category, slug, name_i18n, description_i18n, display_order, active, product_id')
       .order('display_order', { ascending: true });
     if (!includeInactive) q = q.eq('active', true);
     // community_id IS NULL OR community_id = $1
@@ -3011,6 +3059,23 @@ module.exports = function createTaxRouter(deps) {
     }
     if (Number.isFinite(Number(body.displayOrder))) update.display_order = Math.round(Number(body.displayOrder));
     if (typeof body.active === 'boolean') update.active = body.active;
+    // Phase 4n.38: link a relationship type to the product that drives
+    // its task cadence. Empty string / null clears the link (and the
+    // task generator falls back to the legacy workflow-rule path).
+    if (body.productId !== undefined) {
+      const pid = trim(body.productId || '', 200);
+      if (pid) {
+        const { data: prod } = await supabase.from('tax_products')
+          .select('id, community_id').eq('id', pid).maybeSingle();
+        if (!prod) return res.status(404).json({ error: 'Product not found.' });
+        if (prod.community_id !== communitySlug) {
+          return res.status(403).json({ error: 'Product belongs to a different community.' });
+        }
+        update.product_id = pid;
+      } else {
+        update.product_id = null;
+      }
+    }
 
     if (!Object.keys(update).length) return res.status(400).json({ error: 'No editable fields supplied.' });
     const { error } = await supabase.from('tax_relationship_types').update(update).eq('id', id);

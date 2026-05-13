@@ -73,13 +73,12 @@ export default function EmployeeShell({ community, active, children }) {
                 employees (server-side scopes by role). Leads is admin-only. */}
             <div className="tax-shell__group">
               <div className="tax-shell__group-label">{t('employee.nav.groupWork')}</div>
-              {/* Phase 4n.36: Inbox + Setup are hidden — the practice
-                  now runs through tasks, not customer messages. The
-                  routes still resolve directly if anyone has a deep
-                  link, but the sidebar steers everyone toward the
-                  task-first workflow. */}
+              {/* Phase 4n.38: Inbox, Setup, Reminders are hidden —
+                  tasks have fully replaced reminder emails to
+                  customers. The Reminders route still resolves
+                  for any deep link a previous user has bookmarked
+                  so it doesn't 404. */}
               {employee && navLink('progress', `${base}/progress`, t('employee.nav.progress'))}
-              {employee && navLink('reminders', `${base}/reminders`, t('employee.nav.reminders'))}
               {employee && navLink('tasks', `${base}/tasks`, t('employee.nav.tasks'))}
               {employee && navLink('customers', `${base}/customers`, t('employee.nav.customers'))}
               {isAdmin && perm('manage_leads') &&
@@ -90,15 +89,25 @@ export default function EmployeeShell({ community, active, children }) {
                 stays hidden when the owner revoked the corresponding
                 permission for this employee. The owner themselves
                 (`permissions[*] !== false` by default) sees every link. */}
+            {/* Configure → Homepage. Anything an owner edits here
+                shows up on the public landing page or the public
+                FAQ / articles pages. */}
             {isAdmin && (
               <div className="tax-shell__group">
-                <div className="tax-shell__group-label">{t('employee.nav.groupConfigure')}</div>
-                {perm('manage_services')        && navLink('services',         `${base}/services`,         t('employee.nav.services'))}
-                {perm('manage_services')        && navLink('service-catalog',  `${base}/service-catalog`,  t('employee.nav.serviceCatalog'))}
-                {perm('manage_workflows')       && navLink('workflows',        `${base}/workflows`,        t('employee.nav.workflows'))}
-                {perm('manage_email_templates') && navLink('email-templates',  `${base}/email-templates`,  t('employee.nav.emailTemplates'))}
+                <div className="tax-shell__group-label">{t('employee.nav.groupHomepage')}</div>
+                {perm('manage_services')        && navLink('service-catalog',  `${base}/service-catalog`,  t('employee.nav.services'))}
                 {                                  navLink('articles',         `${base}/articles`,         t('employee.nav.articles'))}
                 {                                  navLink('faqs',             `${base}/faqs`,             t('employee.nav.faqsAdmin'))}
+              </div>
+            )}
+
+            {/* Configure → Employee portal. Anything an owner edits
+                here changes how the team works inside this app —
+                relationship tags, templates, settings, audit log. */}
+            {isAdmin && (
+              <div className="tax-shell__group">
+                <div className="tax-shell__group-label">{t('employee.nav.groupPortal')}</div>
+                {perm('manage_email_templates') && navLink('email-templates',  `${base}/email-templates`,  t('employee.nav.emailTemplates'))}
                 {perm('manage_employees')       && navLink('staff',           `${base}/staff`,           t('employee.nav.staff'))}
                 {perm('manage_settings')        && navLink('settings',        `${base}/settings`,        t('employee.nav.settings'))}
                 {perm('view_audit_logs')        && navLink('audit',           `${base}/audit`,           t('employee.nav.audit'))}
