@@ -2937,3 +2937,25 @@ alter table public.communities
 -- still categorize by it.
 -- ═══════════════════════════════════════════════════════════════════════════════
 delete from public.tax_customer_relationships;
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- Phase 4n.51 — default assignee on service auto-tasks
+--
+-- At ~300 customers per practice the generator floods the Tasks
+-- page with unassigned recurring work that the owner then has to
+-- triage one by one. Letting an auto-task carry a default employee
+-- (the bookkeeper for monthly recons, the senior preparer for the
+-- annual return) means new periods land already-routed.
+--
+-- Column is nullable — a value of NULL keeps the existing
+-- "unassigned at creation" behavior. FK is ON DELETE SET NULL so
+-- removing the employee from the practice doesn't cascade-delete
+-- the auto-task; new periods just generate unassigned until the
+-- owner re-picks.
+-- ═══════════════════════════════════════════════════════════════════════════════
+alter table public.tax_service_auto_tasks
+  add column if not exists default_assignee_employee_id text
+    references public.tax_employees(id) on delete set null;
+create index if not exists tax_service_auto_tasks_default_assignee_idx
+  on public.tax_service_auto_tasks(default_assignee_employee_id)
+  where default_assignee_employee_id is not null;

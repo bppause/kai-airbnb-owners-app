@@ -20,6 +20,7 @@ export default function OwnerServicesAdmin() {
 
   const [products, setProducts] = useState(null);
   const [relTypes, setRelTypes] = useState([]);
+  const [employees, setEmployees] = useState([]);
   const [err, setErr] = useState('');
 
   const load = () => {
@@ -27,9 +28,11 @@ export default function OwnerServicesAdmin() {
     Promise.all([
       taxApi.adminListProducts(auth, community.id),
       taxApi.adminListRelationshipTypes(auth, { communitySlug: community.id }).catch(() => ({ types: [] })),
-    ]).then(([p, r]) => {
+      taxApi.adminListEmployees(auth, community.id).catch(() => ({ employees: [] })),
+    ]).then(([p, r, e]) => {
       setProducts(p.products || []);
       setRelTypes((r.types || []).filter(rt => rt.active !== false));
+      setEmployees((e.employees || []).filter(em => em.status !== 'archived'));
     }).catch(e => setErr(e?.message || t('error.loadFailed')));
   };
   useEffect(load, [fbUser, community]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -54,6 +57,7 @@ export default function OwnerServicesAdmin() {
               {products.map(p => (
                 <ServiceRow key={p.id} product={p} auth={auth}
                             community={community} relTypes={relTypes}
+                            employees={employees}
                             onChange={load} locale={locale} t={t} />
               ))}
             </div>}
@@ -61,7 +65,7 @@ export default function OwnerServicesAdmin() {
   );
 }
 
-function ServiceRow({ product: p, auth, community, relTypes, onChange, locale, t }) {
+function ServiceRow({ product: p, auth, community, relTypes, employees = [], onChange, locale, t }) {
   const [editing, setEditing] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
@@ -168,6 +172,7 @@ function ServiceRow({ product: p, auth, community, relTypes, onChange, locale, t
       {editing ? (
         <ProductEditor product={p} auth={auth}
                        community={community} relTypes={relTypes}
+                       employees={employees}
                        onDone={() => { setEditing(false); onChange(); }}
                        onCancel={() => setEditing(false)} t={t} />
       ) : (
@@ -192,7 +197,7 @@ function ServiceRow({ product: p, auth, community, relTypes, onChange, locale, t
   );
 }
 
-function ProductEditor({ product: p, auth, community, relTypes = [], onDone, onCancel, t }) {
+function ProductEditor({ product: p, auth, community, relTypes = [], employees = [], onDone, onCancel, t }) {
   const [nameEn, setNameEn] = useState(p.name_i18n?.en || '');
   const [nameEs, setNameEs] = useState(p.name_i18n?.es || '');
   const [descEn, setDescEn] = useState(p.description_i18n?.en || '');
@@ -239,6 +244,7 @@ function ProductEditor({ product: p, auth, community, relTypes = [], onDone, onC
     cadenceKind: 'monthly',
     day: '15', weekday: '1', month: '1',
     defaultPriority: 'normal',
+    defaultAssigneeEmployeeId: '',
   }]);
   const updateAutoTask = (idx, patch) =>
     setAutoTasks(prev => prev.map((at, i) => i === idx ? { ...at, ...patch } : at));
@@ -273,6 +279,7 @@ function ProductEditor({ product: p, auth, community, relTypes = [], onDone, onC
         cadenceKind: at.cadenceKind,
         anchorRule: buildAnchorRuleFromForm(at),
         defaultPriority: at.defaultPriority,
+        defaultAssigneeEmployeeId: at.defaultAssigneeEmployeeId || null,
         displayOrder: (i + 1) * 10,
         active: true,
       })));
@@ -402,6 +409,7 @@ function ProductEditor({ product: p, auth, community, relTypes = [], onDone, onC
                 {autoTasks.map((at, i) => (
                   <AutoTaskEditor key={at.id || `new-${i}`} value={at} index={i}
                                   serviceName={nameEn || nameEs || p.slug}
+                                  employees={employees}
                                   onChange={patch => updateAutoTask(i, patch)}
                                   onRemove={() => removeAutoTask(i)}
                                   t={t} />
@@ -483,6 +491,7 @@ function normalizeAutoTaskForEdit(row) {
     weekday: String(a.weekday ?? 1),
     month:   String(a.month ?? 1),
     defaultPriority: row.default_priority || 'normal',
+    defaultAssigneeEmployeeId: row.default_assignee_employee_id || '',
   };
 }
 
@@ -500,7 +509,7 @@ function buildAnchorRuleFromForm(at) {
 // One row in the auto-tasks list. Inline title + cadence config +
 // live preview of the next 3 due dates. Designed to stack — owner
 // can add many.
-function AutoTaskEditor({ value: at, index, serviceName, onChange, onRemove, t }) {
+function AutoTaskEditor({ value: at, index, serviceName, employees = [], onChange, onRemove, t }) {
   // Default: collapsed for existing rows (so a service with many
   // auto-tasks scans like a list), expanded for new ones the owner
   // just clicked + Add for.
@@ -628,6 +637,25 @@ function AutoTaskEditor({ value: at, index, serviceName, onChange, onRemove, t }
             <option value="urgent">{t('owner.tasks.priority.urgent')}</option>
           </select>
         </div>
+      </div>
+
+      <div>
+        <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--tax-muted)' }}>
+          {t('owner.services.autoTasks.defaultAssignee')}
+        </label>
+        <select value={at.defaultAssigneeEmployeeId || ''}
+                onChange={e => onChange({ defaultAssigneeEmployeeId: e.target.value })}
+                style={{ width: '100%', padding: 8, border: '1px solid var(--tax-border)', borderRadius: 6 }}>
+          <option value="">{t('owner.services.autoTasks.defaultAssigneeNone')}</option>
+          {employees.map(em => (
+            <option key={em.id} value={em.id}>
+              {[em.first_name, em.last_name].filter(Boolean).join(' ').trim() || em.name || em.email}
+            </option>
+          ))}
+        </select>
+        <p style={{ margin: '4px 0 0', fontSize: 11, color: 'var(--tax-muted)' }}>
+          {t('owner.services.autoTasks.defaultAssigneeHint')}
+        </p>
       </div>
 
       {at.cadenceKind === 'weekly' && (

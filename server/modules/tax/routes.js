@@ -984,7 +984,7 @@ module.exports = function createTaxRouter(deps) {
     let productSchedules = [];
     if (relType?.product_id) {
       const { data: autoTasks } = await supabase.from('tax_service_auto_tasks')
-        .select('id, title_i18n, cadence_kind, anchor_rule, default_priority, display_order')
+        .select('id, title_i18n, cadence_kind, anchor_rule, default_priority, default_assignee_employee_id, display_order')
         .eq('product_id', relType.product_id)
         .eq('active', true)
         .order('display_order', { ascending: true });
@@ -999,6 +999,7 @@ module.exports = function createTaxRouter(deps) {
             product_id: relType.product_id,
             service_auto_task_id: at.id,
             priority: at.default_priority || 'normal',
+            assignedEmployeeId: at.default_assignee_employee_id || null,
             source: 'auto_task',
           });
         }
@@ -1087,6 +1088,11 @@ module.exports = function createTaxRouter(deps) {
           title: `${scheduleName} — ${p.periodLabel || p.dueDate}`,
           status_key: defaultStatus,
           priority: sched.priority || 'normal',
+          // Pre-route the new task to the auto-task's default owner
+          // when one is configured (Phase 4n.51). Falls back to
+          // unassigned so the existing behavior is preserved when
+          // the column is null.
+          assigned_employee_id: isAutoTask ? (sched.assignedEmployeeId || null) : null,
           due_date: p.dueDate,
           notes: '',
         });
@@ -1293,7 +1299,7 @@ module.exports = function createTaxRouter(deps) {
     const defaultStatus = (statusOpts || []).find(s => !s.is_terminal)?.key
       || (statusOpts || [])[0]?.key || 'not_started';
     const { data: autoTasks } = await supabase.from('tax_service_auto_tasks')
-      .select('id, title_i18n, cadence_kind, anchor_rule, default_priority')
+      .select('id, title_i18n, cadence_kind, anchor_rule, default_priority, default_assignee_employee_id')
       .eq('product_id', productId).eq('active', true);
     let created = 0;
     for (const at of autoTasks || []) {
@@ -1321,6 +1327,7 @@ module.exports = function createTaxRouter(deps) {
           title: `${titleBase} — ${p.periodLabel || p.dueDate}`,
           status_key: defaultStatus,
           priority: at.default_priority || 'normal',
+          assigned_employee_id: at.default_assignee_employee_id || null,
           due_date: p.dueDate,
           notes: '',
         });
@@ -2535,7 +2542,7 @@ module.exports = function createTaxRouter(deps) {
       .select('id, community_id').eq('id', productId).maybeSingle();
     if (!prod) return res.status(404).json({ error: 'Product not found.' });
     const { data, error } = await supabase.from('tax_service_auto_tasks')
-      .select('id, community_id, product_id, title_i18n, description_i18n, cadence_kind, anchor_rule, default_priority, display_order, active')
+      .select('id, community_id, product_id, title_i18n, description_i18n, cadence_kind, anchor_rule, default_priority, default_assignee_employee_id, display_order, active')
       .eq('product_id', productId)
       .order('display_order', { ascending: true });
     if (error) return sendSupabaseError(res, error);
@@ -2579,6 +2586,10 @@ module.exports = function createTaxRouter(deps) {
         cadence_kind: cadence,
         anchor_rule: (row.anchorRule && typeof row.anchorRule === 'object') ? row.anchorRule : {},
         default_priority: priority,
+        default_assignee_employee_id:
+          row.defaultAssigneeEmployeeId
+            ? trim(row.defaultAssigneeEmployeeId, 200) || null
+            : null,
         display_order: Number.isFinite(Number(row.displayOrder))
           ? Math.max(0, Math.min(10000, Math.round(Number(row.displayOrder))))
           : (i + 1) * 10,
@@ -2662,7 +2673,7 @@ module.exports = function createTaxRouter(deps) {
     } catch (_e) {}
 
     const { data: fresh } = await supabase.from('tax_service_auto_tasks')
-      .select('id, community_id, product_id, title_i18n, description_i18n, cadence_kind, anchor_rule, default_priority, display_order, active')
+      .select('id, community_id, product_id, title_i18n, description_i18n, cadence_kind, anchor_rule, default_priority, default_assignee_employee_id, display_order, active')
       .eq('product_id', productId)
       .order('display_order', { ascending: true });
     res.json({ ok: true, autoTasks: fresh || [], tasksCreated });
@@ -5433,6 +5444,89 @@ module.exports = function createTaxRouter(deps) {
       });
     } catch (_e) {}
     res.json({ ok: true });
+  });
+
+  // PATCH /admin/tasks/bulk — apply the same patch to many tasks.
+  // Body: { ids: ['task_xxx', ...], patch: { statusKey?, priority?,
+  //         assignedEmployeeId? } }. Scoped to the caller's
+  // community; tasks outside it are dropped silently. For non-admin
+  // staff the per-task scope rule (ownership or customer
+  // visibility) applies — out-of-scope IDs are dropped.
+  router.patch('/admin/tasks/bulk', async (req, res) => {
+    const emp = await requireTaxEmployee(req, res); if (!emp) return;
+    const body = req.body || {};
+    const ids = Array.isArray(body.ids)
+      ? body.ids.map(x => trim(x, 200)).filter(Boolean).slice(0, 500)
+      : [];
+    if (!ids.length) return res.status(400).json({ error: 'No task IDs supplied.' });
+    const patch = body.patch || {};
+
+    const update = { updated_at: new Date().toISOString() };
+    if (patch.statusKey !== undefined) update.status_key = trim(patch.statusKey, 60);
+    if (patch.priority !== undefined && ['urgent','high','normal','low'].includes(patch.priority)) {
+      update.priority = patch.priority;
+    }
+    if (patch.assignedEmployeeId !== undefined) {
+      update.assigned_employee_id = trim(patch.assignedEmployeeId || '', 200) || null;
+    }
+    if (Object.keys(update).length === 1) {
+      return res.status(400).json({ error: 'Nothing to update.' });
+    }
+
+    // Load current rows so we can filter by scope and stamp
+    // completed_at correctly per row when the new status is
+    // terminal.
+    const { data: rows, error: selErr } = await supabase.from('tax_tasks')
+      .select('id, community_id, customer_id, assigned_employee_id, status_key')
+      .in('id', ids);
+    if (selErr) return sendSupabaseError(res, selErr);
+
+    let allowedIds = (rows || []).filter(r => r.community_id === emp.community_id).map(r => r.id);
+    if (emp.role !== 'admin') {
+      const visible = await getVisibleCustomerIdsForEmployee(emp);
+      const visSet = Array.isArray(visible) ? new Set(visible) : null;
+      allowedIds = (rows || [])
+        .filter(r => r.community_id === emp.community_id)
+        .filter(r => r.assigned_employee_id === emp.id
+                  || (r.customer_id && visSet && visSet.has(r.customer_id)))
+        .map(r => r.id);
+    }
+    if (!allowedIds.length) return res.json({ ok: true, updated: 0 });
+
+    // Resolve terminal-ness for the new status_key (single fetch
+    // applied uniformly across the batch).
+    let setCompletedAt = null;
+    let clearCompletedAt = false;
+    if (update.status_key) {
+      const { data: opt } = await supabase.from('tax_task_status_options')
+        .select('is_terminal')
+        .eq('community_id', emp.community_id)
+        .eq('key', update.status_key)
+        .maybeSingle();
+      if (opt?.is_terminal) {
+        setCompletedAt = new Date().toISOString();
+      } else {
+        clearCompletedAt = true;
+      }
+    }
+
+    const finalUpdate = { ...update };
+    if (setCompletedAt) finalUpdate.completed_at = setCompletedAt;
+    else if (clearCompletedAt) finalUpdate.completed_at = null;
+
+    const { error } = await supabase.from('tax_tasks')
+      .update(finalUpdate).in('id', allowedIds);
+    if (error) return sendSupabaseError(res, error);
+
+    try {
+      await auditLog({
+        entity: 'tax.task', entityId: 'bulk', action: 'bulk_update',
+        actorEmail: emp.email || '', actorName: emp.name || '',
+        after: { ids: allowedIds.length, fields: Object.keys(update).filter(k => k !== 'updated_at') },
+      });
+    } catch (_e) {}
+
+    res.json({ ok: true, updated: allowedIds.length });
   });
 
   // DELETE /admin/tasks/:id
