@@ -36,7 +36,7 @@ export default function OwnerTasks() {
   const [relationshipTypes, setRelationshipTypes] = useState([]);
 
   const [filters, setFilters] = useState({
-    status: '', priority: '', assignedTo: '', productId: '', due: '',
+    status: '', priority: '', assignedTo: '', productId: '', customerId: '', due: '',
     q: '',
   });
   // Phase 4n.45: view mode (list/calendar/kanban), group-by, and the
@@ -108,7 +108,7 @@ export default function OwnerTasks() {
   const customerById = useMemo(() => new Map(customers.map(c => [c.id, c])), [customers]);
   const productById  = useMemo(() => new Map(products.map(p => [p.id, p])), [products]);
 
-  const onClearFilters = () => setFilters({ status: '', priority: '', assignedTo: '', productId: '', due: '', q: '' });
+  const onClearFilters = () => setFilters({ status: '', priority: '', assignedTo: '', productId: '', customerId: '', due: '', q: '' });
   const filtersActive = Object.values(filters).some(v => v);
 
   if (err) return <EmployeeShell community={community} active="tasks">
@@ -167,6 +167,7 @@ export default function OwnerTasks() {
       <FilterBar
         filters={filters} setFilters={setFilters}
         statuses={statuses} employees={employees} products={products}
+        customers={customers}
         onClear={onClearFilters} active={filtersActive}
         locale={locale} t={t}
       />
@@ -198,8 +199,15 @@ export default function OwnerTasks() {
   );
 }
 
-function FilterBar({ filters, setFilters, statuses, employees, products, onClear, active, locale, t }) {
+function FilterBar({ filters, setFilters, statuses, employees, products, customers = [], onClear, active, locale, t }) {
   const set = (k, v) => setFilters(prev => ({ ...prev, [k]: v }));
+  // Sort customers alphabetically by display name (company first when set)
+  // so the dropdown scans like a directory.
+  const customerOptions = [...customers].sort((a, b) => {
+    const an = (a.business_name || displayPersonName(a) || a.email || '').toLowerCase();
+    const bn = (b.business_name || displayPersonName(b) || b.email || '').toLowerCase();
+    return an.localeCompare(bn);
+  });
   return (
     <div style={{ display: 'grid', gap: 8, marginBottom: 16,
                   padding: 12, background: 'var(--tax-bg-alt)', borderRadius: 8 }}>
@@ -230,6 +238,14 @@ function FilterBar({ filters, setFilters, statuses, employees, products, onClear
           <option value="">{t('owner.tasks.filter.anyService')}</option>
           {products.map(p => (
             <option key={p.id} value={p.id}>{pickI18n(p.name_i18n, locale).value || p.slug}</option>
+          ))}
+        </select>
+        <select value={filters.customerId} onChange={e => set('customerId', e.target.value)}>
+          <option value="">{t('owner.tasks.filter.anyCustomer')}</option>
+          {customerOptions.map(c => (
+            <option key={c.id} value={c.id}>
+              {c.business_name || displayPersonName(c) || c.email}
+            </option>
           ))}
         </select>
         <select value={filters.due} onChange={e => set('due', e.target.value)}>
@@ -304,7 +320,7 @@ function TaskRow({ task, auth, community, statuses, employees, customerById, emp
               <span><strong>{t('owner.tasks.customer')}:</strong>{' '}
                 <a href={`/tax/${task.community_id}/employee/customers/${encodeURIComponent(customer.id)}`}
                    style={{ color: 'var(--tax-brand-primary)' }}>
-                  {displayPersonName(customer) || customer.email}
+                  {customer.business_name || displayPersonName(customer) || customer.email}
                 </a>
               </span>
             )}

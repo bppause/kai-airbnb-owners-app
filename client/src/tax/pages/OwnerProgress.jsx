@@ -91,7 +91,7 @@ export default function OwnerProgress() {
             <option value="">{t('owner.progress.filter.anyCustomer')}</option>
             {customers.map(c => (
               <option key={c.id} value={c.id}>
-                {displayPersonName(c) || c.email}
+                {c.business_name || displayPersonName(c) || c.email}
               </option>
             ))}
           </select>
@@ -183,7 +183,7 @@ export default function OwnerProgress() {
                                 <td style={{ padding: '8px 6px' }}>
                                   <a href={`/tax/${community.id}/employee/customers/${encodeURIComponent(c.id)}`}
                                      style={{ color: 'inherit', textDecoration: 'none' }}>
-                                    {displayPersonName(c.customer) || c.customer?.email || c.id}
+                                    {c.customer?.business_name || displayPersonName(c.customer) || c.customer?.email || c.id}
                                   </a>
                                 </td>
                                 <td style={{ padding: '8px 6px', textAlign: 'right', color: '#166534' }}>{c.done}</td>

@@ -4280,7 +4280,7 @@ module.exports = function createTaxRouter(deps) {
     let q = supabase.from('tax_tasks')
       .select(`
         id, customer_id, product_id, status_key, due_date, completed_at,
-        customer:tax_customers ( id, name, first_name, middle_name, last_name, email ),
+        customer:tax_customers ( id, name, business_name, first_name, middle_name, last_name, email ),
         product:tax_products ( id, slug, name_i18n )
       `)
       .eq('community_id', communitySlug)
@@ -5075,7 +5075,7 @@ module.exports = function createTaxRouter(deps) {
         id, community_id, customer_id, product_id, title, status_key, priority,
         assigned_employee_id, created_by_employee_id,
         due_date, notes, completed_at, created_at, updated_at,
-        customer:tax_customers ( id, name, first_name, middle_name, last_name, email ),
+        customer:tax_customers ( id, name, business_name, first_name, middle_name, last_name, email, phone, whatsapp, address ),
         product:tax_products ( id, slug, name_i18n, category ),
         assignee:tax_employees!tax_tasks_assigned_employee_id_fkey ( id, name, email ),
         creator:tax_employees!tax_tasks_created_by_employee_id_fkey ( id, name, email )
@@ -5123,10 +5123,43 @@ module.exports = function createTaxRouter(deps) {
            .lte('due_date', horizon.toISOString().slice(0, 10));
     }
 
+    // Search spans the task title and the customer's contact fields:
+    // company name, person name, email, phone, WhatsApp, and the
+    // free-text portions of the address JSON. Customer-side matches
+    // are resolved by pre-fetching matching customer IDs in this
+    // community, then OR-joining to the task query so a single search
+    // box covers both.
     const search = trim(req.query.q || '', 200);
     if (search) {
       const safe = search.replace(/[,.%_()*]/g, ' ').trim();
-      if (safe) q = q.ilike('title', `%${safe}%`);
+      if (safe) {
+        const like = `%${safe}%`;
+        let matchedCustomerIds = [];
+        try {
+          const { data: matched } = await supabase.from('tax_customers')
+            .select('id')
+            .eq('community_id', communitySlug)
+            .or([
+              `name.ilike.${like}`,
+              `business_name.ilike.${like}`,
+              `first_name.ilike.${like}`,
+              `last_name.ilike.${like}`,
+              `email.ilike.${like}`,
+              `phone.ilike.${like}`,
+              `whatsapp.ilike.${like}`,
+              `address::text.ilike.${like}`,
+            ].join(','))
+            .limit(500);
+          matchedCustomerIds = (matched || []).map(r => r.id);
+        } catch (e) {
+          warn('[tax-tasks-search] customer prefetch failed', e?.message || e);
+        }
+        const orClauses = [`title.ilike.${like}`];
+        if (matchedCustomerIds.length) {
+          orClauses.push(`customer_id.in.(${matchedCustomerIds.join(',')})`);
+        }
+        q = q.or(orClauses.join(','));
+      }
     }
 
     const limit = Math.min(500, Math.max(1, Number(req.query.limit) || 200));
