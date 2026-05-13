@@ -1776,6 +1776,77 @@ module.exports = function createTaxRouter(deps) {
     res.json({ ok: true });
   });
 
+  // ── DELETE /admin/products/:id ──────────────────────────────────────────
+  // Hard-delete a product. The FKs from tax_filing_schedules and
+  // tax_subscriptions both cascade, so removing a product silently
+  // wipes customer subscriptions — we refuse the delete when any
+  // subscription references the product unless `force=1` is passed,
+  // and surface counts so the owner can decide. Filing schedules
+  // alone cascade-delete (they're cheap to recreate from the workflow
+  // editor). Past leads with this product_slug stay intact because
+  // tax_leads.product_slug is a plain text column, not an FK.
+  //
+  // Soft-delete via the Hide toggle (PUT /admin/products/:id with
+  // enabled:false) remains the recommended non-destructive option;
+  // delete is for catalog rows the owner genuinely never wants back.
+  router.delete('/admin/products/:id', async (req, res) => {
+    if (!(await requireOwnerAdmin(req, res, 'manage_services'))) return;
+    const productId = trim(req.params.id, 200);
+    const force = req.query.force === '1' || req.query.force === 'true';
+
+    const { data: cur } = await supabase.from('tax_products')
+      .select('id, community_id, slug, name_i18n').eq('id', productId).maybeSingle();
+    if (!cur) return res.status(404).json({ error: 'Product not found.' });
+
+    const [{ count: subCount }, { count: scheduleCount }, { count: leadCount }] = await Promise.all([
+      supabase.from('tax_subscriptions')
+        .select('id', { count: 'exact', head: true })
+        .eq('product_id', productId).eq('status', 'active'),
+      supabase.from('tax_filing_schedules')
+        .select('id', { count: 'exact', head: true })
+        .eq('product_id', productId),
+      supabase.from('tax_leads')
+        .select('id', { count: 'exact', head: true })
+        .eq('community_id', cur.community_id).eq('product_slug', cur.slug),
+    ]);
+
+    if (!force && (subCount > 0)) {
+      return res.status(409).json({
+        error: 'product_in_use',
+        message: 'This service has active customer subscriptions. Pass force=1 to delete anyway (their subscriptions will be removed) or hide the service instead.',
+        usage: {
+          active_subscriptions: subCount || 0,
+          filing_schedules:     scheduleCount || 0,
+          historical_leads:     leadCount || 0,
+        },
+      });
+    }
+
+    const { error } = await supabase.from('tax_products').delete().eq('id', productId);
+    if (error) return sendSupabaseError(res, error);
+
+    try {
+      await auditLog({
+        entity: 'tax.product', entityId: productId, action: 'delete',
+        actorEmail: trim(req.get('x-firebase-email') || req.get('x-admin-email') || '', 200).toLowerCase(),
+        before: { slug: cur.slug, name_i18n: cur.name_i18n },
+        after: {
+          force,
+          cascaded_subscriptions: subCount || 0,
+          cascaded_schedules:     scheduleCount || 0,
+        },
+      });
+    } catch (_e) {}
+
+    res.json({
+      ok: true,
+      cascaded: {
+        active_subscriptions: subCount || 0,
+        filing_schedules:     scheduleCount || 0,
+      },
+    });
+  });
+
   // POST /admin/customers/:id/subscriptions — body { productId,
   // activeScheduleSlugs?, status?, startDate? }. Defaults: status='active',
   // active_schedule_slugs=null (= all schedules), reminder_offsets_days &

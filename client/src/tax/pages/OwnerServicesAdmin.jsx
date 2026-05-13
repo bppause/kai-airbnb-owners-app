@@ -73,6 +73,42 @@ function ServiceRow({ product: p, auth, onChange, locale, t }) {
     finally { setBusy(false); }
   };
 
+  const onDelete = async () => {
+    // First attempt is a plain delete. The server refuses with 409 +
+    // `usage` counts when active subscriptions reference the service;
+    // we surface those numbers to the owner and require a second
+    // confirm before re-trying with force=1.
+    if (!window.confirm(t('owner.services.deleteConfirm', { name }))) return;
+    setBusy(true); setErr('');
+    try {
+      await taxApi.adminDeleteProduct(auth, p.id);
+      onChange();
+      return;
+    } catch (e) {
+      const u = e?.body?.usage;
+      if (e?.body?.error === 'product_in_use' && u) {
+        const proceed = window.confirm(t('owner.services.deleteForceConfirm', {
+          name, subs: u.active_subscriptions || 0,
+          schedules: u.filing_schedules || 0,
+        }));
+        if (!proceed) {
+          setErr(t('owner.services.deleteCancelled'));
+          setBusy(false);
+          return;
+        }
+        try {
+          await taxApi.adminDeleteProduct(auth, p.id, { force: true });
+          onChange();
+          return;
+        } catch (e2) {
+          setErr(e2?.message || '');
+        }
+      } else {
+        setErr(e?.message || '');
+      }
+    } finally { setBusy(false); }
+  };
+
   return (
     <div className="tax-contact-item">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
@@ -108,6 +144,13 @@ function ServiceRow({ product: p, auth, onChange, locale, t }) {
                     onClick={toggleEnabled} disabled={busy}
                     style={{ color: 'var(--tax-muted)' }}>
               {p.enabled ? t('owner.services.hide') : t('owner.services.show')}
+            </button>
+          )}
+          {!editing && (
+            <button type="button" className="tax-btn tax-btn--ghost tax-btn--sm"
+                    onClick={onDelete} disabled={busy}
+                    style={{ color: 'var(--tax-error)', borderColor: 'var(--tax-error)' }}>
+              {t('owner.services.delete')}
             </button>
           )}
         </div>
