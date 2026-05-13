@@ -61,6 +61,16 @@ export default function OwnerTasks() {
   useEffect(() => {
     try { localStorage.setItem('tax.tasks.groupBy', groupBy); } catch { /* ignore */ }
   }, [groupBy]);
+  // Periods view has its own grouping toggle (period / service / month).
+  // Lives separately so flipping between List and Periods doesn't
+  // overwrite the operator's preference on either side.
+  const [periodsGroup, setPeriodsGroup] = useState(() => {
+    try { return localStorage.getItem('tax.tasks.periodsGroup') || 'period'; }
+    catch { return 'period'; }
+  });
+  useEffect(() => {
+    try { localStorage.setItem('tax.tasks.periodsGroup', periodsGroup); } catch { /* ignore */ }
+  }, [periodsGroup]);
   // Sort key persisted per browser so the operator's order sticks.
   // Server interprets the key — see /admin/tasks.
   const [sortKey, setSortKey] = useState(() => {
@@ -222,6 +232,7 @@ export default function OwnerTasks() {
         view={view} setView={setView}
         groupBy={groupBy} setGroupBy={setGroupBy}
         sortKey={sortKey} setSortKey={setSortKey}
+        periodsGroup={periodsGroup} setPeriodsGroup={setPeriodsGroup}
         t={t}
       />
 
@@ -255,6 +266,7 @@ export default function OwnerTasks() {
                       onEdit={setEditingTask}
                       selectedIds={selectedIds} toggleSelect={toggleSelect}
                       selectMany={selectMany}
+                      periodsGroup={periodsGroup}
                       mine={mine} employeeId={employee?.id}
                       locale={locale} t={t} />
       ) : tasks === null ? <p>{t('loading')}</p>
@@ -1330,7 +1342,7 @@ function InlineCustomerCreateModal({ auth, community, relationshipTypes, locale,
 }
 
 // ─── Toolbar: My-tasks toggle + due chips + view-mode + group-by ─────────
-function TaskToolbar({ mine, setMine, filters, setFilters, view, setView, groupBy, setGroupBy, sortKey, setSortKey, t }) {
+function TaskToolbar({ mine, setMine, filters, setFilters, view, setView, groupBy, setGroupBy, sortKey, setSortKey, periodsGroup, setPeriodsGroup, t }) {
   const DUE_CHIPS = [
     { key: '',         label: t('owner.tasks.chip.all') },
     { key: 'overdue',  label: t('owner.tasks.chip.overdue') },
@@ -1384,6 +1396,19 @@ function TaskToolbar({ mine, setMine, filters, setFilters, view, setView, groupB
               <option value="priority">{t('owner.tasks.sort.priority')}</option>
               <option value="createdDesc">{t('owner.tasks.sort.createdDesc')}</option>
               <option value="createdAsc">{t('owner.tasks.sort.createdAsc')}</option>
+            </select>
+          </label>
+        )}
+        {view === 'periods' && (
+          <label style={{ display: 'inline-flex', gap: 6, alignItems: 'center', fontSize: 12 }}>
+            <span style={{ color: 'var(--tax-muted)', textTransform: 'uppercase', letterSpacing: '.04em', fontWeight: 700 }}>
+              {t('owner.tasks.groupBy.label')}
+            </span>
+            <select value={periodsGroup} onChange={e => setPeriodsGroup(e.target.value)}
+                    style={{ padding: '4px 6px', border: '1px solid var(--tax-border)', borderRadius: 6, fontSize: 12 }}>
+              <option value="period">{t('owner.tasks.periodsGroup.period')}</option>
+              <option value="service">{t('owner.tasks.periodsGroup.service')}</option>
+              <option value="month">{t('owner.tasks.periodsGroup.month')}</option>
             </select>
           </label>
         )}
@@ -1696,10 +1721,28 @@ function periodLabelFor(cadenceKind, dueDateIso, locale) {
 function TasksPeriods({ auth, community, filters, statuses, employees, customerById,
                         employeeById, productById, isAdmin, onEdit,
                         selectedIds, toggleSelect, selectMany,
+                        periodsGroup = 'period',
                         mine, employeeId, locale, t }) {
   const [periods, setPeriods] = useState(null);
   const [err, setErr] = useState('');
   const [expanded, setExpanded] = useState({});
+  // Group parent expansion (only used when periodsGroup !== 'period').
+  // Default open so the operator sees everything on first land; they
+  // can collapse individual buckets to focus.
+  const [groupExpanded, setGroupExpanded] = useState({});
+  useEffect(() => {
+    // Default every bucket to open whenever the grouping flips.
+    if (!periods) return;
+    if (periodsGroup === 'period') { setGroupExpanded({}); return; }
+    const next = {};
+    for (const p of periods) {
+      const k = periodsGroup === 'service'
+        ? (p.serviceAutoTaskId || '__none__')
+        : ((p.dueDate || '').slice(0, 7) || '__none__');
+      next[k] = true;
+    }
+    setGroupExpanded(next);
+  }, [periodsGroup, periods]);
   const [periodTasks, setPeriodTasks] = useState({}); // key → tasks[] or 'loading'
   const thresholds = resolveThresholds(community);
   const todayIso = new Date().toISOString().slice(0, 10);
@@ -1756,136 +1799,290 @@ function TasksPeriods({ auth, community, filters, statuses, employees, customerB
     return <p style={{ color: 'var(--tax-muted)' }}>{t('owner.tasks.periods.empty')}</p>;
   }
 
+  const renderPeriod = (p, opts = {}) => (
+    <PeriodCard key={p.key} period={p}
+                isOpen={!!expanded[p.key]}
+                onToggle={() => toggle(p)}
+                cached={periodTasks[p.key]}
+                auth={auth} community={community} thresholds={thresholds} todayIso={todayIso}
+                statuses={statuses} employees={employees}
+                customerById={customerById} employeeById={employeeById}
+                productById={productById} isAdmin={isAdmin}
+                selectedIds={selectedIds} toggleSelect={toggleSelect} selectMany={selectMany}
+                onEdit={onEdit}
+                onTaskChange={() => {
+                  setPeriodTasks(s => ({ ...s, [p.key]: null }));
+                  setExpanded(s => ({ ...s, [p.key]: false }));
+                  setTimeout(() => toggle(p), 0);
+                  load();
+                }}
+                hideServiceLabel={opts.hideServiceLabel}
+                indent={opts.indent}
+                locale={locale} t={t} />
+  );
+
+  // No grouping → flat list, unchanged behavior.
+  if (periodsGroup === 'period') {
+    return (
+      <div style={{ display: 'grid', gap: 8 }}>
+        {periods.map(p => renderPeriod(p))}
+      </div>
+    );
+  }
+
+  // Bucket periods by service auto-task or by due-month, then render
+  // a collapsible parent above each bucket with rolled-up totals.
+  const buckets = new Map();
+  for (const p of periods) {
+    let key, label, sortKey;
+    if (periodsGroup === 'service') {
+      key = p.serviceAutoTaskId || '__none__';
+      const svc = p.product
+        ? (pickI18n(p.product.name_i18n, locale).value || p.product.slug)
+        : '';
+      const at = pickI18n(p.autoTask?.title_i18n, locale).value || '';
+      label = svc && at ? `${svc} — ${at}` : (svc || at || '—');
+      sortKey = label.toLowerCase();
+    } else {
+      // Month: bucket by the period's due-month so the parent reads
+      // as "May 2026 — due this month".
+      const yyyymm = (p.dueDate || '').slice(0, 7);
+      key = yyyymm || '__none__';
+      if (yyyymm) {
+        const [yy, mm] = yyyymm.split('-').map(n => parseInt(n, 10));
+        const months = MONTH_LABELS[locale === 'en' ? 'en' : 'es'];
+        const monthName = months[(mm || 1) - 1];
+        const cap = s => s.charAt(0).toUpperCase() + s.slice(1);
+        label = `${cap(monthName)} ${yy}`;
+      } else {
+        label = t('owner.tasks.periodsGroup.noDate');
+      }
+      sortKey = yyyymm; // ISO month sorts chronologically as a string
+    }
+    let g = buckets.get(key);
+    if (!g) {
+      g = { key, label, sortKey, periods: [],
+            totals: { done: 0, in_progress: 0, open: 0, overdue: 0, total: 0 } };
+      buckets.set(key, g);
+    }
+    g.periods.push(p);
+    g.totals.done        += p.totals?.done        || 0;
+    g.totals.in_progress += p.totals?.in_progress || 0;
+    g.totals.open        += p.totals?.open        || 0;
+    g.totals.overdue     += p.totals?.overdue     || 0;
+    g.totals.total       += p.totals?.total       || 0;
+  }
+  const ordered = Array.from(buckets.values()).sort((a, b) => {
+    if (periodsGroup === 'month') return (a.sortKey || '').localeCompare(b.sortKey || '');
+    return (a.sortKey || '').localeCompare(b.sortKey || '');
+  });
+
   return (
-    <div style={{ display: 'grid', gap: 8 }}>
-      {periods.map(p => {
-        const title = pickI18n(p.autoTask?.title_i18n, locale).value
-                   || (p.product ? (pickI18n(p.product.name_i18n, locale).value || p.product.slug) : '—');
-        const serviceLabel = p.product
-          ? (pickI18n(p.product.name_i18n, locale).value || p.product.slug)
-          : '';
-        const tot = p.totals || {};
-        const pct = tot.total ? Math.round((tot.done / tot.total) * 100) : 0;
-        const isOpen = !!expanded[p.key];
-        // Use the period's due-date through the same urgency machinery
-        // so the badge color matches the calendar / list views.
-        const urgency = effectiveUrgency({ due_date: p.dueDate, priority: p.topPriority, completed_at: null }, thresholds, todayIso);
-        const dueCol = colorOf(urgency, community);
-        const cached = periodTasks[p.key];
-        return (
-          <section key={p.key} style={{
-            border: '1px solid var(--tax-border)', borderRadius: 10,
-            background: '#fff', overflow: 'hidden',
-          }}>
-            <header onClick={() => toggle(p)}
-                    style={{
-                      display: 'flex', alignItems: 'center', gap: 12,
-                      padding: '10px 14px', cursor: 'pointer',
-                      background: isOpen ? 'var(--tax-bg-alt)' : '#fff',
-                      borderBottom: isOpen ? '1px solid var(--tax-border)' : 'none',
-                    }}>
-              <span aria-hidden="true" style={{
-                fontSize: 11, color: 'var(--tax-muted)',
-                transform: isOpen ? 'rotate(90deg)' : 'rotate(0deg)',
-                transition: 'transform .12s ease',
-              }}>▶</span>
-              <div style={{ minWidth: 0, flex: 1 }}>
-                <div style={{ fontWeight: 600, fontSize: 14, color: 'var(--tax-text)',
-                              display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'baseline' }}>
-                  <span>{title}</span>
-                  {(() => {
-                    const periodLabel = periodLabelFor(
-                      p.autoTask?.cadence_kind, p.dueDate, locale);
-                    if (!periodLabel) return null;
-                    return (
-                      <span style={{
-                        padding: '1px 8px', borderRadius: 4,
-                        background: 'var(--tax-bg-alt)', color: 'var(--tax-text)',
-                        fontSize: 12, fontWeight: 700,
-                      }}>{periodLabel}</span>
-                    );
-                  })()}
-                </div>
-                <div style={{ fontSize: 11, color: 'var(--tax-muted)', marginTop: 4,
-                              display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
-                  {serviceLabel && <span>{serviceLabel}</span>}
-                  {p.dueDate && (
-                    <span>
-                      {t('owner.tasks.periods.dueLabel')}{' '}
-                      <span style={{
-                        display: 'inline-block', padding: '1px 8px', borderRadius: 4,
-                        background: dueCol.bg, color: dueCol.fg,
-                        fontWeight: 700,
-                      }}>{p.dueDate}</span>
-                    </span>
-                  )}
-                  <span><strong style={{ color: '#166534' }}>{tot.done}</strong> {t('owner.progress.kpi.done').toLowerCase()}</span>
-                  <span><strong style={{ color: '#3730a3' }}>{tot.in_progress}</strong> {t('owner.progress.kpi.inProgress').toLowerCase()}</span>
-                  <span><strong style={{ color: '#92400e' }}>{tot.open}</strong> {t('owner.progress.kpi.open').toLowerCase()}</span>
-                  {tot.overdue > 0 && (
-                    <span style={{ color: '#991b1b', fontWeight: 700 }}>
-                      ⚠ {tot.overdue} {t('owner.progress.kpi.overdue').toLowerCase()}
-                    </span>
-                  )}
-                </div>
-              </div>
-              <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 10 }}>
-                <span style={{ fontSize: 13, color: 'var(--tax-muted)' }}>
-                  {tot.done}/{tot.total}
-                </span>
-                <div style={{
-                  width: 90, height: 6, background: 'var(--tax-bg-alt)', borderRadius: 999,
-                  overflow: 'hidden',
-                }}>
-                  <div style={{
-                    width: `${pct}%`, height: '100%',
-                    background: 'var(--tax-brand-primary)',
-                  }} />
-                </div>
-                <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--tax-brand-primary)',
-                               minWidth: 36, textAlign: 'right' }}>{pct}%</span>
-              </div>
-            </header>
-            {isOpen && (
-              <div style={{ padding: '6px 8px 10px' }}>
-                {cached === 'loading' ? (
-                  <p style={{ color: 'var(--tax-muted)', fontSize: 13, padding: '8px 10px' }}>
-                    {t('loading')}
-                  </p>
-                ) : !cached || cached.length === 0 ? (
-                  <p style={{ color: 'var(--tax-muted)', fontSize: 13, padding: '8px 10px' }}>
-                    {t('owner.tasks.periods.noTasks')}
-                  </p>
-                ) : (
-                  <div style={{ display: 'grid', gap: 6 }}>
-                    <GroupSelectAll tasks={cached} selectedIds={selectedIds}
-                                    toggleSelect={toggleSelect} selectMany={selectMany} t={t} />
-                    {cached.map(tt => (
-                      <TaskRow key={tt.id} task={tt} auth={auth} community={community}
-                               statuses={statuses} employees={employees}
-                               customerById={customerById} employeeById={employeeById}
-                               productById={productById} isAdmin={isAdmin}
-                               selected={selectedIds?.has(tt.id)}
-                               onToggleSelect={toggleSelect ? () => toggleSelect(tt.id) : undefined}
-                               onEdit={onEdit} onChange={() => {
-                                 // Refetch this period's tasks and the
-                                 // outer counts so changes show
-                                 // immediately.
-                                 setPeriodTasks(s => ({ ...s, [p.key]: null }));
-                                 setExpanded(s => ({ ...s, [p.key]: false }));
-                                 setTimeout(() => toggle(p), 0);
-                                 load();
-                               }}
-                               locale={locale} t={t} />
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
-          </section>
-        );
-      })}
+    <div style={{ display: 'grid', gap: 10 }}>
+      {ordered.map(g => (
+        <PeriodGroupSection key={g.key}
+                            isOpen={!!groupExpanded[g.key]}
+                            onToggle={() => setGroupExpanded(s => ({ ...s, [g.key]: !s[g.key] }))}
+                            label={g.label} totals={g.totals} periodCount={g.periods.length}
+                            t={t}>
+          <div style={{ display: 'grid', gap: 6, padding: '8px 10px 12px' }}>
+            {g.periods.map(p => renderPeriod(p, {
+              // Service-grouped: the service is already in the parent
+              // header so the period card hides it. Month-grouped:
+              // keep service visible since several different services
+              // sit under the same month.
+              hideServiceLabel: periodsGroup === 'service',
+              indent: true,
+            }))}
+          </div>
+        </PeriodGroupSection>
+      ))}
     </div>
+  );
+}
+
+// One row in the Periods view. Expandable to lazy-load + render the
+// underlying customer tasks via TaskRow.
+function PeriodCard({ period: p, isOpen, onToggle, cached,
+                      auth, community, thresholds, todayIso,
+                      statuses, employees, customerById, employeeById, productById,
+                      isAdmin, selectedIds, toggleSelect, selectMany,
+                      onEdit, onTaskChange,
+                      hideServiceLabel, indent,
+                      locale, t }) {
+  const title = pickI18n(p.autoTask?.title_i18n, locale).value
+             || (p.product ? (pickI18n(p.product.name_i18n, locale).value || p.product.slug) : '—');
+  const serviceLabel = p.product
+    ? (pickI18n(p.product.name_i18n, locale).value || p.product.slug)
+    : '';
+  const tot = p.totals || {};
+  const pct = tot.total ? Math.round((tot.done / tot.total) * 100) : 0;
+  const urgency = effectiveUrgency(
+    { due_date: p.dueDate, priority: p.topPriority, completed_at: null },
+    thresholds, todayIso);
+  const dueCol = colorOf(urgency, community);
+  const periodLabel = periodLabelFor(p.autoTask?.cadence_kind, p.dueDate, locale);
+
+  return (
+    <section style={{
+      border: '1px solid var(--tax-border)', borderRadius: 10,
+      background: '#fff', overflow: 'hidden',
+      marginLeft: indent ? 0 : 0,
+    }}>
+      <header onClick={onToggle}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 12,
+                padding: '10px 14px', cursor: 'pointer',
+                background: isOpen ? 'var(--tax-bg-alt)' : '#fff',
+                borderBottom: isOpen ? '1px solid var(--tax-border)' : 'none',
+              }}>
+        <span aria-hidden="true" style={{
+          fontSize: 11, color: 'var(--tax-muted)',
+          transform: isOpen ? 'rotate(90deg)' : 'rotate(0deg)',
+          transition: 'transform .12s ease',
+        }}>▶</span>
+        <div style={{ minWidth: 0, flex: 1 }}>
+          <div style={{ fontWeight: 600, fontSize: 14, color: 'var(--tax-text)',
+                        display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'baseline' }}>
+            <span>{title}</span>
+            {periodLabel && (
+              <span style={{
+                padding: '1px 8px', borderRadius: 4,
+                background: 'var(--tax-bg-alt)', color: 'var(--tax-text)',
+                fontSize: 12, fontWeight: 700,
+              }}>{periodLabel}</span>
+            )}
+          </div>
+          <div style={{ fontSize: 11, color: 'var(--tax-muted)', marginTop: 4,
+                        display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
+            {!hideServiceLabel && serviceLabel && <span>{serviceLabel}</span>}
+            {p.dueDate && (
+              <span>
+                {t('owner.tasks.periods.dueLabel')}{' '}
+                <span style={{
+                  display: 'inline-block', padding: '1px 8px', borderRadius: 4,
+                  background: dueCol.bg, color: dueCol.fg,
+                  fontWeight: 700,
+                }}>{p.dueDate}</span>
+              </span>
+            )}
+            <span><strong style={{ color: '#166534' }}>{tot.done}</strong> {t('owner.progress.kpi.done').toLowerCase()}</span>
+            <span><strong style={{ color: '#3730a3' }}>{tot.in_progress}</strong> {t('owner.progress.kpi.inProgress').toLowerCase()}</span>
+            <span><strong style={{ color: '#92400e' }}>{tot.open}</strong> {t('owner.progress.kpi.open').toLowerCase()}</span>
+            {tot.overdue > 0 && (
+              <span style={{ color: '#991b1b', fontWeight: 700 }}>
+                ⚠ {tot.overdue} {t('owner.progress.kpi.overdue').toLowerCase()}
+              </span>
+            )}
+          </div>
+        </div>
+        <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 10 }}>
+          <span style={{ fontSize: 13, color: 'var(--tax-muted)' }}>
+            {tot.done}/{tot.total}
+          </span>
+          <div style={{
+            width: 90, height: 6, background: 'var(--tax-bg-alt)', borderRadius: 999,
+            overflow: 'hidden',
+          }}>
+            <div style={{
+              width: `${pct}%`, height: '100%',
+              background: 'var(--tax-brand-primary)',
+            }} />
+          </div>
+          <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--tax-brand-primary)',
+                         minWidth: 36, textAlign: 'right' }}>{pct}%</span>
+        </div>
+      </header>
+      {isOpen && (
+        <div style={{ padding: '6px 8px 10px' }}>
+          {cached === 'loading' ? (
+            <p style={{ color: 'var(--tax-muted)', fontSize: 13, padding: '8px 10px' }}>
+              {t('loading')}
+            </p>
+          ) : !cached || cached.length === 0 ? (
+            <p style={{ color: 'var(--tax-muted)', fontSize: 13, padding: '8px 10px' }}>
+              {t('owner.tasks.periods.noTasks')}
+            </p>
+          ) : (
+            <div style={{ display: 'grid', gap: 6 }}>
+              <GroupSelectAll tasks={cached} selectedIds={selectedIds}
+                              toggleSelect={toggleSelect} selectMany={selectMany} t={t} />
+              {cached.map(tt => (
+                <TaskRow key={tt.id} task={tt} auth={auth} community={community}
+                         statuses={statuses} employees={employees}
+                         customerById={customerById} employeeById={employeeById}
+                         productById={productById} isAdmin={isAdmin}
+                         selected={selectedIds?.has(tt.id)}
+                         onToggleSelect={toggleSelect ? () => toggleSelect(tt.id) : undefined}
+                         onEdit={onEdit} onChange={onTaskChange}
+                         locale={locale} t={t} />
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </section>
+  );
+}
+
+// Collapsible parent row that aggregates totals across all the
+// PeriodCards nested below it. Click to expand. The progress bar
+// reflects the sum (done / total) of every child period.
+function PeriodGroupSection({ isOpen, onToggle, label, totals, periodCount, t, children }) {
+  const pct = totals.total ? Math.round((totals.done / totals.total) * 100) : 0;
+  return (
+    <section style={{
+      border: '1px solid var(--tax-border)', borderRadius: 10,
+      background: '#fff', overflow: 'hidden',
+    }}>
+      <header onClick={onToggle}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 12,
+                padding: '12px 14px', cursor: 'pointer',
+                background: 'color-mix(in srgb, var(--tax-brand-primary) 6%, #fff)',
+                borderBottom: isOpen ? '1px solid var(--tax-border)' : 'none',
+              }}>
+        <span aria-hidden="true" style={{
+          fontSize: 11, color: 'var(--tax-brand-primary)',
+          transform: isOpen ? 'rotate(90deg)' : 'rotate(0deg)',
+          transition: 'transform .12s ease',
+        }}>▶</span>
+        <div style={{ minWidth: 0, flex: 1 }}>
+          <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--tax-text)' }}>
+            {label}
+          </div>
+          <div style={{ fontSize: 11, color: 'var(--tax-muted)', marginTop: 4,
+                        display: 'flex', flexWrap: 'wrap', gap: 10 }}>
+            <span>{periodCount} {periodCount === 1 ? t('owner.tasks.periodsGroup.period1') : t('owner.tasks.periodsGroup.periodN')}</span>
+            <span><strong style={{ color: '#166534' }}>{totals.done}</strong> {t('owner.progress.kpi.done').toLowerCase()}</span>
+            <span><strong style={{ color: '#3730a3' }}>{totals.in_progress}</strong> {t('owner.progress.kpi.inProgress').toLowerCase()}</span>
+            <span><strong style={{ color: '#92400e' }}>{totals.open}</strong> {t('owner.progress.kpi.open').toLowerCase()}</span>
+            {totals.overdue > 0 && (
+              <span style={{ color: '#991b1b', fontWeight: 700 }}>
+                ⚠ {totals.overdue} {t('owner.progress.kpi.overdue').toLowerCase()}
+              </span>
+            )}
+          </div>
+        </div>
+        <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 10 }}>
+          <span style={{ fontSize: 13, color: 'var(--tax-muted)' }}>
+            {totals.done}/{totals.total}
+          </span>
+          <div style={{
+            width: 120, height: 8, background: 'var(--tax-bg-alt)', borderRadius: 999,
+            overflow: 'hidden',
+          }}>
+            <div style={{
+              width: `${pct}%`, height: '100%',
+              background: 'var(--tax-brand-primary)',
+            }} />
+          </div>
+          <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--tax-brand-primary)',
+                         minWidth: 40, textAlign: 'right' }}>{pct}%</span>
+        </div>
+      </header>
+      {isOpen && children}
+    </section>
   );
 }
 
