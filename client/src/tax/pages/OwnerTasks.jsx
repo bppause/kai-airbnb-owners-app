@@ -1650,6 +1650,49 @@ function TaskHover({ task, statuses, community, locale, t, children, side = 'bel
 // differ only by customer. This view collapses them into a single
 // row per period so the operator sees aggregate progress at a glance,
 // then expands a row to see / act on the underlying customer tasks.
+// Derive a human-readable period label from the auto-task's cadence
+// + due date. Monthly cadences are "following": work done in April
+// is due mid-May, so the period for a May 15 due-date is April. The
+// schedule engine already encodes these rules — this mirror keeps
+// the rollup header in sync without a server round-trip.
+const MONTH_LABELS = {
+  en: ['January','February','March','April','May','June','July','August','September','October','November','December'],
+  es: ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'],
+};
+function periodLabelFor(cadenceKind, dueDateIso, locale) {
+  if (!dueDateIso) return '';
+  const dd = new Date(dueDateIso + 'T00:00:00Z');
+  if (Number.isNaN(dd.getTime())) return '';
+  const y = dd.getUTCFullYear();
+  const m = dd.getUTCMonth();
+  const months = MONTH_LABELS[locale === 'en' ? 'en' : 'es'];
+  const cap = s => s.charAt(0).toUpperCase() + s.slice(1);
+  if (cadenceKind === 'monthly') {
+    const pm = m === 0 ? 11 : m - 1;
+    const py = m === 0 ? y - 1 : y;
+    return `${cap(months[pm])} ${py}`;
+  }
+  if (cadenceKind === 'quarterly') {
+    const dueMonth = m + 1;
+    let qIdx, periodYear = y;
+    if (dueMonth >= 1 && dueMonth <= 3) { qIdx = 4; periodYear = y - 1; }
+    else if (dueMonth >= 4 && dueMonth <= 6) qIdx = 1;
+    else if (dueMonth >= 7 && dueMonth <= 9) qIdx = 2;
+    else qIdx = 3;
+    return locale === 'es' ? `T${qIdx} ${periodYear}` : `Q${qIdx} ${periodYear}`;
+  }
+  if (cadenceKind === 'annual') {
+    const taxYear = y - 1;
+    return locale === 'es' ? `Año Fiscal ${taxYear}` : `Tax Year ${taxYear}`;
+  }
+  if (cadenceKind === 'weekly') {
+    const start = new Date(dd); start.setUTCDate(start.getUTCDate() - 6);
+    const sIso = start.toISOString().slice(0, 10);
+    return locale === 'es' ? `Semana del ${sIso}` : `Week of ${sIso}`;
+  }
+  return '';
+}
+
 function TasksPeriods({ auth, community, filters, statuses, employees, customerById,
                         employeeById, productById, isAdmin, onEdit,
                         selectedIds, toggleSelect, selectMany,
@@ -1747,18 +1790,34 @@ function TasksPeriods({ auth, community, filters, statuses, employees, customerB
                 transition: 'transform .12s ease',
               }}>▶</span>
               <div style={{ minWidth: 0, flex: 1 }}>
-                <div style={{ fontWeight: 600, fontSize: 14, color: 'var(--tax-text)' }}>
-                  {title}
+                <div style={{ fontWeight: 600, fontSize: 14, color: 'var(--tax-text)',
+                              display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'baseline' }}>
+                  <span>{title}</span>
+                  {(() => {
+                    const periodLabel = periodLabelFor(
+                      p.autoTask?.cadence_kind, p.dueDate, locale);
+                    if (!periodLabel) return null;
+                    return (
+                      <span style={{
+                        padding: '1px 8px', borderRadius: 4,
+                        background: 'var(--tax-bg-alt)', color: 'var(--tax-text)',
+                        fontSize: 12, fontWeight: 700,
+                      }}>{periodLabel}</span>
+                    );
+                  })()}
                 </div>
-                <div style={{ fontSize: 11, color: 'var(--tax-muted)', marginTop: 2,
-                              display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                <div style={{ fontSize: 11, color: 'var(--tax-muted)', marginTop: 4,
+                              display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
                   {serviceLabel && <span>{serviceLabel}</span>}
                   {p.dueDate && (
-                    <span style={{
-                      display: 'inline-block', padding: '1px 8px', borderRadius: 4,
-                      background: dueCol.bg, color: dueCol.fg,
-                      fontWeight: 700,
-                    }}>{p.dueDate}</span>
+                    <span>
+                      {t('owner.tasks.periods.dueLabel')}{' '}
+                      <span style={{
+                        display: 'inline-block', padding: '1px 8px', borderRadius: 4,
+                        background: dueCol.bg, color: dueCol.fg,
+                        fontWeight: 700,
+                      }}>{p.dueDate}</span>
+                    </span>
                   )}
                   <span><strong style={{ color: '#166534' }}>{tot.done}</strong> {t('owner.progress.kpi.done').toLowerCase()}</span>
                   <span><strong style={{ color: '#3730a3' }}>{tot.in_progress}</strong> {t('owner.progress.kpi.inProgress').toLowerCase()}</span>
