@@ -571,7 +571,7 @@ function CustomerCombobox({ customers, value, onChange, isAdmin, onAddNew, local
     const q = query.trim().toLowerCase();
     if (!q) return customers.slice(0, 20);
     return customers.filter(c => {
-      const hay = `${c.name || ''} ${c.first_name || ''} ${c.last_name || ''} ${c.email || ''} ${c.phone || ''}`.toLowerCase();
+      const hay = `${c.business_name || ''} ${c.name || ''} ${c.first_name || ''} ${c.last_name || ''} ${c.email || ''} ${c.phone || ''}`.toLowerCase();
       return hay.includes(q);
     }).slice(0, 30);
   })();
@@ -618,13 +618,19 @@ function CustomerCombobox({ customers, value, onChange, isAdmin, onAddNew, local
           )}
           {filtered.map(c => {
             const name = displayPersonName(c) || c.email;
+            // When the customer is a business, surface the contact
+            // person on the second line so the picker still shows
+            // both names — useful for "Acme LLC (John Smith)".
+            const contact = c.business_name
+              ? [c.first_name, c.last_name].filter(Boolean).join(' ').trim()
+              : '';
             return (
               <button key={c.id} type="button"
                       onMouseDown={e => { e.preventDefault(); onChange(c.id); setOpen(false); }}
                       style={comboItemStyle(value === c.id)}>
                 <div style={{ fontWeight: 500 }}>{name}</div>
                 <div style={{ fontSize: 11, color: 'var(--tax-muted)' }}>
-                  {c.email}{c.phone ? ` · ${c.phone}` : ''}
+                  {contact ? `${contact} · ` : ''}{c.email}{c.phone ? ` · ${c.phone}` : ''}
                 </div>
               </button>
             );
@@ -660,6 +666,7 @@ function comboItemStyle(active) {
 function InlineCustomerCreateModal({ auth, community, relationshipTypes, locale, t, onClose, onCreated }) {
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
+  const [businessName, setBusinessName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [relTypeId, setRelTypeId] = useState('');
@@ -685,6 +692,7 @@ function InlineCustomerCreateModal({ auth, community, relationshipTypes, locale,
         email: email.trim(),
         firstName: firstName.trim(),
         lastName: lastName.trim(),
+        businessName: businessName.trim(),
         phone: phone.trim(),
         locale,
         relationshipTypeIds: relTypeId ? [relTypeId] : [],
@@ -697,6 +705,7 @@ function InlineCustomerCreateModal({ auth, community, relationshipTypes, locale,
       onCreated({
         id: resp.id, email: email.trim(),
         first_name: firstName.trim(), last_name: lastName.trim(),
+        business_name: businessName.trim(),
         name: `${firstName.trim()} ${lastName.trim()}`.trim(),
         phone: phone.trim(), locale, status: 'active',
         relationships: relRows,
@@ -714,6 +723,15 @@ function InlineCustomerCreateModal({ auth, community, relationshipTypes, locale,
                 onClick={onClose} aria-label={t('preview.close')}>×</button>
         <h3 className="tax-modal__title">{t('owner.tasks.field.customerCreate')}</h3>
         <form onSubmit={onSubmit} className="tax-form" style={{ boxShadow: 'none', padding: 0, border: 0 }}>
+          <div>
+            <label>{t('owner.tasks.field.businessName')}</label>
+            <input type="text" value={businessName} onChange={e => setBusinessName(e.target.value)}
+                   maxLength={200}
+                   placeholder={t('owner.tasks.field.businessNamePlaceholder')} />
+            <p style={{ margin: '4px 0 0', fontSize: 11, color: 'var(--tax-muted)' }}>
+              {t('owner.tasks.field.businessNameHint')}
+            </p>
+          </div>
           <div className="tax-form__row2">
             <div>
               <label>{t('owner.tasks.field.firstName')}</label>

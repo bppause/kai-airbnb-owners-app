@@ -99,6 +99,11 @@ export default function OwnerCustomerDetail({ customerId }) {
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, marginTop: 8 }}>
         <div style={{ minWidth: 0, flex: 1 }}>
           <h2 style={{ margin: 0, marginBottom: 4 }}>{displayPersonName(c) || c.email}</h2>
+          {c.business_name && (c.first_name || c.last_name) && (
+            <p style={{ color: 'var(--tax-muted)', margin: '0 0 4px', fontSize: 13 }}>
+              {t('owner.customer.contactPerson')}: {[c.first_name, c.last_name].filter(Boolean).join(' ')}
+            </p>
+          )}
           <p style={{ color: 'var(--tax-muted)', marginTop: 0, fontSize: 13 }}>
             {c.email}{c.phone ? ` • ${c.phone}` : ''}{c.whatsapp ? ` • WhatsApp ${c.whatsapp}` : ''}
             {' • '}{c.locale === 'en' ? 'English' : 'Español'}
@@ -612,6 +617,7 @@ function SignatureRequestsSection({ auth, customerId, locale, t }) {
 function ProfileSection({ customer: c, auth, customerId, onChange, t }) {
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState({
+    businessName: c.business_name || '',
     firstName: c.first_name || '',
     middleName: c.middle_name || '',
     lastName: c.last_name || '',
@@ -643,6 +649,19 @@ function ProfileSection({ customer: c, auth, customerId, onChange, t }) {
           </button>
         </div>
         <div className="tax-contact-grid">
+          {c.business_name && (
+            <div className="tax-contact-item">
+              <div className="tax-contact-item__label">{t('owner.customers.fieldBusinessName')}</div>
+              <div className="tax-contact-item__value">
+                {c.business_name}
+                {c.first_name && (
+                  <span style={{ display: 'block', fontSize: 12, color: 'var(--tax-muted)', marginTop: 2 }}>
+                    {t('owner.customer.contactPerson')}: {[c.first_name, c.last_name].filter(Boolean).join(' ')}
+                  </span>
+                )}
+              </div>
+            </div>
+          )}
           <div className="tax-contact-item">
             <div className="tax-contact-item__label">{t('portal.profile.phone')}</div>
             <div className="tax-contact-item__value">{c.phone || '—'}</div>
@@ -690,6 +709,7 @@ function ProfileSection({ customer: c, auth, customerId, onChange, t }) {
     }
     try {
       await taxApi.adminUpdateCustomer(auth, customerId, {
+        businessName: form.businessName.trim(),
         firstName: form.firstName.trim(),
         middleName: form.middleName.trim(),
         lastName: form.lastName.trim(),
@@ -710,6 +730,16 @@ function ProfileSection({ customer: c, auth, customerId, onChange, t }) {
     <section style={{ marginTop: 24 }}>
       <h3>{t('owner.customer.section.profile')}</h3>
       <form className="tax-form" onSubmit={onSave} noValidate style={{ maxWidth: 720 }}>
+        <div>
+          <label htmlFor="ocp-biz">{t('owner.customers.fieldBusinessName')}</label>
+          <input id="ocp-biz" type="text" value={form.businessName}
+                 onChange={e => setForm(p => ({ ...p, businessName: e.target.value }))}
+                 maxLength={200}
+                 placeholder={t('owner.customers.fieldBusinessNamePlaceholder')} />
+          <small style={{ color: 'var(--tax-muted)' }}>
+            {t('owner.customers.fieldBusinessNameHint')}
+          </small>
+        </div>
         <div className="tax-form__row3">
           <div>
             <label htmlFor="ocp-first">{t('owner.customers.fieldFirstName')}</label>

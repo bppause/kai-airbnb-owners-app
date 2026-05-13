@@ -32,10 +32,15 @@ export function parsePersonName(raw) {
   };
 }
 
-// Display name for a person record. Prefers stored parts, falls back to
-// `name`, then the email localpart. Title-cases shouty values.
+// Display name for a person record. For business customers, the
+// stored business_name takes precedence — that's the label the team
+// expects to see ("Acme LLC", not "John Smith"). Falls back to the
+// person-name parts, then `name`, then the email localpart. Title-
+// cases shouty values.
 export function displayPersonName(p) {
   if (!p) return '';
+  const biz = titleCaseName(String(p.business_name || '').trim());
+  if (biz) return biz;
   const parts = [p.first_name, p.middle_name, p.last_name]
     .map(s => titleCaseName(String(s || '').trim()))
     .filter(Boolean);
@@ -45,6 +50,18 @@ export function displayPersonName(p) {
   const email = String(p.email || '').trim();
   if (email && email.includes('@')) return email.split('@')[0];
   return '';
+}
+
+// Returns just the contact-person name (first/middle/last). Used in
+// places where we want to show the human alongside the business name
+// — e.g. the customer detail page header.
+export function contactPersonName(p) {
+  if (!p) return '';
+  const parts = [p.first_name, p.middle_name, p.last_name]
+    .map(s => titleCaseName(String(s || '').trim()))
+    .filter(Boolean);
+  if (parts.length) return parts.join(' ');
+  return titleCaseName(String(p.name || '').trim());
 }
 
 // Display name OR email if no name parts at all (common in lists).
