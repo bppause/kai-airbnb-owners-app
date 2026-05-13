@@ -5173,9 +5173,24 @@ module.exports = function createTaxRouter(deps) {
     }
 
     const limit = Math.min(500, Math.max(1, Number(req.query.limit) || 200));
-    q = q.order('due_date', { ascending: true, nullsFirst: false })
-         .order('created_at', { ascending: false })
-         .limit(limit);
+    // Sort keys come from the UI's Sort dropdown — see OwnerTasks.
+    // The priority key sorts client-side because the underlying column
+    // is text with no natural rank ordering. `dueAsc` is the legacy
+    // default. Each branch ends with a stable tiebreaker so the same
+    // set of tasks doesn't reshuffle between requests.
+    const sort = trim(req.query.sort || '', 32);
+    if (sort === 'dueDesc') {
+      q = q.order('due_date', { ascending: false, nullsFirst: false })
+           .order('created_at', { ascending: false });
+    } else if (sort === 'createdDesc') {
+      q = q.order('created_at', { ascending: false });
+    } else if (sort === 'createdAsc') {
+      q = q.order('created_at', { ascending: true });
+    } else {
+      q = q.order('due_date', { ascending: true, nullsFirst: false })
+           .order('created_at', { ascending: false });
+    }
+    q = q.limit(limit);
 
     const { data, error } = await q;
     if (error) return sendSupabaseError(res, error);
