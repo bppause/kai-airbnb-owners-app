@@ -2462,6 +2462,22 @@ alter table public.communities
   add column if not exists tax_customer_reminders_enabled boolean
     not null default false;
 
+-- Phase 4n.37: owner-attachable video URLs across the public-facing
+-- catalog. Each row may carry a single video link (YouTube, Vimeo,
+-- direct MP4) that the landing page embeds inside the service detail
+-- modal, the FAQ accordion entry, or the article body. Empty string
+-- means "no video" — the embed is skipped at render time.
+alter table public.tax_products
+  add column if not exists video_url text not null default '';
+alter table public.tax_help_articles
+  add column if not exists video_url text not null default '';
+alter table public.tax_community_help_articles
+  add column if not exists video_url text not null default '';
+alter table public.tax_relationship_default_faqs
+  add column if not exists video_url text not null default '';
+alter table public.tax_relationship_faqs
+  add column if not exists video_url text not null default '';
+
 -- Seed the three default status options for tax-america-services. New
 -- communities provisioned via the platform endpoint should mirror this
 -- (handled in server code on community create).

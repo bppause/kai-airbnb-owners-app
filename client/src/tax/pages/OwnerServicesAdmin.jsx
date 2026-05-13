@@ -198,6 +198,7 @@ function ProductEditor({ product: p, auth, onDone, onCancel, t }) {
     typeof d === 'string' ? { en: d, es: '' } : { en: d.en || '', es: d.es || '' }
   )));
   const [order, setOrder] = useState(String(p.display_order || 0));
+  const [videoUrl, setVideoUrl] = useState(p.video_url || '');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
 
@@ -218,6 +219,7 @@ function ProductEditor({ product: p, auth, onDone, onCancel, t }) {
         longDescriptionI18n: { en: longEn.trim(), es: longEs.trim() },
         requiredDocuments: cleanedReqs,
         displayOrder: Number(order) || 0,
+        videoUrl: videoUrl.trim(),
       });
       onDone();
     } catch (e) { setErr(e?.message || ''); }
@@ -295,6 +297,19 @@ function ProductEditor({ product: p, auth, onDone, onCancel, t }) {
             + {t('owner.services.requiresAdd')}
           </button>
         </div>
+      </div>
+
+      <div>
+        <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--tax-muted)' }}>
+          {t('owner.services.videoUrl')}
+        </label>
+        <input type="url" value={videoUrl} onChange={e => setVideoUrl(e.target.value)}
+               placeholder="https://youtube.com/watch?v=… or https://vimeo.com/…"
+               maxLength={500}
+               style={{ width: '100%', padding: 8, border: '1px solid var(--tax-border)', borderRadius: 6 }} />
+        <p style={{ margin: '4px 0 0', fontSize: 11, color: 'var(--tax-muted)' }}>
+          {t('owner.services.videoUrlHint')}
+        </p>
       </div>
 
       <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
