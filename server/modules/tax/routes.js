@@ -884,7 +884,7 @@ module.exports = function createTaxRouter(deps) {
   // Skips silently when the relationship type has no workflow rule
   // wired up — owners may use relationship tags for non-recurring
   // service buckets where no schedule applies.
-  const RELATIONSHIP_TASK_LOOKAHEAD_MONTHS = 6;
+  const RELATIONSHIP_TASK_LOOKAHEAD_DEFAULT = 6;
 
   async function generateTasksForRelationship({ customerId, relationshipTypeId, actorEmail = '' }) {
     if (!customerId || !relationshipTypeId) return { created: 0, skipped: 'missing_args' };
@@ -893,9 +893,16 @@ module.exports = function createTaxRouter(deps) {
       .select('id, community_id, locale').eq('id', customerId).maybeSingle();
     if (!cust) return { created: 0, skipped: 'customer_not_found' };
 
+    // Per-community look-ahead window. Falls back to 6 months when
+    // the community row is missing the new column (pre-migration).
+    const { data: commRow } = await supabase.from('communities')
+      .select('tax_task_lookahead_months').eq('id', cust.community_id).maybeSingle();
+    const lookaheadMonths = Math.max(1, Math.min(24,
+      Number(commRow?.tax_task_lookahead_months) || RELATIONSHIP_TASK_LOOKAHEAD_DEFAULT));
+
     const todayIso = new Date().toISOString().slice(0, 10);
     const cutoff = new Date();
-    cutoff.setUTCMonth(cutoff.getUTCMonth() + RELATIONSHIP_TASK_LOOKAHEAD_MONTHS);
+    cutoff.setUTCMonth(cutoff.getUTCMonth() + lookaheadMonths);
     const cutoffIso = cutoff.toISOString().slice(0, 10);
 
     const { data: statusOpts } = await supabase.from('tax_task_status_options')
@@ -1025,36 +1032,99 @@ module.exports = function createTaxRouter(deps) {
     return { created };
   }
 
-  // Archive open tasks for a (customer, relationship_type) — used when
-  // the relationship is removed. Completed tasks are left intact so the
-  // history of work-done survives the cleanup.
-  async function archiveTasksForRelationship({ customerId, relationshipTypeId, actorEmail = '' }) {
-    if (!customerId || !relationshipTypeId) return { archived: 0 };
+  // Walk every active customer-relationship in every tax community
+  // and re-run the task generator. Idempotent: existing periods are
+  // no-ops, new periods get created as time rolls forward. This is
+  // what keeps the Tasks page from running dry on a long-cadence
+  // service after a few months pass.
+  //
+  // Triggered by the daily setInterval below and by the manual
+  // POST /admin/tasks/refresh endpoint. Safe to call repeatedly.
+  async function refreshAllRelationshipTasks() {
+    if (!isSupabaseConfigured) return { skipped: 'supabase_not_configured' };
+    const { data: rels, error } = await supabase
+      .from('tax_customer_relationships')
+      .select('customer_id, relationship_type_id')
+      .eq('active', true)
+      .limit(20000);
+    if (error) { warn('[tax-task-cron] fetch failed', error.message); return { error: error.message }; }
+    let scanned = 0, created = 0;
+    for (const r of rels || []) {
+      scanned++;
+      try {
+        const out = await generateTasksForRelationship({
+          customerId: r.customer_id,
+          relationshipTypeId: r.relationship_type_id,
+          actorEmail: 'task-cron',
+        });
+        created += out.created || 0;
+      } catch (e) { warn('[tax-task-cron] gen failed', e?.message || e); }
+    }
+    return { scanned, created };
+  }
+
+  // Manual trigger — useful for development + as a one-off
+  // "extend my window now" button. Gated on the same permission as
+  // any other reminder-style operation.
+  router.post('/admin/tasks/refresh', async (req, res) => {
+    const actor = await requireOwnerAdmin(req, res, 'manage_settings');
+    if (!actor) return;
+    const out = await refreshAllRelationshipTasks();
+    res.json({ ok: true, ...out });
+  });
+
+  // Daily-ish cron. 24h interval with a small initial delay so we
+  // don't pile on at startup. Re-uses the existing process — no
+  // separate worker needed for now.
+  if (typeof setInterval === 'function' && typeof setTimeout === 'function') {
+    const DAY_MS = 24 * 60 * 60 * 1000;
+    setTimeout(() => {
+      refreshAllRelationshipTasks()
+        .catch(e => warn('[tax-task-cron] initial run threw', e?.message || e));
+      setInterval(() => {
+        refreshAllRelationshipTasks()
+          .catch(e => warn('[tax-task-cron] interval run threw', e?.message || e));
+      }, DAY_MS);
+    }, 5 * 60 * 1000);
+  }
+
+  // Hard-delete open tasks for a (customer, relationship_type) — used
+  // when the relationship is removed. Completed tasks are preserved so
+  // the work-done history survives. Tasks that are mid-flight
+  // (status in_progress, assignee set, or have notes attached) ALSO
+  // survive because that's real work — the owner cleans those up
+  // explicitly.
+  async function removeTasksForRelationship({ customerId, relationshipTypeId, actorEmail = '' }) {
+    if (!customerId || !relationshipTypeId) return { deleted: 0 };
     const { data: cur } = await supabase.from('tax_tasks')
-      .select('id, status_key, completed_at')
+      .select('id, status_key, completed_at, assigned_employee_id, notes')
       .eq('customer_id', customerId)
       .eq('relationship_type_id', relationshipTypeId)
       .eq('source', 'relationship_schedule')
       .is('archived_at', null);
-    const openIds = (cur || [])
-      .filter(t => !t.completed_at)
+    // Drop only the "untouched" rows — no completion, no assignment,
+    // no notes. Anything an employee has already engaged with stays.
+    const dropIds = (cur || [])
+      .filter(t => !t.completed_at
+                && !t.assigned_employee_id
+                && (!t.notes || !t.notes.trim())
+                && t.status_key !== 'in_progress')
       .map(t => t.id);
-    if (!openIds.length) return { archived: 0 };
+    if (!dropIds.length) return { deleted: 0 };
     const { error } = await supabase.from('tax_tasks')
-      .update({ archived_at: new Date().toISOString(), updated_at: new Date().toISOString() })
-      .in('id', openIds);
+      .delete().in('id', dropIds);
     if (error) {
-      warn('[tax-task-gen] archive failed', error.message);
-      return { archived: 0, error: error.message };
+      warn('[tax-task-gen] delete failed', error.message);
+      return { deleted: 0, error: error.message };
     }
     try {
       await auditLog({
-        entity: 'tax.customer', entityId: customerId, action: 'tasks_archived',
+        entity: 'tax.customer', entityId: customerId, action: 'tasks_deleted',
         actorEmail: actorEmail || '',
-        after: { relationshipTypeId, archived: openIds.length },
+        after: { relationshipTypeId, deleted: dropIds.length },
       });
     } catch (_e) {}
-    return { archived: openIds.length };
+    return { deleted: dropIds.length };
   }
 
   // Shared welcome-email plumbing — loads the customer, community, and the
@@ -1811,6 +1881,29 @@ module.exports = function createTaxRouter(deps) {
   // Owner toggle for the customer-facing reminder cron. Default is OFF
   // (the practice now uses internal tasks). Turn back on per-community
   // when the owner still wants the cron to email customers reminders.
+  // Configurable look-ahead window for the task generator + daily
+  // refresh cron. Default is 6 months; clamped to [1, 24].
+  router.put('/admin/community-settings/task-lookahead-months', async (req, res) => {
+    if (!(await requireOwnerAdmin(req, res, 'manage_settings'))) return;
+    const communitySlug = trim(req.body?.communitySlug, 200);
+    const raw = Number(req.body?.months);
+    const months = Math.max(1, Math.min(24, Math.round(Number.isFinite(raw) ? raw : 6)));
+    if (!communitySlug) return res.status(400).json({ error: 'communitySlug required.' });
+    const { error } = await supabase.from('communities')
+      .update({ tax_task_lookahead_months: months, updated_at: new Date().toISOString() })
+      .eq('id', communitySlug).eq('business_type', TAX_BUSINESS_TYPE);
+    if (error) return sendSupabaseError(res, error);
+    try {
+      await auditLog({
+        entity: 'tax.community.settings', entityId: communitySlug,
+        action: 'task_lookahead_set',
+        actorEmail: trim(req.get('x-firebase-email') || req.get('x-admin-email') || '', 200).toLowerCase(),
+        after: { months },
+      });
+    } catch (_e) {}
+    res.json({ ok: true, months });
+  });
+
   router.put('/admin/community-settings/reminders-enabled', async (req, res) => {
     if (!(await requireOwnerAdmin(req, res, 'manage_settings'))) return;
     const communitySlug = trim(req.body?.communitySlug, 200);
@@ -1886,7 +1979,7 @@ module.exports = function createTaxRouter(deps) {
     const { data, error } = await supabase.from('communities')
       .select(`
         id, name, tax_allow_customer_notif_pref_change, tax_customer_documents_enabled,
-        tax_customer_portal_enabled, tax_customer_reminders_enabled,
+        tax_customer_portal_enabled, tax_customer_reminders_enabled, tax_task_lookahead_months,
         contact_email, phone, whatsapp,
         address_line1, address_line2, city, state, postal_code, country,
         default_locale
@@ -2579,7 +2672,7 @@ module.exports = function createTaxRouter(deps) {
     stampLastSignIn('tax_customers', customer.id, customer.last_sign_in_at);
     const [{ data: community }, { data: subs }, { data: rels }, { data: companion }] = await Promise.all([
       supabase.from('communities')
-        .select('id, name, logo_url, brand_primary_color, brand_secondary_color, default_locale, tax_allow_customer_notif_pref_change, tax_customer_documents_enabled, tax_customer_portal_enabled, tax_customer_reminders_enabled, contact_email, phone')
+        .select('id, name, logo_url, brand_primary_color, brand_secondary_color, default_locale, tax_allow_customer_notif_pref_change, tax_customer_documents_enabled, tax_customer_portal_enabled, tax_customer_reminders_enabled, tax_task_lookahead_months, contact_email, phone')
         .eq('id', customer.community_id).maybeSingle(),
       supabase.from('tax_subscriptions')
         .select('id, product_id, status, reminder_channels, reminder_offsets_days')
@@ -4881,17 +4974,17 @@ module.exports = function createTaxRouter(deps) {
 
     // Archive any open scheduled tasks tied to this relationship. Completed
     // tasks are preserved so the work-done history survives.
-    let tasksArchived = 0;
+    let tasksDeleted = 0;
     if (relRow?.relationship_type_id) {
       try {
-        const r = await archiveTasksForRelationship({
+        const r = await removeTasksForRelationship({
           customerId, relationshipTypeId: relRow.relationship_type_id,
           actorEmail: trim(req.get('x-admin-email') || '', 200).toLowerCase(),
         });
-        tasksArchived = r.archived || 0;
-      } catch (e) { warn('[tax-rel-del] task archive failed', e?.message || e); }
+        tasksDeleted = r.deleted || 0;
+      } catch (e) { warn('[tax-rel-del] task delete failed', e?.message || e); }
     }
-    res.json({ ok: true, tasksArchived });
+    res.json({ ok: true, tasksDeleted });
   });
 
   // ── GET /admin/communities/:slug/faqs ── (global admin)
