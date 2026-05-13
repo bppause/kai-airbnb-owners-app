@@ -1786,6 +1786,15 @@ create index if not exists tax_employees_community_idx
 alter table public.tax_employees
   add column if not exists notification_prefs jsonb not null default '{}'::jsonb;
 
+-- Phase 4n.35: employee permission delegation. Owners can opt-out an
+-- employee from specific powers — by default every key is treated as
+-- granted (so new employees start with the same access as the owner).
+-- Shape: { "<perm_key>": false } means revoked. Keys absent or set to
+-- true mean granted. See server/modules/tax/permissions.js for the
+-- registry and effective-permission resolver.
+alter table public.tax_employees
+  add column if not exists permissions jsonb not null default '{}'::jsonb;
+
 -- Phase 4n.24: e-signature requests. Owner creates a request → customer
 -- sees it in the portal → customer reviews and signs by typing their
 -- legal name + clicking "I agree". The consent text + typed name + IP +
