@@ -68,6 +68,16 @@ export default function OwnerSettings() {
       setMsg({ kind: 'error', text: e?.message || t('respond.error.generic') });
     } finally { setBusy(false); }
   };
+  const onSaveThresholds = async (vals) => {
+    setBusy(true); setMsg({ kind: 'idle', text: '' });
+    try {
+      await taxApi.adminSetTaskThresholds(auth, { communitySlug: community.id, ...vals });
+      setMsg({ kind: 'success', text: t('owner.settings.saved') });
+      load();
+    } catch (e) {
+      setMsg({ kind: 'error', text: e?.message || t('respond.error.generic') });
+    } finally { setBusy(false); }
+  };
   const onRefreshTasksNow = async () => {
     setBusy(true); setMsg({ kind: 'idle', text: '' });
     try {
@@ -113,6 +123,11 @@ export default function OwnerSettings() {
   const portalEnabled = Boolean(settings.tax_customer_portal_enabled);
   const remindersEnabled = Boolean(settings.tax_customer_reminders_enabled);
   const lookaheadMonths = Number(settings.tax_task_lookahead_months) || 6;
+  const thresholds = {
+    urgent:   Number(settings.tax_task_urgent_days   ?? 3),
+    soon:     Number(settings.tax_task_soon_days     ?? 7),
+    upcoming: Number(settings.tax_task_upcoming_days ?? 30),
+  };
 
   return (
     <EmployeeShell community={community} active="settings">
@@ -171,6 +186,14 @@ export default function OwnerSettings() {
         </p>
         <LookaheadEditor initial={lookaheadMonths} busy={busy}
                          onSave={onSaveLookahead} onRefresh={onRefreshTasksNow} t={t} />
+      </section>
+
+      <section style={{ marginBottom: 32 }}>
+        <h3 style={{ marginBottom: 4 }}>{t('owner.settings.urgency.title')}</h3>
+        <p style={{ color: 'var(--tax-muted)', marginTop: 0, marginBottom: 12, fontSize: 14 }}>
+          {t('owner.settings.urgency.subtitle')}
+        </p>
+        <ThresholdEditor initial={thresholds} busy={busy} onSave={onSaveThresholds} t={t} />
       </section>
 
       <section style={{ marginBottom: 32 }}>
@@ -687,5 +710,70 @@ function LookaheadEditor({ initial, busy, onSave, onRefresh, t }) {
         </p>
       </div>
     </div>
+  );
+}
+
+// Editor for the three urgency thresholds — shared by Tasks list,
+// Calendar pips, and Kanban card borders. Server clamps + enforces
+// urgent < soon < upcoming, but we surface a friendly warning on
+// the client too so the owner sees it before submitting.
+function ThresholdEditor({ initial, busy, onSave, t }) {
+  const [draft, setDraft] = useState({
+    urgent:   String(initial.urgent ?? 3),
+    soon:     String(initial.soon ?? 7),
+    upcoming: String(initial.upcoming ?? 30),
+  });
+  const u = Number(draft.urgent);
+  const s = Number(draft.soon);
+  const up = Number(draft.upcoming);
+  const validNums = Number.isFinite(u) && Number.isFinite(s) && Number.isFinite(up);
+  const ordered = validNums && u <= s && s <= up;
+  const dirty = String(initial.urgent) !== draft.urgent
+             || String(initial.soon) !== draft.soon
+             || String(initial.upcoming) !== draft.upcoming;
+  return (
+    <div style={{ display: 'grid', gap: 8, maxWidth: 560 }}>
+      <div style={{ display: 'grid', gap: 8, gridTemplateColumns: 'repeat(3, minmax(0, 1fr))' }}>
+        <ThresholdField label={t('owner.settings.urgency.urgent')}  color="#ea580c"
+                        value={draft.urgent}  busy={busy}
+                        onChange={v => setDraft(d => ({ ...d, urgent: v }))} />
+        <ThresholdField label={t('owner.settings.urgency.soon')}    color="#d97706"
+                        value={draft.soon}    busy={busy}
+                        onChange={v => setDraft(d => ({ ...d, soon: v }))} />
+        <ThresholdField label={t('owner.settings.urgency.upcoming')} color="#2563eb"
+                        value={draft.upcoming} busy={busy}
+                        onChange={v => setDraft(d => ({ ...d, upcoming: v }))} />
+      </div>
+      {!ordered && validNums && (
+        <div className="tax-msg tax-msg--error" style={{ marginTop: 4 }}>
+          {t('owner.settings.urgency.outOfOrder')}
+        </div>
+      )}
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+        <button type="button" className="tax-btn tax-btn--primary tax-btn--sm"
+                disabled={busy || !dirty || !ordered}
+                onClick={() => onSave({ urgentDays: u, soonDays: s, upcomingDays: up })}>
+          {t('owner.settings.urgency.save')}
+        </button>
+        <span style={{ fontSize: 12, color: 'var(--tax-muted)' }}>
+          {t('owner.settings.urgency.preview',
+             { urgent: u || '?', soon: s || '?', upcoming: up || '?' })}
+        </span>
+      </div>
+    </div>
+  );
+}
+function ThresholdField({ label, color, value, onChange, busy }) {
+  return (
+    <label style={{ display: 'grid', gap: 4 }}>
+      <span style={{ fontSize: 11, color: 'var(--tax-muted)', textTransform: 'uppercase',
+                     fontWeight: 700, letterSpacing: '.04em' }}>
+        <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: 999, background: color, marginRight: 6 }} />
+        {label}
+      </span>
+      <input type="number" min="0" max="365" value={value} disabled={busy}
+             onChange={e => onChange(e.target.value)}
+             style={{ padding: '6px 8px', border: '1px solid var(--tax-border)', borderRadius: 6 }} />
+    </label>
   );
 }

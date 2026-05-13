@@ -269,6 +269,9 @@ export const taxApi = {
   adminSetTaskLookahead(auth, payload) {
     return request('PUT', '/admin/community-settings/task-lookahead-months', payload, auth, { admin: true });
   },
+  adminSetTaskThresholds(auth, payload) {
+    return request('PUT', '/admin/community-settings/task-thresholds', payload, auth, { admin: true });
+  },
   adminRefreshTasks(auth) {
     return request('POST', '/admin/tasks/refresh', {}, auth, { admin: true });
   },

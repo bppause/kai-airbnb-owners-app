@@ -4,6 +4,7 @@ import { useEmployeeAuth } from '../auth/EmployeeAuthProvider';
 import { taxApi } from '../api';
 import EmployeeShell from '../components/EmployeeShell';
 import { displayPersonName } from '../lib/personName';
+import { urgencyOf, colorOf, resolveThresholds, URGENCY_LABEL_KEY } from '../lib/taskUrgency';
 
 // Owner / staff task tracker. Replaces the spreadsheet workflow:
 // columns from the source CSV map onto this UI as
@@ -44,10 +45,33 @@ export default function OwnerTasks() {
     status: '', priority: '', assignedTo: '', productId: '', due: '',
     q: '',
   });
+  // Phase 4n.45: view mode (list/calendar/kanban), group-by, and the
+  // My-tasks toggle. View + group-by persist per browser via
+  // localStorage so the operator's preference sticks across sessions.
+  const [view, setView] = useState(() => {
+    try { return localStorage.getItem('tax.tasks.view') || 'list'; }
+    catch { return 'list'; }
+  });
+  useEffect(() => {
+    try { localStorage.setItem('tax.tasks.view', view); } catch { /* ignore */ }
+  }, [view]);
+  const [groupBy, setGroupBy] = useState(() => {
+    try { return localStorage.getItem('tax.tasks.groupBy') || 'none'; }
+    catch { return 'none'; }
+  });
+  useEffect(() => {
+    try { localStorage.setItem('tax.tasks.groupBy', groupBy); } catch { /* ignore */ }
+  }, [groupBy]);
+  const [mine, setMine] = useState(false);
 
   const load = () => {
     if (!fbUser || !community) return;
-    taxApi.adminListTasks(auth, { communitySlug: community.id, ...filters })
+    const merged = { communitySlug: community.id, ...filters };
+    // Mine-toggle overrides the assignedTo filter for the duration
+    // of the toggle. Turning Mine off keeps whatever the dropdown
+    // had selected before.
+    if (mine && employee?.id) merged.assignedTo = employee.id;
+    taxApi.adminListTasks(auth, merged)
       .then(d => setTasks(d.tasks || []))
       .catch(e => setErr(e?.message || t('error.loadFailed')));
   };
@@ -84,7 +108,7 @@ export default function OwnerTasks() {
     searchTimer.current = setTimeout(load, 200);
     return () => { if (searchTimer.current) clearTimeout(searchTimer.current); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fbUser, community, filters]);
+  }, [fbUser, community, filters, mine, employee?.id]);
 
   const employeeById = useMemo(() => new Map(employees.map(e => [e.id, e])), [employees]);
   const customerById = useMemo(() => new Map(customers.map(c => [c.id, c])), [customers]);
@@ -138,6 +162,14 @@ export default function OwnerTasks() {
         />
       )}
 
+      <TaskToolbar
+        mine={mine} setMine={setMine}
+        filters={filters} setFilters={setFilters}
+        view={view} setView={setView}
+        groupBy={groupBy} setGroupBy={setGroupBy}
+        t={t}
+      />
+
       <FilterBar
         filters={filters} setFilters={setFilters}
         statuses={statuses} employees={employees} products={products}
@@ -150,16 +182,23 @@ export default function OwnerTasks() {
           ? <p style={{ color: 'var(--tax-muted)' }}>
               {filtersActive ? t('owner.tasks.noMatch') : t('owner.tasks.empty')}
             </p>
-          : <div style={{ display: 'grid', gap: 8 }}>
-              {tasks.map(task => (
-                <TaskRow key={task.id} task={task} auth={auth}
-                         statuses={statuses} employees={employees}
-                         customerById={customerById} employeeById={employeeById}
-                         productById={productById} isAdmin={isAdmin}
-                         onEdit={() => setEditingTask(task)}
-                         onChange={load} locale={locale} t={t} />
-              ))}
-            </div>
+          : view === 'calendar' ? (
+              <TasksCalendar tasks={tasks} community={community}
+                             onEdit={setEditingTask} locale={locale} t={t} />
+            )
+          : view === 'kanban' ? (
+              <TasksKanban tasks={tasks} statuses={statuses} community={community}
+                           auth={auth} onChange={load}
+                           onEdit={setEditingTask} locale={locale} t={t} />
+            )
+          : (
+            <TasksGroupedList tasks={tasks} groupBy={groupBy} community={community}
+                              statuses={statuses} employees={employees}
+                              customerById={customerById} employeeById={employeeById}
+                              productById={productById} isAdmin={isAdmin}
+                              auth={auth} onEdit={setEditingTask} onChange={load}
+                              locale={locale} t={t} />
+          )
       }
     </EmployeeShell>
   );
@@ -786,6 +825,431 @@ function InlineCustomerCreateModal({ auth, community, relationshipTypes, locale,
           </div>
         </form>
       </div>
+    </div>
+  );
+}
+
+// ─── Toolbar: My-tasks toggle + due chips + view-mode + group-by ─────────
+function TaskToolbar({ mine, setMine, filters, setFilters, view, setView, groupBy, setGroupBy, t }) {
+  const DUE_CHIPS = [
+    { key: '',         label: t('owner.tasks.chip.all') },
+    { key: 'overdue',  label: t('owner.tasks.chip.overdue') },
+    { key: 'today',    label: t('owner.tasks.chip.today') },
+    { key: 'week',     label: t('owner.tasks.chip.week7') },
+    { key: 'month',    label: t('owner.tasks.chip.month30') },
+    { key: 'month60',  label: t('owner.tasks.chip.month60') },
+    { key: 'month90',  label: t('owner.tasks.chip.month90') },
+  ];
+  return (
+    <div style={{
+      display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center',
+      padding: 10, marginBottom: 10, background: 'var(--tax-bg-alt)', borderRadius: 8,
+    }}>
+      <Pill active={mine} onClick={() => setMine(m => !m)}>
+        👤 {t('owner.tasks.chip.mine')}
+      </Pill>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+        {DUE_CHIPS.map(c => (
+          <Pill key={c.key || 'all'} active={filters.due === c.key}
+                onClick={() => setFilters(prev => ({ ...prev, due: c.key }))}>
+            {c.label}
+          </Pill>
+        ))}
+      </div>
+      <div style={{ marginLeft: 'auto', display: 'flex', gap: 8, alignItems: 'center' }}>
+        {view === 'list' && (
+          <label style={{ display: 'inline-flex', gap: 6, alignItems: 'center', fontSize: 12 }}>
+            <span style={{ color: 'var(--tax-muted)', textTransform: 'uppercase', letterSpacing: '.04em', fontWeight: 700 }}>
+              {t('owner.tasks.groupBy.label')}
+            </span>
+            <select value={groupBy} onChange={e => setGroupBy(e.target.value)}
+                    style={{ padding: '4px 6px', border: '1px solid var(--tax-border)', borderRadius: 6, fontSize: 12 }}>
+              <option value="none">{t('owner.tasks.groupBy.none')}</option>
+              <option value="employee">{t('owner.tasks.groupBy.employee')}</option>
+              <option value="service">{t('owner.tasks.groupBy.service')}</option>
+              <option value="customer">{t('owner.tasks.groupBy.customer')}</option>
+              <option value="dueBucket">{t('owner.tasks.groupBy.dueBucket')}</option>
+            </select>
+          </label>
+        )}
+        <div role="tablist" style={{
+          display: 'inline-flex', border: '1px solid var(--tax-border)', borderRadius: 6, overflow: 'hidden',
+        }}>
+          {['list', 'calendar', 'kanban'].map(v => (
+            <button key={v} type="button" onClick={() => setView(v)}
+                    style={{
+                      padding: '6px 10px', border: 0, cursor: 'pointer',
+                      background: view === v
+                        ? 'color-mix(in srgb, var(--tax-brand-primary) 12%, #fff)'
+                        : '#fff',
+                      color: view === v ? 'var(--tax-brand-primary)' : 'var(--tax-text)',
+                      fontWeight: view === v ? 700 : 500, fontSize: 12,
+                    }}>
+              {t(`owner.tasks.view.${v}`)}
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+function Pill({ active, onClick, children }) {
+  return (
+    <button type="button" onClick={onClick}
+            style={{
+              padding: '4px 12px', borderRadius: 999,
+              border: '1px solid',
+              borderColor: active
+                ? 'color-mix(in srgb, var(--tax-brand-primary) 35%, #fff)'
+                : 'var(--tax-border)',
+              background: active
+                ? 'color-mix(in srgb, var(--tax-brand-primary) 12%, #fff)'
+                : '#fff',
+              color: active ? 'var(--tax-brand-primary)' : 'var(--tax-text)',
+              fontSize: 12, fontWeight: active ? 700 : 500, cursor: 'pointer',
+            }}>
+      {children}
+    </button>
+  );
+}
+
+// ─── Due-pill shared across views ────────────────────────────────────────
+function DuePill({ dueDate, thresholds, t }) {
+  if (!dueDate) return null;
+  const u = urgencyOf(dueDate, thresholds);
+  const c = colorOf(u);
+  return (
+    <span style={{
+      padding: '1px 8px', borderRadius: 999,
+      background: c.bg, color: c.fg,
+      fontSize: 11, fontWeight: 700, whiteSpace: 'nowrap',
+    }}>
+      {dueDate}
+    </span>
+  );
+}
+
+// ─── Grouped list view ───────────────────────────────────────────────────
+function TasksGroupedList({ tasks, groupBy, community, statuses, employees,
+                            customerById, employeeById, productById, isAdmin,
+                            auth, onEdit, onChange, locale, t }) {
+  if (groupBy === 'none') {
+    return (
+      <div style={{ display: 'grid', gap: 8 }}>
+        {tasks.map(task => (
+          <TaskRow key={task.id} task={task} auth={auth}
+                   statuses={statuses} employees={employees}
+                   customerById={customerById} employeeById={employeeById}
+                   productById={productById} isAdmin={isAdmin}
+                   onEdit={() => onEdit(task)}
+                   onChange={onChange} locale={locale} t={t} />
+        ))}
+      </div>
+    );
+  }
+
+  const thresholds = resolveThresholds(community);
+  const today = new Date().toISOString().slice(0, 10);
+  const groups = new Map();
+  const keyFor = (task) => {
+    if (groupBy === 'employee') {
+      const e = task.assignee || (task.assigned_employee_id ? employeeById.get(task.assigned_employee_id) : null);
+      return [e?.id || '__unassigned__', e ? (displayPersonName(e) || e.email) : t('owner.tasks.groupBy.unassigned')];
+    }
+    if (groupBy === 'service') {
+      const p = task.product || (task.product_id ? productById.get(task.product_id) : null);
+      return [p?.id || '__none__', p ? (pickI18n(p.name_i18n, locale).value || p.slug) : t('owner.tasks.groupBy.noService')];
+    }
+    if (groupBy === 'customer') {
+      const c = task.customer || (task.customer_id ? customerById.get(task.customer_id) : null);
+      return [c?.id || '__none__', c ? (c.business_name || displayPersonName(c) || c.email) : t('owner.tasks.groupBy.practiceWide')];
+    }
+    if (groupBy === 'dueBucket') {
+      const u = urgencyOf(task.due_date, thresholds, today);
+      return [u, t(URGENCY_LABEL_KEY[u])];
+    }
+    return ['__none__', ''];
+  };
+  for (const task of tasks) {
+    const [key, label] = keyFor(task);
+    const slot = groups.get(key) || { label, items: [] };
+    slot.items.push(task);
+    groups.set(key, slot);
+  }
+
+  // Stable ordering — overdue first for dueBucket, alpha for the rest.
+  const order = groupBy === 'dueBucket'
+    ? ['overdue', 'urgent', 'soon', 'upcoming', 'later']
+    : Array.from(groups.keys()).sort((a, b) => {
+        if (a === '__unassigned__' || a === '__none__') return 1;
+        if (b === '__unassigned__' || b === '__none__') return -1;
+        return groups.get(a).label.localeCompare(groups.get(b).label);
+      });
+
+  return (
+    <div style={{ display: 'grid', gap: 16 }}>
+      {order.filter(k => groups.has(k)).map(k => {
+        const g = groups.get(k);
+        return (
+          <section key={k}>
+            <h3 style={{
+              margin: '0 0 8px', fontSize: 13, color: 'var(--tax-muted)',
+              textTransform: 'uppercase', letterSpacing: '.04em', fontWeight: 700,
+            }}>
+              {g.label} <span style={{ marginLeft: 4, fontWeight: 500 }}>· {g.items.length}</span>
+            </h3>
+            <div style={{ display: 'grid', gap: 8 }}>
+              {g.items.map(task => (
+                <TaskRow key={task.id} task={task} auth={auth}
+                         statuses={statuses} employees={employees}
+                         customerById={customerById} employeeById={employeeById}
+                         productById={productById} isAdmin={isAdmin}
+                         onEdit={() => onEdit(task)}
+                         onChange={onChange} locale={locale} t={t} />
+              ))}
+            </div>
+          </section>
+        );
+      })}
+    </div>
+  );
+}
+
+// ─── Calendar view ───────────────────────────────────────────────────────
+function TasksCalendar({ tasks, community, onEdit, locale, t }) {
+  const today = new Date();
+  const [cursor, setCursor] = useState(() => ({
+    year: today.getUTCFullYear(), month: today.getUTCMonth(),
+  }));
+  const [drawerDate, setDrawerDate] = useState(null);
+  const thresholds = resolveThresholds(community);
+  const todayIso = new Date().toISOString().slice(0, 10);
+
+  // Bucket tasks by ISO date.
+  const byDate = new Map();
+  for (const t1 of tasks) {
+    if (!t1.due_date) continue;
+    const arr = byDate.get(t1.due_date) || [];
+    arr.push(t1);
+    byDate.set(t1.due_date, arr);
+  }
+
+  // Month grid — pad start with prev month so first cell is a Sunday.
+  const first = new Date(Date.UTC(cursor.year, cursor.month, 1));
+  const dow = first.getUTCDay(); // 0 = Sun
+  const start = new Date(first);
+  start.setUTCDate(1 - dow);
+  const cells = [];
+  for (let i = 0; i < 42; i++) {
+    const d = new Date(start);
+    d.setUTCDate(start.getUTCDate() + i);
+    cells.push(d);
+  }
+  const monthName = first.toLocaleDateString(locale === 'es' ? 'es' : 'en', { month: 'long', year: 'numeric' });
+
+  const drawerTasks = drawerDate ? (byDate.get(drawerDate) || []) : [];
+
+  const prev = () => setCursor(c => {
+    const m = c.month - 1;
+    return m < 0 ? { year: c.year - 1, month: 11 } : { year: c.year, month: m };
+  });
+  const next = () => setCursor(c => {
+    const m = c.month + 1;
+    return m > 11 ? { year: c.year + 1, month: 0 } : { year: c.year, month: m };
+  });
+  const goToday = () => setCursor({ year: today.getUTCFullYear(), month: today.getUTCMonth() });
+
+  return (
+    <div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+        <button type="button" onClick={prev} className="tax-btn tax-btn--ghost tax-btn--sm">◀</button>
+        <button type="button" onClick={goToday} className="tax-btn tax-btn--ghost tax-btn--sm">
+          {t('owner.tasks.calendar.today')}
+        </button>
+        <button type="button" onClick={next} className="tax-btn tax-btn--ghost tax-btn--sm">▶</button>
+        <strong style={{ fontSize: 15, marginLeft: 8 }}>{monthName}</strong>
+      </div>
+
+      <div style={{
+        display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))',
+        gap: 1, background: 'var(--tax-border)',
+        border: '1px solid var(--tax-border)', borderRadius: 8, overflow: 'hidden',
+      }}>
+        {['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map(d => (
+          <div key={d} style={{
+            padding: '6px 8px', fontSize: 11, fontWeight: 700, color: 'var(--tax-muted)',
+            textTransform: 'uppercase', background: 'var(--tax-bg-alt)',
+          }}>{d}</div>
+        ))}
+        {cells.map(d => {
+          const iso = d.toISOString().slice(0, 10);
+          const isThisMonth = d.getUTCMonth() === cursor.month;
+          const isToday = iso === todayIso;
+          const cellTasks = byDate.get(iso) || [];
+          return (
+            <button key={iso} type="button"
+                    onClick={() => setDrawerDate(iso)}
+                    style={{
+                      minHeight: 96, padding: 6,
+                      textAlign: 'left', border: 0, cursor: 'pointer',
+                      background: isToday
+                        ? 'color-mix(in srgb, var(--tax-brand-primary) 8%, #fff)'
+                        : '#fff',
+                      opacity: isThisMonth ? 1 : 0.45,
+                      display: 'flex', flexDirection: 'column', gap: 3,
+                    }}>
+              <span style={{
+                fontSize: 12, fontWeight: isToday ? 700 : 500,
+                color: isToday ? 'var(--tax-brand-primary)' : 'var(--tax-text)',
+              }}>{d.getUTCDate()}</span>
+              {cellTasks.slice(0, 4).map(tt => {
+                const c = colorOf(urgencyOf(tt.due_date, thresholds, todayIso));
+                return (
+                  <span key={tt.id} style={{
+                    fontSize: 10, padding: '1px 4px', borderRadius: 4,
+                    background: c.bg, color: c.fg,
+                    overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis',
+                  }}>{tt.title}</span>
+                );
+              })}
+              {cellTasks.length > 4 && (
+                <span style={{ fontSize: 10, color: 'var(--tax-muted)' }}>
+                  + {cellTasks.length - 4}
+                </span>
+              )}
+            </button>
+          );
+        })}
+      </div>
+
+      {drawerDate && (
+        <div className="tax-modal" role="dialog" aria-modal="true" onClick={() => setDrawerDate(null)}>
+          <div className="tax-modal__panel" style={{ maxWidth: 560 }} onClick={e => e.stopPropagation()}>
+            <button type="button" className="tax-modal__close"
+                    onClick={() => setDrawerDate(null)} aria-label={t('preview.close')}>×</button>
+            <h3 className="tax-modal__title">
+              {t('owner.tasks.calendar.dayTasks', { date: drawerDate })}
+            </h3>
+            {drawerTasks.length === 0 ? (
+              <p style={{ color: 'var(--tax-muted)' }}>{t('owner.tasks.calendar.dayEmpty')}</p>
+            ) : (
+              <div style={{ display: 'grid', gap: 8 }}>
+                {drawerTasks.map(tt => (
+                  <button key={tt.id} type="button"
+                          onClick={() => { onEdit(tt); setDrawerDate(null); }}
+                          style={{
+                            display: 'block', textAlign: 'left', cursor: 'pointer',
+                            padding: '8px 10px', border: '1px solid var(--tax-border)', borderRadius: 6,
+                            background: '#fff',
+                          }}>
+                    <div style={{ fontWeight: 600 }}>{tt.title}</div>
+                    <div style={{ fontSize: 12, color: 'var(--tax-muted)' }}>
+                      {tt.customer
+                        ? (tt.customer.business_name || displayPersonName(tt.customer) || tt.customer.email)
+                        : t('owner.tasks.calendar.practiceWide')}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Kanban view (status columns + native drag-and-drop) ─────────────────
+function TasksKanban({ tasks, statuses, community, auth, onChange, onEdit, locale, t }) {
+  const thresholds = resolveThresholds(community);
+  const todayIso = new Date().toISOString().slice(0, 10);
+  const cols = statuses.length
+    ? statuses.slice().sort((a, b) => (a.display_order || 0) - (b.display_order || 0))
+    : [{ id: 'fallback', key: 'not_started', label_i18n: { en: 'Not started', es: 'Sin iniciar' } }];
+  const tasksByStatus = new Map();
+  for (const tt of tasks) {
+    const arr = tasksByStatus.get(tt.status_key) || [];
+    arr.push(tt);
+    tasksByStatus.set(tt.status_key, arr);
+  }
+
+  const onDrop = async (e, targetKey) => {
+    e.preventDefault();
+    const id = e.dataTransfer.getData('text/plain');
+    if (!id) return;
+    const task = tasks.find(tt => tt.id === id);
+    if (!task || task.status_key === targetKey) return;
+    try {
+      await taxApi.adminUpdateTask(auth, id, { statusKey: targetKey });
+      onChange();
+    } catch (_e) { /* swallow */ }
+  };
+
+  return (
+    <div style={{
+      display: 'grid', gap: 12,
+      gridTemplateColumns: `repeat(${cols.length}, minmax(220px, 1fr))`,
+      overflowX: 'auto',
+    }}>
+      {cols.map(col => {
+        const items = tasksByStatus.get(col.key) || [];
+        return (
+          <div key={col.id || col.key}
+               onDragOver={e => e.preventDefault()}
+               onDrop={e => onDrop(e, col.key)}
+               style={{
+                 background: 'var(--tax-bg-alt)', borderRadius: 8,
+                 padding: 8, minHeight: 200,
+               }}>
+            <div style={{
+              padding: '4px 6px 8px', fontSize: 12, fontWeight: 700,
+              color: 'var(--tax-muted)', textTransform: 'uppercase', letterSpacing: '.04em',
+              display: 'flex', justifyContent: 'space-between',
+            }}>
+              <span>{pickI18n(col.label_i18n, locale).value || col.key}</span>
+              <span style={{ fontWeight: 500 }}>· {items.length}</span>
+            </div>
+            <div style={{ display: 'grid', gap: 6 }}>
+              {items.map(tt => {
+                const c = colorOf(urgencyOf(tt.due_date, thresholds, todayIso));
+                const custName = tt.customer
+                  ? (tt.customer.business_name || displayPersonName(tt.customer) || tt.customer.email)
+                  : '';
+                return (
+                  <button key={tt.id} type="button"
+                          draggable
+                          onDragStart={e => e.dataTransfer.setData('text/plain', tt.id)}
+                          onClick={() => onEdit(tt)}
+                          style={{
+                            display: 'block', textAlign: 'left', cursor: 'grab',
+                            padding: '8px 10px',
+                            background: '#fff',
+                            borderRadius: 6, border: '1px solid var(--tax-border)',
+                            borderLeft: `4px solid ${c.bar}`,
+                          }}>
+                    <div style={{ fontWeight: 600, fontSize: 13 }}>{tt.title}</div>
+                    {custName && (
+                      <div style={{ fontSize: 11, color: 'var(--tax-muted)', marginTop: 2 }}>
+                        {custName}
+                      </div>
+                    )}
+                    {tt.due_date && (
+                      <div style={{ marginTop: 4 }}>
+                        <DuePill dueDate={tt.due_date} thresholds={thresholds} t={t} />
+                      </div>
+                    )}
+                  </button>
+                );
+              })}
+              {items.length === 0 && (
+                <div style={{ fontSize: 11, color: 'var(--tax-muted)', textAlign: 'center', padding: 12 }}>
+                  {t('owner.tasks.kanban.empty')}
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }
