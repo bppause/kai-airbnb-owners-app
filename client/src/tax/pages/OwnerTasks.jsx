@@ -4,7 +4,7 @@ import { useEmployeeAuth } from '../auth/EmployeeAuthProvider';
 import { taxApi } from '../api';
 import EmployeeShell from '../components/EmployeeShell';
 import { displayPersonName } from '../lib/personName';
-import { urgencyOf, effectiveUrgency, colorOf, resolveThresholds, URGENCY_LABEL_KEY } from '../lib/taskUrgency';
+import { urgencyOf, effectiveUrgency, colorOf, priorityColorOf, resolveThresholds, URGENCY_LABEL_KEY } from '../lib/taskUrgency';
 
 // Owner / staff task tracker. Replaces the spreadsheet workflow:
 // columns from the source CSV map onto this UI as
@@ -18,12 +18,6 @@ import { urgencyOf, effectiveUrgency, colorOf, resolveThresholds, URGENCY_LABEL_
 //   Notes          → notes textarea
 
 const PRIORITY_OPTIONS = ['urgent', 'high', 'normal', 'low'];
-const PRIORITY_COLOR = {
-  urgent: { bg: '#fee2e2', fg: '#991b1b' },
-  high:   { bg: '#fef3c7', fg: '#92400e' },
-  normal: { bg: '#e0e7ff', fg: '#3730a3' },
-  low:    { bg: '#f3f4f6', fg: '#6b7280' },
-};
 
 export default function OwnerTasks() {
   const { locale, t } = useT();
@@ -274,8 +268,8 @@ function TaskRow({ task, auth, community, statuses, employees, customerById, emp
   // "urgency" once the work is done.
   const thresholds = resolveThresholds(community);
   const urgency = effectiveUrgency(task, thresholds);
-  const due = colorOf(urgency);
-  const prCol = PRIORITY_COLOR[task.priority] || PRIORITY_COLOR.normal;
+  const due = colorOf(urgency, community);
+  const prCol = priorityColorOf(task.priority, community);
 
   const update = async (patch) => {
     setBusy(true); setErr('');
@@ -1120,7 +1114,7 @@ function TasksCalendar({ tasks, community, onEdit, locale, t }) {
                 color: isToday ? 'var(--tax-brand-primary)' : 'var(--tax-text)',
               }}>{d.getUTCDate()}</span>
               {cellTasks.slice(0, 4).map(tt => {
-                const c = colorOf(effectiveUrgency(tt, thresholds, todayIso));
+                const c = colorOf(effectiveUrgency(tt, thresholds, todayIso), community);
                 return (
                   <span key={tt.id} style={{
                     fontSize: 10, padding: '1px 4px', borderRadius: 4,
@@ -1239,7 +1233,7 @@ function TasksKanban({ tasks, statuses, community, auth, onChange, onEdit, local
             </div>
             <div style={{ display: 'grid', gap: 6 }}>
               {items.map(tt => {
-                const c = colorOf(effectiveUrgency(tt, thresholds, todayIso));
+                const c = colorOf(effectiveUrgency(tt, thresholds, todayIso), community);
                 const custName = tt.customer
                   ? (tt.customer.business_name || displayPersonName(tt.customer) || tt.customer.email)
                   : '';

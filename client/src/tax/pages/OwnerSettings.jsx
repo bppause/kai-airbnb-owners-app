@@ -78,6 +78,16 @@ export default function OwnerSettings() {
       setMsg({ kind: 'error', text: e?.message || t('respond.error.generic') });
     } finally { setBusy(false); }
   };
+  const onSaveColorOverrides = async (payload) => {
+    setBusy(true); setMsg({ kind: 'idle', text: '' });
+    try {
+      await taxApi.adminSetTaskColorOverrides(auth, { communitySlug: community.id, ...payload });
+      setMsg({ kind: 'success', text: t('owner.settings.saved') });
+      load();
+    } catch (e) {
+      setMsg({ kind: 'error', text: e?.message || t('respond.error.generic') });
+    } finally { setBusy(false); }
+  };
   const onRefreshTasksNow = async () => {
     setBusy(true); setMsg({ kind: 'idle', text: '' });
     try {
@@ -194,6 +204,17 @@ export default function OwnerSettings() {
           {t('owner.settings.urgency.subtitle')}
         </p>
         <ThresholdEditor initial={thresholds} busy={busy} onSave={onSaveThresholds} t={t} />
+      </section>
+
+      <section style={{ marginBottom: 32 }}>
+        <h3 style={{ marginBottom: 4 }}>{t('owner.settings.colors.title')}</h3>
+        <p style={{ color: 'var(--tax-muted)', marginTop: 0, marginBottom: 12, fontSize: 14 }}>
+          {t('owner.settings.colors.subtitle')}
+        </p>
+        <ColorOverridesEditor
+          initialPriority={settings.tax_task_priority_colors || {}}
+          initialUrgency={settings.tax_task_urgency_colors || {}}
+          busy={busy} onSave={onSaveColorOverrides} t={t} />
       </section>
 
       <section style={{ marginBottom: 32 }}>
@@ -768,5 +789,138 @@ function ThresholdField({ label, color, value, onChange, busy }) {
              onChange={e => onChange(e.target.value)}
              style={{ padding: '6px 8px', border: '1px solid var(--tax-border)', borderRadius: 6 }} />
     </label>
+  );
+}
+
+// Priority + urgency color overrides. Each row is one bucket
+// with a color input (or "default" toggle) and a live preview
+// chip. Saves once via PUT /admin/community-settings/task-color-overrides
+// — payload only includes keys the owner has explicitly overridden,
+// so the platform defaults stay in play for everything else.
+const PRIORITY_BUCKETS = ['urgent', 'high', 'normal', 'low'];
+const URGENCY_BUCKETS  = ['overdue', 'urgent', 'soon', 'later'];
+const PLATFORM_PRIORITY_DEFAULTS = {
+  urgent: '#dc2626', high: '#ea580c', normal: '#3730a3', low: '#6b7280',
+};
+const PLATFORM_URGENCY_DEFAULTS = {
+  overdue: '#dc2626', urgent: '#dc2626', soon: '#ea580c', later: 'transparent',
+};
+
+function ColorOverridesEditor({ initialPriority, initialUrgency, busy, onSave, t }) {
+  const [priority, setPriority] = useState(initialPriority || {});
+  const [urgency,  setUrgency]  = useState(initialUrgency  || {});
+  useEffect(() => { setPriority(initialPriority || {}); }, [initialPriority]);
+  useEffect(() => { setUrgency(initialUrgency || {}); }, [initialUrgency]);
+
+  const setPColor = (k, v) => setPriority(p => ({ ...p, [k]: v }));
+  const clearPColor = (k) => setPriority(p => { const n = { ...p }; delete n[k]; return n; });
+  const setUColor = (k, v) => setUrgency(p => ({ ...p, [k]: v }));
+  const clearUColor = (k) => setUrgency(p => { const n = { ...p }; delete n[k]; return n; });
+
+  const dirty =
+    JSON.stringify(priority) !== JSON.stringify(initialPriority || {}) ||
+    JSON.stringify(urgency)  !== JSON.stringify(initialUrgency  || {});
+
+  return (
+    <div style={{ display: 'grid', gap: 18, maxWidth: 720 }}>
+      <ColorGroup
+        heading={t('owner.settings.colors.priority')}
+        subheading={t('owner.settings.colors.priorityHint')}
+        buckets={PRIORITY_BUCKETS}
+        labelKey="owner.tasks.priority"
+        defaults={PLATFORM_PRIORITY_DEFAULTS}
+        overrides={priority}
+        setColor={setPColor} clearColor={clearPColor}
+        busy={busy} t={t}
+      />
+      <ColorGroup
+        heading={t('owner.settings.colors.urgency')}
+        subheading={t('owner.settings.colors.urgencyHint')}
+        buckets={URGENCY_BUCKETS}
+        labelKey="owner.tasks.urgency"
+        defaults={PLATFORM_URGENCY_DEFAULTS}
+        overrides={urgency}
+        setColor={setUColor} clearColor={clearUColor}
+        busy={busy} t={t}
+      />
+      <div style={{ display: 'flex', gap: 8 }}>
+        <button type="button" className="tax-btn tax-btn--primary tax-btn--sm"
+                disabled={busy || !dirty}
+                onClick={() => onSave({
+                  priorityColors: priority,
+                  urgencyColors:  urgency,
+                })}>
+          {t('owner.settings.colors.save')}
+        </button>
+        {dirty && (
+          <button type="button" className="tax-btn tax-btn--ghost tax-btn--sm"
+                  disabled={busy}
+                  onClick={() => {
+                    setPriority(initialPriority || {});
+                    setUrgency(initialUrgency || {});
+                  }}
+                  style={{ color: 'var(--tax-text)' }}>
+            {t('owner.settings.colors.discard')}
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function ColorGroup({ heading, subheading, buckets, labelKey, defaults, overrides, setColor, clearColor, busy, t }) {
+  return (
+    <div>
+      <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 2 }}>{heading}</div>
+      <div style={{ fontSize: 11, color: 'var(--tax-muted)', marginBottom: 10 }}>{subheading}</div>
+      <div style={{ display: 'grid', gap: 6 }}>
+        {buckets.map(k => {
+          const isOverridden = !!overrides[k];
+          const anchor = overrides[k] || defaults[k];
+          const safeAnchor = anchor === 'transparent' ? '#ffffff' : anchor;
+          return (
+            <div key={k} style={{
+              display: 'grid', gap: 10, alignItems: 'center',
+              gridTemplateColumns: 'minmax(120px, 1fr) 140px 80px 90px',
+              padding: '8px 10px', border: '1px solid var(--tax-border)', borderRadius: 6,
+              background: '#fff',
+            }}>
+              <div>
+                <div style={{ fontSize: 13, fontWeight: 600 }}>{t(`${labelKey}.${k}`, { _: k })}</div>
+                {!isOverridden && (
+                  <div style={{ fontSize: 10, color: 'var(--tax-muted)', textTransform: 'uppercase', letterSpacing: '.05em' }}>
+                    {t('owner.settings.colors.usingDefault')}
+                  </div>
+                )}
+              </div>
+              <span style={{
+                display: 'inline-flex', alignItems: 'center', gap: 8,
+                padding: '4px 10px', borderRadius: 999,
+                background: anchor === 'transparent' ? 'transparent' : `color-mix(in srgb, ${anchor} 18%, #fff)`,
+                color: anchor === 'transparent' ? 'var(--tax-muted)' : anchor,
+                border: anchor === 'transparent' ? '1px dashed var(--tax-border)' : `1px solid ${anchor}`,
+                fontSize: 11, fontWeight: 700,
+              }}>
+                {t(`${labelKey}.${k}`, { _: k })}
+              </span>
+              <input type="color"
+                     value={safeAnchor}
+                     disabled={busy}
+                     onChange={e => setColor(k, e.target.value)}
+                     style={{ width: 60, height: 30, padding: 0, border: '1px solid var(--tax-border)', borderRadius: 4 }} />
+              {isOverridden ? (
+                <button type="button" onClick={() => clearColor(k)} disabled={busy}
+                        className="tax-btn tax-btn--ghost tax-btn--sm"
+                        style={{ color: 'var(--tax-muted)', fontSize: 11 }}>
+                  {t('owner.settings.colors.reset')}
+                </button>
+              ) : (
+                <span style={{ fontSize: 11, color: 'var(--tax-muted)' }}>—</span>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
   );
 }

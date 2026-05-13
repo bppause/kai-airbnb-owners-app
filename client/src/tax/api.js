@@ -287,6 +287,9 @@ export const taxApi = {
   adminSetTaskThresholds(auth, payload) {
     return request('PUT', '/admin/community-settings/task-thresholds', payload, auth, { admin: true });
   },
+  adminSetTaskColorOverrides(auth, payload) {
+    return request('PUT', '/admin/community-settings/task-color-overrides', payload, auth, { admin: true });
+  },
   adminRefreshTasks(auth) {
     return request('POST', '/admin/tasks/refresh', {}, auth, { admin: true });
   },
