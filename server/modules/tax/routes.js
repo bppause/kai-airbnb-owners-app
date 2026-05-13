@@ -5237,7 +5237,7 @@ module.exports = function createTaxRouter(deps) {
         id, customer_id, service_auto_task_id, product_id,
         status_key, priority, due_date, completed_at,
         product:tax_products ( id, slug, name_i18n ),
-        auto_task:tax_service_auto_tasks ( id, title_i18n, default_priority )
+        auto_task:tax_service_auto_tasks ( id, title_i18n, default_priority, cadence_kind, anchor_rule )
       `)
       .eq('community_id', communitySlug)
       .is('archived_at', null)

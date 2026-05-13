@@ -517,6 +517,7 @@
   "owner.tasks.view.kanban": "Tablero",
   "owner.tasks.periods.empty": "Ningún período de tareas recurrentes coincide con los filtros actuales.",
   "owner.tasks.periods.noTasks": "No hay tareas en este período con los filtros actuales.",
+  "owner.tasks.periods.dueLabel": "Vence",
   "owner.tasks.select.row": "Seleccionar tarea",
   "owner.tasks.select.selectAll": "Seleccionar todo",
   "owner.tasks.select.deselectAll": "Limpiar selección",
