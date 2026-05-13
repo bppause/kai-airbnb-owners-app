@@ -2905,3 +2905,21 @@ join public.tax_customers          c  on c.id = cr.customer_id
 join public.tax_relationship_types rt on rt.id = cr.relationship_type_id
 where rt.product_id is not null
 on conflict (customer_id, product_id) do nothing;
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- Phase 4n.49 — per-community color overrides for priorities + urgency
+--
+-- Status colors are already configurable per-row in
+-- tax_task_status_options. Priority and urgency colors were
+-- hard-coded in the client. These two JSONB columns let an owner
+-- override either map with their own hex values. Shape:
+--   tax_task_priority_colors  = { urgent, high, normal, low }
+--   tax_task_urgency_colors   = { overdue, urgent, soon, later }
+-- Each value is a single hex string the client uses as the accent;
+-- the chip background is derived as a light tint. Missing keys
+-- fall back to platform defaults.
+-- ═══════════════════════════════════════════════════════════════════════════════
+alter table public.communities
+  add column if not exists tax_task_priority_colors jsonb not null default '{}'::jsonb;
+alter table public.communities
+  add column if not exists tax_task_urgency_colors  jsonb not null default '{}'::jsonb;

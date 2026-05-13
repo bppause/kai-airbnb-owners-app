@@ -35,18 +35,62 @@ export function urgencyOf(dueDate, thresholds, todayIso) {
   return 'later';
 }
 
-// Color tokens by bucket. 'later' renders transparent so it visually
-// disappears — the point is to make the operator's eye land on red
-// and orange items only.
-export const URGENCY_COLORS = {
-  overdue: { bg: '#fee2e2', fg: '#991b1b', dot: '#dc2626', bar: '#dc2626' },
-  urgent:  { bg: '#fee2e2', fg: '#991b1b', dot: '#dc2626', bar: '#dc2626' },
-  soon:    { bg: '#ffedd5', fg: '#9a3412', dot: '#ea580c', bar: '#ea580c' },
-  later:   { bg: 'transparent', fg: 'var(--tax-muted)', dot: 'transparent', bar: 'transparent' },
+// Default color tokens. 'later' renders transparent so it visually
+// disappears — the operator's eye lands on red and orange items
+// only. Owners can override any of the four anchor colors per
+// community via tax_task_urgency_colors; the chip background is
+// then derived from the anchor as a light tint.
+export const URGENCY_DEFAULTS = {
+  overdue: '#dc2626',
+  urgent:  '#dc2626',
+  soon:    '#ea580c',
+  later:   'transparent',
+};
+export const PRIORITY_DEFAULTS = {
+  urgent: '#dc2626',
+  high:   '#ea580c',
+  normal: '#3730a3',
+  low:    '#6b7280',
 };
 
-export function colorOf(urgency) {
-  return URGENCY_COLORS[urgency] || URGENCY_COLORS.later;
+// Derive a chip-friendly { bg, fg, dot, bar } palette from a single
+// anchor hex. Light tint for the chip background, the anchor itself
+// for the chip text + dots + bars. Transparent passes through.
+function paletteFromAnchor(anchor) {
+  if (!anchor || anchor === 'transparent') {
+    return { bg: 'transparent', fg: 'var(--tax-muted)', dot: 'transparent', bar: 'transparent' };
+  }
+  return {
+    bg:  `color-mix(in srgb, ${anchor} 18%, #fff)`,
+    fg:  anchor,
+    dot: anchor,
+    bar: anchor,
+  };
+}
+
+// Resolve the urgency anchor for a bucket given an optional
+// community overrides map. Missing keys fall back to the platform
+// defaults.
+export function resolveUrgencyAnchor(urgency, overrides) {
+  const v = overrides?.[urgency];
+  if (typeof v === 'string' && v) return v;
+  return URGENCY_DEFAULTS[urgency] || URGENCY_DEFAULTS.later;
+}
+
+// Backwards-compat: callers that pre-date the override system call
+// colorOf(urgency). Newer callers pass the community so per-
+// community overrides apply.
+export function colorOf(urgency, community) {
+  return paletteFromAnchor(resolveUrgencyAnchor(urgency, community?.tax_task_urgency_colors));
+}
+
+// Same shape for priority chips — returns the palette an inline
+// chip can use. Falls back to platform defaults when the community
+// hasn't set an override for that priority.
+export function priorityColorOf(priority, community) {
+  const v = community?.tax_task_priority_colors?.[priority];
+  const anchor = (typeof v === 'string' && v) ? v : (PRIORITY_DEFAULTS[priority] || PRIORITY_DEFAULTS.normal);
+  return paletteFromAnchor(anchor);
 }
 
 // Priority-floor urgency. Priority acts as a *minimum* urgency on

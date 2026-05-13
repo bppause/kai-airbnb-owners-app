@@ -2127,6 +2127,61 @@ module.exports = function createTaxRouter(deps) {
   // urgency thresholds. Values are clamped server-side and re-checked
   // so urgent < soon < upcoming (anything else is nonsense — would
   // mean "urgent for 30 days but soon for only 7").
+  // PUT /admin/community-settings/task-color-overrides
+  // Body: { priorityColors?: { urgent, high, normal, low },
+  //         urgencyColors?:  { overdue, urgent, soon, later } }
+  // Each value is a 7-char hex string (#rrggbb). Unknown keys are
+  // dropped; missing keys leave the previous override in place.
+  // Passing an empty string clears that key (falls back to default).
+  router.put('/admin/community-settings/task-color-overrides', async (req, res) => {
+    if (!(await requireOwnerAdmin(req, res, 'manage_settings'))) return;
+    const communitySlug = trim(req.body?.communitySlug, 200);
+    if (!communitySlug) return res.status(400).json({ error: 'communitySlug required.' });
+    const PRIORITY_KEYS = ['urgent','high','normal','low'];
+    const URGENCY_KEYS  = ['overdue','urgent','soon','later'];
+    const sanitizeMap = (raw, allowed) => {
+      const out = {};
+      if (!raw || typeof raw !== 'object') return out;
+      for (const k of allowed) {
+        const v = raw[k];
+        if (v === '' || v === null) continue; // omit → falls back to default
+        if (typeof v !== 'string') continue;
+        const trimmed = v.trim().toLowerCase();
+        // Accept #rrggbb or #rgb. Anything else is dropped.
+        if (/^#[0-9a-f]{6}$/.test(trimmed) || /^#[0-9a-f]{3}$/.test(trimmed)) {
+          out[k] = trimmed;
+        }
+      }
+      return out;
+    };
+    const update = { updated_at: new Date().toISOString() };
+    if (req.body?.priorityColors !== undefined) {
+      update.tax_task_priority_colors = sanitizeMap(req.body.priorityColors, PRIORITY_KEYS);
+    }
+    if (req.body?.urgencyColors !== undefined) {
+      update.tax_task_urgency_colors  = sanitizeMap(req.body.urgencyColors, URGENCY_KEYS);
+    }
+    if (Object.keys(update).length === 1) {
+      return res.status(400).json({ error: 'Nothing to update.' });
+    }
+    const { error } = await supabase.from('communities')
+      .update(update).eq('id', communitySlug).eq('business_type', TAX_BUSINESS_TYPE);
+    if (error) return sendSupabaseError(res, error);
+    try {
+      await auditLog({
+        entity: 'tax.community.settings', entityId: communitySlug,
+        action: 'task_color_overrides_set',
+        actorEmail: trim(req.get('x-firebase-email') || req.get('x-admin-email') || '', 200).toLowerCase(),
+        after: { priority: update.tax_task_priority_colors, urgency: update.tax_task_urgency_colors },
+      });
+    } catch (_e) {}
+    res.json({
+      ok: true,
+      priorityColors: update.tax_task_priority_colors,
+      urgencyColors:  update.tax_task_urgency_colors,
+    });
+  });
+
   router.put('/admin/community-settings/task-thresholds', async (req, res) => {
     if (!(await requireOwnerAdmin(req, res, 'manage_settings'))) return;
     const communitySlug = trim(req.body?.communitySlug, 200);
@@ -2259,6 +2314,7 @@ module.exports = function createTaxRouter(deps) {
         id, name, tax_allow_customer_notif_pref_change, tax_customer_documents_enabled,
         tax_customer_portal_enabled, tax_customer_reminders_enabled, tax_task_lookahead_months,
         tax_task_urgent_days, tax_task_soon_days, tax_task_upcoming_days,
+        tax_task_priority_colors, tax_task_urgency_colors,
         contact_email, phone, whatsapp,
         address_line1, address_line2, city, state, postal_code, country,
         default_locale
@@ -3128,7 +3184,7 @@ module.exports = function createTaxRouter(deps) {
     stampLastSignIn('tax_customers', customer.id, customer.last_sign_in_at);
     const [{ data: community }, { data: subs }, { data: rels }, { data: companion }] = await Promise.all([
       supabase.from('communities')
-        .select('id, name, logo_url, brand_primary_color, brand_secondary_color, default_locale, tax_allow_customer_notif_pref_change, tax_customer_documents_enabled, tax_customer_portal_enabled, tax_customer_reminders_enabled, tax_task_lookahead_months, tax_task_urgent_days, tax_task_soon_days, tax_task_upcoming_days, contact_email, phone')
+        .select('id, name, logo_url, brand_primary_color, brand_secondary_color, default_locale, tax_allow_customer_notif_pref_change, tax_customer_documents_enabled, tax_customer_portal_enabled, tax_customer_reminders_enabled, tax_task_lookahead_months, tax_task_urgent_days, tax_task_soon_days, tax_task_upcoming_days, tax_task_priority_colors, tax_task_urgency_colors, contact_email, phone')
         .eq('id', customer.community_id).maybeSingle(),
       supabase.from('tax_subscriptions')
         .select('id, product_id, status, reminder_channels, reminder_offsets_days')
