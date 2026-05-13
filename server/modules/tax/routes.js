@@ -5113,6 +5113,14 @@ module.exports = function createTaxRouter(deps) {
     q = applyListFilter(q, req.query.customerId, 'customer_id',          200);
     q = applyListFilter(q, req.query.productId,  'product_id',           200);
     if (req.query.priority) q = q.eq('priority', trim(req.query.priority, 20));
+    // Period-rollup drill-down: caller wants every task generated
+    // by a specific auto-task on a specific due-date.
+    if (req.query.serviceAutoTaskId) {
+      q = q.eq('service_auto_task_id', trim(req.query.serviceAutoTaskId, 200));
+    }
+    if (req.query.dueDateExact) {
+      q = q.eq('due_date', trim(req.query.dueDateExact, 20));
+    }
 
     const due = trim(req.query.due, 20);
     if (due === 'overdue') {
@@ -5195,6 +5203,133 @@ module.exports = function createTaxRouter(deps) {
     const { data, error } = await q;
     if (error) return sendSupabaseError(res, error);
     res.json({ tasks: data || [] });
+  });
+
+  // GET /admin/tasks/periods — rollup view.
+  // Groups generator-produced tasks by (service_auto_task_id, due_date)
+  // and returns per-period counts so a practice with hundreds of
+  // customers can see "Monthly Reconciliation — May 2026, 300 total,
+  // 220 done" in a single row instead of 300 individual rows. Manual
+  // tasks (no auto-task) are excluded — the flat list view is still
+  // where those belong.
+  //
+  // Same filter surface as /admin/tasks (status, assignedTo,
+  // customerId, productId, priority, due bucket, q-search) so the
+  // FilterBar applies identically. The shared filter machinery sits
+  // inline below to keep both endpoints aligned without a refactor.
+  router.get('/admin/tasks/periods', async (req, res) => {
+    const emp = await requireTaxEmployee(req, res); if (!emp) return;
+    const communitySlug = trim(req.query.communitySlug, 200) || emp.community_id;
+
+    let q = supabase.from('tax_tasks')
+      .select(`
+        id, customer_id, service_auto_task_id, product_id,
+        status_key, priority, due_date, completed_at,
+        product:tax_products ( id, slug, name_i18n ),
+        auto_task:tax_service_auto_tasks ( id, title_i18n, default_priority )
+      `)
+      .eq('community_id', communitySlug)
+      .is('archived_at', null)
+      .not('service_auto_task_id', 'is', null);
+
+    if (emp.role !== 'admin') {
+      const visible = await getVisibleCustomerIdsForEmployee(emp);
+      if (Array.isArray(visible)) {
+        if (!visible.length) {
+          q = q.eq('assigned_employee_id', emp.id);
+        } else {
+          q = q.or(`assigned_employee_id.eq.${emp.id},customer_id.in.(${visible.join(',')})`);
+        }
+      }
+    }
+
+    const applyListFilter = (qIn, raw, column, perItemLen) => {
+      const s = trim(raw || '', 2000);
+      if (!s) return qIn;
+      const ids = s.split(',').map(x => trim(x, perItemLen)).filter(Boolean);
+      if (ids.length === 0) return qIn;
+      if (ids.length === 1) return qIn.eq(column, ids[0]);
+      return qIn.in(column, ids);
+    };
+    q = applyListFilter(q, req.query.status,     'status_key',           60);
+    q = applyListFilter(q, req.query.assignedTo, 'assigned_employee_id', 200);
+    q = applyListFilter(q, req.query.customerId, 'customer_id',          200);
+    q = applyListFilter(q, req.query.productId,  'product_id',           200);
+    if (req.query.priority) q = q.eq('priority', trim(req.query.priority, 20));
+
+    const due = trim(req.query.due, 20);
+    const today = new Date().toISOString().slice(0, 10);
+    if (due === 'overdue') {
+      q = q.lt('due_date', today);
+    } else if (due === 'today') {
+      q = q.eq('due_date', today);
+    } else if (due === 'week') {
+      const w = new Date(); w.setUTCDate(w.getUTCDate() + 7);
+      q = q.gte('due_date', today).lte('due_date', w.toISOString().slice(0, 10));
+    } else if (due === 'month' || due === 'month60' || due === 'month90') {
+      const days = due === 'month90' ? 90 : (due === 'month60' ? 60 : 30);
+      const h = new Date(); h.setUTCDate(h.getUTCDate() + days);
+      q = q.gte('due_date', today).lte('due_date', h.toISOString().slice(0, 10));
+    }
+
+    // Bumped limit — rollup is the whole point at large scale and we
+    // only pull a thin column slice. 10k rows ≈ 1.5MB on the wire
+    // which is still well within range.
+    q = q.limit(10000);
+
+    const { data: rows, error } = await q;
+    if (error) return sendSupabaseError(res, error);
+
+    const { data: statusOpts } = await supabase.from('tax_task_status_options')
+      .select('key, is_terminal').eq('community_id', communitySlug);
+    const terminalKeys = new Set((statusOpts || []).filter(s => s.is_terminal).map(s => s.key));
+
+    const groups = new Map();
+    for (const r of rows || []) {
+      const key = `${r.service_auto_task_id}|${r.due_date || ''}`;
+      let g = groups.get(key);
+      if (!g) {
+        g = {
+          key,
+          serviceAutoTaskId: r.service_auto_task_id,
+          dueDate: r.due_date || null,
+          product: r.product || null,
+          autoTask: r.auto_task || null,
+          totals: { open: 0, in_progress: 0, done: 0, overdue: 0, total: 0 },
+          // Highest priority seen in the group — drives the row's
+          // priority badge in the UI.
+          topPriority: 'low',
+        };
+        groups.set(key, g);
+      }
+      const isDone = !!r.completed_at || terminalKeys.has(r.status_key);
+      const isOverdue = !isDone && r.due_date && r.due_date < today;
+      const isInProgress = !isDone && r.status_key === 'in_progress';
+      g.totals.total++;
+      if (isDone) g.totals.done++;
+      else if (isInProgress) g.totals.in_progress++;
+      else g.totals.open++;
+      if (isOverdue) g.totals.overdue++;
+      const rank = { urgent: 0, high: 1, normal: 2, low: 3 };
+      if ((rank[r.priority] ?? 9) < (rank[g.topPriority] ?? 9)) {
+        g.topPriority = r.priority;
+      }
+    }
+
+    // Sort: overdue first, then by due date ascending, then by service.
+    const periods = Array.from(groups.values()).sort((a, b) => {
+      const ao = a.totals.overdue > 0 ? 0 : 1;
+      const bo = b.totals.overdue > 0 ? 0 : 1;
+      if (ao !== bo) return ao - bo;
+      const ad = a.dueDate || '9999-12-31';
+      const bd = b.dueDate || '9999-12-31';
+      if (ad !== bd) return ad.localeCompare(bd);
+      const an = a.product?.name_i18n?.en || a.product?.slug || '';
+      const bn = b.product?.name_i18n?.en || b.product?.slug || '';
+      return an.localeCompare(bn);
+    });
+
+    res.json({ periods });
   });
 
   // POST /admin/tasks — create.

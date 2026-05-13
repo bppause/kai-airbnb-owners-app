@@ -217,7 +217,15 @@ export default function OwnerTasks() {
         locale={locale} t={t}
       />
 
-      {tasks === null ? <p>{t('loading')}</p>
+      {view === 'periods' ? (
+        <TasksPeriods auth={auth} community={community} filters={filters}
+                      statuses={statuses} employees={employees}
+                      customerById={customerById} employeeById={employeeById}
+                      productById={productById} isAdmin={isAdmin}
+                      onEdit={setEditingTask}
+                      mine={mine} employeeId={employee?.id}
+                      locale={locale} t={t} />
+      ) : tasks === null ? <p>{t('loading')}</p>
         : tasks.length === 0
           ? <p style={{ color: 'var(--tax-muted)' }}>
               {filtersActive ? t('owner.tasks.noMatch') : t('owner.tasks.empty')}
@@ -1205,7 +1213,7 @@ function TaskToolbar({ mine, setMine, filters, setFilters, view, setView, groupB
         <div role="tablist" style={{
           display: 'inline-flex', border: '1px solid var(--tax-border)', borderRadius: 6, overflow: 'hidden',
         }}>
-          {['list', 'calendar', 'kanban'].map(v => (
+          {['list', 'periods', 'calendar', 'kanban'].map(v => (
             <button key={v} type="button" onClick={() => setView(v)}
                     style={{
                       padding: '6px 10px', border: 0, cursor: 'pointer',
@@ -1444,6 +1452,187 @@ function TaskHover({ task, statuses, community, locale, t, children, side = 'bel
         </div>
       )}
     </span>
+  );
+}
+
+// ─── Periods view — one row per (auto-task, due-date) ──────────────────
+// At ~300 customers each tagged to several services, the flat task
+// list has thousands of "Monthly Reconciliation — May 2026" rows that
+// differ only by customer. This view collapses them into a single
+// row per period so the operator sees aggregate progress at a glance,
+// then expands a row to see / act on the underlying customer tasks.
+function TasksPeriods({ auth, community, filters, statuses, employees, customerById,
+                        employeeById, productById, isAdmin, onEdit,
+                        mine, employeeId, locale, t }) {
+  const [periods, setPeriods] = useState(null);
+  const [err, setErr] = useState('');
+  const [expanded, setExpanded] = useState({});
+  const [periodTasks, setPeriodTasks] = useState({}); // key → tasks[] or 'loading'
+  const thresholds = resolveThresholds(community);
+  const todayIso = new Date().toISOString().slice(0, 10);
+
+  const load = () => {
+    if (!auth?.uid || !community?.id) return;
+    const flat = (v) => Array.isArray(v) ? v.join(',') : v;
+    const merged = {
+      communitySlug: community.id,
+      status: flat(filters.status),
+      priority: filters.priority,
+      assignedTo: flat(filters.assignedTo),
+      productId: flat(filters.productId),
+      customerId: flat(filters.customerId),
+      due: filters.due,
+    };
+    if (mine && employeeId) merged.assignedTo = employeeId;
+    taxApi.adminListTaskPeriods(auth, merged)
+      .then(d => setPeriods(d.periods || []))
+      .catch(e => setErr(e?.message || t('error.loadFailed')));
+  };
+  // Refetch whenever the toolbar filters or community change.
+  useEffect(load,
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [auth?.uid, community?.id, JSON.stringify(filters), mine, employeeId]);
+
+  const toggle = async (p) => {
+    const isOpen = !!expanded[p.key];
+    setExpanded(s => ({ ...s, [p.key]: !isOpen }));
+    if (isOpen) return;
+    if (periodTasks[p.key]) return; // already fetched
+    setPeriodTasks(s => ({ ...s, [p.key]: 'loading' }));
+    const flat = (v) => Array.isArray(v) ? v.join(',') : v;
+    try {
+      const d = await taxApi.adminListTasks(auth, {
+        communitySlug: community.id,
+        serviceAutoTaskId: p.serviceAutoTaskId,
+        dueDateExact: p.dueDate || '',
+        status: flat(filters.status),
+        assignedTo: flat(filters.assignedTo),
+        customerId: flat(filters.customerId),
+        priority: filters.priority,
+        limit: 500,
+      });
+      setPeriodTasks(s => ({ ...s, [p.key]: d.tasks || [] }));
+    } catch (e) {
+      setPeriodTasks(s => ({ ...s, [p.key]: [] }));
+    }
+  };
+
+  if (err) return <div className="tax-msg tax-msg--error">{err}</div>;
+  if (periods === null) return <p>{t('loading')}</p>;
+  if (periods.length === 0) {
+    return <p style={{ color: 'var(--tax-muted)' }}>{t('owner.tasks.periods.empty')}</p>;
+  }
+
+  return (
+    <div style={{ display: 'grid', gap: 8 }}>
+      {periods.map(p => {
+        const title = pickI18n(p.autoTask?.title_i18n, locale).value
+                   || (p.product ? (pickI18n(p.product.name_i18n, locale).value || p.product.slug) : '—');
+        const serviceLabel = p.product
+          ? (pickI18n(p.product.name_i18n, locale).value || p.product.slug)
+          : '';
+        const tot = p.totals || {};
+        const pct = tot.total ? Math.round((tot.done / tot.total) * 100) : 0;
+        const isOpen = !!expanded[p.key];
+        // Use the period's due-date through the same urgency machinery
+        // so the badge color matches the calendar / list views.
+        const urgency = effectiveUrgency({ due_date: p.dueDate, priority: p.topPriority, completed_at: null }, thresholds, todayIso);
+        const dueCol = colorOf(urgency, community);
+        const cached = periodTasks[p.key];
+        return (
+          <section key={p.key} style={{
+            border: '1px solid var(--tax-border)', borderRadius: 10,
+            background: '#fff', overflow: 'hidden',
+          }}>
+            <header onClick={() => toggle(p)}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 12,
+                      padding: '10px 14px', cursor: 'pointer',
+                      background: isOpen ? 'var(--tax-bg-alt)' : '#fff',
+                      borderBottom: isOpen ? '1px solid var(--tax-border)' : 'none',
+                    }}>
+              <span aria-hidden="true" style={{
+                fontSize: 11, color: 'var(--tax-muted)',
+                transform: isOpen ? 'rotate(90deg)' : 'rotate(0deg)',
+                transition: 'transform .12s ease',
+              }}>▶</span>
+              <div style={{ minWidth: 0, flex: 1 }}>
+                <div style={{ fontWeight: 600, fontSize: 14, color: 'var(--tax-text)' }}>
+                  {title}
+                </div>
+                <div style={{ fontSize: 11, color: 'var(--tax-muted)', marginTop: 2,
+                              display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                  {serviceLabel && <span>{serviceLabel}</span>}
+                  {p.dueDate && (
+                    <span style={{
+                      display: 'inline-block', padding: '1px 8px', borderRadius: 4,
+                      background: dueCol.bg, color: dueCol.fg,
+                      fontWeight: 700,
+                    }}>{p.dueDate}</span>
+                  )}
+                  <span><strong style={{ color: '#166534' }}>{tot.done}</strong> {t('owner.progress.kpi.done').toLowerCase()}</span>
+                  <span><strong style={{ color: '#3730a3' }}>{tot.in_progress}</strong> {t('owner.progress.kpi.inProgress').toLowerCase()}</span>
+                  <span><strong style={{ color: '#92400e' }}>{tot.open}</strong> {t('owner.progress.kpi.open').toLowerCase()}</span>
+                  {tot.overdue > 0 && (
+                    <span style={{ color: '#991b1b', fontWeight: 700 }}>
+                      ⚠ {tot.overdue} {t('owner.progress.kpi.overdue').toLowerCase()}
+                    </span>
+                  )}
+                </div>
+              </div>
+              <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 10 }}>
+                <span style={{ fontSize: 13, color: 'var(--tax-muted)' }}>
+                  {tot.done}/{tot.total}
+                </span>
+                <div style={{
+                  width: 90, height: 6, background: 'var(--tax-bg-alt)', borderRadius: 999,
+                  overflow: 'hidden',
+                }}>
+                  <div style={{
+                    width: `${pct}%`, height: '100%',
+                    background: 'var(--tax-brand-primary)',
+                  }} />
+                </div>
+                <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--tax-brand-primary)',
+                               minWidth: 36, textAlign: 'right' }}>{pct}%</span>
+              </div>
+            </header>
+            {isOpen && (
+              <div style={{ padding: '6px 8px 10px' }}>
+                {cached === 'loading' ? (
+                  <p style={{ color: 'var(--tax-muted)', fontSize: 13, padding: '8px 10px' }}>
+                    {t('loading')}
+                  </p>
+                ) : !cached || cached.length === 0 ? (
+                  <p style={{ color: 'var(--tax-muted)', fontSize: 13, padding: '8px 10px' }}>
+                    {t('owner.tasks.periods.noTasks')}
+                  </p>
+                ) : (
+                  <div style={{ display: 'grid', gap: 6 }}>
+                    {cached.map(tt => (
+                      <TaskRow key={tt.id} task={tt} auth={auth} community={community}
+                               statuses={statuses} employees={employees}
+                               customerById={customerById} employeeById={employeeById}
+                               productById={productById} isAdmin={isAdmin}
+                               onEdit={onEdit} onChange={() => {
+                                 // Refetch this period's tasks and the
+                                 // outer counts so changes show
+                                 // immediately.
+                                 setPeriodTasks(s => ({ ...s, [p.key]: null }));
+                                 setExpanded(s => ({ ...s, [p.key]: false }));
+                                 setTimeout(() => toggle(p), 0);
+                                 load();
+                               }}
+                               locale={locale} t={t} />
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </section>
+        );
+      })}
+    </div>
   );
 }
 
