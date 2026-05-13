@@ -79,6 +79,8 @@ async function request(method, path, body, auth, { admin } = {}) {
 export const taxApi = {
   // Public (Phase 1 + 1.5)
   getCommunity(slug)              { return request('GET',  `/community/${encodeURIComponent(slug)}`); },
+  getCommunityFaqs(slug)          { return request('GET',  `/community/${encodeURIComponent(slug)}/faqs`); },
+  getCommunityArticles(slug)      { return request('GET',  `/community/${encodeURIComponent(slug)}/articles`); },
   submitLead(payload)             { return request('POST', '/leads', payload); },
   getResponse(token)              { return request('GET',  `/respond/${encodeURIComponent(token)}`); },
   submitResponse(token, payload)  { return request('POST', `/respond/${encodeURIComponent(token)}`, payload); },
