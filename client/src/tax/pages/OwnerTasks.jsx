@@ -71,6 +71,22 @@ export default function OwnerTasks() {
     try { localStorage.setItem('tax.tasks.sort', sortKey); } catch { /* ignore */ }
   }, [sortKey]);
   const [mine, setMine] = useState(false);
+  // Bulk selection state. Holds task IDs across re-fetches so an
+  // operator can build a selection across multiple page loads (e.g.
+  // after switching due-bucket chips). The bulk action bar appears
+  // when the set is non-empty.
+  const [selectedIds, setSelectedIds] = useState(() => new Set());
+  const toggleSelect = (id) => setSelectedIds(prev => {
+    const next = new Set(prev);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    return next;
+  });
+  const clearSelection = () => setSelectedIds(new Set());
+  const selectMany = (ids) => setSelectedIds(prev => {
+    const next = new Set(prev);
+    for (const id of ids) next.add(id);
+    return next;
+  });
 
   const load = () => {
     if (!fbUser || !community) return;
@@ -217,12 +233,28 @@ export default function OwnerTasks() {
         locale={locale} t={t}
       />
 
+      {selectedIds.size > 0 && (
+        <BulkActionBar
+          selectedIds={selectedIds}
+          tasks={tasks || []}
+          statuses={statuses}
+          employees={employees}
+          auth={auth}
+          onClear={clearSelection}
+          onDone={() => { clearSelection(); load(); }}
+          locale={locale}
+          t={t}
+        />
+      )}
+
       {view === 'periods' ? (
         <TasksPeriods auth={auth} community={community} filters={filters}
                       statuses={statuses} employees={employees}
                       customerById={customerById} employeeById={employeeById}
                       productById={productById} isAdmin={isAdmin}
                       onEdit={setEditingTask}
+                      selectedIds={selectedIds} toggleSelect={toggleSelect}
+                      selectMany={selectMany}
                       mine={mine} employeeId={employee?.id}
                       locale={locale} t={t} />
       ) : tasks === null ? <p>{t('loading')}</p>
@@ -245,6 +277,8 @@ export default function OwnerTasks() {
                               customerById={customerById} employeeById={employeeById}
                               productById={productById} isAdmin={isAdmin}
                               auth={auth} onEdit={setEditingTask} onChange={load}
+                              selectedIds={selectedIds} toggleSelect={toggleSelect}
+                              selectMany={selectMany}
                               locale={locale} t={t} />
           )
       }
@@ -563,7 +597,139 @@ function MultiSelectRow({ option: o, checked, onToggle }) {
   );
 }
 
-function TaskRow({ task, auth, community, statuses, employees, customerById, employeeById, productById, isAdmin, onEdit, onChange, locale, t }) {
+// Sticky action bar that fires the bulk endpoint on every selected
+// task. Two actions: change status (terminal status auto-stamps
+// completed_at server-side) and reassign owner. Buttons disable
+// while the request is in flight; selection clears + tasks refetch
+// on success.
+function BulkActionBar({ selectedIds, tasks, statuses, employees, auth, onClear, onDone, locale, t }) {
+  const [statusKey, setStatusKey] = useState('');
+  const [assigneeId, setAssigneeId] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+  const ids = Array.from(selectedIds);
+  const visibleSelected = tasks.filter(tt => selectedIds.has(tt.id)).length;
+  const overflow = ids.length - visibleSelected;
+
+  const apply = async (patch) => {
+    setBusy(true); setErr('');
+    try {
+      const r = await taxApi.adminBulkUpdateTasks(auth, { ids, patch });
+      if (r && typeof r.updated === 'number' && r.updated === 0) {
+        setErr(t('owner.tasks.bulk.noneUpdated'));
+      } else {
+        onDone();
+      }
+    } catch (e) { setErr(e?.message || ''); }
+    finally { setBusy(false); }
+  };
+
+  return (
+    <div style={{
+      position: 'sticky', top: 0, zIndex: 40,
+      display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 10,
+      padding: '10px 12px', marginBottom: 10,
+      background: 'color-mix(in srgb, var(--tax-brand-primary) 10%, #fff)',
+      border: '1px solid color-mix(in srgb, var(--tax-brand-primary) 35%, #fff)',
+      borderRadius: 8,
+    }}>
+      <span style={{ fontWeight: 700, fontSize: 13, color: 'var(--tax-brand-primary)' }}>
+        {ids.length} {t('owner.tasks.bulk.selected')}
+        {overflow > 0 && (
+          <span style={{ marginLeft: 6, fontSize: 11, color: 'var(--tax-muted)', fontWeight: 500 }}>
+            ({overflow} {t('owner.tasks.bulk.notVisible')})
+          </span>
+        )}
+      </span>
+
+      <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12 }}>
+        <span style={{ color: 'var(--tax-muted)', fontWeight: 600 }}>
+          {t('owner.tasks.bulk.status')}:
+        </span>
+        <select value={statusKey}
+                disabled={busy}
+                onChange={e => {
+                  const v = e.target.value;
+                  setStatusKey(v);
+                  if (v) apply({ statusKey: v });
+                }}
+                style={{ padding: '4px 6px', border: '1px solid var(--tax-border)', borderRadius: 6, fontSize: 12 }}>
+          <option value="">{t('owner.tasks.bulk.chooseStatus')}</option>
+          {statuses.map(s => (
+            <option key={s.id} value={s.key}>{pickI18n(s.label_i18n, locale).value || s.key}</option>
+          ))}
+        </select>
+      </label>
+
+      <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12 }}>
+        <span style={{ color: 'var(--tax-muted)', fontWeight: 600 }}>
+          {t('owner.tasks.bulk.assign')}:
+        </span>
+        <select value={assigneeId}
+                disabled={busy}
+                onChange={e => {
+                  const v = e.target.value;
+                  setAssigneeId(v);
+                  if (v === '__unassign__') apply({ assignedEmployeeId: '' });
+                  else if (v) apply({ assignedEmployeeId: v });
+                }}
+                style={{ padding: '4px 6px', border: '1px solid var(--tax-border)', borderRadius: 6, fontSize: 12 }}>
+          <option value="">{t('owner.tasks.bulk.chooseAssignee')}</option>
+          <option value="__unassign__">{t('owner.tasks.bulk.unassign')}</option>
+          {employees.map(em => (
+            <option key={em.id} value={em.id}>{displayPersonName(em) || em.email}</option>
+          ))}
+        </select>
+      </label>
+
+      <button type="button" onClick={onClear} disabled={busy}
+              style={{
+                marginLeft: 'auto', border: 0, background: 'transparent',
+                color: 'var(--tax-brand-primary)', cursor: 'pointer',
+                fontSize: 12, fontWeight: 700, textTransform: 'uppercase',
+              }}>
+        {t('owner.tasks.bulk.clear')}
+      </button>
+
+      {err && <div style={{ flexBasis: '100%', color: 'var(--tax-error)', fontSize: 12 }}>{err}</div>}
+    </div>
+  );
+}
+
+// Tiny "Select all visible" / "Clear visible" toggle that sits above
+// each group of TaskRows. Adds or removes every visible row's ID
+// from the selection set in one click — the headline win for bulk
+// completing a 300-customer period.
+function GroupSelectAll({ tasks, selectedIds, toggleSelect, selectMany, t }) {
+  if (!tasks?.length || !selectedIds || !selectMany) return null;
+  const ids = tasks.map(tt => tt.id);
+  const allSelected = ids.every(id => selectedIds.has(id));
+  const toggle = () => {
+    if (allSelected) {
+      // Remove from selection by toggling each — clean, even if
+      // a few are already absent.
+      ids.forEach(id => { if (selectedIds.has(id)) toggleSelect(id); });
+    } else {
+      selectMany(ids);
+    }
+  };
+  return (
+    <button type="button" onClick={toggle}
+            style={{
+              justifySelf: 'start',
+              border: 0, background: 'transparent', cursor: 'pointer',
+              color: 'var(--tax-brand-primary)', fontSize: 11,
+              fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.04em',
+              padding: '2px 0',
+            }}>
+      {allSelected
+        ? `× ${t('owner.tasks.select.deselectAll')} (${ids.length})`
+        : `☑ ${t('owner.tasks.select.selectAll')} (${ids.length})`}
+    </button>
+  );
+}
+
+function TaskRow({ task, auth, community, statuses, employees, customerById, employeeById, productById, isAdmin, onEdit, onChange, selected, onToggleSelect, locale, t }) {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
   const [showNotes, setShowNotes] = useState(false);
@@ -598,9 +764,19 @@ function TaskRow({ task, auth, community, statuses, employees, customerById, emp
   };
 
   return (
-    <div className="tax-contact-item" style={{ display: 'grid', gap: 8 }}>
+    <div className="tax-contact-item" style={{
+      display: 'grid', gap: 8,
+      background: selected ? 'color-mix(in srgb, var(--tax-brand-primary) 6%, #fff)' : undefined,
+    }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
-        <div style={{ minWidth: 0, flex: 1 }}>
+        <div style={{ minWidth: 0, flex: 1, display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+          {onToggleSelect && (
+            <input type="checkbox" checked={!!selected}
+                   onChange={onToggleSelect}
+                   aria-label={t('owner.tasks.select.row')}
+                   style={{ marginTop: 3, flexShrink: 0 }} />
+          )}
+          <div style={{ minWidth: 0, flex: 1 }}>
           <div style={{ fontWeight: 600 }}>
             {task.title}
             {task.priority !== 'normal' && (
@@ -648,6 +824,7 @@ function TaskRow({ task, auth, community, statuses, employees, customerById, emp
             <span style={{ color: 'var(--tax-muted)' }}>
               {t('owner.tasks.created')}: {task.created_at ? new Date(task.created_at).toLocaleDateString() : ''}
             </span>
+          </div>
           </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0, flexWrap: 'wrap' }}>
@@ -1270,17 +1447,24 @@ function DuePill({ dueDate, thresholds, t }) {
 // ─── Grouped list view ───────────────────────────────────────────────────
 function TasksGroupedList({ tasks, groupBy, community, statuses, employees,
                             customerById, employeeById, productById, isAdmin,
-                            auth, onEdit, onChange, locale, t }) {
+                            auth, onEdit, onChange,
+                            selectedIds, toggleSelect, selectMany,
+                            locale, t }) {
   if (groupBy === 'none') {
     return (
       <div style={{ display: 'grid', gap: 8 }}>
+        <GroupSelectAll tasks={tasks} selectedIds={selectedIds}
+                        toggleSelect={toggleSelect} selectMany={selectMany} t={t} />
         {tasks.map(task => (
           <TaskRow key={task.id} task={task} auth={auth} community={community}
                    statuses={statuses} employees={employees}
                    customerById={customerById} employeeById={employeeById}
                    productById={productById} isAdmin={isAdmin}
                    onEdit={() => onEdit(task)}
-                   onChange={onChange} locale={locale} t={t} />
+                   onChange={onChange}
+                   selected={selectedIds?.has(task.id)}
+                   onToggleSelect={toggleSelect ? () => toggleSelect(task.id) : undefined}
+                   locale={locale} t={t} />
         ))}
       </div>
     );
@@ -1337,13 +1521,18 @@ function TasksGroupedList({ tasks, groupBy, community, statuses, employees,
               {g.label} <span style={{ marginLeft: 4, fontWeight: 500 }}>· {g.items.length}</span>
             </h3>
             <div style={{ display: 'grid', gap: 8 }}>
+              <GroupSelectAll tasks={g.items} selectedIds={selectedIds}
+                              toggleSelect={toggleSelect} selectMany={selectMany} t={t} />
               {g.items.map(task => (
                 <TaskRow key={task.id} task={task} auth={auth} community={community}
                          statuses={statuses} employees={employees}
                          customerById={customerById} employeeById={employeeById}
                          productById={productById} isAdmin={isAdmin}
                          onEdit={() => onEdit(task)}
-                         onChange={onChange} locale={locale} t={t} />
+                         onChange={onChange}
+                         selected={selectedIds?.has(task.id)}
+                         onToggleSelect={toggleSelect ? () => toggleSelect(task.id) : undefined}
+                         locale={locale} t={t} />
               ))}
             </div>
           </section>
@@ -1463,6 +1652,7 @@ function TaskHover({ task, statuses, community, locale, t, children, side = 'bel
 // then expands a row to see / act on the underlying customer tasks.
 function TasksPeriods({ auth, community, filters, statuses, employees, customerById,
                         employeeById, productById, isAdmin, onEdit,
+                        selectedIds, toggleSelect, selectMany,
                         mine, employeeId, locale, t }) {
   const [periods, setPeriods] = useState(null);
   const [err, setErr] = useState('');
@@ -1609,11 +1799,15 @@ function TasksPeriods({ auth, community, filters, statuses, employees, customerB
                   </p>
                 ) : (
                   <div style={{ display: 'grid', gap: 6 }}>
+                    <GroupSelectAll tasks={cached} selectedIds={selectedIds}
+                                    toggleSelect={toggleSelect} selectMany={selectMany} t={t} />
                     {cached.map(tt => (
                       <TaskRow key={tt.id} task={tt} auth={auth} community={community}
                                statuses={statuses} employees={employees}
                                customerById={customerById} employeeById={employeeById}
                                productById={productById} isAdmin={isAdmin}
+                               selected={selectedIds?.has(tt.id)}
+                               onToggleSelect={toggleSelect ? () => toggleSelect(tt.id) : undefined}
                                onEdit={onEdit} onChange={() => {
                                  // Refetch this period's tasks and the
                                  // outer counts so changes show
