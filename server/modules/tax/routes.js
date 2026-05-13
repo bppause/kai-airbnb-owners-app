@@ -706,7 +706,7 @@ module.exports = function createTaxRouter(deps) {
   async function searchCustomers({ communitySlug, q, relationshipTypeIds, scopedCustomerIds }) {
     let query = supabase.from('tax_customers')
       .select(`
-        id, email, name, first_name, middle_name, last_name, phone, whatsapp, address, preferred_communication_email,
+        id, email, name, business_name, first_name, middle_name, last_name, phone, whatsapp, address, preferred_communication_email,
         locale, status, last_sign_in_at, created_at,
         tax_subscriptions ( id, product_id, status, active_schedule_slugs, reminder_channels, reminder_offsets_days )
       `)
@@ -740,6 +740,7 @@ module.exports = function createTaxRouter(deps) {
         // passed through `.or()`, so the term has already been sanitized.
         query = query.or([
           `name.ilike.${pat}`,
+          `business_name.ilike.${pat}`,
           `email.ilike.${pat}`,
           `phone.ilike.${pat}`,
           `whatsapp.ilike.${pat}`,
@@ -790,6 +791,7 @@ module.exports = function createTaxRouter(deps) {
     const communitySlug = trim(body.communitySlug, 200);
     const email = trim(body.email, 200).toLowerCase();
     const np = resolveNamePayload(body);
+    const businessName = trim(body.businessName, 200);
     const phone = trim(body.phone, MAX_PHONE_LEN);
     const locale = (body.locale === 'en') ? 'en' : 'es';
     // Phase: relationships (array of type ids) + sendWelcomeEmail (bool,
@@ -810,6 +812,7 @@ module.exports = function createTaxRouter(deps) {
     const { error } = await supabase.from('tax_customers').insert({
       id, community_id: communitySlug, email,
       name: np.name, first_name: np.first, middle_name: np.middle, last_name: np.last,
+      business_name: businessName,
       phone, locale, status: 'active',
     });
     if (error) return sendSupabaseError(res, error);
@@ -1354,7 +1357,7 @@ module.exports = function createTaxRouter(deps) {
     // duplicates and (in update mode) merge their fields. Index by lower-
     // cased email for case-insensitive matching.
     const { data: existing } = await supabase.from('tax_customers')
-      .select('id, email, name, first_name, middle_name, last_name, phone, whatsapp, address, preferred_communication_email, locale, notes')
+      .select('id, email, name, business_name, first_name, middle_name, last_name, phone, whatsapp, address, preferred_communication_email, locale, notes')
       .eq('community_id', communitySlug);
     const byEmail = new Map();
     for (const c of existing || []) {
@@ -1535,6 +1538,7 @@ module.exports = function createTaxRouter(deps) {
         first_name: np.first,
         middle_name: np.middle,
         last_name: np.last,
+        business_name: (r.business_name || '').slice(0, 200),
         phone: (r.phone || '').slice(0, MAX_PHONE_LEN),
         whatsapp: whatsapp || '',
         address,
@@ -1654,7 +1658,7 @@ module.exports = function createTaxRouter(deps) {
     if (!(await requireOwnerAdmin(req, res))) return;
     const id = trim(req.params.id, 200);
     const { data: cust, error: cErr } = await supabase.from('tax_customers')
-      .select('id, community_id, email, name, first_name, middle_name, last_name, phone, whatsapp, address, preferred_communication_email, locale, status, notes, firebase_uid, last_sign_in_at, created_at, updated_at')
+      .select('id, community_id, email, name, business_name, first_name, middle_name, last_name, phone, whatsapp, address, preferred_communication_email, locale, status, notes, firebase_uid, last_sign_in_at, created_at, updated_at')
       .eq('id', id).maybeSingle();
     if (cErr) return sendSupabaseError(res, cErr);
     if (!cust) return res.status(404).json({ error: 'Customer not found.' });
@@ -1799,6 +1803,9 @@ module.exports = function createTaxRouter(deps) {
       update.first_name = np.first;
       update.middle_name = np.middle;
       update.last_name = np.last;
+    }
+    if (body.businessName !== undefined) {
+      update.business_name = trim(body.businessName, 200);
     }
     if (body.phone !== undefined) update.phone = trim(body.phone, MAX_PHONE_LEN);
 
@@ -2582,7 +2589,7 @@ module.exports = function createTaxRouter(deps) {
     if (imp === false) return null;            // invalid/expired token, 401 already sent
     if (imp) {
       const { data: customer, error } = await supabase.from('tax_customers')
-        .select('id, community_id, email, name, first_name, middle_name, last_name, phone, whatsapp, address, preferred_communication_email, locale, status, firebase_uid, last_sign_in_at')
+        .select('id, community_id, email, name, business_name, first_name, middle_name, last_name, phone, whatsapp, address, preferred_communication_email, locale, status, firebase_uid, last_sign_in_at')
         .eq('id', imp.target_id).maybeSingle();
       if (error) { sendSupabaseError(res, error); return null; }
       if (!customer) { res.status(404).json({ error: 'Impersonation target not found.' }); return null; }
@@ -2599,7 +2606,7 @@ module.exports = function createTaxRouter(deps) {
       return null;
     }
     const { data: customer, error } = await supabase.from('tax_customers')
-      .select('id, community_id, email, name, first_name, middle_name, last_name, phone, whatsapp, address, preferred_communication_email, locale, status, firebase_uid, last_sign_in_at')
+      .select('id, community_id, email, name, business_name, first_name, middle_name, last_name, phone, whatsapp, address, preferred_communication_email, locale, status, firebase_uid, last_sign_in_at')
       .eq('email', email).eq('community_id', communitySlug).maybeSingle();
     if (error) { sendSupabaseError(res, error); return null; }
     if (!customer) {
@@ -2959,7 +2966,7 @@ module.exports = function createTaxRouter(deps) {
     } catch (_e) {}
 
     const { data: refreshed } = await supabase.from('tax_customers')
-      .select('id, email, name, first_name, middle_name, last_name, phone, whatsapp, address, preferred_communication_email, locale, status')
+      .select('id, email, name, business_name, first_name, middle_name, last_name, phone, whatsapp, address, preferred_communication_email, locale, status')
       .eq('id', customer.id).maybeSingle();
     res.json({ ok: true, customer: refreshed });
   });

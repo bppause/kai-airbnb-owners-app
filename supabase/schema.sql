@@ -2725,3 +2725,17 @@ values
    '{"en":"Publishing employees on the homepage","es":"Publicar empleados en la página pública"}'::jsonb,
    '{"en":"Each staff member can be published on the Meet-the-team section of your public landing page. Open Employee portal → Staff → click the employee → Public profile card.\n\nFlip Show on homepage on and fill the fields:\n\n• Photo URL — paste a direct image link (LinkedIn headshot, a CDN, or a Google Drive direct-link). Square images render best in the circle. No photo → an initials-circle fallback.\n• Title — short role like ''Senior Tax Preparer'' (bilingual).\n• Bio — one short paragraph (bilingual). Years in the business, specialties, languages, certifications.\n• Sort order — controls the order of cards in the section.\n\nThe section hides entirely when no employee is opted in, so it''s safe to leave off until at least one profile is ready.","es":"Cada miembro del personal puede publicarse en la sección Conoce al equipo de la página pública. Abra Portal del personal → Personal → haga clic en el empleado → tarjeta Perfil público.\n\nActive Mostrar en página pública y complete los campos:\n\n• URL de la foto — un enlace directo a la imagen (foto de LinkedIn, un CDN o un enlace directo de Google Drive). Las imágenes cuadradas se ven mejor en el círculo. Sin foto → un círculo con iniciales como respaldo.\n• Cargo — rol breve como ''Preparadora de Impuestos Senior'' (bilingüe).\n• Biografía — un párrafo corto (bilingüe). Años en el negocio, especialidades, idiomas, certificaciones.\n• Orden — controla el orden de las tarjetas en la sección.\n\nLa sección se oculta cuando ningún empleado está publicado, así que es seguro dejarla apagada hasta tener al menos un perfil listo."}'::jsonb)
 on conflict (id) do nothing;
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- Phase 4n.43 — business name on customers
+--
+-- Business customers (LLCs, S-Corps, etc.) need a business name distinct
+-- from the contact person's name. tax_customers stores it alongside the
+-- existing first/middle/last. The display layer prefers business_name
+-- when set; search treats it like another name column.
+-- ═══════════════════════════════════════════════════════════════════════════════
+alter table public.tax_customers
+  add column if not exists business_name text not null default '';
+create index if not exists tax_customers_business_name_idx
+  on public.tax_customers(community_id, business_name)
+  where business_name <> '';
