@@ -161,6 +161,15 @@ export const taxApi = {
   adminCustomerDefaultProduct(auth, customerId) {
     return request('GET', `/admin/customers/${encodeURIComponent(customerId)}/default-product`, undefined, auth);
   },
+  adminListCustomerServices(auth, customerId) {
+    return request('GET', `/admin/customers/${encodeURIComponent(customerId)}/services`, undefined, auth, { admin: true });
+  },
+  adminAddCustomerService(auth, customerId, payload) {
+    return request('POST', `/admin/customers/${encodeURIComponent(customerId)}/services`, payload, auth, { admin: true });
+  },
+  adminRemoveCustomerService(auth, customerId, linkId) {
+    return request('DELETE', `/admin/customers/${encodeURIComponent(customerId)}/services/${encodeURIComponent(linkId)}`, undefined, auth, { admin: true });
+  },
   adminImportCustomers(auth, payload)           { return request('POST', '/admin/customers/import', payload, auth, { admin: true }); },
   adminGetCustomer(auth, id)                    { return request('GET',  `/admin/customers/${encodeURIComponent(id)}`, undefined, auth, { admin: true }); },
   adminSendWelcomeEmail(auth, id)               { return request('POST', `/admin/customers/${encodeURIComponent(id)}/send-welcome`, {}, auth, { admin: true }); },

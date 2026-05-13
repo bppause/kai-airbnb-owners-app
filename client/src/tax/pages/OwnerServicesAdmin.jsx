@@ -224,11 +224,6 @@ function ProductEditor({ product: p, auth, community, relTypes = [], onDone, onC
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [p.id]);
 
-  // Which relationship type points at THIS product, if any. Owner picks
-  // from the existing community-scoped types; "(none)" clears the link.
-  const linkedRel = relTypes.find(rt => rt.product_id === p.id) || null;
-  const [linkedRelId, setLinkedRelId] = useState(linkedRel?.id || '');
-
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
 
@@ -282,18 +277,6 @@ function ProductEditor({ product: p, auth, community, relTypes = [], onDone, onC
         active: true,
       })));
 
-      if (linkedRel?.id !== linkedRelId) {
-        if (linkedRel?.id) {
-          await taxApi.adminUpdateRelationshipType(auth, linkedRel.id, {
-            communitySlug: community.id, productId: '',
-          });
-        }
-        if (linkedRelId) {
-          await taxApi.adminUpdateRelationshipType(auth, linkedRelId, {
-            communitySlug: community.id, productId: p.id,
-          });
-        }
-      }
       onDone();
     } catch (e) { setErr(e?.message || ''); }
     finally { setBusy(false); }
@@ -397,25 +380,6 @@ function ProductEditor({ product: p, auth, community, relTypes = [], onDone, onC
 
       <SectionHeader emoji="🛠" label={t('owner.services.section.internal')}
                      hint={t('owner.services.section.internalHint')} tone="internal" />
-
-      <div>
-        <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--tax-muted)' }}>
-          {t('owner.services.relationshipTag')}
-        </label>
-        <select value={linkedRelId} onChange={e => setLinkedRelId(e.target.value)}
-                style={{ width: '100%', padding: 8, border: '1px solid var(--tax-border)', borderRadius: 6 }}>
-          <option value="">{t('owner.services.relationshipTagNone')}</option>
-          {relTypes.map(rt => (
-            <option key={rt.id} value={rt.id}>
-              {(rt.name_i18n?.en || rt.name_i18n?.es || rt.slug)}
-              {rt.product_id && rt.product_id !== p.id ? ' (linked to another service)' : ''}
-            </option>
-          ))}
-        </select>
-        <p style={{ margin: '4px 0 0', fontSize: 11, color: 'var(--tax-muted)' }}>
-          {t('owner.services.relationshipTagHint')}
-        </p>
-      </div>
 
       <div>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 6 }}>

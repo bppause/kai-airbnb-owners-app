@@ -49,6 +49,32 @@ export function colorOf(urgency) {
   return URGENCY_COLORS[urgency] || URGENCY_COLORS.later;
 }
 
+// Priority-floor urgency. Priority acts as a *minimum* urgency on
+// the same color language used for due dates — so the operator
+// only memorizes one palette and a glance answers "act now?"
+// regardless of whether it's the deadline or the importance
+// driving the highlight.
+//
+//   urgent priority → always red (treated as 'overdue')
+//   high   priority → always at least orange ('soon')
+//   normal priority → due-date drives entirely
+//   low    priority → due-date drives, but capped at orange
+//                     (a "low + 2 days" task should NOT scream red)
+//
+// Completed tasks always render neutral — there's no urgency once
+// the work is done.
+const PRIORITY_FLOOR = { urgent: 'overdue', high: 'soon', normal: 'later', low: 'later' };
+const URGENCY_RANK   = { overdue: 0, urgent: 1, soon: 2, later: 3 };
+
+export function effectiveUrgency(task, thresholds, todayIso) {
+  if (!task) return 'later';
+  if (task.completed_at) return 'later';
+  let dueU = urgencyOf(task.due_date, thresholds, todayIso);
+  if (task.priority === 'low' && dueU === 'urgent') dueU = 'soon';
+  const floor = PRIORITY_FLOOR[task.priority] || 'later';
+  return URGENCY_RANK[floor] < URGENCY_RANK[dueU] ? floor : dueU;
+}
+
 export const URGENCY_LABEL_KEY = {
   overdue: 'owner.tasks.urgency.overdue',
   urgent:  'owner.tasks.urgency.urgent',
