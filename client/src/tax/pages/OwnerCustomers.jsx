@@ -421,7 +421,10 @@ export default function OwnerCustomers() {
                    className="tax-contact-item" style={{ textDecoration: 'none', color: 'inherit' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
                     <div style={{ minWidth: 0, flex: 1 }}>
-                      <div style={{ fontWeight: 600 }}>{displayPersonName(c) || c.email}</div>
+                      <div style={{ fontWeight: 600 }}>
+                        {displayPersonName(c) || c.email}
+                        <HealthChip health={c.health} t={t} />
+                      </div>
                       <div style={{ fontSize: 13, color: 'var(--tax-muted)', marginTop: 2 }}>
                         {c.email}
                         {c.phone ? ` • ${c.phone}` : ''}
@@ -714,5 +717,37 @@ function SummaryCell({ label, value, color, bg }) {
       <div style={{ fontSize: 18, fontWeight: 700 }}>{value}</div>
       <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.4px' }}>{label}</div>
     </div>
+  );
+}
+
+// Small at-a-glance task-health indicator for the customer list.
+// Green = all caught up, amber = 1-2 overdue, red = 3+ overdue, blue
+// = no overdue but in-progress work. Hidden when there are no open
+// tasks at all (treat as quiescent — same as green but visually
+// uncluttered).
+function HealthChip({ health, t }) {
+  const h = health || {};
+  const overdue = Number(h.overdue) || 0;
+  const open = Number(h.open) || 0;
+  if (!open) return null;
+
+  let bg = '#dcfce7', fg = '#166534', label = `${open} ${t('owner.customers.health.open')}`;
+  if (overdue >= 3) {
+    bg = '#fee2e2'; fg = '#991b1b';
+    label = `${overdue} ${t('owner.customers.health.overdue')}`;
+  } else if (overdue > 0) {
+    bg = '#fef3c7'; fg = '#92400e';
+    label = `${overdue} ${t('owner.customers.health.overdue')}`;
+  } else if ((Number(h.in_progress) || 0) > 0) {
+    bg = '#e0e7ff'; fg = '#3730a3';
+    label = `${open} ${t('owner.customers.health.open')}`;
+  }
+  return (
+    <span style={{
+      marginLeft: 8, padding: '1px 8px', borderRadius: 999,
+      background: bg, color: fg,
+      fontSize: 11, fontWeight: 700, textTransform: 'uppercase',
+      verticalAlign: 'middle',
+    }}>{label}</span>
   );
 }

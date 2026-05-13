@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useT } from '../i18n';
+import { pickI18n, useT } from '../i18n';
 import { useEmployeeAuth } from '../auth/EmployeeAuthProvider';
 import { taxApi } from '../api';
 import EmployeeShell from '../components/EmployeeShell';
@@ -8,12 +8,14 @@ import { displayPersonName } from '../lib/personName';
 const STATUS_VALUES = ['new', 'contacted', 'converted', 'closed'];
 
 export default function OwnerLeads() {
-  const { t } = useT();
+  const { locale, t } = useT();
   const { fbUser, employee, community } = useEmployeeAuth();
   const auth = { uid: fbUser?.uid, email: fbUser?.email, communitySlug: community?.id };
 
   const [leads, setLeads] = useState(null);
   const [filter, setFilter] = useState('open'); // 'open' = new|contacted, 'all', or specific status
+  const [products, setProducts] = useState([]);
+  const [relTypes, setRelTypes] = useState([]);
   const [err, setErr] = useState('');
 
   const load = () => {
@@ -26,6 +28,20 @@ export default function OwnerLeads() {
       .catch(e => setErr(e?.message || t('error.loadFailed')));
   };
   useEffect(load, [fbUser, community, filter]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Products + relationship types — needed by the convert dialog to
+  // suggest relationships based on the lead's requested services.
+  useEffect(() => {
+    if (!fbUser || !community) return;
+    Promise.all([
+      taxApi.adminListProducts(auth, community.id).catch(() => ({ products: [] })),
+      taxApi.adminListRelationshipTypes(auth, { communitySlug: community.id }).catch(() => ({ types: [] })),
+    ]).then(([p, r]) => {
+      setProducts(p.products || []);
+      setRelTypes((r.types || []).filter(rt => rt.active !== false));
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fbUser, community]);
 
   if (employee && employee.role !== 'admin') {
     return <EmployeeShell community={community}>
@@ -67,7 +83,9 @@ export default function OwnerLeads() {
           : <div style={{ display: 'grid', gap: 8 }}>
               {shown.map(lead => (
                 <LeadRow key={lead.id} lead={lead} auth={auth} onChange={load}
-                         communitySlug={community.id} t={t} />
+                         communitySlug={community.id}
+                         products={products} relTypes={relTypes}
+                         locale={locale} t={t} />
               ))}
             </div>}
     </EmployeeShell>
@@ -81,11 +99,12 @@ function statusBadge(status) {
   return { bg: '#f3f4f6', fg: '#4b5563' };
 }
 
-function LeadRow({ lead, auth, onChange, communitySlug, t }) {
+function LeadRow({ lead, auth, onChange, communitySlug, products, relTypes, locale, t }) {
   const [expanded, setExpanded] = useState(false);
   const [notes, setNotes] = useState(lead.notes || '');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
+  const [convertOpen, setConvertOpen] = useState(false);
   const b = statusBadge(lead.status);
 
   const setStatus = async (next) => {
@@ -105,23 +124,13 @@ function LeadRow({ lead, auth, onChange, communitySlug, t }) {
     finally { setBusy(false); }
   };
 
-  // Convert this lead into a customer in one click. Server copies the
-  // identity, marks the lead converted, then we navigate to the new
-  // customer's detail page so the owner can verify and add relationship
-  // tags. If a customer with the same email already exists, we re-link
-  // (no duplicate) and route to that existing record.
-  const onConvert = async () => {
-    if (!window.confirm(t('owner.leads.convert.confirm',
-        { name: lead.name || lead.email }))) return;
-    setBusy(true); setErr('');
-    try {
-      const r = await taxApi.adminConvertLead(auth, lead.id);
-      const url = `/tax/${communitySlug}/employee/customers/${encodeURIComponent(r.customerId)}`;
-      window.location.href = url;
-    } catch (e) {
-      setErr(e?.message || t('respond.error.generic'));
-    } finally { setBusy(false); }
-  };
+  // Open the convert dialog. The dialog pre-selects relationships
+  // based on the lead's requested product_slugs (translated via the
+  // products list → linked relationship_types) and lets the owner
+  // confirm/adjust before submitting. The server then creates the
+  // customer, attaches relationships, and kicks off task generation
+  // in a single request.
+  const onConvert = () => setConvertOpen(true);
 
   return (
     <div className="tax-contact-item">
@@ -232,6 +241,145 @@ function LeadRow({ lead, auth, onChange, communitySlug, t }) {
           </div>
         </div>
       )}
+      {convertOpen && (
+        <ConvertLeadModal lead={lead} auth={auth}
+                          communitySlug={communitySlug}
+                          products={products} relTypes={relTypes}
+                          locale={locale} t={t}
+                          onClose={() => setConvertOpen(false)}
+                          onDone={(customerId) => {
+                            window.location.href =
+                              `/tax/${communitySlug}/employee/customers/${encodeURIComponent(customerId)}`;
+                          }} />
+      )}
+    </div>
+  );
+}
+
+// Lead → Customer conversion dialog. Pre-selects relationship tags
+// derived from the lead's product_slugs (each slug → tax_products
+// row → linked tax_relationship_types row). Owner confirms or
+// adjusts, then the convert endpoint creates the customer, attaches
+// the relationships, and kicks off task generation in one call.
+function ConvertLeadModal({ lead, auth, communitySlug, products, relTypes, locale, t, onClose, onDone }) {
+  // Resolve requested product slugs → product ids → relationship type ids.
+  const requestedSlugs = Array.isArray(lead.product_slugs) && lead.product_slugs.length
+    ? lead.product_slugs : (lead.product_slug ? [lead.product_slug] : []);
+  const requestedProductIds = new Set();
+  for (const slug of requestedSlugs) {
+    const p = products.find(pp => pp.slug === slug);
+    if (p) requestedProductIds.add(p.id);
+  }
+  const initialRelIds = relTypes
+    .filter(rt => requestedProductIds.has(rt.product_id))
+    .map(rt => rt.id);
+
+  const [selected, setSelected] = useState(new Set(initialRelIds));
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+
+  const toggle = (id) => setSelected(prev => {
+    const next = new Set(prev);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    return next;
+  });
+
+  useEffect(() => {
+    const onKey = (e) => { if (e.key === 'Escape') onClose(); };
+    document.addEventListener('keydown', onKey);
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      document.body.style.overflow = prev;
+    };
+  }, [onClose]);
+
+  const onSubmit = async (e) => {
+    e?.preventDefault?.();
+    setBusy(true); setErr('');
+    try {
+      const r = await taxApi.adminConvertLead(auth, lead.id, {
+        relationshipTypeIds: Array.from(selected),
+      });
+      onDone(r.customerId);
+    } catch (e) {
+      setErr(e?.message || t('respond.error.generic'));
+    } finally { setBusy(false); }
+  };
+
+  return (
+    <div className="tax-modal" role="dialog" aria-modal="true" onClick={onClose}>
+      <div className="tax-modal__panel" style={{ maxWidth: 600 }} onClick={e => e.stopPropagation()}>
+        <button type="button" className="tax-modal__close"
+                onClick={onClose} aria-label={t('preview.close')}>×</button>
+        <h3 className="tax-modal__title">
+          {t('owner.leads.convert.title', { name: displayPersonName(lead) || lead.email })}
+        </h3>
+
+        <div style={{ marginBottom: 14, fontSize: 13, color: 'var(--tax-muted)' }}>
+          {t('owner.leads.convert.identity')}: <strong>{lead.email}</strong>
+          {lead.phone ? <> · {lead.phone}</> : null}
+        </div>
+
+        <form onSubmit={onSubmit} className="tax-form" style={{ boxShadow: 'none', padding: 0, border: 0 }}>
+          <div>
+            <label style={{ fontWeight: 600 }}>{t('owner.leads.convert.relationships')}</label>
+            <p style={{ margin: '4px 0 10px', fontSize: 12, color: 'var(--tax-muted)' }}>
+              {t('owner.leads.convert.relationshipsHint')}
+            </p>
+            <div style={{ display: 'grid', gap: 6 }}>
+              {relTypes.length === 0 && (
+                <p style={{ color: 'var(--tax-muted)' }}>
+                  {t('owner.leads.convert.noRelTypes')}
+                </p>
+              )}
+              {relTypes.map(rt => {
+                const isChecked = selected.has(rt.id);
+                const wasRequested = initialRelIds.includes(rt.id);
+                return (
+                  <label key={rt.id} style={{
+                    display: 'flex', gap: 10, padding: '8px 10px',
+                    border: '1px solid var(--tax-border)', borderRadius: 6,
+                    background: isChecked
+                      ? 'color-mix(in srgb, var(--tax-brand-primary) 7%, #fff)'
+                      : '#fff',
+                    cursor: 'pointer',
+                  }}>
+                    <input type="checkbox" checked={isChecked} disabled={busy}
+                           onChange={() => toggle(rt.id)} />
+                    <div style={{ minWidth: 0, flex: 1 }}>
+                      <div style={{ fontWeight: 500 }}>
+                        {pickI18n(rt.name_i18n, locale).value || rt.slug}
+                        {wasRequested && (
+                          <span style={{
+                            marginLeft: 8, padding: '1px 8px', borderRadius: 999,
+                            background: 'color-mix(in srgb, var(--tax-brand-primary) 14%, #fff)',
+                            color: 'var(--tax-brand-primary)',
+                            fontSize: 11, fontWeight: 700, textTransform: 'uppercase',
+                          }}>{t('owner.leads.convert.requested')}</span>
+                        )}
+                      </div>
+                    </div>
+                  </label>
+                );
+              })}
+            </div>
+          </div>
+
+          {err && <div className="tax-msg tax-msg--error">{err}</div>}
+
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button type="submit" className="tax-btn tax-btn--primary" disabled={busy}>
+              {busy ? t('lead.submitting') : t('owner.leads.convert.submit')}
+            </button>
+            <button type="button" className="tax-btn tax-btn--ghost"
+                    onClick={onClose} disabled={busy} style={{ color: 'var(--tax-text)' }}>
+              {t('preview.close')}
+            </button>
+          </div>
+        </form>
+      </div>
     </div>
   );
 }
