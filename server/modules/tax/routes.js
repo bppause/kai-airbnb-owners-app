@@ -5098,11 +5098,21 @@ module.exports = function createTaxRouter(deps) {
       }
     }
 
-    if (req.query.status)     q = q.eq('status_key', trim(req.query.status, 60));
-    if (req.query.priority)   q = q.eq('priority', trim(req.query.priority, 20));
-    if (req.query.assignedTo) q = q.eq('assigned_employee_id', trim(req.query.assignedTo, 200));
-    if (req.query.customerId) q = q.eq('customer_id', trim(req.query.customerId, 200));
-    if (req.query.productId)  q = q.eq('product_id', trim(req.query.productId, 200));
+    // Filter values can be scalar ("foo") or a comma-list ("foo,bar").
+    // Scalars use eq for a clean index hit; multi-value lists use in.
+    const applyListFilter = (qIn, raw, column, perItemLen) => {
+      const s = trim(raw || '', 2000);
+      if (!s) return qIn;
+      const ids = s.split(',').map(x => trim(x, perItemLen)).filter(Boolean);
+      if (ids.length === 0) return qIn;
+      if (ids.length === 1) return qIn.eq(column, ids[0]);
+      return qIn.in(column, ids);
+    };
+    q = applyListFilter(q, req.query.status,     'status_key',           60);
+    q = applyListFilter(q, req.query.assignedTo, 'assigned_employee_id', 200);
+    q = applyListFilter(q, req.query.customerId, 'customer_id',          200);
+    q = applyListFilter(q, req.query.productId,  'product_id',           200);
+    if (req.query.priority) q = q.eq('priority', trim(req.query.priority, 20));
 
     const due = trim(req.query.due, 20);
     if (due === 'overdue') {

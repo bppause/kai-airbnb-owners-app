@@ -35,8 +35,12 @@ export default function OwnerTasks() {
   const [editingTask, setEditingTask] = useState(null);
   const [relationshipTypes, setRelationshipTypes] = useState([]);
 
+  // Multi-value filters live as arrays of IDs; serialized to
+  // comma-separated strings at the API boundary so the server can
+  // accept either form. Priority + due stay scalar — small fixed
+  // pickers.
   const [filters, setFilters] = useState({
-    status: '', priority: '', assignedTo: '', productId: '', customerId: '', due: '',
+    status: [], priority: '', assignedTo: [], productId: [], customerId: [], due: '',
     q: '',
   });
   // Phase 4n.45: view mode (list/calendar/kanban), group-by, and the
@@ -60,9 +64,21 @@ export default function OwnerTasks() {
 
   const load = () => {
     if (!fbUser || !community) return;
-    const merged = { communitySlug: community.id, ...filters };
+    // Flatten array filters to comma-separated strings for the API.
+    // Empty arrays drop out so the server doesn't see "?status=".
+    const flat = (v) => Array.isArray(v) ? v.join(',') : v;
+    const merged = {
+      communitySlug: community.id,
+      status: flat(filters.status),
+      priority: filters.priority,
+      assignedTo: flat(filters.assignedTo),
+      productId: flat(filters.productId),
+      customerId: flat(filters.customerId),
+      due: filters.due,
+      q: filters.q,
+    };
     // Mine-toggle overrides the assignedTo filter for the duration
-    // of the toggle. Turning Mine off keeps whatever the dropdown
+    // of the toggle. Turning Mine off keeps whatever the picker
     // had selected before.
     if (mine && employee?.id) merged.assignedTo = employee.id;
     taxApi.adminListTasks(auth, merged)
@@ -108,8 +124,8 @@ export default function OwnerTasks() {
   const customerById = useMemo(() => new Map(customers.map(c => [c.id, c])), [customers]);
   const productById  = useMemo(() => new Map(products.map(p => [p.id, p])), [products]);
 
-  const onClearFilters = () => setFilters({ status: '', priority: '', assignedTo: '', productId: '', customerId: '', due: '', q: '' });
-  const filtersActive = Object.values(filters).some(v => v);
+  const onClearFilters = () => setFilters({ status: [], priority: '', assignedTo: [], productId: [], customerId: [], due: '', q: '' });
+  const filtersActive = Object.values(filters).some(v => Array.isArray(v) ? v.length > 0 : !!v);
 
   if (err) return <EmployeeShell community={community} active="tasks">
     <div className="tax-msg tax-msg--error">{err}</div>
@@ -201,13 +217,37 @@ export default function OwnerTasks() {
 
 function FilterBar({ filters, setFilters, statuses, employees, products, customers = [], onClear, active, locale, t }) {
   const set = (k, v) => setFilters(prev => ({ ...prev, [k]: v }));
+  const toggle = (k, id) => setFilters(prev => {
+    const cur = Array.isArray(prev[k]) ? prev[k] : [];
+    return { ...prev, [k]: cur.includes(id) ? cur.filter(x => x !== id) : [...cur, id] };
+  });
   // Sort customers alphabetically by display name (company first when set)
-  // so the dropdown scans like a directory.
+  // so the picker scans like a directory.
   const customerOptions = [...customers].sort((a, b) => {
     const an = (a.business_name || displayPersonName(a) || a.email || '').toLowerCase();
     const bn = (b.business_name || displayPersonName(b) || b.email || '').toLowerCase();
     return an.localeCompare(bn);
-  });
+  }).map(c => ({
+    id: c.id,
+    label: c.business_name || displayPersonName(c) || c.email,
+    sub: c.business_name && (c.first_name || c.last_name)
+      ? `${[c.first_name, c.last_name].filter(Boolean).join(' ').trim()}${c.email ? ' · ' + c.email : ''}`
+      : (c.email || ''),
+    haystack: `${c.business_name || ''} ${c.name || ''} ${c.first_name || ''} ${c.last_name || ''} ${c.email || ''} ${c.phone || ''}`.toLowerCase(),
+  }));
+  const statusOptions = statuses.map(s => ({
+    id: s.key,
+    label: pickI18n(s.label_i18n, locale).value || s.key,
+  }));
+  const ownerOptions = employees.map(em => ({
+    id: em.id,
+    label: displayPersonName(em) || em.email,
+    sub: em.email || '',
+  }));
+  const productOptions = products.map(p => ({
+    id: p.id,
+    label: pickI18n(p.name_i18n, locale).value || p.slug,
+  }));
   return (
     <div style={{ display: 'grid', gap: 8, marginBottom: 16,
                   padding: 12, background: 'var(--tax-bg-alt)', borderRadius: 8 }}>
@@ -215,39 +255,53 @@ function FilterBar({ filters, setFilters, statuses, employees, products, custome
              onChange={e => set('q', e.target.value)}
              placeholder={t('owner.tasks.searchPlaceholder')}
              style={{ padding: '8px 10px', border: '1px solid var(--tax-border)', borderRadius: 6 }} />
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 8 }}>
-        <select value={filters.status} onChange={e => set('status', e.target.value)}>
-          <option value="">{t('owner.tasks.filter.allStatuses')}</option>
-          {statuses.map(s => (
-            <option key={s.id} value={s.key}>{pickI18n(s.label_i18n, locale).value || s.key}</option>
-          ))}
-        </select>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 8 }}>
+        <MultiSelect
+          label={t('owner.tasks.filter.allStatuses')}
+          options={statusOptions}
+          value={filters.status}
+          onToggle={id => toggle('status', id)}
+          onClear={() => set('status', [])}
+          searchable={statusOptions.length > 8}
+          searchPlaceholder={t('owner.tasks.filter.searchStatuses')}
+          t={t}
+        />
         <select value={filters.priority} onChange={e => set('priority', e.target.value)}>
           <option value="">{t('owner.tasks.filter.allPriorities')}</option>
           {PRIORITY_OPTIONS.map(p => (
             <option key={p} value={p}>{t(`owner.tasks.priority.${p}`)}</option>
           ))}
         </select>
-        <select value={filters.assignedTo} onChange={e => set('assignedTo', e.target.value)}>
-          <option value="">{t('owner.tasks.filter.anyOwner')}</option>
-          {employees.map(em => (
-            <option key={em.id} value={em.id}>{displayPersonName(em) || em.email}</option>
-          ))}
-        </select>
-        <select value={filters.productId} onChange={e => set('productId', e.target.value)}>
-          <option value="">{t('owner.tasks.filter.anyService')}</option>
-          {products.map(p => (
-            <option key={p.id} value={p.id}>{pickI18n(p.name_i18n, locale).value || p.slug}</option>
-          ))}
-        </select>
-        <select value={filters.customerId} onChange={e => set('customerId', e.target.value)}>
-          <option value="">{t('owner.tasks.filter.anyCustomer')}</option>
-          {customerOptions.map(c => (
-            <option key={c.id} value={c.id}>
-              {c.business_name || displayPersonName(c) || c.email}
-            </option>
-          ))}
-        </select>
+        <MultiSelect
+          label={t('owner.tasks.filter.anyOwner')}
+          options={ownerOptions}
+          value={filters.assignedTo}
+          onToggle={id => toggle('assignedTo', id)}
+          onClear={() => set('assignedTo', [])}
+          searchable={ownerOptions.length > 8}
+          searchPlaceholder={t('owner.tasks.filter.searchOwners')}
+          t={t}
+        />
+        <MultiSelect
+          label={t('owner.tasks.filter.anyService')}
+          options={productOptions}
+          value={filters.productId}
+          onToggle={id => toggle('productId', id)}
+          onClear={() => set('productId', [])}
+          searchable={productOptions.length > 8}
+          searchPlaceholder={t('owner.tasks.filter.searchServices')}
+          t={t}
+        />
+        <MultiSelect
+          label={t('owner.tasks.filter.anyCustomer')}
+          options={customerOptions}
+          value={filters.customerId}
+          onToggle={id => toggle('customerId', id)}
+          onClear={() => set('customerId', [])}
+          searchable
+          searchPlaceholder={t('owner.tasks.filter.searchCustomers')}
+          t={t}
+        />
         <select value={filters.due} onChange={e => set('due', e.target.value)}>
           <option value="">{t('owner.tasks.filter.anyDue')}</option>
           <option value="overdue">{t('owner.tasks.filter.overdue')}</option>
@@ -262,6 +316,154 @@ function FilterBar({ filters, setFilters, statuses, employees, products, custome
                          fontSize: 11, fontWeight: 700, textTransform: 'uppercase' }}>
           × {t('owner.tasks.filter.clear')}
         </button>
+      )}
+    </div>
+  );
+}
+
+// Compact multi-select that doubles as a type-ahead picker for long
+// lists (customers, services). Closed: shows the placeholder label
+// when empty, the only chosen label when one item is selected, or
+// "N selected" otherwise. Open: a search input plus a checkbox list
+// filtered as you type. Falls back to a no-search list when the
+// option count is small enough to scan at a glance.
+function MultiSelect({ label, options, value, onToggle, onClear, searchable, searchPlaceholder, t }) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState('');
+  const wrapRef = useRef(null);
+  const inputRef = useRef(null);
+  const selected = Array.isArray(value) ? value : [];
+  const selectedSet = new Set(selected);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDocDown = (e) => {
+      if (wrapRef.current && !wrapRef.current.contains(e.target)) setOpen(false);
+    };
+    document.addEventListener('mousedown', onDocDown);
+    return () => document.removeEventListener('mousedown', onDocDown);
+  }, [open]);
+  useEffect(() => {
+    if (open && searchable && inputRef.current) {
+      inputRef.current.focus();
+    }
+    if (!open) setQuery('');
+  }, [open, searchable]);
+
+  const summary = (() => {
+    if (selected.length === 0) return label;
+    if (selected.length === 1) {
+      const opt = options.find(o => o.id === selected[0]);
+      return opt ? opt.label : `${selected.length} ${t('owner.tasks.filter.selected')}`;
+    }
+    return `${selected.length} ${t('owner.tasks.filter.selected')}`;
+  })();
+
+  const q = query.trim().toLowerCase();
+  const filtered = q
+    ? options.filter(o => (o.haystack || o.label.toLowerCase()).includes(q))
+    : options;
+
+  return (
+    <div ref={wrapRef} style={{ position: 'relative' }}>
+      <button type="button"
+              onClick={() => setOpen(o => !o)}
+              aria-haspopup="listbox"
+              aria-expanded={open}
+              style={{
+                width: '100%', padding: '6px 28px 6px 10px',
+                border: '1px solid var(--tax-border)', borderRadius: 6,
+                background: '#fff', cursor: 'pointer', textAlign: 'left',
+                fontSize: 13, color: 'var(--tax-text)',
+                whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                position: 'relative', minHeight: 34,
+              }}>
+        {summary}
+        {selected.length > 0 ? (
+          <span onClick={(e) => { e.stopPropagation(); onClear(); }}
+                role="button" aria-label={t('owner.tasks.filter.clearOne')}
+                style={{
+                  position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)',
+                  color: 'var(--tax-muted)', fontSize: 16, cursor: 'pointer', lineHeight: 1,
+                }}>×</span>
+        ) : (
+          <span aria-hidden="true" style={{
+            position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)',
+            color: 'var(--tax-muted)', fontSize: 10, pointerEvents: 'none',
+          }}>▼</span>
+        )}
+      </button>
+      {open && (
+        <div role="listbox"
+             style={{
+               position: 'absolute', top: 'calc(100% + 2px)', left: 0, right: 0,
+               minWidth: 240,
+               maxHeight: 320, display: 'flex', flexDirection: 'column',
+               background: '#fff', border: '1px solid var(--tax-border)',
+               borderRadius: 6, boxShadow: '0 8px 16px rgba(0,0,0,.08)',
+               zIndex: 50,
+             }}>
+          {searchable && (
+            <div style={{ padding: 8, borderBottom: '1px solid var(--tax-border)' }}>
+              <input ref={inputRef} type="search" value={query}
+                     onChange={e => setQuery(e.target.value)}
+                     placeholder={searchPlaceholder || t('owner.tasks.filter.searchPlaceholder')}
+                     style={{
+                       width: '100%', padding: '6px 8px',
+                       border: '1px solid var(--tax-border)', borderRadius: 4,
+                       fontSize: 13,
+                     }} />
+            </div>
+          )}
+          <div style={{ overflowY: 'auto', flex: 1 }}>
+            {filtered.length === 0 ? (
+              <div style={{ padding: '10px 12px', fontSize: 13, color: 'var(--tax-muted)' }}>
+                {t('owner.tasks.filter.noMatch')}
+              </div>
+            ) : filtered.map(o => {
+              const checked = selectedSet.has(o.id);
+              return (
+                <label key={o.id}
+                       style={{
+                         display: 'flex', alignItems: 'flex-start', gap: 8,
+                         padding: '8px 12px', cursor: 'pointer',
+                         background: checked ? 'color-mix(in srgb, var(--tax-brand-primary) 8%, #fff)' : '#fff',
+                         borderBottom: '1px solid color-mix(in srgb, var(--tax-border) 60%, transparent)',
+                       }}>
+                  <input type="checkbox" checked={checked}
+                         onChange={() => onToggle(o.id)}
+                         style={{ marginTop: 2 }} />
+                  <div style={{ minWidth: 0, flex: 1 }}>
+                    <div style={{ fontSize: 13, color: 'var(--tax-text)',
+                                  whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      {o.label}
+                    </div>
+                    {o.sub && (
+                      <div style={{ fontSize: 11, color: 'var(--tax-muted)',
+                                    whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {o.sub}
+                      </div>
+                    )}
+                  </div>
+                </label>
+              );
+            })}
+          </div>
+          {selected.length > 0 && (
+            <div style={{ padding: 6, borderTop: '1px solid var(--tax-border)',
+                          display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: 11, color: 'var(--tax-muted)' }}>
+                {selected.length} {t('owner.tasks.filter.selected')}
+              </span>
+              <button type="button" onClick={onClear}
+                      style={{ border: 0, background: 'transparent',
+                               color: 'var(--tax-brand-primary)', cursor: 'pointer',
+                               fontSize: 11, fontWeight: 700, textTransform: 'uppercase' }}>
+                {t('owner.tasks.filter.clearOne')}
+              </button>
+            </div>
+          )}
+        </div>
       )}
     </div>
   );
