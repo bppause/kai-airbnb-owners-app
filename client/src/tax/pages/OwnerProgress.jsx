@@ -17,14 +17,35 @@ export default function OwnerProgress() {
   const [data, setData] = useState(null);
   const [err, setErr] = useState('');
   const [expanded, setExpanded] = useState({});
+  const [employees, setEmployees] = useState([]);
+  const [customers, setCustomers] = useState([]);
+  const [filters, setFilters] = useState({ assignedTo: '', customerId: '' });
+
+  // Reference data for the filter dropdowns. Load once per community.
+  useEffect(() => {
+    if (!fbUser || !community) return;
+    Promise.all([
+      taxApi.adminListEmployees(auth, community.id).catch(() => ({ employees: [] })),
+      taxApi.adminListCustomers(auth, community.id).catch(() => ({ customers: [] })),
+    ]).then(([e, c]) => {
+      setEmployees((e.employees || []).filter(em => em.status !== 'archived'));
+      setCustomers(c.customers || []);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fbUser, community]);
 
   useEffect(() => {
     if (!fbUser || !community) return;
-    taxApi.adminTaskProgress(auth, community.id)
+    setData(null);
+    taxApi.adminTaskProgress(auth, {
+      communitySlug: community.id,
+      assignedTo: filters.assignedTo,
+      customerId: filters.customerId,
+    })
       .then(d => setData(d))
       .catch(e => setErr(e?.message || t('error.loadFailed')));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fbUser, community]);
+  }, [fbUser, community, filters.assignedTo, filters.customerId]);
 
   if (err) return <EmployeeShell community={community} active="progress">
     <div className="tax-msg tax-msg--error">{err}</div>
@@ -41,6 +62,51 @@ export default function OwnerProgress() {
     <EmployeeShell community={community} active="progress">
       <h2 style={{ margin: 0 }}>{t('owner.progress.title')}</h2>
       <p className="tax-section__lede">{t('owner.progress.subtitle')}</p>
+
+      <div style={{ display: 'grid', gap: 8, marginBottom: 16,
+                    gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+                    padding: 12, background: 'var(--tax-bg-alt)', borderRadius: 8 }}>
+        <label style={{ display: 'grid', gap: 4 }}>
+          <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--tax-muted)',
+                         textTransform: 'uppercase', letterSpacing: '.04em' }}>
+            {t('owner.progress.filter.owner')}
+          </span>
+          <select value={filters.assignedTo}
+                  onChange={e => setFilters(prev => ({ ...prev, assignedTo: e.target.value }))}>
+            <option value="">{t('owner.progress.filter.anyOwner')}</option>
+            {employees.map(em => (
+              <option key={em.id} value={em.id}>
+                {displayPersonName(em) || em.email}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label style={{ display: 'grid', gap: 4 }}>
+          <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--tax-muted)',
+                         textTransform: 'uppercase', letterSpacing: '.04em' }}>
+            {t('owner.progress.filter.customer')}
+          </span>
+          <select value={filters.customerId}
+                  onChange={e => setFilters(prev => ({ ...prev, customerId: e.target.value }))}>
+            <option value="">{t('owner.progress.filter.anyCustomer')}</option>
+            {customers.map(c => (
+              <option key={c.id} value={c.id}>
+                {displayPersonName(c) || c.email}
+              </option>
+            ))}
+          </select>
+        </label>
+        {(filters.assignedTo || filters.customerId) && (
+          <button type="button"
+                  onClick={() => setFilters({ assignedTo: '', customerId: '' })}
+                  style={{ alignSelf: 'end', justifySelf: 'start',
+                           border: 0, background: 'transparent',
+                           color: 'var(--tax-brand-primary)', cursor: 'pointer',
+                           fontSize: 11, fontWeight: 700, textTransform: 'uppercase' }}>
+            × {t('owner.progress.filter.clear')}
+          </button>
+        )}
+      </div>
 
       <div style={{ display: 'grid', gap: 12, gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', marginBottom: 20 }}>
         <Stat label={t('owner.progress.kpi.done')}        value={t0.done}        color="#166534" sub={`${donePct}% ${t('owner.progress.kpi.ofAll')}`} />
