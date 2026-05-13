@@ -262,19 +262,16 @@ function LeadRow({ lead, auth, onChange, communitySlug, products, relTypes, loca
 // adjusts, then the convert endpoint creates the customer, attaches
 // the relationships, and kicks off task generation in one call.
 function ConvertLeadModal({ lead, auth, communitySlug, products, relTypes, locale, t, onClose, onDone }) {
-  // Resolve requested product slugs → product ids → relationship type ids.
+  // Phase 4n.48: direct service tagging on lead convert. Map the
+  // lead's requested product_slugs to product_ids and pre-select
+  // them in the picker. No relationship hop.
   const requestedSlugs = Array.isArray(lead.product_slugs) && lead.product_slugs.length
     ? lead.product_slugs : (lead.product_slug ? [lead.product_slug] : []);
-  const requestedProductIds = new Set();
-  for (const slug of requestedSlugs) {
-    const p = products.find(pp => pp.slug === slug);
-    if (p) requestedProductIds.add(p.id);
-  }
-  const initialRelIds = relTypes
-    .filter(rt => requestedProductIds.has(rt.product_id))
-    .map(rt => rt.id);
+  const initialProductIds = (products || [])
+    .filter(p => requestedSlugs.includes(p.slug))
+    .map(p => p.id);
 
-  const [selected, setSelected] = useState(new Set(initialRelIds));
+  const [selected, setSelected] = useState(new Set(initialProductIds));
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
 
@@ -300,7 +297,7 @@ function ConvertLeadModal({ lead, auth, communitySlug, products, relTypes, local
     setBusy(true); setErr('');
     try {
       const r = await taxApi.adminConvertLead(auth, lead.id, {
-        relationshipTypeIds: Array.from(selected),
+        productIds: Array.from(selected),
       });
       onDone(r.customerId);
     } catch (e) {
@@ -324,21 +321,21 @@ function ConvertLeadModal({ lead, auth, communitySlug, products, relTypes, local
 
         <form onSubmit={onSubmit} className="tax-form" style={{ boxShadow: 'none', padding: 0, border: 0 }}>
           <div>
-            <label style={{ fontWeight: 600 }}>{t('owner.leads.convert.relationships')}</label>
+            <label style={{ fontWeight: 600 }}>{t('owner.leads.convert.services')}</label>
             <p style={{ margin: '4px 0 10px', fontSize: 12, color: 'var(--tax-muted)' }}>
-              {t('owner.leads.convert.relationshipsHint')}
+              {t('owner.leads.convert.servicesHint')}
             </p>
             <div style={{ display: 'grid', gap: 6 }}>
-              {relTypes.length === 0 && (
+              {(products || []).length === 0 && (
                 <p style={{ color: 'var(--tax-muted)' }}>
-                  {t('owner.leads.convert.noRelTypes')}
+                  {t('owner.leads.convert.noServices')}
                 </p>
               )}
-              {relTypes.map(rt => {
-                const isChecked = selected.has(rt.id);
-                const wasRequested = initialRelIds.includes(rt.id);
+              {(products || []).filter(p => p.enabled !== false).map(p => {
+                const isChecked = selected.has(p.id);
+                const wasRequested = initialProductIds.includes(p.id);
                 return (
-                  <label key={rt.id} style={{
+                  <label key={p.id} style={{
                     display: 'flex', gap: 10, padding: '8px 10px',
                     border: '1px solid var(--tax-border)', borderRadius: 6,
                     background: isChecked
@@ -347,10 +344,10 @@ function ConvertLeadModal({ lead, auth, communitySlug, products, relTypes, local
                     cursor: 'pointer',
                   }}>
                     <input type="checkbox" checked={isChecked} disabled={busy}
-                           onChange={() => toggle(rt.id)} />
+                           onChange={() => toggle(p.id)} />
                     <div style={{ minWidth: 0, flex: 1 }}>
                       <div style={{ fontWeight: 500 }}>
-                        {pickI18n(rt.name_i18n, locale).value || rt.slug}
+                        {pickI18n(p.name_i18n, locale).value || p.slug}
                         {wasRequested && (
                           <span style={{
                             marginLeft: 8, padding: '1px 8px', borderRadius: 999,

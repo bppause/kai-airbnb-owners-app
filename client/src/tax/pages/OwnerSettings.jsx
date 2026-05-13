@@ -719,45 +719,38 @@ function LookaheadEditor({ initial, busy, onSave, onRefresh, t }) {
 // the client too so the owner sees it before submitting.
 function ThresholdEditor({ initial, busy, onSave, t }) {
   const [draft, setDraft] = useState({
-    urgent:   String(initial.urgent ?? 3),
-    soon:     String(initial.soon ?? 7),
-    upcoming: String(initial.upcoming ?? 30),
+    urgent: String(initial.urgent ?? 2),
+    soon:   String(initial.soon   ?? 7),
   });
   const u = Number(draft.urgent);
   const s = Number(draft.soon);
-  const up = Number(draft.upcoming);
-  const validNums = Number.isFinite(u) && Number.isFinite(s) && Number.isFinite(up);
-  const ordered = validNums && u <= s && s <= up;
+  const validNums = Number.isFinite(u) && Number.isFinite(s);
+  const ordered = validNums && u <= s;
   const dirty = String(initial.urgent) !== draft.urgent
-             || String(initial.soon) !== draft.soon
-             || String(initial.upcoming) !== draft.upcoming;
+             || String(initial.soon) !== draft.soon;
   return (
     <div style={{ display: 'grid', gap: 8, maxWidth: 560 }}>
-      <div style={{ display: 'grid', gap: 8, gridTemplateColumns: 'repeat(3, minmax(0, 1fr))' }}>
-        <ThresholdField label={t('owner.settings.urgency.urgent')}  color="#ea580c"
-                        value={draft.urgent}  busy={busy}
+      <div style={{ display: 'grid', gap: 8, gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' }}>
+        <ThresholdField label={t('owner.settings.urgency.red')}    color="#dc2626"
+                        value={draft.urgent} busy={busy}
                         onChange={v => setDraft(d => ({ ...d, urgent: v }))} />
-        <ThresholdField label={t('owner.settings.urgency.soon')}    color="#d97706"
-                        value={draft.soon}    busy={busy}
+        <ThresholdField label={t('owner.settings.urgency.orange')} color="#ea580c"
+                        value={draft.soon} busy={busy}
                         onChange={v => setDraft(d => ({ ...d, soon: v }))} />
-        <ThresholdField label={t('owner.settings.urgency.upcoming')} color="#2563eb"
-                        value={draft.upcoming} busy={busy}
-                        onChange={v => setDraft(d => ({ ...d, upcoming: v }))} />
       </div>
       {!ordered && validNums && (
         <div className="tax-msg tax-msg--error" style={{ marginTop: 4 }}>
           {t('owner.settings.urgency.outOfOrder')}
         </div>
       )}
-      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
         <button type="button" className="tax-btn tax-btn--primary tax-btn--sm"
                 disabled={busy || !dirty || !ordered}
-                onClick={() => onSave({ urgentDays: u, soonDays: s, upcomingDays: up })}>
+                onClick={() => onSave({ urgentDays: u, soonDays: s, upcomingDays: 0 })}>
           {t('owner.settings.urgency.save')}
         </button>
         <span style={{ fontSize: 12, color: 'var(--tax-muted)' }}>
-          {t('owner.settings.urgency.preview',
-             { urgent: u || '?', soon: s || '?', upcoming: up || '?' })}
+          {t('owner.settings.urgency.preview', { urgent: u || '?', soon: s || '?' })}
         </span>
       </div>
     </div>

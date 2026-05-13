@@ -1133,14 +1133,37 @@ module.exports = function createTaxRouter(deps) {
   // POST /admin/tasks/refresh endpoint. Safe to call repeatedly.
   async function refreshAllRelationshipTasks() {
     if (!isSupabaseConfigured) return { skipped: 'supabase_not_configured' };
-    const { data: rels, error } = await supabase
+    let scanned = 0, created = 0;
+
+    // Phase 4n.48: walk the new tax_customer_services join first.
+    // Each (customer, product) row fires the per-product generator;
+    // idempotent — existing tasks are no-ops.
+    const { data: svcRows } = await supabase
+      .from('tax_customer_services')
+      .select('customer_id, product_id')
+      .eq('active', true)
+      .limit(20000);
+    for (const r of svcRows || []) {
+      scanned++;
+      try {
+        const out = await generateTasksForService({
+          customerId: r.customer_id, productId: r.product_id,
+          actorEmail: 'task-cron',
+        });
+        created += out.created || 0;
+      } catch (e) { warn('[tax-task-cron] svc gen failed', e?.message || e); }
+    }
+
+    // Back-compat: also walk the legacy relationship table for
+    // tenants that haven't been migrated yet. The generators are
+    // idempotent, so a customer with both rows just no-ops the
+    // second pass.
+    const { data: relRows } = await supabase
       .from('tax_customer_relationships')
       .select('customer_id, relationship_type_id')
       .eq('active', true)
       .limit(20000);
-    if (error) { warn('[tax-task-cron] fetch failed', error.message); return { error: error.message }; }
-    let scanned = 0, created = 0;
-    for (const r of rels || []) {
+    for (const r of relRows || []) {
       scanned++;
       try {
         const out = await generateTasksForRelationship({
@@ -1149,7 +1172,7 @@ module.exports = function createTaxRouter(deps) {
           actorEmail: 'task-cron',
         });
         created += out.created || 0;
-      } catch (e) { warn('[tax-task-cron] gen failed', e?.message || e); }
+      } catch (e) { warn('[tax-task-cron] rel gen failed', e?.message || e); }
     }
     return { scanned, created };
   }
@@ -1213,6 +1236,128 @@ module.exports = function createTaxRouter(deps) {
         entity: 'tax.customer', entityId: customerId, action: 'tasks_deleted',
         actorEmail: actorEmail || '',
         after: { relationshipTypeId, deleted: dropIds.length },
+      });
+    } catch (_e) {}
+    return { deleted: dropIds.length };
+  }
+
+  // ── Service-tagging variants (Phase 4n.48) ─────────────────────────────
+  //
+  // These wrap the relationship-based helpers because the underlying
+  // task-generation logic walks auto-tasks per product anyway — the
+  // only thing changing is the entry point. Customer-side tagging now
+  // happens by product_id; we just synthesize a "virtual" relationship
+  // context so the existing generator can run unchanged.
+  async function generateTasksForService({ customerId, productId, actorEmail = '' }) {
+    if (!customerId || !productId) return { created: 0, skipped: 'missing_args' };
+    // Find a relationship_type that points at this product (if any)
+    // so the generated tasks still carry a relationship_type_id for
+    // legacy code paths. When none exists, the task rows just have
+    // a null relationship_type_id, which all current consumers
+    // handle.
+    const { data: relType } = await supabase.from('tax_relationship_types')
+      .select('id').eq('product_id', productId)
+      .eq('active', true).limit(1).maybeSingle();
+    if (relType?.id) {
+      return generateTasksForRelationship({
+        customerId, relationshipTypeId: relType.id, actorEmail,
+      });
+    }
+    // Direct path — no relationship type exists. Build minimal
+    // schedule context from auto-tasks directly.
+    return generateTasksDirectFromProduct({ customerId, productId, actorEmail });
+  }
+
+  async function generateTasksDirectFromProduct({ customerId, productId, actorEmail = '' }) {
+    const { data: cust } = await supabase.from('tax_customers')
+      .select('id, community_id, locale').eq('id', customerId).maybeSingle();
+    if (!cust) return { created: 0, skipped: 'customer_not_found' };
+    const { data: commRow } = await supabase.from('communities')
+      .select('tax_task_lookahead_months').eq('id', cust.community_id).maybeSingle();
+    const lookaheadMonths = Math.max(1, Math.min(24,
+      Number(commRow?.tax_task_lookahead_months) || RELATIONSHIP_TASK_LOOKAHEAD_DEFAULT));
+    const todayIso = new Date().toISOString().slice(0, 10);
+    const cutoff = new Date(); cutoff.setUTCMonth(cutoff.getUTCMonth() + lookaheadMonths);
+    const cutoffIso = cutoff.toISOString().slice(0, 10);
+    const { data: statusOpts } = await supabase.from('tax_task_status_options')
+      .select('key, display_order, is_terminal')
+      .eq('community_id', cust.community_id).eq('active', true)
+      .order('display_order', { ascending: true });
+    const defaultStatus = (statusOpts || []).find(s => !s.is_terminal)?.key
+      || (statusOpts || [])[0]?.key || 'not_started';
+    const { data: autoTasks } = await supabase.from('tax_service_auto_tasks')
+      .select('id, title_i18n, cadence_kind, anchor_rule, default_priority')
+      .eq('product_id', productId).eq('active', true);
+    let created = 0;
+    for (const at of autoTasks || []) {
+      if (!at.cadence_kind || at.cadence_kind === 'none') continue;
+      const periods = generateSchedulePeriods(at.anchor_rule, todayIso, 24, {
+        lang: cust.locale === 'en' ? 'en' : 'es',
+      });
+      const titleBase = at.title_i18n?.[cust.locale === 'en' ? 'en' : 'es']
+                     || at.title_i18n?.en || at.title_i18n?.es || 'Auto task';
+      const rows = [];
+      for (const p of periods) {
+        if (!p.dueDate) continue;
+        if (p.dueDate > cutoffIso) break;
+        if (p.dueDate < todayIso) continue;
+        rows.push({
+          id: 'task_' + uuidv4().slice(0, 12),
+          community_id: cust.community_id,
+          customer_id: cust.id,
+          product_id: productId,
+          relationship_type_id: null,
+          schedule_id: null,
+          service_auto_task_id: at.id,
+          period_key: `at:${at.id}:${p.periodStart || p.dueDate}`,
+          source: 'relationship_schedule',
+          title: `${titleBase} — ${p.periodLabel || p.dueDate}`,
+          status_key: defaultStatus,
+          priority: at.default_priority || 'normal',
+          due_date: p.dueDate,
+          notes: '',
+        });
+      }
+      if (!rows.length) continue;
+      const { count } = await supabase.from('tax_tasks').upsert(rows, {
+        onConflict: 'customer_id,service_auto_task_id,period_key',
+        ignoreDuplicates: true, count: 'exact',
+      });
+      created += count || rows.length;
+    }
+    if (created > 0) {
+      try {
+        await auditLog({
+          entity: 'tax.customer', entityId: customerId, action: 'tasks_generated',
+          actorEmail: actorEmail || '',
+          after: { productId, created },
+        });
+      } catch (_e) {}
+    }
+    return { created };
+  }
+
+  async function removeTasksForService({ customerId, productId, actorEmail = '' }) {
+    if (!customerId || !productId) return { deleted: 0 };
+    const { data: cur } = await supabase.from('tax_tasks')
+      .select('id, status_key, completed_at, assigned_employee_id, notes')
+      .eq('customer_id', customerId)
+      .eq('product_id', productId)
+      .eq('source', 'relationship_schedule')
+      .is('archived_at', null);
+    const dropIds = (cur || [])
+      .filter(t => !t.completed_at && !t.assigned_employee_id
+                && (!t.notes || !t.notes.trim())
+                && t.status_key !== 'in_progress')
+      .map(t => t.id);
+    if (!dropIds.length) return { deleted: 0 };
+    const { error } = await supabase.from('tax_tasks').delete().in('id', dropIds);
+    if (error) { warn('[tax-cust-svc] delete failed', error.message); return { deleted: 0, error: error.message }; }
+    try {
+      await auditLog({
+        entity: 'tax.customer', entityId: customerId, action: 'tasks_deleted',
+        actorEmail: actorEmail || '',
+        after: { productId, deleted: dropIds.length },
       });
     } catch (_e) {}
     return { deleted: dropIds.length };
@@ -2750,35 +2895,44 @@ module.exports = function createTaxRouter(deps) {
     // Each successful relationship insert kicks off task generation
     // for that (customer, relationship_type) so the team has work
     // queued the moment the convert succeeds.
-    const requestedRels = Array.isArray(req.body?.relationshipTypeIds)
-      ? req.body.relationshipTypeIds.map(s => String(s)).filter(Boolean) : [];
-    let relationshipsAdded = 0;
+    // Phase 4n.48: prefer direct productIds. Fall back to the old
+    // relationshipTypeIds shape if a stale client sends it (resolve
+    // each relationship to its linked product).
+    let requestedProductIds = Array.isArray(req.body?.productIds)
+      ? req.body.productIds.map(s => String(s)).filter(Boolean) : [];
+    if (!requestedProductIds.length && Array.isArray(req.body?.relationshipTypeIds)) {
+      const relIds = req.body.relationshipTypeIds.map(s => String(s)).filter(Boolean);
+      if (relIds.length) {
+        const { data: rt } = await supabase.from('tax_relationship_types')
+          .select('id, product_id').in('id', relIds);
+        requestedProductIds = (rt || []).map(r => r.product_id).filter(Boolean);
+      }
+    }
+    let servicesAdded = 0;
     let tasksCreated = 0;
-    if (requestedRels.length) {
-      const { data: types } = await supabase.from('tax_relationship_types')
-        .select('id, community_id').eq('active', true);
-      const validTypeIds = new Set((types || [])
-        .filter(t => t.community_id == null || t.community_id === lead.community_id)
-        .map(t => t.id));
-      const valid = requestedRels.filter(id => validTypeIds.has(id));
-      if (valid.length) {
-        const rows = valid.map(typeId => ({
-          id: 'crel_' + uuidv4().slice(0, 12),
+    if (requestedProductIds.length) {
+      const { data: prods } = await supabase.from('tax_products')
+        .select('id, community_id').eq('community_id', lead.community_id)
+        .in('id', requestedProductIds);
+      const validIds = (prods || []).map(p => p.id);
+      if (validIds.length) {
+        const rows = validIds.map(pid => ({
+          id: 'ccs_' + uuidv4().slice(0, 16),
+          community_id: lead.community_id,
           customer_id: customerId,
-          relationship_type_id: typeId,
+          product_id: pid,
           created_by_email: trim(req.get('x-admin-email') || '', 200).toLowerCase() || 'lead_convert',
           active: true,
         }));
-        const { error: relErr } = await supabase.from('tax_customer_relationships').upsert(rows, {
-          onConflict: 'customer_id,relationship_type_id',
+        const { error: linkErr } = await supabase.from('tax_customer_services').upsert(rows, {
+          onConflict: 'customer_id,product_id',
         });
-        if (!relErr) {
-          relationshipsAdded = valid.length;
-          for (const typeId of valid) {
+        if (!linkErr) {
+          servicesAdded = validIds.length;
+          for (const pid of validIds) {
             try {
-              const r = await generateTasksForRelationship({
-                customerId, relationshipTypeId: typeId,
-                actorEmail: 'lead_convert',
+              const r = await generateTasksForService({
+                customerId, productId: pid, actorEmail: 'lead_convert',
               });
               tasksCreated += r.created || 0;
             } catch (e) { warn('[tax-lead-convert] task gen failed', e?.message || e); }
@@ -2786,6 +2940,9 @@ module.exports = function createTaxRouter(deps) {
         }
       }
     }
+    // Keep response field for legacy client compat — relationshipsAdded
+    // now == servicesAdded (the practical thing both sides care about).
+    const relationshipsAdded = servicesAdded;
 
     const { error: updErr } = await supabase.from('tax_leads').update({
       status: 'converted',
@@ -5388,6 +5545,109 @@ module.exports = function createTaxRouter(deps) {
   });
 
   // ── POST /admin/customers/:id/relationships ── (global admin)
+  // ── GET /admin/customers/:id/services ──────────────────────────────────
+  // Phase 4n.48: customer ↔ service direct tagging. Replaces the
+  // relationship → service indirection for the customer-side flow.
+  router.get('/admin/customers/:id/services', async (req, res) => {
+    if (!(await requireOwnerAdmin(req, res, 'manage_customers'))) return;
+    const customerId = trim(req.params.id, 200);
+    const { data, error } = await supabase.from('tax_customer_services')
+      .select(`
+        id, customer_id, product_id, notes, active, created_at, created_by_email,
+        product:tax_products ( id, slug, name_i18n, category )
+      `)
+      .eq('customer_id', customerId).eq('active', true)
+      .order('created_at', { ascending: true });
+    if (error) return sendSupabaseError(res, error);
+    res.json({ services: data || [] });
+  });
+
+  // POST /admin/customers/:id/services
+  // Body: { productId, notes? }. Upserts the join row (reactivates
+  // any soft-deleted prior row) and immediately fires the task
+  // generator for that customer + product.
+  router.post('/admin/customers/:id/services', async (req, res) => {
+    const actor = await requireOwnerAdmin(req, res, 'manage_customers');
+    if (!actor) return;
+    const customerId = trim(req.params.id, 200);
+    const productId  = trim(req.body?.productId, 200);
+    const notes      = trim(req.body?.notes || '', MAX_TEXT_LEN);
+    if (!customerId || !productId) {
+      return res.status(400).json({ error: 'customerId and productId required.' });
+    }
+    const { data: cust } = await supabase.from('tax_customers')
+      .select('id, community_id').eq('id', customerId).maybeSingle();
+    if (!cust) return res.status(404).json({ error: 'Customer not found.' });
+    const { data: prod } = await supabase.from('tax_products')
+      .select('id, community_id').eq('id', productId).maybeSingle();
+    if (!prod) return res.status(404).json({ error: 'Service not found.' });
+    if (prod.community_id !== cust.community_id) {
+      return res.status(403).json({ error: 'Service belongs to a different community.' });
+    }
+    const rowId = 'ccs_' + uuidv4().slice(0, 16);
+    const { error } = await supabase.from('tax_customer_services').upsert({
+      id: rowId, community_id: cust.community_id,
+      customer_id: customerId, product_id: productId,
+      notes, active: true,
+      created_by_email: trim(req.get('x-firebase-email') || req.get('x-admin-email') || '', 200).toLowerCase() || null,
+      updated_at: new Date().toISOString(),
+    }, { onConflict: 'customer_id,product_id' });
+    if (error) return sendSupabaseError(res, error);
+    let tasksCreated = 0;
+    try {
+      const r = await generateTasksForService({
+        customerId, productId,
+        actorEmail: actor.email || '',
+      });
+      tasksCreated = r.created || 0;
+    } catch (e) { warn('[tax-cust-svc-add] task gen failed', e?.message || e); }
+    try {
+      await auditLog({
+        entity: 'tax.customer', entityId: customerId, action: 'service_add',
+        actorEmail: actor.email || '',
+        after: { productId, tasksCreated },
+      });
+    } catch (_e) {}
+    res.json({ ok: true, tasksCreated });
+  });
+
+  // DELETE /admin/customers/:id/services/:linkId
+  // Soft-deletes the join (active=false), then hard-deletes any
+  // untouched generator tasks for that (customer, product) — same
+  // safety rule as relationship removal: keep anything with a
+  // completion, assignee, notes, or in_progress status.
+  router.delete('/admin/customers/:id/services/:linkId', async (req, res) => {
+    const actor = await requireOwnerAdmin(req, res, 'manage_customers');
+    if (!actor) return;
+    const customerId = trim(req.params.id, 200);
+    const linkId     = trim(req.params.linkId, 200);
+    const { data: row } = await supabase.from('tax_customer_services')
+      .select('id, customer_id, product_id').eq('id', linkId).maybeSingle();
+    if (!row || row.customer_id !== customerId) {
+      return res.status(404).json({ error: 'Service link not found.' });
+    }
+    const { error } = await supabase.from('tax_customer_services')
+      .update({ active: false, updated_at: new Date().toISOString() })
+      .eq('id', linkId);
+    if (error) return sendSupabaseError(res, error);
+    let tasksDeleted = 0;
+    try {
+      const r = await removeTasksForService({
+        customerId, productId: row.product_id,
+        actorEmail: actor.email || '',
+      });
+      tasksDeleted = r.deleted || 0;
+    } catch (e) { warn('[tax-cust-svc-del] task delete failed', e?.message || e); }
+    try {
+      await auditLog({
+        entity: 'tax.customer', entityId: customerId, action: 'service_remove',
+        actorEmail: actor.email || '',
+        after: { productId: row.product_id, tasksDeleted },
+      });
+    } catch (_e) {}
+    res.json({ ok: true, tasksDeleted });
+  });
+
   router.post('/admin/customers/:id/relationships', async (req, res) => {
     if (!(await requireOwnerAdmin(req, res))) return;
     const customerId = trim(req.params.id, 200);

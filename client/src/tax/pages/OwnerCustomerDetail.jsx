@@ -142,9 +142,9 @@ export default function OwnerCustomerDetail({ customerId }) {
           supporting context. */}
       <ProfileSection customer={c} auth={auth} customerId={customerId} onChange={load} t={t} />
 
-      <RelationshipsSection
-        data={data} types={types} auth={auth} customerId={customerId}
-        onChange={load} locale={locale} t={t} />
+      <ServicesSection
+        community={community} auth={auth} customerId={customerId}
+        locale={locale} t={t} />
 
       <TasksSection auth={auth} customer={c} customerId={customerId} community={community}
                     locale={locale} t={t} />
@@ -1529,5 +1529,124 @@ function InlineAddTask({ auth, community, customerId, statuses, employees, produ
         </button>
       </div>
     </form>
+  );
+}
+
+// Phase 4n.48: direct customer ↔ service tagging. Replaces the
+// Relationships section as the customer-side "what does this person
+// use" surface. Adding a service immediately fires the task
+// generator for it; removing a service hard-deletes the untouched
+// auto-tasks (same safety rule as relationship removal).
+function ServicesSection({ community, auth, customerId, locale, t }) {
+  const [services, setServices] = useState(null);
+  const [products, setProducts] = useState([]);
+  const [productId, setProductId] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+  const [msg, setMsg] = useState('');
+
+  const load = () => {
+    if (!auth?.uid || !community?.id) return;
+    taxApi.adminListCustomerServices(auth, customerId)
+      .then(d => setServices(d.services || []))
+      .catch(e => setErr(e?.message || ''));
+  };
+  useEffect(() => {
+    if (!auth?.uid || !community?.id) return;
+    taxApi.adminListProducts(auth, community.id)
+      .then(d => setProducts((d.products || []).filter(p => p.enabled !== false)))
+      .catch(() => setProducts([]));
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [auth?.uid, community?.id, customerId]);
+
+  const tagged = new Set((services || []).map(s => s.product_id));
+  const choices = products.filter(p => !tagged.has(p.id));
+
+  const onAdd = async () => {
+    if (!productId) return;
+    setBusy(true); setErr(''); setMsg('');
+    try {
+      const r = await taxApi.adminAddCustomerService(auth, customerId, { productId });
+      setProductId('');
+      setMsg(r.tasksCreated
+        ? t('owner.customer.services.addedWithTasks', { count: r.tasksCreated })
+        : t('owner.customer.services.added'));
+      load();
+    } catch (e) { setErr(e?.message || ''); }
+    finally { setBusy(false); }
+  };
+  const onRemove = async (link) => {
+    const name = pickI18n(link.product?.name_i18n, locale).value || link.product?.slug || '';
+    if (!window.confirm(t('owner.customer.services.removeConfirm', { name }))) return;
+    setBusy(true); setErr(''); setMsg('');
+    try {
+      const r = await taxApi.adminRemoveCustomerService(auth, customerId, link.id);
+      setMsg(r.tasksDeleted
+        ? t('owner.customer.services.removedWithTasks', { count: r.tasksDeleted })
+        : t('owner.customer.services.removed'));
+      load();
+    } catch (e) { setErr(e?.message || ''); }
+    finally { setBusy(false); }
+  };
+
+  return (
+    <section style={{ marginTop: 32 }}>
+      <h3 style={{ margin: 0 }}>{t('owner.customer.section.services')}</h3>
+      <p className="tax-section__lede" style={{ marginTop: 4, marginBottom: 12 }}>
+        {t('owner.customer.section.servicesHint')}
+      </p>
+
+      {err && <div className="tax-msg tax-msg--error" style={{ marginBottom: 8 }}>{err}</div>}
+      {msg && <div className="tax-msg" style={{
+        background: 'color-mix(in srgb, var(--tax-brand-primary) 8%, #fff)',
+        borderLeft: '3px solid var(--tax-brand-primary)', padding: '6px 10px',
+        fontSize: 13, marginBottom: 8,
+      }}>{msg}</div>}
+
+      <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
+        <select value={productId} onChange={e => setProductId(e.target.value)} disabled={busy}
+                style={{ padding: '6px 10px', border: '1px solid var(--tax-border)', borderRadius: 6, minWidth: 240 }}>
+          <option value="">{t('owner.customer.services.addPicker')}</option>
+          {choices.map(p => (
+            <option key={p.id} value={p.id}>
+              {pickI18n(p.name_i18n, locale).value || p.slug}
+            </option>
+          ))}
+        </select>
+        <button type="button" className="tax-btn tax-btn--primary tax-btn--sm"
+                onClick={onAdd} disabled={busy || !productId}>
+          + {t('owner.customer.services.addBtn')}
+        </button>
+      </div>
+
+      {services === null ? <p style={{ color: 'var(--tax-muted)' }}>{t('loading')}</p>
+        : services.length === 0
+          ? <p style={{ color: 'var(--tax-muted)', fontSize: 13 }}>{t('owner.customer.services.empty')}</p>
+          : <div style={{ display: 'grid', gap: 6 }}>
+              {services.map(link => {
+                const name = pickI18n(link.product?.name_i18n, locale).value || link.product?.slug || '';
+                return (
+                  <div key={link.id} className="tax-contact-item" style={{
+                    display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12,
+                  }}>
+                    <div>
+                      <div style={{ fontWeight: 600 }}>{name}</div>
+                      {link.product?.category && (
+                        <div style={{ fontSize: 11, color: 'var(--tax-muted)', textTransform: 'uppercase', letterSpacing: '.04em', marginTop: 2 }}>
+                          {link.product.category}
+                        </div>
+                      )}
+                    </div>
+                    <button type="button" className="tax-btn tax-btn--ghost tax-btn--sm"
+                            onClick={() => onRemove(link)} disabled={busy}
+                            style={{ color: 'var(--tax-error)' }}>
+                      × {t('owner.customer.services.remove')}
+                    </button>
+                  </div>
+                );
+              })}
+            </div>}
+    </section>
   );
 }

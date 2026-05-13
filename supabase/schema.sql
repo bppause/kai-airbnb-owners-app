@@ -2832,3 +2832,76 @@ where p.cadence_kind is not null
     select 1 from public.tax_service_auto_tasks sat
     where sat.product_id = p.id
   );
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- Phase 4n.47 — urgency model simplified to two thresholds
+--
+-- Drop the "upcoming" / blue band. New defaults map to "no color
+-- by default, orange 7 days before, red 2 days before or past
+-- due". The `tax_task_upcoming_days` column stays on the table for
+-- back-compat but the UI no longer reads or writes it.
+-- ═══════════════════════════════════════════════════════════════════════════════
+alter table public.communities
+  alter column tax_task_urgent_days set default 2;
+
+-- Migrate existing tenants who haven't customized: bring them to
+-- the new defaults silently. Owners who set their own values are
+-- left alone (the WHERE keeps the migration narrow).
+update public.communities
+   set tax_task_urgent_days = 2
+ where tax_task_urgent_days = 3
+   and tax_task_soon_days   = 7
+   and tax_task_upcoming_days = 30
+   and business_type = 'tax';
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- Phase 4n.48 — customer-to-service direct tagging
+--
+-- The old model required the owner to set up a relationship type,
+-- link the relationship to a service, then tag the customer with the
+-- relationship. Two layers for what's really a one-step flow:
+-- "this customer is signed up for these services".
+--
+-- New join: tax_customer_services. Customer ←→ service directly.
+-- The relationship_types table stays (FAQs + articles still
+-- categorize by it), but customer-side tagging happens here.
+--
+-- Backfill below seeds the new join from existing
+-- tax_customer_relationships → tax_relationship_types.product_id
+-- so existing tenants upgrade silently.
+-- ═══════════════════════════════════════════════════════════════════════════════
+create table if not exists public.tax_customer_services (
+  id                text primary key,
+  community_id      text not null references public.communities(id) on delete cascade,
+  customer_id       text not null references public.tax_customers(id) on delete cascade,
+  product_id        text not null references public.tax_products(id) on delete cascade,
+  notes             text not null default '',
+  created_by_email  text not null default '',
+  active            boolean not null default true,
+  created_at        timestamptz not null default now(),
+  updated_at        timestamptz not null default now(),
+  unique (customer_id, product_id)
+);
+alter table public.tax_customer_services disable row level security;
+create index if not exists tax_customer_services_customer_idx
+  on public.tax_customer_services(customer_id) where active = true;
+create index if not exists tax_customer_services_product_idx
+  on public.tax_customer_services(product_id) where active = true;
+
+-- Backfill — one row per (customer, product) reachable through the
+-- existing relationship chain. Idempotent: unique constraint
+-- swallows duplicates if the migration is rerun.
+insert into public.tax_customer_services (id, community_id, customer_id, product_id, active, created_at, created_by_email)
+select
+  'ccs_' || substring(cr.id, 6),                       -- crel_xxxx → ccs_xxxx
+  c.community_id,
+  cr.customer_id,
+  rt.product_id,
+  cr.active,
+  cr.created_at,
+  coalesce(cr.created_by_email, 'migration')
+from public.tax_customer_relationships cr
+join public.tax_customers          c  on c.id = cr.customer_id
+join public.tax_relationship_types rt on rt.id = cr.relationship_type_id
+where rt.product_id is not null
+on conflict (customer_id, product_id) do nothing;
