@@ -2759,3 +2759,76 @@ alter table public.communities
 alter table public.communities
   add column if not exists tax_task_upcoming_days smallint not null default 30
     check (tax_task_upcoming_days between 0 and 365);
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- Phase 4n.46 — services own a list of auto-tasks
+--
+-- Real services have multiple recurring deliverables on different
+-- cadences (a Bookkeeping engagement = monthly reconciliations +
+-- quarterly P&L reviews + annual close, not a single "monthly
+-- bookkeeping task"). Move the cadence off the product row and onto
+-- a per-product list of auto-tasks.
+--
+-- Legacy product.cadence_kind / anchor_rule columns stay; the task
+-- generator falls back to them when a product has no auto-tasks yet.
+-- The backfill block below seeds one auto-task per product that
+-- already had a non-none cadence, so existing tenants upgrade
+-- silently.
+-- ═══════════════════════════════════════════════════════════════════════════════
+create table if not exists public.tax_service_auto_tasks (
+  id                text primary key,
+  community_id      text not null references public.communities(id) on delete cascade,
+  product_id        text not null references public.tax_products(id) on delete cascade,
+  title_i18n        jsonb not null default '{}'::jsonb,
+  description_i18n  jsonb not null default '{}'::jsonb,
+  cadence_kind      text not null default 'monthly'
+                      check (cadence_kind in ('none','weekly','monthly','quarterly','annual')),
+  anchor_rule       jsonb not null default '{}'::jsonb,
+  default_priority  text not null default 'normal'
+                      check (default_priority in ('urgent','high','normal','low')),
+  display_order     int  not null default 100,
+  active            boolean not null default true,
+  created_at        timestamptz not null default now(),
+  updated_at        timestamptz not null default now()
+);
+alter table public.tax_service_auto_tasks disable row level security;
+create index if not exists tax_service_auto_tasks_product_idx
+  on public.tax_service_auto_tasks(product_id, display_order) where active = true;
+create index if not exists tax_service_auto_tasks_community_idx
+  on public.tax_service_auto_tasks(community_id);
+
+-- FK on tax_tasks tying each generated task to the auto-task that
+-- minted it. Used for idempotency on the new path; ON DELETE SET
+-- NULL so removing an auto-task doesn't cascade-delete already-
+-- completed work.
+alter table public.tax_tasks
+  add column if not exists service_auto_task_id text
+    references public.tax_service_auto_tasks(id) on delete set null;
+create unique index if not exists tax_tasks_auto_task_period_unique
+  on public.tax_tasks(customer_id, service_auto_task_id, period_key)
+  where period_key is not null and archived_at is null and service_auto_task_id is not null;
+
+-- Backfill: one auto-task per existing product with a non-none
+-- cadence. Idempotent — skips products that already have at least
+-- one auto-task row.
+insert into public.tax_service_auto_tasks
+  (id, community_id, product_id, title_i18n, description_i18n,
+   cadence_kind, anchor_rule, default_priority, display_order, active)
+select
+  'sat_legacy_' || substring(p.id, 1, 28),
+  p.community_id,
+  p.id,
+  p.name_i18n,
+  coalesce(p.employee_notes_i18n, '{}'::jsonb),
+  p.cadence_kind,
+  coalesce(p.anchor_rule, '{}'::jsonb),
+  'normal',
+  10,
+  true
+from public.tax_products p
+where p.cadence_kind is not null
+  and p.cadence_kind <> 'none'
+  and not exists (
+    select 1 from public.tax_service_auto_tasks sat
+    where sat.product_id = p.id
+  );

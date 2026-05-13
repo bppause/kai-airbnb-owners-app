@@ -251,6 +251,12 @@ export const taxApi = {
     const qs = opts.force ? '?force=1' : '';
     return request('DELETE', `/admin/products/${encodeURIComponent(productId)}${qs}`, undefined, auth, { admin: true });
   },
+  adminListAutoTasks(auth, productId) {
+    return request('GET', `/admin/products/${encodeURIComponent(productId)}/auto-tasks`, undefined, auth, { admin: true });
+  },
+  adminReplaceAutoTasks(auth, productId, autoTasks) {
+    return request('PUT', `/admin/products/${encodeURIComponent(productId)}/auto-tasks`, { autoTasks }, auth, { admin: true });
+  },
 
   adminDashboard(auth, communitySlug) {
     const qs = communitySlug ? `?communitySlug=${encodeURIComponent(communitySlug)}` : '';
