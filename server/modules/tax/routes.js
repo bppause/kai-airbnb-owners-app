@@ -4241,6 +4241,84 @@ module.exports = function createTaxRouter(deps) {
     res.json({ relationships: data || [] });
   });
 
+  // GET /admin/customers/:id/default-product
+  // Resolves "what product should we pre-fill on a new task for this
+  // customer?". Walks the chain
+  //   customer → first active relationship (by display_order)
+  //         → tax_relationship_workflow_rules (for that relationship type)
+  //         → tax_filing_schedules.product_id
+  // Returns { productId, productSlug, scheduleSlug, relationshipTypeId, relationshipName_i18n } or
+  // { productId: null } if no mapping exists.
+  router.get('/admin/customers/:id/default-product', async (req, res) => {
+    const emp = await requireTaxEmployee(req, res); if (!emp) return;
+    const id = trim(req.params.id, 200);
+
+    const { data: cust } = await supabase.from('tax_customers')
+      .select('id, community_id').eq('id', id).maybeSingle();
+    if (!cust) return res.status(404).json({ error: 'Customer not found.' });
+    if (cust.community_id !== emp.community_id) {
+      return res.status(403).json({ error: 'Wrong community.' });
+    }
+    if (emp.role !== 'admin') {
+      const ok = await canEmployeeSeeCustomer(emp, id);
+      if (!ok) return res.status(403).json({ error: 'Not assigned to this customer.' });
+    }
+
+    const { data: rels } = await supabase.from('tax_customer_relationships')
+      .select(`
+        relationship_type_id, active,
+        type:tax_relationship_types ( id, name_i18n, display_order )
+      `)
+      .eq('customer_id', id).eq('active', true);
+    if (!rels || !rels.length) return res.json({ productId: null });
+
+    const sorted = rels.slice().sort((a, b) =>
+      ((a.type?.display_order ?? 999) - (b.type?.display_order ?? 999))
+    );
+    const first = sorted[0];
+    const relTypeId = first.relationship_type_id;
+
+    // Pull workflow rules for this relationship type, preferring the
+    // owner-customized override (community_id == cust.community_id) over
+    // the global default.
+    const { data: rules } = await supabase.from('tax_relationship_workflow_rules')
+      .select('id, community_id, filing_schedule_slug, active')
+      .eq('relationship_type_id', relTypeId).eq('active', true);
+    if (!rules || !rules.length) {
+      return res.json({
+        productId: null, relationshipTypeId: relTypeId,
+        relationshipName_i18n: first.type?.name_i18n || null,
+      });
+    }
+    rules.sort((a, b) => {
+      const aCom = a.community_id === cust.community_id ? 0 : 1;
+      const bCom = b.community_id === cust.community_id ? 0 : 1;
+      return aCom - bCom;
+    });
+    const rule = rules[0];
+
+    const { data: sched } = await supabase.from('tax_filing_schedules')
+      .select('id, slug, product_id, community_id')
+      .eq('slug', rule.filing_schedule_slug)
+      .eq('community_id', cust.community_id).maybeSingle();
+    if (!sched?.product_id) {
+      return res.json({
+        productId: null, relationshipTypeId: relTypeId,
+        relationshipName_i18n: first.type?.name_i18n || null,
+        scheduleSlug: rule.filing_schedule_slug,
+      });
+    }
+    const { data: prod } = await supabase.from('tax_products')
+      .select('id, slug').eq('id', sched.product_id).maybeSingle();
+    res.json({
+      productId: sched.product_id,
+      productSlug: prod?.slug || null,
+      scheduleSlug: sched.slug,
+      relationshipTypeId: relTypeId,
+      relationshipName_i18n: first.type?.name_i18n || null,
+    });
+  });
+
   // ── POST /admin/customers/:id/relationships ── (global admin)
   router.post('/admin/customers/:id/relationships', async (req, res) => {
     if (!(await requireOwnerAdmin(req, res))) return;
