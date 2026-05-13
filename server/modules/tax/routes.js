@@ -1946,6 +1946,44 @@ module.exports = function createTaxRouter(deps) {
   // when the owner still wants the cron to email customers reminders.
   // Configurable look-ahead window for the task generator + daily
   // refresh cron. Default is 6 months; clamped to [1, 24].
+  // PUT /admin/community-settings/task-thresholds — replace the three
+  // urgency thresholds. Values are clamped server-side and re-checked
+  // so urgent < soon < upcoming (anything else is nonsense — would
+  // mean "urgent for 30 days but soon for only 7").
+  router.put('/admin/community-settings/task-thresholds', async (req, res) => {
+    if (!(await requireOwnerAdmin(req, res, 'manage_settings'))) return;
+    const communitySlug = trim(req.body?.communitySlug, 200);
+    if (!communitySlug) return res.status(400).json({ error: 'communitySlug required.' });
+    const clamp = (n, min, max, fallback) => {
+      const v = Number(n);
+      if (!Number.isFinite(v)) return fallback;
+      return Math.max(min, Math.min(max, Math.round(v)));
+    };
+    let urgent   = clamp(req.body?.urgentDays,   0,  60, 3);
+    let soon     = clamp(req.body?.soonDays,     0,  90, 7);
+    let upcoming = clamp(req.body?.upcomingDays, 0, 365, 30);
+    if (soon < urgent) soon = urgent;
+    if (upcoming < soon) upcoming = soon;
+    const { error } = await supabase.from('communities')
+      .update({
+        tax_task_urgent_days:   urgent,
+        tax_task_soon_days:     soon,
+        tax_task_upcoming_days: upcoming,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', communitySlug).eq('business_type', TAX_BUSINESS_TYPE);
+    if (error) return sendSupabaseError(res, error);
+    try {
+      await auditLog({
+        entity: 'tax.community.settings', entityId: communitySlug,
+        action: 'task_thresholds_set',
+        actorEmail: trim(req.get('x-firebase-email') || req.get('x-admin-email') || '', 200).toLowerCase(),
+        after: { urgent, soon, upcoming },
+      });
+    } catch (_e) {}
+    res.json({ ok: true, urgent, soon, upcoming });
+  });
+
   router.put('/admin/community-settings/task-lookahead-months', async (req, res) => {
     if (!(await requireOwnerAdmin(req, res, 'manage_settings'))) return;
     const communitySlug = trim(req.body?.communitySlug, 200);
@@ -2043,6 +2081,7 @@ module.exports = function createTaxRouter(deps) {
       .select(`
         id, name, tax_allow_customer_notif_pref_change, tax_customer_documents_enabled,
         tax_customer_portal_enabled, tax_customer_reminders_enabled, tax_task_lookahead_months,
+        tax_task_urgent_days, tax_task_soon_days, tax_task_upcoming_days,
         contact_email, phone, whatsapp,
         address_line1, address_line2, city, state, postal_code, country,
         default_locale
@@ -2779,7 +2818,7 @@ module.exports = function createTaxRouter(deps) {
     stampLastSignIn('tax_customers', customer.id, customer.last_sign_in_at);
     const [{ data: community }, { data: subs }, { data: rels }, { data: companion }] = await Promise.all([
       supabase.from('communities')
-        .select('id, name, logo_url, brand_primary_color, brand_secondary_color, default_locale, tax_allow_customer_notif_pref_change, tax_customer_documents_enabled, tax_customer_portal_enabled, tax_customer_reminders_enabled, tax_task_lookahead_months, contact_email, phone')
+        .select('id, name, logo_url, brand_primary_color, brand_secondary_color, default_locale, tax_allow_customer_notif_pref_change, tax_customer_documents_enabled, tax_customer_portal_enabled, tax_customer_reminders_enabled, tax_task_lookahead_months, tax_task_urgent_days, tax_task_soon_days, tax_task_upcoming_days, contact_email, phone')
         .eq('id', customer.community_id).maybeSingle(),
       supabase.from('tax_subscriptions')
         .select('id, product_id, status, reminder_channels, reminder_offsets_days')
@@ -4659,6 +4698,12 @@ module.exports = function createTaxRouter(deps) {
       const week = new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000);
       q = q.gte('due_date', today.toISOString().slice(0, 10))
            .lte('due_date', week.toISOString().slice(0, 10));
+    } else if (due === 'month' || due === 'month60' || due === 'month90') {
+      const days = due === 'month90' ? 90 : (due === 'month60' ? 60 : 30);
+      const today = new Date();
+      const horizon = new Date(today.getTime() + days * 24 * 60 * 60 * 1000);
+      q = q.gte('due_date', today.toISOString().slice(0, 10))
+           .lte('due_date', horizon.toISOString().slice(0, 10));
     }
 
     const search = trim(req.query.q || '', 200);

@@ -2739,3 +2739,23 @@ alter table public.tax_customers
 create index if not exists tax_customers_business_name_idx
   on public.tax_customers(community_id, business_name)
   where business_name <> '';
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- Phase 4n.45 — task urgency thresholds
+--
+-- Three smallints per community drive the color treatment shared across
+-- the Tasks list, Calendar, and Kanban views:
+--   urgent_days   — due within N days → red-orange
+--   soon_days     — due within N days → amber
+--   upcoming_days — due within N days → blue (otherwise neutral/grey)
+-- Anything past today is always "overdue" regardless of thresholds.
+-- ═══════════════════════════════════════════════════════════════════════════════
+alter table public.communities
+  add column if not exists tax_task_urgent_days smallint not null default 3
+    check (tax_task_urgent_days between 0 and 60);
+alter table public.communities
+  add column if not exists tax_task_soon_days smallint not null default 7
+    check (tax_task_soon_days between 0 and 90);
+alter table public.communities
+  add column if not exists tax_task_upcoming_days smallint not null default 30
+    check (tax_task_upcoming_days between 0 and 365);
