@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { FixedSizeList } from 'react-window';
 import { pickI18n, useT } from '../i18n';
 import { useEmployeeAuth } from '../auth/EmployeeAuthProvider';
 import { taxApi } from '../api';
@@ -415,40 +416,12 @@ function MultiSelect({ label, options, value, onToggle, onClear, searchable, sea
                      }} />
             </div>
           )}
-          <div style={{ overflowY: 'auto', flex: 1 }}>
-            {filtered.length === 0 ? (
-              <div style={{ padding: '10px 12px', fontSize: 13, color: 'var(--tax-muted)' }}>
-                {t('owner.tasks.filter.noMatch')}
-              </div>
-            ) : filtered.map(o => {
-              const checked = selectedSet.has(o.id);
-              return (
-                <label key={o.id}
-                       style={{
-                         display: 'flex', alignItems: 'flex-start', gap: 8,
-                         padding: '8px 12px', cursor: 'pointer',
-                         background: checked ? 'color-mix(in srgb, var(--tax-brand-primary) 8%, #fff)' : '#fff',
-                         borderBottom: '1px solid color-mix(in srgb, var(--tax-border) 60%, transparent)',
-                       }}>
-                  <input type="checkbox" checked={checked}
-                         onChange={() => onToggle(o.id)}
-                         style={{ marginTop: 2 }} />
-                  <div style={{ minWidth: 0, flex: 1 }}>
-                    <div style={{ fontSize: 13, color: 'var(--tax-text)',
-                                  whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                      {o.label}
-                    </div>
-                    {o.sub && (
-                      <div style={{ fontSize: 11, color: 'var(--tax-muted)',
-                                    whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                        {o.sub}
-                      </div>
-                    )}
-                  </div>
-                </label>
-              );
-            })}
-          </div>
+          <MultiSelectOptionList
+            filtered={filtered}
+            selectedSet={selectedSet}
+            onToggle={onToggle}
+            t={t}
+          />
           {selected.length > 0 && (
             <div style={{ padding: 6, borderTop: '1px solid var(--tax-border)',
                           display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -466,6 +439,91 @@ function MultiSelect({ label, options, value, onToggle, onClear, searchable, sea
         </div>
       )}
     </div>
+  );
+}
+
+// Rows are uniform 44px regardless of whether they carry a sub-line
+// — virtualized lists need a fixed row height. Below this count we
+// just map normally; above it we hand off to react-window so even a
+// 5,000-customer practice opens the picker without jank.
+const MULTI_SELECT_VIRTUALIZE_THRESHOLD = 60;
+const MULTI_SELECT_ROW_HEIGHT = 44;
+const MULTI_SELECT_LIST_HEIGHT = 240;
+
+function MultiSelectOptionList({ filtered, selectedSet, onToggle, t }) {
+  if (filtered.length === 0) {
+    return (
+      <div style={{ padding: '10px 12px', fontSize: 13, color: 'var(--tax-muted)' }}>
+        {t('owner.tasks.filter.noMatch')}
+      </div>
+    );
+  }
+  if (filtered.length < MULTI_SELECT_VIRTUALIZE_THRESHOLD) {
+    return (
+      <div style={{ overflowY: 'auto', flex: 1 }}>
+        {filtered.map(o => (
+          <MultiSelectRow key={o.id} option={o}
+                          checked={selectedSet.has(o.id)} onToggle={onToggle} />
+        ))}
+      </div>
+    );
+  }
+  // react-window passes `style` (absolute positioning) and `index`
+  // — pull the option out of itemData so the row component stays
+  // identical to the non-virtual branch.
+  const itemData = { filtered, selectedSet, onToggle };
+  return (
+    <div style={{ flex: 1 }}>
+      <FixedSizeList
+        height={Math.min(MULTI_SELECT_LIST_HEIGHT, filtered.length * MULTI_SELECT_ROW_HEIGHT)}
+        itemCount={filtered.length}
+        itemSize={MULTI_SELECT_ROW_HEIGHT}
+        itemData={itemData}
+        width="100%"
+        overscanCount={6}
+      >
+        {VirtualizedRow}
+      </FixedSizeList>
+    </div>
+  );
+}
+
+function VirtualizedRow({ index, style, data }) {
+  const o = data.filtered[index];
+  return (
+    <div style={style}>
+      <MultiSelectRow option={o}
+                      checked={data.selectedSet.has(o.id)}
+                      onToggle={data.onToggle} />
+    </div>
+  );
+}
+
+function MultiSelectRow({ option: o, checked, onToggle }) {
+  return (
+    <label style={{
+      display: 'flex', alignItems: 'flex-start', gap: 8,
+      padding: '8px 12px', cursor: 'pointer', height: MULTI_SELECT_ROW_HEIGHT,
+      boxSizing: 'border-box',
+      background: checked ? 'color-mix(in srgb, var(--tax-brand-primary) 8%, #fff)' : '#fff',
+      borderBottom: '1px solid color-mix(in srgb, var(--tax-border) 60%, transparent)',
+    }}>
+      <input type="checkbox" checked={checked}
+             onChange={() => onToggle(o.id)}
+             style={{ marginTop: 2 }} />
+      <div style={{ minWidth: 0, flex: 1 }}>
+        <div style={{ fontSize: 13, color: 'var(--tax-text)',
+                      whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+          {o.label}
+        </div>
+        {o.sub && (
+          <div style={{ fontSize: 11, color: 'var(--tax-muted)',
+                        whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            {o.sub}
+          </div>
+        )}
+      </div>
+    </label>
   );
 }
 
