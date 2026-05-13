@@ -5084,10 +5084,11 @@ module.exports = function createTaxRouter(deps) {
     let q = supabase.from('tax_tasks')
       .select(`
         id, community_id, customer_id, product_id, title, status_key, priority,
-        assigned_employee_id, created_by_employee_id,
+        assigned_employee_id, created_by_employee_id, service_auto_task_id,
         due_date, notes, completed_at, created_at, updated_at,
         customer:tax_customers ( id, name, business_name, first_name, middle_name, last_name, email, phone, whatsapp, address ),
         product:tax_products ( id, slug, name_i18n, category ),
+        auto_task:tax_service_auto_tasks ( id, title_i18n, cadence_kind, anchor_rule ),
         assignee:tax_employees!tax_tasks_assigned_employee_id_fkey ( id, name, email ),
         creator:tax_employees!tax_tasks_created_by_employee_id_fkey ( id, name, email )
       `)
