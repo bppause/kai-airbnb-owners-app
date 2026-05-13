@@ -73,8 +73,12 @@ export default function EmployeeShell({ community, active, children }) {
                 employees (server-side scopes by role). Leads is admin-only. */}
             <div className="tax-shell__group">
               <div className="tax-shell__group-label">{t('employee.nav.groupWork')}</div>
-              {isAdmin && navLink('setup', `${base}/setup`, t('employee.nav.setup'))}
-              {navLink('inbox', base, t('employee.nav.inbox'), unread)}
+              {/* Phase 4n.36: Inbox + Setup are hidden — the practice
+                  now runs through tasks, not customer messages. The
+                  routes still resolve directly if anyone has a deep
+                  link, but the sidebar steers everyone toward the
+                  task-first workflow. */}
+              {employee && navLink('progress', `${base}/progress`, t('employee.nav.progress'))}
               {employee && navLink('reminders', `${base}/reminders`, t('employee.nav.reminders'))}
               {employee && navLink('tasks', `${base}/tasks`, t('employee.nav.tasks'))}
               {employee && navLink('customers', `${base}/customers`, t('employee.nav.customers'))}
