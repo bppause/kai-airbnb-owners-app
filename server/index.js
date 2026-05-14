@@ -174,6 +174,10 @@ app.use(cors());
 
 app.use(express.json({ limit: '15mb' })); // photos stored as base64: 3 × ≤600KB each ≈ ≤2MB total
 
+// Retired tax vertical — 404 legacy /tax and /api/m/tax URLs before the SPA
+// catch-all would otherwise hand them the Airbnb app shell.
+app.all(/^\/(api\/m\/)?tax(\/.*)?$/, (req, res) => res.status(404).type('text/plain').send('Not Found'));
+
 // Serve built React app
 const DIST = path.join(__dirname, '..', 'client', 'dist');
 app.use(express.static(DIST));
