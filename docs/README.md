@@ -16,7 +16,8 @@ docs/
 │   ├── DESIGN.md
 │   ├── DIAGRAMS.md
 │   ├── ROADMAP.md             ← multi-horizon conceptual roadmap
-│   └── PITCH.md               ← investor / client / friends-and-family pitch
+│   ├── PITCH.md               ← investor / client / friends-and-family pitch
+│   └── USER_STORIES.md        ← cross-module user stories by persona
 └── modules/                   ← one folder per module slug
     ├── incidents/             ← live module
     ├── operator-portal/       ← proposed module (concept)
@@ -97,5 +98,10 @@ files or breaking links.
   compliance), with a per-horizon backlog of decisions to lock.
 - **`platform/PITCH.md`** — bilingual (ES + EN) pitch overview for
   investors, prospective clients, and friends/family.
+- **`platform/USER_STORIES.md`** — the platform-wide catalogue of user
+  stories grouped by module and persona, with status badges (`live` /
+  `concept` / `idea`) per story. When a module promotes to `concept`,
+  its stories migrate into the module's `DESIGN.md` with acceptance
+  criteria.
 - **`CHANGELOG_ARCHIVE.md`** — historical release notes from earlier
   versions, kept out of the root README to keep production setup clear.
