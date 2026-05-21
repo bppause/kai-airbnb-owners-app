@@ -70,3 +70,53 @@ Required for full functionality: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `G
 Deployed on Render via `render.yaml`. After a `git push`, use **Manual Deploy → Deploy latest commit** in the Render dashboard unless auto-deploy is on. The build command is `npm install && cd client && npm install && npm run build`; start command is `node server.js`.
 
 Database migrations are run manually by executing `supabase/schema.sql` in the Supabase SQL Editor after pulling a major update.
+
+## Documentation conventions
+
+The platform's design and product documentation lives under `docs/`. **Read these before making non-trivial product/architecture decisions.**
+
+**Structure:**
+- `docs/README.md` — the documentation index. Start here.
+- `docs/platform/` — platform-wide docs that cross modules:
+  - `PLATFORM_ARCHITECTURE.md` — the locked architectural contract; module slugs are registered in §3.
+  - `DESIGN.md`, `DIAGRAMS.md` — cross-module design and Mermaid diagrams.
+  - `ROADMAP.md` — multi-horizon conceptual roadmap (H0 live → H5 intelligence).
+  - `PITCH.md` — investor / client / friends-and-family pitch (ES + EN).
+  - `USER_STORIES.md` — cross-module user stories with `live` / `concept` / `idea` status badges per story.
+- `docs/modules/<slug>/` — per-module docs. Every module slug in `PLATFORM_ARCHITECTURE.md` §3 has a folder here with at least a `README.md`. Modules promoted to `concept` add `DESIGN.md`. Some have additional files (`PROPOSAL.md`, `USE_CASE_DISCOVERY.md`, `DIAGRAMS.md`, `UAT_SCRIPT.md`, etc.).
+- `docs/CHANGELOG_ARCHIVE.md` — historical release notes.
+
+**When adding a new module:**
+1. Create `docs/modules/<new-slug>/README.md` following the shape of an existing one (e.g. `tourism/README.md`).
+2. Register the slug in `docs/platform/PLATFORM_ARCHITECTURE.md` §3 with status `idea` / `concept` / `live`.
+3. Add it to `docs/README.md`'s layout sketch and modules-at-a-glance table.
+4. If it appears in `docs/platform/ROADMAP.md` §6, link the pillar heading to the new module folder.
+
+## Terminology (locked)
+
+These terms are used in a specific narrow sense across docs and UI:
+
+| Term | Means | Owns |
+|---|---|---|
+| **Airbnb operator** (often **operator**) | The Airbnb listing manager / co-host running STR on a unit | The listing, guest relationship, unit-level service requests, owner tasks/issues/requests from STR operation |
+| **Building admin** (HOA / community admin / property manager) | The party that runs the building or complex itself | Operations of the facility/complex: front desk, access, common areas, residents, fees, governance, building-wide incidents |
+
+**There is no "building operator" role.** When docs say *operator* they always mean the Airbnb operator. When the building's day-to-day is being discussed, the actor is the building admin, the facilities team, or the front desk — never an "operator". Enforce this lock in UI copy, role names, permission keys, and email templates.
+
+## Multi-owner model (Airbnb operator-portal context)
+
+A unit can have multiple owners with different access levels:
+
+- **Payout Owner** — exactly one per unit. Has financial approval rights (repairs above threshold, pricing proposals). Sees everything.
+- **Calendar Owner** — zero or more per unit. Can see calendar context and participate in request threads. Repair-cost amounts and other financial figures are hidden.
+
+Both can post replies in any request thread for their unit. See `docs/modules/operator-portal/USE_CASE_DISCOVERY.md` and `PROPOSAL.md` for the full model.
+
+## Git workflow
+
+- **Feature branches.** Work on a `claude/<task-slug>` branch (the session's assigned branch is preferred when one exists). Never commit directly to `main`.
+- **PRs only.** Land changes on `main` via a GitHub PR using the merge commit workflow (`Merge pull request #N from …`). Match the existing convention; do not squash unless asked.
+- **Reference updates in the same change.** Renames or moves of docs that are referenced from code comments (most notably `docs/platform/PLATFORM_ARCHITECTURE.md`) must update those references in the same PR — verify with grep before pushing.
+- **Never force-push to `main`.** If the feature branch is behind, rebase locally and force-push the *feature branch* with `--force-with-lease`, then merge the PR.
+- **Bilingual docs.** Long-form product docs aimed at customers (proposals, pitch) are Spanish-first with an English mirror. Internal architecture docs are English-only.
+
