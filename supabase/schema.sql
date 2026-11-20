@@ -649,6 +649,31 @@ create table if not exists public.unit_inventory_checks (
 create index if not exists idx_unit_inventory_checks_listing
   on public.unit_inventory_checks(listing_id, created_at desc);
 
+-- Items the cleaning service proposed through the share link. A proposal
+-- is not part of the inventory: the owner approves it (it becomes a row
+-- in unit_inventory_items, recorded in item_id, with `count` as its
+-- baseline) or rejects it. Decided rows are kept as the record of what
+-- was asked and what the owner answered.
+create table if not exists public.unit_inventory_proposals (
+  id text primary key,
+  listing_id text not null references public.listings(id) on delete cascade,
+  community_id text not null default 'kai',
+  area_en text not null default '',
+  area_es text not null default '',
+  name_en text not null default '',
+  name_es text not null default '',
+  note text not null default '',
+  count integer not null default 1 check (count >= 0),
+  status text not null default 'pending' check (status in ('pending','approved','rejected')),
+  proposed_by text not null default '',
+  created_at timestamptz not null default now(),
+  decided_at timestamptz,
+  decided_by text not null default '',
+  item_id text
+);
+create index if not exists idx_unit_inventory_proposals_listing
+  on public.unit_inventory_proposals(listing_id, status, created_at);
+
 -- The cleaning service's no-login link, one per unit. The token is the
 -- only credential, so it lives here rather than on listings, whose rows
 -- are returned to every signed-in user.
@@ -681,4 +706,5 @@ alter table public.unit_inventory_items disable row level security;
 alter table public.unit_inventory_events disable row level security;
 alter table public.unit_inventory_links disable row level security;
 alter table public.unit_inventory_checks disable row level security;
+alter table public.unit_inventory_proposals disable row level security;
 

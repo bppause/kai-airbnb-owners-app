@@ -20,6 +20,7 @@ import { tr, primaryText, secondaryText, formatWhen, parseCountInput, diffFromBa
 import { DiffSummary } from "./DiffMarks";
 import { ItemList, Toast, useAreaFolding, areaKey } from "./ItemList";
 import { CountComplete, LastCheckLine } from "./CountComplete";
+import { PendingProposals } from "./Proposals";
 import { itemsFromCsv } from "../csv";
 import { UINV_CSS } from "../styles";
 
@@ -54,7 +55,12 @@ function HistoryList({ history, lang }) {
           );
         }
         const lines = [];
-        if (ev.type === 'created') lines.push(tr(lang, 'histCreated', { n: ev.countAfter }));
+        if (ev.type === 'created') {
+          // An item the cleaning service proposed names who asked for it.
+          const line = tr(lang, 'histCreated', { n: ev.countAfter });
+          const proposedBy = ev.changes && ev.changes.proposedBy;
+          lines.push(proposedBy ? tr(lang, 'histProposedBy', { line, who: proposedBy }) : line);
+        }
         if (ev.type === 'deleted') lines.push(tr(lang, 'histDeleted', { n: ev.countBefore, b: ev.baselineBefore }));
         if (ev.type === 'edited') {
           // One line per field the edit changed, labelled as in the form.
@@ -91,6 +97,8 @@ export default function UnitInventoryModal({ listing, user, onClose }) {
   const [items, setItems] = useState(null);
   const [link, setLink] = useState(null);
   const [lastCheck, setLastCheck] = useState(null);
+  // Items the cleaning service proposed that still wait for a decision.
+  const [proposals, setProposals] = useState([]);
   // Counts and notes as typed, keyed by item id, until saved.
   const [draft, setDraft] = useState({});
   const [tab, setTab] = useState('items');
@@ -113,6 +121,7 @@ export default function UnitInventoryModal({ listing, user, onClose }) {
     setItems(d.items || []);
     setLink(d.link || null);
     setLastCheck(d.lastCheck || null);
+    setProposals(d.proposals || []);
     folding.decide((d.items || []).length);
   };
   useEffect(() => {
@@ -236,6 +245,24 @@ export default function UnitInventoryModal({ listing, user, onClose }) {
     });
   };
 
+  // Approving adds the proposed item to the list with its count as the
+  // baseline; rejecting only closes the proposal.
+  const decide = (proposal, action) => {
+    const name = primaryText(proposal.nameEn, proposal.nameEs);
+    if (action === 'reject' && !window.confirm(T('rejectConfirm', { name }))) return;
+    run(async () => {
+      await api.post(`${API_BASE}/proposals/${encodeURIComponent(proposal.id)}/decision`, { ...who, action });
+      if (action === 'approve') folding.open(areaKey(proposal.areaEn, proposal.areaEs));
+      await load();
+    }, T(action === 'approve' ? 'approvedMsg' : 'rejectedMsg'));
+  };
+  const proposalActions = (p) => (
+    <>
+      <button type="button" className="uinv-btn uinv-btn-p" disabled={busy} onClick={() => decide(p, 'approve')}>{T('approve')}</button>
+      <button type="button" className="uinv-btn uinv-btn-danger" disabled={busy} onClick={() => decide(p, 'reject')}>{T('reject')}</button>
+    </>
+  );
+
   const openForm = (next) => { setImportState(null); setForm(next); };
 
   const saveForm = () => {
@@ -327,6 +354,8 @@ export default function UnitInventoryModal({ listing, user, onClose }) {
         {tab === 'items' && items === null && <p className="uinv-sub">{T('loading')}</p>}
         {tab === 'items' && items !== null && (
           <>
+            <PendingProposals lang={lang} proposals={proposals} owner actionsFor={proposalActions} />
+
             <div className="uinv-box">
               <div className="uinv-row" style={{ justifyContent: 'space-between' }}>
                 <h2>🔗 {T('linkTitle')}</h2>

@@ -49,6 +49,18 @@ unnoticed.
   now. Both screens show the last complete count under the summary; the
   owner's History tab lists them in the same timeline as item changes.
   It never changes a baseline.
+- **Proposed items.** The cleaning service cannot add to the inventory,
+  but can propose an item that isn't on the list (description, area,
+  quantity, note). A proposal waits in `unit_inventory_proposals`, shown
+  apart from the inventory on both screens; it has no baseline and is
+  not counted. The owner is told — an in-app alert, plus an email where
+  email is configured, once per visit rather than once per item — and
+  approves or rejects it. Approval creates a normal item with the
+  proposed quantity as its baseline; the history entry names who
+  proposed it. At most 50 proposals wait per unit.
+- **Deleting stays with the owner.** If the cleaning service finds an
+  item gone, they count it as 0 and leave a note; the owner decides
+  whether to delete it or re-baseline.
 
 ## Who can do what
 
@@ -57,6 +69,8 @@ unnoticed.
 | See the items and their baseline | yes | yes |
 | Update counts and notes | yes | yes |
 | Mark a count as complete | yes | yes |
+| Propose an item that isn't on the list | — | yes |
+| Approve or reject a proposed item | yes | no |
 | Add, edit, delete, import items | yes | no |
 | Re-baseline | yes | no |
 | See the change history | yes | no |
@@ -83,13 +97,14 @@ client sends; there is no server-side session behind it.
 
 ## Data model
 
-Four tables, all in `supabase/schema.sql`:
+Five tables, all in `supabase/schema.sql`:
 
 | Table | Holds |
 | --- | --- |
 | `unit_inventory_items` | One row per item: bilingual area / description / owner note, `baseline_count`, `current_count`, the latest count note, who counted last. |
 | `unit_inventory_events` | Append-only history: `created`, `edited`, `count`, `rebaseline`, `deleted`. An `edited` event stores the before/after of each descriptive field that changed in `changes`; an edit that changes nothing writes no event. |
 | `unit_inventory_checks` | One row per completed count: who, when, and the unit's totals against baseline at that moment. If this table is missing (schema not re-run since it was added) the screens still load and report no complete count; only marking one fails. |
+| `unit_inventory_proposals` | Items proposed through the share link: `pending`, `approved` (with the `item_id` created) or `rejected`. Decided rows are kept. A missing table reads as no proposals; only proposing fails. |
 | `unit_inventory_links` | One share link per unit: token and whether it is enabled. Kept off `listings` because listing rows are returned to every signed-in user. |
 
 ## API
@@ -98,7 +113,7 @@ Mounted at `/api/m/unit-inventory`.
 
 | Route | Who | Does |
 | --- | --- | --- |
-| `GET /units/:listingId?ownerUid=` | owner | Items, the share link and the last complete count |
+| `GET /units/:listingId?ownerUid=` | owner | Items, the share link, the last complete count and pending proposals |
 | `POST /units/:listingId/items` | owner | Add one or many items (CSV import sends the whole file) |
 | `PUT /items/:id` | owner | Edit an item's area, description, owner note |
 | `DELETE /items/:id` | owner | Delete an item (history kept) |
@@ -106,10 +121,12 @@ Mounted at `/api/m/unit-inventory`.
 | `POST /units/:listingId/rebaseline` | owner | Accept current counts as the baseline |
 | `GET /units/:listingId/history?ownerUid=` | owner | Item changes and completed counts, newest first |
 | `POST /units/:listingId/checks` | owner | Mark the count complete (optionally saving `updates` first) |
+| `POST /proposals/:id/decision` | owner | `approve` (creates the item) or `reject` a proposed item |
 | `POST /units/:listingId/link` | owner | `enable`, `disable` or `regenerate` the share link |
-| `GET /shared/:token` | link holder | The unit's label, items and last complete count |
+| `GET /shared/:token` | link holder | The unit's label, items, last complete count and pending proposals |
 | `POST /shared/:token/counts` | link holder | Update counts and notes |
 | `POST /shared/:token/checks` | link holder | Mark the count complete (optionally saving `updates` first) |
+| `POST /shared/:token/proposals` | link holder | Propose an item for the owner to approve |
 
 ## UI
 
@@ -162,5 +179,9 @@ Only one of the two name columns is required; a blank count means 1.
   with a note.
 - No notification to the owner when a count drops below the baseline.
 - The share link is not tied to a person and does not expire on its own.
+- A proposal is approved or rejected as sent; to change its description
+  or add the English text the owner approves it and then edits the item.
+- The owner's alert about a proposal does not open the inventory; they
+  go to My Units → Inventory.
 - "Count complete" is the counter's word that they checked everything;
   nothing verifies that each area was opened.

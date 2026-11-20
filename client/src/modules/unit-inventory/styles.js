@@ -100,6 +100,13 @@ export const UINV_CSS = `
 .uinv-hist-check{border:1px solid #b7e2c8;background:#eaf8f0;border-radius:10px;padding:8px 10px;margin:6px 0}
 .uinv-last{font-size:.82rem;color:#48656d;margin:8px 0 0}
 .uinv-last strong{color:#0b5f3a}
+.uinv-pending{background:#fff8e6;border-color:#e2c27a}
+.uinv-prop{border-top:1px solid #ecdcae;padding:10px 0 2px;margin-top:10px;display:grid;gap:4px}
+.uinv-prop-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px}
+.uinv-prop-actions .uinv-btn{flex:1 1 120px}
+.uinv-propose{margin-top:18px}
+.uinv-propose-open{width:100%;min-height:48px}
+.uinv-select{border:1px solid rgba(47,79,58,.28);border-radius:10px;padding:8px 10px;min-height:44px;font:inherit;font-size:16px;color:#102f3a;background:#fff;text-transform:none;letter-spacing:0;font-weight:400;width:100%}
 .uinv-done{margin-top:18px;background:#f1f8f4;border-color:#b7e2c8}
 .uinv-done .uinv-btn{width:100%;min-height:48px;font-size:1rem}
 .uinv-lang{border:1px solid rgba(47,79,58,.24);border-radius:10px;padding:6px 8px;min-height:44px;background:#fff;font:inherit;font-size:16px;font-weight:700}

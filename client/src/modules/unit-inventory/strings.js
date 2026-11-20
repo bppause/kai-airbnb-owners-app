@@ -94,7 +94,7 @@ const STR = {
   actorOwner:       { es: 'Propietario', en: 'Owner' },
   actorCleaner:     { es: 'Limpieza', en: 'Cleaning' },
 
-  sharedSubtitle:   { es: 'Revisa cada artículo, corrige el conteo si cambió y deja una nota si hace falta.', en: 'Check each item, correct the count if it changed, and leave a note if needed.' },
+  sharedSubtitle:   { es: 'Revisa cada artículo, corrige el conteo si cambió y deja una nota si hace falta. Si un artículo ya no está, deja el conteo en 0.', en: 'Check each item, correct the count if it changed, and leave a note if needed. If an item is no longer there, set its count to 0.' },
   yourName:         { es: 'Tu nombre', en: 'Your name' },
   yourNameHint:     { es: 'Se guarda junto con tus cambios.', en: 'Saved with your changes.' },
   nameNeeded:       { es: 'Escribe tu nombre antes de guardar.', en: 'Enter your name before saving.' },
@@ -139,6 +139,31 @@ const STR = {
   checkTotal:       { es: '{n} artículos', en: '{n} items' },
   checkMissing:     { es: '{n} con faltantes', en: '{n} with items missing' },
   checkExtra:       { es: '{n} con sobrantes', en: '{n} with extras' },
+
+  // Items the cleaning service proposes, and the owner's decision.
+  proposeBtn:       { es: '＋ Agregar un artículo que no está en la lista', en: '＋ Add an item that is not on the list' },
+  proposeTitle:     { es: 'Artículo nuevo', en: 'New item' },
+  proposeHelp:      { es: 'El propietario debe aprobarlo antes de que quede en el inventario.', en: 'The owner must approve it before it joins the inventory.' },
+  proposeName:      { es: 'Descripción', en: 'Description' },
+  proposeArea:      { es: 'Área', en: 'Area' },
+  proposeAreaOther: { es: 'Otra área…', en: 'Another area…' },
+  proposeAreaNew:   { es: 'Nombre del área', en: 'Area name' },
+  proposeCount:     { es: 'Cantidad', en: 'Quantity' },
+  proposeSend:      { es: 'Enviar al propietario', en: 'Send to the owner' },
+  proposeSent:      { es: 'Enviado. El propietario lo revisará.', en: 'Sent. The owner will review it.' },
+  proposeNameNeeded:{ es: 'Escribe la descripción del artículo.', en: 'Enter the description of the item.' },
+  pendingShared:    { es: 'Esperando aprobación del propietario ({n})', en: 'Waiting for the owner to approve ({n})' },
+  pendingSharedHelp:{ es: 'Estos artículos aún no hacen parte del inventario.', en: 'These items are not part of the inventory yet.' },
+  pendingOwner:     { es: 'Propuestos por el servicio de limpieza ({n})', en: 'Proposed by the cleaning service ({n})' },
+  pendingOwnerHelp: { es: 'No hacen parte del inventario hasta que los apruebes. Al aprobar, la cantidad propuesta queda como línea base.', en: 'They are not part of the inventory until you approve them. On approval the proposed count becomes the baseline.' },
+  proposedQty:      { es: 'Cantidad: {n}', en: 'Quantity: {n}' },
+  proposedBy:       { es: 'Propuesto por {who} · {when}', en: 'Proposed by {who} · {when}' },
+  approve:          { es: '✓ Aprobar', en: '✓ Approve' },
+  reject:           { es: 'Rechazar', en: 'Reject' },
+  rejectConfirm:    { es: '¿Rechazar "{name}"? No se agregará al inventario.', en: 'Reject "{name}"? It will not be added to the inventory.' },
+  approvedMsg:      { es: 'Agregado al inventario.', en: 'Added to the inventory.' },
+  rejectedMsg:      { es: 'Propuesta rechazada.', en: 'Proposal rejected.' },
+  histProposedBy:   { es: '{line} · propuesto por {who}', en: '{line} · proposed by {who}' },
 };
 
 const isEnglish = (lang) => String(lang || '').toLowerCase().startsWith('en');
@@ -160,8 +185,9 @@ export const primaryText = (en, es) => es || en || '';
 // The English under it — only when both exist and actually differ.
 export const secondaryText = (en, es) => (es && en && en !== es ? en : '');
 
-// Items grouped by area in list order: [{ key, label, other, items }].
-// `label` is the area in Spanish, `other` its English name.
+// Items grouped by area in list order:
+// [{ key, label, other, areaEn, areaEs, items }]. `label` is the area in
+// Spanish, `other` its English name.
 export const groupByArea = (items, lang) => {
   const groups = [];
   const byKey = new Map();
@@ -172,6 +198,7 @@ export const groupByArea = (items, lang) => {
         key,
         label: primaryText(it.areaEn, it.areaEs) || tr(lang, 'noArea'),
         other: secondaryText(it.areaEn, it.areaEs),
+        areaEn: it.areaEn, areaEs: it.areaEs,
         items: [],
       };
       byKey.set(key, g);

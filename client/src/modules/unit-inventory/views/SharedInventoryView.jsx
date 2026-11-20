@@ -3,7 +3,8 @@
 // items by area with the expected (baseline) count, and lets the person
 // correct the count and leave a note per item. Nothing else: no adding,
 // deleting, history or owner details — the server's /shared routes don't
-// offer them.
+// offer them. Something found that isn't on the list can be proposed; it
+// joins the inventory only if the owner approves it.
 //
 // Rendered by main.jsx instead of the app, so it carries its own styles
 // and language switch and must not use useApp() or anything else that
@@ -18,10 +19,11 @@
 
 import React, { useEffect, useRef, useState } from "react";
 import { api } from "../../../core/api";
-import { tr, parseCountInput, diffFromBaseline, tallyDiffs, API_BASE } from "../strings";
+import { tr, parseCountInput, diffFromBaseline, tallyDiffs, groupByArea, API_BASE } from "../strings";
 import { DiffSummary } from "../components/DiffMarks";
 import { ItemList, Toast, useAreaFolding } from "../components/ItemList";
 import { CountComplete, LastCheckLine } from "../components/CountComplete";
+import { ProposeItemForm, PendingProposals } from "../components/Proposals";
 import { UINV_CSS } from "../styles";
 
 const NAME_KEY = 'kai_inventory_name';
@@ -68,6 +70,7 @@ export default function SharedInventoryView({ token }) {
   const [search, setSearch] = useState('');
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState(null);
+  const [proposing, setProposing] = useState(false);
   const folding = useAreaFolding();
   const nameRef = useRef(null);
   // Set once the first load has put any restored draft in place; until
@@ -77,7 +80,7 @@ export default function SharedInventoryView({ token }) {
   const load = async () => {
     const d = await api.get(base);
     const items = d.items || [];
-    setState({ kind: 'ready', unit: d.unit || {}, items, lastCheck: d.lastCheck || null });
+    setState({ kind: 'ready', unit: d.unit || {}, items, lastCheck: d.lastCheck || null, proposals: d.proposals || [] });
     folding.decide(items.length);
     return items;
   };
@@ -121,7 +124,7 @@ export default function SharedInventoryView({ token }) {
     return shell(<div className="uinv-msg uinv-msg-err">{state.notFound ? T('linkInactive') : state.text}</div>);
   }
 
-  const { unit, items, lastCheck } = state;
+  const { unit, items, lastCheck, proposals } = state;
   const typed = (it) => draft[it.id] || { count: String(it.currentCount), note: it.currentNote };
   const isDirty = (it) => {
     const v = draft[it.id];
@@ -136,15 +139,19 @@ export default function SharedInventoryView({ token }) {
     setDraft(prev => ({ ...prev, [it.id]: { ...typed(it), [field]: value } }));
   };
 
+  // Everything sent from this page carries the person's name. False,
+  // with the name box brought into view, when it hasn't been filled in.
+  const haveName = () => {
+    if (name.trim()) return true;
+    setMsg({ err: true, text: T('nameNeeded') });
+    // The name box is at the top, usually far off screen by now.
+    if (nameRef.current) { nameRef.current.scrollIntoView({ block: 'center' }); nameRef.current.focus({ preventScroll: true }); }
+    return false;
+  };
   // The unsaved counts as the server takes them, or null (with the
   // reason shown) when the name is missing or a count isn't a number.
   const pendingUpdates = () => {
-    if (!name.trim()) {
-      setMsg({ err: true, text: T('nameNeeded') });
-      // The name box is at the top, usually far off screen by now.
-      if (nameRef.current) { nameRef.current.scrollIntoView({ block: 'center' }); nameRef.current.focus({ preventScroll: true }); }
-      return null;
-    }
+    if (!haveName()) return null;
     const updates = [];
     for (const it of dirtyItems) {
       const count = parseCountInput(draft[it.id].count);
@@ -174,6 +181,22 @@ export default function SharedInventoryView({ token }) {
     const updates = pendingUpdates();
     if (!updates || !window.confirm(T('countDoneConfirm', { n: items.length }))) return;
     send('checks', { updates }, T('countDoneSaved'));
+  };
+  // Sends an item that isn't on the list to the owner for approval.
+  // Unsaved counts are left as they are: this doesn't touch the list.
+  const propose = async (item) => {
+    if (!haveName()) return false;
+    setBusy(true); setMsg(null);
+    try {
+      writeStored(NAME_KEY, name.trim());
+      const d = await api.post(`${base}/proposals`, { name: name.trim(), item });
+      setState(prev => ({ ...prev, proposals: [...(prev.proposals || []), d.proposal] }));
+      setMsg({ text: T('proposeSent') });
+      return true;
+    } catch (e) {
+      setMsg({ err: true, text: e?.message || String(e) });
+      return false;
+    } finally { setBusy(false); }
   };
   const discard = () => {
     if (window.confirm(T('discardConfirm', { n: dirtyItems.length }))) { setDraft({}); setMsg(null); }
@@ -216,9 +239,15 @@ export default function SharedInventoryView({ token }) {
           {/* A search opens every area that has a match, whatever was folded. */}
           <ItemList items={visible} lang={lang} folding={folding} forceOpen={!!needle} busy={busy} expectedLabel={T('expected')}
             valueOf={typed} diffOf={diffOf} isDirty={isDirty} onChange={setTyped} />
-          <CountComplete lang={lang} unsaved={dirtyItems.length} busy={busy} onComplete={complete} />
         </>
       )}
+
+      {proposing
+        ? <ProposeItemForm lang={lang} areas={groupByArea(items, lang).filter(g => g.areaEn || g.areaEs)} busy={busy} onSend={propose} onCancel={() => setProposing(false)} />
+        : <div className="uinv-propose"><button type="button" className="uinv-btn uinv-propose-open" disabled={busy} onClick={() => setProposing(true)}>{T('proposeBtn')}</button></div>}
+      <PendingProposals lang={lang} proposals={proposals} />
+
+      {items.length > 0 && <CountComplete lang={lang} unsaved={dirtyItems.length} busy={busy} onComplete={complete} />}
 
       <Toast msg={msg} raised={dirtyItems.length > 0} lang={lang} onDismiss={() => setMsg(null)} />
 
