@@ -59,6 +59,13 @@ unnoticed.
   now. Both screens show the last complete count under the summary; the
   owner's History tab lists them in the same timeline as item changes.
   It never changes a baseline.
+- **Item photos.** The owner can attach up to 3 photos to an item —
+  what it looks like, for their own record and so the cleaning service
+  can recognise it — from the item's card or while adding it. They are
+  shrunk in the browser and stored in `unit_inventory_item_photos`,
+  apart from the item rows: lists carry only each item's photo count,
+  and an item's photos are fetched when someone opens them. The cleaning
+  service can look, not add or delete.
 - **Damage reports.** The cleaning service can report damage: what is
   damaged, where (an area, the item if it concerns one, a free-text
   spot) and up to 4 photos. Photos are shrunk in the browser and stored
@@ -105,6 +112,8 @@ unnoticed.
 | Approve or reject a proposed item | yes | no |
 | Add, edit, delete, import items | yes | no |
 | Flag items to count at every checkout | yes | no |
+| Add or delete an item's photos | yes | no |
+| See an item's photos | yes | yes |
 | Re-baseline | yes | no |
 | See the change history | yes | no |
 | Create, turn off, or replace the share link | yes | no |
@@ -130,11 +139,12 @@ client sends; there is no server-side session behind it.
 
 ## Data model
 
-Six tables, all in `supabase/schema.sql`:
+Seven tables, all in `supabase/schema.sql`:
 
 | Table | Holds |
 | --- | --- |
 | `unit_inventory_items` | One row per item: bilingual area / description / owner note, `baseline_count`, `current_count`, the latest count note, who counted last. |
+| `unit_inventory_item_photos` | The owner's photos of an item (JPEG data URLs). Deleted with the item. A missing table leaves everything else working; only photos fail. |
 | `unit_inventory_events` | Append-only history: `created`, `edited`, `count`, `rebaseline`, `deleted`. An `edited` event stores the before/after of each descriptive field that changed in `changes`; an edit that changes nothing writes no event. |
 | `unit_inventory_checks` | One row per completed count: who, when, the unit's totals against baseline at that moment, the items that were off or noted (`results`) and how many damage reports came with it. If the newer columns are missing the count is still recorded without them. If this table is missing (schema not re-run since it was added) the screens still load and report no complete count; only marking one fails. |
 | `unit_inventory_damages` | Damage reports: description, area / item / spot, photos (JPEG data URLs), who and when, the completed count they belong to (`check_id`), `open` or `resolved`. A missing table reads as no damage; only reporting fails. |
@@ -152,6 +162,9 @@ Mounted at `/api/m/unit-inventory`.
 | `PUT /items/:id` | owner | Edit an item's area, description, owner note |
 | `DELETE /items/:id` | owner | Delete an item (history kept) |
 | `POST /units/:listingId/counts` | owner | Update counts and notes |
+| `GET /units/:listingId/items/:itemId/photos?ownerUid=` | owner | An item's photos |
+| `POST /units/:listingId/items/:itemId/photos` | owner | Add a photo to an item (at most 3) |
+| `DELETE /units/:listingId/items/:itemId/photos/:photoId` | owner | Delete one photo |
 | `POST /units/:listingId/required` | owner | Flag or unflag items (one, or a whole area) as counted at every checkout |
 | `POST /units/:listingId/rebaseline` | owner | Accept current counts as the baseline |
 | `GET /units/:listingId/history?ownerUid=` | owner | Item changes and completed counts, newest first |
@@ -163,6 +176,7 @@ Mounted at `/api/m/unit-inventory`.
 | `POST /proposals/:id/decision` | owner | `approve` (creates the item) or `reject` a proposed item |
 | `POST /units/:listingId/link` | owner | `enable`, `disable` or `regenerate` the share link |
 | `GET /shared/:token` | link holder | The unit's label, items, last complete count and pending proposals |
+| `GET /shared/:token/items/:itemId/photos` | link holder | An item's photos (view only) |
 | `POST /shared/:token/counts` | link holder | Update counts and notes |
 | `POST /shared/:token/checks` | link holder | Mark the count complete (optionally saving `updates` first) |
 | `POST /shared/:token/proposals` | link holder | Propose an item for the owner to approve |
@@ -216,7 +230,6 @@ Only one of the two name columns is required; a blank count means 1.
 
 ## Known gaps
 
-- No photos per item (damage reports have them).
 - The cleaning service is asked about damage but is not made to tick off
   each ★ item; "Count complete" remains their word.
 - Damage photos live in the database row, as incident photos do; a unit

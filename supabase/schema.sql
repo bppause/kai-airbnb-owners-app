@@ -600,8 +600,27 @@ create table if not exists public.unit_inventory_items (
 -- list is the owner's record of everything in the unit, and the owner
 -- flags the items the cleaning service has to count each time.
 alter table public.unit_inventory_items add column if not exists count_required boolean not null default false;
+-- How many photos the owner has attached (kept in step with
+-- unit_inventory_item_photos, below).
+alter table public.unit_inventory_items add column if not exists photo_count integer not null default 0;
 create index if not exists idx_unit_inventory_items_listing
   on public.unit_inventory_items(listing_id, sort_order);
+
+-- Photos the owner attaches to an item: what it looks like, for their
+-- own record and so the cleaning service can recognise it. JPEG data
+-- URLs, like incident photos, in their own table so item lists stay
+-- small — an item's photos are read only when someone opens them.
+create table if not exists public.unit_inventory_item_photos (
+  id text primary key,
+  listing_id text not null references public.listings(id) on delete cascade,
+  community_id text not null default 'kai',
+  item_id text not null,
+  data text not null,
+  created_by text not null default '',
+  created_at timestamptz not null default now()
+);
+create index if not exists idx_unit_inventory_item_photos_item
+  on public.unit_inventory_item_photos(item_id, created_at);
 
 -- Append-only history of every change to a count, a note or a baseline.
 -- item_id deliberately has no foreign key, and the item's names are copied
@@ -753,4 +772,5 @@ alter table public.unit_inventory_links disable row level security;
 alter table public.unit_inventory_checks disable row level security;
 alter table public.unit_inventory_proposals disable row level security;
 alter table public.unit_inventory_damages disable row level security;
+alter table public.unit_inventory_item_photos disable row level security;
 

@@ -50,6 +50,12 @@
 // reported during that visit is attached to it, so the owner can open any
 // checkout and see what was found.
 //
+// The owner can attach photos to an item — a picture of what it is, for
+// their own record and so the cleaning service can recognise it. They
+// live in unit_inventory_item_photos, apart from the item rows, so the
+// lists both screens load stay small; an item's photos are fetched when
+// someone opens them. The item carries only how many it has.
+//
 // Like the rest of this app the owner routes trust the ownerUid the
 // client sends (see server/platform/units/routes.js); there is no
 // server-side session to check it against.
@@ -79,6 +85,7 @@ const PROPOSAL_NOTIFY_GAP_MS = 30 * 60 * 1000;
 const MAX_DAMAGE_PHOTOS = 4;
 const MAX_PHOTO_CHARS = 2 * 1024 * 1024;
 const MAX_OPEN_DAMAGES = 100;
+const MAX_ITEM_PHOTOS = 3;
 const MAX_LOCATION = 200;
 // Damage reported this long before a count is completed belongs to that
 // visit and is attached to its record; older unattached reports stand
@@ -116,6 +123,7 @@ const itemFromDb = (r) => ({
   countUpdatedAt: r.count_updated_at,
   countUpdatedBy: r.count_updated_by || '',
   countRequired: !!r.count_required,
+  photoCount: r.photo_count || 0,
   sortOrder: r.sort_order,
   createdAt: r.created_at,
 });
@@ -182,6 +190,17 @@ const proposalFromDb = (r) => ({
   proposedBy: r.proposed_by || '',
   createdAt: r.created_at,
 });
+
+// A photo as it arrives — a data URL, bare or as { data } — if it is an
+// image of an allowed type and size; null otherwise. The share link has
+// no login and the owner's uid is taken on trust, so nothing else is let
+// into a column that pages later put in an <img>.
+const cleanPhoto = (p) => {
+  const data = typeof p === 'string' ? p : p?.data;
+  return typeof data === 'string' && /^data:image\/(jpeg|png|webp);base64,/.test(data) && data.length <= MAX_PHOTO_CHARS ? data : null;
+};
+
+const itemPhotoFromDb = (r) => ({ id: r.id, data: r.data, createdAt: r.created_at });
 
 // The fields of an item the owner writes. Either name may be left blank
 // (it falls back to the other language on screen) but not both.
@@ -512,10 +531,8 @@ module.exports = function createUnitInventoryRouter(deps) {
     if (!Array.isArray(photos) || photos.length > MAX_DAMAGE_PHOTOS) return { error: `Attach at most ${MAX_DAMAGE_PHOTOS} photos.`, status: 400 };
     const cleanPhotos = [];
     for (const p of photos) {
-      const data = typeof p === 'string' ? p : p?.data;
-      if (typeof data !== 'string' || !/^data:image\/(jpeg|png|webp);base64,/.test(data) || data.length > MAX_PHOTO_CHARS) {
-        return { error: 'Each photo must be an image of at most 2 MB.', status: 400 };
-      }
+      const data = cleanPhoto(p);
+      if (!data) return { error: 'Each photo must be an image of at most 2 MB.', status: 400 };
       cleanPhotos.push({ data });
     }
     // The item it concerns, if any — one of this unit's, its names copied
@@ -684,6 +701,8 @@ module.exports = function createUnitInventoryRouter(deps) {
     const actor = text(actorName, MAX_ACTOR) || listing.owner || 'Owner';
     const { error } = await supabase.from('unit_inventory_items').delete().eq('id', item.id);
     if (error) return sendSupabaseError(res, error);
+    // Its photos go with it (best effort: the table may not exist yet).
+    await supabase.from('unit_inventory_item_photos').delete().eq('item_id', item.id);
     const evErr = await insertEvents([eventRow(item, listing, {
       event_type: 'deleted',
       count_before: item.current_count, baseline_before: item.baseline_count,
@@ -713,6 +732,81 @@ module.exports = function createUnitInventoryRouter(deps) {
     if (result.supabaseError) return sendSupabaseError(res, result.supabaseError);
     if (result.error) return res.status(result.status).json({ error: result.error });
     res.json({ changed: result.changed });
+  });
+
+  // An item of this unit, or null with the 404 already sent.
+  const itemOfUnit = async (res, listing, itemId) => {
+    const { data, error } = await supabase.from('unit_inventory_items')
+      .select('*').eq('id', itemId).eq('listing_id', listing.id).maybeSingle();
+    if (error) { sendSupabaseError(res, error); return null; }
+    if (!data) { res.status(404).json({ error: 'Item not found.' }); return null; }
+    return data;
+  };
+  const loadItemPhotos = async (itemId) => supabase.from('unit_inventory_item_photos')
+    .select('*').eq('item_id', itemId).order('created_at', { ascending: true });
+  // Sets the item's photo_count from what is actually stored.
+  const recountItemPhotos = async (itemId) => {
+    const { data, error } = await supabase.from('unit_inventory_item_photos').select('id').eq('item_id', itemId);
+    if (error) return { error };
+    const { error: uErr } = await supabase.from('unit_inventory_items').update({ photo_count: data.length }).eq('id', itemId);
+    return { error: uErr, count: data.length };
+  };
+
+  // GET /units/:listingId/items/:itemId/photos?ownerUid= — an item's photos.
+  router.get('/units/:listingId/items/:itemId/photos', async (req, res) => {
+    if (!requireSupabaseEnv(res)) return;
+    const listing = await requireOwnedUnit(res, req.params.listingId, req.query.ownerUid);
+    if (!listing) return;
+    const item = await itemOfUnit(res, listing, req.params.itemId);
+    if (!item) return;
+    const { data, error } = await loadItemPhotos(item.id);
+    if (error) return sendSupabaseError(res, error);
+    res.json({ photos: (data || []).map(itemPhotoFromDb) });
+  });
+
+  // POST /units/:listingId/items/:itemId/photos — body: { ownerUid,
+  // actorName, photo }. The owner adds a photo of the item. `photo` is a
+  // JPEG data URL the page has already shrunk.
+  router.post('/units/:listingId/items/:itemId/photos', async (req, res) => {
+    if (!requireSupabaseEnv(res)) return;
+    const { ownerUid, actorName, photo } = req.body || {};
+    const listing = await requireOwnedUnit(res, req.params.listingId, ownerUid);
+    if (!listing) return;
+    const item = await itemOfUnit(res, listing, req.params.itemId);
+    if (!item) return;
+    const data = cleanPhoto(photo);
+    if (!data) return res.status(400).json({ error: 'The photo must be an image of at most 2 MB.' });
+    const { data: existing, error: eErr } = await supabase.from('unit_inventory_item_photos').select('id').eq('item_id', item.id);
+    if (eErr) return sendSupabaseError(res, eErr);
+    if ((existing || []).length >= MAX_ITEM_PHOTOS) return res.status(400).json({ error: `An item can have at most ${MAX_ITEM_PHOTOS} photos. Delete one first.` });
+    const row = {
+      id: 'uph_' + uuidv4().slice(0, 12),
+      listing_id: listing.id, community_id: listing.community_id || 'kai', item_id: item.id,
+      data, created_by: text(actorName, MAX_ACTOR) || listing.owner || 'Owner',
+      created_at: new Date().toISOString(),
+    };
+    const { error } = await supabase.from('unit_inventory_item_photos').insert(row);
+    if (error) return sendSupabaseError(res, error);
+    const counted = await recountItemPhotos(item.id);
+    if (counted.error) return sendSupabaseError(res, counted.error);
+    res.json({ photo: itemPhotoFromDb(row), photoCount: counted.count });
+  });
+
+  // DELETE /units/:listingId/items/:itemId/photos/:photoId — body:
+  // { ownerUid }. The owner removes one photo.
+  router.delete('/units/:listingId/items/:itemId/photos/:photoId', async (req, res) => {
+    if (!requireSupabaseEnv(res)) return;
+    const listing = await requireOwnedUnit(res, req.params.listingId, req.body?.ownerUid);
+    if (!listing) return;
+    const item = await itemOfUnit(res, listing, req.params.itemId);
+    if (!item) return;
+    const { data: gone, error } = await supabase.from('unit_inventory_item_photos')
+      .delete().eq('id', req.params.photoId).eq('item_id', item.id).select('id');
+    if (error) return sendSupabaseError(res, error);
+    if (!gone || !gone.length) return res.status(404).json({ error: 'Photo not found.' });
+    const counted = await recountItemPhotos(item.id);
+    if (counted.error) return sendSupabaseError(res, counted.error);
+    res.json({ photoCount: counted.count });
   });
 
   // POST /units/:listingId/required — body: { ownerUid, actorName,
@@ -1018,6 +1112,19 @@ module.exports = function createUnitInventoryRouter(deps) {
       lastCheck: await loadLastCheck(listing.id), proposals: await loadPendingProposals(listing.id),
       damages: (await visitDamages(listing.id)).map(r => damageFromDb(r)),
     });
+  });
+
+  // GET /shared/:token/items/:itemId/photos — an item's photos, so the
+  // cleaning service can see what it is. View only.
+  router.get('/shared/:token/items/:itemId/photos', async (req, res) => {
+    if (!requireSupabaseEnv(res)) return;
+    const listing = await unitForToken(res, req.params.token);
+    if (!listing) return;
+    const item = await itemOfUnit(res, listing, req.params.itemId);
+    if (!item) return;
+    const { data, error } = await loadItemPhotos(item.id);
+    if (error) return sendSupabaseError(res, error);
+    res.json({ photos: (data || []).map(itemPhotoFromDb) });
   });
 
   // POST /shared/:token/counts — body: { name, updates }. `name` is

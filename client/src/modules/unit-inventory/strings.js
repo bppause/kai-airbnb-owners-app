@@ -240,6 +240,19 @@ const STR = {
   reportDamages:    { es: 'Daños reportados ({n})', en: 'Damage reported ({n})' },
   reportNoDamages:  { es: 'Sin daños reportados.', en: 'No damage reported.' },
   checkDamages:     { es: '⚠️ {n} daño(s)', en: '⚠️ {n} damage report(s)' },
+
+  // Photos the owner attaches to an item.
+  photosShow:       { es: '📷 Fotos ({n})', en: '📷 Photos ({n})' },
+  photosHide:       { es: 'Ocultar fotos', en: 'Hide photos' },
+  photoAdd:         { es: '📷 Agregar foto', en: '📷 Add photo' },
+  photoAdding:      { es: 'Guardando foto…', en: 'Saving photo…' },
+  photoAlt:         { es: 'Foto del artículo', en: 'Photo of the item' },
+  photoRemove:      { es: 'Eliminar foto', en: 'Delete photo' },
+  photoRemoveConfirm: { es: '¿Eliminar esta foto?', en: 'Delete this photo?' },
+  photoMax:         { es: 'Máximo {n} fotos por artículo.', en: 'At most {n} photos per item.' },
+  photoHas:         { es: 'Tiene fotos', en: 'Has photos' },
+  formPhotos:       { es: 'Fotos del artículo (hasta {n})', en: 'Photos of the item (up to {n})' },
+  photoSomeFailed:  { es: 'El artículo se guardó, pero una foto no se pudo guardar: {why}', en: 'The item was saved, but a photo could not be saved: {why}' },
 };
 
 const isEnglish = (lang) => String(lang || '').toLowerCase().startsWith('en');

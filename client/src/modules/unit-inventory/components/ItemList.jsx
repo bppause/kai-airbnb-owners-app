@@ -39,7 +39,7 @@ export const areaKey = (areaEn, areaEs) => `${areaEn || ''}\u0001${areaEs || ''}
 // buttons shown with the note. `expectedLabel` names the baseline box.
 // `onRequired` (owner only) flips whether the item must be counted at
 // every checkout; without it the ★ is only shown.
-function ItemCard({ item, lang, value, diff, dirty, busy, expectedLabel, opened, onToggle, onChange, actions, onRequired, moreLabel }) {
+function ItemCard({ item, lang, value, diff, dirty, busy, expectedLabel, opened, onToggle, onChange, actions, onRequired, moreLabel, photos }) {
   const T = (k, v) => tr(lang, k, v);
   const other = secondaryText(item.nameEn, item.nameEs);
   const ownerNote = primaryText(item.noteEn, item.noteEs);
@@ -57,11 +57,13 @@ function ItemCard({ item, lang, value, diff, dirty, busy, expectedLabel, opened,
         <div className="uinv-item-text">
           <div className="uinv-name">
             {primaryText(item.nameEn, item.nameEs)}
+            {item.photoCount > 0 && <> <span className="uinv-cam" role="img" aria-label={T('photoHas')}>📷</span></>}
             {item.countRequired && <> <span className="uinv-badge uinv-badge-req">{T('reqBadge')}</span></>}
             {' '}<DiffBadge diff={diff} lang={lang} />
           </div>
           {other && <div className="uinv-other">{other}</div>}
           {ownerNote && <div className="uinv-onote">{ownerNote}{ownerNoteOther && <span className="uinv-onote-other"> · {ownerNoteOther}</span>}</div>}
+          {photos}
         </div>
         {onRequired && (
           <button type="button" className={`uinv-star${item.countRequired ? ' uinv-star-on' : ''}`} aria-pressed={item.countRequired}
@@ -112,7 +114,8 @@ function ItemCard({ item, lang, value, diff, dirty, busy, expectedLabel, opened,
 // toggle that reveals them on a narrow screen (default: ⋯ when there are
 // actions, "＋ Note" when there are none). `onRequired(items, required)`
 // (owner only) flags one item or a whole area for every checkout.
-export function ItemList({ items, lang, folding, forceOpen = false, busy, expectedLabel, valueOf, diffOf, isDirty, onChange, actionsFor, onRequired, moreLabel }) {
+// `photosFor(item)` returns the item's photo control (see ItemPhotos).
+export function ItemList({ items, lang, folding, forceOpen = false, busy, expectedLabel, valueOf, diffOf, isDirty, onChange, actionsFor, onRequired, moreLabel, photosFor }) {
   const T = (k, v) => tr(lang, k, v);
   // Items opened by hand on a narrow screen, by id.
   const [openedItems, setOpenedItems] = useState({});
@@ -158,6 +161,7 @@ export function ItemList({ items, lang, folding, forceOpen = false, busy, expect
                 onToggle={() => setOpenedItems(o => ({ ...o, [it.id]: !o[it.id] }))}
                 onChange={(field, value) => onChange(it, field, value)}
                 actions={actionsFor ? actionsFor(it) : null} moreLabel={moreLabel}
+                photos={photosFor ? photosFor(it) : null}
                 onRequired={onRequired ? (required) => onRequired([it], required) : undefined} />
             ))}
           </section>

@@ -13,36 +13,9 @@
 import React, { useEffect, useRef, useState } from "react";
 import { compressImage } from "../../../core/utils";
 import { tr, primaryText, formatWhen } from "../strings";
+import { PhotoStrip } from "./Photos";
 
 export const MAX_DAMAGE_PHOTOS = 4;
-
-// Thumbnails that open full-screen on a tap. `onRemove(index)` adds a
-// remove corner to each (the form, before sending).
-export function PhotoStrip({ photos, lang, onRemove }) {
-  const [open, setOpen] = useState(null);
-  if (!photos || !photos.length) return null;
-  return (
-    <>
-      <div className="uinv-thumbs">
-        {photos.map((p, i) => (
-          <div key={i} className="uinv-thumb" role="button" tabIndex={0} onClick={() => setOpen(i)}
-            onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') setOpen(i); }}>
-            <img src={p.data} alt={tr(lang, 'damagePhotoAlt')} />
-            {onRemove && (
-              <button type="button" className="uinv-thumb-x" aria-label={tr(lang, 'damagePhotoRemove')}
-                onClick={e => { e.stopPropagation(); onRemove(i); }}>✕</button>
-            )}
-          </div>
-        ))}
-      </div>
-      {open !== null && photos[open] && (
-        <div className="uinv-lightbox" role="dialog" aria-modal="true" onClick={() => setOpen(null)}>
-          <img src={photos[open].data} alt={tr(lang, 'damagePhotoAlt')} />
-        </div>
-      )}
-    </>
-  );
-}
 
 // Where a report points, as one phrase: area · item · exact spot.
 const whereOf = (d) => [primaryText(d.areaEn, d.areaEs), primaryText(d.itemNameEn, d.itemNameEs), d.location].filter(Boolean).join(' · ');

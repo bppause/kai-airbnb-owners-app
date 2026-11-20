@@ -26,6 +26,7 @@ import { ItemList, Toast, ViewSwitch, useAreaFolding } from "../components/ItemL
 import { CountComplete, LastCheckLine } from "../components/CountComplete";
 import { ProposeItemForm, PendingProposals } from "../components/Proposals";
 import { DamageForm, DamageList } from "../components/Damages";
+import { ItemPhotos } from "../components/Photos";
 import { UINV_CSS } from "../styles";
 
 const NAME_KEY = 'kai_inventory_name';
@@ -209,6 +210,11 @@ export default function SharedInventoryView({ token }) {
       return false;
     } finally { setBusy(false); }
   };
+  // The owner's photos of an item, to recognise it by. View only here.
+  const photoStore = { load: async (it) => (await api.get(`${base}/items/${encodeURIComponent(it.id)}/photos`)).photos || [] };
+  const photosFor = (it) => (it.photoCount > 0
+    ? <ItemPhotos lang={lang} item={it} store={photoStore} onCount={() => {}} onError={e => setMsg({ err: true, text: e?.message || String(e) })} />
+    : null);
   const openDamage = (preset) => setDamaging({ preset: preset || null, seq: Date.now() });
   // Sends an item that isn't on the list to the owner for approval.
   // Unsaved counts are left as they are: this doesn't touch the list.
@@ -280,7 +286,7 @@ export default function SharedInventoryView({ token }) {
           {visible.length === 0 && <p className="uinv-sub" style={{ marginTop: 12 }}>{T('noMatches')}</p>}
           {/* A search opens every area that has a match, whatever was folded. */}
           <ItemList items={visible} lang={lang} folding={folding} forceOpen={!!needle} busy={busy} expectedLabel={T('expected')}
-            valueOf={typed} diffOf={diffOf} isDirty={isDirty} onChange={setTyped} moreLabel={T('addNote')}
+            valueOf={typed} diffOf={diffOf} isDirty={isDirty} onChange={setTyped} moreLabel={T('addNote')} photosFor={photosFor}
             actionsFor={it => <button type="button" className="uinv-btn uinv-btn-sm" disabled={busy} onClick={() => openDamage(it)}>{T('damageBtnItem')}</button>} />
         </>
       )}

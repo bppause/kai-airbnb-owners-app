@@ -23,6 +23,7 @@ import { ItemList, Toast, ViewSwitch, useAreaFolding, areaKey } from "./ItemList
 import { CountComplete, LastCheckLine } from "./CountComplete";
 import { PendingProposals } from "./Proposals";
 import { DamageList } from "./Damages";
+import { ItemPhotos, PhotoPicker, MAX_ITEM_PHOTOS } from "./Photos";
 import CheckoutReports from "./Reports";
 import { itemsFromCsv } from "../csv";
 import { UINV_CSS } from "../styles";
@@ -108,6 +109,8 @@ export default function UnitInventoryModal({ listing, user, onClose }) {
   const [draft, setDraft] = useState({});
   const [tab, setTab] = useState('items');
   const [form, setForm] = useState(null);
+  // Photos picked in the add-item form, sent once the item exists.
+  const [formPhotos, setFormPhotos] = useState([]);
   const [importState, setImportState] = useState(null);
   const [history, setHistory] = useState(null);
   const [busy, setBusy] = useState(false);
@@ -299,7 +302,18 @@ export default function UnitInventoryModal({ listing, user, onClose }) {
     await load();
   }, T('damageResolvedMsg'));
 
-  const openForm = (next) => { setImportState(null); setForm(next); };
+  const openForm = (next) => { setImportState(null); setFormPhotos([]); setForm(next); };
+
+  // An item's photos: read when its card opens them; added and deleted
+  // by the owner. The list only knows how many each item has.
+  const itemPhotosUrl = (it) => `${unitBase}/items/${encodeURIComponent(it.id)}/photos`;
+  const photoStore = {
+    load: async (it) => (await api.get(`${itemPhotosUrl(it)}?ownerUid=${encodeURIComponent(user.uid)}`)).photos || [],
+    add: (it, data) => api.post(itemPhotosUrl(it), { ...who, photo: data }),
+    remove: (it, photo) => api.del(`${itemPhotosUrl(it)}/${encodeURIComponent(photo.id)}`, who),
+  };
+  const setPhotoCount = (it, n) => setItems(prev => (prev || []).map(x => (x.id === it.id ? { ...x, photoCount: n } : x)));
+  const photosFor = (it) => <ItemPhotos lang={lang} item={it} store={photoStore} onCount={setPhotoCount} onError={e => setMsg({ err: true, text: e?.message || String(e) })} />;
 
   const saveForm = () => {
     if (!form.nameEn.trim() && !form.nameEs.trim()) { setMsg({ err: true, text: T('nameRequired') }); return; }
@@ -317,11 +331,20 @@ export default function UnitInventoryModal({ listing, user, onClose }) {
     const count = parseCountInput(form.count);
     if (count == null) { setMsg({ err: true, text: T('countInvalid') }); return; }
     run(async () => {
-      await api.post(`${unitBase}/items`, { ...who, items: [{ ...form, count }] });
+      const d = await api.post(`${unitBase}/items`, { ...who, items: [{ ...form, count }] });
+      // The item exists now; its photos follow. A photo that fails does
+      // not undo the item — the owner is told and can add it again.
+      const made = d.items && d.items[0];
+      let photoProblem = '';
+      for (const p of (made ? formPhotos : [])) {
+        try { await photoStore.add(made, p.data); } catch (e) { photoProblem = e?.message || String(e); }
+      }
       // Keep the area filled in: items are usually added a room at a time.
       setForm({ ...EMPTY_FORM, areaEn: form.areaEn, areaEs: form.areaEs, countRequired: form.countRequired });
+      setFormPhotos([]);
       folding.open(landsIn);
       await load();
+      if (photoProblem) throw new Error(T('photoSomeFailed', { why: photoProblem }));
     }, T('saved'));
   };
 
@@ -486,6 +509,9 @@ export default function UnitInventoryModal({ listing, user, onClose }) {
                       <>
                         <label className="uinv-field">{T('startCount')}<input className="uinv-num" inputMode="numeric" pattern="[0-9]*" value={form.count} onFocus={e => e.target.select()} onChange={e => setForm({ ...form, count: e.target.value })} /></label>
                         <label className="uinv-check"><input type="checkbox" checked={!!form.countRequired} onChange={e => setForm({ ...form, countRequired: e.target.checked })} />{T('formRequired')}</label>
+                        <div className="uinv-field uinv-full">{T('formPhotos', { n: MAX_ITEM_PHOTOS })}
+                          <PhotoPicker lang={lang} photos={formPhotos} onChange={setFormPhotos} max={MAX_ITEM_PHOTOS} disabled={busy} />
+                        </div>
                       </>
                     )}
                 </div>
@@ -508,7 +534,7 @@ export default function UnitInventoryModal({ listing, user, onClose }) {
                 {shown.length === 0 && <p className="uinv-sub" style={{ marginTop: 12 }}>{T('noMatches')}</p>}
                 {/* A search or the changed-only filter opens every area it leaves. */}
                 <ItemList items={shown} lang={lang} folding={folding} forceOpen={!!needle || narrowing} busy={busy} expectedLabel={T('baseline')}
-                  valueOf={typed} diffOf={diffOf} isDirty={isDirty} onChange={setTyped} actionsFor={actionsFor} onRequired={setRequired} />
+                  valueOf={typed} diffOf={diffOf} isDirty={isDirty} onChange={setTyped} actionsFor={actionsFor} onRequired={setRequired} photosFor={photosFor} />
                 <CountComplete lang={lang} unsaved={dirtyItems.length} busy={busy} onComplete={completeCount} />
               </>
             )}

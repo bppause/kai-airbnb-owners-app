@@ -136,6 +136,8 @@ export const UINV_CSS = `
 .uinv-report-extra{color:#1c4f8a;font-weight:700}
 .uinv-finish{display:grid;gap:10px}
 .uinv-finish .uinv-btn{width:100%;min-height:48px;font-size:1rem}
+.uinv-photos{margin-top:6px;display:grid;gap:6px;justify-items:start}
+.uinv-cam{font-size:.85rem}
 .uinv-pending{background:#fff8e6;border-color:#e2c27a}
 .uinv-prop{border-top:1px solid #ecdcae;padding:10px 0 2px;margin-top:10px;display:grid;gap:4px}
 .uinv-prop-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px}
@@ -157,6 +159,8 @@ export const UINV_CSS = `
   .uinv-fields{width:100%}
   .uinv-extra{display:none;flex-basis:100%}
   .uinv-item-open .uinv-extra{display:grid}
+  .uinv-photo-first{display:none}
+  .uinv-item-open .uinv-photo-first{display:inline-block}
   .uinv-more{display:inline-flex;align-items:center;justify-content:center;margin-left:auto;min-width:44px;min-height:44px;padding:0 10px;border:1px solid rgba(47,79,58,.24);border-radius:10px;background:#fff;color:#235f72;font-size:.82rem;font-weight:700;cursor:pointer;white-space:nowrap}
   .uinv-sum{flex-direction:column;align-items:stretch}
   .uinv-bar{margin-left:-12px;margin-right:-12px;padding:10px 12px calc(10px + env(safe-area-inset-bottom));box-shadow:0 -8px 24px rgba(20,32,26,.12)}
