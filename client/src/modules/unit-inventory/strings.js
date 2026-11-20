@@ -282,20 +282,22 @@ export const tr = (lang, key, vars = {}) => {
   return String(raw).replace(/\{(\w+)\}/g, (_, k) => (vars[k] ?? ''));
 };
 
-// What the owner wrote about an item (area, description, note) is always
-// shown Spanish first with English as the smaller second line, whatever
-// language the screen's own labels are in: the people who count the unit
-// work in Spanish, and one fixed order means the owner and the cleaning
-// service are looking at the same line. Falls back to English when the
-// Spanish was left blank.
-export const primaryText = (en, es) => es || en || '';
+// What the owner wrote about an item (area, description, note) is shown
+// in the viewer's language — the owner's app setting, or the language
+// picked on the cleaning-service page — with the other language as the
+// smaller second line. Falls back to the other language when the
+// viewer's was left blank.
+export const primaryText = (lang, en, es) => (isEnglish(lang) ? (en || es || '') : (es || en || ''));
 
-// The English under it — only when both exist and actually differ.
-export const secondaryText = (en, es) => (es && en && en !== es ? en : '');
+// The other language under it — only when both exist and actually differ.
+export const secondaryText = (lang, en, es) => {
+  if (!en || !es || en === es) return '';
+  return isEnglish(lang) ? es : en;
+};
 
 // Items grouped by area in list order:
 // [{ key, label, other, areaEn, areaEs, items }]. `label` is the area in
-// Spanish, `other` its English name.
+// the viewer's language, `other` its name in the other one.
 export const groupByArea = (items, lang) => {
   const groups = [];
   const byKey = new Map();
@@ -304,8 +306,8 @@ export const groupByArea = (items, lang) => {
     if (!byKey.has(key)) {
       const g = {
         key,
-        label: primaryText(it.areaEn, it.areaEs) || tr(lang, 'noArea'),
-        other: secondaryText(it.areaEn, it.areaEs),
+        label: primaryText(lang, it.areaEn, it.areaEs) || tr(lang, 'noArea'),
+        other: secondaryText(lang, it.areaEn, it.areaEs),
         areaEn: it.areaEn, areaEs: it.areaEs,
         items: [],
       };

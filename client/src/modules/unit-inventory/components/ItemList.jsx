@@ -41,9 +41,9 @@ export const areaKey = (areaEn, areaEs) => `${areaEn || ''}\u0001${areaEs || ''}
 // every checkout; without it the ★ is only shown.
 function ItemCard({ item, lang, value, diff, dirty, busy, expectedLabel, opened, onToggle, onChange, actions, onRequired, moreLabel, photos, proof }) {
   const T = (k, v) => tr(lang, k, v);
-  const other = secondaryText(item.nameEn, item.nameEs);
-  const ownerNote = primaryText(item.noteEn, item.noteEs);
-  const ownerNoteOther = secondaryText(item.noteEn, item.noteEs);
+  const other = secondaryText(lang, item.nameEn, item.nameEs);
+  const ownerNote = primaryText(lang, item.noteEn, item.noteEs);
+  const ownerNoteOther = secondaryText(lang, item.noteEn, item.noteEs);
   // An item with something to say is never folded away.
   const forcedOpen = !!value.note || diff !== 0 || dirty;
   const open = forcedOpen || opened;
@@ -56,7 +56,7 @@ function ItemCard({ item, lang, value, diff, dirty, busy, expectedLabel, opened,
       <div className="uinv-item-head">
         <div className="uinv-item-text">
           <div className="uinv-name">
-            {primaryText(item.nameEn, item.nameEs)}
+            {primaryText(lang, item.nameEn, item.nameEs)}
             {item.photoCount > 0 && <> <span className="uinv-cam" role="img" aria-label={T('photoHas')}>📷</span></>}
             {item.countRequired && <> <span className="uinv-badge uinv-badge-req">{T('reqBadge')}</span></>}
             {' '}<DiffBadge diff={diff} lang={lang} />

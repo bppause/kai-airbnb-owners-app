@@ -98,11 +98,11 @@ export function PendingProposals({ lang, proposals, owner = false, actionsFor })
       <h2>🆕 {T(owner ? 'pendingOwner' : 'pendingShared', { n: proposals.length })}</h2>
       <p className="uinv-help" style={{ marginBottom: 0 }}>{T(owner ? 'pendingOwnerHelp' : 'pendingSharedHelp')}</p>
       {proposals.map(p => {
-        const area = primaryText(p.areaEn, p.areaEs);
-        const other = secondaryText(p.nameEn, p.nameEs);
+        const area = primaryText(lang, p.areaEn, p.areaEs);
+        const other = secondaryText(lang, p.nameEn, p.nameEs);
         return (
           <div key={p.id} className="uinv-prop">
-            <div className="uinv-name">{primaryText(p.nameEn, p.nameEs)}</div>
+            <div className="uinv-name">{primaryText(lang, p.nameEn, p.nameEs)}</div>
             {other && <div className="uinv-other">{other}</div>}
             <div>{[area, T('proposedQty', { n: p.count })].filter(Boolean).join(' · ')}</div>
             {p.note && <div className="uinv-onote">{p.note}</div>}

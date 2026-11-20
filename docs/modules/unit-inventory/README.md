@@ -16,11 +16,12 @@ unnoticed.
 ## How it works
 
 - **Items** are described in Spanish and English and grouped by area
-  (also bilingual). Spanish is always the main line and English the
-  smaller one under it, whatever language the screen's labels are in:
-  the people counting work in Spanish, and a fixed order means the owner
-  and the cleaning service read the same line. Either language may be
-  left blank; the screen falls back to the one that was filled in.
+  (also bilingual). Areas, descriptions and owner notes are shown in the
+  viewer's language — the owner's app setting, or the language picked on
+  the cleaning-service page (which opens in Spanish) — with the other
+  language as the smaller line under it. The add/edit form asks for the
+  viewer's language first. Either language may be left blank; the screen
+  falls back to the one that was filled in.
 - **Two counts per item.** The *baseline* is what the owner says should
   be there. The *current count* is what was last counted. Counting never
   changes the baseline.

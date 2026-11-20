@@ -35,10 +35,10 @@ function ReportDetail({ lang, detail, loadPhotos }) {
         {results.length === 0 && <p className="uinv-help">{T('reportNoDiffs')}</p>}
         {results.map(r => {
           const diff = r.count - r.baseline;
-          const other = secondaryText(r.nameEn, r.nameEs);
+          const other = secondaryText(lang, r.nameEn, r.nameEs);
           return (
             <div key={r.itemId} className="uinv-report-row">
-              <div className="uinv-name">{primaryText(r.nameEn, r.nameEs)}{r.required && ' ★'}</div>
+              <div className="uinv-name">{primaryText(lang, r.nameEn, r.nameEs)}{r.required && ' ★'}</div>
               {other && <div className="uinv-other">{other}</div>}
               <div className={diff < 0 ? 'uinv-report-miss' : diff > 0 ? 'uinv-report-extra' : ''}>
                 {T('reportExpected', { a: r.baseline, b: r.count })}
@@ -47,7 +47,7 @@ function ReportDetail({ lang, detail, loadPhotos }) {
               </div>
               {r.note && <div className="uinv-onote">{r.note}</div>}
               {r.photos > 0 && <ReportPhotos lang={lang} count={r.photos} load={() => loadPhotos(r.itemId)} />}
-              <div className="uinv-meta">{primaryText(r.areaEn, r.areaEs)}</div>
+              <div className="uinv-meta">{primaryText(lang, r.areaEn, r.areaEs)}</div>
             </div>
           );
         })}

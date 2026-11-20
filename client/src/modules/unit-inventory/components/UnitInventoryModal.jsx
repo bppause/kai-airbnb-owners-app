@@ -28,10 +28,14 @@ import CheckoutReports from "./Reports";
 import { itemsFromCsv } from "../csv";
 import { UINV_CSS } from "../styles";
 
-// The descriptive fields of an item, in form order (Spanish first). Each
-// is also the key of its label in strings.js and of its entry in an edit
-// event's changes.
-const EDIT_FIELDS = ['areaEs', 'areaEn', 'nameEs', 'nameEn', 'noteEs', 'noteEn'];
+// The descriptive fields of an item. Each is also the key of its label in
+// strings.js and of its entry in an edit event's changes. `editFields`
+// puts the viewer's language first in each pair.
+const FIELD_MAX = { area: 120, name: 300, note: 1000 };
+const editFields = (lang) => {
+  const [first, second] = String(lang || '').toLowerCase().startsWith('en') ? ['En', 'Es'] : ['Es', 'En'];
+  return ['area', 'name', 'note'].flatMap(f => [f + first, f + second]);
+};
 
 const EMPTY_FORM = { areaEn: '', areaEs: '', nameEn: '', nameEs: '', noteEn: '', noteEs: '', count: '1', countRequired: false };
 
@@ -68,7 +72,7 @@ function HistoryList({ history, lang }) {
         if (ev.type === 'deleted') lines.push(tr(lang, 'histDeleted', { n: ev.countBefore, b: ev.baselineBefore }));
         if (ev.type === 'edited') {
           // One line per field the edit changed, labelled as in the form.
-          const changed = EDIT_FIELDS.filter(f => ev.changes && ev.changes[f]);
+          const changed = editFields(lang).filter(f => ev.changes && ev.changes[f]);
           if (!changed.length) lines.push(tr(lang, 'histEdited'));
           for (const f of changed) lines.push(tr(lang, 'histField', { field: tr(lang, f), a: ev.changes[f].before, b: ev.changes[f].after }));
         }
@@ -78,10 +82,10 @@ function HistoryList({ history, lang }) {
           if (ev.noteBefore !== ev.noteAfter) lines.push(tr(lang, 'histNote', { a: ev.noteBefore, b: ev.noteAfter }));
         }
         const actor = actorLabel(lang, ev.actorType, ev.actorName);
-        const other = secondaryText(ev.itemNameEn, ev.itemNameEs);
+        const other = secondaryText(lang, ev.itemNameEn, ev.itemNameEs);
         return (
           <div key={ev.id} className="uinv-hist">
-            <div className="uinv-name">{primaryText(ev.itemNameEn, ev.itemNameEs)}</div>
+            <div className="uinv-name">{primaryText(lang, ev.itemNameEn, ev.itemNameEs)}</div>
             {other && <div className="uinv-other">{other}</div>}
             {lines.map((l, i) => <div key={i}>{l}</div>)}
             <div className="uinv-hist-when">{formatWhen(ev.createdAt, lang)} · {actor}</div>
@@ -266,7 +270,7 @@ export default function UnitInventoryModal({ listing, user, onClose }) {
   };
 
   const removeItem = (it) => {
-    if (!window.confirm(T('deleteConfirm', { name: primaryText(it.nameEn, it.nameEs) }))) return;
+    if (!window.confirm(T('deleteConfirm', { name: primaryText(lang, it.nameEn, it.nameEs) }))) return;
     run(async () => {
       await api.del(`${API_BASE}/items/${encodeURIComponent(it.id)}`, who);
       setDraft(prev => { const next = { ...prev }; delete next[it.id]; return next; });
@@ -277,7 +281,7 @@ export default function UnitInventoryModal({ listing, user, onClose }) {
   // Approving adds the proposed item to the list with its count as the
   // baseline; rejecting only closes the proposal.
   const decide = (proposal, action) => {
-    const name = primaryText(proposal.nameEn, proposal.nameEs);
+    const name = primaryText(lang, proposal.nameEn, proposal.nameEs);
     if (action === 'reject' && !window.confirm(T('rejectConfirm', { name }))) return;
     run(async () => {
       await api.post(`${API_BASE}/proposals/${encodeURIComponent(proposal.id)}/decision`, { ...who, action });
@@ -384,6 +388,7 @@ export default function UnitInventoryModal({ listing, user, onClose }) {
     catch (_e) { /* the person closed the share sheet */ }
   };
 
+  const fieldOrder = editFields(lang);
   const areaOptions = (field) => Array.from(new Set(list.map(it => it[field]).filter(Boolean)));
 
   const actionsFor = (it) => (
@@ -495,14 +500,15 @@ export default function UnitInventoryModal({ listing, user, onClose }) {
               <div className="uinv-box" ref={formRef}>
                 <h2 style={{ marginBottom: 8 }}>{form.id ? T('formEdit') : T('formAdd')}</h2>
                 <div className="uinv-form">
-                  <label className="uinv-field">{T('areaEs')}<input list="uinv-areas-es" value={form.areaEs} maxLength={120} onChange={e => setForm({ ...form, areaEs: e.target.value })} /></label>
-                  <label className="uinv-field">{T('areaEn')}<input list="uinv-areas-en" value={form.areaEn} maxLength={120} onChange={e => setForm({ ...form, areaEn: e.target.value })} /></label>
                   <datalist id="uinv-areas-en">{areaOptions('areaEn').map(a => <option key={a} value={a} />)}</datalist>
                   <datalist id="uinv-areas-es">{areaOptions('areaEs').map(a => <option key={a} value={a} />)}</datalist>
-                  <label className="uinv-field">{T('nameEs')}<input value={form.nameEs} maxLength={300} onChange={e => setForm({ ...form, nameEs: e.target.value })} /></label>
-                  <label className="uinv-field">{T('nameEn')}<input value={form.nameEn} maxLength={300} onChange={e => setForm({ ...form, nameEn: e.target.value })} /></label>
-                  <label className="uinv-field">{T('noteEs')}<input value={form.noteEs} maxLength={1000} onChange={e => setForm({ ...form, noteEs: e.target.value })} /></label>
-                  <label className="uinv-field">{T('noteEn')}<input value={form.noteEn} maxLength={1000} onChange={e => setForm({ ...form, noteEn: e.target.value })} /></label>
+                  {/* Each pair asks for the owner's language first. */}
+                  {fieldOrder.map(field => (
+                    <label key={field} className="uinv-field">{T(field)}
+                      <input value={form[field]} maxLength={FIELD_MAX[field.slice(0, 4)]} list={field.startsWith('area') ? `uinv-areas-${field.slice(4).toLowerCase()}` : undefined}
+                        onChange={e => setForm({ ...form, [field]: e.target.value })} />
+                    </label>
+                  ))}
                   {form.id
                     ? <p className="uinv-help uinv-full">{T('baselineLocked')}</p>
                     : (
