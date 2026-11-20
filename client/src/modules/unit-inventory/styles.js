@@ -143,6 +143,12 @@ export const UINV_CSS = `
 .uinv-finish{display:grid;gap:10px}
 .uinv-finish .uinv-btn{width:100%;min-height:48px;font-size:1rem}
 .uinv-photos{margin-top:6px;display:grid;gap:6px;justify-items:start}
+.uinv-proof{margin-top:8px;padding:8px 10px;border-radius:10px;border:1px dashed #e2b93b;background:#fffaf0;display:grid;gap:6px;justify-items:start}
+.uinv-proof-ok{border:1px solid #b7e2c8;background:#f1f8f4}
+.uinv-proof-state{font-size:.85rem;font-weight:700;color:#7a5200}
+.uinv-proof-ok .uinv-proof-state{color:#0b5f3a}
+.uinv-progress{margin:8px 0 0;font-weight:700;color:#7a5200}
+.uinv-progress-done{color:#0b5f3a}
 .uinv-cam{font-size:.85rem}
 .uinv-pending{background:#fff8e6;border-color:#e2c27a}
 .uinv-prop{border-top:1px solid #ecdcae;padding:10px 0 2px;margin-top:10px;display:grid;gap:4px}

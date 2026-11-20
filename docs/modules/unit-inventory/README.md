@@ -66,6 +66,18 @@ unnoticed.
   apart from the item rows: lists carry only each item's photo count,
   and an item's photos are fetched when someone opens them. The cleaning
   service can look, not add or delete.
+- **Proof photos.** At every checkout the cleaning service must
+  photograph each ★ item, as proof of its count and condition. The
+  photo is taken from the item's card (the camera opens directly), saved
+  at once to `unit_inventory_count_photos`, and the page shows progress
+  ("Proof photos: 4 of 11"). Count complete is refused — in the page and
+  again by the server, before anything is written — while a ★ item has
+  no photo from this visit, and the page takes the person to the first
+  one missing. Completing attaches the photos to that checkout's report,
+  where the owner opens them item by item. The owner's own count asks
+  for none. Photos are kept for a unit's 12 most recent completed
+  counts; older reports keep their counts and notes but not the
+  pictures. Up to 3 per item per visit, shrunk to 720px.
 - **Damage reports.** The cleaning service can report damage: what is
   damaged, where (an area, the item if it concerns one, a free-text
   spot) and up to 4 photos. Photos are shrunk in the browser and stored
@@ -108,6 +120,7 @@ unnoticed.
 | Mark a count as complete | yes | yes |
 | Propose an item that isn't on the list | — | yes |
 | Report damage, with photos | — | yes |
+| Take the proof photo of each ★ item (required to finish) | — | yes |
 | See checkout reports and damage photos; mark damage resolved | yes | no |
 | Approve or reject a proposed item | yes | no |
 | Add, edit, delete, import items | yes | no |
@@ -139,7 +152,7 @@ client sends; there is no server-side session behind it.
 
 ## Data model
 
-Seven tables, all in `supabase/schema.sql`:
+Eight tables, all in `supabase/schema.sql`:
 
 | Table | Holds |
 | --- | --- |
@@ -147,6 +160,7 @@ Seven tables, all in `supabase/schema.sql`:
 | `unit_inventory_item_photos` | The owner's photos of an item (JPEG data URLs). Deleted with the item. A missing table leaves everything else working; only photos fail. |
 | `unit_inventory_events` | Append-only history: `created`, `edited`, `count`, `rebaseline`, `deleted`. An `edited` event stores the before/after of each descriptive field that changed in `changes`; an edit that changes nothing writes no event. |
 | `unit_inventory_checks` | One row per completed count: who, when, the unit's totals against baseline at that moment, the items that were off or noted (`results`) and how many damage reports came with it. If the newer columns are missing the count is still recorded without them. If this table is missing (schema not re-run since it was added) the screens still load and report no complete count; only marking one fails. |
+| `unit_inventory_count_photos` | Proof photos of items at a checkout: unattached while the visit is under way, then tied to the completed count (`check_id`). Pruned to the 12 most recent counts per unit. A missing table means photos aren't asked for and counts complete as before. |
 | `unit_inventory_damages` | Damage reports: description, area / item / spot, photos (JPEG data URLs), who and when, the completed count they belong to (`check_id`), `open` or `resolved`. A missing table reads as no damage; only reporting fails. |
 | `unit_inventory_proposals` | Items proposed through the share link: `pending`, `approved` (with the `item_id` created) or `rejected`. Decided rows are kept. A missing table reads as no proposals; only proposing fails. |
 | `unit_inventory_links` | One share link per unit: token and whether it is enabled. Kept off `listings` because listing rows are returned to every signed-in user. |
@@ -171,12 +185,16 @@ Mounted at `/api/m/unit-inventory`.
 | `POST /units/:listingId/checks` | owner | Mark the count complete (optionally saving `updates` first) |
 | `GET /units/:listingId/checks?ownerUid=` | owner | The dated list of completed counts |
 | `GET /units/:listingId/checks/:checkId?ownerUid=` | owner | One checkout's report: results and damage, with photos |
+| `GET /units/:listingId/checks/:checkId/items/:itemId/photos?ownerUid=` | owner | One item's proof photos at one checkout |
 | `GET /units/:listingId/damages/:damageId?ownerUid=` | owner | One damage report with its photos |
 | `POST /damages/:id/status` | owner | Mark a damage report `resolved` (or `open` again) |
 | `POST /proposals/:id/decision` | owner | `approve` (creates the item) or `reject` a proposed item |
 | `POST /units/:listingId/link` | owner | `enable`, `disable` or `regenerate` the share link |
 | `GET /shared/:token` | link holder | The unit's label, items, last complete count and pending proposals |
 | `GET /shared/:token/items/:itemId/photos` | link holder | An item's photos (view only) |
+| `GET /shared/:token/items/:itemId/proof` | link holder | This visit's proof photos of an item |
+| `POST /shared/:token/items/:itemId/proof` | link holder | Add a proof photo (at most 3 per item per visit) |
+| `DELETE /shared/:token/items/:itemId/proof/:photoId` | link holder | Remove one taken this visit |
 | `POST /shared/:token/counts` | link holder | Update counts and notes |
 | `POST /shared/:token/checks` | link holder | Mark the count complete (optionally saving `updates` first) |
 | `POST /shared/:token/proposals` | link holder | Propose an item for the owner to approve |
@@ -232,10 +250,11 @@ Only one of the two name columns is required; a blank count means 1.
 
 ## Known gaps
 
-- The cleaning service is asked about damage but is not made to tick off
-  each ★ item; "Count complete" remains their word.
-- Damage photos live in the database row, as incident photos do; a unit
-  with very many reports will want object storage.
+- A proof photo shows that a picture was taken of the item at that
+  checkout; nothing checks what is in the picture.
+- All photos live in the database, as incident photos do. Proof photos
+  are pruned to the latest 12 counts per unit; item and damage photos
+  are not. Many units with long ★ lists will want object storage.
 - Counts are whole numbers; a consumable kept "assorted" is tracked as 1
   with a note.
 - No notification to the owner when a count drops below the baseline.

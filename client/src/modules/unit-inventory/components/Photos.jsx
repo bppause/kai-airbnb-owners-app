@@ -10,6 +10,10 @@ import { compressImage } from "../../../core/utils";
 import { tr } from "../strings";
 
 export const MAX_ITEM_PHOTOS = 3;
+export const MAX_PROOF_PHOTOS = 3;
+// Proof photos are taken by the dozen at every checkout and only need to
+// show the item and its state, so they are shrunk further than the rest.
+const PROOF_SIZE = { maxPx: 720, quality: 0.6 };
 
 // Thumbnails that open full-screen on a tap. `onRemove(index)` adds a
 // remove corner to each. `alt` / `removeLabel` word them for whatever
@@ -44,7 +48,9 @@ export function PhotoStrip({ photos, lang, onRemove, alt, removeLabel }) {
 // A button that opens the phone's camera / photo library and hands back
 // each chosen image, shrunk, through `onPhoto(dataUrl)` — one at a time,
 // at most `room` of them. `onError()` is told when a file can't be used.
-export function PhotoButton({ lang, room, disabled, busyLabel, onPhoto, onError, className = 'uinv-btn uinv-btn-sm' }) {
+// `camera` goes straight to the camera on a phone (proof photos are
+// taken on the spot); `size` overrides how far the image is shrunk.
+export function PhotoButton({ lang, room, disabled, busyLabel, label, camera = false, size, onPhoto, onError, className = 'uinv-btn uinv-btn-sm' }) {
   const fileRef = useRef(null);
   const [working, setWorking] = useState(false);
   const chosen = async (e) => {
@@ -54,16 +60,16 @@ export function PhotoButton({ lang, room, disabled, busyLabel, onPhoto, onError,
     setWorking(true);
     for (const file of files) {
       let shrunk = null;
-      try { shrunk = await compressImage(file); } catch (_e) { if (onError) onError(); }
+      try { shrunk = await compressImage(file, size); } catch (_e) { if (onError) onError(); }
       if (shrunk) await onPhoto(shrunk.data);
     }
     setWorking(false);
   };
   return (
     <>
-      <input ref={fileRef} type="file" accept="image/*" multiple={room > 1} style={{ display: 'none' }} onChange={chosen} />
+      <input ref={fileRef} type="file" accept="image/*" multiple={!camera && room > 1} capture={camera ? 'environment' : undefined} style={{ display: 'none' }} onChange={chosen} />
       <button type="button" className={className} disabled={disabled || working} onClick={() => fileRef.current && fileRef.current.click()}>
-        {working ? (busyLabel || tr(lang, 'damagePhotoBusy')) : tr(lang, 'photoAdd')}
+        {working ? (busyLabel || tr(lang, 'damagePhotoBusy')) : (label || tr(lang, 'photoAdd'))}
       </button>
     </>
   );
@@ -95,7 +101,7 @@ export function PhotoPicker({ lang, photos, onChange, max, disabled }) {
 // `store` is { load(item) → photos, add?(item, dataUrl) → { photo,
 // photoCount }, remove?(item, photo) → { photoCount } }. `onCount(item,
 // n)` keeps the list's own count in step.
-export function ItemPhotos({ lang, item, store, onCount, onError }) {
+export function ItemPhotos({ lang, item, store, onCount, onError, showLabel = 'photosShow' }) {
   const T = (k, v) => tr(lang, k, v);
   const canEdit = !!store.add;
   const [photos, setPhotos] = useState(null);   // null = not opened yet
@@ -127,7 +133,7 @@ export function ItemPhotos({ lang, item, store, onCount, onError }) {
   };
 
   if (photos === null) {
-    if (count > 0) return <div className="uinv-photos"><button type="button" className="uinv-btn uinv-btn-sm" disabled={loading} onClick={open}>{loading ? T('loading') : T('photosShow', { n: count })}</button></div>;
+    if (count > 0) return <div className="uinv-photos"><button type="button" className="uinv-btn uinv-btn-sm" disabled={loading} onClick={open}>{loading ? T('loading') : T(showLabel, { n: count })}</button></div>;
     if (!canEdit) return null;
     return (
       <div className="uinv-photos uinv-photo-first">
@@ -143,6 +149,63 @@ export function ItemPhotos({ lang, item, store, onCount, onError }) {
         {canEdit && photos.length < MAX_ITEM_PHOTOS && <PhotoButton lang={lang} room={MAX_ITEM_PHOTOS - photos.length} busyLabel={T('photoAdding')} onPhoto={add} onError={() => setBad(true)} />}
         {canEdit && photos.length >= MAX_ITEM_PHOTOS && <span className="uinv-meta">{T('photoMax', { n: MAX_ITEM_PHOTOS })}</span>}
         <button type="button" className="uinv-btn uinv-btn-sm" onClick={() => setPhotos(null)}>{T('photosHide')}</button>
+      </div>
+      {bad && <div className="uinv-msg uinv-msg-err" role="alert" style={{ margin: 0 }}>{T('damagePhotoBad')}</div>}
+    </div>
+  );
+}
+
+// The proof photo(s) the cleaning service takes of a ★ item at this
+// checkout. Always on the item's card, never folded away: amber and
+// "needed" until there is one, green once there is. `count` is how many
+// the server has for this visit; the pictures themselves are fetched
+// only if the person asks to see them.
+//
+// `store` is { load(item) → photos, add(item, dataUrl) → { photo,
+// proofCount }, remove(item, photo) → { proofCount } }.
+export function ProofPhotos({ lang, item, count, store, onCount, onError }) {
+  const T = (k, v) => tr(lang, k, v);
+  const [photos, setPhotos] = useState(null);   // null = not fetched
+  const [loading, setLoading] = useState(false);
+  const [bad, setBad] = useState(false);
+  const n = photos ? photos.length : (count || 0);
+
+  // What is already stored for this visit, so a new one is added to it.
+  const current = async () => (photos !== null ? photos : (n > 0 ? await store.load(item) : []));
+  const add = async (data) => {
+    setBad(false);
+    try {
+      const before = await current();
+      const d = await store.add(item, data);
+      setPhotos([...before, d.photo]);
+      onCount(item, d.proofCount);
+    } catch (e) { onError(e); }
+  };
+  const show = async () => {
+    setLoading(true);
+    try { setPhotos(await store.load(item)); } catch (e) { onError(e); } finally { setLoading(false); }
+  };
+  const remove = async (index) => {
+    if (!window.confirm(T('proofRemoveConfirm'))) return;
+    const photo = photos[index];
+    try {
+      const d = await store.remove(item, photo);
+      setPhotos(prev => prev.filter(p => p.id !== photo.id));
+      onCount(item, d.proofCount);
+    } catch (e) { onError(e); }
+  };
+
+  return (
+    <div className={`uinv-proof${n ? ' uinv-proof-ok' : ''}`}>
+      <div className="uinv-proof-state">{n ? T('proofHave', { n }) : T('proofNeeded')}</div>
+      {photos && <PhotoStrip photos={photos} lang={lang} alt={T('photoAlt')} removeLabel={T('photoRemove')} onRemove={remove} />}
+      <div className="uinv-row">
+        {n < MAX_PROOF_PHOTOS && (
+          <PhotoButton lang={lang} room={1} camera size={PROOF_SIZE} busyLabel={T('photoAdding')}
+            label={n ? T('proofAddMore') : T('proofTake')} className={n ? 'uinv-btn uinv-btn-sm' : 'uinv-btn uinv-btn-warn'}
+            onPhoto={add} onError={() => setBad(true)} />
+        )}
+        {photos === null && n > 0 && <button type="button" className="uinv-btn uinv-btn-sm" disabled={loading} onClick={show}>{loading ? T('loading') : T('proofView')}</button>}
       </div>
       {bad && <div className="uinv-msg uinv-msg-err" role="alert" style={{ margin: 0 }}>{T('damagePhotoBad')}</div>}
     </div>

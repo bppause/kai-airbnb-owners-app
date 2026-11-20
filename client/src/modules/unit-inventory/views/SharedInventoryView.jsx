@@ -22,11 +22,11 @@ import React, { useEffect, useRef, useState } from "react";
 import { api } from "../../../core/api";
 import { tr, parseCountInput, diffFromBaseline, tallyDiffs, groupByArea, API_BASE } from "../strings";
 import { DiffSummary } from "../components/DiffMarks";
-import { ItemList, Toast, ViewSwitch, FilterBar, useAreaFolding } from "../components/ItemList";
+import { ItemList, Toast, ViewSwitch, FilterBar, useAreaFolding, areaKey } from "../components/ItemList";
 import { CountComplete, LastCheckLine } from "../components/CountComplete";
 import { ProposeItemForm, PendingProposals } from "../components/Proposals";
 import { DamageForm, DamageList } from "../components/Damages";
-import { ItemPhotos } from "../components/Photos";
+import { ItemPhotos, ProofPhotos } from "../components/Photos";
 import { UINV_CSS } from "../styles";
 
 const NAME_KEY = 'kai_inventory_name';
@@ -91,7 +91,10 @@ export default function SharedInventoryView({ token }) {
   const load = async () => {
     const d = await api.get(base);
     const items = d.items || [];
-    setState({ kind: 'ready', unit: d.unit || {}, items, lastCheck: d.lastCheck || null, proposals: d.proposals || [], damages: d.damages || [] });
+    setState({ kind: 'ready', unit: d.unit || {}, items, lastCheck: d.lastCheck || null, proposals: d.proposals || [], damages: d.damages || [],
+      // Whether the server asks for a proof photo of each ★ item, and how
+      // many each item already has from this visit.
+      proofRequired: d.proofRequired === true, proofCounts: d.proofCounts || {} });
     folding.decide(items.length);
     return items;
   };
@@ -135,7 +138,7 @@ export default function SharedInventoryView({ token }) {
     return shell(<div className="uinv-msg uinv-msg-err">{state.notFound ? T('linkInactive') : state.text}</div>);
   }
 
-  const { unit, items, lastCheck, proposals, damages } = state;
+  const { unit, items, lastCheck, proposals, damages, proofRequired, proofCounts } = state;
   const typed = (it) => draft[it.id] || { count: String(it.currentCount), note: it.currentNote };
   const isDirty = (it) => {
     const v = draft[it.id];
@@ -213,8 +216,35 @@ export default function SharedInventoryView({ token }) {
   // The owner's photos of an item, to recognise it by. View only here.
   const photoStore = { load: async (it) => (await api.get(`${base}/items/${encodeURIComponent(it.id)}/photos`)).photos || [] };
   const photosFor = (it) => (it.photoCount > 0
-    ? <ItemPhotos lang={lang} item={it} store={photoStore} onCount={() => {}} onError={e => setMsg({ err: true, text: e?.message || String(e) })} />
+    ? <ItemPhotos lang={lang} item={it} store={photoStore} showLabel="photosShowRef" onCount={() => {}} onError={e => setMsg({ err: true, text: e?.message || String(e) })} />
     : null);
+
+  // Proof photos: one of every ★ item, taken at this checkout. Saved as
+  // each is taken; the count can't be finished while one is missing.
+  const proofUrl = (it) => `${base}/items/${encodeURIComponent(it.id)}/proof`;
+  const proofStore = {
+    load: async (it) => (await api.get(proofUrl(it))).photos || [],
+    add: (it, data) => api.post(proofUrl(it), { name: name.trim(), photo: data }),
+    remove: (it, photo) => api.del(`${proofUrl(it)}/${encodeURIComponent(photo.id)}`, {}),
+  };
+  const setProofCount = (it, n) => setState(prev => ({ ...prev, proofCounts: { ...prev.proofCounts, [it.id]: n } }));
+  // Remounted after each completed count, so the next visit starts empty.
+  const proofFor = (it) => (proofRequired && it.countRequired
+    ? <ProofPhotos key={`${it.id}:${lastCheck ? lastCheck.id : ''}`} lang={lang} item={it} count={proofCounts[it.id] || 0} store={proofStore}
+        onCount={setProofCount} onError={e => setMsg({ err: true, text: e?.message || String(e) })} />
+    : null);
+  const unproven = proofRequired ? items.filter(it => it.countRequired && !(proofCounts[it.id] > 0)) : [];
+  // True when every ★ item has its photo. Otherwise says how many are
+  // missing and takes the person to the first one.
+  const proofsDone = () => {
+    if (!unproven.length) return true;
+    const first = unproven[0];
+    setMsg({ err: true, text: T('proofMissing', { n: unproven.length }) });
+    setSearch(''); setView('required');
+    folding.open(areaKey(first.areaEn, first.areaEs));
+    setTimeout(() => { const el = document.getElementById(`uinv-item-${first.id}`); if (el) el.scrollIntoView({ block: 'center' }); }, 80);
+    return false;
+  };
   const openDamage = (preset) => setDamaging({ preset: preset || null, seq: Date.now() });
   // Sends an item that isn't on the list to the owner for approval.
   // Unsaved counts are left as they are: this doesn't touch the list.
@@ -260,8 +290,15 @@ export default function SharedInventoryView({ token }) {
         <h2>{T('taskTitle')}</h2>
         <ol>
           <li>
-            <strong>{requiredItems.length ? T('taskCountReq', { n: requiredItems.length }) : T('taskCountAll', { n: items.length })}</strong>
-            <small>{T('taskCountHow')}</small>
+            <strong>{requiredItems.length
+              ? T(proofRequired ? 'taskCountReqPhoto' : 'taskCountReq', { n: requiredItems.length })
+              : T('taskCountAll', { n: items.length })}</strong>
+            <small>{T('taskCountHow')}{requiredItems.length > 0 && proofRequired ? ` ${T('taskPhotoHow')}` : ''}</small>
+            {requiredItems.length > 0 && proofRequired && (
+              <div className={`uinv-progress${unproven.length ? '' : ' uinv-progress-done'}`}>
+                {unproven.length ? '📷' : '✓'} {T('proofProgress', { a: requiredItems.length - unproven.length, b: requiredItems.length })}
+              </div>
+            )}
           </li>
           <li><strong>{T('taskDamage')}</strong></li>
           <li><strong>{T('taskFinish')}</strong></li>
@@ -286,7 +323,7 @@ export default function SharedInventoryView({ token }) {
           {visible.length === 0 && <p className="uinv-sub" style={{ marginTop: 12 }}>{T('noMatches')}</p>}
           {/* A search opens every area that has a match, whatever was folded. */}
           <ItemList items={visible} lang={lang} folding={folding} forceOpen={!!needle} busy={busy} expectedLabel={T('expected')}
-            valueOf={typed} diffOf={diffOf} isDirty={isDirty} onChange={setTyped} moreLabel={T('addNote')} photosFor={photosFor}
+            valueOf={typed} diffOf={diffOf} isDirty={isDirty} onChange={setTyped} moreLabel={T('addNote')} photosFor={photosFor} proofFor={proofFor}
             actionsFor={it => <button type="button" className="uinv-btn uinv-btn-sm" disabled={busy} onClick={() => openDamage(it)}>{T('damageBtnItem')}</button>} />
         </>
       )}
@@ -303,9 +340,11 @@ export default function SharedInventoryView({ token }) {
 
       {items.length > 0 && (
         <CountComplete lang={lang} unsaved={dirtyItems.length} busy={busy} onComplete={complete}
-          canStart={() => pendingUpdates() !== null}
+          canStart={() => pendingUpdates() !== null && proofsDone()}
           damagePrompt={{
-            covers: requiredItems.length ? T('finishCoversReq', { n: requiredItems.length }) : T('finishCoversAll', { n: items.length }),
+            covers: requiredItems.length
+              ? T(proofRequired ? 'finishCoversReqPhoto' : 'finishCoversReq', { n: requiredItems.length })
+              : T('finishCoversAll', { n: items.length }),
             reported: damages.length,
             onReport: () => openDamage(null),
           }} />

@@ -56,6 +56,15 @@
 // lists both screens load stay small; an item's photos are fetched when
 // someone opens them. The item carries only how many it has.
 //
+// At every checkout the cleaning service must photograph each item the
+// owner flagged (★), as proof of the count and of the item's condition.
+// Those photos go to unit_inventory_count_photos as they are taken; a
+// count cannot be completed through the share link while a flagged item
+// has none from this visit, and completing attaches them to the count's
+// record. They are kept for the unit's most recent checkouts only (see
+// PROOF_KEEP_CHECKS): one per flagged item per checkout adds up, and
+// they are stored in the database.
+//
 // Like the rest of this app the owner routes trust the ownerUid the
 // client sends (see server/platform/units/routes.js); there is no
 // server-side session to check it against.
@@ -86,6 +95,12 @@ const MAX_DAMAGE_PHOTOS = 4;
 const MAX_PHOTO_CHARS = 2 * 1024 * 1024;
 const MAX_OPEN_DAMAGES = 100;
 const MAX_ITEM_PHOTOS = 3;
+// Proof photos: how many the cleaning service may attach to one item in
+// one visit, and for how many of a unit's latest completed counts they
+// are kept. Older counts keep their numbers and notes; only the pictures
+// go, so the database doesn't grow without bound.
+const MAX_PROOF_PHOTOS = 3;
+const PROOF_KEEP_CHECKS = 12;
 const MAX_LOCATION = 200;
 // Damage reported this long before a count is completed belongs to that
 // visit and is attached to its record; older unattached reports stand
@@ -155,6 +170,7 @@ const checkFromDb = (r) => ({
   itemsExtra: r.items_extra,
   itemsRequired: r.items_required || 0,
   damagesCount: r.damages_count || 0,
+  photosCount: r.photos_count || 0,
   createdAt: r.created_at,
 });
 
@@ -339,16 +355,67 @@ module.exports = function createUnitInventoryRouter(deps) {
     return error || !data ? null : checkFromDb(data);
   };
 
+  const visitSince = () => new Date(Date.now() - DAMAGE_VISIT_WINDOW_MS).toISOString();
+
+  // The proof photos taken during the current visit and not yet part of
+  // a completed count, without the pictures: [{ id, item_id }]. Null when
+  // the table isn't there yet (schema.sql not re-run), in which case
+  // photos can't be asked for and nothing is enforced.
+  const visitProofs = async (listingId) => {
+    const { data, error } = await supabase.from('unit_inventory_count_photos')
+      .select('id, item_id, created_at').eq('listing_id', listingId)
+      .is('check_id', null).gte('created_at', visitSince())
+      .order('created_at', { ascending: true }).limit(5000);
+    return error ? null : (data || []);
+  };
+
+  // Drops the proof photos of counts older than the unit's latest
+  // PROOF_KEEP_CHECKS, and those of visits that were never completed.
+  // Best effort, after a count is completed.
+  const pruneProofPhotos = async (listingId) => {
+    try {
+      const { data: checks } = await supabase.from('unit_inventory_checks').select('id').eq('listing_id', listingId)
+        .order('created_at', { ascending: false }).limit(PROOF_KEEP_CHECKS + 500);
+      const old = (checks || []).slice(PROOF_KEEP_CHECKS).map(c => c.id);
+      for (let i = 0; i < old.length; i += 100) {
+        await supabase.from('unit_inventory_count_photos').delete().eq('listing_id', listingId).in('check_id', old.slice(i, i + 100));
+      }
+      await supabase.from('unit_inventory_count_photos').delete().eq('listing_id', listingId)
+        .is('check_id', null).lt('created_at', new Date(Date.now() - 2 * DAMAGE_VISIT_WINDOW_MS).toISOString());
+    } catch (e) {
+      warn('Inventory proof-photo clean-up failed: ' + (e?.message || e));
+    }
+  };
+
   // Records that someone went through the whole unit. `updates` are the
   // counts still unsaved on their screen, applied first so the record
   // describes the unit as they left it. Every item's "last counted" then
   // moves to now, changed or not: the pass confirmed all of them. Where
   // the owner has flagged the items to count at every checkout, the pass
   // covered those, so only they are stamped and the record says how many.
-  // The record also keeps the result as it stood (items off baseline or
-  // with a note) and takes in the damage reported during the visit.
+  // The record also keeps the result as it stood (every flagged item,
+  // and any other item off baseline or with a note) and takes in the
+  // damage reported and the proof photos taken during the visit. Through
+  // the share link, a flagged item without a proof photo stops it.
   // Returns { check, changed } or { error, status } / { supabaseError }.
   const completeCount = async ({ listing, updates, actorType, actorName, actorUid, req }) => {
+    // Proof first, before anything is written: every item flagged for
+    // every checkout needs a photo from this visit. (The owner's own
+    // count asks for none.)
+    const proofs = actorType === 'cleaner' ? await visitProofs(listing.id) : [];
+    if (actorType === 'cleaner' && proofs) {
+      // A database without count_required has nothing flagged to enforce.
+      const { data: flagged, error: fErr } = await supabase.from('unit_inventory_items')
+        .select('id').eq('listing_id', listing.id).eq('count_required', true);
+      const photographed = new Set(proofs.map(ph => ph.item_id));
+      const missing = fErr ? [] : (flagged || []).filter(r => !photographed.has(r.id)).map(r => r.id);
+      if (missing.length) {
+        return {
+          error: `A photo is missing for ${missing.length} of the items marked ★. Take a photo of each one before finishing.`,
+          status: 400, missingItemIds: missing.slice(0, 500),
+        };
+      }
+    }
     let changed = 0;
     if (Array.isArray(updates) && updates.length) {
       const result = await applyCountUpdates({ listing, updates, actorType, actorName, actorUid });
@@ -373,20 +440,23 @@ module.exports = function createUnitInventoryRouter(deps) {
       ...(required ? { items_required: required } : {}),
       created_at: now,
     };
+    const taken = proofs || [];
+    const photosOf = (id) => taken.filter(ph => ph.item_id === id).length;
     const results = rows
-      .filter(r => r.current_count !== r.baseline_count || (r.current_note || ''))
+      .filter(r => r.count_required || r.current_count !== r.baseline_count || (r.current_note || '') || photosOf(r.id))
       .slice(0, MAX_CHECK_RESULTS)
       .map(r => ({
         itemId: r.id, nameEn: r.name_en || '', nameEs: r.name_es || '', areaEn: r.area_en || '', areaEs: r.area_es || '',
         baseline: r.baseline_count, count: r.current_count, note: r.current_note || '', required: !!r.count_required,
+        photos: photosOf(r.id),
       }));
     const damages = await visitDamages(listing.id);
     // The result and the damage count are newer columns: if the database
     // doesn't have them yet, the count is still recorded without them.
-    const full = { ...row, results, damages_count: damages.length };
+    const full = { ...row, results, damages_count: damages.length, photos_count: taken.length };
     let saved = full;
     let { error: cErr } = await supabase.from('unit_inventory_checks').insert(full);
-    if (cErr && (results.length || damages.length)) {
+    if (cErr && (results.length || damages.length || taken.length)) {
       saved = row;
       ({ error: cErr } = await supabase.from('unit_inventory_checks').insert(row));
     }
@@ -402,7 +472,16 @@ module.exports = function createUnitInventoryRouter(deps) {
     const { error: uErr } = await stamp;
     if (uErr) return { supabaseError: uErr };
     // The owner's own count needs no message to the owner.
-    if (actorType === 'cleaner') setImmediate(() => notifyOwnerOfCheck({ listing, check: saved, results, damages, req }));
+    // The visit's proof photos now belong to this count.
+    for (let i = 0; i < taken.length; i += 100) {
+      const { error: pErr } = await supabase.from('unit_inventory_count_photos')
+        .update({ check_id: row.id }).eq('listing_id', listing.id).in('id', taken.slice(i, i + 100).map(ph => ph.id));
+      if (pErr) return { supabaseError: pErr };
+    }
+    if (actorType === 'cleaner') {
+      setImmediate(() => notifyOwnerOfCheck({ listing, check: saved, results, damages, req }));
+      setImmediate(() => pruneProofPhotos(listing.id));
+    }
     return { check: checkFromDb(saved), changed };
   };
 
@@ -491,6 +570,7 @@ module.exports = function createUnitInventoryRouter(deps) {
       check.items_extra ? `${check.items_extra} con sobrantes` : '',
       !check.items_missing && !check.items_extra ? 'todo coincide' : '',
       damages.length ? `${damages.length} daño(s) reportado(s)` : 'sin daños reportados',
+      check.photos_count ? `${check.photos_count} foto(s) de prueba` : '',
     ].filter(Boolean).join(' · ');
     const off = results.filter(r => r.count !== r.baseline);
     return notifyOwner({
@@ -951,6 +1031,20 @@ module.exports = function createUnitInventoryRouter(deps) {
     });
   });
 
+  // GET /units/:listingId/checks/:checkId/items/:itemId/photos?ownerUid=
+  // — the proof photos of one item at one checkout. Empty once that
+  // checkout is older than the ones photos are kept for.
+  router.get('/units/:listingId/checks/:checkId/items/:itemId/photos', async (req, res) => {
+    if (!requireSupabaseEnv(res)) return;
+    const listing = await requireOwnedUnit(res, req.params.listingId, req.query.ownerUid);
+    if (!listing) return;
+    const { data, error } = await supabase.from('unit_inventory_count_photos')
+      .select('*').eq('listing_id', listing.id).eq('check_id', req.params.checkId).eq('item_id', req.params.itemId)
+      .order('created_at', { ascending: true });
+    if (error) return sendSupabaseError(res, error);
+    res.json({ photos: (data || []).map(itemPhotoFromDb) });
+  });
+
   // GET /units/:listingId/damages/:damageId?ownerUid= — one damage report
   // with its photos.
   router.get('/units/:listingId/damages/:damageId', async (req, res) => {
@@ -1111,6 +1205,14 @@ module.exports = function createUnitInventoryRouter(deps) {
       unit: { apt: listing.apt, tower: listing.tower || '' }, items: (data || []).map(itemFromDb),
       lastCheck: await loadLastCheck(listing.id), proposals: await loadPendingProposals(listing.id),
       damages: (await visitDamages(listing.id)).map(r => damageFromDb(r)),
+      ...(await (async () => {
+        // How many proof photos each item has from this visit, and whether
+        // the server can ask for them at all.
+        const proofs = await visitProofs(listing.id);
+        const proofCounts = {};
+        for (const ph of proofs || []) proofCounts[ph.item_id] = (proofCounts[ph.item_id] || 0) + 1;
+        return { proofRequired: proofs !== null, proofCounts };
+      })()),
     });
   });
 
@@ -1125,6 +1227,69 @@ module.exports = function createUnitInventoryRouter(deps) {
     const { data, error } = await loadItemPhotos(item.id);
     if (error) return sendSupabaseError(res, error);
     res.json({ photos: (data || []).map(itemPhotoFromDb) });
+  });
+
+  // Proof photos: the cleaning service's pictures of an item at this
+  // checkout. Each is saved as it is taken, unattached, and joins the
+  // count's record when the count is completed.
+
+  // This visit's unattached proof photos of one item.
+  const itemVisitProofs = (listing, itemId) => supabase.from('unit_inventory_count_photos')
+    .select('*').eq('listing_id', listing.id).eq('item_id', itemId)
+    .is('check_id', null).gte('created_at', visitSince()).order('created_at', { ascending: true });
+
+  // GET /shared/:token/items/:itemId/proof — the photos taken of this
+  // item during this visit.
+  router.get('/shared/:token/items/:itemId/proof', async (req, res) => {
+    if (!requireSupabaseEnv(res)) return;
+    const listing = await unitForToken(res, req.params.token);
+    if (!listing) return;
+    const item = await itemOfUnit(res, listing, req.params.itemId);
+    if (!item) return;
+    const { data, error } = await itemVisitProofs(listing, item.id);
+    if (error) return sendSupabaseError(res, error);
+    res.json({ photos: (data || []).map(itemPhotoFromDb) });
+  });
+
+  // POST /shared/:token/items/:itemId/proof — body: { name, photo }.
+  router.post('/shared/:token/items/:itemId/proof', async (req, res) => {
+    if (!requireSupabaseEnv(res)) return;
+    const listing = await unitForToken(res, req.params.token);
+    if (!listing) return;
+    const item = await itemOfUnit(res, listing, req.params.itemId);
+    if (!item) return;
+    const data = cleanPhoto(req.body?.photo);
+    if (!data) return res.status(400).json({ error: 'The photo must be an image of at most 2 MB.' });
+    const { data: existing, error: eErr } = await itemVisitProofs(listing, item.id);
+    if (eErr) return sendSupabaseError(res, eErr);
+    if ((existing || []).length >= MAX_PROOF_PHOTOS) return res.status(400).json({ error: `At most ${MAX_PROOF_PHOTOS} photos per item. Delete one first.` });
+    const row = {
+      id: 'ucp_' + uuidv4().slice(0, 12),
+      listing_id: listing.id, community_id: listing.community_id || 'kai',
+      item_id: item.id, check_id: null, data,
+      taken_by: text(req.body?.name, MAX_ACTOR) || 'Cleaning service',
+      created_at: new Date().toISOString(),
+    };
+    const { error } = await supabase.from('unit_inventory_count_photos').insert(row);
+    if (error) return sendSupabaseError(res, error);
+    res.json({ photo: itemPhotoFromDb(row), proofCount: (existing || []).length + 1 });
+  });
+
+  // DELETE /shared/:token/items/:itemId/proof/:photoId — removes a photo
+  // taken this visit (a blurred one, say). Once the count is completed
+  // its photos can no longer be removed through the link.
+  router.delete('/shared/:token/items/:itemId/proof/:photoId', async (req, res) => {
+    if (!requireSupabaseEnv(res)) return;
+    const listing = await unitForToken(res, req.params.token);
+    if (!listing) return;
+    const item = await itemOfUnit(res, listing, req.params.itemId);
+    if (!item) return;
+    const { data: gone, error } = await supabase.from('unit_inventory_count_photos')
+      .delete().eq('id', req.params.photoId).eq('listing_id', listing.id).eq('item_id', item.id).is('check_id', null).select('id');
+    if (error) return sendSupabaseError(res, error);
+    if (!gone || !gone.length) return res.status(404).json({ error: 'Photo not found.' });
+    const { data: left } = await itemVisitProofs(listing, item.id);
+    res.json({ proofCount: (left || []).length });
   });
 
   // POST /shared/:token/counts — body: { name, updates }. `name` is
@@ -1155,7 +1320,8 @@ module.exports = function createUnitInventoryRouter(deps) {
       actorName: text(req.body?.name, MAX_ACTOR) || 'Cleaning service', actorUid: '',
     });
     if (result.supabaseError) return sendSupabaseError(res, result.supabaseError);
-    if (result.error) return res.status(result.status).json({ error: result.error });
+    // A refusal for missing proof photos says which items, so the page can take the person to them.
+    if (result.error) return res.status(result.status).json({ error: result.error, ...(result.missingItemIds ? { missingItemIds: result.missingItemIds } : {}) });
     res.json(result);
   });
 

@@ -8,8 +8,24 @@ import React, { useEffect, useState } from "react";
 import { api } from "../../../core/api";
 import { tr, primaryText, secondaryText, formatWhen, checkSummary } from "../strings";
 import { DamageCard } from "./Damages";
+import { PhotoStrip } from "./Photos";
 
-function ReportDetail({ lang, detail }) {
+// One item's proof photos in a report: fetched when asked for. An empty
+// answer means the report is older than the ones photos are kept for.
+function ReportPhotos({ lang, count, load }) {
+  const [photos, setPhotos] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const open = async () => {
+    setLoading(true);
+    try { setPhotos(await load()); } catch (_e) { setPhotos([]); } finally { setLoading(false); }
+  };
+  if (photos === null) return <div><button type="button" className="uinv-btn uinv-btn-sm" disabled={loading} onClick={open}>{loading ? tr(lang, 'loading') : tr(lang, 'reportPhotos', { n: count })}</button></div>;
+  if (!photos.length) return <div className="uinv-meta">{tr(lang, 'reportPhotosGone')}</div>;
+  return <PhotoStrip photos={photos} lang={lang} alt={tr(lang, 'photoAlt')} />;
+}
+
+// `loadPhotos(itemId)` fetches one item's proof photos for this report.
+function ReportDetail({ lang, detail, loadPhotos }) {
   const T = (k, v) => tr(lang, k, v);
   const { results, damages } = detail;
   return (
@@ -27,8 +43,10 @@ function ReportDetail({ lang, detail }) {
               <div className={diff < 0 ? 'uinv-report-miss' : diff > 0 ? 'uinv-report-extra' : ''}>
                 {T('reportExpected', { a: r.baseline, b: r.count })}
                 {diff !== 0 && ` (${T(Math.abs(diff) === 1 ? (diff < 0 ? 'diffMissingOne' : 'diffExtraOne') : (diff < 0 ? 'diffMissing' : 'diffExtra'), { n: Math.abs(diff) })})`}
+                {diff === 0 && ` · ✓ ${T('reportMatched')}`}
               </div>
               {r.note && <div className="uinv-onote">{r.note}</div>}
+              {r.photos > 0 && <ReportPhotos lang={lang} count={r.photos} load={() => loadPhotos(r.itemId)} />}
               <div className="uinv-meta">{primaryText(r.areaEn, r.areaEs)}</div>
             </div>
           );
@@ -83,7 +101,10 @@ export default function CheckoutReports({ lang, unitBase, ownerUid, onError }) {
             <div className="uinv-row" style={{ marginTop: 4 }}>
               <button type="button" className="uinv-btn uinv-btn-sm" aria-expanded={open} onClick={() => toggle(check)}>{T(open ? 'reportClose' : 'reportOpen')}</button>
             </div>
-            {open && (details[check.id] ? <ReportDetail lang={lang} detail={details[check.id]} /> : <p className="uinv-sub" style={{ margin: '8px 0 0' }}>{T('loading')}</p>)}
+            {open && (details[check.id]
+              ? <ReportDetail lang={lang} detail={details[check.id]}
+                  loadPhotos={async (itemId) => (await api.get(`${unitBase}/checks/${encodeURIComponent(check.id)}/items/${encodeURIComponent(itemId)}/photos?${q}`)).photos || []} />
+              : <p className="uinv-sub" style={{ margin: '8px 0 0' }}>{T('loading')}</p>)}
           </div>
         );
       })}
