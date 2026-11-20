@@ -12,7 +12,7 @@
 
 import React, { useEffect, useState } from "react";
 import { api } from "../../../core/api";
-import { tr, pick, pickOther, groupByArea, formatWhen, parseCountInput, diffFromBaseline, diffClass, tallyDiffs, API_BASE } from "../strings";
+import { tr, primaryText, secondaryText, groupByArea, formatWhen, parseCountInput, diffFromBaseline, diffClass, tallyDiffs, API_BASE } from "../strings";
 import { DiffBadge, DiffSummary } from "../components/DiffMarks";
 import { UINV_CSS } from "../styles";
 
@@ -146,21 +146,22 @@ export default function SharedInventoryView({ token }) {
         return (
           <div key={group.key}>
             <div className="uinv-area" onClick={() => setCollapsed(c => ({ ...c, [group.key]: !c[group.key] }))}>
-              <h2>{folded ? '▸' : '▾'} {group.label}</h2>
+              <h2>{folded ? '▸' : '▾'} {group.label}{group.other && <span className="uinv-area-other"> · {group.other}</span>}</h2>
               <small>{T('itemsInArea', { n: group.items.length })}</small>
               {areaChanged > 0 && <span className="uinv-badge uinv-badge-chg">{T('areaChanged', { n: areaChanged })}</span>}
             </div>
             {!folded && group.items.map(it => {
               const v = typed(it);
-              const other = pickOther(lang, it.nameEn, it.nameEs);
-              const ownerNote = pick(lang, it.noteEn, it.noteEs);
+              const other = secondaryText(it.nameEn, it.nameEs);
+              const ownerNote = primaryText(it.noteEn, it.noteEs);
+              const ownerNoteOther = secondaryText(it.noteEn, it.noteEs);
               const diff = diffOf(it);
               return (
                 <div key={it.id} className={`uinv-item${diffClass(diff)}${isDirty(it) ? ' uinv-item-dirty' : ''}`}>
                   <div>
-                    <div className="uinv-name">{pick(lang, it.nameEn, it.nameEs)} <DiffBadge diff={diff} lang={lang} /></div>
+                    <div className="uinv-name">{primaryText(it.nameEn, it.nameEs)} <DiffBadge diff={diff} lang={lang} /></div>
                     {other && <div className="uinv-other">{other}</div>}
-                    {ownerNote && <div className="uinv-onote">{ownerNote}</div>}
+                    {ownerNote && <div className="uinv-onote">{ownerNote}{ownerNoteOther && <span className="uinv-onote-other"> · {ownerNoteOther}</span>}</div>}
                   </div>
                   <div className="uinv-fields">
                     <div className="uinv-field">{T('expected')}<div className="uinv-base">{it.baselineCount}</div></div>

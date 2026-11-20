@@ -115,19 +115,19 @@ export const tr = (lang, key, vars = {}) => {
   return String(raw).replace(/\{(\w+)\}/g, (_, k) => (vars[k] ?? ''));
 };
 
-// The text for the viewer's language, falling back to the other one when
-// the owner only filled in one of the two.
-export const pick = (lang, en, es) => (isEnglish(lang) ? (en || es || '') : (es || en || ''));
+// What the owner wrote about an item (area, description, note) is always
+// shown Spanish first with English as the smaller second line, whatever
+// language the screen's own labels are in: the people who count the unit
+// work in Spanish, and one fixed order means the owner and the cleaning
+// service are looking at the same line. Falls back to English when the
+// Spanish was left blank.
+export const primaryText = (en, es) => es || en || '';
 
-// The other language's text, shown small under the main one — only when
-// it exists and actually differs.
-export const pickOther = (lang, en, es) => {
-  const main = pick(lang, en, es);
-  const other = isEnglish(lang) ? es : en;
-  return other && other !== main ? other : '';
-};
+// The English under it — only when both exist and actually differ.
+export const secondaryText = (en, es) => (es && en && en !== es ? en : '');
 
 // Items grouped by area in list order: [{ key, label, other, items }].
+// `label` is the area in Spanish, `other` its English name.
 export const groupByArea = (items, lang) => {
   const groups = [];
   const byKey = new Map();
@@ -136,7 +136,8 @@ export const groupByArea = (items, lang) => {
     if (!byKey.has(key)) {
       const g = {
         key,
-        label: pick(lang, it.areaEn, it.areaEs) || tr(lang, 'noArea'),
+        label: primaryText(it.areaEn, it.areaEs) || tr(lang, 'noArea'),
+        other: secondaryText(it.areaEn, it.areaEs),
         items: [],
       };
       byKey.set(key, g);
