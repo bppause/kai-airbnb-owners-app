@@ -568,6 +568,81 @@ create index if not exists idx_community_memberships_user on public.community_me
 create index if not exists idx_community_memberships_community on public.community_memberships(community_id);
 
 -- ─────────────────────────────────────────────────────────────────────────────
+-- UNIT INVENTORY (module: unit-inventory)
+-- ─────────────────────────────────────────────────────────────────────────────
+-- What belongs in a unit, described in English and Spanish and grouped by
+-- area. baseline_count is what the owner says should be there;
+-- current_count is what was last counted, by the owner or by the cleaning
+-- service through the unit's share link. Counting never changes the
+-- baseline — only the owner's re-baseline does. See
+-- docs/modules/unit-inventory/README.md.
+create table if not exists public.unit_inventory_items (
+  id text primary key,
+  listing_id text not null references public.listings(id) on delete cascade,
+  community_id text not null default 'kai',
+  area_en text not null default '',
+  area_es text not null default '',
+  name_en text not null default '',
+  name_es text not null default '',
+  note_en text not null default '',
+  note_es text not null default '',
+  baseline_count integer not null default 0 check (baseline_count >= 0),
+  baseline_set_at timestamptz not null default now(),
+  current_count integer not null default 0 check (current_count >= 0),
+  current_note text not null default '',
+  count_updated_at timestamptz,
+  count_updated_by text not null default '',
+  sort_order integer not null default 0,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+create index if not exists idx_unit_inventory_items_listing
+  on public.unit_inventory_items(listing_id, sort_order);
+
+-- Append-only history of every change to a count, a note or a baseline.
+-- item_id deliberately has no foreign key, and the item's names are copied
+-- onto each row, so the history of a deleted item stays readable.
+create table if not exists public.unit_inventory_events (
+  id text primary key,
+  listing_id text not null references public.listings(id) on delete cascade,
+  community_id text not null default 'kai',
+  item_id text not null,
+  item_name_en text not null default '',
+  item_name_es text not null default '',
+  event_type text not null check (event_type in ('created','edited','count','rebaseline','deleted')),
+  count_before integer,
+  count_after integer,
+  baseline_before integer,
+  baseline_after integer,
+  note_before text not null default '',
+  note_after text not null default '',
+  -- For 'edited' events: the descriptive fields that changed, as
+  -- { "nameEn": { "before": "…", "after": "…" }, … }.
+  changes jsonb not null default '{}'::jsonb,
+  actor_type text not null check (actor_type in ('owner','cleaner')),
+  actor_name text not null default '',
+  actor_uid text not null default '',
+  created_at timestamptz not null default now()
+);
+alter table public.unit_inventory_events add column if not exists changes jsonb not null default '{}'::jsonb;
+create index if not exists idx_unit_inventory_events_listing
+  on public.unit_inventory_events(listing_id, created_at desc);
+create index if not exists idx_unit_inventory_events_item
+  on public.unit_inventory_events(item_id, created_at desc);
+
+-- The cleaning service's no-login link, one per unit. The token is the
+-- only credential, so it lives here rather than on listings, whose rows
+-- are returned to every signed-in user.
+create table if not exists public.unit_inventory_links (
+  listing_id text primary key references public.listings(id) on delete cascade,
+  community_id text not null default 'kai',
+  token text not null unique,
+  enabled boolean not null default true,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+-- ─────────────────────────────────────────────────────────────────────────────
 -- ROW LEVEL SECURITY — disabled (server uses service role key)
 -- ─────────────────────────────────────────────────────────────────────────────
 
@@ -583,4 +658,7 @@ alter table public.email_delivery_logs disable row level security;
 alter table public.communities disable row level security;
 alter table public.community_memberships disable row level security;
 alter table public.community_config disable row level security;
+alter table public.unit_inventory_items disable row level security;
+alter table public.unit_inventory_events disable row level security;
+alter table public.unit_inventory_links disable row level security;
 

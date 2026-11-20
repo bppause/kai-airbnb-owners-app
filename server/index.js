@@ -262,6 +262,15 @@ const incidentsRouter = incidentsModule.createRouter({
 app.use('/api/m/incidents', incidentsRouter);
 app.use('/api/incidents', incidentsRouter); // legacy alias — drop after client migrates
 
+// ─── API: UNIT INVENTORY (mounted from server/modules/unit-inventory) ────────
+// Canonical: /api/m/unit-inventory/*. Owner routes plus the cleaning
+// service's no-login /shared/:token routes — see
+// docs/modules/unit-inventory/README.md.
+const unitInventoryModule = require('./modules/unit-inventory');
+app.use('/api/m/unit-inventory', unitInventoryModule.createRouter({
+  supabase, requireSupabaseEnv, sendSupabaseError, auditLog,
+}));
+
 
 
 // ─── API: USERS (mounted from server/platform/users) ────────────────────────

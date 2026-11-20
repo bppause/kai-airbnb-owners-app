@@ -40,7 +40,23 @@ class RootErrorBoundary extends React.Component {
 
 const root = ReactDOM.createRoot(document.getElementById('root'));
 
+// The cleaning service's inventory link (/?inventory=<token>) opens a
+// standalone page with no login, so it is rendered here in place of the
+// app — App.jsx starts Firebase auth and the registration gate, neither
+// of which that visitor has or needs.
+const sharedInventoryToken = (() => {
+  try { return new URLSearchParams(window.location.search).get('inventory') || ''; }
+  catch (e) { return ''; }
+})();
+
 async function boot() {
+  if (sharedInventoryToken) {
+    const { default: SharedInventoryView } = await import('./modules/unit-inventory/views/SharedInventoryView.jsx');
+    root.render(
+      <React.StrictMode><RootErrorBoundary><SharedInventoryView token={sharedInventoryToken} /></RootErrorBoundary></React.StrictMode>
+    );
+    return;
+  }
   await import('./production-ui.css');
   const [{ default: App }, { installAdminRegistrationAwareness }] = await Promise.all([
     import('./App.jsx'),

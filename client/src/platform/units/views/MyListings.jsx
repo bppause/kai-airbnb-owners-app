@@ -19,7 +19,7 @@ import UnitPlate from "../components/UnitPlate";
 import AptContactPopup from "../components/AptContactPopup";
 import UnitDetailCard from "../components/UnitDetailCard";
 
-export default function MyListings({ listings, allListings=listings, incidents, user, contactProps={}, isGlobalAdmin=false, canResolveGlobal=false, onAdd, onEdit, onDelete, onReport, onVerify, onResolve, onAddResolution, onNavigateToIncidents, onIncidentDetail=null, onAssign, onCloseGeneral }) {
+export default function MyListings({ listings, allListings=listings, incidents, user, contactProps={}, isGlobalAdmin=false, canResolveGlobal=false, onAdd, onEdit, onDelete, onInventory, onReport, onVerify, onResolve, onAddResolution, onNavigateToIncidents, onIncidentDetail=null, onAssign, onCloseGeneral }) {
   const { lang } = useApp();
   const [selectedId, setSelectedId] = useState(null);
   const [statFilter, setStatFilter] = useState(null); // null | 'open' | 'pendingResolution' | 'awaitingAdmin' | 'resolved'
@@ -155,6 +155,7 @@ export default function MyListings({ listings, allListings=listings, incidents, 
                     </div>
                     <div className="ml-listing-acts" onClick={e=>e.stopPropagation()}>
                       <button className="bsm bs-rep" onClick={()=>onReport(l)}>+ {isEn?'Report':'Reporte'}</button>
+                      {onInventory&&<button className="bsm bs-edit" title={isEn?'Inventory':'Inventario'} onClick={()=>onInventory(l)}>📦 {isEn?'Inventory':'Inventario'}</button>}
                       <button className="bsm bs-edit" onClick={()=>onEdit(l)}>✏️</button>
                       <button className="bsm bs-del" onClick={()=>onDelete(l)}>🗑️</button>
                     </div>
