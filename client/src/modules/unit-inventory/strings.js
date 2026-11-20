@@ -169,8 +169,9 @@ const STR = {
   reqTurnOff:       { es: 'Dejar de exigir el conteo en cada salida', en: 'Stop requiring a count at every checkout' },
   viewRequired:     { es: '★ Cada salida ({n})', en: '★ Every checkout ({n})' },
   viewAll:          { es: 'Todos ({n})', en: 'All ({n})' },
-  reqHintShared:    { es: 'Los artículos con ★ deben contarse en cada salida. El resto está en la lista como referencia; cuéntalo solo si notas un cambio.', en: 'Items marked ★ must be counted at every checkout. The rest are on the list for reference; count them only if you notice a change.' },
-  reqHintOwner:     { es: 'Marca con ★ lo que el servicio de limpieza debe contar en cada salida. Lo demás queda en la lista como referencia.', en: 'Mark with ★ what the cleaning service must count at every checkout. Everything else stays on the list for reference.' },
+  filterRequired:   { es: 'Ver solo los de cada salida', en: 'Show only every-checkout items' },
+  reqHintShared:    { es: 'Los artículos con ★ deben contarse y fotografiarse en cada salida. El resto está en la lista como referencia; cuéntalo solo si notas un cambio.', en: 'Items marked ★ must be counted and photographed at every checkout. The rest are on the list for reference; count them only if you notice a change.' },
+  reqHintOwner:     { es: 'Marca con ★ lo que el servicio de limpieza debe contar y fotografiar en cada salida. Lo demás queda en la lista como referencia.', en: 'Mark with ★ what the cleaning service must count and photograph at every checkout. Everything else stays on the list for reference.' },
   areaReqAll:       { es: '★ Toda el área', en: '★ Whole area' },
   areaReqNone:      { es: '☆ Quitar del área', en: '☆ Clear area' },
   areaReqCount:     { es: '★ {n}', en: '★ {n}' },
@@ -234,12 +235,43 @@ const STR = {
   reportsEmpty:     { es: 'Aún no hay inventarios completados.', en: 'No completed inventories yet.' },
   reportOpen:       { es: 'Ver reporte ▾', en: 'View report ▾' },
   reportClose:      { es: 'Ocultar ▴', en: 'Hide ▴' },
-  reportDiffs:      { es: 'Artículos con diferencia o nota ({n})', en: 'Items with a difference or a note ({n})' },
+  reportDiffs:      { es: 'Artículos contados (★), con diferencia o con nota ({n})', en: 'Items counted (★), off baseline or noted ({n})' },
   reportNoDiffs:    { es: 'Todos los artículos coincidieron con la línea base.', en: 'Every item matched its baseline.' },
   reportExpected:   { es: 'Esperado {a} · contado {b}', en: 'Expected {a} · counted {b}' },
   reportDamages:    { es: 'Daños reportados ({n})', en: 'Damage reported ({n})' },
   reportNoDamages:  { es: 'Sin daños reportados.', en: 'No damage reported.' },
   checkDamages:     { es: '⚠️ {n} daño(s)', en: '⚠️ {n} damage report(s)' },
+
+  // Photos the owner attaches to an item.
+  photosShow:       { es: '📷 Fotos ({n})', en: '📷 Photos ({n})' },
+  photosHide:       { es: 'Ocultar fotos', en: 'Hide photos' },
+  photoAdd:         { es: '📷 Agregar foto', en: '📷 Add photo' },
+  photoAdding:      { es: 'Guardando foto…', en: 'Saving photo…' },
+  photoAlt:         { es: 'Foto del artículo', en: 'Photo of the item' },
+  photoRemove:      { es: 'Eliminar foto', en: 'Delete photo' },
+  photoRemoveConfirm: { es: '¿Eliminar esta foto?', en: 'Delete this photo?' },
+  photoMax:         { es: 'Máximo {n} fotos por artículo.', en: 'At most {n} photos per item.' },
+  photoHas:         { es: 'Tiene fotos', en: 'Has photos' },
+  formPhotos:       { es: 'Fotos del artículo (hasta {n})', en: 'Photos of the item (up to {n})' },
+  photosShowRef:    { es: '📷 Fotos de referencia ({n})', en: '📷 Reference photos ({n})' },
+
+  // Proof photos: the cleaning service's picture of each ★ item at a checkout.
+  proofNeeded:      { es: '📷 Falta la foto de prueba', en: '📷 Proof photo needed' },
+  proofHave:        { es: '✓ {n} foto(s) de prueba', en: '✓ {n} proof photo(s)' },
+  proofTake:        { es: '📷 Tomar foto', en: '📷 Take photo' },
+  proofAddMore:     { es: '📷 Otra foto', en: '📷 Another photo' },
+  proofView:        { es: 'Ver fotos', en: 'View photos' },
+  proofRemoveConfirm: { es: '¿Eliminar esta foto de prueba?', en: 'Delete this proof photo?' },
+  proofMissing:     { es: 'Falta la foto de {n} artículo(s) marcados ★. Te llevamos al primero.', en: 'A photo is missing for {n} item(s) marked ★. Taking you to the first one.' },
+  proofProgress:    { es: 'Fotos de prueba: {a} de {b}', en: 'Proof photos: {a} of {b}' },
+  taskCountReqPhoto:{ es: 'Cuenta los {n} artículos marcados ★ y toma una foto de cada uno.', en: 'Count the {n} items marked ★ and take a photo of each one.' },
+  taskPhotoHow:     { es: 'La foto es la prueba del conteo y del estado del artículo.', en: 'The photo is the proof of the count and of the item’s condition.' },
+  finishCoversReqPhoto: { es: 'Al finalizar confirmas que revisaste y fotografiaste los {n} artículos marcados ★.', en: 'By finishing you confirm that you checked and photographed the {n} items marked ★.' },
+  reportPhotos:     { es: '📷 Ver fotos ({n})', en: '📷 View photos ({n})' },
+  reportPhotosGone: { es: 'Las fotos de este inventario ya no se conservan (se guardan las de los 12 más recientes).', en: 'The photos of this inventory are no longer kept (those of the 12 most recent are).' },
+  reportMatched:    { es: 'coincide', en: 'matches' },
+  checkPhotos:      { es: '📷 {n} foto(s)', en: '📷 {n} photo(s)' },
+  photoSomeFailed:  { es: 'El artículo se guardó, pero una foto no se pudo guardar: {why}', en: 'The item was saved, but a photo could not be saved: {why}' },
 };
 
 const isEnglish = (lang) => String(lang || '').toLowerCase().startsWith('en');
@@ -250,20 +282,22 @@ export const tr = (lang, key, vars = {}) => {
   return String(raw).replace(/\{(\w+)\}/g, (_, k) => (vars[k] ?? ''));
 };
 
-// What the owner wrote about an item (area, description, note) is always
-// shown Spanish first with English as the smaller second line, whatever
-// language the screen's own labels are in: the people who count the unit
-// work in Spanish, and one fixed order means the owner and the cleaning
-// service are looking at the same line. Falls back to English when the
-// Spanish was left blank.
-export const primaryText = (en, es) => es || en || '';
+// What the owner wrote about an item (area, description, note) is shown
+// in the viewer's language — the owner's app setting, or the language
+// picked on the cleaning-service page — with the other language as the
+// smaller second line. Falls back to the other language when the
+// viewer's was left blank.
+export const primaryText = (lang, en, es) => (isEnglish(lang) ? (en || es || '') : (es || en || ''));
 
-// The English under it — only when both exist and actually differ.
-export const secondaryText = (en, es) => (es && en && en !== es ? en : '');
+// The other language under it — only when both exist and actually differ.
+export const secondaryText = (lang, en, es) => {
+  if (!en || !es || en === es) return '';
+  return isEnglish(lang) ? es : en;
+};
 
 // Items grouped by area in list order:
 // [{ key, label, other, areaEn, areaEs, items }]. `label` is the area in
-// Spanish, `other` its English name.
+// the viewer's language, `other` its name in the other one.
 export const groupByArea = (items, lang) => {
   const groups = [];
   const byKey = new Map();
@@ -272,8 +306,8 @@ export const groupByArea = (items, lang) => {
     if (!byKey.has(key)) {
       const g = {
         key,
-        label: primaryText(it.areaEn, it.areaEs) || tr(lang, 'noArea'),
-        other: secondaryText(it.areaEn, it.areaEs),
+        label: primaryText(lang, it.areaEn, it.areaEs) || tr(lang, 'noArea'),
+        other: secondaryText(lang, it.areaEn, it.areaEs),
         areaEn: it.areaEn, areaEs: it.areaEs,
         items: [],
       };
@@ -335,6 +369,7 @@ export const checkSummary = (lang, check) => [
   check.itemsExtra ? tr(lang, 'checkExtra', { n: check.itemsExtra }) : '',
   !check.itemsMissing && !check.itemsExtra ? tr(lang, 'checkMatch') : '',
   check.damagesCount ? tr(lang, 'checkDamages', { n: check.damagesCount }) : '',
+  check.photosCount ? tr(lang, 'checkPhotos', { n: check.photosCount }) : '',
 ].filter(Boolean).join(' · ');
 
 export const API_BASE = '/api/m/unit-inventory';

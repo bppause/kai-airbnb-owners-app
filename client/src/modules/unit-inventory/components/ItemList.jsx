@@ -39,11 +39,11 @@ export const areaKey = (areaEn, areaEs) => `${areaEn || ''}\u0001${areaEs || ''}
 // buttons shown with the note. `expectedLabel` names the baseline box.
 // `onRequired` (owner only) flips whether the item must be counted at
 // every checkout; without it the ★ is only shown.
-function ItemCard({ item, lang, value, diff, dirty, busy, expectedLabel, opened, onToggle, onChange, actions, onRequired, moreLabel }) {
+function ItemCard({ item, lang, value, diff, dirty, busy, expectedLabel, opened, onToggle, onChange, actions, onRequired, moreLabel, photos, proof }) {
   const T = (k, v) => tr(lang, k, v);
-  const other = secondaryText(item.nameEn, item.nameEs);
-  const ownerNote = primaryText(item.noteEn, item.noteEs);
-  const ownerNoteOther = secondaryText(item.noteEn, item.noteEs);
+  const other = secondaryText(lang, item.nameEn, item.nameEs);
+  const ownerNote = primaryText(lang, item.noteEn, item.noteEs);
+  const ownerNoteOther = secondaryText(lang, item.noteEn, item.noteEs);
   // An item with something to say is never folded away.
   const forcedOpen = !!value.note || diff !== 0 || dirty;
   const open = forcedOpen || opened;
@@ -52,16 +52,19 @@ function ItemCard({ item, lang, value, diff, dirty, busy, expectedLabel, opened,
     onChange('count', String(Math.max(0, (current == null ? item.currentCount : current) + delta)));
   };
   return (
-    <div className={`uinv-item${diffClass(diff)}${dirty ? ' uinv-item-dirty' : ''}${open ? ' uinv-item-open' : ''}`}>
+    <div id={`uinv-item-${item.id}`} className={`uinv-item${diffClass(diff)}${dirty ? ' uinv-item-dirty' : ''}${open ? ' uinv-item-open' : ''}`}>
       <div className="uinv-item-head">
         <div className="uinv-item-text">
           <div className="uinv-name">
-            {primaryText(item.nameEn, item.nameEs)}
+            {primaryText(lang, item.nameEn, item.nameEs)}
+            {item.photoCount > 0 && <> <span className="uinv-cam" role="img" aria-label={T('photoHas')}>📷</span></>}
             {item.countRequired && <> <span className="uinv-badge uinv-badge-req">{T('reqBadge')}</span></>}
             {' '}<DiffBadge diff={diff} lang={lang} />
           </div>
           {other && <div className="uinv-other">{other}</div>}
           {ownerNote && <div className="uinv-onote">{ownerNote}{ownerNoteOther && <span className="uinv-onote-other"> · {ownerNoteOther}</span>}</div>}
+          {photos}
+          {proof}
         </div>
         {onRequired && (
           <button type="button" className={`uinv-star${item.countRequired ? ' uinv-star-on' : ''}`} aria-pressed={item.countRequired}
@@ -112,7 +115,9 @@ function ItemCard({ item, lang, value, diff, dirty, busy, expectedLabel, opened,
 // toggle that reveals them on a narrow screen (default: ⋯ when there are
 // actions, "＋ Note" when there are none). `onRequired(items, required)`
 // (owner only) flags one item or a whole area for every checkout.
-export function ItemList({ items, lang, folding, forceOpen = false, busy, expectedLabel, valueOf, diffOf, isDirty, onChange, actionsFor, onRequired, moreLabel }) {
+// `photosFor(item)` returns the item's photo control (see ItemPhotos);
+// `proofFor(item)` the cleaning service's proof-photo control for it.
+export function ItemList({ items, lang, folding, forceOpen = false, busy, expectedLabel, valueOf, diffOf, isDirty, onChange, actionsFor, onRequired, moreLabel, photosFor, proofFor }) {
   const T = (k, v) => tr(lang, k, v);
   // Items opened by hand on a narrow screen, by id.
   const [openedItems, setOpenedItems] = useState({});
@@ -158,12 +163,30 @@ export function ItemList({ items, lang, folding, forceOpen = false, busy, expect
                 onToggle={() => setOpenedItems(o => ({ ...o, [it.id]: !o[it.id] }))}
                 onChange={(field, value) => onChange(it, field, value)}
                 actions={actionsFor ? actionsFor(it) : null} moreLabel={moreLabel}
+                photos={photosFor ? photosFor(it) : null} proof={proofFor ? proofFor(it) : null}
                 onRequired={onRequired ? (required) => onRequired([it], required) : undefined} />
             ))}
           </section>
         );
       })}
     </>
+  );
+}
+
+// The search box, pinned under the header so the list can be narrowed
+// from wherever it is scrolled to. Beside it, once the owner has flagged
+// anything, a ★ chip that flips between the every-checkout items and
+// everything — the same choice as ViewSwitch, within thumb's reach.
+export function FilterBar({ lang, search, onSearch, required, view, onView }) {
+  return (
+    <div className="uinv-filterbar">
+      <input className="uinv-input" type="search" value={search} placeholder={tr(lang, 'search')} enterKeyHint="search" onChange={e => onSearch(e.target.value)} />
+      {required > 0 && (
+        <button type="button" className={`uinv-chip${view === 'required' ? ' uinv-chip-on' : ''}`} aria-pressed={view === 'required'}
+          aria-label={tr(lang, 'filterRequired')} title={tr(lang, 'filterRequired')}
+          onClick={() => onView(view === 'required' ? 'all' : 'required')}>★ {required}</button>
+      )}
+    </div>
   );
 }
 

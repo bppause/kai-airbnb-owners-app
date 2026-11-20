@@ -600,8 +600,27 @@ create table if not exists public.unit_inventory_items (
 -- list is the owner's record of everything in the unit, and the owner
 -- flags the items the cleaning service has to count each time.
 alter table public.unit_inventory_items add column if not exists count_required boolean not null default false;
+-- How many photos the owner has attached (kept in step with
+-- unit_inventory_item_photos, below).
+alter table public.unit_inventory_items add column if not exists photo_count integer not null default 0;
 create index if not exists idx_unit_inventory_items_listing
   on public.unit_inventory_items(listing_id, sort_order);
+
+-- Photos the owner attaches to an item: what it looks like, for their
+-- own record and so the cleaning service can recognise it. JPEG data
+-- URLs, like incident photos, in their own table so item lists stay
+-- small — an item's photos are read only when someone opens them.
+create table if not exists public.unit_inventory_item_photos (
+  id text primary key,
+  listing_id text not null references public.listings(id) on delete cascade,
+  community_id text not null default 'kai',
+  item_id text not null,
+  data text not null,
+  created_by text not null default '',
+  created_at timestamptz not null default now()
+);
+create index if not exists idx_unit_inventory_item_photos_item
+  on public.unit_inventory_item_photos(item_id, created_at);
 
 -- Append-only history of every change to a count, a note or a baseline.
 -- item_id deliberately has no foreign key, and the item's names are copied
@@ -659,8 +678,31 @@ alter table public.unit_inventory_checks add column if not exists items_required
 -- reports came with it. This is the unit's dated report for a checkout.
 alter table public.unit_inventory_checks add column if not exists results jsonb not null default '[]'::jsonb;
 alter table public.unit_inventory_checks add column if not exists damages_count integer not null default 0;
+-- How many proof photos the cleaning service attached to this count.
+alter table public.unit_inventory_checks add column if not exists photos_count integer not null default 0;
 create index if not exists idx_unit_inventory_checks_listing
   on public.unit_inventory_checks(listing_id, created_at desc);
+
+-- Proof photos: the cleaning service's pictures of an item at a
+-- checkout, as proof of its count and condition. One is required for
+-- every item flagged count_required before a count can be completed
+-- through the share link. check_id is empty while the visit is under way
+-- and set when its count is completed. JPEG data URLs; kept only for the
+-- unit's most recent completed counts (the server prunes older ones).
+create table if not exists public.unit_inventory_count_photos (
+  id text primary key,
+  listing_id text not null references public.listings(id) on delete cascade,
+  community_id text not null default 'kai',
+  item_id text not null,
+  check_id text,
+  data text not null,
+  taken_by text not null default '',
+  created_at timestamptz not null default now()
+);
+create index if not exists idx_unit_inventory_count_photos_visit
+  on public.unit_inventory_count_photos(listing_id, check_id, created_at);
+create index if not exists idx_unit_inventory_count_photos_item
+  on public.unit_inventory_count_photos(item_id, created_at);
 
 -- Damage reported by the cleaning service: what, where (an area, a
 -- free-text spot, and the item if it concerns one — its names copied so
@@ -753,4 +795,6 @@ alter table public.unit_inventory_links disable row level security;
 alter table public.unit_inventory_checks disable row level security;
 alter table public.unit_inventory_proposals disable row level security;
 alter table public.unit_inventory_damages disable row level security;
+alter table public.unit_inventory_item_photos disable row level security;
+alter table public.unit_inventory_count_photos disable row level security;
 

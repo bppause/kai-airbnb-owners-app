@@ -19,18 +19,23 @@ import { api } from "../../../core/api";
 import { aptDisplay } from "../../../core/i18n/app-text";
 import { tr, primaryText, secondaryText, formatWhen, parseCountInput, diffFromBaseline, tallyDiffs, checkSummary, API_BASE } from "../strings";
 import { DiffSummary } from "./DiffMarks";
-import { ItemList, Toast, ViewSwitch, useAreaFolding, areaKey } from "./ItemList";
+import { ItemList, Toast, ViewSwitch, FilterBar, useAreaFolding, areaKey } from "./ItemList";
 import { CountComplete, LastCheckLine } from "./CountComplete";
 import { PendingProposals } from "./Proposals";
 import { DamageList } from "./Damages";
+import { ItemPhotos, PhotoPicker, MAX_ITEM_PHOTOS } from "./Photos";
 import CheckoutReports from "./Reports";
 import { itemsFromCsv } from "../csv";
 import { UINV_CSS } from "../styles";
 
-// The descriptive fields of an item, in form order (Spanish first). Each
-// is also the key of its label in strings.js and of its entry in an edit
-// event's changes.
-const EDIT_FIELDS = ['areaEs', 'areaEn', 'nameEs', 'nameEn', 'noteEs', 'noteEn'];
+// The descriptive fields of an item. Each is also the key of its label in
+// strings.js and of its entry in an edit event's changes. `editFields`
+// puts the viewer's language first in each pair.
+const FIELD_MAX = { area: 120, name: 300, note: 1000 };
+const editFields = (lang) => {
+  const [first, second] = String(lang || '').toLowerCase().startsWith('en') ? ['En', 'Es'] : ['Es', 'En'];
+  return ['area', 'name', 'note'].flatMap(f => [f + first, f + second]);
+};
 
 const EMPTY_FORM = { areaEn: '', areaEs: '', nameEn: '', nameEs: '', noteEn: '', noteEs: '', count: '1', countRequired: false };
 
@@ -67,7 +72,7 @@ function HistoryList({ history, lang }) {
         if (ev.type === 'deleted') lines.push(tr(lang, 'histDeleted', { n: ev.countBefore, b: ev.baselineBefore }));
         if (ev.type === 'edited') {
           // One line per field the edit changed, labelled as in the form.
-          const changed = EDIT_FIELDS.filter(f => ev.changes && ev.changes[f]);
+          const changed = editFields(lang).filter(f => ev.changes && ev.changes[f]);
           if (!changed.length) lines.push(tr(lang, 'histEdited'));
           for (const f of changed) lines.push(tr(lang, 'histField', { field: tr(lang, f), a: ev.changes[f].before, b: ev.changes[f].after }));
         }
@@ -77,10 +82,10 @@ function HistoryList({ history, lang }) {
           if (ev.noteBefore !== ev.noteAfter) lines.push(tr(lang, 'histNote', { a: ev.noteBefore, b: ev.noteAfter }));
         }
         const actor = actorLabel(lang, ev.actorType, ev.actorName);
-        const other = secondaryText(ev.itemNameEn, ev.itemNameEs);
+        const other = secondaryText(lang, ev.itemNameEn, ev.itemNameEs);
         return (
           <div key={ev.id} className="uinv-hist">
-            <div className="uinv-name">{primaryText(ev.itemNameEn, ev.itemNameEs)}</div>
+            <div className="uinv-name">{primaryText(lang, ev.itemNameEn, ev.itemNameEs)}</div>
             {other && <div className="uinv-other">{other}</div>}
             {lines.map((l, i) => <div key={i}>{l}</div>)}
             <div className="uinv-hist-when">{formatWhen(ev.createdAt, lang)} · {actor}</div>
@@ -108,6 +113,8 @@ export default function UnitInventoryModal({ listing, user, onClose }) {
   const [draft, setDraft] = useState({});
   const [tab, setTab] = useState('items');
   const [form, setForm] = useState(null);
+  // Photos picked in the add-item form, sent once the item exists.
+  const [formPhotos, setFormPhotos] = useState([]);
   const [importState, setImportState] = useState(null);
   const [history, setHistory] = useState(null);
   const [busy, setBusy] = useState(false);
@@ -263,7 +270,7 @@ export default function UnitInventoryModal({ listing, user, onClose }) {
   };
 
   const removeItem = (it) => {
-    if (!window.confirm(T('deleteConfirm', { name: primaryText(it.nameEn, it.nameEs) }))) return;
+    if (!window.confirm(T('deleteConfirm', { name: primaryText(lang, it.nameEn, it.nameEs) }))) return;
     run(async () => {
       await api.del(`${API_BASE}/items/${encodeURIComponent(it.id)}`, who);
       setDraft(prev => { const next = { ...prev }; delete next[it.id]; return next; });
@@ -274,7 +281,7 @@ export default function UnitInventoryModal({ listing, user, onClose }) {
   // Approving adds the proposed item to the list with its count as the
   // baseline; rejecting only closes the proposal.
   const decide = (proposal, action) => {
-    const name = primaryText(proposal.nameEn, proposal.nameEs);
+    const name = primaryText(lang, proposal.nameEn, proposal.nameEs);
     if (action === 'reject' && !window.confirm(T('rejectConfirm', { name }))) return;
     run(async () => {
       await api.post(`${API_BASE}/proposals/${encodeURIComponent(proposal.id)}/decision`, { ...who, action });
@@ -299,7 +306,18 @@ export default function UnitInventoryModal({ listing, user, onClose }) {
     await load();
   }, T('damageResolvedMsg'));
 
-  const openForm = (next) => { setImportState(null); setForm(next); };
+  const openForm = (next) => { setImportState(null); setFormPhotos([]); setForm(next); };
+
+  // An item's photos: read when its card opens them; added and deleted
+  // by the owner. The list only knows how many each item has.
+  const itemPhotosUrl = (it) => `${unitBase}/items/${encodeURIComponent(it.id)}/photos`;
+  const photoStore = {
+    load: async (it) => (await api.get(`${itemPhotosUrl(it)}?ownerUid=${encodeURIComponent(user.uid)}`)).photos || [],
+    add: (it, data) => api.post(itemPhotosUrl(it), { ...who, photo: data }),
+    remove: (it, photo) => api.del(`${itemPhotosUrl(it)}/${encodeURIComponent(photo.id)}`, who),
+  };
+  const setPhotoCount = (it, n) => setItems(prev => (prev || []).map(x => (x.id === it.id ? { ...x, photoCount: n } : x)));
+  const photosFor = (it) => <ItemPhotos lang={lang} item={it} store={photoStore} onCount={setPhotoCount} onError={e => setMsg({ err: true, text: e?.message || String(e) })} />;
 
   const saveForm = () => {
     if (!form.nameEn.trim() && !form.nameEs.trim()) { setMsg({ err: true, text: T('nameRequired') }); return; }
@@ -317,11 +335,20 @@ export default function UnitInventoryModal({ listing, user, onClose }) {
     const count = parseCountInput(form.count);
     if (count == null) { setMsg({ err: true, text: T('countInvalid') }); return; }
     run(async () => {
-      await api.post(`${unitBase}/items`, { ...who, items: [{ ...form, count }] });
+      const d = await api.post(`${unitBase}/items`, { ...who, items: [{ ...form, count }] });
+      // The item exists now; its photos follow. A photo that fails does
+      // not undo the item — the owner is told and can add it again.
+      const made = d.items && d.items[0];
+      let photoProblem = '';
+      for (const p of (made ? formPhotos : [])) {
+        try { await photoStore.add(made, p.data); } catch (e) { photoProblem = e?.message || String(e); }
+      }
       // Keep the area filled in: items are usually added a room at a time.
       setForm({ ...EMPTY_FORM, areaEn: form.areaEn, areaEs: form.areaEs, countRequired: form.countRequired });
+      setFormPhotos([]);
       folding.open(landsIn);
       await load();
+      if (photoProblem) throw new Error(T('photoSomeFailed', { why: photoProblem }));
     }, T('saved'));
   };
 
@@ -361,6 +388,7 @@ export default function UnitInventoryModal({ listing, user, onClose }) {
     catch (_e) { /* the person closed the share sheet */ }
   };
 
+  const fieldOrder = editFields(lang);
   const areaOptions = (field) => Array.from(new Set(list.map(it => it[field]).filter(Boolean)));
 
   const actionsFor = (it) => (
@@ -472,20 +500,24 @@ export default function UnitInventoryModal({ listing, user, onClose }) {
               <div className="uinv-box" ref={formRef}>
                 <h2 style={{ marginBottom: 8 }}>{form.id ? T('formEdit') : T('formAdd')}</h2>
                 <div className="uinv-form">
-                  <label className="uinv-field">{T('areaEs')}<input list="uinv-areas-es" value={form.areaEs} maxLength={120} onChange={e => setForm({ ...form, areaEs: e.target.value })} /></label>
-                  <label className="uinv-field">{T('areaEn')}<input list="uinv-areas-en" value={form.areaEn} maxLength={120} onChange={e => setForm({ ...form, areaEn: e.target.value })} /></label>
                   <datalist id="uinv-areas-en">{areaOptions('areaEn').map(a => <option key={a} value={a} />)}</datalist>
                   <datalist id="uinv-areas-es">{areaOptions('areaEs').map(a => <option key={a} value={a} />)}</datalist>
-                  <label className="uinv-field">{T('nameEs')}<input value={form.nameEs} maxLength={300} onChange={e => setForm({ ...form, nameEs: e.target.value })} /></label>
-                  <label className="uinv-field">{T('nameEn')}<input value={form.nameEn} maxLength={300} onChange={e => setForm({ ...form, nameEn: e.target.value })} /></label>
-                  <label className="uinv-field">{T('noteEs')}<input value={form.noteEs} maxLength={1000} onChange={e => setForm({ ...form, noteEs: e.target.value })} /></label>
-                  <label className="uinv-field">{T('noteEn')}<input value={form.noteEn} maxLength={1000} onChange={e => setForm({ ...form, noteEn: e.target.value })} /></label>
+                  {/* Each pair asks for the owner's language first. */}
+                  {fieldOrder.map(field => (
+                    <label key={field} className="uinv-field">{T(field)}
+                      <input value={form[field]} maxLength={FIELD_MAX[field.slice(0, 4)]} list={field.startsWith('area') ? `uinv-areas-${field.slice(4).toLowerCase()}` : undefined}
+                        onChange={e => setForm({ ...form, [field]: e.target.value })} />
+                    </label>
+                  ))}
                   {form.id
                     ? <p className="uinv-help uinv-full">{T('baselineLocked')}</p>
                     : (
                       <>
                         <label className="uinv-field">{T('startCount')}<input className="uinv-num" inputMode="numeric" pattern="[0-9]*" value={form.count} onFocus={e => e.target.select()} onChange={e => setForm({ ...form, count: e.target.value })} /></label>
                         <label className="uinv-check"><input type="checkbox" checked={!!form.countRequired} onChange={e => setForm({ ...form, countRequired: e.target.checked })} />{T('formRequired')}</label>
+                        <div className="uinv-field uinv-full">{T('formPhotos', { n: MAX_ITEM_PHOTOS })}
+                          <PhotoPicker lang={lang} photos={formPhotos} onChange={setFormPhotos} max={MAX_ITEM_PHOTOS} disabled={busy} />
+                        </div>
                       </>
                     )}
                 </div>
@@ -499,7 +531,7 @@ export default function UnitInventoryModal({ listing, user, onClose }) {
             {list.length === 0 && <div className="uinv-box"><strong>{T('empty')}</strong><p className="uinv-help">{T('emptyHint')}</p></div>}
             {list.length > 0 && (
               <>
-                <input className="uinv-input" type="search" value={search} placeholder={T('search')} enterKeyHint="search" onChange={e => setSearch(e.target.value)} />
+                <FilterBar lang={lang} search={search} onSearch={setSearch} required={requiredCount} view={showing} onView={setView} />
                 <DiffSummary lang={lang} total={list.length} tally={tally} onlyChanged={onlyChanged} onToggle={() => setOnlyChanged(v => !v)} />
                 <LastCheckLine lang={lang} lastCheck={lastCheck} />
                 {requiredCount > 0
@@ -508,7 +540,7 @@ export default function UnitInventoryModal({ listing, user, onClose }) {
                 {shown.length === 0 && <p className="uinv-sub" style={{ marginTop: 12 }}>{T('noMatches')}</p>}
                 {/* A search or the changed-only filter opens every area it leaves. */}
                 <ItemList items={shown} lang={lang} folding={folding} forceOpen={!!needle || narrowing} busy={busy} expectedLabel={T('baseline')}
-                  valueOf={typed} diffOf={diffOf} isDirty={isDirty} onChange={setTyped} actionsFor={actionsFor} onRequired={setRequired} />
+                  valueOf={typed} diffOf={diffOf} isDirty={isDirty} onChange={setTyped} actionsFor={actionsFor} onRequired={setRequired} photosFor={photosFor} />
                 <CountComplete lang={lang} unsaved={dirtyItems.length} busy={busy} onComplete={completeCount} />
               </>
             )}

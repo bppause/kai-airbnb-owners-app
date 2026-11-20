@@ -13,18 +13,20 @@
 //   - below 640px an item folds its note and actions away until needed.
 // The app's global stylesheet sizes every h2 with !important, so the
 // heading size here has to say it too.
-// --uinv-top is where pinned area headers stop (under the panel's header);
-// --uinv-bg is the surface they sit on.
+// --uinv-top is where pinned things stop (under the panel's header);
+// --uinv-filter is the height of the pinned search bar, which the area
+// headers pin beneath; --uinv-gutter is the side padding that bar has to
+// reach across; --uinv-bg is the surface they all sit on.
 
 export const UINV_CSS = `
-.uinv{font-family:'DM Sans',system-ui,-apple-system,'Segoe UI',sans-serif;color:#17313a;font-size:15px;line-height:1.4;-webkit-text-size-adjust:100%;--uinv-bg:#fff;--uinv-top:0px}
+.uinv{font-family:'DM Sans',system-ui,-apple-system,'Segoe UI',sans-serif;color:#17313a;font-size:15px;line-height:1.4;-webkit-text-size-adjust:100%;--uinv-bg:#fff;--uinv-top:0px;--uinv-filter:60px;--uinv-gutter:20px}
 .uinv *{box-sizing:border-box}
 .uinv button,.uinv select{font-family:inherit;touch-action:manipulation}
 .uinv-overlay{position:fixed;inset:0;z-index:1000002;background:rgba(3,10,18,.72);display:flex;align-items:flex-start;justify-content:center;padding:16px;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
 .uinv-panel{background:#fff;border-radius:18px;width:100%;max-width:980px;padding:0 20px 20px;box-shadow:0 22px 70px rgba(20,32,26,.3);position:relative;margin:auto 0;--uinv-top:60px}
 .uinv-head{position:sticky;top:0;z-index:6;height:60px;margin:0 -20px 12px;padding:0 10px 0 20px;display:flex;align-items:center;gap:10px;background:#fff;border-bottom:1px solid #e6eeeb;border-radius:18px 18px 0 0}
 .uinv-head h1{flex:1;min-width:0;margin:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.uinv-page{min-height:100vh;background:#f7f3e9;padding:14px 12px 120px;--uinv-bg:#f7f3e9}
+.uinv-page{min-height:100vh;background:#f7f3e9;padding:14px 12px 120px;--uinv-bg:#f7f3e9;--uinv-gutter:12px}
 .uinv-page-inner{max-width:760px;margin:0 auto}
 .uinv h1{font-family:'Playfair Display',Georgia,serif;font-size:1.3rem;line-height:1.2;margin:0 0 2px;color:#203f2b}
 .uinv h2{font-size:1.05rem!important;line-height:1.3!important;margin:0;color:#203f2b}
@@ -53,7 +55,11 @@ export const UINV_CSS = `
 .uinv-toast-x{flex:none;width:40px;height:40px;border:0;background:transparent;color:inherit;font-size:1rem;cursor:pointer;border-radius:10px}
 .uinv-listbar{margin:12px 0 0;justify-content:flex-end}
 .uinv-group{margin:0}
-.uinv-area-h{margin:10px 0 6px;position:sticky;top:var(--uinv-top);z-index:3;background:var(--uinv-bg)}
+.uinv-filterbar{position:sticky;top:var(--uinv-top);z-index:4;height:var(--uinv-filter);display:flex;gap:8px;align-items:center;background:var(--uinv-bg);margin:0 calc(-1 * var(--uinv-gutter));padding:0 var(--uinv-gutter)}
+.uinv-filterbar .uinv-input{flex:1;min-width:0}
+.uinv-chip{flex:none;min-width:56px;min-height:44px;padding:0 12px;border-radius:999px;border:1px solid #e2b93b;background:#fff;color:#7a5200;font-weight:700;font-size:.9rem;cursor:pointer;white-space:nowrap}
+.uinv-chip-on{background:#203f2b;color:#fff;border-color:transparent}
+.uinv-area-h{margin:10px 0 6px;position:sticky;top:calc(var(--uinv-top) + var(--uinv-filter));z-index:3;background:var(--uinv-bg)}
 .uinv-area{display:flex;align-items:center;gap:10px;width:100%;min-height:48px;padding:6px 2px;border:0;border-bottom:2px solid #d9e6e1;border-radius:0;box-shadow:none;background:transparent;color:#203f2b;font-size:1rem;font-weight:700;text-align:left;cursor:pointer}
 .uinv-area-caret{flex:none;width:14px}
 .uinv-area-text{flex:1;min-width:0;display:flex;flex-direction:column}
@@ -136,6 +142,14 @@ export const UINV_CSS = `
 .uinv-report-extra{color:#1c4f8a;font-weight:700}
 .uinv-finish{display:grid;gap:10px}
 .uinv-finish .uinv-btn{width:100%;min-height:48px;font-size:1rem}
+.uinv-photos{margin-top:6px;display:grid;gap:6px;justify-items:start}
+.uinv-proof{margin-top:8px;padding:8px 10px;border-radius:10px;border:1px dashed #e2b93b;background:#fffaf0;display:grid;gap:6px;justify-items:start}
+.uinv-proof-ok{border:1px solid #b7e2c8;background:#f1f8f4}
+.uinv-proof-state{font-size:.85rem;font-weight:700;color:#7a5200}
+.uinv-proof-ok .uinv-proof-state{color:#0b5f3a}
+.uinv-progress{margin:8px 0 0;font-weight:700;color:#7a5200}
+.uinv-progress-done{color:#0b5f3a}
+.uinv-cam{font-size:.85rem}
 .uinv-pending{background:#fff8e6;border-color:#e2c27a}
 .uinv-prop{border-top:1px solid #ecdcae;padding:10px 0 2px;margin-top:10px;display:grid;gap:4px}
 .uinv-prop-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px}
@@ -149,7 +163,7 @@ export const UINV_CSS = `
 .uinv-lang{border:1px solid rgba(47,79,58,.24);border-radius:10px;padding:6px 8px;min-height:44px;background:#fff;font:inherit;font-size:16px;font-weight:700}
 @media (max-width:640px){
   .uinv-overlay{padding:0;background:#fff}
-  .uinv-panel{border-radius:0;box-shadow:none;max-width:none;min-height:100vh;min-height:100dvh;margin:0;padding:0 12px 16px}
+  .uinv-panel{border-radius:0;box-shadow:none;max-width:none;min-height:100vh;min-height:100dvh;margin:0;padding:0 12px 16px;--uinv-gutter:12px}
   .uinv-head{margin:0 -12px 10px;padding:0 8px 0 12px;border-radius:0}
   .uinv h1{font-size:1.15rem}
   .uinv-form{grid-template-columns:1fr}
@@ -157,6 +171,8 @@ export const UINV_CSS = `
   .uinv-fields{width:100%}
   .uinv-extra{display:none;flex-basis:100%}
   .uinv-item-open .uinv-extra{display:grid}
+  .uinv-photo-first{display:none}
+  .uinv-item-open .uinv-photo-first{display:inline-block}
   .uinv-more{display:inline-flex;align-items:center;justify-content:center;margin-left:auto;min-width:44px;min-height:44px;padding:0 10px;border:1px solid rgba(47,79,58,.24);border-radius:10px;background:#fff;color:#235f72;font-size:.82rem;font-weight:700;cursor:pointer;white-space:nowrap}
   .uinv-sum{flex-direction:column;align-items:stretch}
   .uinv-bar{margin-left:-12px;margin-right:-12px;padding:10px 12px calc(10px + env(safe-area-inset-bottom));box-shadow:0 -8px 24px rgba(20,32,26,.12)}

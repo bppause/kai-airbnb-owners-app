@@ -70,7 +70,9 @@ export const slaResInfo = (inc) => {
 // ─── Image compression ───────────────────────────────────────────────────────
 
 // Compress a File into a JPEG data URL bounded by ~500KB. Uses canvas.
-export const compressImage = (file) => new Promise((resolve, reject) => {
+// `maxPx` (longest side) and `quality` can be lowered for photos taken in
+// bulk; the defaults are what incident photos have always used.
+export const compressImage = (file, { maxPx = 900, quality = 0.65 } = {}) => new Promise((resolve, reject) => {
   if (!file.type.startsWith('image/')) { reject(new Error('Only image files (JPEG, PNG, WebP, HEIC) are allowed.')); return; }
   if (file.size > 10 * 1024 * 1024) { reject(new Error('Image too large — max 10 MB before compression.')); return; }
   const reader = new FileReader();
@@ -79,7 +81,7 @@ export const compressImage = (file) => new Promise((resolve, reject) => {
     const img = new Image();
     img.onerror = () => reject(new Error('Could not decode image'));
     img.onload = () => {
-      const MAX_PX = 900;
+      const MAX_PX = maxPx;
       let {width, height} = img;
       if (width > MAX_PX || height > MAX_PX) {
         if (width > height) { height = Math.round(height * MAX_PX / width); width = MAX_PX; }
@@ -88,9 +90,9 @@ export const compressImage = (file) => new Promise((resolve, reject) => {
       const canvas = document.createElement('canvas');
       canvas.width = width; canvas.height = height;
       canvas.getContext('2d').drawImage(img, 0, 0, width, height);
-      let dataUrl = canvas.toDataURL('image/jpeg', 0.65);
+      let dataUrl = canvas.toDataURL('image/jpeg', quality);
       // If still > 500 KB (base64 ~667 KB string) after first pass, compress harder
-      if (dataUrl.length > 667 * 1024) dataUrl = canvas.toDataURL('image/jpeg', 0.38);
+      if (dataUrl.length > 667 * 1024) dataUrl = canvas.toDataURL('image/jpeg', Math.min(quality, 0.38));
       resolve({ data: dataUrl, name: file.name, size: Math.round(dataUrl.length * 0.75) });
     };
     img.src = e.target.result;

@@ -13,39 +13,12 @@
 import React, { useEffect, useRef, useState } from "react";
 import { compressImage } from "../../../core/utils";
 import { tr, primaryText, formatWhen } from "../strings";
+import { PhotoStrip } from "./Photos";
 
 export const MAX_DAMAGE_PHOTOS = 4;
 
-// Thumbnails that open full-screen on a tap. `onRemove(index)` adds a
-// remove corner to each (the form, before sending).
-export function PhotoStrip({ photos, lang, onRemove }) {
-  const [open, setOpen] = useState(null);
-  if (!photos || !photos.length) return null;
-  return (
-    <>
-      <div className="uinv-thumbs">
-        {photos.map((p, i) => (
-          <div key={i} className="uinv-thumb" role="button" tabIndex={0} onClick={() => setOpen(i)}
-            onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') setOpen(i); }}>
-            <img src={p.data} alt={tr(lang, 'damagePhotoAlt')} />
-            {onRemove && (
-              <button type="button" className="uinv-thumb-x" aria-label={tr(lang, 'damagePhotoRemove')}
-                onClick={e => { e.stopPropagation(); onRemove(i); }}>✕</button>
-            )}
-          </div>
-        ))}
-      </div>
-      {open !== null && photos[open] && (
-        <div className="uinv-lightbox" role="dialog" aria-modal="true" onClick={() => setOpen(null)}>
-          <img src={photos[open].data} alt={tr(lang, 'damagePhotoAlt')} />
-        </div>
-      )}
-    </>
-  );
-}
-
 // Where a report points, as one phrase: area · item · exact spot.
-const whereOf = (d) => [primaryText(d.areaEn, d.areaEs), primaryText(d.itemNameEn, d.itemNameEs), d.location].filter(Boolean).join(' · ');
+const whereOf = (d, lang) => [primaryText(lang, d.areaEn, d.areaEs), primaryText(lang, d.itemNameEn, d.itemNameEs), d.location].filter(Boolean).join(' · ');
 
 // The form the cleaning service fills in. `areas` come from groupByArea
 // (each with its items). `preset` is the item the form was opened from,
@@ -110,7 +83,7 @@ export function DamageForm({ lang, areas, preset, busy, onSend, onCancel }) {
           <label className="uinv-field">{T('damageItem')}
             <select className="uinv-select" value={itemId} onChange={e => setItemId(e.target.value)}>
               <option value="">{T('damageItemNone')}</option>
-              {area.items.map(it => <option key={it.id} value={it.id}>{primaryText(it.nameEn, it.nameEs)}</option>)}
+              {area.items.map(it => <option key={it.id} value={it.id}>{primaryText(lang, it.nameEn, it.nameEs)}</option>)}
             </select>
           </label>
         )}
@@ -143,7 +116,7 @@ export function DamageCard({ lang, damage, photos, loadPhotos, actions }) {
   const [loaded, setLoaded] = useState(null);
   const [loading, setLoading] = useState(false);
   const shown = photos || loaded;
-  const where = whereOf(damage);
+  const where = whereOf(damage, lang);
   const fetchPhotos = async () => {
     setLoading(true);
     try { setLoaded(await loadPhotos(damage)); } catch (_e) { setLoaded([]); } finally { setLoading(false); }
