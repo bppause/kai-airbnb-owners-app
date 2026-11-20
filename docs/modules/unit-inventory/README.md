@@ -40,6 +40,15 @@ unnoticed.
   to `unit_inventory_events` with who made it and the before and after
   values. Rows are never updated or deleted, and they carry the item's
   names, so the history of a deleted item stays readable.
+- **Count complete.** Saving counts only records what changed, so a pass
+  that found everything in place would leave no trace. At the end of the
+  list either audience can mark the count as complete: that writes one
+  row to `unit_inventory_checks` (who, when, how many items, how many
+  below and above baseline), saves any counts still unsaved on the
+  screen in the same request, and moves every item's "last counted" to
+  now. Both screens show the last complete count under the summary; the
+  owner's History tab lists them in the same timeline as item changes.
+  It never changes a baseline.
 
 ## Who can do what
 
@@ -47,6 +56,7 @@ unnoticed.
 | --- | --- | --- |
 | See the items and their baseline | yes | yes |
 | Update counts and notes | yes | yes |
+| Mark a count as complete | yes | yes |
 | Add, edit, delete, import items | yes | no |
 | Re-baseline | yes | no |
 | See the change history | yes | no |
@@ -73,12 +83,13 @@ client sends; there is no server-side session behind it.
 
 ## Data model
 
-Three tables, all in `supabase/schema.sql`:
+Four tables, all in `supabase/schema.sql`:
 
 | Table | Holds |
 | --- | --- |
 | `unit_inventory_items` | One row per item: bilingual area / description / owner note, `baseline_count`, `current_count`, the latest count note, who counted last. |
 | `unit_inventory_events` | Append-only history: `created`, `edited`, `count`, `rebaseline`, `deleted`. An `edited` event stores the before/after of each descriptive field that changed in `changes`; an edit that changes nothing writes no event. |
+| `unit_inventory_checks` | One row per completed count: who, when, and the unit's totals against baseline at that moment. If this table is missing (schema not re-run since it was added) the screens still load and report no complete count; only marking one fails. |
 | `unit_inventory_links` | One share link per unit: token and whether it is enabled. Kept off `listings` because listing rows are returned to every signed-in user. |
 
 ## API
@@ -87,16 +98,18 @@ Mounted at `/api/m/unit-inventory`.
 
 | Route | Who | Does |
 | --- | --- | --- |
-| `GET /units/:listingId?ownerUid=` | owner | Items and the share link |
+| `GET /units/:listingId?ownerUid=` | owner | Items, the share link and the last complete count |
 | `POST /units/:listingId/items` | owner | Add one or many items (CSV import sends the whole file) |
 | `PUT /items/:id` | owner | Edit an item's area, description, owner note |
 | `DELETE /items/:id` | owner | Delete an item (history kept) |
 | `POST /units/:listingId/counts` | owner | Update counts and notes |
 | `POST /units/:listingId/rebaseline` | owner | Accept current counts as the baseline |
-| `GET /units/:listingId/history?ownerUid=` | owner | Change history, newest first |
+| `GET /units/:listingId/history?ownerUid=` | owner | Item changes and completed counts, newest first |
+| `POST /units/:listingId/checks` | owner | Mark the count complete (optionally saving `updates` first) |
 | `POST /units/:listingId/link` | owner | `enable`, `disable` or `regenerate` the share link |
-| `GET /shared/:token` | link holder | The unit's label and items |
+| `GET /shared/:token` | link holder | The unit's label, items and last complete count |
 | `POST /shared/:token/counts` | link holder | Update counts and notes |
+| `POST /shared/:token/checks` | link holder | Mark the count complete (optionally saving `updates` first) |
 
 ## UI
 
@@ -149,5 +162,5 @@ Only one of the two name columns is required; a blank count means 1.
   with a note.
 - No notification to the owner when a count drops below the baseline.
 - The share link is not tied to a person and does not expire on its own.
-- A count pass where everything matches leaves no record: only changes
-  are written to the history.
+- "Count complete" is the counter's word that they checked everything;
+  nothing verifies that each area was opened.

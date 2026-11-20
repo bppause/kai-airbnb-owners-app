@@ -20,6 +20,11 @@
 // count, a note or a baseline is appended to unit_inventory_events, which
 // is never updated or deleted from, so the history survives item deletes.
 //
+// Either audience can also mark a count as complete. That writes one row
+// to unit_inventory_checks — who went through the unit, when, and how it
+// stood against the baseline — so a pass that found nothing changed
+// still leaves a record.
+//
 // Like the rest of this app the owner routes trust the ownerUid the
 // client sends (see server/platform/units/routes.js); there is no
 // server-side session to check it against.
@@ -83,6 +88,16 @@ const eventFromDb = (r) => ({
   changes: r.changes || {},
   actorType: r.actor_type,
   actorName: r.actor_name || '',
+  createdAt: r.created_at,
+});
+
+const checkFromDb = (r) => ({
+  id: r.id,
+  actorType: r.actor_type,
+  actorName: r.actor_name || '',
+  itemsTotal: r.items_total,
+  itemsMissing: r.items_missing,
+  itemsExtra: r.items_extra,
   createdAt: r.created_at,
 });
 
@@ -210,6 +225,50 @@ module.exports = function createUnitInventoryRouter(deps) {
     return { changed: plans.length };
   };
 
+  // The most recent completed count, or null. A database that doesn't have
+  // unit_inventory_checks yet (schema.sql not re-run since the table was
+  // added) reads as "never completed" instead of failing the whole screen.
+  const loadLastCheck = async (listingId) => {
+    const { data, error } = await supabase.from('unit_inventory_checks')
+      .select('*').eq('listing_id', listingId)
+      .order('created_at', { ascending: false }).limit(1).maybeSingle();
+    return error || !data ? null : checkFromDb(data);
+  };
+
+  // Records that someone went through the whole unit. `updates` are the
+  // counts still unsaved on their screen, applied first so the record
+  // describes the unit as they left it. Every item's "last counted" then
+  // moves to now, changed or not: the pass confirmed all of them.
+  // Returns { check, changed } or { error, status } / { supabaseError }.
+  const completeCount = async ({ listing, updates, actorType, actorName, actorUid }) => {
+    let changed = 0;
+    if (Array.isArray(updates) && updates.length) {
+      const result = await applyCountUpdates({ listing, updates, actorType, actorName, actorUid });
+      if (result.supabaseError || result.error) return result;
+      changed = result.changed;
+    }
+    const { data: rows, error } = await loadItems(listing.id);
+    if (error) return { supabaseError: error };
+    if (!rows || !rows.length) return { error: 'This unit has no inventory to count yet.', status: 400 };
+    const now = new Date().toISOString();
+    const row = {
+      id: 'uic_' + uuidv4().slice(0, 12),
+      listing_id: listing.id,
+      community_id: listing.community_id || 'kai',
+      actor_type: actorType, actor_name: actorName, actor_uid: actorUid || '',
+      items_total: rows.length,
+      items_missing: rows.filter(r => r.current_count < r.baseline_count).length,
+      items_extra: rows.filter(r => r.current_count > r.baseline_count).length,
+      created_at: now,
+    };
+    const { error: cErr } = await supabase.from('unit_inventory_checks').insert(row);
+    if (cErr) return { supabaseError: cErr };
+    const { error: uErr } = await supabase.from('unit_inventory_items')
+      .update({ count_updated_at: now, count_updated_by: actorName }).eq('listing_id', listing.id);
+    if (uErr) return { supabaseError: uErr };
+    return { check: checkFromDb(row), changed };
+  };
+
   const loadLink = async (listingId) => {
     const { data } = await supabase.from('unit_inventory_links')
       .select('token, enabled, updated_at').eq('listing_id', listingId).maybeSingle();
@@ -218,14 +277,15 @@ module.exports = function createUnitInventoryRouter(deps) {
 
   // ── Owner ────────────────────────────────────────────────────────────
 
-  // GET /units/:listingId?ownerUid= — the unit's items and its share link.
+  // GET /units/:listingId?ownerUid= — the unit's items, its share link
+  // and its last completed count.
   router.get('/units/:listingId', async (req, res) => {
     if (!requireSupabaseEnv(res)) return;
     const listing = await requireOwnedUnit(res, req.params.listingId, req.query.ownerUid);
     if (!listing) return;
     const { data, error } = await loadItems(listing.id);
     if (error) return sendSupabaseError(res, error);
-    res.json({ items: (data || []).map(itemFromDb), link: await loadLink(listing.id) });
+    res.json({ items: (data || []).map(itemFromDb), link: await loadLink(listing.id), lastCheck: await loadLastCheck(listing.id) });
   });
 
   // POST /units/:listingId/items — body: { ownerUid, actorName, items: [
@@ -408,7 +468,32 @@ module.exports = function createUnitInventoryRouter(deps) {
     if (itemId) q = q.eq('item_id', itemId);
     const { data, error } = await q;
     if (error) return sendSupabaseError(res, error);
-    res.json({ events: (data || []).map(eventFromDb) });
+    // Completed counts belong to the unit, not to one item, so they are
+    // left out when the history is narrowed to an item. As in
+    // loadLastCheck, a missing table reads as none.
+    let checks = [];
+    if (!itemId) {
+      const { data: checkRows } = await supabase.from('unit_inventory_checks').select('*').eq('listing_id', listing.id)
+        .order('created_at', { ascending: false }).limit(200);
+      checks = (checkRows || []).map(checkFromDb);
+    }
+    res.json({ events: (data || []).map(eventFromDb), checks });
+  });
+
+  // POST /units/:listingId/checks — body: { ownerUid, actorName,
+  // updates? }. The owner marks their own count of the unit as complete.
+  router.post('/units/:listingId/checks', async (req, res) => {
+    if (!requireSupabaseEnv(res)) return;
+    const { ownerUid, actorName, updates } = req.body || {};
+    const listing = await requireOwnedUnit(res, req.params.listingId, ownerUid);
+    if (!listing) return;
+    const result = await completeCount({
+      listing, updates, actorType: 'owner',
+      actorName: text(actorName, MAX_ACTOR) || listing.owner || 'Owner', actorUid: String(ownerUid),
+    });
+    if (result.supabaseError) return sendSupabaseError(res, result.supabaseError);
+    if (result.error) return res.status(result.status).json({ error: result.error });
+    res.json(result);
   });
 
   // POST /units/:listingId/link — body: { ownerUid, actorName, action:
@@ -455,15 +540,16 @@ module.exports = function createUnitInventoryRouter(deps) {
     return listing;
   };
 
-  // GET /shared/:token — what the cleaner's page shows: the unit's label
-  // and its items. Nothing about the owner or the history.
+  // GET /shared/:token — what the cleaner's page shows: the unit's label,
+  // its items and when it was last counted in full. Nothing about the
+  // owner or the history.
   router.get('/shared/:token', async (req, res) => {
     if (!requireSupabaseEnv(res)) return;
     const listing = await unitForToken(res, req.params.token);
     if (!listing) return;
     const { data, error } = await loadItems(listing.id);
     if (error) return sendSupabaseError(res, error);
-    res.json({ unit: { apt: listing.apt, tower: listing.tower || '' }, items: (data || []).map(itemFromDb) });
+    res.json({ unit: { apt: listing.apt, tower: listing.tower || '' }, items: (data || []).map(itemFromDb), lastCheck: await loadLastCheck(listing.id) });
   });
 
   // POST /shared/:token/counts — body: { name, updates }. `name` is
@@ -480,6 +566,22 @@ module.exports = function createUnitInventoryRouter(deps) {
     if (result.supabaseError) return sendSupabaseError(res, result.supabaseError);
     if (result.error) return res.status(result.status).json({ error: result.error });
     res.json({ changed: result.changed });
+  });
+
+  // POST /shared/:token/checks — body: { name, updates? }. The cleaning
+  // service marks the count as complete, saving any counts still unsaved
+  // on their screen in the same request.
+  router.post('/shared/:token/checks', async (req, res) => {
+    if (!requireSupabaseEnv(res)) return;
+    const listing = await unitForToken(res, req.params.token);
+    if (!listing) return;
+    const result = await completeCount({
+      listing, updates: req.body?.updates, actorType: 'cleaner',
+      actorName: text(req.body?.name, MAX_ACTOR) || 'Cleaning service', actorUid: '',
+    });
+    if (result.supabaseError) return sendSupabaseError(res, result.supabaseError);
+    if (result.error) return res.status(result.status).json({ error: result.error });
+    res.json(result);
   });
 
   return router;

@@ -21,6 +21,7 @@ import { api } from "../../../core/api";
 import { tr, parseCountInput, diffFromBaseline, tallyDiffs, API_BASE } from "../strings";
 import { DiffSummary } from "../components/DiffMarks";
 import { ItemList, Toast, useAreaFolding } from "../components/ItemList";
+import { CountComplete, LastCheckLine } from "../components/CountComplete";
 import { UINV_CSS } from "../styles";
 
 const NAME_KEY = 'kai_inventory_name';
@@ -76,7 +77,7 @@ export default function SharedInventoryView({ token }) {
   const load = async () => {
     const d = await api.get(base);
     const items = d.items || [];
-    setState({ kind: 'ready', unit: d.unit || {}, items });
+    setState({ kind: 'ready', unit: d.unit || {}, items, lastCheck: d.lastCheck || null });
     folding.decide(items.length);
     return items;
   };
@@ -120,7 +121,7 @@ export default function SharedInventoryView({ token }) {
     return shell(<div className="uinv-msg uinv-msg-err">{state.notFound ? T('linkInactive') : state.text}</div>);
   }
 
-  const { unit, items } = state;
+  const { unit, items, lastCheck } = state;
   const typed = (it) => draft[it.id] || { count: String(it.currentCount), note: it.currentNote };
   const isDirty = (it) => {
     const v = draft[it.id];
@@ -135,29 +136,44 @@ export default function SharedInventoryView({ token }) {
     setDraft(prev => ({ ...prev, [it.id]: { ...typed(it), [field]: value } }));
   };
 
-  const save = async () => {
+  // The unsaved counts as the server takes them, or null (with the
+  // reason shown) when the name is missing or a count isn't a number.
+  const pendingUpdates = () => {
     if (!name.trim()) {
       setMsg({ err: true, text: T('nameNeeded') });
       // The name box is at the top, usually far off screen by now.
       if (nameRef.current) { nameRef.current.scrollIntoView({ block: 'center' }); nameRef.current.focus({ preventScroll: true }); }
-      return;
+      return null;
     }
     const updates = [];
     for (const it of dirtyItems) {
       const count = parseCountInput(draft[it.id].count);
-      if (count == null) { setMsg({ err: true, text: T('countInvalid') }); return; }
+      if (count == null) { setMsg({ err: true, text: T('countInvalid') }); return null; }
       updates.push({ itemId: it.id, count, note: draft[it.id].note });
     }
+    return updates;
+  };
+  const send = async (path, body, okText) => {
     setBusy(true); setMsg(null);
     try {
       writeStored(NAME_KEY, name.trim());
-      await api.post(`${base}/counts`, { name: name.trim(), updates });
+      await api.post(`${base}/${path}`, { name: name.trim(), ...body });
       setDraft({});
       await load();
-      setMsg({ text: T('sharedSaved') });
+      setMsg({ text: okText });
     } catch (e) {
       setMsg({ err: true, text: e?.message || String(e) });
     } finally { setBusy(false); }
+  };
+  const save = () => {
+    const updates = pendingUpdates();
+    if (updates) send('counts', { updates }, T('sharedSaved'));
+  };
+  // Marks the whole unit as counted, saving anything unsaved with it.
+  const complete = () => {
+    const updates = pendingUpdates();
+    if (!updates || !window.confirm(T('countDoneConfirm', { n: items.length }))) return;
+    send('checks', { updates }, T('countDoneSaved'));
   };
   const discard = () => {
     if (window.confirm(T('discardConfirm', { n: dirtyItems.length }))) { setDraft({}); setMsg(null); }
@@ -195,10 +211,12 @@ export default function SharedInventoryView({ token }) {
         <>
           <input className="uinv-input" type="search" value={search} placeholder={T('search')} enterKeyHint="search" onChange={e => setSearch(e.target.value)} />
           <DiffSummary lang={lang} total={items.length} tally={tallyDiffs(items, diffOf)} shared />
+          <LastCheckLine lang={lang} lastCheck={lastCheck} />
           {visible.length === 0 && <p className="uinv-sub" style={{ marginTop: 12 }}>{T('noMatches')}</p>}
           {/* A search opens every area that has a match, whatever was folded. */}
           <ItemList items={visible} lang={lang} folding={folding} forceOpen={!!needle} busy={busy} expectedLabel={T('expected')}
             valueOf={typed} diffOf={diffOf} isDirty={isDirty} onChange={setTyped} />
+          <CountComplete lang={lang} unsaved={dirtyItems.length} busy={busy} onComplete={complete} />
         </>
       )}
 

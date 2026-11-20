@@ -16,9 +16,10 @@ import React, { useEffect, useRef, useState } from "react";
 import { useApp } from "../../../core/app-state";
 import { api } from "../../../core/api";
 import { aptDisplay } from "../../../core/i18n/app-text";
-import { tr, primaryText, secondaryText, formatWhen, parseCountInput, diffFromBaseline, tallyDiffs, API_BASE } from "../strings";
+import { tr, primaryText, secondaryText, formatWhen, parseCountInput, diffFromBaseline, tallyDiffs, checkSummary, API_BASE } from "../strings";
 import { DiffSummary } from "./DiffMarks";
 import { ItemList, Toast, useAreaFolding, areaKey } from "./ItemList";
+import { CountComplete, LastCheckLine } from "./CountComplete";
 import { itemsFromCsv } from "../csv";
 import { UINV_CSS } from "../styles";
 
@@ -29,12 +30,29 @@ const EDIT_FIELDS = ['areaEs', 'areaEn', 'nameEs', 'nameEn', 'noteEs', 'noteEn']
 
 const EMPTY_FORM = { areaEn: '', areaEs: '', nameEn: '', nameEs: '', noteEn: '', noteEs: '', count: '1' };
 
-function HistoryList({ events, lang }) {
-  if (events === null) return <p className="uinv-sub">{tr(lang, 'loading')}</p>;
-  if (!events.length) return <p className="uinv-sub">{tr(lang, 'histEmpty')}</p>;
+const actorLabel = (lang, type, name) => `${tr(lang, type === 'cleaner' ? 'actorCleaner' : 'actorOwner')}${name ? ` · ${name}` : ''}`;
+
+// `history` is { events, checks }: item changes and completed counts,
+// shown together in one timeline, newest first.
+function HistoryList({ history, lang }) {
+  if (history === null) return <p className="uinv-sub">{tr(lang, 'loading')}</p>;
+  const entries = [
+    ...history.events.map(ev => ({ at: ev.createdAt, ev })),
+    ...history.checks.map(check => ({ at: check.createdAt, check })),
+  ].sort((a, b) => String(b.at).localeCompare(String(a.at)));
+  if (!entries.length) return <p className="uinv-sub">{tr(lang, 'histEmpty')}</p>;
   return (
     <div>
-      {events.map(ev => {
+      {entries.map(({ ev, check }) => {
+        if (check) {
+          return (
+            <div key={check.id} className="uinv-hist uinv-hist-check">
+              <div className="uinv-name">{tr(lang, 'histCheck')}</div>
+              <div>{checkSummary(lang, check)}</div>
+              <div className="uinv-hist-when">{formatWhen(check.createdAt, lang)} · {actorLabel(lang, check.actorType, check.actorName)}</div>
+            </div>
+          );
+        }
         const lines = [];
         if (ev.type === 'created') lines.push(tr(lang, 'histCreated', { n: ev.countAfter }));
         if (ev.type === 'deleted') lines.push(tr(lang, 'histDeleted', { n: ev.countBefore, b: ev.baselineBefore }));
@@ -49,7 +67,7 @@ function HistoryList({ events, lang }) {
           if (ev.countBefore !== ev.countAfter) lines.push(tr(lang, 'histCount', { a: ev.countBefore, b: ev.countAfter }));
           if (ev.noteBefore !== ev.noteAfter) lines.push(tr(lang, 'histNote', { a: ev.noteBefore, b: ev.noteAfter }));
         }
-        const actor = `${tr(lang, ev.actorType === 'cleaner' ? 'actorCleaner' : 'actorOwner')}${ev.actorName ? ` · ${ev.actorName}` : ''}`;
+        const actor = actorLabel(lang, ev.actorType, ev.actorName);
         const other = secondaryText(ev.itemNameEn, ev.itemNameEs);
         return (
           <div key={ev.id} className="uinv-hist">
@@ -72,6 +90,7 @@ export default function UnitInventoryModal({ listing, user, onClose }) {
 
   const [items, setItems] = useState(null);
   const [link, setLink] = useState(null);
+  const [lastCheck, setLastCheck] = useState(null);
   // Counts and notes as typed, keyed by item id, until saved.
   const [draft, setDraft] = useState({});
   const [tab, setTab] = useState('items');
@@ -93,6 +112,7 @@ export default function UnitInventoryModal({ listing, user, onClose }) {
     const d = await api.get(`${unitBase}?ownerUid=${encodeURIComponent(user.uid)}`);
     setItems(d.items || []);
     setLink(d.link || null);
+    setLastCheck(d.lastCheck || null);
     folding.decide((d.items || []).length);
   };
   useEffect(() => {
@@ -103,8 +123,8 @@ export default function UnitInventoryModal({ listing, user, onClose }) {
     if (tab !== 'history') return;
     setHistory(null);
     api.get(`${unitBase}/history?ownerUid=${encodeURIComponent(user.uid)}`)
-      .then(d => setHistory(d.events || []))
-      .catch(e => { setHistory([]); setMsg({ err: true, text: e?.message || String(e) }); });
+      .then(d => setHistory({ events: d.events || [], checks: d.checks || [] }))
+      .catch(e => { setHistory({ events: [], checks: [] }); setMsg({ err: true, text: e?.message || String(e) }); });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab]);
 
@@ -166,18 +186,35 @@ export default function UnitInventoryModal({ listing, user, onClose }) {
     onClose();
   };
 
-  const saveCounts = () => {
+  // The unsaved counts as the server takes them, or null (with the
+  // reason shown) when one of them isn't a number.
+  const pendingUpdates = () => {
     const updates = [];
     for (const it of dirtyItems) {
       const count = parseCountInput(draft[it.id].count);
-      if (count == null) { setMsg({ err: true, text: T('countInvalid') }); return; }
+      if (count == null) { setMsg({ err: true, text: T('countInvalid') }); return null; }
       updates.push({ itemId: it.id, count, note: draft[it.id].note });
     }
+    return updates;
+  };
+  const saveCounts = () => {
+    const updates = pendingUpdates();
+    if (!updates) return;
     run(async () => {
       await api.post(`${unitBase}/counts`, { ...who, updates });
       setDraft({});
       await load();
     }, T('saved'));
+  };
+  // Marks the whole unit as counted, saving anything unsaved with it.
+  const completeCount = () => {
+    const updates = pendingUpdates();
+    if (!updates || !window.confirm(T('countDoneConfirm', { n: list.length }))) return;
+    run(async () => {
+      await api.post(`${unitBase}/checks`, { ...who, updates });
+      setDraft({});
+      await load();
+    }, T('countDoneSaved'));
   };
 
   const rebaseline = (itemIds) => {
@@ -285,7 +322,7 @@ export default function UnitInventoryModal({ listing, user, onClose }) {
           <button type="button" className={`uinv-tab${tab === 'history' ? ' uinv-tab-on' : ''}`} onClick={() => setTab('history')}>{T('tabHistory')}</button>
         </div>
 
-        {tab === 'history' && <HistoryList events={history} lang={lang} />}
+        {tab === 'history' && <HistoryList history={history} lang={lang} />}
 
         {tab === 'items' && items === null && <p className="uinv-sub">{T('loading')}</p>}
         {tab === 'items' && items !== null && (
@@ -388,10 +425,12 @@ export default function UnitInventoryModal({ listing, user, onClose }) {
               <>
                 <input className="uinv-input" type="search" value={search} placeholder={T('search')} enterKeyHint="search" onChange={e => setSearch(e.target.value)} />
                 <DiffSummary lang={lang} total={list.length} tally={tally} onlyChanged={onlyChanged} onToggle={() => setOnlyChanged(v => !v)} />
+                <LastCheckLine lang={lang} lastCheck={lastCheck} />
                 {shown.length === 0 && <p className="uinv-sub" style={{ marginTop: 12 }}>{T('noMatches')}</p>}
                 {/* A search or the changed-only filter opens every area it leaves. */}
                 <ItemList items={shown} lang={lang} folding={folding} forceOpen={!!needle || narrowing} busy={busy} expectedLabel={T('baseline')}
                   valueOf={typed} diffOf={diffOf} isDirty={isDirty} onChange={setTyped} actionsFor={actionsFor} />
+                <CountComplete lang={lang} unsaved={dirtyItems.length} busy={busy} onComplete={completeCount} />
               </>
             )}
 
