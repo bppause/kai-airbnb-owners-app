@@ -100,6 +100,17 @@ export const UINV_CSS = `
 .uinv-hist-check{border:1px solid #b7e2c8;background:#eaf8f0;border-radius:10px;padding:8px 10px;margin:6px 0}
 .uinv-last{font-size:.82rem;color:#48656d;margin:8px 0 0}
 .uinv-last strong{color:#0b5f3a}
+.uinv-item-head{display:flex;gap:8px;align-items:flex-start}
+.uinv-item-text{flex:1;min-width:0}
+.uinv-star{flex:none;width:44px;height:44px;border-radius:10px;border:1px solid rgba(47,79,58,.24);background:#fff;color:#8a9aa0;font-size:1.35rem;line-height:1;cursor:pointer}
+.uinv-star-on{background:#fff4d1;border-color:#e2b93b;color:#a87400}
+.uinv-badge-req{background:#fff4d1;color:#7a5200;border:1px solid #e2b93b}
+.uinv-switch{display:flex;gap:6px;margin:12px 0 0}
+.uinv-switch button{flex:1;min-height:44px;padding:6px 10px;border-radius:999px;border:1px solid rgba(47,79,58,.24);background:#fff;color:#17313a;font-weight:700;font-size:.88rem;cursor:pointer}
+.uinv-switch button.uinv-switch-on{background:#203f2b;color:#fff;border-color:transparent}
+.uinv-areabar{margin:0 0 8px}
+.uinv-check{display:flex;align-items:center;gap:10px;min-height:44px;font-size:.92rem;font-weight:600;color:#17313a;cursor:pointer}
+.uinv-check input{flex:none;width:22px;height:22px;margin:0;accent-color:#0b7f4f}
 .uinv-pending{background:#fff8e6;border-color:#e2c27a}
 .uinv-prop{border-top:1px solid #ecdcae;padding:10px 0 2px;margin-top:10px;display:grid;gap:4px}
 .uinv-prop-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px}

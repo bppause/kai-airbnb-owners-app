@@ -24,6 +24,16 @@ unnoticed.
 - **Two counts per item.** The *baseline* is what the owner says should
   be there. The *current count* is what was last counted. Counting never
   changes the baseline.
+- **Counted at every checkout (★).** The list is first of all the
+  owner's record of everything in the unit. The owner flags the items
+  the cleaning service must count at every checkout (`count_required`);
+  nothing is flagged by default. Flagged items carry a ★ on both
+  screens. Once anything is flagged, the cleaning-service page opens on
+  just those items, with a switch to see everything; unflagged items
+  stay on the list and can still be counted. The owner flags one item
+  with its ☆ / ★ button or a whole area at once, and can set it in the
+  add form or a CSV `required` column. Flagging changes no count, so it
+  goes to the audit log, not the count history.
 - **Re-baseline.** When the owner accepts that the counts have changed
   for good (items replaced, retired, added), they re-baseline: the
   current counts become the new baseline, for one item or for every item
@@ -72,6 +82,7 @@ unnoticed.
 | Propose an item that isn't on the list | — | yes |
 | Approve or reject a proposed item | yes | no |
 | Add, edit, delete, import items | yes | no |
+| Flag items to count at every checkout | yes | no |
 | Re-baseline | yes | no |
 | See the change history | yes | no |
 | Create, turn off, or replace the share link | yes | no |
@@ -118,6 +129,7 @@ Mounted at `/api/m/unit-inventory`.
 | `PUT /items/:id` | owner | Edit an item's area, description, owner note |
 | `DELETE /items/:id` | owner | Delete an item (history kept) |
 | `POST /units/:listingId/counts` | owner | Update counts and notes |
+| `POST /units/:listingId/required` | owner | Flag or unflag items (one, or a whole area) as counted at every checkout |
 | `POST /units/:listingId/rebaseline` | owner | Accept current counts as the baseline |
 | `GET /units/:listingId/history?ownerUid=` | owner | Item changes and completed counts, newest first |
 | `POST /units/:listingId/checks` | owner | Mark the count complete (optionally saving `updates` first) |

@@ -18,7 +18,7 @@ import { api } from "../../../core/api";
 import { aptDisplay } from "../../../core/i18n/app-text";
 import { tr, primaryText, secondaryText, formatWhen, parseCountInput, diffFromBaseline, tallyDiffs, checkSummary, API_BASE } from "../strings";
 import { DiffSummary } from "./DiffMarks";
-import { ItemList, Toast, useAreaFolding, areaKey } from "./ItemList";
+import { ItemList, Toast, ViewSwitch, useAreaFolding, areaKey } from "./ItemList";
 import { CountComplete, LastCheckLine } from "./CountComplete";
 import { PendingProposals } from "./Proposals";
 import { itemsFromCsv } from "../csv";
@@ -29,7 +29,7 @@ import { UINV_CSS } from "../styles";
 // event's changes.
 const EDIT_FIELDS = ['areaEs', 'areaEn', 'nameEs', 'nameEn', 'noteEs', 'noteEn'];
 
-const EMPTY_FORM = { areaEn: '', areaEs: '', nameEn: '', nameEs: '', noteEn: '', noteEs: '', count: '1' };
+const EMPTY_FORM = { areaEn: '', areaEs: '', nameEn: '', nameEs: '', noteEn: '', noteEs: '', count: '1', countRequired: false };
 
 const actorLabel = (lang, type, name) => `${tr(lang, type === 'cleaner' ? 'actorCleaner' : 'actorOwner')}${name ? ` · ${name}` : ''}`;
 
@@ -111,6 +111,8 @@ export default function UnitInventoryModal({ listing, user, onClose }) {
   const [linkOptions, setLinkOptions] = useState(false);
   const [onlyChanged, setOnlyChanged] = useState(false);
   const [search, setSearch] = useState('');
+  // 'all' or 'required' (only the items counted at every checkout).
+  const [view, setView] = useState('all');
   const folding = useAreaFolding();
   const fileRef = useRef(null);
   const formRef = useRef(null);
@@ -181,10 +183,15 @@ export default function UnitInventoryModal({ listing, user, onClose }) {
   // baseline, so they don't vanish mid-edit. With nothing changed the
   // narrowing is ignored rather than leaving an empty list.
   const narrowing = onlyChanged && tally.changed > 0;
+  const requiredCount = list.filter(it => it.countRequired).length;
+  const showing = requiredCount ? view : 'all';
+  // A search looks through everything in the unit, whichever view is on.
   const needle = search.trim().toLowerCase();
   const shown = list
     .filter(it => !narrowing || diffOf(it) !== 0 || isDirty(it))
-    .filter(it => !needle || `${it.nameEn} ${it.nameEs} ${it.areaEn} ${it.areaEs}`.toLowerCase().includes(needle));
+    .filter(it => (needle
+      ? `${it.nameEn} ${it.nameEs} ${it.areaEn} ${it.areaEs}`.toLowerCase().includes(needle)
+      : showing === 'all' || it.countRequired));
   const setTyped = (it, field, value) => {
     if (msg && msg.err) setMsg(null);
     setDraft(prev => ({ ...prev, [it.id]: { ...typed(it), [field]: value } }));
@@ -218,7 +225,8 @@ export default function UnitInventoryModal({ listing, user, onClose }) {
   // Marks the whole unit as counted, saving anything unsaved with it.
   const completeCount = () => {
     const updates = pendingUpdates();
-    if (!updates || !window.confirm(T('countDoneConfirm', { n: list.length }))) return;
+    const sure = requiredCount ? T('countDoneConfirmReq', { n: requiredCount }) : T('countDoneConfirm', { n: list.length });
+    if (!updates || !window.confirm(sure)) return;
     run(async () => {
       await api.post(`${unitBase}/checks`, { ...who, updates });
       setDraft({});
@@ -234,6 +242,18 @@ export default function UnitInventoryModal({ listing, user, onClose }) {
       await api.post(`${unitBase}/rebaseline`, { ...who, ...(itemIds ? { itemIds } : {}) });
       await load();
     }, T('saved'));
+  };
+
+  // Flags one item, or a whole area, as counted at every checkout. Shown
+  // at once and sent behind it — flagging runs to dozens of taps on a
+  // new inventory — and put right from the server if the save fails.
+  const setRequired = (targets, required) => {
+    const ids = targets.filter(it => !!it.countRequired !== required).map(it => it.id);
+    if (!ids.length) return;
+    const moved = new Set(ids);
+    setItems(prev => (prev || []).map(it => (moved.has(it.id) ? { ...it, countRequired: required } : it)));
+    api.post(`${unitBase}/required`, { ...who, itemIds: ids, required })
+      .catch(e => { setMsg({ err: true, text: e?.message || String(e) }); return load().catch(() => {}); });
   };
 
   const removeItem = (it) => {
@@ -283,7 +303,7 @@ export default function UnitInventoryModal({ listing, user, onClose }) {
     run(async () => {
       await api.post(`${unitBase}/items`, { ...who, items: [{ ...form, count }] });
       // Keep the area filled in: items are usually added a room at a time.
-      setForm({ ...EMPTY_FORM, areaEn: form.areaEn, areaEs: form.areaEs });
+      setForm({ ...EMPTY_FORM, areaEn: form.areaEn, areaEs: form.areaEs, countRequired: form.countRequired });
       folding.open(landsIn);
       await load();
     }, T('saved'));
@@ -440,7 +460,12 @@ export default function UnitInventoryModal({ listing, user, onClose }) {
                   <label className="uinv-field">{T('noteEn')}<input value={form.noteEn} maxLength={1000} onChange={e => setForm({ ...form, noteEn: e.target.value })} /></label>
                   {form.id
                     ? <p className="uinv-help uinv-full">{T('baselineLocked')}</p>
-                    : <label className="uinv-field">{T('startCount')}<input className="uinv-num" inputMode="numeric" pattern="[0-9]*" value={form.count} onFocus={e => e.target.select()} onChange={e => setForm({ ...form, count: e.target.value })} /></label>}
+                    : (
+                      <>
+                        <label className="uinv-field">{T('startCount')}<input className="uinv-num" inputMode="numeric" pattern="[0-9]*" value={form.count} onFocus={e => e.target.select()} onChange={e => setForm({ ...form, count: e.target.value })} /></label>
+                        <label className="uinv-check"><input type="checkbox" checked={!!form.countRequired} onChange={e => setForm({ ...form, countRequired: e.target.checked })} />{T('formRequired')}</label>
+                      </>
+                    )}
                 </div>
                 <div className="uinv-row" style={{ marginTop: 10 }}>
                   <button type="button" className="uinv-btn uinv-btn-p" disabled={busy} onClick={saveForm}>{busy ? T('saving') : T('save')}</button>
@@ -455,10 +480,13 @@ export default function UnitInventoryModal({ listing, user, onClose }) {
                 <input className="uinv-input" type="search" value={search} placeholder={T('search')} enterKeyHint="search" onChange={e => setSearch(e.target.value)} />
                 <DiffSummary lang={lang} total={list.length} tally={tally} onlyChanged={onlyChanged} onToggle={() => setOnlyChanged(v => !v)} />
                 <LastCheckLine lang={lang} lastCheck={lastCheck} />
+                {requiredCount > 0
+                  ? <ViewSwitch lang={lang} view={showing} onChange={setView} required={requiredCount} total={list.length} hint={T('reqHintOwner')} />
+                  : <p className="uinv-help" style={{ marginTop: 10 }}>{T('reqHintOwner')}</p>}
                 {shown.length === 0 && <p className="uinv-sub" style={{ marginTop: 12 }}>{T('noMatches')}</p>}
                 {/* A search or the changed-only filter opens every area it leaves. */}
                 <ItemList items={shown} lang={lang} folding={folding} forceOpen={!!needle || narrowing} busy={busy} expectedLabel={T('baseline')}
-                  valueOf={typed} diffOf={diffOf} isDirty={isDirty} onChange={setTyped} actionsFor={actionsFor} />
+                  valueOf={typed} diffOf={diffOf} isDirty={isDirty} onChange={setTyped} actionsFor={actionsFor} onRequired={setRequired} />
                 <CountComplete lang={lang} unsaved={dirtyItems.length} busy={busy} onComplete={completeCount} />
               </>
             )}

@@ -73,7 +73,7 @@ const STR = {
   linkOff:          { es: 'El enlace está desactivado.', en: 'The link is turned off.' },
 
   importTitle:      { es: 'Importar desde CSV', en: 'Import from CSV' },
-  importHelp:       { es: 'Columnas: area_en, area_es, name_en, name_es, count, note_en, note_es. La primera fila son los encabezados.', en: 'Columns: area_en, area_es, name_en, name_es, count, note_en, note_es. The first row is the header.' },
+  importHelp:       { es: 'Columnas: area_en, area_es, name_en, name_es, count, note_en, note_es. La primera fila son los encabezados. Opcional: required (sí/no) para marcar lo que se cuenta en cada salida.', en: 'Columns: area_en, area_es, name_en, name_es, count, note_en, note_es. The first row is the header. Optional: required (yes/no) to mark what is counted at every checkout.' },
   importChoose:     { es: 'Elegir archivo…', en: 'Choose file…' },
   importPreview:    { es: '{n} artículos listos para importar.', en: '{n} items ready to import.' },
   importConfirm:    { es: 'Importar {n} artículos', en: 'Import {n} items' },
@@ -135,7 +135,6 @@ const STR = {
   lastCheck:        { es: 'Último conteo completo: {when} · {who}', en: 'Last complete count: {when} · {who}' },
   lastCheckNever:   { es: 'Aún no se ha registrado un conteo completo.', en: 'No complete count has been recorded yet.' },
   histCheck:        { es: '✓ Conteo completo', en: '✓ Count complete' },
-  checkAllMatch:    { es: '{n} artículos · todo coincide', en: '{n} items · everything matched' },
   checkTotal:       { es: '{n} artículos', en: '{n} items' },
   checkMissing:     { es: '{n} con faltantes', en: '{n} with items missing' },
   checkExtra:       { es: '{n} con sobrantes', en: '{n} with extras' },
@@ -164,6 +163,22 @@ const STR = {
   approvedMsg:      { es: 'Agregado al inventario.', en: 'Added to the inventory.' },
   rejectedMsg:      { es: 'Propuesta rechazada.', en: 'Proposal rejected.' },
   histProposedBy:   { es: '{line} · propuesto por {who}', en: '{line} · proposed by {who}' },
+
+  // Items that must be counted at every checkout (★). Off by default.
+  reqBadge:         { es: '★ Cada salida', en: '★ Every checkout' },
+  reqTurnOn:        { es: 'Pedir que se cuente en cada salida', en: 'Require counting at every checkout' },
+  reqTurnOff:       { es: 'Dejar de exigir el conteo en cada salida', en: 'Stop requiring a count at every checkout' },
+  viewRequired:     { es: '★ Cada salida ({n})', en: '★ Every checkout ({n})' },
+  viewAll:          { es: 'Todos ({n})', en: 'All ({n})' },
+  reqHintShared:    { es: 'Los artículos con ★ deben contarse en cada salida. El resto está en la lista como referencia; cuéntalo solo si notas un cambio.', en: 'Items marked ★ must be counted at every checkout. The rest are on the list for reference; count them only if you notice a change.' },
+  reqHintOwner:     { es: 'Marca con ★ lo que el servicio de limpieza debe contar en cada salida. Lo demás queda en la lista como referencia.', en: 'Mark with ★ what the cleaning service must count at every checkout. Everything else stays on the list for reference.' },
+  areaReqAll:       { es: '★ Toda el área', en: '★ Whole area' },
+  areaReqNone:      { es: '☆ Quitar del área', en: '☆ Clear area' },
+  areaReqCount:     { es: '★ {n}', en: '★ {n}' },
+  formRequired:     { es: 'Contar en cada salida (★)', en: 'Count at every checkout (★)' },
+  countDoneConfirmReq: { es: '¿Confirmas que revisaste los {n} artículos que se cuentan en cada salida?', en: 'Confirm that you checked the {n} items counted at every checkout?' },
+  checkRequired:    { es: '{n} de cada salida revisados', en: '{n} every-checkout items checked' },
+  checkMatch:       { es: 'todo coincide', en: 'everything matched' },
 };
 
 const isEnglish = (lang) => String(lang || '').toLowerCase().startsWith('en');
@@ -248,15 +263,15 @@ export const tallyDiffs = (items, diffOf) => {
   return { missing, extra, changed: missing + extra };
 };
 
-// One line describing how the unit stood when a count was completed:
-// "259 items · everything matched" or "259 items · 2 with items missing".
-export const checkSummary = (lang, check) => {
-  if (!check.itemsMissing && !check.itemsExtra) return tr(lang, 'checkAllMatch', { n: check.itemsTotal });
-  return [
-    tr(lang, 'checkTotal', { n: check.itemsTotal }),
-    check.itemsMissing ? tr(lang, 'checkMissing', { n: check.itemsMissing }) : '',
-    check.itemsExtra ? tr(lang, 'checkExtra', { n: check.itemsExtra }) : '',
-  ].filter(Boolean).join(' · ');
-};
+// One line describing a completed count: what it covered — the items
+// flagged for every checkout if there were any, otherwise the whole list
+// — and how the unit stood: "259 items · everything matched",
+// "42 every-checkout items checked · 2 with items missing".
+export const checkSummary = (lang, check) => [
+  check.itemsRequired ? tr(lang, 'checkRequired', { n: check.itemsRequired }) : tr(lang, 'checkTotal', { n: check.itemsTotal }),
+  check.itemsMissing ? tr(lang, 'checkMissing', { n: check.itemsMissing }) : '',
+  check.itemsExtra ? tr(lang, 'checkExtra', { n: check.itemsExtra }) : '',
+  !check.itemsMissing && !check.itemsExtra ? tr(lang, 'checkMatch') : '',
+].filter(Boolean).join(' · ');
 
 export const API_BASE = '/api/m/unit-inventory';

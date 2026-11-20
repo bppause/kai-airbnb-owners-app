@@ -28,6 +28,12 @@
 // stood against the baseline — so a pass that found nothing changed
 // still leaves a record.
 //
+// Not every item has to be counted every time. The inventory is first of
+// all the owner's record of everything in the unit; the owner flags the
+// items that must be counted at every checkout (count_required). The
+// rest stay on the list, and can still be counted, but aren't asked for.
+// Nothing is flagged by default.
+//
 // A proposed item waits in unit_inventory_proposals. The owner is told
 // (an in-app alert, and an email where email is configured) and either
 // approves it — it becomes a normal item, its count the baseline — or
@@ -84,6 +90,7 @@ const itemFromDb = (r) => ({
   currentNote: r.current_note || '',
   countUpdatedAt: r.count_updated_at,
   countUpdatedBy: r.count_updated_by || '',
+  countRequired: !!r.count_required,
   sortOrder: r.sort_order,
   createdAt: r.created_at,
 });
@@ -113,6 +120,7 @@ const checkFromDb = (r) => ({
   itemsTotal: r.items_total,
   itemsMissing: r.items_missing,
   itemsExtra: r.items_extra,
+  itemsRequired: r.items_required || 0,
   createdAt: r.created_at,
 });
 
@@ -268,7 +276,9 @@ module.exports = function createUnitInventoryRouter(deps) {
   // Records that someone went through the whole unit. `updates` are the
   // counts still unsaved on their screen, applied first so the record
   // describes the unit as they left it. Every item's "last counted" then
-  // moves to now, changed or not: the pass confirmed all of them.
+  // moves to now, changed or not: the pass confirmed all of them. Where
+  // the owner has flagged the items to count at every checkout, the pass
+  // covered those, so only they are stamped and the record says how many.
   // Returns { check, changed } or { error, status } / { supabaseError }.
   const completeCount = async ({ listing, updates, actorType, actorName, actorUid }) => {
     let changed = 0;
@@ -281,6 +291,7 @@ module.exports = function createUnitInventoryRouter(deps) {
     if (error) return { supabaseError: error };
     if (!rows || !rows.length) return { error: 'This unit has no inventory to count yet.', status: 400 };
     const now = new Date().toISOString();
+    const required = rows.filter(r => r.count_required).length;
     const row = {
       id: 'uic_' + uuidv4().slice(0, 12),
       listing_id: listing.id,
@@ -289,12 +300,17 @@ module.exports = function createUnitInventoryRouter(deps) {
       items_total: rows.length,
       items_missing: rows.filter(r => r.current_count < r.baseline_count).length,
       items_extra: rows.filter(r => r.current_count > r.baseline_count).length,
+      // Left out when nothing is flagged, so a database whose checks
+      // table predates this column keeps working for such units.
+      ...(required ? { items_required: required } : {}),
       created_at: now,
     };
     const { error: cErr } = await supabase.from('unit_inventory_checks').insert(row);
     if (cErr) return { supabaseError: cErr };
-    const { error: uErr } = await supabase.from('unit_inventory_items')
+    let stamp = supabase.from('unit_inventory_items')
       .update({ count_updated_at: now, count_updated_by: actorName }).eq('listing_id', listing.id);
+    if (required) stamp = stamp.eq('count_required', true);
+    const { error: uErr } = await stamp;
     if (uErr) return { supabaseError: uErr };
     return { check: checkFromDb(row), changed };
   };
@@ -371,7 +387,8 @@ module.exports = function createUnitInventoryRouter(deps) {
   });
 
   // POST /units/:listingId/items — body: { ownerUid, actorName, items: [
-  // { areaEn, areaEs, nameEn, nameEs, noteEn, noteEs, count } ] }. Adds
+  // { areaEn, areaEs, nameEn, nameEs, noteEn, noteEs, count,
+  // countRequired? } ] }. Adds
   // one item or many (the CSV import sends the whole file). The count
   // given becomes both the baseline and the current count.
   router.post('/units/:listingId/items', async (req, res) => {
@@ -403,6 +420,10 @@ module.exports = function createUnitInventoryRouter(deps) {
         ...parsed.fields,
         baseline_count: count, baseline_set_at: now,
         current_count: count, current_note: '',
+        // Sent only when set: an item is not required by default, and
+        // leaving the column out keeps adding items working on a database
+        // that doesn't have it yet.
+        ...(items[i]?.countRequired === true ? { count_required: true } : {}),
         sort_order: sortOrder,
         created_at: now, updated_at: now,
       });
@@ -500,6 +521,41 @@ module.exports = function createUnitInventoryRouter(deps) {
     if (result.supabaseError) return sendSupabaseError(res, result.supabaseError);
     if (result.error) return res.status(result.status).json({ error: result.error });
     res.json({ changed: result.changed });
+  });
+
+  // POST /units/:listingId/required — body: { ownerUid, actorName,
+  // itemIds, required }. Flags (or unflags) items as ones to count at
+  // every checkout — one item, or a whole area at once. It changes what
+  // is asked of the cleaning service, not any count, so it is recorded in
+  // the audit log rather than in each item's count history.
+  router.post('/units/:listingId/required', async (req, res) => {
+    if (!requireSupabaseEnv(res)) return;
+    const { ownerUid, actorName, itemIds, required } = req.body || {};
+    const listing = await requireOwnedUnit(res, req.params.listingId, ownerUid);
+    if (!listing) return;
+    if (typeof required !== 'boolean') return res.status(400).json({ error: 'Say whether the items are required or not.' });
+    if (!Array.isArray(itemIds) || !itemIds.length) return res.status(400).json({ error: 'No items selected.' });
+    if (itemIds.length > MAX_BULK_ITEMS) return res.status(400).json({ error: `Change at most ${MAX_BULK_ITEMS} items at a time.` });
+    const { data: rows, error } = await loadItems(listing.id);
+    if (error) return sendSupabaseError(res, error);
+    const wanted = new Set(itemIds.map(String));
+    // Only this unit's items, and only those the change actually moves.
+    const targets = (rows || []).filter(r => wanted.has(r.id) && !!r.count_required !== required).map(r => r.id);
+    const now = new Date().toISOString();
+    for (let i = 0; i < targets.length; i += 100) {
+      const { error: uErr } = await supabase.from('unit_inventory_items')
+        .update({ count_required: required, updated_at: now })
+        .eq('listing_id', listing.id).in('id', targets.slice(i, i + 100));
+      if (uErr) return sendSupabaseError(res, uErr);
+    }
+    if (targets.length) {
+      await auditLog({
+        entity: 'unit_inventory', entityId: listing.id, action: 'set_required',
+        actorUid: String(ownerUid), actorName: text(actorName, MAX_ACTOR) || listing.owner || 'Owner',
+        after: { required, changed: targets.length, itemIds: targets.slice(0, 200) },
+      });
+    }
+    res.json({ changed: targets.length });
   });
 
   // POST /units/:listingId/rebaseline — body: { ownerUid, actorName,

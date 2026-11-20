@@ -21,7 +21,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { api } from "../../../core/api";
 import { tr, parseCountInput, diffFromBaseline, tallyDiffs, groupByArea, API_BASE } from "../strings";
 import { DiffSummary } from "../components/DiffMarks";
-import { ItemList, Toast, useAreaFolding } from "../components/ItemList";
+import { ItemList, Toast, ViewSwitch, useAreaFolding } from "../components/ItemList";
 import { CountComplete, LastCheckLine } from "../components/CountComplete";
 import { ProposeItemForm, PendingProposals } from "../components/Proposals";
 import { UINV_CSS } from "../styles";
@@ -71,6 +71,9 @@ export default function SharedInventoryView({ token }) {
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState(null);
   const [proposing, setProposing] = useState(false);
+  // Which items to list: null until the person picks, which means "the
+  // ones to count at every checkout, if the owner flagged any".
+  const [view, setView] = useState(null);
   const folding = useAreaFolding();
   const nameRef = useRef(null);
   // Set once the first load has put any restored draft in place; until
@@ -179,7 +182,8 @@ export default function SharedInventoryView({ token }) {
   // Marks the whole unit as counted, saving anything unsaved with it.
   const complete = () => {
     const updates = pendingUpdates();
-    if (!updates || !window.confirm(T('countDoneConfirm', { n: items.length }))) return;
+    const sure = requiredItems.length ? T('countDoneConfirmReq', { n: requiredItems.length }) : T('countDoneConfirm', { n: items.length });
+    if (!updates || !window.confirm(sure)) return;
     send('checks', { updates }, T('countDoneSaved'));
   };
   // Sends an item that isn't on the list to the owner for approval.
@@ -202,10 +206,13 @@ export default function SharedInventoryView({ token }) {
     if (window.confirm(T('discardConfirm', { n: dirtyItems.length }))) { setDraft({}); setMsg(null); }
   };
 
+  const requiredItems = items.filter(it => it.countRequired);
+  const showing = requiredItems.length ? (view || 'required') : 'all';
+  // A search looks through everything in the unit, whichever view is on.
   const needle = search.trim().toLowerCase();
   const visible = needle
     ? items.filter(it => `${it.nameEn} ${it.nameEs} ${it.areaEn} ${it.areaEs}`.toLowerCase().includes(needle))
-    : items;
+    : (showing === 'required' ? requiredItems : items);
 
   return shell(
     <>
@@ -235,6 +242,7 @@ export default function SharedInventoryView({ token }) {
           <input className="uinv-input" type="search" value={search} placeholder={T('search')} enterKeyHint="search" onChange={e => setSearch(e.target.value)} />
           <DiffSummary lang={lang} total={items.length} tally={tallyDiffs(items, diffOf)} shared />
           <LastCheckLine lang={lang} lastCheck={lastCheck} />
+          <ViewSwitch lang={lang} view={showing} onChange={setView} required={requiredItems.length} total={items.length} hint={T('reqHintShared')} />
           {visible.length === 0 && <p className="uinv-sub" style={{ marginTop: 12 }}>{T('noMatches')}</p>}
           {/* A search opens every area that has a match, whatever was folded. */}
           <ItemList items={visible} lang={lang} folding={folding} forceOpen={!!needle} busy={busy} expectedLabel={T('expected')}

@@ -37,7 +37,9 @@ export const areaKey = (areaEn, areaEs) => `${areaEn || ''}\u0001${areaEs || ''}
 
 // `value` is { count, note } as typed. `actions` (owner only) are the
 // buttons shown with the note. `expectedLabel` names the baseline box.
-function ItemCard({ item, lang, value, diff, dirty, busy, expectedLabel, opened, onToggle, onChange, actions }) {
+// `onRequired` (owner only) flips whether the item must be counted at
+// every checkout; without it the ★ is only shown.
+function ItemCard({ item, lang, value, diff, dirty, busy, expectedLabel, opened, onToggle, onChange, actions, onRequired }) {
   const T = (k, v) => tr(lang, k, v);
   const other = secondaryText(item.nameEn, item.nameEs);
   const ownerNote = primaryText(item.noteEn, item.noteEs);
@@ -51,10 +53,21 @@ function ItemCard({ item, lang, value, diff, dirty, busy, expectedLabel, opened,
   };
   return (
     <div className={`uinv-item${diffClass(diff)}${dirty ? ' uinv-item-dirty' : ''}${open ? ' uinv-item-open' : ''}`}>
-      <div>
-        <div className="uinv-name">{primaryText(item.nameEn, item.nameEs)} <DiffBadge diff={diff} lang={lang} /></div>
-        {other && <div className="uinv-other">{other}</div>}
-        {ownerNote && <div className="uinv-onote">{ownerNote}{ownerNoteOther && <span className="uinv-onote-other"> · {ownerNoteOther}</span>}</div>}
+      <div className="uinv-item-head">
+        <div className="uinv-item-text">
+          <div className="uinv-name">
+            {primaryText(item.nameEn, item.nameEs)}
+            {item.countRequired && <> <span className="uinv-badge uinv-badge-req">{T('reqBadge')}</span></>}
+            {' '}<DiffBadge diff={diff} lang={lang} />
+          </div>
+          {other && <div className="uinv-other">{other}</div>}
+          {ownerNote && <div className="uinv-onote">{ownerNote}{ownerNoteOther && <span className="uinv-onote-other"> · {ownerNoteOther}</span>}</div>}
+        </div>
+        {onRequired && (
+          <button type="button" className={`uinv-star${item.countRequired ? ' uinv-star-on' : ''}`} aria-pressed={item.countRequired}
+            aria-label={T(item.countRequired ? 'reqTurnOff' : 'reqTurnOn')} title={T(item.countRequired ? 'reqTurnOff' : 'reqTurnOn')}
+            onClick={() => onRequired(!item.countRequired)}>{item.countRequired ? '★' : '☆'}</button>
+        )}
       </div>
       <div className="uinv-body">
         <div className="uinv-fields">
@@ -95,8 +108,9 @@ function ItemCard({ item, lang, value, diff, dirty, busy, expectedLabel, opened,
 // `forceOpen` shows every area whatever is folded (a search or a filter
 // is narrowing the list). `valueOf` / `diffOf` / `isDirty` read the
 // screen's draft; `onChange(item, field, value)` writes it. `actionsFor`
-// (owner only) returns an item's buttons.
-export function ItemList({ items, lang, folding, forceOpen = false, busy, expectedLabel, valueOf, diffOf, isDirty, onChange, actionsFor }) {
+// (owner only) returns an item's buttons. `onRequired(items, required)`
+// (owner only) flags one item or a whole area for every checkout.
+export function ItemList({ items, lang, folding, forceOpen = false, busy, expectedLabel, valueOf, diffOf, isDirty, onChange, actionsFor, onRequired }) {
   const T = (k, v) => tr(lang, k, v);
   // Items opened by hand on a narrow screen, by id.
   const [openedItems, setOpenedItems] = useState({});
@@ -115,6 +129,7 @@ export function ItemList({ items, lang, folding, forceOpen = false, busy, expect
       {groups.map(group => {
         const folded = !forceOpen && folding.isFolded(group.key);
         const changed = tallyDiffs(group.items, diffOf).changed;
+        const required = group.items.filter(it => it.countRequired).length;
         return (
           <section key={group.key} className="uinv-group">
             <h2 className="uinv-area-h">
@@ -124,20 +139,44 @@ export function ItemList({ items, lang, folding, forceOpen = false, busy, expect
                   <span className="uinv-area-name">{group.label}</span>
                   {group.other && <span className="uinv-area-other">{group.other}</span>}
                 </span>
+                {required > 0 && <span className="uinv-badge uinv-badge-req">{T('areaReqCount', { n: required })}</span>}
                 {changed > 0 && <span className="uinv-badge uinv-badge-chg">{T('areaChanged', { n: changed })}</span>}
                 <span className="uinv-area-count" title={T('itemsInArea', { n: group.items.length })}>{group.items.length}</span>
               </button>
             </h2>
+            {!folded && onRequired && (
+              <div className="uinv-row uinv-areabar">
+                <button type="button" className="uinv-btn uinv-btn-sm" disabled={busy || required === group.items.length} onClick={() => onRequired(group.items, true)}>{T('areaReqAll')}</button>
+                <button type="button" className="uinv-btn uinv-btn-sm" disabled={busy || required === 0} onClick={() => onRequired(group.items, false)}>{T('areaReqNone')}</button>
+              </div>
+            )}
             {!folded && group.items.map(it => (
               <ItemCard key={it.id} item={it} lang={lang} value={valueOf(it)} diff={diffOf(it)} dirty={isDirty(it)} busy={busy}
                 expectedLabel={expectedLabel} opened={!!openedItems[it.id]}
                 onToggle={() => setOpenedItems(o => ({ ...o, [it.id]: !o[it.id] }))}
                 onChange={(field, value) => onChange(it, field, value)}
-                actions={actionsFor ? actionsFor(it) : null} />
+                actions={actionsFor ? actionsFor(it) : null}
+                onRequired={onRequired ? (required) => onRequired([it], required) : undefined} />
             ))}
           </section>
         );
       })}
+    </>
+  );
+}
+
+// Switches the list between the items flagged for every checkout and
+// everything in the unit. Shown only when something is flagged; `hint`
+// says what the ★ means to whoever is looking.
+export function ViewSwitch({ lang, view, onChange, required, total, hint }) {
+  if (!required) return null;
+  return (
+    <>
+      <div className="uinv-switch" role="group">
+        <button type="button" className={view === 'required' ? 'uinv-switch-on' : ''} aria-pressed={view === 'required'} onClick={() => onChange('required')}>{tr(lang, 'viewRequired', { n: required })}</button>
+        <button type="button" className={view === 'all' ? 'uinv-switch-on' : ''} aria-pressed={view === 'all'} onClick={() => onChange('all')}>{tr(lang, 'viewAll', { n: total })}</button>
+      </div>
+      <p className="uinv-help">{hint}</p>
     </>
   );
 }

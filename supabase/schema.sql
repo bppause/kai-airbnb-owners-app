@@ -596,6 +596,10 @@ create table if not exists public.unit_inventory_items (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+-- Whether the item must be counted at every checkout. Off by default: the
+-- list is the owner's record of everything in the unit, and the owner
+-- flags the items the cleaning service has to count each time.
+alter table public.unit_inventory_items add column if not exists count_required boolean not null default false;
 create index if not exists idx_unit_inventory_items_listing
   on public.unit_inventory_items(listing_id, sort_order);
 
@@ -646,6 +650,9 @@ create table if not exists public.unit_inventory_checks (
   items_extra integer not null default 0,
   created_at timestamptz not null default now()
 );
+-- How many items were flagged to count at every checkout when this count
+-- was completed (0 = none flagged; the pass covered the whole list).
+alter table public.unit_inventory_checks add column if not exists items_required integer not null default 0;
 create index if not exists idx_unit_inventory_checks_listing
   on public.unit_inventory_checks(listing_id, created_at desc);
 
