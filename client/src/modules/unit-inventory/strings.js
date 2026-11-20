@@ -18,15 +18,25 @@ const STR = {
   emptyHint:        { es: 'Agrega artículos uno por uno o importa un archivo CSV.', en: 'Add items one at a time, or import a CSV file.' },
   addItem:          { es: '＋ Agregar artículo', en: '＋ Add item' },
   importCsv:        { es: 'Importar CSV', en: 'Import CSV' },
-  summary:          { es: '{n} artículos · {d} con diferencia frente a la línea base', en: '{n} items · {d} differ from the baseline' },
+  changedSummary:   { es: '{d} de {n} artículos cambiaron frente a la línea base', en: '{d} of {n} items have changed from the baseline' },
+  allMatch:         { es: 'Todo coincide con la línea base ({n} artículos).', en: 'Everything matches the baseline ({n} items).' },
+  changedSummaryShared: { es: '{d} de {n} artículos no coinciden con lo esperado', en: '{d} of {n} items differ from the expected count' },
+  allMatchShared:   { es: 'Todo coincide con lo esperado ({n} artículos).', en: 'Everything matches the expected count ({n} items).' },
+  chipMissing:      { es: '▼ {n} con faltantes', en: '▼ {n} with items missing' },
+  chipExtra:        { es: '▲ {n} con sobrantes', en: '▲ {n} with extras' },
+  onlyChanged:      { es: 'Ver solo los cambios', en: 'Show only changed' },
+  showAll:          { es: 'Ver todos', en: 'Show all' },
+  areaChanged:      { es: '{n} con cambio', en: '{n} changed' },
   baseline:         { es: 'Línea base', en: 'Baseline' },
   count:            { es: 'Conteo', en: 'Count' },
   note:             { es: 'Nota', en: 'Note' },
   notePlaceholder:  { es: 'Nota (faltante, dañado, repuesto…)', en: 'Note (missing, damaged, replaced…)' },
   lastCounted:      { es: 'Último conteo: {when} · {who}', en: 'Last counted: {when} · {who}' },
   neverCounted:     { es: 'Sin conteos todavía', en: 'Not counted yet' },
-  diffMissing:      { es: 'Faltan {n}', en: '{n} missing' },
-  diffExtra:        { es: 'Sobran {n}', en: '{n} extra' },
+  diffMissing:      { es: '▼ Faltan {n}', en: '▼ {n} missing' },
+  diffExtra:        { es: '▲ Sobran {n}', en: '▲ {n} extra' },
+  diffMissingOne:   { es: '▼ Falta 1', en: '▼ 1 missing' },
+  diffExtraOne:     { es: '▲ Sobra 1', en: '▲ 1 extra' },
   edit:             { es: 'Editar', en: 'Edit' },
   delete:           { es: 'Eliminar', en: 'Delete' },
   deleteConfirm:    { es: '¿Eliminar "{name}" del inventario? Su historial se conserva.', en: 'Delete "{name}" from the inventory? Its history is kept.' },
@@ -150,6 +160,29 @@ export const parseCountInput = (v) => {
   const s = String(v ?? '').trim();
   if (!/^\d{1,6}$/.test(s)) return null;
   return Number(s);
+};
+
+// How far an item's count is from its baseline: negative = missing,
+// positive = extra, 0 = matches. Pass what is typed in the count box to
+// judge the unsaved value, so the highlight follows the typing; an entry
+// that isn't a valid count falls back to the saved one.
+export const diffFromBaseline = (item, typedCount) => {
+  const typed = typedCount === undefined ? null : parseCountInput(typedCount);
+  return (typed == null ? item.currentCount : typed) - item.baselineCount;
+};
+
+// The row class that paints an item by its difference from the baseline.
+export const diffClass = (diff) => (diff < 0 ? ' uinv-item-miss' : diff > 0 ? ' uinv-item-extra' : '');
+
+// How many items are below / above their baseline.
+export const tallyDiffs = (items, diffOf) => {
+  let missing = 0;
+  let extra = 0;
+  for (const it of items) {
+    const d = diffOf(it);
+    if (d < 0) missing++; else if (d > 0) extra++;
+  }
+  return { missing, extra, changed: missing + extra };
 };
 
 export const API_BASE = '/api/m/unit-inventory';

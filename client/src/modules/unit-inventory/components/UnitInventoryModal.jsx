@@ -11,19 +11,12 @@ import React, { useEffect, useRef, useState } from "react";
 import { useApp } from "../../../core/app-state";
 import { api } from "../../../core/api";
 import { aptDisplay } from "../../../core/i18n/app-text";
-import { tr, pick, pickOther, groupByArea, formatWhen, parseCountInput, API_BASE } from "../strings";
+import { tr, pick, pickOther, groupByArea, formatWhen, parseCountInput, diffFromBaseline, diffClass, tallyDiffs, API_BASE } from "../strings";
+import { DiffBadge, DiffSummary } from "./DiffMarks";
 import { itemsFromCsv } from "../csv";
 import { UINV_CSS } from "../styles";
 
 const EMPTY_FORM = { areaEn: '', areaEs: '', nameEn: '', nameEs: '', noteEn: '', noteEs: '', count: '1' };
-
-function DiffBadge({ item, lang }) {
-  const diff = item.currentCount - item.baselineCount;
-  if (!diff) return null;
-  return diff < 0
-    ? <span className="uinv-badge uinv-badge-miss">{tr(lang, 'diffMissing', { n: -diff })}</span>
-    : <span className="uinv-badge uinv-badge-extra">{tr(lang, 'diffExtra', { n: diff })}</span>;
-}
 
 function HistoryList({ events, lang }) {
   if (events === null) return <p className="uinv-sub">{tr(lang, 'loading')}</p>;
@@ -71,6 +64,7 @@ export default function UnitInventoryModal({ listing, user, onClose }) {
   const [msg, setMsg] = useState(null);
   const [copied, setCopied] = useState(false);
   const [collapsed, setCollapsed] = useState({});
+  const [onlyChanged, setOnlyChanged] = useState(false);
   const fileRef = useRef(null);
 
   const load = async () => {
@@ -106,6 +100,15 @@ export default function UnitInventoryModal({ listing, user, onClose }) {
   };
   const dirtyItems = list.filter(isDirty);
   const drifted = list.filter(it => it.baselineCount !== it.currentCount);
+  // What's on screen is judged by the count as typed, so a row lights up
+  // the moment its number leaves the baseline; `drifted` above stays on
+  // saved counts because that is what re-baselining acts on.
+  const diffOf = (it) => diffFromBaseline(it, draft[it.id]?.count);
+  const tally = tallyDiffs(list, diffOf);
+  // Rows being edited stay in the narrowed list even if typed back to the
+  // baseline, so they don't vanish mid-edit. With nothing changed the
+  // narrowing is ignored rather than leaving an empty list.
+  const shown = onlyChanged && tally.changed > 0 ? list.filter(it => diffOf(it) !== 0 || isDirty(it)) : list;
   const setTyped = (it, field, value) => setDraft(prev => ({ ...prev, [it.id]: { ...typed(it), [field]: value } }));
 
   const saveCounts = () => {
@@ -282,22 +285,26 @@ export default function UnitInventoryModal({ listing, user, onClose }) {
 
             {list.length === 0
               ? <div className="uinv-box"><strong>{T('empty')}</strong><p className="uinv-help">{T('emptyHint')}</p></div>
-              : <p className="uinv-sub">{T('summary', { n: list.length, d: drifted.length })}</p>}
+              : <DiffSummary lang={lang} total={list.length} tally={tally} onlyChanged={onlyChanged} onToggle={() => setOnlyChanged(v => !v)} />}
 
-            {groupByArea(list, lang).map(group => (
+            {groupByArea(shown, lang).map(group => {
+              const areaChanged = tallyDiffs(group.items, diffOf).changed;
+              return (
               <div key={group.key}>
                 <div className="uinv-area" onClick={() => setCollapsed(c => ({ ...c, [group.key]: !c[group.key] }))}>
                   <h2>{collapsed[group.key] ? '▸' : '▾'} {group.label}</h2>
                   <small>{T('itemsInArea', { n: group.items.length })}</small>
+                  {areaChanged > 0 && <span className="uinv-badge uinv-badge-chg">{T('areaChanged', { n: areaChanged })}</span>}
                 </div>
                 {!collapsed[group.key] && group.items.map(it => {
                   const v = typed(it);
+                  const diff = diffOf(it);
                   const other = pickOther(lang, it.nameEn, it.nameEs);
                   const ownerNote = pick(lang, it.noteEn, it.noteEs);
                   return (
-                    <div key={it.id} className={`uinv-item${it.baselineCount !== it.currentCount ? ' uinv-item-diff' : ''}${isDirty(it) ? ' uinv-item-dirty' : ''}`}>
+                    <div key={it.id} className={`uinv-item${diffClass(diff)}${isDirty(it) ? ' uinv-item-dirty' : ''}`}>
                       <div>
-                        <div className="uinv-name">{pick(lang, it.nameEn, it.nameEs)} <DiffBadge item={it} lang={lang} /></div>
+                        <div className="uinv-name">{pick(lang, it.nameEn, it.nameEs)} <DiffBadge diff={diff} lang={lang} /></div>
                         {other && <div className="uinv-other">{other}</div>}
                         {ownerNote && <div className="uinv-onote">{ownerNote}</div>}
                       </div>
@@ -326,7 +333,8 @@ export default function UnitInventoryModal({ listing, user, onClose }) {
                   );
                 })}
               </div>
-            ))}
+              );
+            })}
 
             {dirtyItems.length > 0 && (
               <div className="uinv-bar">

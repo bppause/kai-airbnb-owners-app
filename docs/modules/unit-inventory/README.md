@@ -26,6 +26,13 @@ unnoticed.
   current counts become the new baseline, for one item or for every item
   that has drifted. This is the only way a baseline moves after an item
   is created.
+- **Changes stand out.** An item whose count is below its baseline is
+  painted red with a "▼ n missing" badge; above it, blue with "▲ n
+  extra". Colour is never the only signal. A summary above the list
+  says how many items differ, each area header carries its own "n
+  changed" badge (visible while the area is folded), and the owner can
+  narrow the list to changed items only. The marks follow the count as
+  it is typed, on both the owner's panel and the cleaning-service page.
 - **History.** Every change to a count, a note or a baseline is appended
   to `unit_inventory_events` with who made it and the before and after
   values. Rows are never updated or deleted, and they carry the item's

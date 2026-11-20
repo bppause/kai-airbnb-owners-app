@@ -34,7 +34,10 @@ export const UINV_CSS = `
 .uinv-area{margin:16px 0 6px;display:flex;align-items:baseline;gap:8px;border-bottom:2px solid #d9e6e1;padding-bottom:4px;cursor:pointer;user-select:none}
 .uinv-area small{color:#5d7a82;font-weight:400}
 .uinv-item{border:1px solid rgba(47,79,58,.14);border-radius:12px;padding:10px 12px;margin-bottom:8px;background:#fff;display:grid;gap:8px}
-.uinv-item-diff{border-color:#e2c27a;background:#fffdf5}
+.uinv-item-miss{border-color:#e39a92;border-left:6px solid #c0392b;background:#fff3f1}
+.uinv-item-extra{border-color:#9dbfe6;border-left:6px solid #1c6fc4;background:#f0f6ff}
+.uinv-item-miss .uinv-num{border:2px solid #c0392b;color:#9d1f16;background:#fff}
+.uinv-item-extra .uinv-num{border:2px solid #1c6fc4;color:#1c4f8a;background:#fff}
 .uinv-item-dirty{box-shadow:0 0 0 2px rgba(11,127,140,.35)}
 .uinv-name{font-weight:700}
 .uinv-other{font-size:.8rem;color:#5d7a82}
@@ -49,8 +52,12 @@ export const UINV_CSS = `
 .uinv-step button{width:42px;height:42px;border-radius:10px;border:1px solid rgba(47,79,58,.28);background:#fff;font-size:1.2rem;font-weight:700;cursor:pointer;color:#17313a}
 .uinv-grow{flex:1 1 200px;min-width:0}
 .uinv-badge{display:inline-block;border-radius:999px;padding:2px 10px;font-size:.74rem;font-weight:700}
-.uinv-badge-miss{background:#fde8e6;color:#9d1f16}
-.uinv-badge-extra{background:#e6f1fd;color:#1c4f8a}
+.uinv-badge{white-space:nowrap}
+.uinv-badge-miss{background:#c0392b;color:#fff}
+.uinv-badge-extra{background:#1c6fc4;color:#fff}
+.uinv-badge-chg{background:#fff1cc;color:#7a4f00;border:1px solid #e2c27a}
+.uinv-sum{display:flex;gap:8px 12px;align-items:center;justify-content:space-between;flex-wrap:wrap;border:1px solid #e2c27a;background:#fff8e6;border-radius:12px;padding:10px 12px;margin:10px 0 4px}
+.uinv-sum-ok{border-color:#b7e2c8;background:#eaf8f0;color:#0b5f3a;font-weight:700}
 .uinv-form{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
 .uinv-form .uinv-full{grid-column:1/-1}
 .uinv-bar{position:sticky;bottom:0;background:rgba(255,255,255,.96);border-top:1px solid #d9e6e1;padding:10px 0 2px;margin-top:12px;display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap}

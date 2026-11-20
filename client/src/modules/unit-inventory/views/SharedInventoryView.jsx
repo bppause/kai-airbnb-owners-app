@@ -12,7 +12,8 @@
 
 import React, { useEffect, useState } from "react";
 import { api } from "../../../core/api";
-import { tr, pick, pickOther, groupByArea, formatWhen, parseCountInput, API_BASE } from "../strings";
+import { tr, pick, pickOther, groupByArea, formatWhen, parseCountInput, diffFromBaseline, diffClass, tallyDiffs, API_BASE } from "../strings";
+import { DiffBadge, DiffSummary } from "../components/DiffMarks";
 import { UINV_CSS } from "../styles";
 
 const NAME_KEY = 'kai_inventory_name';
@@ -73,6 +74,9 @@ export default function SharedInventoryView({ token }) {
     return !!v && (v.count !== String(it.currentCount) || v.note !== it.currentNote);
   };
   const dirtyItems = items.filter(isDirty);
+  // Judged by the count as typed, so a row lights up as soon as its
+  // number leaves the expected one.
+  const diffOf = (it) => diffFromBaseline(it, draft[it.id]?.count);
   const setTyped = (it, field, value) => {
     setMsg(null);
     setDraft(prev => ({ ...prev, [it.id]: { ...typed(it), [field]: value } }));
@@ -132,27 +136,29 @@ export default function SharedInventoryView({ token }) {
 
       {msg && <div className={`uinv-msg ${msg.err ? 'uinv-msg-err' : 'uinv-msg-ok'}`} style={{ marginTop: 10 }}>{msg.text}</div>}
       {items.length === 0 && <p className="uinv-sub" style={{ marginTop: 12 }}>{T('empty')}</p>}
+      {items.length > 0 && <DiffSummary lang={lang} total={items.length} tally={tallyDiffs(items, diffOf)} shared />}
       {items.length > 0 && visible.length === 0 && <p className="uinv-sub" style={{ marginTop: 12 }}>{T('noMatches')}</p>}
 
       {groupByArea(visible, lang).map(group => {
         // A search opens every area that has a match, whatever was folded.
         const folded = !needle && collapsed[group.key];
+        const areaChanged = tallyDiffs(group.items, diffOf).changed;
         return (
           <div key={group.key}>
             <div className="uinv-area" onClick={() => setCollapsed(c => ({ ...c, [group.key]: !c[group.key] }))}>
               <h2>{folded ? '▸' : '▾'} {group.label}</h2>
               <small>{T('itemsInArea', { n: group.items.length })}</small>
+              {areaChanged > 0 && <span className="uinv-badge uinv-badge-chg">{T('areaChanged', { n: areaChanged })}</span>}
             </div>
             {!folded && group.items.map(it => {
               const v = typed(it);
               const other = pickOther(lang, it.nameEn, it.nameEs);
               const ownerNote = pick(lang, it.noteEn, it.noteEs);
-              const shown = parseCountInput(v.count);
-              const differs = (shown == null ? it.currentCount : shown) !== it.baselineCount;
+              const diff = diffOf(it);
               return (
-                <div key={it.id} className={`uinv-item${differs ? ' uinv-item-diff' : ''}${isDirty(it) ? ' uinv-item-dirty' : ''}`}>
+                <div key={it.id} className={`uinv-item${diffClass(diff)}${isDirty(it) ? ' uinv-item-dirty' : ''}`}>
                   <div>
-                    <div className="uinv-name">{pick(lang, it.nameEn, it.nameEs)}</div>
+                    <div className="uinv-name">{pick(lang, it.nameEn, it.nameEs)} <DiffBadge diff={diff} lang={lang} /></div>
                     {other && <div className="uinv-other">{other}</div>}
                     {ownerNote && <div className="uinv-onote">{ownerNote}</div>}
                   </div>
