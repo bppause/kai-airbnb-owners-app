@@ -174,7 +174,9 @@ Mounted at `/api/m/unit-inventory`.
   `components/UnitInventoryModal.jsx`.
 - **Cleaning service:** `views/SharedInventoryView.jsx`, rendered by
   `client/src/main.jsx` in place of the app when the URL carries
-  `?inventory=`. Spanish or English.
+  `?inventory=`. Opens in Spanish whatever the phone's language or the
+  app's language setting; the person can switch it to English, and that
+  choice is remembered for this page only.
 - Both render their items through `components/ItemList.jsx`.
 
 ### On a phone
