@@ -41,6 +41,8 @@ export const UINV_CSS = `
 .uinv-item-dirty{box-shadow:0 0 0 2px rgba(11,127,140,.35)}
 .uinv-name{font-weight:700}
 .uinv-other{font-size:.8rem;color:#5d7a82}
+.uinv-area-other{font-size:.8rem;font-weight:400;color:#5d7a82}
+.uinv-onote-other{font-style:normal;color:#6b8790}
 .uinv-onote{font-size:.8rem;color:#48656d;font-style:italic}
 .uinv-meta{font-size:.76rem;color:#6b8790}
 .uinv-fields{display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap}

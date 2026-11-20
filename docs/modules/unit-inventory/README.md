@@ -15,9 +15,12 @@ unnoticed.
 
 ## How it works
 
-- **Items** are described in English and Spanish and grouped by area
-  (also bilingual). Either language may be left blank; the screen falls
-  back to the other one.
+- **Items** are described in Spanish and English and grouped by area
+  (also bilingual). Spanish is always the main line and English the
+  smaller one under it, whatever language the screen's labels are in:
+  the people counting work in Spanish, and a fixed order means the owner
+  and the cleaning service read the same line. Either language may be
+  left blank; the screen falls back to the one that was filled in.
 - **Two counts per item.** The *baseline* is what the owner says should
   be there. The *current count* is what was last counted. Counting never
   changes the baseline.

@@ -11,14 +11,14 @@ import React, { useEffect, useRef, useState } from "react";
 import { useApp } from "../../../core/app-state";
 import { api } from "../../../core/api";
 import { aptDisplay } from "../../../core/i18n/app-text";
-import { tr, pick, pickOther, groupByArea, formatWhen, parseCountInput, diffFromBaseline, diffClass, tallyDiffs, API_BASE } from "../strings";
+import { tr, primaryText, secondaryText, groupByArea, formatWhen, parseCountInput, diffFromBaseline, diffClass, tallyDiffs, API_BASE } from "../strings";
 import { DiffBadge, DiffSummary } from "./DiffMarks";
 import { itemsFromCsv } from "../csv";
 import { UINV_CSS } from "../styles";
 
-// The descriptive fields of an item, in form order. Each is also the key
+// The descriptive fields of an item, in form order (Spanish first). Each is also the key
 // of its label in strings.js and of its entry in an edit event's changes.
-const EDIT_FIELDS = ['areaEn', 'areaEs', 'nameEn', 'nameEs', 'noteEn', 'noteEs'];
+const EDIT_FIELDS = ['areaEs', 'areaEn', 'nameEs', 'nameEn', 'noteEs', 'noteEn'];
 
 const EMPTY_FORM = { areaEn: '', areaEs: '', nameEn: '', nameEs: '', noteEn: '', noteEs: '', count: '1' };
 
@@ -45,7 +45,8 @@ function HistoryList({ events, lang }) {
         const actor = `${tr(lang, ev.actorType === 'cleaner' ? 'actorCleaner' : 'actorOwner')}${ev.actorName ? ` · ${ev.actorName}` : ''}`;
         return (
           <div key={ev.id} className="uinv-hist">
-            <div className="uinv-name">{pick(lang, ev.itemNameEn, ev.itemNameEs)}</div>
+            <div className="uinv-name">{primaryText(ev.itemNameEn, ev.itemNameEs)}</div>
+            {secondaryText(ev.itemNameEn, ev.itemNameEs) && <div className="uinv-other">{secondaryText(ev.itemNameEn, ev.itemNameEs)}</div>}
             {lines.map((l, i) => <div key={i}>{l}</div>)}
             <div className="uinv-hist-when">{formatWhen(ev.createdAt, lang)} · {actor}</div>
           </div>
@@ -145,7 +146,7 @@ export default function UnitInventoryModal({ listing, user, onClose }) {
   };
 
   const removeItem = (it) => {
-    if (!window.confirm(T('deleteConfirm', { name: pick(lang, it.nameEn, it.nameEs) }))) return;
+    if (!window.confirm(T('deleteConfirm', { name: primaryText(it.nameEn, it.nameEs) }))) return;
     run(async () => {
       await api.del(`${API_BASE}/items/${encodeURIComponent(it.id)}`, who);
       setDraft(prev => { const next = { ...prev }; delete next[it.id]; return next; });
@@ -273,14 +274,14 @@ export default function UnitInventoryModal({ listing, user, onClose }) {
               <div className="uinv-box">
                 <h2 style={{ marginBottom: 8 }}>{form.id ? T('formEdit') : T('formAdd')}</h2>
                 <div className="uinv-form">
-                  <label className="uinv-field">{T('areaEn')}<input list="uinv-areas-en" value={form.areaEn} maxLength={120} onChange={e => setForm({ ...form, areaEn: e.target.value })} /></label>
                   <label className="uinv-field">{T('areaEs')}<input list="uinv-areas-es" value={form.areaEs} maxLength={120} onChange={e => setForm({ ...form, areaEs: e.target.value })} /></label>
+                  <label className="uinv-field">{T('areaEn')}<input list="uinv-areas-en" value={form.areaEn} maxLength={120} onChange={e => setForm({ ...form, areaEn: e.target.value })} /></label>
                   <datalist id="uinv-areas-en">{areaOptions('areaEn').map(a => <option key={a} value={a} />)}</datalist>
                   <datalist id="uinv-areas-es">{areaOptions('areaEs').map(a => <option key={a} value={a} />)}</datalist>
-                  <label className="uinv-field">{T('nameEn')}<input value={form.nameEn} maxLength={300} onChange={e => setForm({ ...form, nameEn: e.target.value })} /></label>
                   <label className="uinv-field">{T('nameEs')}<input value={form.nameEs} maxLength={300} onChange={e => setForm({ ...form, nameEs: e.target.value })} /></label>
-                  <label className="uinv-field">{T('noteEn')}<input value={form.noteEn} maxLength={1000} onChange={e => setForm({ ...form, noteEn: e.target.value })} /></label>
+                  <label className="uinv-field">{T('nameEn')}<input value={form.nameEn} maxLength={300} onChange={e => setForm({ ...form, nameEn: e.target.value })} /></label>
                   <label className="uinv-field">{T('noteEs')}<input value={form.noteEs} maxLength={1000} onChange={e => setForm({ ...form, noteEs: e.target.value })} /></label>
+                  <label className="uinv-field">{T('noteEn')}<input value={form.noteEn} maxLength={1000} onChange={e => setForm({ ...form, noteEn: e.target.value })} /></label>
                   {form.id
                     ? <p className="uinv-help uinv-full">{T('baselineLocked')}</p>
                     : <label className="uinv-field">{T('startCount')}<input className="uinv-num" inputMode="numeric" value={form.count} onChange={e => setForm({ ...form, count: e.target.value })} /></label>}
@@ -301,21 +302,22 @@ export default function UnitInventoryModal({ listing, user, onClose }) {
               return (
               <div key={group.key}>
                 <div className="uinv-area" onClick={() => setCollapsed(c => ({ ...c, [group.key]: !c[group.key] }))}>
-                  <h2>{collapsed[group.key] ? '▸' : '▾'} {group.label}</h2>
+                  <h2>{collapsed[group.key] ? '▸' : '▾'} {group.label}{group.other && <span className="uinv-area-other"> · {group.other}</span>}</h2>
                   <small>{T('itemsInArea', { n: group.items.length })}</small>
                   {areaChanged > 0 && <span className="uinv-badge uinv-badge-chg">{T('areaChanged', { n: areaChanged })}</span>}
                 </div>
                 {!collapsed[group.key] && group.items.map(it => {
                   const v = typed(it);
                   const diff = diffOf(it);
-                  const other = pickOther(lang, it.nameEn, it.nameEs);
-                  const ownerNote = pick(lang, it.noteEn, it.noteEs);
+                  const other = secondaryText(it.nameEn, it.nameEs);
+                  const ownerNote = primaryText(it.noteEn, it.noteEs);
+                  const ownerNoteOther = secondaryText(it.noteEn, it.noteEs);
                   return (
                     <div key={it.id} className={`uinv-item${diffClass(diff)}${isDirty(it) ? ' uinv-item-dirty' : ''}`}>
                       <div>
-                        <div className="uinv-name">{pick(lang, it.nameEn, it.nameEs)} <DiffBadge diff={diff} lang={lang} /></div>
+                        <div className="uinv-name">{primaryText(it.nameEn, it.nameEs)} <DiffBadge diff={diff} lang={lang} /></div>
                         {other && <div className="uinv-other">{other}</div>}
-                        {ownerNote && <div className="uinv-onote">{ownerNote}</div>}
+                        {ownerNote && <div className="uinv-onote">{ownerNote}{ownerNoteOther && <span className="uinv-onote-other"> · {ownerNoteOther}</span>}</div>}
                       </div>
                       <div className="uinv-fields">
                         <div className="uinv-field">{T('baseline')}<div className="uinv-base">{it.baselineCount}</div></div>
