@@ -19,7 +19,7 @@ import { api } from "../../../core/api";
 import { aptDisplay } from "../../../core/i18n/app-text";
 import { tr, primaryText, secondaryText, formatWhen, parseCountInput, diffFromBaseline, tallyDiffs, checkSummary, API_BASE } from "../strings";
 import { DiffSummary } from "./DiffMarks";
-import { ItemList, Toast, ViewSwitch, useAreaFolding, areaKey } from "./ItemList";
+import { ItemList, Toast, ViewSwitch, FilterBar, useAreaFolding, areaKey } from "./ItemList";
 import { CountComplete, LastCheckLine } from "./CountComplete";
 import { PendingProposals } from "./Proposals";
 import { DamageList } from "./Damages";
@@ -525,7 +525,7 @@ export default function UnitInventoryModal({ listing, user, onClose }) {
             {list.length === 0 && <div className="uinv-box"><strong>{T('empty')}</strong><p className="uinv-help">{T('emptyHint')}</p></div>}
             {list.length > 0 && (
               <>
-                <input className="uinv-input" type="search" value={search} placeholder={T('search')} enterKeyHint="search" onChange={e => setSearch(e.target.value)} />
+                <FilterBar lang={lang} search={search} onSearch={setSearch} required={requiredCount} view={showing} onView={setView} />
                 <DiffSummary lang={lang} total={list.length} tally={tally} onlyChanged={onlyChanged} onToggle={() => setOnlyChanged(v => !v)} />
                 <LastCheckLine lang={lang} lastCheck={lastCheck} />
                 {requiredCount > 0

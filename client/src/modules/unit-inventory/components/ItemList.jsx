@@ -171,6 +171,23 @@ export function ItemList({ items, lang, folding, forceOpen = false, busy, expect
   );
 }
 
+// The search box, pinned under the header so the list can be narrowed
+// from wherever it is scrolled to. Beside it, once the owner has flagged
+// anything, a ★ chip that flips between the every-checkout items and
+// everything — the same choice as ViewSwitch, within thumb's reach.
+export function FilterBar({ lang, search, onSearch, required, view, onView }) {
+  return (
+    <div className="uinv-filterbar">
+      <input className="uinv-input" type="search" value={search} placeholder={tr(lang, 'search')} enterKeyHint="search" onChange={e => onSearch(e.target.value)} />
+      {required > 0 && (
+        <button type="button" className={`uinv-chip${view === 'required' ? ' uinv-chip-on' : ''}`} aria-pressed={view === 'required'}
+          aria-label={tr(lang, 'filterRequired')} title={tr(lang, 'filterRequired')}
+          onClick={() => onView(view === 'required' ? 'all' : 'required')}>★ {required}</button>
+      )}
+    </div>
+  );
+}
+
 // Switches the list between the items flagged for every checkout and
 // everything in the unit. Shown only when something is flagged; `hint`
 // says what the ★ means to whoever is looking.

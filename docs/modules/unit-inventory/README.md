@@ -207,7 +207,9 @@ runs to a couple of hundred items. Both screens are built around that:
   Accept as baseline) sits behind a toggle and opens by itself as soon
   as the item has a note or its count leaves the baseline.
 - **Nothing scrolls out of reach.** The owner's title bar and close
-  button, the area being scrolled through, and the save bar stay pinned.
+  button, the search box (with a ★ chip that flips between the
+  every-checkout items and everything), the area being scrolled
+  through, and the save bar stay pinned.
   Messages appear pinned at the bottom rather than at the top of the
   list. Saving without a name on the cleaning-service page brings the
   name box into view.

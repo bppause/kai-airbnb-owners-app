@@ -22,7 +22,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { api } from "../../../core/api";
 import { tr, parseCountInput, diffFromBaseline, tallyDiffs, groupByArea, API_BASE } from "../strings";
 import { DiffSummary } from "../components/DiffMarks";
-import { ItemList, Toast, ViewSwitch, useAreaFolding } from "../components/ItemList";
+import { ItemList, Toast, ViewSwitch, FilterBar, useAreaFolding } from "../components/ItemList";
 import { CountComplete, LastCheckLine } from "../components/CountComplete";
 import { ProposeItemForm, PendingProposals } from "../components/Proposals";
 import { DamageForm, DamageList } from "../components/Damages";
@@ -279,7 +279,7 @@ export default function SharedInventoryView({ token }) {
       {items.length === 0 && <p className="uinv-sub" style={{ marginTop: 12 }}>{T('empty')}</p>}
       {items.length > 0 && (
         <>
-          <input className="uinv-input" type="search" value={search} placeholder={T('search')} enterKeyHint="search" onChange={e => setSearch(e.target.value)} />
+          <FilterBar lang={lang} search={search} onSearch={setSearch} required={requiredItems.length} view={showing} onView={setView} />
           <DiffSummary lang={lang} total={items.length} tally={tallyDiffs(items, diffOf)} shared />
           <LastCheckLine lang={lang} lastCheck={lastCheck} />
           <ViewSwitch lang={lang} view={showing} onChange={setView} required={requiredItems.length} total={items.length} hint={T('reqHintShared')} />

@@ -169,6 +169,7 @@ const STR = {
   reqTurnOff:       { es: 'Dejar de exigir el conteo en cada salida', en: 'Stop requiring a count at every checkout' },
   viewRequired:     { es: '★ Cada salida ({n})', en: '★ Every checkout ({n})' },
   viewAll:          { es: 'Todos ({n})', en: 'All ({n})' },
+  filterRequired:   { es: 'Ver solo los de cada salida', en: 'Show only every-checkout items' },
   reqHintShared:    { es: 'Los artículos con ★ deben contarse en cada salida. El resto está en la lista como referencia; cuéntalo solo si notas un cambio.', en: 'Items marked ★ must be counted at every checkout. The rest are on the list for reference; count them only if you notice a change.' },
   reqHintOwner:     { es: 'Marca con ★ lo que el servicio de limpieza debe contar en cada salida. Lo demás queda en la lista como referencia.', en: 'Mark with ★ what the cleaning service must count at every checkout. Everything else stays on the list for reference.' },
   areaReqAll:       { es: '★ Toda el área', en: '★ Whole area' },
