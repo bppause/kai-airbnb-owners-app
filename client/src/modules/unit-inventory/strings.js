@@ -105,6 +105,25 @@ const STR = {
   nothingToSave:    { es: 'Sin cambios por guardar', en: 'No changes to save' },
   linkInactive:     { es: 'Este enlace no está activo. Pide uno nuevo al propietario.', en: 'This link is not active. Ask the owner for a new one.' },
   itemsInArea:      { es: '{n} artículos', en: '{n} items' },
+
+  // Phone-first list controls.
+  openAll:          { es: 'Abrir todas las áreas', en: 'Open all areas' },
+  closeAll:         { es: 'Cerrar todas las áreas', en: 'Close all areas' },
+  addNote:          { es: '＋ Nota', en: '＋ Note' },
+  more:             { es: 'Más opciones', en: 'More options' },
+  less:             { es: 'Ocultar', en: 'Hide' },
+  oneLess:          { es: 'Uno menos', en: 'One less' },
+  oneMore:          { es: 'Uno más', en: 'One more' },
+  discard:          { es: 'Descartar', en: 'Discard' },
+  discardConfirm:   { es: '¿Descartar {n} cambio(s) sin guardar?', en: 'Discard {n} unsaved change(s)?' },
+  unsavedClose:     { es: 'Tienes {n} cambio(s) sin guardar. ¿Cerrar sin guardar?', en: 'You have {n} unsaved change(s). Close without saving?' },
+  draftRestored:    { es: 'Recuperamos {n} cambio(s) que no habías guardado. Revísalos y guarda.', en: 'We restored {n} change(s) you had not saved. Check them and save.' },
+  dismiss:          { es: 'Cerrar aviso', en: 'Dismiss' },
+  linkShare:        { es: 'Compartir', en: 'Share' },
+  linkShareText:    { es: 'Inventario del apartamento {apt}: abre este enlace para actualizar los conteos.', en: 'Inventory for apartment {apt}: open this link to update the counts.' },
+  linkOptions:      { es: 'Opciones', en: 'Options' },
+  linkOnBadge:      { es: 'Activo', en: 'On' },
+  linkOffBadge:     { es: 'Desactivado', en: 'Off' },
 };
 
 const isEnglish = (lang) => String(lang || '').toLowerCase().startsWith('en');

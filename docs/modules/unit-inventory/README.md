@@ -104,7 +104,37 @@ Mounted at `/api/m/unit-inventory`.
   `components/UnitInventoryModal.jsx`.
 - **Cleaning service:** `views/SharedInventoryView.jsx`, rendered by
   `client/src/main.jsx` in place of the app when the URL carries
-  `?inventory=`. Phone-first, Spanish or English.
+  `?inventory=`. Spanish or English.
+- Both render their items through `components/ItemList.jsx`.
+
+### On a phone
+
+Counting happens on a phone, standing in the unit, and a furnished unit
+runs to a couple of hundred items. Both screens are built around that:
+
+- **Areas fold.** A list of more than 40 items opens with its areas
+  folded, each showing its item count and "n changed". One button opens
+  or closes them all; a search, or the owner's changed-only filter, opens
+  whatever it matches.
+- **Compact items.** Below 640px an item shows its name, the expected
+  count and a − / + stepper. The note (and the owner's Edit / Delete /
+  Accept as baseline) sits behind a toggle and opens by itself as soon
+  as the item has a note or its count leaves the baseline.
+- **Nothing scrolls out of reach.** The owner's title bar and close
+  button, the area being scrolled through, and the save bar stay pinned.
+  Messages appear pinned at the bottom rather than at the top of the
+  list. Saving without a name on the cleaning-service page brings the
+  name box into view.
+- **Unsaved counts survive.** The cleaning-service page keeps unsaved
+  counts in the browser (`localStorage`, per link, 24 hours) and restores
+  them after a reload or a dropped tab. The owner's panel asks before
+  closing with unsaved counts.
+- **Touch sizes.** Everything tapped is at least 44px tall and every
+  text box is 16px, so iOS does not zoom the page on focus.
+- **Sharing.** Where the browser has a share sheet, the owner gets a
+  Share button that hands the link to WhatsApp, Messages and so on.
+
+On the owner's panel the dialog fills the screen below 640px.
 
 ### CSV import
 
@@ -119,3 +149,5 @@ Only one of the two name columns is required; a blank count means 1.
   with a note.
 - No notification to the owner when a count drops below the baseline.
 - The share link is not tied to a person and does not expire on its own.
+- A count pass where everything matches leaves no record: only changes
+  are written to the history.
