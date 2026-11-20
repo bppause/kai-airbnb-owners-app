@@ -630,6 +630,25 @@ create index if not exists idx_unit_inventory_events_listing
 create index if not exists idx_unit_inventory_events_item
   on public.unit_inventory_events(item_id, created_at desc);
 
+-- Completed counts: one row each time the owner or the cleaning service
+-- marks a pass through the unit as complete, with how the unit stood
+-- against its baseline at that moment. This is what records a count that
+-- found nothing changed — unit_inventory_events only has rows for changes.
+create table if not exists public.unit_inventory_checks (
+  id text primary key,
+  listing_id text not null references public.listings(id) on delete cascade,
+  community_id text not null default 'kai',
+  actor_type text not null check (actor_type in ('owner','cleaner')),
+  actor_name text not null default '',
+  actor_uid text not null default '',
+  items_total integer not null default 0,
+  items_missing integer not null default 0,
+  items_extra integer not null default 0,
+  created_at timestamptz not null default now()
+);
+create index if not exists idx_unit_inventory_checks_listing
+  on public.unit_inventory_checks(listing_id, created_at desc);
+
 -- The cleaning service's no-login link, one per unit. The token is the
 -- only credential, so it lives here rather than on listings, whose rows
 -- are returned to every signed-in user.
@@ -661,4 +680,5 @@ alter table public.community_config disable row level security;
 alter table public.unit_inventory_items disable row level security;
 alter table public.unit_inventory_events disable row level security;
 alter table public.unit_inventory_links disable row level security;
+alter table public.unit_inventory_checks disable row level security;
 

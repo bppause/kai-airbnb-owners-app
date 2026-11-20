@@ -124,6 +124,21 @@ const STR = {
   linkOptions:      { es: 'Opciones', en: 'Options' },
   linkOnBadge:      { es: 'Activo', en: 'On' },
   linkOffBadge:     { es: 'Desactivado', en: 'Off' },
+
+  // Marking a count as complete.
+  countDoneTitle:   { es: '¿Terminaste de revisar todo?', en: 'Finished checking everything?' },
+  countDoneHelp:    { es: 'Marca el conteo como completo para que quede registrado quién revisó y cuándo, aunque nada haya cambiado.', en: 'Mark the count as complete so there is a record of who checked and when, even if nothing changed.' },
+  countDoneBtn:     { es: '✓ Conteo completo', en: '✓ Count complete' },
+  countDoneBtnSave: { es: '✓ Guardar {n} cambio(s) y completar', en: '✓ Save {n} change(s) and complete' },
+  countDoneConfirm: { es: '¿Confirmas que revisaste los {n} artículos de este apartamento?', en: 'Confirm that you checked all {n} items in this unit?' },
+  countDoneSaved:   { es: 'Conteo completo registrado. ¡Gracias!', en: 'Count recorded as complete. Thank you!' },
+  lastCheck:        { es: 'Último conteo completo: {when} · {who}', en: 'Last complete count: {when} · {who}' },
+  lastCheckNever:   { es: 'Aún no se ha registrado un conteo completo.', en: 'No complete count has been recorded yet.' },
+  histCheck:        { es: '✓ Conteo completo', en: '✓ Count complete' },
+  checkAllMatch:    { es: '{n} artículos · todo coincide', en: '{n} items · everything matched' },
+  checkTotal:       { es: '{n} artículos', en: '{n} items' },
+  checkMissing:     { es: '{n} con faltantes', en: '{n} with items missing' },
+  checkExtra:       { es: '{n} con sobrantes', en: '{n} with extras' },
 };
 
 const isEnglish = (lang) => String(lang || '').toLowerCase().startsWith('en');
@@ -204,6 +219,17 @@ export const tallyDiffs = (items, diffOf) => {
     if (d < 0) missing++; else if (d > 0) extra++;
   }
   return { missing, extra, changed: missing + extra };
+};
+
+// One line describing how the unit stood when a count was completed:
+// "259 items · everything matched" or "259 items · 2 with items missing".
+export const checkSummary = (lang, check) => {
+  if (!check.itemsMissing && !check.itemsExtra) return tr(lang, 'checkAllMatch', { n: check.itemsTotal });
+  return [
+    tr(lang, 'checkTotal', { n: check.itemsTotal }),
+    check.itemsMissing ? tr(lang, 'checkMissing', { n: check.itemsMissing }) : '',
+    check.itemsExtra ? tr(lang, 'checkExtra', { n: check.itemsExtra }) : '',
+  ].filter(Boolean).join(' · ');
 };
 
 export const API_BASE = '/api/m/unit-inventory';

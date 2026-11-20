@@ -97,6 +97,11 @@ export const UINV_CSS = `
 .uinv-bar .uinv-btn-p{flex:1 1 auto;max-width:520px}
 .uinv-hist{border-bottom:1px solid #e6eeeb;padding:8px 0;display:grid;gap:2px;overflow-wrap:anywhere}
 .uinv-hist-when{font-size:.76rem;color:#6b8790}
+.uinv-hist-check{border:1px solid #b7e2c8;background:#eaf8f0;border-radius:10px;padding:8px 10px;margin:6px 0}
+.uinv-last{font-size:.82rem;color:#48656d;margin:8px 0 0}
+.uinv-last strong{color:#0b5f3a}
+.uinv-done{margin-top:18px;background:#f1f8f4;border-color:#b7e2c8}
+.uinv-done .uinv-btn{width:100%;min-height:48px;font-size:1rem}
 .uinv-lang{border:1px solid rgba(47,79,58,.24);border-radius:10px;padding:6px 8px;min-height:44px;background:#fff;font:inherit;font-size:16px;font-weight:700}
 @media (max-width:640px){
   .uinv-overlay{padding:0;background:#fff}
