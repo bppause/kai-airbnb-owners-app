@@ -16,6 +16,10 @@ import { DiffBadge, DiffSummary } from "./DiffMarks";
 import { itemsFromCsv } from "../csv";
 import { UINV_CSS } from "../styles";
 
+// The descriptive fields of an item, in form order. Each is also the key
+// of its label in strings.js and of its entry in an edit event's changes.
+const EDIT_FIELDS = ['areaEn', 'areaEs', 'nameEn', 'nameEs', 'noteEn', 'noteEs'];
+
 const EMPTY_FORM = { areaEn: '', areaEs: '', nameEn: '', nameEs: '', noteEn: '', noteEs: '', count: '1' };
 
 function HistoryList({ events, lang }) {
@@ -27,7 +31,12 @@ function HistoryList({ events, lang }) {
         const lines = [];
         if (ev.type === 'created') lines.push(tr(lang, 'histCreated', { n: ev.countAfter }));
         if (ev.type === 'deleted') lines.push(tr(lang, 'histDeleted', { n: ev.countBefore, b: ev.baselineBefore }));
-        if (ev.type === 'edited') lines.push(tr(lang, 'histEdited'));
+        if (ev.type === 'edited') {
+          // One line per field the edit changed, labelled as in the form.
+          const changed = EDIT_FIELDS.filter(f => ev.changes && ev.changes[f]);
+          if (!changed.length) lines.push(tr(lang, 'histEdited'));
+          for (const f of changed) lines.push(tr(lang, 'histField', { field: tr(lang, f), a: ev.changes[f].before, b: ev.changes[f].after }));
+        }
         if (ev.type === 'rebaseline') lines.push(tr(lang, 'histRebaseline', { a: ev.baselineBefore, b: ev.baselineAfter }));
         if (ev.type === 'count') {
           if (ev.countBefore !== ev.countAfter) lines.push(tr(lang, 'histCount', { a: ev.countBefore, b: ev.countAfter }));

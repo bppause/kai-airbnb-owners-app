@@ -80,6 +80,7 @@ const eventFromDb = (r) => ({
   baselineAfter: r.baseline_after,
   noteBefore: r.note_before || '',
   noteAfter: r.note_after || '',
+  changes: r.changes || {},
   actorType: r.actor_type,
   actorName: r.actor_name || '',
   createdAt: r.created_at,
@@ -98,6 +99,23 @@ const parseItemFields = (raw) => {
   };
   if (!f.name_en && !f.name_es) return { error: 'An item needs a description in English or Spanish.' };
   return { fields: f };
+};
+
+// Which descriptive fields an edit changed, as the history stores them:
+// { areaEn: { before, after }, … } keyed the way the client names fields.
+const EDITABLE_FIELDS = {
+  area_en: 'areaEn', area_es: 'areaEs',
+  name_en: 'nameEn', name_es: 'nameEs',
+  note_en: 'noteEn', note_es: 'noteEs',
+};
+const describeEdit = (before, after) => {
+  const changes = {};
+  for (const [column, key] of Object.entries(EDITABLE_FIELDS)) {
+    const a = before[column] || '';
+    const b = after[column] || '';
+    if (a !== b) changes[key] = { before: a, after: b };
+  }
+  return changes;
 };
 
 module.exports = function createUnitInventoryRouter(deps) {
@@ -279,14 +297,17 @@ module.exports = function createUnitInventoryRouter(deps) {
     if (!listing) return;
     const parsed = parseItemFields(req.body);
     if (parsed.error) return res.status(400).json({ error: parsed.error });
+    // Saving the form without changing anything is not an edit: nothing
+    // is written and the history gets no empty entry.
+    const changes = describeEdit(item, parsed.fields);
+    if (!Object.keys(changes).length) return res.json({ item: itemFromDb(item) });
     const now = new Date().toISOString();
     const { data, error } = await supabase.from('unit_inventory_items')
       .update({ ...parsed.fields, updated_at: now }).eq('id', item.id).select('*').single();
     if (error) return sendSupabaseError(res, error);
     const evErr = await insertEvents([eventRow(data, listing, {
       event_type: 'edited',
-      note_before: [item.name_en, item.name_es].filter(Boolean).join(' / '),
-      note_after: [data.name_en, data.name_es].filter(Boolean).join(' / '),
+      changes,
       actor_type: 'owner', actor_name: text(actorName, MAX_ACTOR) || listing.owner || 'Owner',
       actor_uid: String(ownerUid), created_at: now,
     })]);

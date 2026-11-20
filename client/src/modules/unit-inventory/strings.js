@@ -87,6 +87,7 @@ const STR = {
   histCreated:      { es: 'Agregado con cantidad {n}', en: 'Added with count {n}' },
   histDeleted:      { es: 'Eliminado (conteo {n}, línea base {b})', en: 'Deleted (count {n}, baseline {b})' },
   histEdited:       { es: 'Descripción editada', en: 'Description edited' },
+  histField:        { es: '{field}: "{a}" → "{b}"', en: '{field}: "{a}" → "{b}"' },
   histCount:        { es: 'Conteo {a} → {b}', en: 'Count {a} → {b}' },
   histNote:         { es: 'Nota: "{a}" → "{b}"', en: 'Note: "{a}" → "{b}"' },
   histRebaseline:   { es: 'Línea base {a} → {b}', en: 'Baseline {a} → {b}' },

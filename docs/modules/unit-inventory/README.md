@@ -75,7 +75,7 @@ Three tables, all in `supabase/schema.sql`:
 | Table | Holds |
 | --- | --- |
 | `unit_inventory_items` | One row per item: bilingual area / description / owner note, `baseline_count`, `current_count`, the latest count note, who counted last. |
-| `unit_inventory_events` | Append-only history: `created`, `edited`, `count`, `rebaseline`, `deleted`. |
+| `unit_inventory_events` | Append-only history: `created`, `edited`, `count`, `rebaseline`, `deleted`. An `edited` event stores the before/after of each descriptive field that changed in `changes`; an edit that changes nothing writes no event. |
 | `unit_inventory_links` | One share link per unit: token and whether it is enabled. Kept off `listings` because listing rows are returned to every signed-in user. |
 
 ## API

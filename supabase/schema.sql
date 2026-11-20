@@ -616,11 +616,15 @@ create table if not exists public.unit_inventory_events (
   baseline_after integer,
   note_before text not null default '',
   note_after text not null default '',
+  -- For 'edited' events: the descriptive fields that changed, as
+  -- { "nameEn": { "before": "…", "after": "…" }, … }.
+  changes jsonb not null default '{}'::jsonb,
   actor_type text not null check (actor_type in ('owner','cleaner')),
   actor_name text not null default '',
   actor_uid text not null default '',
   created_at timestamptz not null default now()
 );
+alter table public.unit_inventory_events add column if not exists changes jsonb not null default '{}'::jsonb;
 create index if not exists idx_unit_inventory_events_listing
   on public.unit_inventory_events(listing_id, created_at desc);
 create index if not exists idx_unit_inventory_events_item
