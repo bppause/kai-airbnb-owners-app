@@ -20,6 +20,7 @@ docs/
 │   └── USER_STORIES.md        ← cross-module user stories by persona
 └── modules/                   ← one folder per module slug
     ├── incidents/             ← live module
+    ├── unit-inventory/        ← live module
     ├── operator-portal/       ← proposed module (concept)
     ├── building-admin/        ← future (idea)
     ├── front-desk/            ← future (idea)
@@ -67,6 +68,7 @@ files or breaking links.
 | Slug | Status | Folder | One-line purpose |
 | --- | --- | --- | --- |
 | `incidents` | live | [`modules/incidents/`](modules/incidents/README.md) | Community / property incident management with two-step workflow + SLA |
+| `unit-inventory` | live | [`modules/unit-inventory/`](modules/unit-inventory/README.md) | Per-unit inventory with owner baseline, cleaning-service counts via a no-login link, and change history |
 | `operator-portal` | concept | [`modules/operator-portal/`](modules/operator-portal/README.md) | Operator work management; owner ↔ operator relationship lifecycle |
 | `building-admin` | idea | [`modules/building-admin/`](modules/building-admin/README.md) | HOA / community admin: residents, fees, fines, governance, board minutes |
 | `front-desk` | idea | [`modules/front-desk/`](modules/front-desk/README.md) | Guard / concierge: visitors, packages, access, parking, shift log |

@@ -52,6 +52,7 @@ Live and planned modules:
 | Slug | Status | Purpose |
 | --- | --- | --- |
 | `incidents` | live | Community / property incident management |
+| `unit-inventory` | live (`docs/modules/unit-inventory/README.md`) | Per-unit inventory: bilingual item list, owner baseline, cleaning-service counts through a no-login link, change history |
 | `operator-portal` | concept (`docs/modules/operator-portal/DESIGN.md`) | Operator work management; owner ↔ operator relationship lifecycle |
 | `building-admin` | idea (`docs/modules/building-admin/README.md`) | HOA / community admin: residents, fees, fines, governance, board minutes |
 | `front-desk` | idea (`docs/modules/front-desk/README.md`) | Guard / concierge: visitors, packages, access, parking, shift log |

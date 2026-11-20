@@ -77,6 +77,8 @@ const KNOWN_AUDIT_EVENT_TYPES = [
   'email_templates.update',
   'incident.create', 'incident.verify', 'incident.add-resolution', 'incident.assign', 'incident.close-general', 'incident.resolve', 'incident.delete',
   'listing.create', 'listing.update', 'listing.delete',
+  'unit_inventory.add_items', 'unit_inventory.delete_item', 'unit_inventory.rebaseline',
+  'unit_inventory.link_enable', 'unit_inventory.link_disable', 'unit_inventory.link_regenerate',
   'user_role.delegate_update',
 ];
 
