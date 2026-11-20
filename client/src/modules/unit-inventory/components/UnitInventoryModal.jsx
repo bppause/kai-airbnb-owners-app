@@ -354,8 +354,10 @@ export default function UnitInventoryModal({ listing, user, onClose }) {
   };
   // The phone's own share sheet (WhatsApp, Messages…), where there is one.
   const canShare = typeof navigator !== 'undefined' && typeof navigator.share === 'function';
+  // The message goes to the cleaning service, so it is in Spanish
+  // whatever language the owner uses the app in.
   const shareLink = async () => {
-    try { await navigator.share({ title: T('title'), text: T('linkShareText', { apt: listing.apt || '' }), url: linkUrl }); }
+    try { await navigator.share({ title: tr('es-CO', 'title'), text: tr('es-CO', 'linkShareText', { apt: listing.apt || '' }), url: linkUrl }); }
     catch (_e) { /* the person closed the share sheet */ }
   };
 

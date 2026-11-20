@@ -29,7 +29,10 @@ import { DamageForm, DamageList } from "../components/Damages";
 import { UINV_CSS } from "../styles";
 
 const NAME_KEY = 'kai_inventory_name';
-const LANG_KEY = 'kai_lang';
+// This page's own language choice. Deliberately not the app's `kai_lang`:
+// an owner who uses the app in English and opens the link on the same
+// phone must not turn the cleaning service's page English.
+const LANG_KEY = 'kai_inventory_lang';
 const DRAFT_KEY = 'kai_inventory_draft:';
 // Unsaved counts older than this are dropped rather than restored: the
 // unit has likely been counted again since.
@@ -39,11 +42,10 @@ const readStored = (key) => { try { return localStorage.getItem(key) || ''; } ca
 const writeStored = (key, value) => { try { localStorage.setItem(key, value); } catch (_e) { /* ignore */ } };
 const dropStored = (key) => { try { localStorage.removeItem(key); } catch (_e) { /* ignore */ } };
 
-const initialLang = () => {
-  const saved = readStored(LANG_KEY);
-  if (saved) return saved.startsWith('en') ? 'en' : 'es-CO';
-  return String(navigator.language || 'es').toLowerCase().startsWith('en') ? 'en' : 'es-CO';
-};
+// Spanish unless the person has switched this page to English before.
+// The phone's own language is not consulted: the people who count work
+// in Spanish, whatever their phone is set to.
+const initialLang = () => (readStored(LANG_KEY) === 'en' ? 'en' : 'es-CO');
 
 // The unsaved counts kept for this link, limited to items that still
 // exist and still differ from what the server has.
