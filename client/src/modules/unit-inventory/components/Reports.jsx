@@ -1,0 +1,92 @@
+// Checkout reports — the owner's dated record of each completed
+// inventory: who counted and when, what was off its baseline or carried
+// a note at that moment, and the damage reported during that visit with
+// its photos. The list is summaries; a report's detail is fetched when
+// it is opened, and stays as it was however the inventory changes later.
+
+import React, { useEffect, useState } from "react";
+import { api } from "../../../core/api";
+import { tr, primaryText, secondaryText, formatWhen, checkSummary } from "../strings";
+import { DamageCard } from "./Damages";
+
+function ReportDetail({ lang, detail }) {
+  const T = (k, v) => tr(lang, k, v);
+  const { results, damages } = detail;
+  return (
+    <div className="uinv-report-body">
+      <div>
+        <h2>{T('reportDiffs', { n: results.length })}</h2>
+        {results.length === 0 && <p className="uinv-help">{T('reportNoDiffs')}</p>}
+        {results.map(r => {
+          const diff = r.count - r.baseline;
+          const other = secondaryText(r.nameEn, r.nameEs);
+          return (
+            <div key={r.itemId} className="uinv-report-row">
+              <div className="uinv-name">{primaryText(r.nameEn, r.nameEs)}{r.required && ' ★'}</div>
+              {other && <div className="uinv-other">{other}</div>}
+              <div className={diff < 0 ? 'uinv-report-miss' : diff > 0 ? 'uinv-report-extra' : ''}>
+                {T('reportExpected', { a: r.baseline, b: r.count })}
+                {diff !== 0 && ` (${T(Math.abs(diff) === 1 ? (diff < 0 ? 'diffMissingOne' : 'diffExtraOne') : (diff < 0 ? 'diffMissing' : 'diffExtra'), { n: Math.abs(diff) })})`}
+              </div>
+              {r.note && <div className="uinv-onote">{r.note}</div>}
+              <div className="uinv-meta">{primaryText(r.areaEn, r.areaEs)}</div>
+            </div>
+          );
+        })}
+      </div>
+      <div>
+        <h2>{T('reportDamages', { n: damages.length })}</h2>
+        {damages.length === 0 && <p className="uinv-help">{T('reportNoDamages')}</p>}
+        {damages.map(d => <DamageCard key={d.id} lang={lang} damage={d} photos={d.photos} />)}
+      </div>
+    </div>
+  );
+}
+
+// `unitBase` is the unit's API path; `ownerUid` proves who is asking.
+export default function CheckoutReports({ lang, unitBase, ownerUid, onError }) {
+  const T = (k, v) => tr(lang, k, v);
+  const [checks, setChecks] = useState(null);
+  const [openId, setOpenId] = useState('');
+  // Fetched report details by check id.
+  const [details, setDetails] = useState({});
+  const q = `ownerUid=${encodeURIComponent(ownerUid)}`;
+
+  useEffect(() => {
+    api.get(`${unitBase}/checks?${q}`)
+      .then(d => setChecks(d.checks || []))
+      .catch(e => { setChecks([]); onError(e); });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [unitBase]);
+
+  const toggle = (check) => {
+    if (openId === check.id) { setOpenId(''); return; }
+    setOpenId(check.id);
+    if (details[check.id]) return;
+    api.get(`${unitBase}/checks/${encodeURIComponent(check.id)}?${q}`)
+      .then(d => setDetails(prev => ({ ...prev, [check.id]: { results: d.results || [], damages: d.damages || [] } })))
+      .catch(e => { setOpenId(''); onError(e); });
+  };
+
+  if (checks === null) return <p className="uinv-sub">{T('loading')}</p>;
+  if (!checks.length) return <p className="uinv-sub">{T('reportsEmpty')}</p>;
+  return (
+    <div>
+      <p className="uinv-help" style={{ marginTop: 0 }}>{T('reportsHelp')}</p>
+      {checks.map(check => {
+        const open = openId === check.id;
+        return (
+          <div key={check.id} className="uinv-report">
+            <div className="uinv-report-when">{formatWhen(check.createdAt, lang)}</div>
+            <div>{checkSummary(lang, check)}</div>
+            <div className="uinv-meta">{T(check.actorType === 'cleaner' ? 'actorCleaner' : 'actorOwner')}{check.actorName ? ` · ${check.actorName}` : ''}</div>
+            <div className="uinv-row" style={{ marginTop: 4 }}>
+              <button type="button" className="uinv-btn uinv-btn-sm" aria-expanded={open} onClick={() => toggle(check)}>{T(open ? 'reportClose' : 'reportOpen')}</button>
+            </div>
+            {open && (details[check.id] ? <ReportDetail lang={lang} detail={details[check.id]} /> : <p className="uinv-sub" style={{ margin: '8px 0 0' }}>{T('loading')}</p>)}
+          </div>
+        );
+      })}
+    </div>
+  );
+}

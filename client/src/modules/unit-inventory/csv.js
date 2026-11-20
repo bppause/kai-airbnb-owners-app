@@ -4,7 +4,8 @@
 //
 // Expected header row: area_en, area_es, name_en, name_es, count,
 // note_en, note_es — in any order, any capitalisation; only one of the
-// two name columns is required.
+// two name columns is required. An optional `required` column (yes / no)
+// flags the items to count at every checkout.
 
 // RFC 4180-style parse: quoted fields, doubled quotes, commas and line
 // breaks inside quotes, CRLF or LF, optional BOM. Returns every row of
@@ -41,7 +42,13 @@ const COLUMNS = {
   name_en: 'nameEn', name_es: 'nameEs',
   count: 'count', qty: 'count', quantity: 'count', cantidad: 'count',
   note_en: 'noteEn', note_es: 'noteEs',
+  required: 'countRequired', count_required: 'countRequired', obligatorio: 'countRequired',
+  cada_salida: 'countRequired', every_checkout: 'countRequired',
 };
+
+// What counts as "yes" in the optional required column. Anything else,
+// including a blank cell, leaves the item not required — the default.
+const YES = /^(y|yes|s|si|sí|true|1|x|★)$/i;
 
 // Turns CSV text into items ready for POST …/items. Returns
 // { items, problems } where each problem is { row, code } with `row`
@@ -68,7 +75,7 @@ export function itemsFromCsv(text) {
     if (!item.nameEn && !item.nameEs) { problems.push({ row: rowNumber, code: 'needName' }); return; }
     const countText = item.count === '' ? '1' : item.count;
     if (!/^\d{1,6}$/.test(countText)) { problems.push({ row: rowNumber, code: 'badCount' }); return; }
-    items.push({ ...item, count: Number(countText) });
+    items.push({ ...item, count: Number(countText), countRequired: YES.test(item.countRequired || '') });
   });
   return { items, problems };
 }

@@ -73,7 +73,7 @@ const STR = {
   linkOff:          { es: 'El enlace está desactivado.', en: 'The link is turned off.' },
 
   importTitle:      { es: 'Importar desde CSV', en: 'Import from CSV' },
-  importHelp:       { es: 'Columnas: area_en, area_es, name_en, name_es, count, note_en, note_es. La primera fila son los encabezados.', en: 'Columns: area_en, area_es, name_en, name_es, count, note_en, note_es. The first row is the header.' },
+  importHelp:       { es: 'Columnas: area_en, area_es, name_en, name_es, count, note_en, note_es. La primera fila son los encabezados. Opcional: required (sí/no) para marcar lo que se cuenta en cada salida.', en: 'Columns: area_en, area_es, name_en, name_es, count, note_en, note_es. The first row is the header. Optional: required (yes/no) to mark what is counted at every checkout.' },
   importChoose:     { es: 'Elegir archivo…', en: 'Choose file…' },
   importPreview:    { es: '{n} artículos listos para importar.', en: '{n} items ready to import.' },
   importConfirm:    { es: 'Importar {n} artículos', en: 'Import {n} items' },
@@ -94,7 +94,6 @@ const STR = {
   actorOwner:       { es: 'Propietario', en: 'Owner' },
   actorCleaner:     { es: 'Limpieza', en: 'Cleaning' },
 
-  sharedSubtitle:   { es: 'Revisa cada artículo, corrige el conteo si cambió y deja una nota si hace falta. Si un artículo ya no está, deja el conteo en 0.', en: 'Check each item, correct the count if it changed, and leave a note if needed. If an item is no longer there, set its count to 0.' },
   yourName:         { es: 'Tu nombre', en: 'Your name' },
   yourNameHint:     { es: 'Se guarda junto con tus cambios.', en: 'Saved with your changes.' },
   nameNeeded:       { es: 'Escribe tu nombre antes de guardar.', en: 'Enter your name before saving.' },
@@ -135,7 +134,6 @@ const STR = {
   lastCheck:        { es: 'Último conteo completo: {when} · {who}', en: 'Last complete count: {when} · {who}' },
   lastCheckNever:   { es: 'Aún no se ha registrado un conteo completo.', en: 'No complete count has been recorded yet.' },
   histCheck:        { es: '✓ Conteo completo', en: '✓ Count complete' },
-  checkAllMatch:    { es: '{n} artículos · todo coincide', en: '{n} items · everything matched' },
   checkTotal:       { es: '{n} artículos', en: '{n} items' },
   checkMissing:     { es: '{n} con faltantes', en: '{n} with items missing' },
   checkExtra:       { es: '{n} con sobrantes', en: '{n} with extras' },
@@ -164,6 +162,84 @@ const STR = {
   approvedMsg:      { es: 'Agregado al inventario.', en: 'Added to the inventory.' },
   rejectedMsg:      { es: 'Propuesta rechazada.', en: 'Proposal rejected.' },
   histProposedBy:   { es: '{line} · propuesto por {who}', en: '{line} · proposed by {who}' },
+
+  // Items that must be counted at every checkout (★). Off by default.
+  reqBadge:         { es: '★ Cada salida', en: '★ Every checkout' },
+  reqTurnOn:        { es: 'Pedir que se cuente en cada salida', en: 'Require counting at every checkout' },
+  reqTurnOff:       { es: 'Dejar de exigir el conteo en cada salida', en: 'Stop requiring a count at every checkout' },
+  viewRequired:     { es: '★ Cada salida ({n})', en: '★ Every checkout ({n})' },
+  viewAll:          { es: 'Todos ({n})', en: 'All ({n})' },
+  reqHintShared:    { es: 'Los artículos con ★ deben contarse en cada salida. El resto está en la lista como referencia; cuéntalo solo si notas un cambio.', en: 'Items marked ★ must be counted at every checkout. The rest are on the list for reference; count them only if you notice a change.' },
+  reqHintOwner:     { es: 'Marca con ★ lo que el servicio de limpieza debe contar en cada salida. Lo demás queda en la lista como referencia.', en: 'Mark with ★ what the cleaning service must count at every checkout. Everything else stays on the list for reference.' },
+  areaReqAll:       { es: '★ Toda el área', en: '★ Whole area' },
+  areaReqNone:      { es: '☆ Quitar del área', en: '☆ Clear area' },
+  areaReqCount:     { es: '★ {n}', en: '★ {n}' },
+  formRequired:     { es: 'Contar en cada salida (★)', en: 'Count at every checkout (★)' },
+  countDoneConfirmReq: { es: '¿Confirmas que revisaste los {n} artículos que se cuentan en cada salida?', en: 'Confirm that you checked the {n} items counted at every checkout?' },
+  checkRequired:    { es: '{n} de cada salida revisados', en: '{n} every-checkout items checked' },
+  checkMatch:       { es: 'todo coincide', en: 'everything matched' },
+
+  // What the cleaning service is asked to do, step by step.
+  taskTitle:        { es: 'Qué hacer en esta salida', en: 'What to do at this checkout' },
+  taskCountReq:     { es: 'Cuenta los {n} artículos marcados ★.', en: 'Count the {n} items marked ★.' },
+  taskCountAll:     { es: 'Cuenta todos los artículos de la lista ({n}).', en: 'Count every item on the list ({n}).' },
+  taskCountHow:     { es: 'Corrige el número si cambió. Si algo ya no está, pon 0 y deja una nota.', en: 'Correct the number if it changed. If something is gone, set 0 and leave a note.' },
+  taskDamage:       { es: 'Reporta cualquier daño que veas, con foto.', en: 'Report any damage you see, with a photo.' },
+  taskFinish:       { es: 'Al terminar, toca “Conteo completo”.', en: 'When you finish, tap “Count complete”.' },
+
+  // Damage reports.
+  damageBtn:        { es: '⚠️ Reportar un daño', en: '⚠️ Report damage' },
+  damageBtnItem:    { es: '⚠️ Reportar daño', en: '⚠️ Report damage' },
+  damageTitle:      { es: 'Reportar un daño', en: 'Report damage' },
+  damageHelp:       { es: 'El propietario recibe el reporte con las fotos.', en: 'The owner receives the report with the photos.' },
+  damageDesc:       { es: '¿Qué está dañado?', en: 'What is damaged?' },
+  damageDescPh:     { es: 'Ej.: vidrio de la mesa rajado', en: 'E.g. cracked glass on the table' },
+  damageArea:       { es: 'Área', en: 'Area' },
+  damageAreaNone:   { es: 'General / otra', en: 'General / other' },
+  damageItem:       { es: 'Artículo (si aplica)', en: 'Item (if it applies)' },
+  damageItemNone:   { es: '— No aplica —', en: '— Does not apply —' },
+  damageLocation:   { es: 'Lugar exacto (opcional)', en: 'Exact spot (optional)' },
+  damagePhotos:     { es: 'Fotos (hasta {n})', en: 'Photos (up to {n})' },
+  damageAddPhoto:   { es: '📷 Agregar foto', en: '📷 Add photo' },
+  damagePhotoRemove:{ es: 'Quitar foto', en: 'Remove photo' },
+  damagePhotoBusy:  { es: 'Preparando foto…', en: 'Preparing photo…' },
+  damagePhotoBad:   { es: 'No se pudo usar esa foto. Prueba con otra.', en: 'That photo could not be used. Try another.' },
+  damageSend:       { es: 'Enviar reporte', en: 'Send report' },
+  damageSent:       { es: 'Daño reportado. El propietario fue avisado.', en: 'Damage reported. The owner has been told.' },
+  damageDescNeeded: { es: 'Describe el daño.', en: 'Describe the damage.' },
+  damagesVisit:     { es: 'Daños reportados en esta visita ({n})', en: 'Damage reported this visit ({n})' },
+  damagesOpen:      { es: 'Daños abiertos ({n})', en: 'Open damage reports ({n})' },
+  damagePhotoCount: { es: '📷 {n} foto(s)', en: '📷 {n} photo(s)' },
+  damageShowPhotos: { es: '📷 Ver fotos ({n})', en: '📷 View photos ({n})' },
+  damagePhotoAlt:   { es: 'Foto del daño', en: 'Photo of the damage' },
+  damageResolve:    { es: '✓ Marcar resuelto', en: '✓ Mark resolved' },
+  damageResolved:   { es: 'Resuelto', en: 'Resolved' },
+  damageResolvedMsg:{ es: 'Daño marcado como resuelto.', en: 'Damage marked as resolved.' },
+  damageBy:         { es: 'Reportado por {who} · {when}', en: 'Reported by {who} · {when}' },
+
+  // The step before a count is finalized.
+  finishTitle:      { es: 'Antes de finalizar', en: 'Before you finish' },
+  finishCoversReq:  { es: 'Al finalizar confirmas que revisaste los {n} artículos marcados ★.', en: 'By finishing you confirm that you checked the {n} items marked ★.' },
+  finishCoversAll:  { es: 'Al finalizar confirmas que revisaste los {n} artículos de la lista.', en: 'By finishing you confirm that you checked the {n} items on the list.' },
+  finishAsk:        { es: '¿Hay algún daño que reportar?', en: 'Is there any damage to report?' },
+  finishReported:   { es: 'Ya reportaste {n} en esta visita.', en: 'You have already reported {n} this visit.' },
+  finishYes:        { es: '⚠️ Sí, reportar un daño', en: '⚠️ Yes, report damage' },
+  finishNo:         { es: '✓ No hay daños · Finalizar', en: '✓ No damage · Finish' },
+  finishNoMore:     { es: '✓ No hay más daños · Finalizar', en: '✓ No more damage · Finish' },
+  finishBack:       { es: 'Volver', en: 'Back' },
+
+  // The owner's report for each checkout.
+  tabReports:       { es: 'Reportes de salida', en: 'Checkout reports' },
+  reportsHelp:      { es: 'Un reporte por cada inventario completado, con fecha y hora.', en: 'One report for each completed inventory, with its date and time.' },
+  reportsEmpty:     { es: 'Aún no hay inventarios completados.', en: 'No completed inventories yet.' },
+  reportOpen:       { es: 'Ver reporte ▾', en: 'View report ▾' },
+  reportClose:      { es: 'Ocultar ▴', en: 'Hide ▴' },
+  reportDiffs:      { es: 'Artículos con diferencia o nota ({n})', en: 'Items with a difference or a note ({n})' },
+  reportNoDiffs:    { es: 'Todos los artículos coincidieron con la línea base.', en: 'Every item matched its baseline.' },
+  reportExpected:   { es: 'Esperado {a} · contado {b}', en: 'Expected {a} · counted {b}' },
+  reportDamages:    { es: 'Daños reportados ({n})', en: 'Damage reported ({n})' },
+  reportNoDamages:  { es: 'Sin daños reportados.', en: 'No damage reported.' },
+  checkDamages:     { es: '⚠️ {n} daño(s)', en: '⚠️ {n} damage report(s)' },
 };
 
 const isEnglish = (lang) => String(lang || '').toLowerCase().startsWith('en');
@@ -248,15 +324,17 @@ export const tallyDiffs = (items, diffOf) => {
   return { missing, extra, changed: missing + extra };
 };
 
-// One line describing how the unit stood when a count was completed:
-// "259 items · everything matched" or "259 items · 2 with items missing".
-export const checkSummary = (lang, check) => {
-  if (!check.itemsMissing && !check.itemsExtra) return tr(lang, 'checkAllMatch', { n: check.itemsTotal });
-  return [
-    tr(lang, 'checkTotal', { n: check.itemsTotal }),
-    check.itemsMissing ? tr(lang, 'checkMissing', { n: check.itemsMissing }) : '',
-    check.itemsExtra ? tr(lang, 'checkExtra', { n: check.itemsExtra }) : '',
-  ].filter(Boolean).join(' · ');
-};
+// One line describing a completed count: what it covered — the items
+// flagged for every checkout if there were any, otherwise the whole list
+// — how the unit stood, and any damage reported with it:
+// "259 items · everything matched",
+// "42 every-checkout items checked · 2 with items missing · ⚠️ 1 damage report(s)".
+export const checkSummary = (lang, check) => [
+  check.itemsRequired ? tr(lang, 'checkRequired', { n: check.itemsRequired }) : tr(lang, 'checkTotal', { n: check.itemsTotal }),
+  check.itemsMissing ? tr(lang, 'checkMissing', { n: check.itemsMissing }) : '',
+  check.itemsExtra ? tr(lang, 'checkExtra', { n: check.itemsExtra }) : '',
+  !check.itemsMissing && !check.itemsExtra ? tr(lang, 'checkMatch') : '',
+  check.damagesCount ? tr(lang, 'checkDamages', { n: check.damagesCount }) : '',
+].filter(Boolean).join(' · ');
 
 export const API_BASE = '/api/m/unit-inventory';
