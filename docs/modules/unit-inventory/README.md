@@ -59,6 +59,26 @@ unnoticed.
   now. Both screens show the last complete count under the summary; the
   owner's History tab lists them in the same timeline as item changes.
   It never changes a baseline.
+- **Damage reports.** The cleaning service can report damage: what is
+  damaged, where (an area, the item if it concerns one, a free-text
+  spot) and up to 4 photos. Photos are shrunk in the browser and stored
+  with the row as JPEG data URLs, like incident photos; lists never
+  carry them. The owner is told (alert + email, once per visit), sees
+  open reports at the top of the panel, and marks them resolved; reports
+  are never deleted.
+- **The checkout report.** A completed count is the unit's inventory for
+  that checkout. Its row in `unit_inventory_checks` is dated and keeps
+  the result as it stood — every item that was off its baseline or
+  carried a note — and the damage reported during that visit (the 12
+  hours before) is attached to it. The owner's **Checkout reports** tab
+  lists them newest first and opens any one, photos included; a report
+  does not change when the inventory later does. When the cleaning
+  service completes a count the owner gets its result as an alert and an
+  email.
+- **Asked before finishing.** On the cleaning-service page, Count
+  complete is two steps: it states what finishing confirms and asks
+  whether there is damage to report before the count can be closed. The
+  page opens with a three-step card saying exactly what to count.
 - **Proposed items.** The cleaning service cannot add to the inventory,
   but can propose an item that isn't on the list (description, area,
   quantity, note). A proposal waits in `unit_inventory_proposals`, shown
@@ -80,6 +100,8 @@ unnoticed.
 | Update counts and notes | yes | yes |
 | Mark a count as complete | yes | yes |
 | Propose an item that isn't on the list | — | yes |
+| Report damage, with photos | — | yes |
+| See checkout reports and damage photos; mark damage resolved | yes | no |
 | Approve or reject a proposed item | yes | no |
 | Add, edit, delete, import items | yes | no |
 | Flag items to count at every checkout | yes | no |
@@ -108,13 +130,14 @@ client sends; there is no server-side session behind it.
 
 ## Data model
 
-Five tables, all in `supabase/schema.sql`:
+Six tables, all in `supabase/schema.sql`:
 
 | Table | Holds |
 | --- | --- |
 | `unit_inventory_items` | One row per item: bilingual area / description / owner note, `baseline_count`, `current_count`, the latest count note, who counted last. |
 | `unit_inventory_events` | Append-only history: `created`, `edited`, `count`, `rebaseline`, `deleted`. An `edited` event stores the before/after of each descriptive field that changed in `changes`; an edit that changes nothing writes no event. |
-| `unit_inventory_checks` | One row per completed count: who, when, and the unit's totals against baseline at that moment. If this table is missing (schema not re-run since it was added) the screens still load and report no complete count; only marking one fails. |
+| `unit_inventory_checks` | One row per completed count: who, when, the unit's totals against baseline at that moment, the items that were off or noted (`results`) and how many damage reports came with it. If the newer columns are missing the count is still recorded without them. If this table is missing (schema not re-run since it was added) the screens still load and report no complete count; only marking one fails. |
+| `unit_inventory_damages` | Damage reports: description, area / item / spot, photos (JPEG data URLs), who and when, the completed count they belong to (`check_id`), `open` or `resolved`. A missing table reads as no damage; only reporting fails. |
 | `unit_inventory_proposals` | Items proposed through the share link: `pending`, `approved` (with the `item_id` created) or `rejected`. Decided rows are kept. A missing table reads as no proposals; only proposing fails. |
 | `unit_inventory_links` | One share link per unit: token and whether it is enabled. Kept off `listings` because listing rows are returned to every signed-in user. |
 
@@ -133,12 +156,17 @@ Mounted at `/api/m/unit-inventory`.
 | `POST /units/:listingId/rebaseline` | owner | Accept current counts as the baseline |
 | `GET /units/:listingId/history?ownerUid=` | owner | Item changes and completed counts, newest first |
 | `POST /units/:listingId/checks` | owner | Mark the count complete (optionally saving `updates` first) |
+| `GET /units/:listingId/checks?ownerUid=` | owner | The dated list of completed counts |
+| `GET /units/:listingId/checks/:checkId?ownerUid=` | owner | One checkout's report: results and damage, with photos |
+| `GET /units/:listingId/damages/:damageId?ownerUid=` | owner | One damage report with its photos |
+| `POST /damages/:id/status` | owner | Mark a damage report `resolved` (or `open` again) |
 | `POST /proposals/:id/decision` | owner | `approve` (creates the item) or `reject` a proposed item |
 | `POST /units/:listingId/link` | owner | `enable`, `disable` or `regenerate` the share link |
 | `GET /shared/:token` | link holder | The unit's label, items, last complete count and pending proposals |
 | `POST /shared/:token/counts` | link holder | Update counts and notes |
 | `POST /shared/:token/checks` | link holder | Mark the count complete (optionally saving `updates` first) |
 | `POST /shared/:token/proposals` | link holder | Propose an item for the owner to approve |
+| `POST /shared/:token/damages` | link holder | Report damage, with photos |
 
 ## UI
 
@@ -186,7 +214,11 @@ Only one of the two name columns is required; a blank count means 1.
 
 ## Known gaps
 
-- No photos per item.
+- No photos per item (damage reports have them).
+- The cleaning service is asked about damage but is not made to tick off
+  each ★ item; "Count complete" remains their word.
+- Damage photos live in the database row, as incident photos do; a unit
+  with very many reports will want object storage.
 - Counts are whole numbers; a consumable kept "assorted" is tracked as 1
   with a note.
 - No notification to the owner when a count drops below the baseline.

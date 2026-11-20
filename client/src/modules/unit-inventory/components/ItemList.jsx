@@ -39,7 +39,7 @@ export const areaKey = (areaEn, areaEs) => `${areaEn || ''}\u0001${areaEs || ''}
 // buttons shown with the note. `expectedLabel` names the baseline box.
 // `onRequired` (owner only) flips whether the item must be counted at
 // every checkout; without it the ★ is only shown.
-function ItemCard({ item, lang, value, diff, dirty, busy, expectedLabel, opened, onToggle, onChange, actions, onRequired }) {
+function ItemCard({ item, lang, value, diff, dirty, busy, expectedLabel, opened, onToggle, onChange, actions, onRequired, moreLabel }) {
   const T = (k, v) => tr(lang, k, v);
   const other = secondaryText(item.nameEn, item.nameEs);
   const ownerNote = primaryText(item.noteEn, item.noteEs);
@@ -82,8 +82,8 @@ function ItemCard({ item, lang, value, diff, dirty, busy, expectedLabel, opened,
           </div>
           {!forcedOpen && (
             <button type="button" className="uinv-more" aria-expanded={open} onClick={onToggle}
-              aria-label={open ? T('less') : (actions ? T('more') : undefined)}>
-              {open ? '▴' : (actions ? '⋯' : T('addNote'))}
+              aria-label={open ? T('less') : (moreLabel || !actions ? undefined : T('more'))}>
+              {open ? '▴' : (moreLabel || (actions ? '⋯' : T('addNote')))}
             </button>
           )}
         </div>
@@ -108,9 +108,11 @@ function ItemCard({ item, lang, value, diff, dirty, busy, expectedLabel, opened,
 // `forceOpen` shows every area whatever is folded (a search or a filter
 // is narrowing the list). `valueOf` / `diffOf` / `isDirty` read the
 // screen's draft; `onChange(item, field, value)` writes it. `actionsFor`
-// (owner only) returns an item's buttons. `onRequired(items, required)`
+// returns an item's buttons, shown with its note; `moreLabel` words the
+// toggle that reveals them on a narrow screen (default: ⋯ when there are
+// actions, "＋ Note" when there are none). `onRequired(items, required)`
 // (owner only) flags one item or a whole area for every checkout.
-export function ItemList({ items, lang, folding, forceOpen = false, busy, expectedLabel, valueOf, diffOf, isDirty, onChange, actionsFor, onRequired }) {
+export function ItemList({ items, lang, folding, forceOpen = false, busy, expectedLabel, valueOf, diffOf, isDirty, onChange, actionsFor, onRequired, moreLabel }) {
   const T = (k, v) => tr(lang, k, v);
   // Items opened by hand on a narrow screen, by id.
   const [openedItems, setOpenedItems] = useState({});
@@ -155,7 +157,7 @@ export function ItemList({ items, lang, folding, forceOpen = false, busy, expect
                 expectedLabel={expectedLabel} opened={!!openedItems[it.id]}
                 onToggle={() => setOpenedItems(o => ({ ...o, [it.id]: !o[it.id] }))}
                 onChange={(field, value) => onChange(it, field, value)}
-                actions={actionsFor ? actionsFor(it) : null}
+                actions={actionsFor ? actionsFor(it) : null} moreLabel={moreLabel}
                 onRequired={onRequired ? (required) => onRequired([it], required) : undefined} />
             ))}
           </section>

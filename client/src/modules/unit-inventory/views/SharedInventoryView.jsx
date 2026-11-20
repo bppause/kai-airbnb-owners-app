@@ -4,7 +4,8 @@
 // correct the count and leave a note per item. Nothing else: no adding,
 // deleting, history or owner details — the server's /shared routes don't
 // offer them. Something found that isn't on the list can be proposed; it
-// joins the inventory only if the owner approves it.
+// joins the inventory only if the owner approves it. Damage can be
+// reported with photos, and finishing the count asks about it first.
 //
 // Rendered by main.jsx instead of the app, so it carries its own styles
 // and language switch and must not use useApp() or anything else that
@@ -24,6 +25,7 @@ import { DiffSummary } from "../components/DiffMarks";
 import { ItemList, Toast, ViewSwitch, useAreaFolding } from "../components/ItemList";
 import { CountComplete, LastCheckLine } from "../components/CountComplete";
 import { ProposeItemForm, PendingProposals } from "../components/Proposals";
+import { DamageForm, DamageList } from "../components/Damages";
 import { UINV_CSS } from "../styles";
 
 const NAME_KEY = 'kai_inventory_name';
@@ -71,6 +73,9 @@ export default function SharedInventoryView({ token }) {
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState(null);
   const [proposing, setProposing] = useState(false);
+  // The damage form: null when closed, else { preset } — the item it was
+  // opened from, if any. `seq` remounts it for each opening.
+  const [damaging, setDamaging] = useState(null);
   // Which items to list: null until the person picks, which means "the
   // ones to count at every checkout, if the owner flagged any".
   const [view, setView] = useState(null);
@@ -83,7 +88,7 @@ export default function SharedInventoryView({ token }) {
   const load = async () => {
     const d = await api.get(base);
     const items = d.items || [];
-    setState({ kind: 'ready', unit: d.unit || {}, items, lastCheck: d.lastCheck || null, proposals: d.proposals || [] });
+    setState({ kind: 'ready', unit: d.unit || {}, items, lastCheck: d.lastCheck || null, proposals: d.proposals || [], damages: d.damages || [] });
     folding.decide(items.length);
     return items;
   };
@@ -127,7 +132,7 @@ export default function SharedInventoryView({ token }) {
     return shell(<div className="uinv-msg uinv-msg-err">{state.notFound ? T('linkInactive') : state.text}</div>);
   }
 
-  const { unit, items, lastCheck, proposals } = state;
+  const { unit, items, lastCheck, proposals, damages } = state;
   const typed = (it) => draft[it.id] || { count: String(it.currentCount), note: it.currentNote };
   const isDirty = (it) => {
     const v = draft[it.id];
@@ -179,13 +184,30 @@ export default function SharedInventoryView({ token }) {
     const updates = pendingUpdates();
     if (updates) send('counts', { updates }, T('sharedSaved'));
   };
-  // Marks the whole unit as counted, saving anything unsaved with it.
+  // Marks the count as complete, saving anything unsaved with it. The
+  // Count complete box has already asked about damage by the time this
+  // runs; the server attaches this visit's damage reports to the record.
   const complete = () => {
     const updates = pendingUpdates();
-    const sure = requiredItems.length ? T('countDoneConfirmReq', { n: requiredItems.length }) : T('countDoneConfirm', { n: items.length });
-    if (!updates || !window.confirm(sure)) return;
-    send('checks', { updates }, T('countDoneSaved'));
+    return updates ? send('checks', { updates }, T('countDoneSaved')) : undefined;
   };
+  // Sends a damage report (with its photos) to the owner. Unsaved counts
+  // are left as they are.
+  const reportDamage = async (damage) => {
+    if (!haveName()) return false;
+    setBusy(true); setMsg(null);
+    try {
+      writeStored(NAME_KEY, name.trim());
+      const d = await api.post(`${base}/damages`, { name: name.trim(), damage });
+      setState(prev => ({ ...prev, damages: [d.damage, ...(prev.damages || [])] }));
+      setMsg({ text: T('damageSent') });
+      return true;
+    } catch (e) {
+      setMsg({ err: true, text: e?.message || String(e) });
+      return false;
+    } finally { setBusy(false); }
+  };
+  const openDamage = (preset) => setDamaging({ preset: preset || null, seq: Date.now() });
   // Sends an item that isn't on the list to the owner for approval.
   // Unsaved counts are left as they are: this doesn't touch the list.
   const propose = async (item) => {
@@ -226,7 +248,17 @@ export default function SharedInventoryView({ token }) {
           <option value="en">English</option>
         </select>
       </div>
-      <p className="uinv-sub">{T('sharedSubtitle')}</p>
+      <div className="uinv-box uinv-task">
+        <h2>{T('taskTitle')}</h2>
+        <ol>
+          <li>
+            <strong>{requiredItems.length ? T('taskCountReq', { n: requiredItems.length }) : T('taskCountAll', { n: items.length })}</strong>
+            <small>{T('taskCountHow')}</small>
+          </li>
+          <li><strong>{T('taskDamage')}</strong></li>
+          <li><strong>{T('taskFinish')}</strong></li>
+        </ol>
+      </div>
 
       <div className="uinv-box">
         <label className="uinv-field">{T('yourName')}
@@ -246,16 +278,30 @@ export default function SharedInventoryView({ token }) {
           {visible.length === 0 && <p className="uinv-sub" style={{ marginTop: 12 }}>{T('noMatches')}</p>}
           {/* A search opens every area that has a match, whatever was folded. */}
           <ItemList items={visible} lang={lang} folding={folding} forceOpen={!!needle} busy={busy} expectedLabel={T('expected')}
-            valueOf={typed} diffOf={diffOf} isDirty={isDirty} onChange={setTyped} />
+            valueOf={typed} diffOf={diffOf} isDirty={isDirty} onChange={setTyped} moreLabel={T('addNote')}
+            actionsFor={it => <button type="button" className="uinv-btn uinv-btn-sm" disabled={busy} onClick={() => openDamage(it)}>{T('damageBtnItem')}</button>} />
         </>
       )}
 
       {proposing
         ? <ProposeItemForm lang={lang} areas={groupByArea(items, lang).filter(g => g.areaEn || g.areaEs)} busy={busy} onSend={propose} onCancel={() => setProposing(false)} />
-        : <div className="uinv-propose"><button type="button" className="uinv-btn uinv-propose-open" disabled={busy} onClick={() => setProposing(true)}>{T('proposeBtn')}</button></div>}
+        : <div className="uinv-action"><button type="button" className="uinv-btn uinv-propose-open" disabled={busy} onClick={() => setProposing(true)}>{T('proposeBtn')}</button></div>}
       <PendingProposals lang={lang} proposals={proposals} />
 
-      {items.length > 0 && <CountComplete lang={lang} unsaved={dirtyItems.length} busy={busy} onComplete={complete} />}
+      {damaging
+        ? <DamageForm key={damaging.seq} lang={lang} areas={groupByArea(items, lang).filter(g => g.areaEn || g.areaEs)} preset={damaging.preset} busy={busy} onSend={reportDamage} onCancel={() => setDamaging(null)} />
+        : <div className="uinv-action"><button type="button" className="uinv-btn uinv-btn-danger uinv-propose-open" disabled={busy} onClick={() => openDamage(null)}>{T('damageBtn')}</button></div>}
+      <DamageList lang={lang} title={T('damagesVisit', { n: damages.length })} damages={damages} />
+
+      {items.length > 0 && (
+        <CountComplete lang={lang} unsaved={dirtyItems.length} busy={busy} onComplete={complete}
+          canStart={() => pendingUpdates() !== null}
+          damagePrompt={{
+            covers: requiredItems.length ? T('finishCoversReq', { n: requiredItems.length }) : T('finishCoversAll', { n: items.length }),
+            reported: damages.length,
+            onReport: () => openDamage(null),
+          }} />
+      )}
 
       <Toast msg={msg} raised={dirtyItems.length > 0} lang={lang} onDismiss={() => setMsg(null)} />
 

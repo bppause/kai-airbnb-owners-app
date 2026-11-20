@@ -11,6 +11,8 @@
 //   - the header, the area being scrolled through and the save bar stay
 //     pinned, so a 250-item list never strands you;
 //   - below 640px an item folds its note and actions away until needed.
+// The app's global stylesheet sizes every h2 with !important, so the
+// heading size here has to say it too.
 // --uinv-top is where pinned area headers stop (under the panel's header);
 // --uinv-bg is the surface they sit on.
 
@@ -25,7 +27,7 @@ export const UINV_CSS = `
 .uinv-page{min-height:100vh;background:#f7f3e9;padding:14px 12px 120px;--uinv-bg:#f7f3e9}
 .uinv-page-inner{max-width:760px;margin:0 auto}
 .uinv h1{font-family:'Playfair Display',Georgia,serif;font-size:1.3rem;line-height:1.2;margin:0 0 2px;color:#203f2b}
-.uinv h2{font-size:1rem;margin:0;color:#203f2b}
+.uinv h2{font-size:1.05rem!important;line-height:1.3!important;margin:0;color:#203f2b}
 .uinv-sub{color:#235f72;font-size:.86rem;margin:0 0 12px}
 .uinv-x{flex:none;border:0;background:#eef3f1;color:#33545d;width:44px;height:44px;border-radius:12px;cursor:pointer;font-size:1.05rem}
 .uinv-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
@@ -35,7 +37,7 @@ export const UINV_CSS = `
 .uinv-btn-warn{color:#8a5a00;border-color:#e2c27a;background:#fff8e6}
 .uinv-btn-danger{color:#9d1f16;border-color:#f0b9b3;background:#fff5f3}
 .uinv-btn-sm{padding:6px 12px;min-height:36px;font-size:.82rem}
-.uinv-tabs{display:flex;gap:6px;margin:0 0 14px}
+.uinv-tabs{display:flex;gap:6px;margin:0 0 14px;flex-wrap:wrap}
 .uinv-tab{border:1px solid rgba(47,79,58,.2);background:#fff;border-radius:999px;padding:7px 18px;min-height:40px;font-weight:700;font-size:.9rem;cursor:pointer;color:#17313a}
 .uinv-tab-on{background:linear-gradient(135deg,#0b7f4f,#0b7f8c);color:#fff;border-color:transparent}
 .uinv-box{border:1px solid rgba(47,79,58,.18);border-radius:14px;padding:12px 14px;background:#f8fbfa;margin-bottom:12px;scroll-margin-top:calc(var(--uinv-top) + 10px)}
@@ -111,11 +113,35 @@ export const UINV_CSS = `
 .uinv-areabar{margin:0 0 8px}
 .uinv-check{display:flex;align-items:center;gap:10px;min-height:44px;font-size:.92rem;font-weight:600;color:#17313a;cursor:pointer}
 .uinv-check input{flex:none;width:22px;height:22px;margin:0;accent-color:#0b7f4f}
+.uinv-task{background:#eef6f9;border-color:#b9d6e0}
+.uinv-task ol{margin:8px 0 0;padding-left:22px;display:grid;gap:8px}
+.uinv-task li{font-size:.95rem}
+.uinv-task li small{display:block;color:#48656d;font-size:.82rem}
+.uinv-damages{background:#fff3f1;border-color:#e39a92}
+.uinv-dmg{border-top:1px solid #f0c9c4;padding:10px 0 2px;margin-top:10px;display:grid;gap:4px}
+.uinv-dmg-resolved{opacity:.7}
+.uinv-dmg-where{font-size:.86rem;color:#33545d}
+.uinv-thumbs{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px}
+.uinv-thumb{position:relative;width:84px;height:84px;border-radius:10px;overflow:hidden;border:1px solid rgba(47,79,58,.24);background:#eef3f1;padding:0;cursor:pointer}
+.uinv-thumb img{width:100%;height:100%;object-fit:cover;display:block}
+.uinv-thumb-x{position:absolute;top:0;right:0;width:32px;height:32px;border:0;border-radius:0 0 0 10px;background:rgba(3,10,18,.7);color:#fff;font-size:.9rem;cursor:pointer}
+.uinv-lightbox{position:fixed;inset:0;z-index:1000006;background:rgba(3,10,18,.92);display:flex;align-items:center;justify-content:center;padding:12px;cursor:zoom-out}
+.uinv-lightbox img{max-width:100%;max-height:100%;border-radius:8px}
+.uinv-textarea{border:1px solid rgba(47,79,58,.28);border-radius:10px;padding:8px 10px;min-height:88px;font:inherit;font-size:16px;color:#102f3a;background:#fff;text-transform:none;letter-spacing:0;font-weight:400;width:100%;resize:vertical}
+.uinv-report{border:1px solid rgba(47,79,58,.18);border-radius:12px;padding:10px 12px;margin-bottom:8px;background:#fff;display:grid;gap:4px}
+.uinv-report-when{font-weight:700;color:#203f2b}
+.uinv-report-body{border-top:1px solid #e6eeeb;margin-top:8px;padding-top:8px;display:grid;gap:10px}
+.uinv-report-row{display:grid;gap:1px;padding:6px 0;border-bottom:1px solid #eef3f1}
+.uinv-report-miss{color:#9d1f16;font-weight:700}
+.uinv-report-extra{color:#1c4f8a;font-weight:700}
+.uinv-finish{display:grid;gap:10px}
+.uinv-finish .uinv-btn{width:100%;min-height:48px;font-size:1rem}
 .uinv-pending{background:#fff8e6;border-color:#e2c27a}
 .uinv-prop{border-top:1px solid #ecdcae;padding:10px 0 2px;margin-top:10px;display:grid;gap:4px}
 .uinv-prop-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px}
 .uinv-prop-actions .uinv-btn{flex:1 1 120px}
 .uinv-propose{margin-top:18px}
+.uinv-action{margin-top:12px}
 .uinv-propose-open{width:100%;min-height:48px}
 .uinv-select{border:1px solid rgba(47,79,58,.28);border-radius:10px;padding:8px 10px;min-height:44px;font:inherit;font-size:16px;color:#102f3a;background:#fff;text-transform:none;letter-spacing:0;font-weight:400;width:100%}
 .uinv-done{margin-top:18px;background:#f1f8f4;border-color:#b7e2c8}

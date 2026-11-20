@@ -2,7 +2,8 @@
 // from My Units. Lists the items by area with their baseline and current
 // counts, and is the only place items are added, edited, deleted,
 // imported from CSV, or re-baselined. Also manages the no-login link the
-// cleaning service counts through, and shows the change history.
+// cleaning service counts through, and shows the dated report of each
+// checkout (counts and damage) and the change history.
 //
 // The server enforces that only the unit's owner reaches any of this;
 // see server/modules/unit-inventory/routes.js.
@@ -21,6 +22,8 @@ import { DiffSummary } from "./DiffMarks";
 import { ItemList, Toast, ViewSwitch, useAreaFolding, areaKey } from "./ItemList";
 import { CountComplete, LastCheckLine } from "./CountComplete";
 import { PendingProposals } from "./Proposals";
+import { DamageList } from "./Damages";
+import CheckoutReports from "./Reports";
 import { itemsFromCsv } from "../csv";
 import { UINV_CSS } from "../styles";
 
@@ -99,6 +102,8 @@ export default function UnitInventoryModal({ listing, user, onClose }) {
   const [lastCheck, setLastCheck] = useState(null);
   // Items the cleaning service proposed that still wait for a decision.
   const [proposals, setProposals] = useState([]);
+  // Damage reports the owner hasn't marked resolved.
+  const [openDamages, setOpenDamages] = useState([]);
   // Counts and notes as typed, keyed by item id, until saved.
   const [draft, setDraft] = useState({});
   const [tab, setTab] = useState('items');
@@ -124,6 +129,7 @@ export default function UnitInventoryModal({ listing, user, onClose }) {
     setLink(d.link || null);
     setLastCheck(d.lastCheck || null);
     setProposals(d.proposals || []);
+    setOpenDamages(d.openDamages || []);
     folding.decide((d.items || []).length);
   };
   useEffect(() => {
@@ -283,6 +289,16 @@ export default function UnitInventoryModal({ listing, user, onClose }) {
     </>
   );
 
+  // Lists don't carry photos: one report's are fetched when asked for.
+  const loadDamagePhotos = async (damage) => {
+    const d = await api.get(`${unitBase}/damages/${encodeURIComponent(damage.id)}?ownerUid=${encodeURIComponent(user.uid)}`);
+    return (d.damage && d.damage.photos) || [];
+  };
+  const resolveDamage = (damage) => run(async () => {
+    await api.post(`${API_BASE}/damages/${encodeURIComponent(damage.id)}/status`, { ...who, status: 'resolved' });
+    await load();
+  }, T('damageResolvedMsg'));
+
   const openForm = (next) => { setImportState(null); setForm(next); };
 
   const saveForm = () => {
@@ -366,15 +382,19 @@ export default function UnitInventoryModal({ listing, user, onClose }) {
         </div>
         <div className="uinv-tabs">
           <button type="button" className={`uinv-tab${tab === 'items' ? ' uinv-tab-on' : ''}`} onClick={() => setTab('items')}>{T('tabItems')}</button>
+          <button type="button" className={`uinv-tab${tab === 'reports' ? ' uinv-tab-on' : ''}`} onClick={() => setTab('reports')}>{T('tabReports')}</button>
           <button type="button" className={`uinv-tab${tab === 'history' ? ' uinv-tab-on' : ''}`} onClick={() => setTab('history')}>{T('tabHistory')}</button>
         </div>
 
+        {tab === 'reports' && <CheckoutReports lang={lang} unitBase={unitBase} ownerUid={user.uid} onError={e => setMsg({ err: true, text: e?.message || String(e) })} />}
         {tab === 'history' && <HistoryList history={history} lang={lang} />}
 
         {tab === 'items' && items === null && <p className="uinv-sub">{T('loading')}</p>}
         {tab === 'items' && items !== null && (
           <>
             <PendingProposals lang={lang} proposals={proposals} owner actionsFor={proposalActions} />
+            <DamageList lang={lang} title={T('damagesOpen', { n: openDamages.length })} damages={openDamages} loadPhotos={loadDamagePhotos}
+              actionsFor={d => <button type="button" className="uinv-btn" disabled={busy} onClick={() => resolveDamage(d)}>{T('damageResolve')}</button>} />
 
             <div className="uinv-box">
               <div className="uinv-row" style={{ justifyContent: 'space-between' }}>

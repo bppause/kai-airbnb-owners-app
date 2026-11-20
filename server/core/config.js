@@ -80,6 +80,7 @@ const KNOWN_AUDIT_EVENT_TYPES = [
   'unit_inventory.add_items', 'unit_inventory.delete_item', 'unit_inventory.rebaseline',
   'unit_inventory.link_enable', 'unit_inventory.link_disable', 'unit_inventory.link_regenerate',
   'unit_inventory.approve_item', 'unit_inventory.reject_item', 'unit_inventory.set_required',
+  'unit_inventory.resolve_damage', 'unit_inventory.reopen_damage',
   'user_role.delegate_update',
 ];
 

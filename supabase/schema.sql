@@ -653,8 +653,46 @@ create table if not exists public.unit_inventory_checks (
 -- How many items were flagged to count at every checkout when this count
 -- was completed (0 = none flagged; the pass covered the whole list).
 alter table public.unit_inventory_checks add column if not exists items_required integer not null default 0;
+-- What a completed count found, kept as it stood: the items that were off
+-- their baseline or carried a note ([{ itemId, nameEn, nameEs, areaEn,
+-- areaEs, baseline, count, note, required }]), and how many damage
+-- reports came with it. This is the unit's dated report for a checkout.
+alter table public.unit_inventory_checks add column if not exists results jsonb not null default '[]'::jsonb;
+alter table public.unit_inventory_checks add column if not exists damages_count integer not null default 0;
 create index if not exists idx_unit_inventory_checks_listing
   on public.unit_inventory_checks(listing_id, created_at desc);
+
+-- Damage reported by the cleaning service: what, where (an area, a
+-- free-text spot, and the item if it concerns one — its names copied so
+-- the report survives the item) and photos, stored as JPEG data URLs
+-- like incident photos. check_id is the completed count of the visit it
+-- was reported in, once there is one. Reports are closed by the owner,
+-- never deleted.
+create table if not exists public.unit_inventory_damages (
+  id text primary key,
+  listing_id text not null references public.listings(id) on delete cascade,
+  community_id text not null default 'kai',
+  check_id text,
+  item_id text,
+  item_name_en text not null default '',
+  item_name_es text not null default '',
+  area_en text not null default '',
+  area_es text not null default '',
+  location text not null default '',
+  description text not null default '',
+  photos jsonb not null default '[]'::jsonb,
+  photo_count integer not null default 0,
+  reported_by text not null default '',
+  actor_type text not null default 'cleaner' check (actor_type in ('owner','cleaner')),
+  status text not null default 'open' check (status in ('open','resolved')),
+  created_at timestamptz not null default now(),
+  resolved_at timestamptz,
+  resolved_by text not null default ''
+);
+create index if not exists idx_unit_inventory_damages_listing
+  on public.unit_inventory_damages(listing_id, status, created_at desc);
+create index if not exists idx_unit_inventory_damages_check
+  on public.unit_inventory_damages(check_id);
 
 -- Items the cleaning service proposed through the share link. A proposal
 -- is not part of the inventory: the owner approves it (it becomes a row
@@ -714,4 +752,5 @@ alter table public.unit_inventory_events disable row level security;
 alter table public.unit_inventory_links disable row level security;
 alter table public.unit_inventory_checks disable row level security;
 alter table public.unit_inventory_proposals disable row level security;
+alter table public.unit_inventory_damages disable row level security;
 
