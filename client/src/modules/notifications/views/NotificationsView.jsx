@@ -35,11 +35,14 @@ const localizeNotification = (n={}, lang="es-CO") => {
     .replace(/^Listing actualizado/i, 'Listing updated')
     .replace(/^Listing eliminado/i, 'Listing deleted')
     .replace(/^Nuevo listing/i, 'New listing')
+    .replace(/^Inventario: artículo por aprobar/i, 'Inventory: item to approve')
     .replace(/Apto\s+(\d+)/gi, 'Apartment $1');
   let outMessage = message
     .replace(/solicita acceso con (\d+) listing\(s\)\./i, 'requests access with $1 listing(s).')
     .replace(/Nuevo incidente reportado/i, 'New incident reported')
     .replace(/Pendiente de revisión/i, 'Pending review')
+    .replace(/\(servicio de limpieza\) propuso agregar:/i, '(cleaning service) proposed adding:')
+    .replace(/Revísalo en Mis unidades → Inventario\./i, 'Review it in My Units → Inventory.')
     .replace(/Apto\s+(\d+)/gi, 'Apartment $1');
   return { title: outTitle, message: outMessage };
 };

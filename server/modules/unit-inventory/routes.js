@@ -10,8 +10,11 @@
 //             add, edit or delete items, see the change history, manage
 //             the cleaning-service link, and re-baseline.
 //   Cleaner — whoever holds the unit's share link. No login: the random
-//             token in the link is the only credential. Can read the list
-//             and update counts and notes, nothing else.
+//             token in the link is the only credential. Can read the list,
+//             update counts and notes, mark a count complete, and propose
+//             an item that isn't on the list. Never adds to the list
+//             directly and never deletes: an item they believe is gone is
+//             counted as zero.
 //
 // Every item keeps two counts. `baseline_count` is what the owner says
 // should be there; `current_count` is what was last counted. Counting
@@ -24,6 +27,12 @@
 // to unit_inventory_checks — who went through the unit, when, and how it
 // stood against the baseline — so a pass that found nothing changed
 // still leaves a record.
+//
+// A proposed item waits in unit_inventory_proposals. The owner is told
+// (an in-app alert, and an email where email is configured) and either
+// approves it — it becomes a normal item, its count the baseline — or
+// rejects it. Until then it is not part of the inventory: it has no
+// baseline, is not counted, and doesn't figure in any total.
 //
 // Like the rest of this app the owner routes trust the ownerUid the
 // client sends (see server/platform/units/routes.js); there is no
@@ -42,6 +51,12 @@ const MAX_ACTOR = 120;
 const MAX_COUNT = 100000;
 const MAX_BULK_ITEMS = 1000;
 const MAX_COUNT_UPDATES = 1000;
+// How many proposed items may wait for one unit's owner at a time. The
+// share link has no login, so this bounds what a stray link can pile up.
+const MAX_PENDING_PROPOSALS = 50;
+// Proposals arriving within this long of the previous one for the same
+// unit are one visit: the owner is told once, not once per item.
+const PROPOSAL_NOTIFY_GAP_MS = 30 * 60 * 1000;
 
 const text = (v, max) => String(v == null ? '' : v).trim().slice(0, max);
 
@@ -101,6 +116,18 @@ const checkFromDb = (r) => ({
   createdAt: r.created_at,
 });
 
+const proposalFromDb = (r) => ({
+  id: r.id,
+  areaEn: r.area_en || '',
+  areaEs: r.area_es || '',
+  nameEn: r.name_en || '',
+  nameEs: r.name_es || '',
+  note: r.note || '',
+  count: r.count,
+  proposedBy: r.proposed_by || '',
+  createdAt: r.created_at,
+});
+
 // The fields of an item the owner writes. Either name may be left blank
 // (it falls back to the other language on screen) but not both.
 const parseItemFields = (raw) => {
@@ -135,6 +162,9 @@ const describeEdit = (before, after) => {
 
 module.exports = function createUnitInventoryRouter(deps) {
   const { supabase, requireSupabaseEnv, sendSupabaseError, auditLog } = deps;
+  // Telling the owner about a proposed item. All optional: without them a
+  // proposal is still saved and shows on the owner's inventory screen.
+  const { notificationToDb, sendSpanishEmail, getListingOwnerEmails, publicAppUrl, escapeHtml, warn = () => {} } = deps;
 
   const router = express.Router();
 
@@ -269,6 +299,55 @@ module.exports = function createUnitInventoryRouter(deps) {
     return { check: checkFromDb(row), changed };
   };
 
+  // Items waiting for the owner's decision, oldest first. As with
+  // loadLastCheck, a database without the table yet reads as none.
+  const loadPendingProposals = async (listingId) => {
+    const { data, error } = await supabase.from('unit_inventory_proposals')
+      .select('*').eq('listing_id', listingId).eq('status', 'pending')
+      .order('created_at', { ascending: true });
+    return error || !data ? [] : data.map(proposalFromDb);
+  };
+
+  // Tells the unit's owner that the cleaning service proposed an item: an
+  // alert in the app, then an email if email is set up. Never throws —
+  // the proposal is already saved and the owner sees it on the inventory
+  // screen either way.
+  const notifyOwnerOfProposal = async ({ listing, proposal, req }) => {
+    try {
+      if (!listing.owner_uid || !notificationToDb) return;
+      const itemName = proposal.name_es || proposal.name_en;
+      const title = `Inventario: artículo por aprobar - Apto ${listing.apt}`;
+      const message = `${proposal.proposed_by} (servicio de limpieza) propuso agregar: ${itemName} (${proposal.count}). Revísalo en Mis unidades → Inventario.`.slice(0, 300);
+      const note = {
+        id: 'not_' + uuidv4().slice(0, 8), communityId: listing.community_id || 'kai',
+        ownerUid: listing.owner_uid, listingId: listing.id, incidentId: null,
+        title, message, isRead: false, emailSent: false, emailError: '',
+        createdAt: new Date().toISOString(), kind: 'inventory',
+      };
+      const { error } = await supabase.from('notifications').insert(notificationToDb(note));
+      if (error) { warn('Inventory proposal alert failed: ' + error.message); return; }
+      const recipients = getListingOwnerEmails ? getListingOwnerEmails(listing) : [];
+      if (!sendSpanishEmail || !recipients.length) return;
+      const appUrl = publicAppUrl ? publicAppUrl(req) : '';
+      const esc = escapeHtml || ((s) => String(s));
+      const lines = [
+        `${proposal.proposed_by} (servicio de limpieza) propuso agregar un artículo al inventario del apartamento ${listing.apt}:`,
+        `${itemName} — cantidad ${proposal.count}${proposal.note ? ` — nota: ${proposal.note}` : ''}`,
+        'No hace parte del inventario hasta que lo apruebes. Para aprobarlo o rechazarlo, abre la aplicación: Mis unidades → Inventario.',
+        '',
+        `${proposal.proposed_by} (cleaning service) proposed adding an item to the inventory of apartment ${listing.apt}. It is not part of the inventory until you approve it: open the app, My Units → Inventory.`,
+      ];
+      const result = await sendSpanishEmail({
+        to: recipients, subject: title,
+        text: lines.join('\n') + (appUrl ? `\n\n${appUrl}` : ''),
+        html: lines.map(l => (l ? `<p>${esc(l)}</p>` : '')).join('') + (appUrl ? `<p><a href="${esc(appUrl)}">${esc(appUrl)}</a></p>` : ''),
+      });
+      await supabase.from('notifications').update({ email_sent: !!result.sent, email_error: result.sent ? '' : (result.reason || '') }).eq('id', note.id);
+    } catch (e) {
+      warn('Inventory proposal notification failed: ' + (e?.message || e));
+    }
+  };
+
   const loadLink = async (listingId) => {
     const { data } = await supabase.from('unit_inventory_links')
       .select('token, enabled, updated_at').eq('listing_id', listingId).maybeSingle();
@@ -277,15 +356,18 @@ module.exports = function createUnitInventoryRouter(deps) {
 
   // ── Owner ────────────────────────────────────────────────────────────
 
-  // GET /units/:listingId?ownerUid= — the unit's items, its share link
-  // and its last completed count.
+  // GET /units/:listingId?ownerUid= — the unit's items, its share link,
+  // its last completed count, and the items waiting for approval.
   router.get('/units/:listingId', async (req, res) => {
     if (!requireSupabaseEnv(res)) return;
     const listing = await requireOwnedUnit(res, req.params.listingId, req.query.ownerUid);
     if (!listing) return;
     const { data, error } = await loadItems(listing.id);
     if (error) return sendSupabaseError(res, error);
-    res.json({ items: (data || []).map(itemFromDb), link: await loadLink(listing.id), lastCheck: await loadLastCheck(listing.id) });
+    res.json({
+      items: (data || []).map(itemFromDb), link: await loadLink(listing.id),
+      lastCheck: await loadLastCheck(listing.id), proposals: await loadPendingProposals(listing.id),
+    });
   });
 
   // POST /units/:listingId/items — body: { ownerUid, actorName, items: [
@@ -496,6 +578,67 @@ module.exports = function createUnitInventoryRouter(deps) {
     res.json(result);
   });
 
+  // POST /proposals/:id/decision — body: { ownerUid, actorName, action:
+  // 'approve' | 'reject' }. Approving turns the proposal into an item:
+  // the proposed count becomes its baseline and current count, and the
+  // cleaner's note its count note. Rejecting only closes the proposal.
+  router.post('/proposals/:id/decision', async (req, res) => {
+    if (!requireSupabaseEnv(res)) return;
+    const { ownerUid, actorName, action } = req.body || {};
+    const { data: proposal, error: pErr } = await supabase.from('unit_inventory_proposals')
+      .select('*').eq('id', req.params.id).maybeSingle();
+    if (pErr) return sendSupabaseError(res, pErr);
+    if (!proposal) return res.status(404).json({ error: 'Proposed item not found.' });
+    const listing = await requireOwnedUnit(res, proposal.listing_id, ownerUid);
+    if (!listing) return;
+    if (!['approve', 'reject'].includes(action)) return res.status(400).json({ error: 'Unknown action.' });
+    if (proposal.status !== 'pending') return res.status(409).json({ error: 'This item was already decided. Reload to see the current list.' });
+    const now = new Date().toISOString();
+    const actor = text(actorName, MAX_ACTOR) || listing.owner || 'Owner';
+
+    let item = null;
+    if (action === 'approve') {
+      const { data: last } = await supabase.from('unit_inventory_items')
+        .select('sort_order').eq('listing_id', listing.id)
+        .order('sort_order', { ascending: false }).limit(1).maybeSingle();
+      item = {
+        id: 'uii_' + uuidv4().slice(0, 12),
+        listing_id: listing.id,
+        community_id: listing.community_id || 'kai',
+        area_en: proposal.area_en || '', area_es: proposal.area_es || '',
+        name_en: proposal.name_en || '', name_es: proposal.name_es || '',
+        note_en: '', note_es: '',
+        baseline_count: proposal.count, baseline_set_at: now,
+        current_count: proposal.count, current_note: proposal.note || '',
+        count_updated_at: proposal.created_at, count_updated_by: proposal.proposed_by || '',
+        sort_order: (last?.sort_order || 0) + 10,
+        created_at: now, updated_at: now,
+      };
+      const { error: iErr } = await supabase.from('unit_inventory_items').insert(item);
+      if (iErr) return sendSupabaseError(res, iErr);
+      const evErr = await insertEvents([eventRow(item, listing, {
+        event_type: 'created',
+        count_after: proposal.count, baseline_after: proposal.count,
+        note_after: proposal.note || '',
+        // Who asked for it; the actor is the owner who let it in.
+        changes: { proposedBy: proposal.proposed_by || '' },
+        actor_type: 'owner', actor_name: actor, actor_uid: String(ownerUid), created_at: now,
+      })]);
+      if (evErr) return sendSupabaseError(res, evErr);
+    }
+    const { error: uErr } = await supabase.from('unit_inventory_proposals').update({
+      status: action === 'approve' ? 'approved' : 'rejected',
+      decided_at: now, decided_by: actor, item_id: item ? item.id : null,
+    }).eq('id', proposal.id);
+    if (uErr) return sendSupabaseError(res, uErr);
+    await auditLog({
+      entity: 'unit_inventory', entityId: listing.id, action: action === 'approve' ? 'approve_item' : 'reject_item',
+      actorUid: String(ownerUid), actorName: actor,
+      after: { proposalId: proposal.id, proposedBy: proposal.proposed_by || '', name: proposal.name_es || proposal.name_en, count: proposal.count, itemId: item ? item.id : null },
+    });
+    res.json({ item: item ? itemFromDb(item) : null });
+  });
+
   // POST /units/:listingId/link — body: { ownerUid, actorName, action:
   // 'enable' | 'disable' | 'regenerate' }. Enabling creates the link the
   // first time. Regenerating replaces the token, which is how the owner
@@ -533,15 +676,18 @@ module.exports = function createUnitInventoryRouter(deps) {
     // One answer for an unknown link and a switched-off one, so the
     // response doesn't confirm which tokens ever existed.
     if (!link || !link.enabled) { res.status(404).json({ error: 'This inventory link is not active. Ask the owner for a new one.' }); return null; }
+    // The whole row: proposing an item needs the owner's uid and email to
+    // notify them. None of it is sent back to the link holder.
     const { data: listing, error: lErr } = await supabase.from('listings')
-      .select('id, owner, community_id, apt, tower').eq('id', link.listing_id).maybeSingle();
+      .select('*').eq('id', link.listing_id).maybeSingle();
     if (lErr) { sendSupabaseError(res, lErr); return null; }
     if (!listing) { res.status(404).json({ error: 'This inventory link is not active. Ask the owner for a new one.' }); return null; }
     return listing;
   };
 
   // GET /shared/:token — what the cleaner's page shows: the unit's label,
-  // its items and when it was last counted in full. Nothing about the
+  // its items, when it was last counted in full, and the items proposed
+  // through the link that still wait for the owner. Nothing about the
   // owner or the history.
   router.get('/shared/:token', async (req, res) => {
     if (!requireSupabaseEnv(res)) return;
@@ -549,7 +695,10 @@ module.exports = function createUnitInventoryRouter(deps) {
     if (!listing) return;
     const { data, error } = await loadItems(listing.id);
     if (error) return sendSupabaseError(res, error);
-    res.json({ unit: { apt: listing.apt, tower: listing.tower || '' }, items: (data || []).map(itemFromDb), lastCheck: await loadLastCheck(listing.id) });
+    res.json({
+      unit: { apt: listing.apt, tower: listing.tower || '' }, items: (data || []).map(itemFromDb),
+      lastCheck: await loadLastCheck(listing.id), proposals: await loadPendingProposals(listing.id),
+    });
   });
 
   // POST /shared/:token/counts — body: { name, updates }. `name` is
@@ -582,6 +731,50 @@ module.exports = function createUnitInventoryRouter(deps) {
     if (result.supabaseError) return sendSupabaseError(res, result.supabaseError);
     if (result.error) return res.status(result.status).json({ error: result.error });
     res.json(result);
+  });
+
+  // POST /shared/:token/proposals — body: { name, item: { areaEn, areaEs,
+  // nameEn, nameEs, note, count } }. The cleaning service proposes an
+  // item that isn't on the list. It is saved as pending and the owner is
+  // told; nothing is added to the inventory here.
+  router.post('/shared/:token/proposals', async (req, res) => {
+    if (!requireSupabaseEnv(res)) return;
+    const listing = await unitForToken(res, req.params.token);
+    if (!listing) return;
+    const raw = req.body?.item || {};
+    const parsed = parseItemFields(raw);
+    if (parsed.error) return res.status(400).json({ error: parsed.error });
+    const count = parseCount(raw.count ?? 1);
+    if (count == null) return res.status(400).json({ error: `The count must be a whole number from 0 to ${MAX_COUNT}.` });
+
+    const { data: waiting, error: wErr } = await supabase.from('unit_inventory_proposals')
+      .select('id').eq('listing_id', listing.id).eq('status', 'pending').limit(MAX_PENDING_PROPOSALS);
+    if (wErr) return sendSupabaseError(res, wErr);
+    if ((waiting || []).length >= MAX_PENDING_PROPOSALS) {
+      return res.status(400).json({ error: 'Too many items are already waiting for the owner. Ask the owner to review them first.' });
+    }
+    // The unit's latest proposal of any status, to tell one visit from the next.
+    const { data: latest } = await supabase.from('unit_inventory_proposals')
+      .select('created_at').eq('listing_id', listing.id)
+      .order('created_at', { ascending: false }).limit(1).maybeSingle();
+    const now = new Date();
+    const row = {
+      id: 'uip_' + uuidv4().slice(0, 12),
+      listing_id: listing.id,
+      community_id: listing.community_id || 'kai',
+      area_en: parsed.fields.area_en, area_es: parsed.fields.area_es,
+      name_en: parsed.fields.name_en, name_es: parsed.fields.name_es,
+      note: text(raw.note, MAX_NOTE),
+      count,
+      status: 'pending',
+      proposed_by: text(req.body?.name, MAX_ACTOR) || 'Cleaning service',
+      created_at: now.toISOString(),
+    };
+    const { error } = await supabase.from('unit_inventory_proposals').insert(row);
+    if (error) return sendSupabaseError(res, error);
+    res.json({ proposal: proposalFromDb(row) });
+    const previous = latest ? Date.parse(latest.created_at) : 0;
+    if (now.getTime() - previous >= PROPOSAL_NOTIFY_GAP_MS) setImmediate(() => notifyOwnerOfProposal({ listing, proposal: row, req }));
   });
 
   return router;

@@ -269,6 +269,9 @@ app.use('/api/incidents', incidentsRouter); // legacy alias — drop after clien
 const unitInventoryModule = require('./modules/unit-inventory');
 app.use('/api/m/unit-inventory', unitInventoryModule.createRouter({
   supabase, requireSupabaseEnv, sendSupabaseError, auditLog,
+  // For telling the owner when the cleaning service proposes an item.
+  notificationToDb, sendSpanishEmail, publicAppUrl, escapeHtml, warn,
+  getListingOwnerEmails: require('./core/email').getListingOwnerEmails,
 }));
 
 
