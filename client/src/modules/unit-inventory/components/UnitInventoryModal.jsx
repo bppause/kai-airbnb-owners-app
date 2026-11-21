@@ -24,6 +24,7 @@ import { CountComplete, LastCheckLine } from "./CountComplete";
 import { PendingProposals } from "./Proposals";
 import { DamageList } from "./Damages";
 import { ItemPhotos, PhotoPicker, MAX_ITEM_PHOTOS } from "./Photos";
+import { useAutoTranslate } from "./autoTranslate";
 import CheckoutReports from "./Reports";
 import { itemsFromCsv } from "../csv";
 import { UINV_CSS } from "../styles";
@@ -113,6 +114,8 @@ export default function UnitInventoryModal({ listing, user, onClose }) {
   const [draft, setDraft] = useState({});
   const [tab, setTab] = useState('items');
   const [form, setForm] = useState(null);
+  // Whether the server can translate between the two languages.
+  const [canTranslate, setCanTranslate] = useState(false);
   // The item to show again once the form closes (saved or not): the one
   // being edited or duplicated, or the copy just made. Set with a fresh
   // object each time so the same item can be returned to twice.
@@ -143,6 +146,7 @@ export default function UnitInventoryModal({ listing, user, onClose }) {
     setLastCheck(d.lastCheck || null);
     setProposals(d.proposals || []);
     setOpenDamages(d.openDamages || []);
+    setCanTranslate(!!d.translate);
     folding.decide((d.items || []).length);
   };
   useEffect(() => {
@@ -331,10 +335,28 @@ export default function UnitInventoryModal({ listing, user, onClose }) {
     await load();
   }, T('damageResolvedMsg'));
 
-  const openForm = (next) => { setImportState(null); setFormPhotos([]); setReturnTo(null); setForm(next); };
+  // Change one language of an area, description or note and the other is
+  // translated (see autoTranslate.js).
+  const translator = useAutoTranslate({
+    enabled: canTranslate,
+    translate: async (text, to, field) => (await api.post(`${unitBase}/translate`, { ...who, text, to, field })).text,
+    setField: (field, value) => setForm(prev => (prev ? { ...prev, [field]: value } : prev)),
+    knownArea: (field, text) => {
+      const other = field === 'areaEn' ? 'areaEs' : 'areaEn';
+      const hit = (items || []).find(it => it[field].trim().toLowerCase() === text.toLowerCase() && it[other]);
+      return hit ? hit[other] : null;
+    },
+  });
+  const editField = (field, value) => {
+    setForm(prev => (prev ? { ...prev, [field]: value } : prev));
+    translator.onOwnerEdit(field, value);
+  };
+
+  const openForm = (next) => { setImportState(null); setFormPhotos([]); setReturnTo(null); translator.reset(); setForm(next); };
   // Closing without saving returns to the item the form was opened from.
   const closeForm = () => {
     const from = form && (form.id || form.copyOf);
+    translator.reset();
     setForm(null);
     if (from) setReturnTo({ id: from });
   };
@@ -358,13 +380,23 @@ export default function UnitInventoryModal({ listing, user, onClose }) {
   const setPhotoCount = (it, n) => setItems(prev => (prev || []).map(x => (x.id === it.id ? { ...x, photoCount: n } : x)));
   const photosFor = (it) => <ItemPhotos lang={lang} item={it} store={photoStore} onCount={setPhotoCount} onError={e => setMsg({ err: true, text: e?.message || String(e) })} />;
 
-  const saveForm = () => {
+  const formState = form;
+  const saveForm = async () => {
+    // A translation still on its way is part of what is being saved.
+    let form = formState;
+    if (translator.waiting()) {
+      setBusy(true);
+      await translator.flush();
+      setBusy(false);
+    }
+    form = { ...form, ...translator.applied() };
     if (!form.nameEn.trim() && !form.nameEs.trim()) { setMsg({ err: true, text: T('nameRequired') }); return; }
     // Show the item where it lands, even if its area was folded.
     const landsIn = areaKey(form.areaEn.trim(), form.areaEs.trim());
     if (form.id) {
       run(async () => {
         await api.put(`${API_BASE}/items/${encodeURIComponent(form.id)}`, { ...who, ...form });
+        translator.reset();
         setForm(null);
         folding.open(landsIn);
         await load();
@@ -384,6 +416,7 @@ export default function UnitInventoryModal({ listing, user, onClose }) {
       for (const p of (made ? formPhotos : [])) {
         try { await photoStore.add(made, p.data); } catch (e) { photoProblem = e?.message || String(e); }
       }
+      translator.reset();
       if (copyOf) {
         // A copy is done once saved: close and show it in the list.
         setForm(null);
@@ -548,6 +581,7 @@ export default function UnitInventoryModal({ listing, user, onClose }) {
               <div className="uinv-box" ref={formRef}>
                 <h2 style={{ marginBottom: 8 }}>{form.id ? T('formEdit') : T(form.copyOf ? 'formDuplicate' : 'formAdd')}</h2>
                 {form.copyOf && <p className="uinv-help">{T('formDuplicateHelp')}</p>}
+                {canTranslate && <p className="uinv-help">{T('formTranslateHelp')}</p>}
                 <div className="uinv-form">
                   <datalist id="uinv-areas-en">{areaOptions('areaEn').map(a => <option key={a} value={a} />)}</datalist>
                   <datalist id="uinv-areas-es">{areaOptions('areaEs').map(a => <option key={a} value={a} />)}</datalist>
@@ -555,7 +589,12 @@ export default function UnitInventoryModal({ listing, user, onClose }) {
                   {fieldOrder.map(field => (
                     <label key={field} className="uinv-field">{T(field)}
                       <input value={form[field]} maxLength={FIELD_MAX[field.slice(0, 4)]} list={field.startsWith('area') ? `uinv-areas-${field.slice(4).toLowerCase()}` : undefined}
-                        onChange={e => setForm({ ...form, [field]: e.target.value })} />
+                        onChange={e => editField(field, e.target.value)} />
+                      {translator.status[field] && (
+                        <span className={`uinv-tr uinv-tr-${translator.status[field].state}`} role="status">
+                          {T(`tr_${translator.status[field].state}`, { why: translator.status[field].why || '' })}
+                        </span>
+                      )}
                     </label>
                   ))}
                   {form.id

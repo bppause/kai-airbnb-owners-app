@@ -40,6 +40,18 @@ unnoticed.
   so a similar item ("Bath towel" → "Hand towel") only needs what
   differs. Saving adds a new item; the original is untouched and its
   photos are not copied.
+- **Both languages stay in sync.** In the item form (add, edit,
+  duplicate), changing the area, description or note in one language
+  translates it into the other a moment after the owner stops typing,
+  marked "🌐 Translated automatically — check it". A field the owner has
+  typed in is never overwritten, so a corrected translation stays put.
+  An area the unit already has is matched to its existing name in the
+  other language instead of translated. Saving waits for a translation
+  still on its way. Translation uses the Claude API
+  (`server/modules/unit-inventory/translate.js`, model `claude-opus-5-5`
+  at low effort, with the API's refusal fallback on) and is on only
+  when `ANTHROPIC_API_KEY` is set; without it the form works as before.
+  Answers are cached in memory, so retyping the same text costs nothing.
 - **Back to the item.** After editing or duplicating (saved or closed),
   the list scrolls back to the item (the copy, once saved) and briefly
   highlights it, so the owner doesn't lose their place in a long list.
@@ -193,6 +205,7 @@ Mounted at `/api/m/unit-inventory`.
 | `GET /units/:listingId?ownerUid=` | owner | Items, the share link, the last complete count and pending proposals |
 | `POST /units/:listingId/items` | owner | Add one or many items (CSV import sends the whole file) |
 | `PUT /items/:id` | owner | Edit an item's area, description, owner note |
+| `POST /units/:listingId/translate` | owner | `{ text, to: es\|en, field: area\|name\|note }` → `{ text }`. 503 when `ANTHROPIC_API_KEY` is not set |
 | `DELETE /items/:id` | owner | Delete an item (history kept) |
 | `POST /units/:listingId/counts` | owner | Update counts and notes |
 | `GET /units/:listingId/items/:itemId/photos?ownerUid=` | owner | An item's photos |
