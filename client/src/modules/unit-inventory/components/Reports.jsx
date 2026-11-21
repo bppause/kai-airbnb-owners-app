@@ -10,6 +10,7 @@ import { tr, primaryText, secondaryText, formatWhen, checkSummary } from "../str
 import { DamageCard } from "./Damages";
 import { PhotoStrip } from "./Photos";
 import { ReportVideo } from "./Video";
+import { NoteTranslation } from "./ItemList";
 
 // One item's proof photos in a report: fetched when asked for. An empty
 // answer means the report is older than the ones photos are kept for.
@@ -54,6 +55,7 @@ function ReportDetail({ lang, check, detail, loadPhotos, loadVideos }) {
                 {diff === 0 && ` · ✓ ${T('reportMatched')}`}
               </div>
               {r.note && <div className="uinv-onote">{r.note}</div>}
+              {r.note && <NoteTranslation lang={lang} noteLang={r.noteLang} text={r.noteTranslation} />}
               {r.photos > 0 && <ReportPhotos lang={lang} count={r.photos} load={() => loadPhotos(r.itemId)} />}
               <div className="uinv-meta">{primaryText(lang, r.areaEn, r.areaEs)}</div>
             </div>

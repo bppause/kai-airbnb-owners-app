@@ -603,6 +603,11 @@ alter table public.unit_inventory_items add column if not exists count_required 
 -- How many photos the owner has attached (kept in step with
 -- unit_inventory_item_photos, below).
 alter table public.unit_inventory_items add column if not exists photo_count integer not null default 0;
+-- The count note in the other language, translated when it was saved
+-- (empty when translation is off or failed), and the language the note
+-- was written in ('es' / 'en'). Shown read-only under the note.
+alter table public.unit_inventory_items add column if not exists current_note_lang text not null default '';
+alter table public.unit_inventory_items add column if not exists current_note_translation text not null default '';
 create index if not exists idx_unit_inventory_items_listing
   on public.unit_inventory_items(listing_id, sort_order);
 

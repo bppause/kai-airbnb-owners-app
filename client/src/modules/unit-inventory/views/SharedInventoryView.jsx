@@ -191,7 +191,8 @@ export default function SharedInventoryView({ token }) {
     setBusy(true); setMsg(null);
     try {
       writeStored(NAME_KEY, name.trim());
-      await api.post(`${base}/${path}`, { name: name.trim(), ...body });
+      // The page language tells the server which language notes are in.
+      await api.post(`${base}/${path}`, { name: name.trim(), lang, ...body });
       setDraft({});
       await load();
       setMsg({ text: okText });

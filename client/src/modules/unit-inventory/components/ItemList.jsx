@@ -35,6 +35,19 @@ export function useAreaFolding() {
 // item was just added to.
 export const areaKey = (areaEn, areaEs) => `${areaEn || ''}\u0001${areaEs || ''}`;
 
+// A count note's translation into the other language, read-only, e.g.
+// "🌐 In English (automatic translation): One is torn". `noteLang` is the
+// language the note was written in. Nothing when there is no translation.
+export function NoteTranslation({ lang, noteLang, text }) {
+  if (!text) return null;
+  const into = noteLang === 'en' ? 'langEs' : 'langEn';
+  return (
+    <div className="uinv-note-tr" role="note">
+      <span className="uinv-note-tr-label">{tr(lang, 'noteTrLabel', { lang: tr(lang, into) })}</span> {text}
+    </div>
+  );
+}
+
 // `value` is { count, note } as typed. `actions` (owner only) are the
 // buttons shown with the note. `expectedLabel` names the baseline box.
 // `onRequired` (owner only) flips whether the item must be counted at
@@ -94,6 +107,9 @@ function ItemCard({ item, lang, value, diff, dirty, busy, expectedLabel, opened,
           <label className="uinv-field">{T('note')}
             <input value={value.note} maxLength={1000} disabled={busy} enterKeyHint="done" placeholder={T('notePlaceholder')} onChange={e => onChange('note', e.target.value)} />
           </label>
+          {/* The saved note in the other language, read-only. Hidden while
+              the note is being changed: it would no longer match. */}
+          <NoteTranslation lang={lang} noteLang={item.currentNoteLang} text={value.note === item.currentNote ? item.currentNoteTranslation : ''} />
           <div className="uinv-row">
             <span className="uinv-meta" style={{ flex: '1 1 auto' }}>
               {item.countUpdatedAt

@@ -58,6 +58,16 @@ unnoticed.
   and is on only when `ANTHROPIC_API_KEY` is set; without it both
   languages are editable as before. Answers are cached in memory, so
   retyping the same text costs nothing.
+- **Count notes in both languages.** The note left on an item when
+  counting (by the cleaning service or the owner) is translated into the
+  other language when it is saved, using the language of the page it was
+  typed on, and stored with it (`current_note_lang`,
+  `current_note_translation`). Both pages show it read-only under the
+  note ("🌐 In English (automatic translation): …"), and the checkout
+  report shows it under the note too. It is hidden while the note is
+  being changed, cleared with the note, and simply absent when
+  translation is off or failed — the note is saved either way. A
+  database without the two columns keeps saving counts without them.
 - **Back to the item.** After editing or duplicating (saved or closed),
   the list scrolls back to the item (the copy, once saved) and briefly
   highlights it, so the owner doesn't lose their place in a long list.

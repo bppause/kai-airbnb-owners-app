@@ -259,7 +259,7 @@ export default function UnitInventoryModal({ listing, user, onClose }) {
     const updates = pendingUpdates();
     if (!updates) return;
     run(async () => {
-      await api.post(`${unitBase}/counts`, { ...who, updates });
+      await api.post(`${unitBase}/counts`, { ...who, lang, updates });
       setDraft({});
       await load();
     }, T('saved'));
@@ -270,7 +270,7 @@ export default function UnitInventoryModal({ listing, user, onClose }) {
     const sure = requiredCount ? T('countDoneConfirmReq', { n: requiredCount }) : T('countDoneConfirm', { n: list.length });
     if (!updates || !window.confirm(sure)) return;
     run(async () => {
-      await api.post(`${unitBase}/checks`, { ...who, updates });
+      await api.post(`${unitBase}/checks`, { ...who, lang, updates });
       setDraft({});
       await load();
     }, T('countDoneSaved'));
