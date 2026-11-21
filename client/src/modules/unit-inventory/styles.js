@@ -72,6 +72,11 @@ export const UINV_CSS = `
 .uinv-item-miss .uinv-num{border:2px solid #c0392b;color:#9d1f16;background:#fff}
 .uinv-item-extra .uinv-num{border:2px solid #1c6fc4;color:#1c4f8a;background:#fff}
 .uinv-item-dirty{box-shadow:0 0 0 2px rgba(11,127,140,.35)}
+.uinv-item-flash{animation:uinv-flash 1.6s ease-out}
+.uinv-tr{display:block;margin-top:4px;font-size:13px;font-weight:600;text-transform:none;letter-spacing:0;color:#0b7f8c}
+.uinv-tr-failed{color:#b42318}
+@keyframes uinv-flash{0%,30%{box-shadow:0 0 0 3px #0b7f8c;background:#e6f6f7}100%{box-shadow:0 0 0 0 rgba(11,127,140,0)}}
+@media (prefers-reduced-motion:reduce){.uinv-item-flash{animation:none;box-shadow:0 0 0 3px #0b7f8c}}
 .uinv-name{font-weight:700;overflow-wrap:anywhere}
 .uinv-other{font-size:.8rem;color:#5d7a82;overflow-wrap:anywhere}
 .uinv-onote{font-size:.8rem;color:#48656d;font-style:italic;overflow-wrap:anywhere}

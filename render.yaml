@@ -34,3 +34,7 @@ services:
         sync: false
       - key: EMAIL_FROM
         sync: false
+      # Optional: the Claude API key for translating inventory items between
+      # English and Spanish in the owner's item form. Unset = feature off.
+      - key: ANTHROPIC_API_KEY
+        sync: false
