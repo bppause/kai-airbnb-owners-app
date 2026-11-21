@@ -63,7 +63,7 @@ Permissions for delegate_admins are stored per-user in `app_users.permissions` (
 
 `VITE_*` variables are compiled into the frontend bundle at build time — changing them requires a redeploy. All other vars are runtime (server-only).
 
-Required for full functionality: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `GLOBAL_ADMIN_EMAILS`, `RESEND_API_KEY`, `EMAIL_FROM`, `PUBLIC_APP_URL`, and the six `VITE_FIREBASE_*` vars. See `.env.example` for the full list.
+Required for full functionality: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `GLOBAL_ADMIN_EMAILS`, `RESEND_API_KEY`, `EMAIL_FROM`, `PUBLIC_APP_URL`, and the six `VITE_FIREBASE_*` vars. See `.env.example` for the full list. Optional: `ANTHROPIC_API_KEY` turns on English↔Spanish translation in the inventory item form (`server/modules/unit-inventory/translate.js`); unset, that feature is simply off.
 
 ## Deployment
 

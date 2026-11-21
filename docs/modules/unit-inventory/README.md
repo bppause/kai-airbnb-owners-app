@@ -35,6 +35,26 @@ unnoticed.
   with its ☆ / ★ button or a whole area at once, and can set it in the
   add form or a CSV `required` column. Flagging changes no count, so it
   goes to the audit log, not the count history.
+- **Duplicate.** Next to Edit, an item's ⧉ Duplicate opens the add form
+  filled in from it (area, description, owner note, baseline count, ★)
+  so a similar item ("Bath towel" → "Hand towel") only needs what
+  differs. Saving adds a new item; the original is untouched and its
+  photos are not copied.
+- **Both languages stay in sync.** In the item form (add, edit,
+  duplicate), changing the area, description or note in one language
+  translates it into the other a moment after the owner stops typing,
+  marked "🌐 Translated automatically — check it". A field the owner has
+  typed in is never overwritten, so a corrected translation stays put.
+  An area the unit already has is matched to its existing name in the
+  other language instead of translated. Saving waits for a translation
+  still on its way. Translation uses the Claude API
+  (`server/modules/unit-inventory/translate.js`, model `claude-opus-5-5`
+  at low effort, with the API's refusal fallback on) and is on only
+  when `ANTHROPIC_API_KEY` is set; without it the form works as before.
+  Answers are cached in memory, so retyping the same text costs nothing.
+- **Back to the item.** After editing or duplicating (saved or closed),
+  the list scrolls back to the item (the copy, once saved) and briefly
+  highlights it, so the owner doesn't lose their place in a long list.
 - **Re-baseline.** When the owner accepts that the counts have changed
   for good (items replaced, retired, added), they re-baseline: the
   current counts become the new baseline, for one item or for every item
@@ -193,6 +213,7 @@ Mounted at `/api/m/unit-inventory`.
 | `GET /units/:listingId?ownerUid=` | owner | Items, the share link, the last complete count and pending proposals |
 | `POST /units/:listingId/items` | owner | Add one or many items (CSV import sends the whole file) |
 | `PUT /items/:id` | owner | Edit an item's area, description, owner note |
+| `POST /units/:listingId/translate` | owner | `{ text, to: es\|en, field: area\|name\|note }` → `{ text }`. 503 when `ANTHROPIC_API_KEY` is not set |
 | `DELETE /items/:id` | owner | Delete an item (history kept) |
 | `POST /units/:listingId/counts` | owner | Update counts and notes |
 | `GET /units/:listingId/items/:itemId/photos?ownerUid=` | owner | An item's photos |
@@ -244,7 +265,7 @@ runs to a couple of hundred items. Both screens are built around that:
   or closes them all; a search, or the owner's changed-only filter, opens
   whatever it matches.
 - **Compact items.** Below 640px an item shows its name, the expected
-  count and a − / + stepper. The note (and the owner's Edit / Delete /
+  count and a − / + stepper. The note (and the owner's Edit / Duplicate / Delete /
   Accept as baseline) sits behind a toggle and opens by itself as soon
   as the item has a note or its count leaves the baseline.
 - **Nothing scrolls out of reach.** The owner's title bar and close

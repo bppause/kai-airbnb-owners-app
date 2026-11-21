@@ -81,6 +81,7 @@
 const crypto = require('crypto');
 const express = require('express');
 const { v4: uuidv4 } = require('uuid');
+const { translate, translateEnabled, TranslateError } = require('./translate');
 
 const MAX_NAME = 300;
 const MAX_AREA = 120;
@@ -748,7 +749,27 @@ module.exports = function createUnitInventoryRouter(deps) {
       items: (data || []).map(itemFromDb), link: await loadLink(listing.id),
       lastCheck: await loadLastCheck(listing.id), proposals: await loadPendingProposals(listing.id),
       openDamages: (await loadDamages(listing.id, q => q.eq('status', 'open'))).map(r => damageFromDb(r)),
+      // Whether the item form can translate between the two languages.
+      translate: translateEnabled(),
     });
+  });
+
+  // POST /units/:listingId/translate — body: { ownerUid, text, to: 'es' |
+  // 'en', field: 'area' | 'name' | 'note' } → { text }. Fills in the other
+  // language of a field the owner just changed in the item form. 503 when
+  // translation isn't set up (no ANTHROPIC_API_KEY).
+  router.post('/units/:listingId/translate', async (req, res) => {
+    if (!requireSupabaseEnv(res)) return;
+    const { ownerUid, text: source, to, field } = req.body || {};
+    const listing = await requireOwnedUnit(res, req.params.listingId, ownerUid);
+    if (!listing) return;
+    try {
+      res.json({ text: await translate({ text: source, to, kind: field }) });
+    } catch (e) {
+      if (e instanceof TranslateError) return res.status(e.status).json({ error: e.message });
+      console.warn('[unit-inventory] translate failed:', e && e.message);
+      res.status(500).json({ error: 'Translation failed.' });
+    }
   });
 
   // POST /units/:listingId/items — body: { ownerUid, actorName, items: [
