@@ -162,7 +162,15 @@ client sends; there is no server-side session behind it.
 
 ## Data model
 
-Nine tables and one storage bucket, all in `supabase/schema.sql`:
+Nine tables and one storage bucket, all in `supabase/schema.sql`.
+
+To set up or update them, paste `supabase/unit_inventory.sql` into the
+Supabase SQL Editor and click Run. It is safe to run again: it only adds what
+is missing. That file is generated from the inventory section of
+`schema.sql`, so change the tables in `schema.sql`, then run
+`npm run inventory-sql` and commit both files
+(`npm run inventory-sql -- --check` fails if they have drifted).
+
 
 | Table | Holds |
 | --- | --- |
