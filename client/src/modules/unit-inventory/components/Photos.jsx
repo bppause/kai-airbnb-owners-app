@@ -155,11 +155,11 @@ export function ItemPhotos({ lang, item, store, onCount, onError, showLabel = 'p
   );
 }
 
-// The proof photo(s) the cleaning service takes of a ★ item at this
-// checkout. Always on the item's card, never folded away: amber and
-// "needed" until there is one, green once there is. `count` is how many
-// the server has for this visit; the pictures themselves are fetched
-// only if the person asks to see them.
+// Photo(s) the cleaning service may take of an item at this checkout —
+// optional, and offered above all for an item that is missing or
+// damaged. Green once there is one. `count` is how many the server has
+// for this visit; the pictures themselves are fetched only if the person
+// asks to see them.
 //
 // `store` is { load(item) → photos, add(item, dataUrl) → { photo,
 // proofCount }, remove(item, photo) → { proofCount } }.
@@ -196,13 +196,13 @@ export function ProofPhotos({ lang, item, count, store, onCount, onError }) {
   };
 
   return (
-    <div className={`uinv-proof${n ? ' uinv-proof-ok' : ''}`}>
-      <div className="uinv-proof-state">{n ? T('proofHave', { n }) : T('proofNeeded')}</div>
+    <div className={`uinv-proof${n ? ' uinv-proof-ok' : ' uinv-proof-opt'}`}>
+      <div className="uinv-proof-state">{n ? T('proofHave', { n }) : <>{T('proofOptional')} <span className="uinv-meta">{T('proofOptionalHint')}</span></>}</div>
       {photos && <PhotoStrip photos={photos} lang={lang} alt={T('photoAlt')} removeLabel={T('photoRemove')} onRemove={remove} />}
       <div className="uinv-row">
         {n < MAX_PROOF_PHOTOS && (
           <PhotoButton lang={lang} room={1} camera size={PROOF_SIZE} busyLabel={T('photoAdding')}
-            label={n ? T('proofAddMore') : T('proofTake')} className={n ? 'uinv-btn uinv-btn-sm' : 'uinv-btn uinv-btn-warn'}
+            label={n ? T('proofAddMore') : T('proofTake')} className="uinv-btn uinv-btn-sm"
             onPhoto={add} onError={() => setBad(true)} />
         )}
         {photos === null && n > 0 && <button type="button" className="uinv-btn uinv-btn-sm" disabled={loading} onClick={show}>{loading ? T('loading') : T('proofView')}</button>}

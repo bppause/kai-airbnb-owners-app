@@ -56,14 +56,21 @@
 // lists both screens load stay small; an item's photos are fetched when
 // someone opens them. The item carries only how many it has.
 //
-// At every checkout the cleaning service must photograph each item the
-// owner flagged (★), as proof of the count and of the item's condition.
-// Those photos go to unit_inventory_count_photos as they are taken; a
-// count cannot be completed through the share link while a flagged item
-// has none from this visit, and completing attaches them to the count's
-// record. They are kept for the unit's most recent checkouts only (see
-// PROOF_KEEP_CHECKS): one per flagged item per checkout adds up, and
-// they are stored in the database.
+// At a checkout the cleaning service may photograph any item — useful
+// above all when something is missing or damaged. Those photos go to
+// unit_inventory_count_photos as they are taken and join the count's
+// record when it is completed. They are optional, kept for the unit's
+// most recent checkouts only (PROOF_KEEP_CHECKS), and stored in the
+// database.
+//
+// What is required is a video: after cleaning, the cleaning service
+// records a short walk through the apartment. Videos are too large for
+// the database, so they go to Supabase Storage (bucket VIDEO_BUCKET): the
+// server hands the page a signed upload URL, the phone uploads the file
+// straight to storage, and the server records it in unit_inventory_videos
+// once it is there. A count cannot be completed through the share link
+// without a video from this visit; completing attaches it to the count.
+// Videos are kept for the unit's latest VIDEO_KEEP_CHECKS counts.
 //
 // Like the rest of this app the owner routes trust the ownerUid the
 // client sends (see server/platform/units/routes.js); there is no
@@ -101,6 +108,16 @@ const MAX_ITEM_PHOTOS = 3;
 // go, so the database doesn't grow without bound.
 const MAX_PROOF_PHOTOS = 3;
 const PROOF_KEEP_CHECKS = 12;
+// The checkout video. The page records at about 1 Mbit/s, so three minutes
+// is ~25 MB; 50 MB is also Supabase's per-file limit on its free plan.
+const VIDEO_BUCKET = 'inventory-videos';
+const MAX_VIDEO_BYTES = 50 * 1024 * 1024;
+const MAX_VIDEO_SECONDS = 180;
+const VIDEO_TYPES = { 'video/mp4': 'mp4', 'video/webm': 'webm', 'video/quicktime': 'mov' };
+const MAX_VISIT_VIDEOS = 3;
+const VIDEO_KEEP_CHECKS = 10;
+// How long a link to watch a video works.
+const VIDEO_URL_SECONDS = 60 * 60;
 const MAX_LOCATION = 200;
 // Damage reported this long before a count is completed belongs to that
 // visit and is attached to its record; older unattached reports stand
@@ -171,6 +188,17 @@ const checkFromDb = (r) => ({
   itemsRequired: r.items_required || 0,
   damagesCount: r.damages_count || 0,
   photosCount: r.photos_count || 0,
+  videosCount: r.videos_count || 0,
+  createdAt: r.created_at,
+});
+
+const videoFromDb = (r) => ({
+  id: r.id,
+  checkId: r.check_id || '',
+  contentType: r.content_type || '',
+  sizeBytes: r.size_bytes || 0,
+  durationSeconds: r.duration_seconds || 0,
+  takenBy: r.taken_by || '',
   createdAt: r.created_at,
 });
 
@@ -357,6 +385,51 @@ module.exports = function createUnitInventoryRouter(deps) {
 
   const visitSince = () => new Date(Date.now() - DAMAGE_VISIT_WINDOW_MS).toISOString();
 
+  const videoStore = () => (supabase.storage ? supabase.storage.from(VIDEO_BUCKET) : null);
+
+  // The videos uploaded during the current visit and not yet part of a
+  // completed count. Null when the table isn't there yet (schema.sql not
+  // re-run): then no video is asked for and counts complete as before.
+  const visitVideos = async (listingId) => {
+    const { data, error } = await supabase.from('unit_inventory_videos')
+      .select('*').eq('listing_id', listingId).eq('status', 'ready')
+      .is('check_id', null).gte('created_at', visitSince())
+      .order('created_at', { ascending: true });
+    return error ? null : (data || []);
+  };
+
+  // Removes video rows and their files. Files first: a row whose file is
+  // gone is harmless, a file nothing points to is lost space.
+  const dropVideos = async (rows) => {
+    if (!rows.length) return;
+    const store = videoStore();
+    if (store) {
+      for (let i = 0; i < rows.length; i += 100) {
+        const { error } = await store.remove(rows.slice(i, i + 100).map(r => r.path));
+        if (error) { warn('Inventory video removal failed: ' + error.message); return; }
+      }
+    }
+    for (let i = 0; i < rows.length; i += 100) {
+      await supabase.from('unit_inventory_videos').delete().in('id', rows.slice(i, i + 100).map(r => r.id));
+    }
+  };
+
+  // Keeps the videos of the unit's latest VIDEO_KEEP_CHECKS counts and
+  // drops older ones, uploads never finished, and videos of visits that
+  // were never completed. Best effort, after a count is completed.
+  const pruneVideos = async (listingId) => {
+    try {
+      const { data: checks } = await supabase.from('unit_inventory_checks').select('id').eq('listing_id', listingId)
+        .order('created_at', { ascending: false }).limit(VIDEO_KEEP_CHECKS + 500);
+      const old = new Set((checks || []).slice(VIDEO_KEEP_CHECKS).map(c => c.id));
+      const { data: rows } = await supabase.from('unit_inventory_videos').select('id, path, check_id, status, created_at').eq('listing_id', listingId);
+      const stale = new Date(Date.now() - 2 * DAMAGE_VISIT_WINDOW_MS).toISOString();
+      await dropVideos((rows || []).filter(r => (r.check_id && old.has(r.check_id)) || (!r.check_id && r.created_at < stale)));
+    } catch (e) {
+      warn('Inventory video clean-up failed: ' + (e?.message || e));
+    }
+  };
+
   // The proof photos taken during the current visit and not yet part of
   // a completed count, without the pictures: [{ id, item_id }]. Null when
   // the table isn't there yet (schema.sql not re-run), in which case
@@ -399,22 +472,16 @@ module.exports = function createUnitInventoryRouter(deps) {
   // the share link, a flagged item without a proof photo stops it.
   // Returns { check, changed } or { error, status } / { supabaseError }.
   const completeCount = async ({ listing, updates, actorType, actorName, actorUid, req }) => {
-    // Proof first, before anything is written: every item flagged for
-    // every checkout needs a photo from this visit. (The owner's own
-    // count asks for none.)
+    // The video first, before anything is written: the cleaning service
+    // can't complete a count without one from this visit. (The owner's
+    // own count asks for none.) Item photos are optional.
     const proofs = actorType === 'cleaner' ? await visitProofs(listing.id) : [];
-    if (actorType === 'cleaner' && proofs) {
-      // A database without count_required has nothing flagged to enforce.
-      const { data: flagged, error: fErr } = await supabase.from('unit_inventory_items')
-        .select('id').eq('listing_id', listing.id).eq('count_required', true);
-      const photographed = new Set(proofs.map(ph => ph.item_id));
-      const missing = fErr ? [] : (flagged || []).filter(r => !photographed.has(r.id)).map(r => r.id);
-      if (missing.length) {
-        return {
-          error: `A photo is missing for ${missing.length} of the items marked ★. Take a photo of each one before finishing.`,
-          status: 400, missingItemIds: missing.slice(0, 500),
-        };
-      }
+    const videos = actorType === 'cleaner' ? await visitVideos(listing.id) : [];
+    if (actorType === 'cleaner' && videos && !videos.length) {
+      return {
+        error: 'The video of the apartment is missing. Record a short walk through the apartment after cleaning, then finish.',
+        status: 400, videoMissing: true,
+      };
     }
     let changed = 0;
     if (Array.isArray(updates) && updates.length) {
@@ -453,10 +520,11 @@ module.exports = function createUnitInventoryRouter(deps) {
     const damages = await visitDamages(listing.id);
     // The result and the damage count are newer columns: if the database
     // doesn't have them yet, the count is still recorded without them.
-    const full = { ...row, results, damages_count: damages.length, photos_count: taken.length };
+    const filmed = videos || [];
+    const full = { ...row, results, damages_count: damages.length, photos_count: taken.length, videos_count: filmed.length };
     let saved = full;
     let { error: cErr } = await supabase.from('unit_inventory_checks').insert(full);
-    if (cErr && (results.length || damages.length || taken.length)) {
+    if (cErr && (results.length || damages.length || taken.length || filmed.length)) {
       saved = row;
       ({ error: cErr } = await supabase.from('unit_inventory_checks').insert(row));
     }
@@ -478,9 +546,16 @@ module.exports = function createUnitInventoryRouter(deps) {
         .update({ check_id: row.id }).eq('listing_id', listing.id).in('id', taken.slice(i, i + 100).map(ph => ph.id));
       if (pErr) return { supabaseError: pErr };
     }
+    // And so does its video.
+    if (filmed.length) {
+      const { error: vErr } = await supabase.from('unit_inventory_videos')
+        .update({ check_id: row.id }).eq('listing_id', listing.id).in('id', filmed.map(v => v.id));
+      if (vErr) return { supabaseError: vErr };
+    }
     if (actorType === 'cleaner') {
       setImmediate(() => notifyOwnerOfCheck({ listing, check: saved, results, damages, req }));
       setImmediate(() => pruneProofPhotos(listing.id));
+      setImmediate(() => pruneVideos(listing.id));
     }
     return { check: checkFromDb(saved), changed };
   };
@@ -570,7 +645,8 @@ module.exports = function createUnitInventoryRouter(deps) {
       check.items_extra ? `${check.items_extra} con sobrantes` : '',
       !check.items_missing && !check.items_extra ? 'todo coincide' : '',
       damages.length ? `${damages.length} daño(s) reportado(s)` : 'sin daños reportados',
-      check.photos_count ? `${check.photos_count} foto(s) de prueba` : '',
+      check.photos_count ? `${check.photos_count} foto(s)` : '',
+      check.videos_count ? `video del apartamento incluido` : '',
     ].filter(Boolean).join(' · ');
     const off = results.filter(r => r.count !== r.baseline);
     return notifyOwner({
@@ -582,9 +658,9 @@ module.exports = function createUnitInventoryRouter(deps) {
         parts,
         ...(off.length ? ['Artículos con diferencia:', ...off.slice(0, 40).map(r => `• ${r.nameEs || r.nameEn}: esperado ${r.baseline}, contado ${r.count}${r.note ? ` — ${r.note}` : ''}`)] : []),
         ...(damages.length ? ['Daños reportados:', ...damages.slice(0, 20).map(d => `• ${[damageWhere(d), d.description].filter(Boolean).join(': ')}${d.photo_count ? ` (${d.photo_count} foto(s))` : ''}`)] : []),
-        'El reporte completo, con fotos, está en la aplicación: Mis unidades → Inventario → Reportes de salida.',
+        'El reporte completo, con fotos y video, está en la aplicación: Mis unidades → Inventario → Reportes de salida.',
         '',
-        `${check.actor_name} (cleaning service) completed the checkout inventory of apartment ${listing.apt}. The full report, with photos, is in the app: My Units → Inventory → Checkout reports.`,
+        `${check.actor_name} (cleaning service) completed the checkout inventory of apartment ${listing.apt}. The full report, with photos and video, is in the app: My Units → Inventory → Checkout reports.`,
       ],
     });
   };
@@ -1045,6 +1121,27 @@ module.exports = function createUnitInventoryRouter(deps) {
     res.json({ photos: (data || []).map(itemPhotoFromDb) });
   });
 
+  // GET /units/:listingId/checks/:checkId/videos?ownerUid= — the
+  // checkout's video(s), each with a link to watch it that works for an
+  // hour. Empty once the checkout is older than the ones videos are kept
+  // for.
+  router.get('/units/:listingId/checks/:checkId/videos', async (req, res) => {
+    if (!requireSupabaseEnv(res)) return;
+    const listing = await requireOwnedUnit(res, req.params.listingId, req.query.ownerUid);
+    if (!listing) return;
+    const { data, error } = await supabase.from('unit_inventory_videos')
+      .select('*').eq('listing_id', listing.id).eq('check_id', req.params.checkId).eq('status', 'ready')
+      .order('created_at', { ascending: true });
+    if (error) return sendSupabaseError(res, error);
+    const store = videoStore();
+    const videos = [];
+    for (const v of data || []) {
+      const { data: link, error: lErr } = store ? await store.createSignedUrl(v.path, VIDEO_URL_SECONDS) : { error: true };
+      videos.push({ ...videoFromDb(v), url: lErr || !link ? '' : link.signedUrl });
+    }
+    res.json({ videos });
+  });
+
   // GET /units/:listingId/damages/:damageId?ownerUid= — one damage report
   // with its photos.
   router.get('/units/:listingId/damages/:damageId', async (req, res) => {
@@ -1211,7 +1308,13 @@ module.exports = function createUnitInventoryRouter(deps) {
         const proofs = await visitProofs(listing.id);
         const proofCounts = {};
         for (const ph of proofs || []) proofCounts[ph.item_id] = (proofCounts[ph.item_id] || 0) + 1;
-        return { proofRequired: proofs !== null, proofCounts };
+        // Item photos are optional; the flag says the page may offer them.
+        return { proofEnabled: proofs !== null, proofCounts };
+      })()),
+      ...(await (async () => {
+        // This visit's video(s), and whether one is required to finish.
+        const videos = await visitVideos(listing.id);
+        return { videoRequired: videos !== null, videos: (videos || []).map(videoFromDb) };
       })()),
     });
   });
@@ -1227,6 +1330,98 @@ module.exports = function createUnitInventoryRouter(deps) {
     const { data, error } = await loadItemPhotos(item.id);
     if (error) return sendSupabaseError(res, error);
     res.json({ photos: (data || []).map(itemPhotoFromDb) });
+  });
+
+  // The checkout video. Recording happens on the phone; the file goes
+  // straight to Supabase Storage through a signed upload URL, so it never
+  // passes through this server. Three steps: ask for the URL (a row is
+  // created as 'uploading'), upload, then say it is done (the server
+  // checks the file is there and marks the row 'ready').
+
+  // A video row of this unit, unattached to any count, or null with the
+  // response already sent.
+  const visitVideo = async (res, listing, videoId) => {
+    const { data, error } = await supabase.from('unit_inventory_videos')
+      .select('*').eq('id', videoId).eq('listing_id', listing.id).maybeSingle();
+    if (error) { sendSupabaseError(res, error); return null; }
+    if (!data || data.check_id) { res.status(404).json({ error: 'Video not found.' }); return null; }
+    return data;
+  };
+
+  // POST /shared/:token/videos — body: { name, contentType, size,
+  // duration }. Returns { video: { id }, uploadUrl }: the page PUTs the
+  // file to uploadUrl with that Content-Type.
+  router.post('/shared/:token/videos', async (req, res) => {
+    if (!requireSupabaseEnv(res)) return;
+    const listing = await unitForToken(res, req.params.token);
+    if (!listing) return;
+    const store = videoStore();
+    if (!store) return res.status(500).json({ error: 'Video storage is not available.' });
+    const contentType = String(req.body?.contentType || '').split(';')[0].trim().toLowerCase();
+    const ext = VIDEO_TYPES[contentType];
+    if (!ext) return res.status(400).json({ error: 'The video must be MP4, WebM or MOV.' });
+    const size = Number(req.body?.size);
+    if (!Number.isFinite(size) || size <= 0) return res.status(400).json({ error: 'The video is empty.' });
+    if (size > MAX_VIDEO_BYTES) return res.status(400).json({ error: `The video is too large (at most ${Math.round(MAX_VIDEO_BYTES / 1048576)} MB). Record a shorter one.` });
+    const duration = Math.max(0, Math.round(Number(req.body?.duration) || 0));
+    if (duration > MAX_VIDEO_SECONDS + 15) return res.status(400).json({ error: `The video is too long (at most ${MAX_VIDEO_SECONDS / 60} minutes).` });
+    const { data: visit, error: vErr } = await supabase.from('unit_inventory_videos')
+      .select('id').eq('listing_id', listing.id).is('check_id', null).gte('created_at', visitSince()).limit(MAX_VISIT_VIDEOS * 3);
+    if (vErr) return sendSupabaseError(res, vErr);
+    if ((visit || []).length >= MAX_VISIT_VIDEOS * 3) return res.status(400).json({ error: 'Too many videos for this visit. Delete one first.' });
+    const id = 'uvd_' + uuidv4().slice(0, 12);
+    const path = `${listing.id}/${id}.${ext}`;
+    let signed = await store.createSignedUploadUrl(path);
+    // The bucket is created by schema.sql; if that wasn't run, make it now.
+    if (signed.error && /bucket not found|not found/i.test(signed.error.message || '')) {
+      await supabase.storage.createBucket(VIDEO_BUCKET, { public: false, fileSizeLimit: MAX_VIDEO_BYTES, allowedMimeTypes: Object.keys(VIDEO_TYPES) });
+      signed = await store.createSignedUploadUrl(path);
+    }
+    if (signed.error) return sendSupabaseError(res, signed.error);
+    const row = {
+      id, listing_id: listing.id, community_id: listing.community_id || 'kai',
+      check_id: null, path, content_type: contentType, size_bytes: Math.round(size), duration_seconds: duration,
+      status: 'uploading', taken_by: text(req.body?.name, MAX_ACTOR) || 'Cleaning service',
+      created_at: new Date().toISOString(),
+    };
+    const { error } = await supabase.from('unit_inventory_videos').insert(row);
+    if (error) return sendSupabaseError(res, error);
+    res.json({ video: { id }, uploadUrl: signed.data.signedUrl, contentType });
+  });
+
+  // POST /shared/:token/videos/:videoId/done — the upload has finished.
+  router.post('/shared/:token/videos/:videoId/done', async (req, res) => {
+    if (!requireSupabaseEnv(res)) return;
+    const listing = await unitForToken(res, req.params.token);
+    if (!listing) return;
+    const video = await visitVideo(res, listing, req.params.videoId);
+    if (!video) return;
+    const store = videoStore();
+    const [folder, file] = video.path.split('/');
+    const { data: found, error } = await store.list(folder, { search: file, limit: 5 });
+    if (error) return sendSupabaseError(res, error);
+    const object = (found || []).find(o => o.name === file);
+    if (!object) return res.status(400).json({ error: 'The video did not arrive. Try sending it again.' });
+    const size = Number(object.metadata?.size) || video.size_bytes;
+    if (size > MAX_VIDEO_BYTES) {
+      await dropVideos([video]);
+      return res.status(400).json({ error: 'The video is too large. Record a shorter one.' });
+    }
+    const { error: uErr } = await supabase.from('unit_inventory_videos').update({ status: 'ready', size_bytes: size }).eq('id', video.id);
+    if (uErr) return sendSupabaseError(res, uErr);
+    res.json({ video: videoFromDb({ ...video, status: 'ready', size_bytes: size }) });
+  });
+
+  // DELETE /shared/:token/videos/:videoId — removes a video taken this
+  // visit (to record it again). Once the count is completed it stays.
+  router.delete('/shared/:token/videos/:videoId', async (req, res) => {
+    if (!requireSupabaseEnv(res)) return;
+    const listing = await unitForToken(res, req.params.token);
+    if (!listing) return;
+    const video = await visitVideo(res, listing, req.params.videoId);
+    if (!video) return;
+    await dropVideos([video]);
+    res.json({ ok: true });
   });
 
   // Proof photos: the cleaning service's pictures of an item at this
@@ -1321,7 +1516,7 @@ module.exports = function createUnitInventoryRouter(deps) {
     });
     if (result.supabaseError) return sendSupabaseError(res, result.supabaseError);
     // A refusal for missing proof photos says which items, so the page can take the person to them.
-    if (result.error) return res.status(result.status).json({ error: result.error, ...(result.missingItemIds ? { missingItemIds: result.missingItemIds } : {}) });
+    if (result.error) return res.status(result.status).json({ error: result.error, ...(result.videoMissing ? { videoMissing: true } : {}) });
     res.json(result);
   });
 

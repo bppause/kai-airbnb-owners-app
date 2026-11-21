@@ -22,11 +22,12 @@ import React, { useEffect, useRef, useState } from "react";
 import { api } from "../../../core/api";
 import { tr, parseCountInput, diffFromBaseline, tallyDiffs, groupByArea, API_BASE } from "../strings";
 import { DiffSummary } from "../components/DiffMarks";
-import { ItemList, Toast, ViewSwitch, FilterBar, useAreaFolding, areaKey } from "../components/ItemList";
+import { ItemList, Toast, ViewSwitch, FilterBar, useAreaFolding } from "../components/ItemList";
 import { CountComplete, LastCheckLine } from "../components/CountComplete";
 import { ProposeItemForm, PendingProposals } from "../components/Proposals";
 import { DamageForm, DamageList } from "../components/Damages";
 import { ItemPhotos, ProofPhotos } from "../components/Photos";
+import { VideoRecorder, formatDuration, formatMb, MAX_VIDEO_SECONDS } from "../components/Video";
 import { UINV_CSS } from "../styles";
 
 const NAME_KEY = 'kai_inventory_name';
@@ -92,9 +93,12 @@ export default function SharedInventoryView({ token }) {
     const d = await api.get(base);
     const items = d.items || [];
     setState({ kind: 'ready', unit: d.unit || {}, items, lastCheck: d.lastCheck || null, proposals: d.proposals || [], damages: d.damages || [],
-      // Whether the server asks for a proof photo of each ★ item, and how
-      // many each item already has from this visit.
-      proofRequired: d.proofRequired === true, proofCounts: d.proofCounts || {} });
+      // Whether the server takes item photos (optional), and how many each
+      // item already has from this visit.
+      proofEnabled: d.proofEnabled === true, proofCounts: d.proofCounts || {},
+      // Whether a video of the apartment is required to finish, and this
+      // visit's video(s).
+      videoRequired: d.videoRequired === true, videos: d.videos || [] });
     folding.decide(items.length);
     return items;
   };
@@ -138,7 +142,7 @@ export default function SharedInventoryView({ token }) {
     return shell(<div className="uinv-msg uinv-msg-err">{state.notFound ? T('linkInactive') : state.text}</div>);
   }
 
-  const { unit, items, lastCheck, proposals, damages, proofRequired, proofCounts } = state;
+  const { unit, items, lastCheck, proposals, damages, proofEnabled, proofCounts, videoRequired, videos } = state;
   const typed = (it) => draft[it.id] || { count: String(it.currentCount), note: it.currentNote };
   const isDirty = (it) => {
     const v = draft[it.id];
@@ -219,8 +223,9 @@ export default function SharedInventoryView({ token }) {
     ? <ItemPhotos lang={lang} item={it} store={photoStore} showLabel="photosShowRef" onCount={() => {}} onError={e => setMsg({ err: true, text: e?.message || String(e) })} />
     : null);
 
-  // Proof photos: one of every ★ item, taken at this checkout. Saved as
-  // each is taken; the count can't be finished while one is missing.
+  // Item photos, taken at this checkout: optional, offered on the ★ items
+  // and on any item that is off its count or has a note — the missing or
+  // damaged ones a photo helps most with. Saved as each is taken.
   const proofUrl = (it) => `${base}/items/${encodeURIComponent(it.id)}/proof`;
   const proofStore = {
     load: async (it) => (await api.get(proofUrl(it))).photos || [],
@@ -229,20 +234,35 @@ export default function SharedInventoryView({ token }) {
   };
   const setProofCount = (it, n) => setState(prev => ({ ...prev, proofCounts: { ...prev.proofCounts, [it.id]: n } }));
   // Remounted after each completed count, so the next visit starts empty.
-  const proofFor = (it) => (proofRequired && it.countRequired
+  const proofFor = (it) => (proofEnabled && (it.countRequired || diffOf(it) !== 0 || !!typed(it).note || (proofCounts[it.id] || 0) > 0)
     ? <ProofPhotos key={`${it.id}:${lastCheck ? lastCheck.id : ''}`} lang={lang} item={it} count={proofCounts[it.id] || 0} store={proofStore}
         onCount={setProofCount} onError={e => setMsg({ err: true, text: e?.message || String(e) })} />
     : null);
-  const unproven = proofRequired ? items.filter(it => it.countRequired && !(proofCounts[it.id] > 0)) : [];
-  // True when every ★ item has its photo. Otherwise says how many are
-  // missing and takes the person to the first one.
-  const proofsDone = () => {
-    if (!unproven.length) return true;
-    const first = unproven[0];
-    setMsg({ err: true, text: T('proofMissing', { n: unproven.length }) });
-    setSearch(''); setView('required');
-    folding.open(areaKey(first.areaEn, first.areaEs));
-    setTimeout(() => { const el = document.getElementById(`uinv-item-${first.id}`); if (el) el.scrollIntoView({ block: 'center' }); }, 80);
+
+  // The checkout video: required to finish when the server asks for it.
+  const videosUrl = `${base}/videos`;
+  const videoStart = (meta) => api.post(videosUrl, { name: name.trim(), ...meta });
+  const videoFinish = async (id) => (await api.post(`${videosUrl}/${encodeURIComponent(id)}/done`, {})).video;
+  const videoUploaded = (video) => {
+    writeStored(NAME_KEY, name.trim());
+    setState(prev => ({ ...prev, videos: [...(prev.videos || []), video] }));
+    setMsg({ text: T('videoSent') });
+  };
+  const removeVideo = async (video) => {
+    if (!window.confirm(T('videoDeleteConfirm'))) return;
+    try {
+      await api.del(`${videosUrl}/${encodeURIComponent(video.id)}`, {});
+      setState(prev => ({ ...prev, videos: (prev.videos || []).filter(v => v.id !== video.id) }));
+    } catch (e) { setMsg({ err: true, text: e?.message || String(e) }); }
+  };
+  const videoDone = !videoRequired || videos.length > 0;
+  // True when the video is in (or not asked for). Otherwise says so and
+  // takes the person to the video box.
+  const haveVideo = () => {
+    if (videoDone) return true;
+    setMsg({ err: true, text: T('videoMissing') });
+    const el = document.getElementById('uinv-video');
+    if (el) el.scrollIntoView({ block: 'start' });
     return false;
   };
   const openDamage = (preset) => setDamaging({ preset: preset || null, seq: Date.now() });
@@ -290,17 +310,16 @@ export default function SharedInventoryView({ token }) {
         <h2>{T('taskTitle')}</h2>
         <ol>
           <li>
-            <strong>{requiredItems.length
-              ? T(proofRequired ? 'taskCountReqPhoto' : 'taskCountReq', { n: requiredItems.length })
-              : T('taskCountAll', { n: items.length })}</strong>
-            <small>{T('taskCountHow')}{requiredItems.length > 0 && proofRequired ? ` ${T('taskPhotoHow')}` : ''}</small>
-            {requiredItems.length > 0 && proofRequired && (
-              <div className={`uinv-progress${unproven.length ? '' : ' uinv-progress-done'}`}>
-                {unproven.length ? '📷' : '✓'} {T('proofProgress', { a: requiredItems.length - unproven.length, b: requiredItems.length })}
-              </div>
-            )}
+            <strong>{requiredItems.length ? T('taskCountReq', { n: requiredItems.length }) : T('taskCountAll', { n: items.length })}</strong>
+            <small>{T('taskCountHow')}{proofEnabled ? ` ${T('taskPhotoOptional')}` : ''}</small>
           </li>
           <li><strong>{T('taskDamage')}</strong></li>
+          {videoRequired && (
+            <li>
+              <strong>{T('taskVideo')}</strong>
+              <div className={`uinv-progress${videoDone ? ' uinv-progress-done' : ''}`}>{T(videoDone ? 'taskVideoDone' : 'taskVideoPending')}</div>
+            </li>
+          )}
           <li><strong>{T('taskFinish')}</strong></li>
         </ol>
       </div>
@@ -338,13 +357,31 @@ export default function SharedInventoryView({ token }) {
         : <div className="uinv-action"><button type="button" className="uinv-btn uinv-btn-danger uinv-propose-open" disabled={busy} onClick={() => openDamage(null)}>{T('damageBtn')}</button></div>}
       <DamageList lang={lang} title={T('damagesVisit', { n: damages.length })} damages={damages} />
 
+      {videoRequired && (
+        <div className="uinv-box uinv-video" id="uinv-video">
+          <h2>{T('videoTitle')}</h2>
+          <p className="uinv-help">{T('videoHelp', { n: MAX_VIDEO_SECONDS / 60 })}</p>
+          {videos.map(v => (
+            <div key={v.id} className="uinv-video-done">
+              <span>{T('videoUploaded', { dur: formatDuration(v.durationSeconds), mb: formatMb(v.sizeBytes) })}</span>
+              <button type="button" className="uinv-btn uinv-btn-sm" style={{ justifySelf: 'start' }} disabled={busy} onClick={() => removeVideo(v)}>{T('videoDelete')}</button>
+            </div>
+          ))}
+          {/* Remounted after each completed count, so the next visit starts fresh. */}
+          {videos.length === 0 && (
+            <VideoRecorder key={lastCheck ? lastCheck.id : 'first'} lang={lang} canBegin={haveName}
+              start={videoStart} finish={videoFinish} onUploaded={videoUploaded} />
+          )}
+        </div>
+      )}
+
       {items.length > 0 && (
         <CountComplete lang={lang} unsaved={dirtyItems.length} busy={busy} onComplete={complete}
-          canStart={() => pendingUpdates() !== null && proofsDone()}
+          canStart={() => pendingUpdates() !== null && haveVideo()}
           damagePrompt={{
-            covers: requiredItems.length
-              ? T(proofRequired ? 'finishCoversReqPhoto' : 'finishCoversReq', { n: requiredItems.length })
-              : T('finishCoversAll', { n: items.length }),
+            covers: (requiredItems.length
+              ? T('finishCoversReq', { n: requiredItems.length })
+              : T('finishCoversAll', { n: items.length })) + (videoRequired ? ` ${T('finishVideo')}` : ''),
             reported: damages.length,
             onReport: () => openDamage(null),
           }} />

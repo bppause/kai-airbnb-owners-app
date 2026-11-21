@@ -9,6 +9,7 @@ import { api } from "../../../core/api";
 import { tr, primaryText, secondaryText, formatWhen, checkSummary } from "../strings";
 import { DamageCard } from "./Damages";
 import { PhotoStrip } from "./Photos";
+import { ReportVideo } from "./Video";
 
 // One item's proof photos in a report: fetched when asked for. An empty
 // answer means the report is older than the ones photos are kept for.
@@ -24,12 +25,19 @@ function ReportPhotos({ lang, count, load }) {
   return <PhotoStrip photos={photos} lang={lang} alt={tr(lang, 'photoAlt')} />;
 }
 
-// `loadPhotos(itemId)` fetches one item's proof photos for this report.
-function ReportDetail({ lang, detail, loadPhotos }) {
+// `loadPhotos(itemId)` fetches one item's photos for this report;
+// `loadVideos()` the checkout's video(s).
+function ReportDetail({ lang, check, detail, loadPhotos, loadVideos }) {
   const T = (k, v) => tr(lang, k, v);
   const { results, damages } = detail;
   return (
     <div className="uinv-report-body">
+      {check.actorType === 'cleaner' && (
+        <div>
+          <h2>{T('reportVideo')}</h2>
+          <div style={{ marginTop: 6 }}><ReportVideo lang={lang} count={check.videosCount} load={loadVideos} /></div>
+        </div>
+      )}
       <div>
         <h2>{T('reportDiffs', { n: results.length })}</h2>
         {results.length === 0 && <p className="uinv-help">{T('reportNoDiffs')}</p>}
@@ -102,8 +110,9 @@ export default function CheckoutReports({ lang, unitBase, ownerUid, onError }) {
               <button type="button" className="uinv-btn uinv-btn-sm" aria-expanded={open} onClick={() => toggle(check)}>{T(open ? 'reportClose' : 'reportOpen')}</button>
             </div>
             {open && (details[check.id]
-              ? <ReportDetail lang={lang} detail={details[check.id]}
-                  loadPhotos={async (itemId) => (await api.get(`${unitBase}/checks/${encodeURIComponent(check.id)}/items/${encodeURIComponent(itemId)}/photos?${q}`)).photos || []} />
+              ? <ReportDetail lang={lang} check={check} detail={details[check.id]}
+                  loadPhotos={async (itemId) => (await api.get(`${unitBase}/checks/${encodeURIComponent(check.id)}/items/${encodeURIComponent(itemId)}/photos?${q}`)).photos || []}
+                  loadVideos={async () => (await api.get(`${unitBase}/checks/${encodeURIComponent(check.id)}/videos?${q}`)).videos || []} />
               : <p className="uinv-sub" style={{ margin: '8px 0 0' }}>{T('loading')}</p>)}
           </div>
         );
