@@ -151,6 +151,12 @@ unnoticed.
   complete is two steps: it states what finishing confirms and asks
   whether there is damage to report before the count can be closed. The
   page opens with a three-step card saying exactly what to count.
+- **Descriptions are the owner's.** The cleaning service can change
+  only an item's count and the note on that count (plus photos, damage
+  reports and the video). Areas, descriptions, owner notes, baselines,
+  ★ and deleting are owner-only: the /shared routes ignore those fields.
+  The cleaning-service guide says so and tells them to put a wrong
+  description in a note.
 - **Proposed items.** The cleaning service cannot add to the inventory,
   but can propose an item that isn't on the list (description, area,
   quantity, note). A proposal waits in `unit_inventory_proposals`, shown
