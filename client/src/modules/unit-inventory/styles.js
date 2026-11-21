@@ -125,6 +125,20 @@ export const UINV_CSS = `
 .uinv-check{display:flex;align-items:center;gap:10px;min-height:44px;font-size:.92rem;font-weight:600;color:#17313a;cursor:pointer}
 .uinv-check input{flex:none;width:22px;height:22px;margin:0;accent-color:#0b7f4f}
 .uinv-task{background:#eef6f9;border-color:#b9d6e0}
+.uinv-intro{background:#fff8e6;border-color:#f0d89a}
+.uinv-intro p{margin:6px 0;font-size:.95rem;line-height:1.45}
+.uinv-head-tools{display:flex;gap:8px;align-items:center;flex:none}
+.uinv-help-btn{min-height:44px;white-space:nowrap}
+.uinv-help-overlay{position:fixed;inset:0;z-index:1000003;background:rgba(3,10,18,.6);display:flex;justify-content:center;align-items:flex-start;padding:16px;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
+.uinv-help-sheet{background:#fff;border-radius:16px;width:100%;max-width:640px;padding:0 18px 18px;margin:auto 0;box-shadow:0 22px 70px rgba(20,32,26,.3)}
+.uinv-help-head{position:sticky;top:0;background:#fff;display:flex;justify-content:space-between;align-items:center;gap:10px;padding:14px 0 10px;border-bottom:1px solid rgba(47,79,58,.12);z-index:1}
+.uinv-help-head h2{margin:0;font-size:1.15rem}
+.uinv-help-sec{margin-top:14px}
+.uinv-help-sec h3{margin:0 0 6px;font-size:1rem;color:#1d3a2b}
+.uinv-help-sec ul{margin:0;padding-left:20px;display:grid;gap:6px}
+.uinv-help-sec li{font-size:.95rem;line-height:1.45}
+.uinv-help-done{width:100%;margin-top:18px}
+@media (max-width:640px){.uinv-help-overlay{padding:0;background:#fff}.uinv-help-sheet{border-radius:0;box-shadow:none;max-width:none;min-height:100vh;min-height:100dvh;margin:0;padding:0 14px 20px}}
 .uinv-task ol{margin:8px 0 0;padding-left:22px;display:grid;gap:8px}
 .uinv-task li{font-size:.95rem}
 .uinv-task li small{display:block;color:#48656d;font-size:.82rem}
