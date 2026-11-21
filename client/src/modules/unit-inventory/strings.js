@@ -38,6 +38,8 @@ const STR = {
   diffMissingOne:   { es: '▼ Falta 1', en: '▼ 1 missing' },
   diffExtraOne:     { es: '▲ Sobra 1', en: '▲ 1 extra' },
   edit:             { es: 'Editar', en: 'Edit' },
+  duplicate:        { es: 'Duplicar', en: 'Duplicate' },
+  duplicateHint:    { es: 'Agregar un artículo nuevo a partir de este', en: 'Add a new item starting from this one' },
   delete:           { es: 'Eliminar', en: 'Delete' },
   deleteConfirm:    { es: '¿Eliminar "{name}" del inventario? Su historial se conserva.', en: 'Delete "{name}" from the inventory? Its history is kept.' },
   saveCounts:       { es: 'Guardar {n} cambio(s)', en: 'Save {n} change(s)' },
@@ -51,6 +53,8 @@ const STR = {
 
   formAdd:          { es: 'Nuevo artículo', en: 'New item' },
   formEdit:         { es: 'Editar artículo', en: 'Edit item' },
+  formDuplicate:    { es: 'Duplicar artículo', en: 'Duplicate item' },
+  formDuplicateHelp: { es: 'Es una copia: cambia lo que sea distinto y guarda. Se agrega como artículo nuevo; las fotos no se copian.', en: 'This is a copy: change what is different and save. It is added as a new item; photos are not copied.' },
   areaEn:           { es: 'Área (inglés)', en: 'Area (English)' },
   areaEs:           { es: 'Área (español)', en: 'Area (Spanish)' },
   nameEn:           { es: 'Descripción (inglés)', en: 'Description (English)' },

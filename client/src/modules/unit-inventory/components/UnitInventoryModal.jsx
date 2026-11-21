@@ -113,6 +113,12 @@ export default function UnitInventoryModal({ listing, user, onClose }) {
   const [draft, setDraft] = useState({});
   const [tab, setTab] = useState('items');
   const [form, setForm] = useState(null);
+  // The item to show again once the form closes (saved or not): the one
+  // being edited or duplicated, or the copy just made. Set with a fresh
+  // object each time so the same item can be returned to twice.
+  const [returnTo, setReturnTo] = useState(null);
+  // The item flashed after returning to it, briefly.
+  const [flash, setFlash] = useState(null);
   // Photos picked in the add-item form, sent once the item exists.
   const [formPhotos, setFormPhotos] = useState([]);
   const [importState, setImportState] = useState(null);
@@ -156,7 +162,7 @@ export default function UnitInventoryModal({ listing, user, onClose }) {
   // may be far from where Edit was tapped — bring them into view (at
   // once: an animated scroll across a couple of hundred items drags).
   const formOpen = !!form;
-  const formItemId = form ? form.id || '' : '';
+  const formItemId = form ? form.id || form.copyOf || '' : '';
   useEffect(() => {
     if (formOpen && formRef.current) formRef.current.scrollIntoView({ block: 'start' });
   }, [formOpen, formItemId]);
@@ -164,6 +170,25 @@ export default function UnitInventoryModal({ listing, user, onClose }) {
   useEffect(() => {
     if (importOpen && importRef.current) importRef.current.scrollIntoView({ block: 'start' });
   }, [importOpen]);
+
+  // Back to the item after the form closes: scroll it to the middle of the
+  // screen and flash it so it is easy to spot among the others. Waits
+  // for the reload, since a renamed or copied item may move. An item a
+  // search or filter now hides is simply not scrolled to.
+  useEffect(() => {
+    if (!returnTo || form) return undefined;
+    const el = document.getElementById(`uinv-item-${returnTo.id}`);
+    if (!el) return undefined;
+    el.scrollIntoView({ block: 'center' });
+    setFlash({ id: returnTo.id });
+    setReturnTo(null);
+    return undefined;
+  }, [returnTo, form, items]);
+  useEffect(() => {
+    if (!flash) return undefined;
+    const t = setTimeout(() => setFlash(null), 1600);
+    return () => clearTimeout(t);
+  }, [flash]);
 
   // A success message clears itself; an error stays until dismissed.
   useEffect(() => {
@@ -306,7 +331,21 @@ export default function UnitInventoryModal({ listing, user, onClose }) {
     await load();
   }, T('damageResolvedMsg'));
 
-  const openForm = (next) => { setImportState(null); setFormPhotos([]); setForm(next); };
+  const openForm = (next) => { setImportState(null); setFormPhotos([]); setReturnTo(null); setForm(next); };
+  // Closing without saving returns to the item the form was opened from.
+  const closeForm = () => {
+    const from = form && (form.id || form.copyOf);
+    setForm(null);
+    if (from) setReturnTo({ id: from });
+  };
+  // A copy starts as the same item — area, description, note, count and
+  // ★ — for the owner to change what differs (e.g. "Bath towel" → "Hand
+  // towel"). Photos stay with the original.
+  const duplicateItem = (it) => openForm({
+    copyOf: it.id,
+    areaEn: it.areaEn, areaEs: it.areaEs, nameEn: it.nameEn, nameEs: it.nameEs, noteEn: it.noteEn, noteEs: it.noteEs,
+    count: String(it.baselineCount), countRequired: !!it.countRequired,
+  });
 
   // An item's photos: read when its card opens them; added and deleted
   // by the owner. The list only knows how many each item has.
@@ -329,13 +368,15 @@ export default function UnitInventoryModal({ listing, user, onClose }) {
         setForm(null);
         folding.open(landsIn);
         await load();
+        setReturnTo({ id: form.id });
       }, T('saved'));
       return;
     }
     const count = parseCountInput(form.count);
     if (count == null) { setMsg({ err: true, text: T('countInvalid') }); return; }
+    const { copyOf, ...fields } = form;
     run(async () => {
-      const d = await api.post(`${unitBase}/items`, { ...who, items: [{ ...form, count }] });
+      const d = await api.post(`${unitBase}/items`, { ...who, items: [{ ...fields, count }] });
       // The item exists now; its photos follow. A photo that fails does
       // not undo the item — the owner is told and can add it again.
       const made = d.items && d.items[0];
@@ -343,11 +384,17 @@ export default function UnitInventoryModal({ listing, user, onClose }) {
       for (const p of (made ? formPhotos : [])) {
         try { await photoStore.add(made, p.data); } catch (e) { photoProblem = e?.message || String(e); }
       }
-      // Keep the area filled in: items are usually added a room at a time.
-      setForm({ ...EMPTY_FORM, areaEn: form.areaEn, areaEs: form.areaEs, countRequired: form.countRequired });
+      if (copyOf) {
+        // A copy is done once saved: close and show it in the list.
+        setForm(null);
+      } else {
+        // Keep the area filled in: items are usually added a room at a time.
+        setForm({ ...EMPTY_FORM, areaEn: form.areaEn, areaEs: form.areaEs, countRequired: form.countRequired });
+      }
       setFormPhotos([]);
       folding.open(landsIn);
       await load();
+      if (copyOf) setReturnTo({ id: made ? made.id : copyOf });
       if (photoProblem) throw new Error(T('photoSomeFailed', { why: photoProblem }));
     }, T('saved'));
   };
@@ -398,6 +445,7 @@ export default function UnitInventoryModal({ listing, user, onClose }) {
       )}
       <button type="button" className="uinv-btn uinv-btn-sm" disabled={busy}
         onClick={() => openForm({ id: it.id, areaEn: it.areaEn, areaEs: it.areaEs, nameEn: it.nameEn, nameEs: it.nameEs, noteEn: it.noteEn, noteEs: it.noteEs, count: '' })}>✏️ {T('edit')}</button>
+      <button type="button" className="uinv-btn uinv-btn-sm" disabled={busy} title={T('duplicateHint')} onClick={() => duplicateItem(it)}>⧉ {T('duplicate')}</button>
       <button type="button" className="uinv-btn uinv-btn-sm uinv-btn-danger" disabled={busy} onClick={() => removeItem(it)}>🗑️ {T('delete')}</button>
     </>
   );
@@ -498,7 +546,8 @@ export default function UnitInventoryModal({ listing, user, onClose }) {
 
             {form && (
               <div className="uinv-box" ref={formRef}>
-                <h2 style={{ marginBottom: 8 }}>{form.id ? T('formEdit') : T('formAdd')}</h2>
+                <h2 style={{ marginBottom: 8 }}>{form.id ? T('formEdit') : T(form.copyOf ? 'formDuplicate' : 'formAdd')}</h2>
+                {form.copyOf && <p className="uinv-help">{T('formDuplicateHelp')}</p>}
                 <div className="uinv-form">
                   <datalist id="uinv-areas-en">{areaOptions('areaEn').map(a => <option key={a} value={a} />)}</datalist>
                   <datalist id="uinv-areas-es">{areaOptions('areaEs').map(a => <option key={a} value={a} />)}</datalist>
@@ -523,7 +572,7 @@ export default function UnitInventoryModal({ listing, user, onClose }) {
                 </div>
                 <div className="uinv-row" style={{ marginTop: 10 }}>
                   <button type="button" className="uinv-btn uinv-btn-p" disabled={busy} onClick={saveForm}>{busy ? T('saving') : T('save')}</button>
-                  <button type="button" className="uinv-btn" disabled={busy} onClick={() => setForm(null)}>{T('close')}</button>
+                  <button type="button" className="uinv-btn" disabled={busy} onClick={closeForm}>{T('close')}</button>
                 </div>
               </div>
             )}
@@ -540,7 +589,7 @@ export default function UnitInventoryModal({ listing, user, onClose }) {
                 {shown.length === 0 && <p className="uinv-sub" style={{ marginTop: 12 }}>{T('noMatches')}</p>}
                 {/* A search or the changed-only filter opens every area it leaves. */}
                 <ItemList items={shown} lang={lang} folding={folding} forceOpen={!!needle || narrowing} busy={busy} expectedLabel={T('baseline')}
-                  valueOf={typed} diffOf={diffOf} isDirty={isDirty} onChange={setTyped} actionsFor={actionsFor} onRequired={setRequired} photosFor={photosFor} />
+                  valueOf={typed} diffOf={diffOf} isDirty={isDirty} onChange={setTyped} actionsFor={actionsFor} onRequired={setRequired} photosFor={photosFor} flashId={flash ? flash.id : null} />
                 <CountComplete lang={lang} unsaved={dirtyItems.length} busy={busy} onComplete={completeCount} />
               </>
             )}

@@ -35,6 +35,14 @@ unnoticed.
   with its ☆ / ★ button or a whole area at once, and can set it in the
   add form or a CSV `required` column. Flagging changes no count, so it
   goes to the audit log, not the count history.
+- **Duplicate.** Next to Edit, an item's ⧉ Duplicate opens the add form
+  filled in from it (area, description, owner note, baseline count, ★)
+  so a similar item ("Bath towel" → "Hand towel") only needs what
+  differs. Saving adds a new item; the original is untouched and its
+  photos are not copied.
+- **Back to the item.** After editing or duplicating (saved or closed),
+  the list scrolls back to the item (the copy, once saved) and briefly
+  highlights it, so the owner doesn't lose their place in a long list.
 - **Re-baseline.** When the owner accepts that the counts have changed
   for good (items replaced, retired, added), they re-baseline: the
   current counts become the new baseline, for one item or for every item
@@ -236,7 +244,7 @@ runs to a couple of hundred items. Both screens are built around that:
   or closes them all; a search, or the owner's changed-only filter, opens
   whatever it matches.
 - **Compact items.** Below 640px an item shows its name, the expected
-  count and a − / + stepper. The note (and the owner's Edit / Delete /
+  count and a − / + stepper. The note (and the owner's Edit / Duplicate / Delete /
   Accept as baseline) sits behind a toggle and opens by itself as soon
   as the item has a note or its count leaves the baseline.
 - **Nothing scrolls out of reach.** The owner's title bar and close

@@ -39,7 +39,7 @@ export const areaKey = (areaEn, areaEs) => `${areaEn || ''}\u0001${areaEs || ''}
 // buttons shown with the note. `expectedLabel` names the baseline box.
 // `onRequired` (owner only) flips whether the item must be counted at
 // every checkout; without it the ★ is only shown.
-function ItemCard({ item, lang, value, diff, dirty, busy, expectedLabel, opened, onToggle, onChange, actions, onRequired, moreLabel, photos, proof }) {
+function ItemCard({ item, lang, value, diff, dirty, busy, expectedLabel, opened, onToggle, onChange, actions, onRequired, moreLabel, photos, proof, flash }) {
   const T = (k, v) => tr(lang, k, v);
   const other = secondaryText(lang, item.nameEn, item.nameEs);
   const ownerNote = primaryText(lang, item.noteEn, item.noteEs);
@@ -52,7 +52,7 @@ function ItemCard({ item, lang, value, diff, dirty, busy, expectedLabel, opened,
     onChange('count', String(Math.max(0, (current == null ? item.currentCount : current) + delta)));
   };
   return (
-    <div id={`uinv-item-${item.id}`} className={`uinv-item${diffClass(diff)}${dirty ? ' uinv-item-dirty' : ''}${open ? ' uinv-item-open' : ''}`}>
+    <div id={`uinv-item-${item.id}`} className={`uinv-item${diffClass(diff)}${dirty ? ' uinv-item-dirty' : ''}${open ? ' uinv-item-open' : ''}${flash ? ' uinv-item-flash' : ''}`}>
       <div className="uinv-item-head">
         <div className="uinv-item-text">
           <div className="uinv-name">
@@ -117,7 +117,8 @@ function ItemCard({ item, lang, value, diff, dirty, busy, expectedLabel, opened,
 // (owner only) flags one item or a whole area for every checkout.
 // `photosFor(item)` returns the item's photo control (see ItemPhotos);
 // `proofFor(item)` the cleaning service's proof-photo control for it.
-export function ItemList({ items, lang, folding, forceOpen = false, busy, expectedLabel, valueOf, diffOf, isDirty, onChange, actionsFor, onRequired, moreLabel, photosFor, proofFor }) {
+// `flashId` briefly highlights one item (the one just edited or added).
+export function ItemList({ items, lang, folding, forceOpen = false, busy, expectedLabel, valueOf, diffOf, isDirty, onChange, actionsFor, onRequired, moreLabel, photosFor, proofFor, flashId }) {
   const T = (k, v) => tr(lang, k, v);
   // Items opened by hand on a narrow screen, by id.
   const [openedItems, setOpenedItems] = useState({});
@@ -163,7 +164,7 @@ export function ItemList({ items, lang, folding, forceOpen = false, busy, expect
                 onToggle={() => setOpenedItems(o => ({ ...o, [it.id]: !o[it.id] }))}
                 onChange={(field, value) => onChange(it, field, value)}
                 actions={actionsFor ? actionsFor(it) : null} moreLabel={moreLabel}
-                photos={photosFor ? photosFor(it) : null} proof={proofFor ? proofFor(it) : null}
+                photos={photosFor ? photosFor(it) : null} proof={proofFor ? proofFor(it) : null} flash={flashId === it.id}
                 onRequired={onRequired ? (required) => onRequired([it], required) : undefined} />
             ))}
           </section>
