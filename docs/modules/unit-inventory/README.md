@@ -123,6 +123,12 @@ unnoticed.
   does not change when the inventory later does. When the cleaning
   service completes a count the owner gets its result as an alert and an
   email.
+- **Used after each checkout cleaning.** The cleaning service opens the
+  link each time Airbnb guests check out, once the apartment is cleaned,
+  so the count and the video show it ready for the next guest. The
+  share message, the welcome card, the task card ("Al terminar la
+  limpieza de esta salida"), the guide (which opens with "Cuándo
+  usarlo") and the owner's link help all say so.
 - **Help for the cleaning service.** The first time the link is opened
   on a phone, a short welcome card says what the page is and what to do
   at each checkout ("Entendido" hides it for good on that phone,
