@@ -61,8 +61,10 @@ const guide = (lang, { required, videoRequired, proofEnabled }) => {
       icon: '📝',
       title: pick('Si algo falta o está dañado', 'If something is missing or damaged'),
       points: [
-        pick('Pon el número real. Si un artículo ya no está, pon 0. Solo el propietario puede borrar artículos de la lista.',
-          'Enter the real number. If an item is gone, set it to 0. Only the owner can remove items from the list.'),
+        pick('Pon el número real. Si un artículo ya no está, pon 0.',
+          'Enter the real number. If an item is gone, set it to 0.'),
+        pick('No puedes cambiar la descripción de un artículo ni borrarlo: eso solo lo hace el propietario. Si la descripción no es correcta, escríbelo en una nota.',
+          'You can’t change an item’s description or remove it: only the owner can. If the description is wrong, say so in a note.'),
         pick('Toca “＋ Nota” en el artículo para explicar qué pasó (roto, manchado, se lo llevaron…).',
           'Tap “＋ Note” on the item to explain what happened (broken, stained, taken…).'),
         ...(proofEnabled ? [pick('Puedes tomarle una foto con “📷 Foto (opcional)”. No es obligatorio, pero ayuda mucho cuando algo falta o está dañado.',
@@ -85,8 +87,8 @@ const guide = (lang, { required, videoRequired, proofEnabled }) => {
       icon: '＋',
       title: pick('¿Encontraste algo que no está en la lista?', 'Found something that isn’t on the list?'),
       points: [
-        pick('Toca “＋ Agregar un artículo que no está en la lista”. El propietario lo revisa y decide si se agrega.',
-          'Tap “＋ Add an item that is not on the list”. The owner reviews it and decides whether to add it.'),
+        pick('Toca “＋ Agregar un artículo que no está en la lista” y descríbelo. No se agrega de una vez: queda pendiente hasta que el propietario lo apruebe.',
+          'Tap “＋ Add an item that is not on the list” and describe it. It isn’t added right away: it waits until the owner approves it.'),
       ],
     },
     {

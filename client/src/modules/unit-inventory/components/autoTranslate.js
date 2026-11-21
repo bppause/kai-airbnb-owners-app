@@ -4,8 +4,9 @@
 // after they stop typing.
 //
 // - A field the owner has typed in is theirs: it is never overwritten.
-//   So once they correct a translation, nothing translates back over
-//   either side.
+//   (The item form lets the owner type only in their own language while
+//   translation works, so in practice translation runs from that language
+//   into the other, read-only one.)
 // - An area the unit already has is matched to its existing name in the
 //   other language instead of being translated, so areas stay grouped.
 // - Saving waits for any translation still on its way (see `flush`).
@@ -48,7 +49,17 @@ export function useAutoTranslate({ enabled, translate, setField, knownArea }) {
     touched.current.add(field);
     delete applied.current[field];
     mark(field, null);
-    const target = partnerOf(field);
+    schedule(partnerOf(field), field, value, DELAY_MS, true);
+  };
+
+  // Translate `sourceField`'s text into its partner now, without marking
+  // the source as typed — e.g. to fill in the owner's language for an
+  // item that so far only has the other one.
+  const fillFrom = (sourceField, value) => schedule(partnerOf(sourceField), sourceField, value, 0, false);
+
+  // `clearWithSource`: an emptied source also empties the target (the
+  // owner can't type in it when it is read-only).
+  const schedule = (target, field, value, delay, clearWithSource) => {
     if (!enabled || touched.current.has(target)) return;
     clearTimeout(timers.current[target]);
     delete timers.current[target];
@@ -56,7 +67,11 @@ export function useAutoTranslate({ enabled, translate, setField, knownArea }) {
     const n = (seq.current[target] = (seq.current[target] || 0) + 1);
     const gen = generation.current;
     const text = String(value || '').trim();
-    if (!text) { mark(target, null); return; }
+    if (!text) {
+      mark(target, null);
+      if (clearWithSource) write(target, '');
+      return;
+    }
 
     const known = field.startsWith('area') ? knownArea(field, text) : null;
     if (known) { write(target, known); mark(target, { state: 'auto' }); return; }
@@ -78,7 +93,7 @@ export function useAutoTranslate({ enabled, translate, setField, knownArea }) {
       }
     };
     inflight.current[target] = { promise, fire };
-    timers.current[target] = setTimeout(fire, DELAY_MS);
+    timers.current[target] = setTimeout(fire, delay);
   };
 
   // Send any translation still waiting for the owner to stop typing, and
@@ -96,6 +111,7 @@ export function useAutoTranslate({ enabled, translate, setField, knownArea }) {
     status,
     reset,
     onOwnerEdit,
+    fillFrom,
     flush,
     waiting: () => Object.keys(inflight.current).length > 0,
     // What translation wrote since the form opened (and the owner hasn't
