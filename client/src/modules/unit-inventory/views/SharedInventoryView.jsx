@@ -20,7 +20,7 @@
 
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "../../../core/api";
-import { tr, parseCountInput, diffFromBaseline, tallyDiffs, groupByArea, API_BASE } from "../strings";
+import { tr, parseCountInput, diffFromBaseline, tallyDiffs, groupByArea, noteForViewer, API_BASE } from "../strings";
 import { DiffSummary } from "../components/DiffMarks";
 import { ItemList, Toast, ViewSwitch, FilterBar, useAreaFolding } from "../components/ItemList";
 import { CountComplete, LastCheckLine } from "../components/CountComplete";
@@ -62,7 +62,11 @@ const restoreDraft = (token, items) => {
   for (const it of items) {
     const v = stored.draft[it.id];
     if (!v || typeof v.count !== 'string' || typeof v.note !== 'string') continue;
-    if (v.count !== String(it.currentCount) || v.note !== it.currentNote) kept[it.id] = { count: v.count, note: v.note };
+    // A note counts as edited if it was marked so, or (older drafts)
+    // differs from both languages of the saved note.
+    const edited = v.noteEdited === true
+      || (v.noteEdited === undefined && v.note !== it.currentNote && v.note !== (it.currentNoteTranslation || ''));
+    if (v.count !== String(it.currentCount) || edited) kept[it.id] = { count: v.count, note: v.note, noteEdited: edited };
   }
   return kept;
 };
@@ -152,10 +156,19 @@ export default function SharedInventoryView({ token }) {
   }
 
   const { unit, items, lastCheck, proposals, damages, proofEnabled, proofCounts, videoRequired, videos } = state;
-  const typed = (it) => draft[it.id] || { count: String(it.currentCount), note: it.currentNote };
+  // The note box shows the note in this person's language (see
+  // noteForViewer). Only a note they actually changed is sent back, so a
+  // note merely shown in translation is never overwritten by it.
+  const baseNote = (it) => noteForViewer(lang, it).text;
+  const typed = (it) => {
+    const d = draft[it.id];
+    if (!d) return { count: String(it.currentCount), note: baseNote(it) };
+    return d.noteEdited ? d : { ...d, note: baseNote(it) };
+  };
+  const noteChanged = (it) => { const d = draft[it.id]; return !!d && !!d.noteEdited && d.note !== baseNote(it); };
   const isDirty = (it) => {
     const v = draft[it.id];
-    return !!v && (v.count !== String(it.currentCount) || v.note !== it.currentNote);
+    return !!v && (v.count !== String(it.currentCount) || noteChanged(it));
   };
   const dirtyItems = items.filter(isDirty);
   // Judged by the count as typed, so a row lights up as soon as its
@@ -163,7 +176,8 @@ export default function SharedInventoryView({ token }) {
   const diffOf = (it) => diffFromBaseline(it, draft[it.id]?.count);
   const setTyped = (it, field, value) => {
     if (msg && msg.err) setMsg(null);
-    setDraft(prev => ({ ...prev, [it.id]: { ...typed(it), [field]: value } }));
+    // A note typed back to what is saved is no longer an edit.
+    setDraft(prev => ({ ...prev, [it.id]: { ...typed(it), [field]: value, ...(field === 'note' ? { noteEdited: value !== baseNote(it) } : {}) } }));
   };
 
   // Everything sent from this page carries the person's name. False,
@@ -183,7 +197,7 @@ export default function SharedInventoryView({ token }) {
     for (const it of dirtyItems) {
       const count = parseCountInput(draft[it.id].count);
       if (count == null) { setMsg({ err: true, text: T('countInvalid') }); return null; }
-      updates.push({ itemId: it.id, count, note: draft[it.id].note });
+      updates.push({ itemId: it.id, count, ...(noteChanged(it) ? { note: draft[it.id].note } : {}) });
     }
     return updates;
   };

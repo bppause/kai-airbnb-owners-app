@@ -6,7 +6,7 @@
 
 import React, { useEffect, useState } from "react";
 import { api } from "../../../core/api";
-import { tr, primaryText, secondaryText, formatWhen, checkSummary } from "../strings";
+import { tr, primaryText, secondaryText, formatWhen, checkSummary, noteForViewer } from "../strings";
 import { DamageCard } from "./Damages";
 import { PhotoStrip } from "./Photos";
 import { ReportVideo } from "./Video";
@@ -54,8 +54,10 @@ function ReportDetail({ lang, check, detail, loadPhotos, loadVideos }) {
                 {diff !== 0 && ` (${T(Math.abs(diff) === 1 ? (diff < 0 ? 'diffMissingOne' : 'diffExtraOne') : (diff < 0 ? 'diffMissing' : 'diffExtra'), { n: Math.abs(diff) })})`}
                 {diff === 0 && ` · ✓ ${T('reportMatched')}`}
               </div>
-              {r.note && <div className="uinv-onote">{r.note}</div>}
-              {r.note && <NoteTranslation lang={lang} noteLang={r.noteLang} text={r.noteTranslation} />}
+              {r.note && (() => {
+                const view = noteForViewer(lang, { currentNote: r.note, currentNoteLang: r.noteLang, currentNoteTranslation: r.noteTranslation });
+                return <><div className="uinv-onote">{view.text}</div><NoteTranslation lang={lang} view={view} /></>;
+              })()}
               {r.photos > 0 && <ReportPhotos lang={lang} count={r.photos} load={() => loadPhotos(r.itemId)} />}
               <div className="uinv-meta">{primaryText(lang, r.areaEn, r.areaEs)}</div>
             </div>
