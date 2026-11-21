@@ -41,17 +41,23 @@ unnoticed.
   differs. Saving adds a new item; the original is untouched and its
   photos are not copied.
 - **Both languages stay in sync.** In the item form (add, edit,
-  duplicate), changing the area, description or note in one language
-  translates it into the other a moment after the owner stops typing,
-  marked "🌐 Translated automatically — check it". A field the owner has
-  typed in is never overwritten, so a corrected translation stays put.
+  duplicate) the owner types the area, description and note in their
+  own language (the app's language setting). While translation is on,
+  the other language's fields are read-only, filled in by translation a
+  moment after the owner stops typing, and say "🌐 Translated from
+  English. To change it, edit the English." (or the Spanish equivalent).
+  Clearing a field clears its translation. An item that has only the
+  other language (e.g. proposed by the cleaning service in Spanish) gets
+  the owner's language filled in when the form opens, marked "check it".
   An area the unit already has is matched to its existing name in the
   other language instead of translated. Saving waits for a translation
-  still on its way. Translation uses the Claude API
-  (`server/modules/unit-inventory/translate.js`, model `claude-opus-5-5`
-  at low effort, with the API's refusal fallback on) and is on only
-  when `ANTHROPIC_API_KEY` is set; without it the form works as before.
-  Answers are cached in memory, so retyping the same text costs nothing.
+  still on its way. If a translation fails, that field says why and
+  becomes editable so it can be typed by hand. Translation uses the
+  Claude API (`server/modules/unit-inventory/translate.js`, model
+  `claude-opus-5-5` at low effort, with the API's refusal fallback on)
+  and is on only when `ANTHROPIC_API_KEY` is set; without it both
+  languages are editable as before. Answers are cached in memory, so
+  retyping the same text costs nothing.
 - **Back to the item.** After editing or duplicating (saved or closed),
   the list scrolls back to the item (the copy, once saved) and briefly
   highlights it, so the owner doesn't lose their place in a long list.

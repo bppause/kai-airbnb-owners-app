@@ -335,8 +335,12 @@ export default function UnitInventoryModal({ listing, user, onClose }) {
     await load();
   }, T('damageResolvedMsg'));
 
-  // Change one language of an area, description or note and the other is
-  // translated (see autoTranslate.js).
+  // The owner types the area, description and note in their own language
+  // (the app's language setting); the other language is translated from
+  // it and shown read-only (see autoTranslate.js). Without translation, or
+  // when a translation fails, both stay editable.
+  const ownSuffix = String(lang || '').toLowerCase().startsWith('en') ? 'En' : 'Es';
+  const otherSuffix = ownSuffix === 'En' ? 'Es' : 'En';
   const translator = useAutoTranslate({
     enabled: canTranslate,
     translate: async (text, to, field) => (await api.post(`${unitBase}/translate`, { ...who, text, to, field })).text,
@@ -352,7 +356,19 @@ export default function UnitInventoryModal({ listing, user, onClose }) {
     translator.onOwnerEdit(field, value);
   };
 
-  const openForm = (next) => { setImportState(null); setFormPhotos([]); setReturnTo(null); translator.reset(); setForm(next); };
+  const isReadOnly = (field) => canTranslate && field.endsWith(otherSuffix)
+    && !(translator.status[field] && translator.status[field].state === 'failed');
+
+  const openForm = (next) => {
+    setImportState(null); setFormPhotos([]); setReturnTo(null); translator.reset(); setForm(next);
+    // An item that only has the other language (e.g. proposed by the
+    // cleaning service in Spanish) gets the owner's language filled in.
+    for (const base of ['area', 'name', 'note']) {
+      if (!String(next[base + ownSuffix] || '').trim() && String(next[base + otherSuffix] || '').trim()) {
+        translator.fillFrom(base + otherSuffix, next[base + otherSuffix]);
+      }
+    }
+  };
   // Closing without saving returns to the item the form was opened from.
   const closeForm = () => {
     const from = form && (form.id || form.copyOf);
@@ -581,22 +597,30 @@ export default function UnitInventoryModal({ listing, user, onClose }) {
               <div className="uinv-box" ref={formRef}>
                 <h2 style={{ marginBottom: 8 }}>{form.id ? T('formEdit') : T(form.copyOf ? 'formDuplicate' : 'formAdd')}</h2>
                 {form.copyOf && <p className="uinv-help">{T('formDuplicateHelp')}</p>}
-                {canTranslate && <p className="uinv-help">{T('formTranslateHelp')}</p>}
+                {canTranslate && <p className="uinv-help">{T('formTranslateHelp', { own: T('lang' + ownSuffix), other: T('lang' + otherSuffix) })}</p>}
                 <div className="uinv-form">
                   <datalist id="uinv-areas-en">{areaOptions('areaEn').map(a => <option key={a} value={a} />)}</datalist>
                   <datalist id="uinv-areas-es">{areaOptions('areaEs').map(a => <option key={a} value={a} />)}</datalist>
                   {/* Each pair asks for the owner's language first. */}
-                  {fieldOrder.map(field => (
-                    <label key={field} className="uinv-field">{T(field)}
-                      <input value={form[field]} maxLength={FIELD_MAX[field.slice(0, 4)]} list={field.startsWith('area') ? `uinv-areas-${field.slice(4).toLowerCase()}` : undefined}
-                        onChange={e => editField(field, e.target.value)} />
-                      {translator.status[field] && (
-                        <span className={`uinv-tr uinv-tr-${translator.status[field].state}`} role="status">
-                          {T(`tr_${translator.status[field].state}`, { why: translator.status[field].why || '' })}
-                        </span>
-                      )}
-                    </label>
-                  ))}
+                  {fieldOrder.map(field => {
+                    const ro = isReadOnly(field);
+                    const st = translator.status[field];
+                    // A read-only translation says where it comes from unless
+                    // it is being translated right now.
+                    const note = st && (st.state !== 'auto' || !ro)
+                      ? { cls: st.state, text: T(`tr_${st.state}`, { why: st.why || '' }) }
+                      : (ro ? { cls: 'ro', text: T('trReadonly', { from: T('lang' + ownSuffix) }) } : null);
+                    return (
+                      <label key={field} className="uinv-field">{T(field)}
+                        <input value={form[field]} maxLength={FIELD_MAX[field.slice(0, 4)]}
+                          list={!ro && field.startsWith('area') ? `uinv-areas-${field.slice(4).toLowerCase()}` : undefined}
+                          readOnly={ro} aria-readonly={ro || undefined} className={ro ? 'uinv-ro' : undefined}
+                          tabIndex={ro ? -1 : undefined}
+                          onChange={e => { if (!ro) editField(field, e.target.value); }} />
+                        {note && <span className={`uinv-tr uinv-tr-${note.cls}`} role="status">{note.text}</span>}
+                      </label>
+                    );
+                  })}
                   {form.id
                     ? <p className="uinv-help uinv-full">{T('baselineLocked')}</p>
                     : (
