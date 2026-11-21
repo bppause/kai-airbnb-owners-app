@@ -153,6 +153,11 @@ const itemFromDb = (r) => ({
   baselineSetAt: r.baseline_set_at,
   currentCount: r.current_count,
   currentNote: r.current_note || '',
+  // The count note in the other language, translated when it was saved
+  // (empty when translation is off or failed). currentNoteLang is the
+  // language it was written in: 'es' or 'en'.
+  currentNoteLang: r.current_note_lang || '',
+  currentNoteTranslation: r.current_note_translation || '',
   countUpdatedAt: r.count_updated_at,
   countUpdatedBy: r.count_updated_by || '',
   countRequired: !!r.count_required,
@@ -332,7 +337,26 @@ module.exports = function createUnitInventoryRouter(deps) {
   // { itemId, count?, note? }; a field left out is left alone. Items that
   // end up unchanged are skipped, so re-saving a screen adds no history.
   // Returns { changed } or { error, status }.
-  const applyCountUpdates = async ({ listing, updates, actorType, actorName, actorUid }) => {
+  // Translates a count note into the other language of `lang` (the
+  // language of the page it was typed on). Returns { lang, translation };
+  // the translation is '' when translation is off, fails, or comes back
+  // unchanged. Never throws: a note is saved whether or not it translates.
+  const translateNote = async (note, lang) => {
+    const from = String(lang || '').toLowerCase().startsWith('en') ? 'en' : 'es';
+    if (!note || !translateEnabled()) return { lang: from, translation: '' };
+    try {
+      const out = await translate({ text: note, to: from === 'en' ? 'es' : 'en', kind: 'note' });
+      return { lang: from, translation: out && out.trim() !== note.trim() ? out : '' };
+    } catch (e) {
+      warn('Inventory note translation failed: ' + (e && e.message));
+      return { lang: from, translation: '' };
+    }
+  };
+  // Set once the database turns out not to have the note-translation
+  // columns (schema.sql not re-run): counts are then saved without them.
+  let noteTranslationColumns = true;
+
+  const applyCountUpdates = async ({ listing, updates, actorType, actorName, actorUid, lang }) => {
     if (!Array.isArray(updates) || !updates.length) return { error: 'No changes to save.', status: 400 };
     if (updates.length > MAX_COUNT_UPDATES) return { error: 'Too many changes in one save.', status: 400 };
     const { data: rows, error } = await loadItems(listing.id);
@@ -354,12 +378,27 @@ module.exports = function createUnitInventoryRouter(deps) {
       plans.push({ item, count, note });
     }
 
+    // Notes that changed get their translation, a few at a time.
+    const noteChanged = plans.filter(pl => pl.note !== (pl.item.current_note || ''));
+    for (let i = 0; i < noteChanged.length; i += 4) {
+      await Promise.all(noteChanged.slice(i, i + 4).map(async (pl) => { pl.tr = await translateNote(pl.note, lang); }));
+    }
+
     const events = [];
-    for (const { item, count, note } of plans) {
-      const { error: uErr } = await supabase.from('unit_inventory_items').update({
+    for (const { item, count, note, tr } of plans) {
+      const base = {
         current_count: count, current_note: note,
         count_updated_at: now, count_updated_by: actorName, updated_at: now,
-      }).eq('id', item.id);
+      };
+      const withTr = tr && noteTranslationColumns
+        ? { ...base, current_note_lang: note ? tr.lang : '', current_note_translation: tr.translation }
+        : base;
+      let { error: uErr } = await supabase.from('unit_inventory_items').update(withTr).eq('id', item.id);
+      if (uErr && withTr !== base) {
+        // Most likely the columns aren't there yet: save the count anyway.
+        const retry = await supabase.from('unit_inventory_items').update(base).eq('id', item.id);
+        if (!retry.error) { noteTranslationColumns = false; uErr = null; }
+      }
       if (uErr) return { supabaseError: uErr };
       events.push(eventRow(item, listing, {
         event_type: 'count',
@@ -472,7 +511,7 @@ module.exports = function createUnitInventoryRouter(deps) {
   // damage reported and the proof photos taken during the visit. Through
   // the share link, a flagged item without a proof photo stops it.
   // Returns { check, changed } or { error, status } / { supabaseError }.
-  const completeCount = async ({ listing, updates, actorType, actorName, actorUid, req }) => {
+  const completeCount = async ({ listing, updates, actorType, actorName, actorUid, req, lang }) => {
     // The video first, before anything is written: the cleaning service
     // can't complete a count without one from this visit. (The owner's
     // own count asks for none.) Item photos are optional.
@@ -486,7 +525,7 @@ module.exports = function createUnitInventoryRouter(deps) {
     }
     let changed = 0;
     if (Array.isArray(updates) && updates.length) {
-      const result = await applyCountUpdates({ listing, updates, actorType, actorName, actorUid });
+      const result = await applyCountUpdates({ listing, updates, actorType, actorName, actorUid, lang });
       if (result.supabaseError || result.error) return result;
       changed = result.changed;
     }
@@ -516,6 +555,7 @@ module.exports = function createUnitInventoryRouter(deps) {
       .map(r => ({
         itemId: r.id, nameEn: r.name_en || '', nameEs: r.name_es || '', areaEn: r.area_en || '', areaEs: r.area_es || '',
         baseline: r.baseline_count, count: r.current_count, note: r.current_note || '', required: !!r.count_required,
+        ...(r.current_note && r.current_note_translation ? { noteLang: r.current_note_lang || '', noteTranslation: r.current_note_translation } : {}),
         photos: photosOf(r.id),
       }));
     const damages = await visitDamages(listing.id);
@@ -903,7 +943,7 @@ module.exports = function createUnitInventoryRouter(deps) {
     const listing = await requireOwnedUnit(res, req.params.listingId, ownerUid);
     if (!listing) return;
     const result = await applyCountUpdates({
-      listing, updates, actorType: 'owner',
+      listing, updates, actorType: 'owner', lang: req.body?.lang,
       actorName: text(actorName, MAX_ACTOR) || listing.owner || 'Owner', actorUid: String(ownerUid),
     });
     if (result.supabaseError) return sendSupabaseError(res, result.supabaseError);
@@ -1089,7 +1129,7 @@ module.exports = function createUnitInventoryRouter(deps) {
     const listing = await requireOwnedUnit(res, req.params.listingId, ownerUid);
     if (!listing) return;
     const result = await completeCount({
-      listing, updates, req, actorType: 'owner',
+      listing, updates, req, actorType: 'owner', lang: req.body?.lang,
       actorName: text(actorName, MAX_ACTOR) || listing.owner || 'Owner', actorUid: String(ownerUid),
     });
     if (result.supabaseError) return sendSupabaseError(res, result.supabaseError);
@@ -1516,7 +1556,7 @@ module.exports = function createUnitInventoryRouter(deps) {
     const listing = await unitForToken(res, req.params.token);
     if (!listing) return;
     const result = await applyCountUpdates({
-      listing, updates: req.body?.updates, actorType: 'cleaner',
+      listing, updates: req.body?.updates, actorType: 'cleaner', lang: req.body?.lang,
       actorName: text(req.body?.name, MAX_ACTOR) || 'Cleaning service', actorUid: '',
     });
     if (result.supabaseError) return sendSupabaseError(res, result.supabaseError);
@@ -1532,7 +1572,7 @@ module.exports = function createUnitInventoryRouter(deps) {
     const listing = await unitForToken(res, req.params.token);
     if (!listing) return;
     const result = await completeCount({
-      listing, updates: req.body?.updates, req, actorType: 'cleaner',
+      listing, updates: req.body?.updates, req, actorType: 'cleaner', lang: req.body?.lang,
       actorName: text(req.body?.name, MAX_ACTOR) || 'Cleaning service', actorUid: '',
     });
     if (result.supabaseError) return sendSupabaseError(res, result.supabaseError);

@@ -76,6 +76,8 @@ export const UINV_CSS = `
 .uinv-tr{display:block;margin-top:4px;font-size:13px;font-weight:600;text-transform:none;letter-spacing:0;color:#0b7f8c}
 .uinv-tr-failed{color:#b42318}
 .uinv-tr-ro{color:#48656d;font-weight:500}
+.uinv-note-tr{margin-top:4px;padding:6px 10px;border-radius:8px;background:#eef6f9;color:#1d3a2b;font-size:.92rem;line-height:1.4}
+.uinv-note-tr-label{color:#48656d;font-size:.82rem;font-weight:700}
 .uinv input.uinv-ro{background:#eef2f1;color:#33545d;border-style:dashed;cursor:default}
 @keyframes uinv-flash{0%,30%{box-shadow:0 0 0 3px #0b7f8c;background:#e6f6f7}100%{box-shadow:0 0 0 0 rgba(11,127,140,0)}}
 @media (prefers-reduced-motion:reduce){.uinv-item-flash{animation:none;box-shadow:0 0 0 3px #0b7f8c}}

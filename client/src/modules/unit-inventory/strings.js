@@ -56,6 +56,7 @@ const STR = {
   formDuplicate:    { es: 'Duplicar artículo', en: 'Duplicate item' },
   formTranslateHelp: { es: '🌐 Escribe en {own}; el {other} se traduce solo y no se edita aquí.', en: '🌐 Type in {own}; the {other} is translated for you and can’t be edited here.' },
   trReadonly:       { es: '🌐 Traducción automática del {from}. Para cambiarla, edita el {from}.', en: '🌐 Translated from {from}. To change it, edit the {from}.' },
+  noteTrLabel:      { es: '🌐 En {lang} (traducción automática):', en: '🌐 In {lang} (automatic translation):' },
   langEn:           { es: 'inglés', en: 'English' },
   langEs:           { es: 'español', en: 'Spanish' },
   tr_pending:       { es: '🌐 Traduciendo…', en: '🌐 Translating…' },
