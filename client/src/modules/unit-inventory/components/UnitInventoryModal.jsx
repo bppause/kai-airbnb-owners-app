@@ -17,7 +17,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { useApp } from "../../../core/app-state";
 import { api } from "../../../core/api";
 import { aptDisplay } from "../../../core/i18n/app-text";
-import { tr, primaryText, secondaryText, formatWhen, parseCountInput, diffFromBaseline, tallyDiffs, checkSummary, API_BASE } from "../strings";
+import { tr, primaryText, secondaryText, formatWhen, parseCountInput, diffFromBaseline, tallyDiffs, checkSummary, noteForViewer, API_BASE } from "../strings";
 import { DiffSummary } from "./DiffMarks";
 import { ItemList, Toast, ViewSwitch, FilterBar, useAreaFolding, areaKey } from "./ItemList";
 import { CountComplete, LastCheckLine } from "./CountComplete";
@@ -209,10 +209,19 @@ export default function UnitInventoryModal({ listing, user, onClose }) {
   };
 
   const list = items || [];
-  const typed = (it) => draft[it.id] || { count: String(it.currentCount), note: it.currentNote };
+  // The note box shows the note in this person's language (see
+  // noteForViewer). Only a note they actually changed is sent back, so a
+  // note merely shown in translation is never overwritten by it.
+  const baseNote = (it) => noteForViewer(lang, it).text;
+  const typed = (it) => {
+    const d = draft[it.id];
+    if (!d) return { count: String(it.currentCount), note: baseNote(it) };
+    return d.noteEdited ? d : { ...d, note: baseNote(it) };
+  };
+  const noteChanged = (it) => { const d = draft[it.id]; return !!d && !!d.noteEdited && d.note !== baseNote(it); };
   const isDirty = (it) => {
     const v = draft[it.id];
-    return !!v && (v.count !== String(it.currentCount) || v.note !== it.currentNote);
+    return !!v && (v.count !== String(it.currentCount) || noteChanged(it));
   };
   const dirtyItems = list.filter(isDirty);
   const drifted = list.filter(it => it.baselineCount !== it.currentCount);
@@ -236,7 +245,8 @@ export default function UnitInventoryModal({ listing, user, onClose }) {
       : showing === 'all' || it.countRequired));
   const setTyped = (it, field, value) => {
     if (msg && msg.err) setMsg(null);
-    setDraft(prev => ({ ...prev, [it.id]: { ...typed(it), [field]: value } }));
+    // A note typed back to what is saved is no longer an edit.
+    setDraft(prev => ({ ...prev, [it.id]: { ...typed(it), [field]: value, ...(field === 'note' ? { noteEdited: value !== baseNote(it) } : {}) } }));
   };
 
   const close = () => {
@@ -251,7 +261,7 @@ export default function UnitInventoryModal({ listing, user, onClose }) {
     for (const it of dirtyItems) {
       const count = parseCountInput(draft[it.id].count);
       if (count == null) { setMsg({ err: true, text: T('countInvalid') }); return null; }
-      updates.push({ itemId: it.id, count, note: draft[it.id].note });
+      updates.push({ itemId: it.id, count, ...(noteChanged(it) ? { note: draft[it.id].note } : {}) });
     }
     return updates;
   };

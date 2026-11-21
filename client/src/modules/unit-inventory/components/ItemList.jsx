@@ -9,7 +9,7 @@
 // a note, differs from its baseline, or is opened.
 
 import React, { useState } from "react";
-import { tr, primaryText, secondaryText, groupByArea, formatWhen, parseCountInput, diffClass, tallyDiffs } from "../strings";
+import { tr, primaryText, secondaryText, groupByArea, formatWhen, parseCountInput, diffClass, tallyDiffs, noteForViewer } from "../strings";
 import { DiffBadge } from "./DiffMarks";
 
 // A list longer than this opens with its areas folded.
@@ -35,15 +35,16 @@ export function useAreaFolding() {
 // item was just added to.
 export const areaKey = (areaEn, areaEs) => `${areaEn || ''}\u0001${areaEs || ''}`;
 
-// A count note's translation into the other language, read-only, e.g.
-// "🌐 In English (automatic translation): One is torn". `noteLang` is the
-// language the note was written in. Nothing when there is no translation.
-export function NoteTranslation({ lang, noteLang, text }) {
-  if (!text) return null;
-  const into = noteLang === 'en' ? 'langEs' : 'langEn';
+// A count note in the other language, read-only, e.g. "🌐 In Spanish
+// (automatic translation): Falta una" — or, when the viewer is reading a
+// translation, the note as it was typed: "🌐 In English (original): …".
+// `view` comes from noteForViewer. Nothing when there is no other language.
+export function NoteTranslation({ lang, view }) {
+  if (!view || !view.other) return null;
+  const label = tr(lang, view.otherIsOriginal ? 'noteOrigLabel' : 'noteTrLabel', { lang: tr(lang, view.otherLang === 'en' ? 'langEn' : 'langEs') });
   return (
     <div className="uinv-note-tr" role="note">
-      <span className="uinv-note-tr-label">{tr(lang, 'noteTrLabel', { lang: tr(lang, into) })}</span> {text}
+      <span className="uinv-note-tr-label">{label}</span> {view.other}
     </div>
   );
 }
@@ -54,6 +55,7 @@ export function NoteTranslation({ lang, noteLang, text }) {
 // every checkout; without it the ★ is only shown.
 function ItemCard({ item, lang, value, diff, dirty, busy, expectedLabel, opened, onToggle, onChange, actions, onRequired, moreLabel, photos, proof, flash }) {
   const T = (k, v) => tr(lang, k, v);
+  const noteView = noteForViewer(lang, item);
   const other = secondaryText(lang, item.nameEn, item.nameEs);
   const ownerNote = primaryText(lang, item.noteEn, item.noteEs);
   const ownerNoteOther = secondaryText(lang, item.noteEn, item.noteEs);
@@ -109,7 +111,7 @@ function ItemCard({ item, lang, value, diff, dirty, busy, expectedLabel, opened,
           </label>
           {/* The saved note in the other language, read-only. Hidden while
               the note is being changed: it would no longer match. */}
-          <NoteTranslation lang={lang} noteLang={item.currentNoteLang} text={value.note === item.currentNote ? item.currentNoteTranslation : ''} />
+          {value.note === noteView.text && <NoteTranslation lang={lang} view={noteView} />}
           <div className="uinv-row">
             <span className="uinv-meta" style={{ flex: '1 1 auto' }}>
               {item.countUpdatedAt

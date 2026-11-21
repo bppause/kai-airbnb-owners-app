@@ -57,6 +57,7 @@ const STR = {
   formTranslateHelp: { es: '🌐 Escribe en {own}; el {other} se traduce solo y no se edita aquí.', en: '🌐 Type in {own}; the {other} is translated for you and can’t be edited here.' },
   trReadonly:       { es: '🌐 Traducción automática del {from}. Para cambiarla, edita el {from}.', en: '🌐 Translated from {from}. To change it, edit the {from}.' },
   noteTrLabel:      { es: '🌐 En {lang} (traducción automática):', en: '🌐 In {lang} (automatic translation):' },
+  noteOrigLabel:    { es: '🌐 En {lang} (original):', en: '🌐 In {lang} (original):' },
   langEn:           { es: 'inglés', en: 'English' },
   langEs:           { es: 'español', en: 'Spanish' },
   tr_pending:       { es: '🌐 Traduciendo…', en: '🌐 Translating…' },
@@ -327,6 +328,22 @@ const STR = {
 };
 
 const isEnglish = (lang) => String(lang || '').toLowerCase().startsWith('en');
+
+// A count note as a viewer reads it. With a translation stored, the note
+// is shown in the viewer's language (`text`, the box they can edit) and
+// in the other language read-only (`other`, language `otherLang`);
+// `otherIsOriginal` says the read-only one is what was actually typed.
+// Without a translation, `text` is the note as written and `other` is ''.
+export const noteForViewer = (lang, { currentNote, currentNoteLang, currentNoteTranslation }) => {
+  const note = currentNote || '';
+  const translation = currentNoteTranslation || '';
+  if (!note || !translation) return { text: note, other: '', otherLang: '', otherIsOriginal: false };
+  const written = currentNoteLang === 'en' ? 'en' : 'es';
+  const viewer = isEnglish(lang) ? 'en' : 'es';
+  return viewer === written
+    ? { text: note, other: translation, otherLang: written === 'en' ? 'es' : 'en', otherIsOriginal: false }
+    : { text: translation, other: note, otherLang: written, otherIsOriginal: true };
+};
 
 export const tr = (lang, key, vars = {}) => {
   const entry = STR[key];
