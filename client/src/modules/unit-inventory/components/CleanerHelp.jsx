@@ -46,9 +46,11 @@ const guide = (lang, { required, videoRequired, proofEnabled }) => {
       title: pick('1. Cuenta los artículos', '1. Count the items'),
       points: [
         required > 0
-          ? pick(`Los ${required} artículos marcados ★ se cuentan en cada salida. Los demás están en la lista para que el propietario sepa todo lo que hay; puedes contarlos si quieres (toca “Todos”).`,
-            `The ${required} items marked ★ are counted at every checkout. The others are on the list so the owner knows everything in the apartment; you can count them too (tap “All”).`)
+          ? pick(`Los ${required} artículos marcados ★ se cuentan en cada salida. Los demás están en la lista para que el propietario sepa todo lo que hay: no hace falta contarlos uno por uno (toca “Todos” para verlos).`,
+            `The ${required} items marked ★ are counted at every checkout. The others are on the list so the owner knows everything in the apartment: they don’t need counting one by one (tap “All” to see them).`)
           : pick('Revisa todos los artículos de la lista.', 'Check every item on the list.'),
+        ...(required > 0 ? [pick('⚠️ Importante: aunque un artículo no tenga ★, si notas que falta o está dañado, repórtalo igual. Búscalo con el buscador, corrige el número y deja una nota, o toca “⚠️ Reportar daño”.',
+          '⚠️ Important: even if an item has no ★, if you notice it is missing or damaged, report it anyway. Find it with the search box, correct the number and leave a note, or tap “⚠️ Report damage”.')] : []),
         pick('Toca el nombre de un área (Cocina, Baño…) para abrirla o cerrarla. Usa el buscador para encontrar un artículo rápido.',
           'Tap an area’s name (Kitchen, Bathroom…) to open or close it. Use the search box to find an item quickly.'),
         pick('“Esperado” es lo que debería haber. Usa − y + o escribe el número que encontraste.',
@@ -59,7 +61,7 @@ const guide = (lang, { required, videoRequired, proofEnabled }) => {
     },
     {
       icon: '📝',
-      title: pick('Si algo falta o está dañado', 'If something is missing or damaged'),
+      title: pick('Si algo falta o está dañado (con o sin ★)', 'If something is missing or damaged (with or without ★)'),
       points: [
         pick('Pon el número real. Si un artículo ya no está, pon 0.',
           'Enter the real number. If an item is gone, set it to 0.'),
