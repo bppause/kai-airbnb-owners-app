@@ -1,4 +1,5 @@
-// Help for the cleaning service on its inventory page: a short welcome
+// Help for the cleaning service on its inventory page, which they use
+// each time they finish cleaning after an Airbnb checkout: a short welcome
 // shown on the first visit, and a step-by-step guide behind the "❓"
 // button in the page header. Written for someone using the page for the
 // first time on a phone, in plain words, naming the buttons as they
@@ -20,6 +21,16 @@ const guide = (lang, { required, videoRequired, proofEnabled }) => {
   const en = english(lang);
   const pick = (es, enText) => (en ? enText : es);
   const sections = [
+    {
+      icon: '🕒',
+      title: pick('Cuándo usarlo', 'When to use it'),
+      points: [
+        pick('Cada vez que salen los huéspedes de Airbnb, cuando ya terminaste de limpiar el apartamento. No antes ni a mitad de la limpieza: el conteo y el video deben mostrar el apartamento listo para el siguiente huésped.',
+          'Each time Airbnb guests check out, once you have finished cleaning the apartment. Not before or halfway through: the count and the video should show the apartment ready for the next guest.'),
+        pick('Si mientras limpias encuentras algo roto o que falta, recuérdalo (o tómale una foto) y repórtalo aquí al terminar.',
+          'If you find something broken or missing while cleaning, remember it (or take a photo) and report it here when you finish.'),
+      ],
+    },
     {
       icon: '👤',
       title: pick('Antes de empezar', 'Before you start'),
@@ -94,8 +105,8 @@ const guide = (lang, { required, videoRequired, proofEnabled }) => {
       icon: '🎥',
       title: pick('3. Graba el video (obligatorio)', '3. Record the video (required)'),
       points: [
-        pick('Después de limpiar, toca “🎥 Grabar video” y luego “● Empezar a grabar”.',
-          'After cleaning, tap “🎥 Record video” and then “● Start recording”.'),
+        pick('Con el apartamento ya limpio, toca “🎥 Grabar video” y luego “● Empezar a grabar”.',
+          'With the apartment clean, tap “🎥 Record video” and then “● Start recording”.'),
         pick('Camina despacio por todo el apartamento: cada habitación, baños, cocina y balcones. Máximo 3 minutos.',
           'Walk slowly through the whole apartment: every bedroom, bathroom, kitchen and balcony. At most 3 minutes.'),
         pick('Toca “■ Detener”, míralo y toca “✓ Enviar este video”. Si puedes, usa Wi-Fi: sube más rápido.',
