@@ -348,7 +348,10 @@ export default function SharedInventoryView({ token }) {
             <strong>{requiredItems.length ? T('taskCountReq', { n: requiredItems.length }) : T('taskCountAll', { n: items.length })}</strong>
             <small>{T('taskCountHow')}{proofEnabled ? ` ${T('taskPhotoOptional')}` : ''}</small>
           </li>
-          <li><strong>{T('taskDamage')}</strong></li>
+          <li>
+            <strong>{T('taskDamage')}</strong>
+            {requiredItems.length > 0 && <small>{T('taskDamageHow')}</small>}
+          </li>
           {videoRequired && (
             <li>
               <strong>{T('taskVideo')}</strong>
@@ -416,7 +419,8 @@ export default function SharedInventoryView({ token }) {
           damagePrompt={{
             covers: (requiredItems.length
               ? T('finishCoversReq', { n: requiredItems.length })
-              : T('finishCoversAll', { n: items.length })) + (videoRequired ? ` ${T('finishVideo')}` : ''),
+              : T('finishCoversAll', { n: items.length })) + (videoRequired ? ` ${T('finishVideo')}` : '')
+              + (requiredItems.length ? ` ${T('finishAlsoUnflagged')}` : ''),
             reported: damages.length,
             onReport: () => openDamage(null),
           }} />

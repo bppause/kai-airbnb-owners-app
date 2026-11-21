@@ -168,6 +168,13 @@ unnoticed.
   complete is two steps: it states what finishing confirms and asks
   whether there is damage to report before the count can be closed. The
   page opens with a three-step card saying exactly what to count.
+- **Unflagged items still get reported.** Items without ★ don't need
+  counting one by one, but the cleaning service is told everywhere it
+  looks — list hint, task card ("Reporta cualquier daño o faltante que
+  veas, también en artículos sin ★", with how: search, correct the
+  number and leave a note, or ⚠️ Reportar daño), welcome card, guide and
+  the finish prompt — that anything they notice missing or damaged must
+  still be reported.
 - **Descriptions are the owner's.** The cleaning service can change
   only an item's count and the note on that count (plus photos, damage
   reports and the video). Areas, descriptions, owner notes, baselines,
