@@ -680,15 +680,16 @@ alter table public.unit_inventory_checks add column if not exists results jsonb 
 alter table public.unit_inventory_checks add column if not exists damages_count integer not null default 0;
 -- How many proof photos the cleaning service attached to this count.
 alter table public.unit_inventory_checks add column if not exists photos_count integer not null default 0;
+-- How many checkout videos came with this count.
+alter table public.unit_inventory_checks add column if not exists videos_count integer not null default 0;
 create index if not exists idx_unit_inventory_checks_listing
   on public.unit_inventory_checks(listing_id, created_at desc);
 
--- Proof photos: the cleaning service's pictures of an item at a
--- checkout, as proof of its count and condition. One is required for
--- every item flagged count_required before a count can be completed
--- through the share link. check_id is empty while the visit is under way
--- and set when its count is completed. JPEG data URLs; kept only for the
--- unit's most recent completed counts (the server prunes older ones).
+-- Item photos the cleaning service takes at a checkout (optional; useful
+-- above all for an item that is missing or damaged). check_id is empty
+-- while the visit is under way and set when its count is completed. JPEG
+-- data URLs; kept only for the unit's most recent completed counts (the
+-- server prunes older ones).
 create table if not exists public.unit_inventory_count_photos (
   id text primary key,
   listing_id text not null references public.listings(id) on delete cascade,
@@ -703,6 +704,35 @@ create index if not exists idx_unit_inventory_count_photos_visit
   on public.unit_inventory_count_photos(listing_id, check_id, created_at);
 create index if not exists idx_unit_inventory_count_photos_item
   on public.unit_inventory_count_photos(item_id, created_at);
+
+-- The checkout video: after cleaning, the cleaning service records a
+-- short walk through the apartment; a count can't be completed through
+-- the share link without one. The file lives in Supabase Storage (bucket
+-- inventory-videos, below) at `path`; this row records it. status is
+-- 'uploading' until the server has seen the file arrive, then 'ready'.
+-- check_id is set when the visit's count is completed. Kept for the
+-- unit's latest 10 completed counts (the server prunes older ones).
+create table if not exists public.unit_inventory_videos (
+  id text primary key,
+  listing_id text not null references public.listings(id) on delete cascade,
+  community_id text not null default 'kai',
+  check_id text,
+  path text not null,
+  content_type text not null default '',
+  size_bytes bigint not null default 0,
+  duration_seconds integer not null default 0,
+  status text not null default 'uploading' check (status in ('uploading','ready')),
+  taken_by text not null default '',
+  created_at timestamptz not null default now()
+);
+create index if not exists idx_unit_inventory_videos_visit
+  on public.unit_inventory_videos(listing_id, check_id, created_at);
+
+-- The private storage bucket the videos go in: 50 MB per file, video types
+-- only. Only the server (service role) and signed links reach it.
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values ('inventory-videos', 'inventory-videos', false, 52428800, array['video/mp4','video/webm','video/quicktime'])
+on conflict (id) do nothing;
 
 -- Damage reported by the cleaning service: what, where (an area, a
 -- free-text spot, and the item if it concerns one — its names copied so
@@ -797,4 +827,5 @@ alter table public.unit_inventory_proposals disable row level security;
 alter table public.unit_inventory_damages disable row level security;
 alter table public.unit_inventory_item_photos disable row level security;
 alter table public.unit_inventory_count_photos disable row level security;
+alter table public.unit_inventory_videos disable row level security;
 

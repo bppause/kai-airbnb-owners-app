@@ -52,7 +52,7 @@ export const UINV_CSS = `
 .uinv-toast-raised{bottom:calc(88px + env(safe-area-inset-bottom))}
 .uinv-toast .uinv-msg{pointer-events:auto;margin:0;max-width:520px;width:100%;display:flex;align-items:center;gap:8px;padding:10px 6px 10px 14px;font-size:.92rem;font-weight:600;box-shadow:0 10px 30px rgba(20,32,26,.25)}
 .uinv-toast .uinv-msg span{flex:1}
-.uinv-toast-x{flex:none;width:40px;height:40px;border:0;background:transparent;color:inherit;font-size:1rem;cursor:pointer;border-radius:10px}
+.uinv-toast-x{flex:none;width:44px;height:44px;border:0;background:transparent;color:inherit;font-size:1rem;cursor:pointer;border-radius:10px}
 .uinv-listbar{margin:12px 0 0;justify-content:flex-end}
 .uinv-group{margin:0}
 .uinv-filterbar{position:sticky;top:var(--uinv-top);z-index:4;height:var(--uinv-filter);display:flex;gap:8px;align-items:center;background:var(--uinv-bg);margin:0 calc(-1 * var(--uinv-gutter));padding:0 var(--uinv-gutter)}
@@ -145,6 +145,17 @@ export const UINV_CSS = `
 .uinv-photos{margin-top:6px;display:grid;gap:6px;justify-items:start}
 .uinv-proof{margin-top:8px;padding:8px 10px;border-radius:10px;border:1px dashed #e2b93b;background:#fffaf0;display:grid;gap:6px;justify-items:start}
 .uinv-proof-ok{border:1px solid #b7e2c8;background:#f1f8f4}
+.uinv-proof-opt{border:1px dashed rgba(47,79,58,.28);background:#fbfcfb}
+.uinv-proof-opt .uinv-proof-state{color:#48656d;font-weight:600}
+.uinv-video{background:#eef6f9;border-color:#9cc8d6;scroll-margin-top:calc(var(--uinv-top) + var(--uinv-filter) + 10px)}
+.uinv-video-done{display:grid;gap:6px;padding:8px 10px;border-radius:10px;background:#eaf8f0;border:1px solid #b7e2c8;color:#0b5f3a;font-weight:700;margin-bottom:8px}
+.uinv-rec{display:grid;gap:8px}
+.uinv-rec-main{flex:1 1 180px;min-height:48px;font-size:1rem}
+.uinv-rec-view{width:100%;max-height:60vh;border-radius:12px;background:#000;display:block}
+.uinv-rec-timer{font-weight:800;color:#c0392b;font-size:1.05rem}
+.uinv-upload{position:relative;height:44px;border-radius:12px;background:#e6eeeb;overflow:hidden;display:flex;align-items:center;justify-content:center}
+.uinv-upload-bar{position:absolute;left:0;top:0;bottom:0;background:linear-gradient(135deg,#0b7f4f,#0b7f8c);transition:width .2s}
+.uinv-upload span{position:relative;font-weight:700;color:#102f3a;mix-blend-mode:normal}
 .uinv-proof-state{font-size:.85rem;font-weight:700;color:#7a5200}
 .uinv-proof-ok .uinv-proof-state{color:#0b5f3a}
 .uinv-progress{margin:8px 0 0;font-weight:700;color:#7a5200}
