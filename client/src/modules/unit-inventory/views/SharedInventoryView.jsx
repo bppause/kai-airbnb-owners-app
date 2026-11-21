@@ -18,7 +18,7 @@
 // far the list is scrolled; and the Save button only appears when there
 // is something to save.
 
-import React, { useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "../../../core/api";
 import { tr, parseCountInput, diffFromBaseline, tallyDiffs, groupByArea, API_BASE } from "../strings";
 import { DiffSummary } from "../components/DiffMarks";
@@ -28,6 +28,7 @@ import { ProposeItemForm, PendingProposals } from "../components/Proposals";
 import { DamageForm, DamageList } from "../components/Damages";
 import { ItemPhotos, ProofPhotos } from "../components/Photos";
 import { VideoRecorder, formatDuration, formatMb, MAX_VIDEO_SECONDS } from "../components/Video";
+import { CleanerIntro, CleanerHelp } from "../components/CleanerHelp";
 import { UINV_CSS } from "../styles";
 
 const NAME_KEY = 'kai_inventory_name';
@@ -35,6 +36,8 @@ const NAME_KEY = 'kai_inventory_name';
 // an owner who uses the app in English and opens the link on the same
 // phone must not turn the cleaning service's page English.
 const LANG_KEY = 'kai_inventory_lang';
+// Set once the welcome card has been closed on this phone.
+const INTRO_KEY = 'kai_inventory_intro_seen';
 const DRAFT_KEY = 'kai_inventory_draft:';
 // Unsaved counts older than this are dropped rather than restored: the
 // unit has likely been counted again since.
@@ -127,6 +130,12 @@ export default function SharedInventoryView({ token }) {
   }, [msg]);
 
   const changeLang = (next) => { setLang(next); writeStored(LANG_KEY, next); };
+  // First visit on this phone: a short welcome. The full guide opens from
+  // the ❓ button any time.
+  const [showIntro, setShowIntro] = useState(() => !readStored(INTRO_KEY));
+  const [helpOpen, setHelpOpen] = useState(false);
+  const dismissIntro = () => { setShowIntro(false); writeStored(INTRO_KEY, '1'); };
+  const closeHelp = useCallback(() => setHelpOpen(false), []);
 
   const shell = (children) => (
     <div className="uinv uinv-page">
@@ -301,11 +310,22 @@ export default function SharedInventoryView({ token }) {
           <h1>📦 {T('title')}</h1>
           <p className="uinv-sub">{[unit.tower, `${T('apt')} ${unit.apt || ''}`].filter(Boolean).join(' · ')}</p>
         </div>
-        <select className="uinv-lang" value={lang} onChange={e => changeLang(e.target.value)} aria-label="Idioma / Language">
-          <option value="es-CO">Español</option>
-          <option value="en">English</option>
-        </select>
+        <div className="uinv-head-tools">
+          <button type="button" className="uinv-btn uinv-help-btn" onClick={() => setHelpOpen(true)}>{T('helpBtn')}</button>
+          <select className="uinv-lang" value={lang} onChange={e => changeLang(e.target.value)} aria-label="Idioma / Language">
+            <option value="es-CO">Español</option>
+            <option value="en">English</option>
+          </select>
+        </div>
       </div>
+      {showIntro && (
+        <CleanerIntro lang={lang} videoRequired={videoRequired}
+          onDismiss={dismissIntro} onHelp={() => { dismissIntro(); setHelpOpen(true); }} />
+      )}
+      {helpOpen && (
+        <CleanerHelp lang={lang} required={requiredItems.length} videoRequired={videoRequired} proofEnabled={proofEnabled}
+          onClose={closeHelp} />
+      )}
       <div className="uinv-box uinv-task">
         <h2>{T('taskTitle')}</h2>
         <ol>

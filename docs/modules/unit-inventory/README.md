@@ -123,6 +123,18 @@ unnoticed.
   does not change when the inventory later does. When the cleaning
   service completes a count the owner gets its result as an alert and an
   email.
+- **Help for the cleaning service.** The first time the link is opened
+  on a phone, a short welcome card says what the page is and what to do
+  at each checkout ("Entendido" hides it for good on that phone,
+  `kai_inventory_intro_seen`). A "❓ Ayuda" button in the header opens a
+  step-by-step guide any time: name, counting (★, areas, − / +,
+  colours), missing or damaged items (0, note, optional photo), damage
+  reports, proposing an item, saving (and that unsaved counts survive a
+  dropped signal), the checkout video, finishing, and what to do if the
+  camera or upload fails. It follows the page's language and leaves out
+  steps that don't apply to the unit (no ★ items, no video). The text is
+  in `components/CleanerHelp.jsx`; the message shared with the link
+  mentions the ❓ button.
 - **Asked before finishing.** On the cleaning-service page, Count
   complete is two steps: it states what finishing confirms and asks
   whether there is damage to report before the count can be closed. The
