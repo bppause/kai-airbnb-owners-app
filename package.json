@@ -4,7 +4,8 @@
   "scripts": {
     "build": "node_modules/.bin/vite build client",
     "start": "node server.js",
-    "dev": "node_modules/.bin/vite --root client"
+    "dev": "node_modules/.bin/vite --root client",
+    "inventory-sql": "node scripts/build-inventory-sql.js"
   },
   "dependencies": {
     "ws": "^8.18.0",

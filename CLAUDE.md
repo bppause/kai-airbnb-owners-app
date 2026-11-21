@@ -69,7 +69,7 @@ Required for full functionality: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `G
 
 Deployed on Render via `render.yaml`. After a `git push`, use **Manual Deploy → Deploy latest commit** in the Render dashboard unless auto-deploy is on. The build command is `npm install && cd client && npm install && npm run build`; start command is `node server.js`.
 
-Database migrations are run manually by executing `supabase/schema.sql` in the Supabase SQL Editor after pulling a major update.
+Database migrations are run manually by executing `supabase/schema.sql` in the Supabase SQL Editor after pulling a major update. For only the unit-inventory tables, run `supabase/unit_inventory.sql` instead: it is generated from `schema.sql` by `npm run inventory-sql`, so edit `schema.sql` and regenerate rather than editing it by hand.
 
 ## Documentation conventions
 
