@@ -23,7 +23,7 @@ import { ItemList, Toast, ViewSwitch, FilterBar, useAreaFolding, areaKey } from 
 import { CountComplete, LastCheckLine } from "./CountComplete";
 import { PendingProposals } from "./Proposals";
 import { DamageList } from "./Damages";
-import { ItemPhotos, PhotoPicker, MAX_ITEM_PHOTOS } from "./Photos";
+import { ItemPhotos, PhotoPicker, PhotoButton, MAX_ITEM_PHOTOS } from "./Photos";
 import { useAutoTranslate } from "./autoTranslate";
 import CheckoutReports from "./Reports";
 import { itemsFromCsv } from "../csv";
@@ -404,7 +404,21 @@ export default function UnitInventoryModal({ listing, user, onClose }) {
     remove: (it, photo) => api.del(`${itemPhotosUrl(it)}/${encodeURIComponent(photo.id)}`, who),
   };
   const setPhotoCount = (it, n) => setItems(prev => (prev || []).map(x => (x.id === it.id ? { ...x, photoCount: n } : x)));
-  const photosFor = (it) => <ItemPhotos lang={lang} item={it} store={photoStore} onCount={setPhotoCount} onError={e => setMsg({ err: true, text: e?.message || String(e) })} />;
+  const photosFor = (it) => <ItemPhotos lang={lang} item={it} store={photoStore} onCount={setPhotoCount} noFirstAdd onError={e => setMsg({ err: true, text: e?.message || String(e) })} />;
+  // The card's own 📷 button, always in view (even folded on a phone): an
+  // example photo of the item, saved to it straight away.
+  const addPhotoQuick = async (it, data) => {
+    try {
+      const d = await photoStore.add(it, data);
+      setPhotoCount(it, d.photoCount);
+      setMsg({ text: T('photoQuickSaved') });
+    } catch (e) { setMsg({ err: true, text: e?.message || String(e) }); }
+  };
+  const photoButtonFor = (it) => ((it.photoCount || 0) < MAX_ITEM_PHOTOS
+    ? <PhotoButton lang={lang} room={1} busyLabel={T('photoAdding')} label={T('photoQuick')} className="uinv-btn uinv-btn-sm uinv-photo-quick"
+        ariaLabel={T('photoQuickAria', { name: primaryText(lang, it.nameEn, it.nameEs) })}
+        onPhoto={data => addPhotoQuick(it, data)} onError={() => setMsg({ err: true, text: T('damagePhotoBad') })} />
+    : null);
 
   const formState = form;
   const saveForm = async () => {
@@ -631,6 +645,15 @@ export default function UnitInventoryModal({ listing, user, onClose }) {
                       </label>
                     );
                   })}
+                  {form.id && (() => {
+                    const editing = (items || []).find(x => x.id === form.id);
+                    return editing ? (
+                      <div className="uinv-field uinv-full">{T('formPhotos', { n: MAX_ITEM_PHOTOS })}
+                        <span className="uinv-help" style={{ margin: 0, textTransform: 'none', fontWeight: 400, letterSpacing: 0 }}>{T('formPhotosHelp')}</span>
+                        <ItemPhotos lang={lang} item={editing} store={photoStore} onCount={setPhotoCount} alwaysOpen onError={e => setMsg({ err: true, text: e?.message || String(e) })} />
+                      </div>
+                    ) : null;
+                  })()}
                   {form.id
                     ? <p className="uinv-help uinv-full">{T('baselineLocked')}</p>
                     : (
@@ -638,6 +661,7 @@ export default function UnitInventoryModal({ listing, user, onClose }) {
                         <label className="uinv-field">{T('startCount')}<input className="uinv-num" inputMode="numeric" pattern="[0-9]*" value={form.count} onFocus={e => e.target.select()} onChange={e => setForm({ ...form, count: e.target.value })} /></label>
                         <label className="uinv-check"><input type="checkbox" checked={!!form.countRequired} onChange={e => setForm({ ...form, countRequired: e.target.checked })} />{T('formRequired')}</label>
                         <div className="uinv-field uinv-full">{T('formPhotos', { n: MAX_ITEM_PHOTOS })}
+                          <span className="uinv-help" style={{ margin: 0, textTransform: 'none', fontWeight: 400, letterSpacing: 0 }}>{T('formPhotosHelp')}</span>
                           <PhotoPicker lang={lang} photos={formPhotos} onChange={setFormPhotos} max={MAX_ITEM_PHOTOS} disabled={busy} />
                         </div>
                       </>
@@ -662,7 +686,7 @@ export default function UnitInventoryModal({ listing, user, onClose }) {
                 {shown.length === 0 && <p className="uinv-sub" style={{ marginTop: 12 }}>{T('noMatches')}</p>}
                 {/* A search or the changed-only filter opens every area it leaves. */}
                 <ItemList items={shown} lang={lang} folding={folding} forceOpen={!!needle || narrowing} busy={busy} expectedLabel={T('baseline')}
-                  valueOf={typed} diffOf={diffOf} isDirty={isDirty} onChange={setTyped} actionsFor={actionsFor} onRequired={setRequired} photosFor={photosFor} flashId={flash ? flash.id : null} />
+                  valueOf={typed} diffOf={diffOf} isDirty={isDirty} onChange={setTyped} actionsFor={actionsFor} onRequired={setRequired} photosFor={photosFor} flashId={flash ? flash.id : null} headActionFor={photoButtonFor} />
                 <CountComplete lang={lang} unsaved={dirtyItems.length} busy={busy} onComplete={completeCount} />
               </>
             )}

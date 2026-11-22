@@ -5,7 +5,7 @@
 // never carry them: whoever wants to look at an item's or a report's
 // photos fetches them then.
 
-import React, { useRef, useState } from "react";
+import React, { useRef, useState, useEffect } from "react";
 import { compressImage } from "../../../core/utils";
 import { tr } from "../strings";
 
@@ -50,7 +50,7 @@ export function PhotoStrip({ photos, lang, onRemove, alt, removeLabel }) {
 // at most `room` of them. `onError()` is told when a file can't be used.
 // `camera` goes straight to the camera on a phone (proof photos are
 // taken on the spot); `size` overrides how far the image is shrunk.
-export function PhotoButton({ lang, room, disabled, busyLabel, label, camera = false, size, onPhoto, onError, className = 'uinv-btn uinv-btn-sm' }) {
+export function PhotoButton({ lang, room, disabled, busyLabel, label, ariaLabel, camera = false, size, onPhoto, onError, className = 'uinv-btn uinv-btn-sm' }) {
   const fileRef = useRef(null);
   const [working, setWorking] = useState(false);
   const chosen = async (e) => {
@@ -68,7 +68,7 @@ export function PhotoButton({ lang, room, disabled, busyLabel, label, camera = f
   return (
     <>
       <input ref={fileRef} type="file" accept="image/*" multiple={!camera && room > 1} capture={camera ? 'environment' : undefined} style={{ display: 'none' }} onChange={chosen} />
-      <button type="button" className={className} disabled={disabled || working} onClick={() => fileRef.current && fileRef.current.click()}>
+      <button type="button" className={className} disabled={disabled || working} aria-label={working ? undefined : ariaLabel} onClick={() => fileRef.current && fileRef.current.click()}>
         {working ? (busyLabel || tr(lang, 'damagePhotoBusy')) : (label || tr(lang, 'photoAdd'))}
       </button>
     </>
@@ -100,8 +100,11 @@ export function PhotoPicker({ lang, photos, onChange, max, disabled }) {
 //
 // `store` is { load(item) → photos, add?(item, dataUrl) → { photo,
 // photoCount }, remove?(item, photo) → { photoCount } }. `onCount(item,
-// n)` keeps the list's own count in step.
-export function ItemPhotos({ lang, item, store, onCount, onError, showLabel = 'photosShow' }) {
+// n)` keeps the list's own count in step. `noFirstAdd` leaves out the
+// "📷 Add photo" of an item with none (the owner's card has its own 📷
+// button for that); `alwaysOpen` shows the photos straight away, with no
+// hide button (the edit form).
+export function ItemPhotos({ lang, item, store, onCount, onError, showLabel = 'photosShow', noFirstAdd = false, alwaysOpen = false }) {
   const T = (k, v) => tr(lang, k, v);
   const canEdit = !!store.add;
   const [photos, setPhotos] = useState(null);   // null = not opened yet
@@ -113,6 +116,12 @@ export function ItemPhotos({ lang, item, store, onCount, onError, showLabel = 'p
     setLoading(true);
     try { setPhotos(await store.load(item)); } catch (e) { onError(e); } finally { setLoading(false); }
   };
+  useEffect(() => {
+    if (alwaysOpen && photos === null) open();
+    // A photo added elsewhere (the card's 📷 button) while these are shown.
+    else if (photos !== null && (item.photoCount || 0) !== photos.length) open();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [item.photoCount, alwaysOpen]);
   const add = async (data) => {
     setBad(false);
     try {
@@ -133,8 +142,9 @@ export function ItemPhotos({ lang, item, store, onCount, onError, showLabel = 'p
   };
 
   if (photos === null) {
+    if (alwaysOpen) return <p className="uinv-sub">{T('loading')}</p>;
     if (count > 0) return <div className="uinv-photos"><button type="button" className="uinv-btn uinv-btn-sm" disabled={loading} onClick={open}>{loading ? T('loading') : T(showLabel, { n: count })}</button></div>;
-    if (!canEdit) return null;
+    if (!canEdit || noFirstAdd) return null;
     return (
       <div className="uinv-photos uinv-photo-first">
         <PhotoButton lang={lang} room={1} busyLabel={T('photoAdding')} onPhoto={add} onError={() => setBad(true)} />
@@ -148,7 +158,7 @@ export function ItemPhotos({ lang, item, store, onCount, onError, showLabel = 'p
       <div className="uinv-row">
         {canEdit && photos.length < MAX_ITEM_PHOTOS && <PhotoButton lang={lang} room={MAX_ITEM_PHOTOS - photos.length} busyLabel={T('photoAdding')} onPhoto={add} onError={() => setBad(true)} />}
         {canEdit && photos.length >= MAX_ITEM_PHOTOS && <span className="uinv-meta">{T('photoMax', { n: MAX_ITEM_PHOTOS })}</span>}
-        <button type="button" className="uinv-btn uinv-btn-sm" onClick={() => setPhotos(null)}>{T('photosHide')}</button>
+        {!alwaysOpen && <button type="button" className="uinv-btn uinv-btn-sm" onClick={() => setPhotos(null)}>{T('photosHide')}</button>}
       </div>
       {bad && <div className="uinv-msg uinv-msg-err" role="alert" style={{ margin: 0 }}>{T('damagePhotoBad')}</div>}
     </div>

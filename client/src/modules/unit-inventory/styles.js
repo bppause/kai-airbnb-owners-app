@@ -124,6 +124,7 @@ export const UINV_CSS = `
 .uinv-last strong{color:#0b5f3a}
 .uinv-item-head{display:flex;gap:8px;align-items:flex-start}
 .uinv-item-text{flex:1;min-width:0}
+.uinv-photo-quick{flex:none;min-height:44px;padding:0 10px;white-space:nowrap}
 .uinv-dmg-quick{flex:none;min-height:44px;padding:0 10px;white-space:nowrap}
 .uinv-star{flex:none;width:44px;height:44px;border-radius:10px;border:1px solid rgba(47,79,58,.24);background:#fff;color:#8a9aa0;font-size:1.35rem;line-height:1;cursor:pointer}
 .uinv-star-on{background:#fff4d1;border-color:#e2b93b;color:#a87400}
@@ -229,5 +230,6 @@ export const UINV_CSS = `
   .uinv-fields{gap:6px}
   .uinv-more{padding:0 6px}
   .uinv-dmg-quick{padding:0 8px}
+  .uinv-photo-quick{padding:0 8px}
 }
 `;

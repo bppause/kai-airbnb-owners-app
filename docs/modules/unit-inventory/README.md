@@ -103,13 +103,18 @@ unnoticed.
   now. Both screens show the last complete count under the summary; the
   owner's History tab lists them in the same timeline as item changes.
   It never changes a baseline.
-- **Item photos.** The owner can attach up to 3 photos to an item —
-  what it looks like, for their own record and so the cleaning service
-  can recognise it — from the item's card or while adding it. They are
-  shrunk in the browser and stored in `unit_inventory_item_photos`,
-  apart from the item rows: lists carry only each item's photo count,
-  and an item's photos are fetched when someone opens them. The cleaning
-  service can look, not add or delete.
+- **Example photos.** The owner can attach up to 3 example photos to
+  an item, showing the cleaning service what it looks like. Every item
+  on the owner's screen has a "📷 Foto" button at its top right, next to
+  the ★ — in view even when the item is folded on a phone — that opens
+  the camera or photo library and saves the photo to the item straight
+  away ("Foto de ejemplo guardada."). The add-item form takes them
+  before the item exists, and the edit form shows the item's photos to
+  add or delete there. The card shows "📷 Fotos de ejemplo (n)", which
+  opens them (to view full screen or delete); the 📷 button goes once an
+  item has 3. The cleaning service sees "📷 Fotos de ejemplo (n)" and
+  can only look. Photos are shrunk in the browser and stored as JPEG
+  data URLs.
 - **Item photos at checkout (optional).** The cleaning service may
   photograph any item at a checkout — offered on the ★ items and on any
   item that is off its count or has a note, since that is where a photo
