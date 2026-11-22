@@ -273,6 +273,8 @@ const STR = {
   photosShow:       { es: '📷 Fotos de ejemplo ({n})', en: '📷 Example photos ({n})' },
   photosHide:       { es: 'Ocultar fotos', en: 'Hide photos' },
   photoAdd:         { es: '📷 Agregar foto', en: '📷 Add photo' },
+  photoTakeCamera:  { es: '📷 Tomar foto', en: '📷 Take photo' },
+  photoFromGallery: { es: '🖼️ Elegir de la galería', en: '🖼️ Choose from gallery' },
   photoQuick:       { es: '📷 Foto', en: '📷 Photo' },
   photoQuickAria:   { es: 'Agregar foto de ejemplo: {name}', en: 'Add example photo: {name}' },
   photoQuickSaved:  { es: 'Foto de ejemplo guardada.', en: 'Example photo saved.' },

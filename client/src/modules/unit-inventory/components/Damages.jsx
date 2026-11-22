@@ -11,9 +11,8 @@
 // someone asks to see them.
 
 import React, { useEffect, useRef, useState } from "react";
-import { compressImage } from "../../../core/utils";
 import { tr, primaryText, formatWhen } from "../strings";
-import { PhotoStrip } from "./Photos";
+import { PhotoStrip, PhotoButton } from "./Photos";
 
 export const MAX_DAMAGE_PHOTOS = 4;
 
@@ -31,26 +30,15 @@ export function DamageForm({ lang, areas, preset, busy, onSend, onCancel }) {
   const [itemId, setItemId] = useState(preset ? preset.id : '');
   const [location, setLocation] = useState('');
   const [photos, setPhotos] = useState([]);
-  const [preparing, setPreparing] = useState(false);
   const [problem, setProblem] = useState('');
   const boxRef = useRef(null);
-  const fileRef = useRef(null);
   useEffect(() => { if (boxRef.current) boxRef.current.scrollIntoView({ block: 'start' }); }, []);
 
   const area = areas.find(a => a.key === areaKey) || null;
   const pickArea = (key) => { setAreaKey(key); setItemId(''); };
-  const addPhotos = async (e) => {
-    const files = Array.from(e.target.files || []).slice(0, MAX_DAMAGE_PHOTOS - photos.length);
-    e.target.value = '';
-    if (!files.length) return;
-    setPreparing(true); setProblem('');
-    for (const file of files) {
-      try {
-        const shrunk = await compressImage(file);
-        setPhotos(prev => (prev.length < MAX_DAMAGE_PHOTOS ? [...prev, { data: shrunk.data }] : prev));
-      } catch (_e) { setProblem(T('damagePhotoBad')); }
-    }
-    setPreparing(false);
+  const addPhoto = (data) => {
+    setProblem('');
+    setPhotos(prev => (prev.length < MAX_DAMAGE_PHOTOS ? [...prev, { data }] : prev));
   };
   const send = async () => {
     if (!description.trim()) { setProblem(T('damageDescNeeded')); return; }
@@ -62,7 +50,7 @@ export function DamageForm({ lang, areas, preset, busy, onSend, onCancel }) {
     });
     if (ok) { setDescription(''); setItemId(''); setLocation(''); setPhotos([]); }
   };
-  const working = busy || preparing;
+  const working = busy;
 
   return (
     <div className="uinv-box uinv-damages" ref={boxRef}>
@@ -92,10 +80,10 @@ export function DamageForm({ lang, areas, preset, busy, onSend, onCancel }) {
         </label>
         <div className="uinv-field">{T('damagePhotos', { n: MAX_DAMAGE_PHOTOS })}
           <PhotoStrip photos={photos} lang={lang} onRemove={i => setPhotos(prev => prev.filter((_, j) => j !== i))} />
-          <input ref={fileRef} type="file" accept="image/*" multiple style={{ display: 'none' }} onChange={addPhotos} />
           {photos.length < MAX_DAMAGE_PHOTOS && (
-            <button type="button" className="uinv-btn" style={{ marginTop: 6, justifySelf: 'start' }} disabled={working}
-              onClick={() => fileRef.current && fileRef.current.click()}>{preparing ? T('damagePhotoBusy') : T('damageAddPhoto')}</button>
+            <PhotoButton lang={lang} room={MAX_DAMAGE_PHOTOS - photos.length} disabled={busy} className="uinv-btn"
+              style={{ marginTop: 6, justifySelf: 'start' }} label={T('damageAddPhoto')} busyLabel={T('damagePhotoBusy')}
+              onPhoto={addPhoto} onError={() => setProblem(T('damagePhotoBad'))} />
           )}
         </div>
       </div>

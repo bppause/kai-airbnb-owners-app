@@ -45,14 +45,38 @@ export function PhotoStrip({ photos, lang, onRemove, alt, removeLabel }) {
   );
 }
 
-// A button that opens the phone's camera / photo library and hands back
-// each chosen image, shrunk, through `onPhoto(dataUrl)` — one at a time,
-// at most `room` of them. `onError()` is told when a file can't be used.
-// `camera` goes straight to the camera on a phone (proof photos are
-// taken on the spot); `size` overrides how far the image is shrunk.
-export function PhotoButton({ lang, room, disabled, busyLabel, label, ariaLabel, camera = false, size, onPhoto, onError, className = 'uinv-btn uinv-btn-sm' }) {
-  const fileRef = useRef(null);
+// A button that takes or picks photos and hands back each chosen image,
+// shrunk, through `onPhoto(dataUrl)` — one at a time, at most `room` of
+// them. `onError()` is told when a file can't be used.
+//
+// On a phone (a touch screen) it asks first: "📷 Take photo" opens the
+// camera, "🖼️ Choose from gallery" the photo library — some phones offer
+// no camera at all from a plain image picker. On a computer it opens the
+// file picker. `camera` skips the question and goes straight to the
+// camera (proof photos are taken on the spot). `size` overrides how far
+// the image is shrunk; `menuAlign` ('left' | 'right') which edge of the
+// button the choices line up with, so they stay on screen.
+const touchScreen = () => typeof window !== 'undefined' && typeof window.matchMedia === 'function'
+  && window.matchMedia('(pointer: coarse)').matches;
+
+export function PhotoButton({ lang, room, disabled, busyLabel, label, ariaLabel, camera = false, size, onPhoto, onError, className = 'uinv-btn uinv-btn-sm', menuAlign = 'left', style }) {
+  const cameraRef = useRef(null);
+  const libraryRef = useRef(null);
+  const wrapRef = useRef(null);
   const [working, setWorking] = useState(false);
+  const [asking, setAsking] = useState(false);
+  const ask = !camera && touchScreen();
+
+  // The choices close on a tap elsewhere or Escape.
+  useEffect(() => {
+    if (!asking) return undefined;
+    const away = (e) => { if (wrapRef.current && !wrapRef.current.contains(e.target)) setAsking(false); };
+    const key = (e) => { if (e.key === 'Escape') setAsking(false); };
+    document.addEventListener('pointerdown', away);
+    document.addEventListener('keydown', key);
+    return () => { document.removeEventListener('pointerdown', away); document.removeEventListener('keydown', key); };
+  }, [asking]);
+
   const chosen = async (e) => {
     const files = Array.from(e.target.files || []).slice(0, room);
     e.target.value = '';
@@ -65,13 +89,28 @@ export function PhotoButton({ lang, room, disabled, busyLabel, label, ariaLabel,
     }
     setWorking(false);
   };
+  // Each choice opens its picker from the tap itself, as phones require.
+  const open = (ref) => { setAsking(false); if (ref.current) ref.current.click(); };
+  const tap = () => {
+    if (camera) open(cameraRef);
+    else if (ask) setAsking(a => !a);
+    else open(libraryRef);
+  };
   return (
-    <>
-      <input ref={fileRef} type="file" accept="image/*" multiple={!camera && room > 1} capture={camera ? 'environment' : undefined} style={{ display: 'none' }} onChange={chosen} />
-      <button type="button" className={className} disabled={disabled || working} aria-label={working ? undefined : ariaLabel} onClick={() => fileRef.current && fileRef.current.click()}>
+    <span className="uinv-photo-btn" ref={wrapRef} style={style}>
+      <input ref={cameraRef} type="file" accept="image/*" capture="environment" data-source="camera" style={{ display: 'none' }} onChange={chosen} />
+      {!camera && <input ref={libraryRef} type="file" accept="image/*" multiple={room > 1} data-source="library" style={{ display: 'none' }} onChange={chosen} />}
+      <button type="button" className={className} disabled={disabled || working} aria-label={working ? undefined : ariaLabel}
+        aria-haspopup={ask ? 'menu' : undefined} aria-expanded={ask ? asking : undefined} onClick={tap}>
         {working ? (busyLabel || tr(lang, 'damagePhotoBusy')) : (label || tr(lang, 'photoAdd'))}
       </button>
-    </>
+      {asking && (
+        <span className={`uinv-photo-menu uinv-photo-menu-${menuAlign}`} role="menu">
+          <button type="button" role="menuitem" className="uinv-btn" onClick={() => open(cameraRef)}>{tr(lang, 'photoTakeCamera')}</button>
+          <button type="button" role="menuitem" className="uinv-btn" onClick={() => open(libraryRef)}>{tr(lang, 'photoFromGallery')}</button>
+        </span>
+      )}
+    </span>
   );
 }
 

@@ -115,6 +115,12 @@ unnoticed.
   item has 3. The cleaning service sees "📷 Fotos de ejemplo (n)" and
   can only look. Photos are shrunk in the browser and stored as JPEG
   data URLs.
+- **Camera or gallery.** On a phone every "add photo" button (example
+  photos, the add-item form, damage reports) asks first: "📷 Tomar
+  foto" opens the camera, "🖼️ Elegir de la galería" the photo library —
+  some phones offer no camera from a plain image picker. A computer
+  opens the file picker straight away; the cleaning service's optional
+  item photo at checkout goes straight to the camera.
 - **Item photos at checkout (optional).** The cleaning service may
   photograph any item at a checkout — offered on the ★ items and on any
   item that is off its count or has a note, since that is where a photo

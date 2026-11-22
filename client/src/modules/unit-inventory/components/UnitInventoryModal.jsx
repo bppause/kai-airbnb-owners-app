@@ -415,7 +415,7 @@ export default function UnitInventoryModal({ listing, user, onClose }) {
     } catch (e) { setMsg({ err: true, text: e?.message || String(e) }); }
   };
   const photoButtonFor = (it) => ((it.photoCount || 0) < MAX_ITEM_PHOTOS
-    ? <PhotoButton lang={lang} room={1} busyLabel={T('photoAdding')} label={T('photoQuick')} className="uinv-btn uinv-btn-sm uinv-photo-quick"
+    ? <PhotoButton lang={lang} room={1} busyLabel={T('photoAdding')} label={T('photoQuick')} menuAlign="right" className="uinv-btn uinv-btn-sm uinv-photo-quick"
         ariaLabel={T('photoQuickAria', { name: primaryText(lang, it.nameEn, it.nameEs) })}
         onPhoto={data => addPhotoQuick(it, data)} onError={() => setMsg({ err: true, text: T('damagePhotoBad') })} />
     : null);
