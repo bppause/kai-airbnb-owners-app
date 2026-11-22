@@ -7,7 +7,7 @@
 
 import React, { useRef, useState, useEffect } from "react";
 import { compressImage } from "../../../core/utils";
-import { tr } from "../strings";
+import { tr, primaryText } from "../strings";
 
 export const MAX_ITEM_PHOTOS = 3;
 export const MAX_PROOF_PHOTOS = 3;
@@ -132,6 +132,62 @@ export function PhotoPicker({ lang, photos, onChange, max, disabled }) {
   );
 }
 
+// Primary photos already fetched, by item id and photo count (a change
+// in count — say the first one deleted — fetches again).
+const primaryCache = new Map();
+
+// An item's primary photo (the first the owner added) as a thumbnail on
+// its card, so whoever counts sees at a glance what the item looks like.
+// Fetched only once the card comes near the screen: a long list doesn't
+// load every picture up front. A tap opens it full screen.
+function PrimaryPhoto({ lang, item, load }) {
+  const T = (k, v) => tr(lang, k, v);
+  const key = `${item.id}:${item.photoCount || 0}`;
+  const ref = useRef(null);
+  const [photo, setPhoto] = useState(() => primaryCache.get(key) || null);
+  const [gone, setGone] = useState(false);
+  const [big, setBig] = useState(false);
+  useEffect(() => {
+    const cached = primaryCache.get(key);
+    if (cached) { setPhoto(cached); return undefined; }
+    setPhoto(null); setGone(false);
+    let done = false;
+    const fetchIt = () => {
+      if (done) return;
+      done = true;
+      load(item).then(list => {
+        const first = list && list[0];
+        if (first) { primaryCache.set(key, first); setPhoto(first); } else setGone(true);
+      }).catch(() => setGone(true));
+    };
+    if (typeof IntersectionObserver !== 'function' || !ref.current) { fetchIt(); return undefined; }
+    // The owner's screen scrolls inside its own panel: watch that, so the
+    // margin (load a little before it shows) applies there too.
+    const root = ref.current.closest('.uinv-overlay') || null;
+    const watch = new IntersectionObserver(entries => {
+      if (entries.some(e => e.isIntersecting)) { watch.disconnect(); fetchIt(); }
+    }, { root, rootMargin: '300px 0px' });
+    watch.observe(ref.current);
+    return () => { done = true; watch.disconnect(); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key]);
+  if (gone) return null;
+  const name = primaryText(lang, item.nameEn, item.nameEs);
+  return (
+    <>
+      <button type="button" ref={ref} className="uinv-primary" disabled={!photo} onClick={() => setBig(true)}
+        aria-label={T('photoPrimaryOpen', { name })}>
+        {photo ? <img src={photo.data} alt={T('photoPrimaryAlt', { name })} /> : <span aria-hidden="true">📷</span>}
+      </button>
+      {big && photo && (
+        <div className="uinv-lightbox" role="dialog" aria-modal="true" aria-label={T('photoPrimaryAlt', { name })} onClick={() => setBig(false)}>
+          <img src={photo.data} alt={T('photoPrimaryAlt', { name })} />
+        </div>
+      )}
+    </>
+  );
+}
+
 // An item's photos on its card. Closed, it is a "📷 Photos (n)" button
 // (or, for the owner of an item that has none, "📷 Add photo"); opened,
 // the photos themselves, fetched then. Only the owner — `store.add` and
@@ -182,7 +238,20 @@ export function ItemPhotos({ lang, item, store, onCount, onError, showLabel = 'p
 
   if (photos === null) {
     if (alwaysOpen) return <p className="uinv-sub">{T('loading')}</p>;
-    if (count > 0) return <div className="uinv-photos"><button type="button" className="uinv-btn uinv-btn-sm" disabled={loading} onClick={open}>{loading ? T('loading') : T(showLabel, { n: count })}</button></div>;
+    if (count > 0) {
+      // The primary photo shows straight away; the button opens them all
+      // (for the owner always — that's where photos are deleted — for the
+      // cleaning service only when there is more than one).
+      const withPrimary = !!store.loadFirst;
+      return (
+        <div className={`uinv-photos${withPrimary ? ' uinv-photos-primary' : ''}`}>
+          {withPrimary && <PrimaryPhoto lang={lang} item={item} load={store.loadFirst} />}
+          {(!withPrimary || canEdit || count > 1) && (
+            <button type="button" className="uinv-btn uinv-btn-sm" disabled={loading} onClick={open}>{loading ? T('loading') : T(showLabel, { n: count })}</button>
+          )}
+        </div>
+      );
+    }
     if (!canEdit || noFirstAdd) return null;
     return (
       <div className="uinv-photos uinv-photo-first">

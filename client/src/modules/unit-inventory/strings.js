@@ -275,6 +275,8 @@ const STR = {
   photoAdd:         { es: '📷 Agregar foto', en: '📷 Add photo' },
   photoTakeCamera:  { es: '📷 Tomar foto', en: '📷 Take photo' },
   photoFromGallery: { es: '🖼️ Elegir de la galería', en: '🖼️ Choose from gallery' },
+  photoPrimaryAlt:  { es: 'Foto de ejemplo: {name}', en: 'Example photo: {name}' },
+  photoPrimaryOpen: { es: 'Ver en grande la foto de ejemplo: {name}', en: 'View the example photo full size: {name}' },
   photoQuick:       { es: '📷 Foto', en: '📷 Photo' },
   photoQuickAria:   { es: 'Agregar foto de ejemplo: {name}', en: 'Add example photo: {name}' },
   photoQuickSaved:  { es: 'Foto de ejemplo guardada.', en: 'Example photo saved.' },

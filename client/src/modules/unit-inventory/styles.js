@@ -178,6 +178,10 @@ export const UINV_CSS = `
 .uinv-finish{display:grid;gap:10px}
 .uinv-finish .uinv-btn{width:100%;min-height:48px;font-size:1rem}
 .uinv-photos{margin-top:6px;display:grid;gap:6px;justify-items:start}
+.uinv-photos-primary{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+.uinv-primary{flex:none;width:96px;height:96px;padding:0;border:1px solid rgba(47,79,58,.2);border-radius:12px;overflow:hidden;background:#eef3f1;cursor:zoom-in;display:flex;align-items:center;justify-content:center;font-size:1.6rem;color:#8a9aa0}
+.uinv-primary img{width:100%;height:100%;object-fit:cover;display:block}
+.uinv-primary:disabled{cursor:default}
 .uinv-proof{margin-top:8px;padding:8px 10px;border-radius:10px;border:1px dashed #e2b93b;background:#fffaf0;display:grid;gap:6px;justify-items:start}
 .uinv-proof-ok{border:1px solid #b7e2c8;background:#f1f8f4}
 .uinv-proof-opt{border:1px dashed rgba(47,79,58,.28);background:#fbfcfb}
