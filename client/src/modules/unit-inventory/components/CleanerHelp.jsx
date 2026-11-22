@@ -111,8 +111,8 @@ const guide = (lang, { required, videoRequired, proofEnabled }) => {
       points: [
         pick('Con el apartamento ya limpio, toca “🎥 Grabar video” y luego “● Empezar a grabar”.',
           'With the apartment clean, tap “🎥 Record video” and then “● Start recording”.'),
-        pick('Camina despacio por todo el apartamento: cada habitación, baños, cocina y balcones. Máximo 3 minutos.',
-          'Walk slowly through the whole apartment: every bedroom, bathroom, kitchen and balcony. At most 3 minutes.'),
+        pick('Este video es la evidencia ante Airbnb si un huésped causa daños. Por eso: camina despacio, con buena luz, por cada habitación, baños, cocina y balcones, y muestra muebles, paredes, pisos, puertas y electrodomésticos. Máximo 3 minutos.',
+          'This video is the evidence for Airbnb if a guest causes damage. So: walk slowly, with good light, through every bedroom, bathroom, kitchen and balcony, and show furniture, walls, floors, doors and appliances. At most 3 minutes.'),
         pick('Toca “■ Detener”, míralo y toca “✓ Enviar este video”. Si puedes, usa Wi-Fi: sube más rápido.',
           'Tap “■ Stop”, watch it and tap “✓ Send this video”. Use Wi-Fi if you can: it uploads faster.'),
       ],

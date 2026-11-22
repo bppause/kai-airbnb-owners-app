@@ -28,7 +28,7 @@ function ReportPhotos({ lang, count, load }) {
 
 // `loadPhotos(itemId)` fetches one item's photos for this report;
 // `loadVideos()` the checkout's video(s).
-function ReportDetail({ lang, check, detail, loadPhotos, loadVideos }) {
+function ReportDetail({ lang, check, detail, loadPhotos, loadVideos, keepVideo, unitName }) {
   const T = (k, v) => tr(lang, k, v);
   const { results, damages } = detail;
   return (
@@ -36,7 +36,7 @@ function ReportDetail({ lang, check, detail, loadPhotos, loadVideos }) {
       {check.actorType === 'cleaner' && (
         <div>
           <h2>{T('reportVideo')}</h2>
-          <div style={{ marginTop: 6 }}><ReportVideo lang={lang} count={check.videosCount} load={loadVideos} /></div>
+          <div style={{ marginTop: 6 }}><ReportVideo lang={lang} count={check.videosCount} load={loadVideos} onKeep={keepVideo} unitName={unitName} /></div>
         </div>
       )}
       <div>
@@ -74,7 +74,7 @@ function ReportDetail({ lang, check, detail, loadPhotos, loadVideos }) {
 }
 
 // `unitBase` is the unit's API path; `ownerUid` proves who is asking.
-export default function CheckoutReports({ lang, unitBase, ownerUid, onError }) {
+export default function CheckoutReports({ lang, unitBase, ownerUid, unitName, onError }) {
   const T = (k, v) => tr(lang, k, v);
   const [checks, setChecks] = useState(null);
   // What the checkout videos take up, all units together: { used, limit }.
@@ -107,7 +107,8 @@ export default function CheckoutReports({ lang, unitBase, ownerUid, onError }) {
       <p className="uinv-help" style={{ marginTop: 0 }}>{T('reportsHelp')}</p>
       {storage && storage.limit > 0 && (
         <p className={`uinv-help uinv-storage${storage.used / storage.limit >= 0.9 ? ' uinv-storage-full' : ''}`}>
-          {T('videoStorageUse', { used: formatMb(storage.used), limit: formatMb(storage.limit), pct: Math.min(100, Math.round((storage.used / storage.limit) * 100)) })}
+          {T('videoStorageUse', { used: formatMb(storage.used), limit: formatMb(storage.limit), pct: Math.round((storage.used / storage.limit) * 100), days: storage.protectDays || 30 })}
+          {storage.over && <><br /><strong>{T('videoStorageOver')}</strong></>}
         </p>
       )}
       {checks.map(check => {
@@ -121,9 +122,10 @@ export default function CheckoutReports({ lang, unitBase, ownerUid, onError }) {
               <button type="button" className="uinv-btn uinv-btn-sm" aria-expanded={open} onClick={() => toggle(check)}>{T(open ? 'reportClose' : 'reportOpen')}</button>
             </div>
             {open && (details[check.id]
-              ? <ReportDetail lang={lang} check={check} detail={details[check.id]}
+              ? <ReportDetail lang={lang} check={check} detail={details[check.id]} unitName={unitName}
                   loadPhotos={async (itemId) => (await api.get(`${unitBase}/checks/${encodeURIComponent(check.id)}/items/${encodeURIComponent(itemId)}/photos?${q}`)).photos || []}
-                  loadVideos={async () => (await api.get(`${unitBase}/checks/${encodeURIComponent(check.id)}/videos?${q}`)).videos || []} />
+                  loadVideos={async () => (await api.get(`${unitBase}/checks/${encodeURIComponent(check.id)}/videos?${q}`)).videos || []}
+                  keepVideo={async (video, keep) => (await api.post(`${unitBase}/videos/${encodeURIComponent(video.id)}/keep`, { ownerUid, keep })).video} />
               : <p className="uinv-sub" style={{ margin: '8px 0 0' }}>{T('loading')}</p>)}
           </div>
         );

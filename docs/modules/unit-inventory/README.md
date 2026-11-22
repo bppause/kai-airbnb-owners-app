@@ -129,17 +129,35 @@ unnoticed.
   in the page and by the server — until there is a video from this
   visit. The owner watches it from the checkout report through a link
   that lasts an hour. The owner's own count asks for none.
-- **Video storage is recycled.** Videos are kept until all of them
-  together (every unit) would pass a size limit — 800 MB by default,
-  under Supabase's free 1 GB; set `INVENTORY_VIDEO_STORAGE_MB` to
-  change it. When a new upload would pass it, the oldest videos of
-  completed counts are deleted (row and file), oldest first and only as
-  many as needed. Videos of a visit still under way are never touched,
-  and the upload always goes ahead. The report of a count whose video
-  was recycled still says it had one and explains why it's gone. The
-  checkout reports tab shows how much is used ("🎥 Video storage: 320 MB
-  of 800 MB (40%)…", highlighted from 90%). Uploads abandoned for a day
-  are dropped when a count is completed.
+- **The video is evidence for Airbnb damage claims.** The cleaning
+  service records it after every turnover cleaning — it shows damage the
+  last guest left and is the "before check-in" proof for the next one.
+  The task card, video box and guide tell them so: walk slowly, good
+  light, show furniture, walls, floors, doors and appliances. In the
+  checkout report the owner sees when it was recorded, can **⬇ Download
+  video** (a link that saves it as `inventario-apto-317-2026-11-22-1452.mp4`,
+  Colombia time) or **📤 Share (WhatsApp…)** it, to attach in Airbnb's
+  Resolution Center or send to anyone. On a phone that can share files,
+  the first tap fetches the video and the second ("📤 Send video") opens
+  the share sheet with the file itself — phones only allow sharing right
+  after a tap. Elsewhere, or if fetching fails, WhatsApp opens with the
+  message and a download link that works for 7 days. Claims are
+  filed within 14 days of the guest's checkout — and can mark it
+  **📌 Keep as evidence** while a claim is open (`keep`, `kept_by`,
+  `kept_at`; audited as keep_video / release_video).
+- **Video storage is recycled — never recent or kept evidence.** Videos
+  are kept until all of them together (every unit) would pass a size
+  limit — 800 MB by default, under Supabase's free 1 GB; set
+  `INVENTORY_VIDEO_STORAGE_MB` to change it. When a new upload would
+  pass it, the oldest videos of completed counts are deleted (row and
+  file), oldest first and only as many as needed — but never a video
+  under 30 days old, one kept as evidence, or one from a visit still
+  under way. If those alone pass the limit nothing more is deleted: the
+  upload goes ahead and the reports tab warns that storage is over. The
+  report of a count whose video was recycled still says it had one and
+  explains why it's gone. The reports tab shows how much is used
+  ("🎥 Video storage: 320 MB of 800 MB (40%)…", highlighted from 90%).
+  Uploads abandoned for a day are dropped when a count is completed.
 - **Damage reports.** The cleaning service can report damage: what is
   damaged, where (an area, the item if it concerns one, a free-text
   spot) and up to 4 photos. Photos are shrunk in the browser and stored
@@ -262,7 +280,7 @@ is missing. That file is generated from the inventory section of
 | `unit_inventory_item_photos` | The owner's photos of an item (JPEG data URLs). Deleted with the item. A missing table leaves everything else working; only photos fail. |
 | `unit_inventory_events` | Append-only history: `created`, `edited`, `count`, `rebaseline`, `deleted`. An `edited` event stores the before/after of each descriptive field that changed in `changes`; an edit that changes nothing writes no event. |
 | `unit_inventory_checks` | One row per completed count: who, when, the unit's totals against baseline at that moment, the items that were off or noted (`results`) and how many damage reports came with it. If the newer columns are missing the count is still recorded without them. If this table is missing (schema not re-run since it was added) the screens still load and report no complete count; only marking one fails. |
-| `unit_inventory_videos` | The checkout video: where it is in the `inventory-videos` storage bucket, type, size, length, who, `uploading` / `ready`, and the completed count it belongs to. Kept until all videos together pass the storage limit; then the oldest of completed counts are deleted (row and file) to make room. A missing table means no video is asked for. The bucket is created by `schema.sql`, or by the server on first use. |
+| `unit_inventory_videos` | The checkout video: where it is in the `inventory-videos` storage bucket, type, size, length, who, `uploading` / `ready`, and the completed count it belongs to. `keep` / `kept_by` / `kept_at`: kept as evidence by the owner. Kept until all videos together pass the storage limit; then the oldest of completed counts are deleted (row and file) to make room — never one under 30 days old or kept as evidence. A missing table means no video is asked for. The bucket is created by `schema.sql`, or by the server on first use. |
 | `unit_inventory_count_photos` | Optional item photos at a checkout: unattached while the visit is under way, then tied to the completed count (`check_id`). Pruned to the 12 most recent counts per unit. A missing table means photos aren't asked for and counts complete as before. |
 | `unit_inventory_damages` | Damage reports: description, area / item / spot, photos (JPEG data URLs), who and when, the completed count they belong to (`check_id`), `open` or `resolved`. A missing table reads as no damage; only reporting fails. |
 | `unit_inventory_proposals` | Items proposed through the share link: `pending`, `approved` (with the `item_id` created) or `rejected`. Decided rows are kept. A missing table reads as no proposals; only proposing fails. |
@@ -276,6 +294,7 @@ Mounted at `/api/m/unit-inventory`.
 | --- | --- | --- |
 | `GET /units/:listingId?ownerUid=` | owner | Items, the share link, the last complete count and pending proposals |
 | `POST /units/:listingId/items` | owner | Add one or many items (CSV import sends the whole file) |
+| `POST /units/:listingId/videos/:videoId/keep` | owner | `{ keep: true\|false }`: keep a completed count's video as evidence (never recycled) or release it |
 | `PUT /items/:id` | owner | Edit an item's area, description, owner note |
 | `POST /units/:listingId/translate` | owner | `{ text, to: es\|en, field: area\|name\|note }` → `{ text }`. 503 when `ANTHROPIC_API_KEY` is not set |
 | `DELETE /items/:id` | owner | Delete an item (history kept) |

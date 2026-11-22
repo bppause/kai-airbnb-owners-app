@@ -13,7 +13,7 @@
 // with a progress bar, then tells the server it has arrived.
 
 import React, { useEffect, useRef, useState } from "react";
-import { tr } from "../strings";
+import { tr, formatWhen } from "../strings";
 
 export const MAX_VIDEO_SECONDS = 180;
 export const MAX_VIDEO_BYTES = 50 * 1024 * 1024;
@@ -236,25 +236,94 @@ export function VideoRecorder({ lang, canBegin, start, finish, onUploaded }) {
 
 // A video in a checkout report: fetched (with a link to watch it) only
 // when asked for. An empty answer means it is no longer kept.
-export function ReportVideo({ lang, count, load }) {
+// A checkout's video(s) in the owner's report: watch, download (to attach
+// to an Airbnb damage claim) and keep as evidence so storage recycling
+// never deletes it. `onKeep(video, keep)` saves the mark and returns the
+// updated video; without it the keep button isn't shown.
+//
+// Sharing (e.g. over WhatsApp) sends the file itself where the phone can
+// share files: the first tap fetches it, the second opens the share sheet
+// — phones only allow sharing right after a tap, and fetching a video
+// takes longer than that. Where files can't be shared (most computers),
+// or fetching fails, WhatsApp opens with a link that works for a week.
+export function ReportVideo({ lang, count, load, onKeep, unitName }) {
   const T = (k, v) => tr(lang, k, v);
   const [videos, setVideos] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState('');
+  const [problem, setProblem] = useState('');
+  // Video id → { state: 'preparing' } or { state: 'ready', file }.
+  const [shares, setShares] = useState({});
+  const canShareFiles = typeof navigator !== 'undefined' && typeof navigator.share === 'function'
+    && typeof navigator.canShare === 'function' && typeof File === 'function';
   if (!count) return <p className="uinv-help">{T('reportVideoNone')}</p>;
   const open = async () => {
     setLoading(true);
     try { setVideos(await load()); } catch (_e) { setVideos([]); } finally { setLoading(false); }
   };
+  const toggleKeep = async (v) => {
+    setSaving(v.id); setProblem('');
+    try {
+      const next = await onKeep(v, !v.keep);
+      setVideos(list => list.map(x => (x.id === v.id ? { ...x, keep: next.keep, keptBy: next.keptBy } : x)));
+    } catch (e) { setProblem(e?.message || String(e)); } finally { setSaving(''); }
+  };
+  const shareText = (v) => T('videoShareText', { unit: unitName || '', when: formatWhen(v.createdAt, lang), who: v.takenBy });
+  const shareLink = (v) => {
+    const link = v.shareUrl || v.downloadUrl || v.url;
+    const msg = `${shareText(v)}\n${link}\n${T('videoShareLinkNote', { n: v.shareDays || 7 })}`;
+    window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank', 'noopener');
+  };
+  const prepareShare = async (v) => {
+    if (!canShareFiles) { shareLink(v); return; }
+    setShares(s => ({ ...s, [v.id]: { state: 'preparing' } })); setProblem('');
+    try {
+      const res = await fetch(v.downloadUrl || v.url);
+      if (!res.ok) throw new Error(String(res.status));
+      const blob = await res.blob();
+      const file = new File([blob], v.fileName || 'inventario.mp4', { type: blob.type || v.contentType || 'video/mp4' });
+      if (!navigator.canShare({ files: [file] })) throw new Error('cannot share files');
+      setShares(s => ({ ...s, [v.id]: { state: 'ready', file } }));
+    } catch (_e) {
+      setShares(s => { const n = { ...s }; delete n[v.id]; return n; });
+      shareLink(v);
+    }
+  };
+  const sendShare = async (v) => {
+    const file = shares[v.id] && shares[v.id].file;
+    try {
+      await navigator.share({ files: [file], title: shareText(v), text: shareText(v) });
+    } catch (e) {
+      if (e && e.name === 'AbortError') return;   // the person closed the share sheet
+      shareLink(v);
+    }
+  };
   if (videos === null) return <button type="button" className="uinv-btn uinv-btn-sm" disabled={loading} onClick={open}>{loading ? T('loading') : T('reportVideoWatch')}</button>;
   if (!videos.length || !videos.some(v => v.url)) return <p className="uinv-help">{T('reportVideoGone')}</p>;
   return (
-    <div style={{ display: 'grid', gap: 8 }}>
+    <div style={{ display: 'grid', gap: 10 }}>
       {videos.filter(v => v.url).map(v => (
-        <div key={v.id}>
+        <div key={v.id} className="uinv-evidence">
           <video className="uinv-rec-view" src={v.url} controls playsInline preload="metadata" />
-          <div className="uinv-meta">{formatDuration(v.durationSeconds)} · {formatMb(v.sizeBytes)} MB · {v.takenBy}</div>
+          <div className="uinv-meta">{T('videoRecordedAt', { when: formatWhen(v.createdAt, lang) })} · {formatDuration(v.durationSeconds)} · {formatMb(v.sizeBytes)} MB · {v.takenBy}</div>
+          {v.keep && <div className="uinv-kept">{T('videoKeptNote', { who: v.keptBy })}</div>}
+          <div className="uinv-row">
+            {v.downloadUrl && <a className="uinv-btn uinv-btn-sm" href={v.downloadUrl} download={v.fileName || true}>{T('videoDownload')}</a>}
+            {(v.shareUrl || v.downloadUrl) && (shares[v.id] && shares[v.id].state === 'ready'
+              ? <button type="button" className="uinv-btn uinv-btn-sm uinv-btn-p" onClick={() => sendShare(v)}>{T('videoShareSend')}</button>
+              : <button type="button" className="uinv-btn uinv-btn-sm" disabled={!!shares[v.id]} onClick={() => prepareShare(v)}>
+                  {shares[v.id] ? T('videoSharePreparing') : T('videoShare')}
+                </button>)}
+            {onKeep && (
+              <button type="button" className={`uinv-btn uinv-btn-sm${v.keep ? '' : ' uinv-btn-p'}`} aria-pressed={!!v.keep} disabled={saving === v.id} onClick={() => toggleKeep(v)}>
+                {saving === v.id ? T('saving') : T(v.keep ? 'videoRelease' : 'videoKeep')}
+              </button>
+            )}
+          </div>
         </div>
       ))}
+      {problem && <div className="uinv-msg uinv-msg-err">{problem}</div>}
+      <p className="uinv-help" style={{ margin: 0 }}>{T('videoEvidenceHelp')}</p>
     </div>
   );
 }
