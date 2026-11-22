@@ -270,17 +270,23 @@ const STR = {
   checkDamages:     { es: '⚠️ {n} daño(s)', en: '⚠️ {n} damage report(s)' },
 
   // Photos the owner attaches to an item.
-  photosShow:       { es: '📷 Fotos ({n})', en: '📷 Photos ({n})' },
+  photosShow:       { es: '📷 Fotos de ejemplo ({n})', en: '📷 Example photos ({n})' },
   photosHide:       { es: 'Ocultar fotos', en: 'Hide photos' },
   photoAdd:         { es: '📷 Agregar foto', en: '📷 Add photo' },
+  photoTakeCamera:  { es: '📷 Tomar foto', en: '📷 Take photo' },
+  photoFromGallery: { es: '🖼️ Elegir de la galería', en: '🖼️ Choose from gallery' },
+  photoQuick:       { es: '📷 Foto', en: '📷 Photo' },
+  photoQuickAria:   { es: 'Agregar foto de ejemplo: {name}', en: 'Add example photo: {name}' },
+  photoQuickSaved:  { es: 'Foto de ejemplo guardada.', en: 'Example photo saved.' },
+  formPhotosHelp:   { es: 'Muestran al servicio de limpieza cómo se ve el artículo.', en: 'They show the cleaning service what the item looks like.' },
   photoAdding:      { es: 'Guardando foto…', en: 'Saving photo…' },
-  photoAlt:         { es: 'Foto del artículo', en: 'Photo of the item' },
+  photoAlt:         { es: 'Foto de ejemplo del artículo', en: 'Example photo of the item' },
   photoRemove:      { es: 'Eliminar foto', en: 'Delete photo' },
   photoRemoveConfirm: { es: '¿Eliminar esta foto?', en: 'Delete this photo?' },
   photoMax:         { es: 'Máximo {n} fotos por artículo.', en: 'At most {n} photos per item.' },
   photoHas:         { es: 'Tiene fotos', en: 'Has photos' },
-  formPhotos:       { es: 'Fotos del artículo (hasta {n})', en: 'Photos of the item (up to {n})' },
-  photosShowRef:    { es: '📷 Fotos de referencia ({n})', en: '📷 Reference photos ({n})' },
+  formPhotos:       { es: 'Fotos de ejemplo (hasta {n})', en: 'Example photos (up to {n})' },
+  photosShowRef:    { es: '📷 Fotos de ejemplo ({n})', en: '📷 Example photos ({n})' },
 
   // The checkout video (required).
   videoTitle:       { es: '🎥 Video del apartamento (obligatorio)', en: '🎥 Video of the apartment (required)' },
