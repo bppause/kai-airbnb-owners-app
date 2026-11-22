@@ -119,6 +119,7 @@ export const UINV_CSS = `
 .uinv-last strong{color:#0b5f3a}
 .uinv-item-head{display:flex;gap:8px;align-items:flex-start}
 .uinv-item-text{flex:1;min-width:0}
+.uinv-dmg-quick{flex:none;min-height:44px;padding:0 10px;white-space:nowrap}
 .uinv-star{flex:none;width:44px;height:44px;border-radius:10px;border:1px solid rgba(47,79,58,.24);background:#fff;color:#8a9aa0;font-size:1.35rem;line-height:1;cursor:pointer}
 .uinv-star-on{background:#fff4d1;border-color:#e2b93b;color:#a87400}
 .uinv-badge-req{background:#fff4d1;color:#7a5200;border:1px solid #e2b93b}
@@ -202,7 +203,8 @@ export const UINV_CSS = `
   .uinv h1{font-size:1.15rem}
   .uinv-form{grid-template-columns:1fr}
   .uinv-btn-sm,.uinv-tab{min-height:44px}
-  .uinv-fields{width:100%}
+  .uinv-fields{width:100%;flex-wrap:wrap}
+  .uinv-item>*{min-width:0}
   .uinv-extra{display:none;flex-basis:100%}
   .uinv-item-open .uinv-extra{display:grid}
   .uinv-photo-first{display:none}
@@ -216,7 +218,11 @@ export const UINV_CSS = `
 }
 @media (max-width:359px){
   .uinv-step button{width:40px}
+  .uinv-step{gap:3px}
   .uinv-num{width:56px!important}
   .uinv-base{min-width:48px}
+  .uinv-fields{gap:6px}
+  .uinv-more{padding:0 6px}
+  .uinv-dmg-quick{padding:0 8px}
 }
 `;

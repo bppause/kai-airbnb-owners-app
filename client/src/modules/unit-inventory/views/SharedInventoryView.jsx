@@ -20,7 +20,7 @@
 
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "../../../core/api";
-import { tr, parseCountInput, diffFromBaseline, tallyDiffs, groupByArea, noteForViewer, API_BASE } from "../strings";
+import { tr, primaryText, parseCountInput, diffFromBaseline, tallyDiffs, groupByArea, noteForViewer, API_BASE } from "../strings";
 import { DiffSummary } from "../components/DiffMarks";
 import { ItemList, Toast, ViewSwitch, FilterBar, useAreaFolding } from "../components/ItemList";
 import { CountComplete, LastCheckLine } from "../components/CountComplete";
@@ -381,7 +381,10 @@ export default function SharedInventoryView({ token }) {
           {/* A search opens every area that has a match, whatever was folded. */}
           <ItemList items={visible} lang={lang} folding={folding} forceOpen={!!needle} busy={busy} expectedLabel={T('expected')}
             valueOf={typed} diffOf={diffOf} isDirty={isDirty} onChange={setTyped} moreLabel={T('addNote')} photosFor={photosFor} proofFor={proofFor}
-            actionsFor={it => <button type="button" className="uinv-btn uinv-btn-sm" disabled={busy} onClick={() => openDamage(it)}>{T('damageBtnItem')}</button>} />
+            headActionFor={it => (
+              <button type="button" className="uinv-btn uinv-btn-sm uinv-btn-danger uinv-dmg-quick" disabled={busy}
+                aria-label={T('damageQuickAria', { name: primaryText(lang, it.nameEn, it.nameEs) })} onClick={() => openDamage(it)}>{T('damageQuick')}</button>
+            )} />
         </>
       )}
 

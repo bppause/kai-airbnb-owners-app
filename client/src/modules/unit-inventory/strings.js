@@ -208,7 +208,7 @@ const STR = {
   taskCountReq:     { es: 'Cuenta los {n} artículos marcados ★.', en: 'Count the {n} items marked ★.' },
   taskCountAll:     { es: 'Cuenta todos los artículos de la lista ({n}).', en: 'Count every item on the list ({n}).' },
   taskCountHow:     { es: 'Corrige el número si cambió. Si algo ya no está, pon 0 y deja una nota.', en: 'Correct the number if it changed. If something is gone, set 0 and leave a note.' },
-  taskDamageHow:    { es: 'Si falta algo sin ★, búscalo con el buscador, corrige el número y deja una nota. Si está dañado, toca “⚠️ Reportar daño” y toma una foto.', en: 'If something without ★ is missing, find it with the search box, correct the number and leave a note. If it is damaged, tap “⚠️ Report damage” and take a photo.' },
+  taskDamageHow:    { es: 'Si falta algo sin ★, búscalo con el buscador, corrige el número y deja una nota. Si está dañado, toca “⚠️ Daño” en el artículo y toma una foto.', en: 'If something without ★ is missing, find it with the search box, correct the number and leave a note. If it is damaged, tap “⚠️ Damage” on the item and take a photo.' },
   finishAlsoUnflagged: { es: 'Si notaste algo dañado o que falta en artículos sin ★, repórtalo antes de finalizar.', en: 'If you noticed something damaged or missing among items without ★, report it before finishing.' },
   taskDamage:       { es: 'Reporta cualquier daño o faltante que veas, también en artículos sin ★.', en: 'Report any damage or missing item you see, including items without ★.' },
   taskFinish:       { es: 'Al terminar, toca “Conteo completo”.', en: 'When you finish, tap “Count complete”.' },
@@ -216,6 +216,8 @@ const STR = {
   // Damage reports.
   damageBtn:        { es: '⚠️ Reportar un daño', en: '⚠️ Report damage' },
   damageBtnItem:    { es: '⚠️ Reportar daño', en: '⚠️ Report damage' },
+  damageQuick:      { es: '⚠️ Daño', en: '⚠️ Damage' },
+  damageQuickAria:  { es: 'Reportar daño en: {name}', en: 'Report damage on: {name}' },
   damageTitle:      { es: 'Reportar un daño', en: 'Report damage' },
   damageHelp:       { es: 'El propietario recibe el reporte con las fotos.', en: 'The owner receives the report with the photos.' },
   damageDesc:       { es: '¿Qué está dañado?', en: 'What is damaged?' },

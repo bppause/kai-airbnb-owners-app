@@ -49,8 +49,8 @@ const guide = (lang, { required, videoRequired, proofEnabled }) => {
           ? pick(`Los ${required} artículos marcados ★ se cuentan en cada salida. Los demás están en la lista para que el propietario sepa todo lo que hay: no hace falta contarlos uno por uno (toca “Todos” para verlos).`,
             `The ${required} items marked ★ are counted at every checkout. The others are on the list so the owner knows everything in the apartment: they don’t need counting one by one (tap “All” to see them).`)
           : pick('Revisa todos los artículos de la lista.', 'Check every item on the list.'),
-        ...(required > 0 ? [pick('⚠️ Importante: aunque un artículo no tenga ★, si notas que falta o está dañado, repórtalo igual. Búscalo con el buscador, corrige el número y deja una nota, o toca “⚠️ Reportar daño”.',
-          '⚠️ Important: even if an item has no ★, if you notice it is missing or damaged, report it anyway. Find it with the search box, correct the number and leave a note, or tap “⚠️ Report damage”.')] : []),
+        ...(required > 0 ? [pick('⚠️ Importante: aunque un artículo no tenga ★, si notas que falta o está dañado, repórtalo igual. Búscalo con el buscador, corrige el número y deja una nota, o toca “⚠️ Daño” en el artículo.',
+          '⚠️ Important: even if an item has no ★, if you notice it is missing or damaged, report it anyway. Find it with the search box, correct the number and leave a note, or tap “⚠️ Damage” on the item.')] : []),
         pick('Toca el nombre de un área (Cocina, Baño…) para abrirla o cerrarla. Usa el buscador para encontrar un artículo rápido.',
           'Tap an area’s name (Kitchen, Bathroom…) to open or close it. Use the search box to find an item quickly.'),
         pick('“Esperado” es lo que debería haber. Usa − y + o escribe el número que encontraste.',
@@ -77,8 +77,8 @@ const guide = (lang, { required, videoRequired, proofEnabled }) => {
       icon: '⚠️',
       title: pick('2. Reporta daños', '2. Report damage'),
       points: [
-        pick('Para un artículo: toca “＋ Nota” en el artículo y luego “⚠️ Reportar daño”.',
-          'For an item: tap “＋ Note” on the item, then “⚠️ Report damage”.'),
+        pick('Para un artículo: toca “⚠️ Daño”, arriba a la derecha del artículo.',
+          'For an item: tap “⚠️ Damage” at the top right of the item.'),
         pick('Para algo que no está en la lista (pared, puerta, piso, mueble…): toca “⚠️ Reportar un daño” más abajo en la página.',
           'For something that isn’t on the list (wall, door, floor, furniture…): tap “⚠️ Report damage” further down the page.'),
         pick('Describe el daño, di dónde está y toma una o más fotos.',
