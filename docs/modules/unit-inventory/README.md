@@ -322,6 +322,12 @@ runs to a couple of hundred items. Both screens are built around that:
   count and a − / + stepper. The note (and the owner's Edit / Duplicate / Delete /
   Accept as baseline) sits behind a toggle and opens by itself as soon
   as the item has a note or its count leaves the baseline.
+- **Damage is one tap away.** On the cleaning-service page every item
+  carries a red "⚠️ Daño" button at its top right, in view even when the
+  item is folded on a phone, so reporting damage on an item never means
+  opening its note first. It opens the damage form for that item.
+  Damage elsewhere (walls, doors, furniture) uses "⚠️ Reportar un daño"
+  below the list.
 - **Nothing scrolls out of reach.** The owner's title bar and close
   button, the search box (with a ★ chip that flips between the
   every-checkout items and everything), the area being scrolled

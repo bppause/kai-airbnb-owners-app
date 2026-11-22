@@ -53,7 +53,7 @@ export function NoteTranslation({ lang, view }) {
 // buttons shown with the note. `expectedLabel` names the baseline box.
 // `onRequired` (owner only) flips whether the item must be counted at
 // every checkout; without it the ★ is only shown.
-function ItemCard({ item, lang, value, diff, dirty, busy, expectedLabel, opened, onToggle, onChange, actions, onRequired, moreLabel, photos, proof, flash }) {
+function ItemCard({ item, lang, value, diff, dirty, busy, expectedLabel, opened, onToggle, onChange, actions, onRequired, moreLabel, photos, proof, flash, headAction }) {
   const T = (k, v) => tr(lang, k, v);
   const noteView = noteForViewer(lang, item);
   const other = secondaryText(lang, item.nameEn, item.nameEs);
@@ -81,6 +81,7 @@ function ItemCard({ item, lang, value, diff, dirty, busy, expectedLabel, opened,
           {photos}
           {proof}
         </div>
+        {headAction}
         {onRequired && (
           <button type="button" className={`uinv-star${item.countRequired ? ' uinv-star-on' : ''}`} aria-pressed={item.countRequired}
             aria-label={T(item.countRequired ? 'reqTurnOff' : 'reqTurnOn')} title={T(item.countRequired ? 'reqTurnOff' : 'reqTurnOn')}
@@ -136,7 +137,10 @@ function ItemCard({ item, lang, value, diff, dirty, busy, expectedLabel, opened,
 // `photosFor(item)` returns the item's photo control (see ItemPhotos);
 // `proofFor(item)` the cleaning service's proof-photo control for it.
 // `flashId` briefly highlights one item (the one just edited or added).
-export function ItemList({ items, lang, folding, forceOpen = false, busy, expectedLabel, valueOf, diffOf, isDirty, onChange, actionsFor, onRequired, moreLabel, photosFor, proofFor, flashId }) {
+// `headActionFor(item)` returns a button kept in view at the top right of
+// the item even when it is folded on a phone (the cleaning service's
+// ⚠️ Damage).
+export function ItemList({ items, lang, folding, forceOpen = false, busy, expectedLabel, valueOf, diffOf, isDirty, onChange, actionsFor, onRequired, moreLabel, photosFor, proofFor, flashId, headActionFor }) {
   const T = (k, v) => tr(lang, k, v);
   // Items opened by hand on a narrow screen, by id.
   const [openedItems, setOpenedItems] = useState({});
@@ -183,6 +187,7 @@ export function ItemList({ items, lang, folding, forceOpen = false, busy, expect
                 onChange={(field, value) => onChange(it, field, value)}
                 actions={actionsFor ? actionsFor(it) : null} moreLabel={moreLabel}
                 photos={photosFor ? photosFor(it) : null} proof={proofFor ? proofFor(it) : null} flash={flashId === it.id}
+                headAction={headActionFor ? headActionFor(it) : null}
                 onRequired={onRequired ? (required) => onRequired([it], required) : undefined} />
             ))}
           </section>
