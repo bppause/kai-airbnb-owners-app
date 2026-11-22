@@ -13,7 +13,7 @@
 // with a progress bar, then tells the server it has arrived.
 
 import React, { useEffect, useRef, useState } from "react";
-import { tr } from "../strings";
+import { tr, formatWhen } from "../strings";
 
 export const MAX_VIDEO_SECONDS = 180;
 export const MAX_VIDEO_BYTES = 50 * 1024 * 1024;
@@ -236,25 +236,49 @@ export function VideoRecorder({ lang, canBegin, start, finish, onUploaded }) {
 
 // A video in a checkout report: fetched (with a link to watch it) only
 // when asked for. An empty answer means it is no longer kept.
-export function ReportVideo({ lang, count, load }) {
+// A checkout's video(s) in the owner's report: watch, download (to attach
+// to an Airbnb damage claim) and keep as evidence so storage recycling
+// never deletes it. `onKeep(video, keep)` saves the mark and returns the
+// updated video; without it the keep button isn't shown.
+export function ReportVideo({ lang, count, load, onKeep }) {
   const T = (k, v) => tr(lang, k, v);
   const [videos, setVideos] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState('');
+  const [problem, setProblem] = useState('');
   if (!count) return <p className="uinv-help">{T('reportVideoNone')}</p>;
   const open = async () => {
     setLoading(true);
     try { setVideos(await load()); } catch (_e) { setVideos([]); } finally { setLoading(false); }
   };
+  const toggleKeep = async (v) => {
+    setSaving(v.id); setProblem('');
+    try {
+      const next = await onKeep(v, !v.keep);
+      setVideos(list => list.map(x => (x.id === v.id ? { ...x, keep: next.keep, keptBy: next.keptBy } : x)));
+    } catch (e) { setProblem(e?.message || String(e)); } finally { setSaving(''); }
+  };
   if (videos === null) return <button type="button" className="uinv-btn uinv-btn-sm" disabled={loading} onClick={open}>{loading ? T('loading') : T('reportVideoWatch')}</button>;
   if (!videos.length || !videos.some(v => v.url)) return <p className="uinv-help">{T('reportVideoGone')}</p>;
   return (
-    <div style={{ display: 'grid', gap: 8 }}>
+    <div style={{ display: 'grid', gap: 10 }}>
       {videos.filter(v => v.url).map(v => (
-        <div key={v.id}>
+        <div key={v.id} className="uinv-evidence">
           <video className="uinv-rec-view" src={v.url} controls playsInline preload="metadata" />
-          <div className="uinv-meta">{formatDuration(v.durationSeconds)} · {formatMb(v.sizeBytes)} MB · {v.takenBy}</div>
+          <div className="uinv-meta">{T('videoRecordedAt', { when: formatWhen(v.createdAt, lang) })} · {formatDuration(v.durationSeconds)} · {formatMb(v.sizeBytes)} MB · {v.takenBy}</div>
+          {v.keep && <div className="uinv-kept">{T('videoKeptNote', { who: v.keptBy })}</div>}
+          <div className="uinv-row">
+            {v.downloadUrl && <a className="uinv-btn uinv-btn-sm" href={v.downloadUrl} download={v.fileName || true}>{T('videoDownload')}</a>}
+            {onKeep && (
+              <button type="button" className={`uinv-btn uinv-btn-sm${v.keep ? '' : ' uinv-btn-p'}`} aria-pressed={!!v.keep} disabled={saving === v.id} onClick={() => toggleKeep(v)}>
+                {saving === v.id ? T('saving') : T(v.keep ? 'videoRelease' : 'videoKeep')}
+              </button>
+            )}
+          </div>
         </div>
       ))}
+      {problem && <div className="uinv-msg uinv-msg-err">{problem}</div>}
+      <p className="uinv-help" style={{ margin: 0 }}>{T('videoEvidenceHelp')}</p>
     </div>
   );
 }

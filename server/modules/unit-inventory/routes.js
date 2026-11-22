@@ -70,10 +70,13 @@
 // straight to storage, and the server records it in unit_inventory_videos
 // once it is there. A count cannot be completed through the share link
 // without a video from this visit; completing attaches it to the count.
-// Videos are kept until the bucket nears its size limit
-// (videoStorageLimit(), INVENTORY_VIDEO_STORAGE_MB, default 800 MB under
-// Supabase's free 1 GB): then the oldest videos of completed counts, of
-// any unit, are deleted to make room for the new one.
+// The video is the owner's evidence for Airbnb damage claims (filed
+// within 14 days of the guest's checkout). Videos are kept until the
+// bucket nears its size limit (videoStorageLimit(),
+// INVENTORY_VIDEO_STORAGE_MB, default 800 MB under Supabase's free 1 GB):
+// then the oldest videos of completed counts, of any unit, are deleted to
+// make room — but never one under VIDEO_PROTECT_DAYS old, nor one the
+// owner marked "keep as evidence".
 //
 // Like the rest of this app the owner routes trust the ownerUid the
 // client sends (see server/platform/units/routes.js); there is no
@@ -126,6 +129,9 @@ const videoStorageLimit = () => {
   const mb = Number(process.env.INVENTORY_VIDEO_STORAGE_MB);
   return Math.round((Number.isFinite(mb) && mb > 0 ? mb : DEFAULT_VIDEO_STORAGE_MB) * 1024 * 1024);
 };
+// Videos this recent are never recycled, whatever the storage: Airbnb
+// takes damage claims for 14 days after checkout; 30 leaves margin.
+const VIDEO_PROTECT_DAYS = 30;
 // How long a link to watch a video works.
 const VIDEO_URL_SECONDS = 60 * 60;
 const MAX_LOCATION = 200;
@@ -215,6 +221,9 @@ const videoFromDb = (r) => ({
   durationSeconds: r.duration_seconds || 0,
   takenBy: r.taken_by || '',
   createdAt: r.created_at,
+  // Marked by the owner as evidence for a claim: never recycled.
+  keep: !!r.keep,
+  keptBy: r.kept_by || '',
 });
 
 // `withPhotos` only where one report is opened: lists never carry them.
@@ -291,6 +300,21 @@ const describeEdit = (before, after) => {
     if (a !== b) changes[key] = { before: a, after: b };
   }
   return changes;
+};
+
+// "inventario-apto-317-2026-11-22-1452.mp4": the unit and when the video
+// was recorded, in Colombia time, for the file the owner downloads.
+const videoFileName = (listing, v) => {
+  const ext = String(v.path || '').split('.').pop() || 'mp4';
+  const apt = String(listing.apt || listing.id || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'unidad';
+  let stamp = '';
+  try {
+    const parts = Object.fromEntries(new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'America/Bogota', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
+    }).formatToParts(new Date(v.created_at)).map(p => [p.type, p.value]));
+    stamp = `${parts.year}-${parts.month}-${parts.day}-${parts.hour}${parts.minute}`;
+  } catch (_e) { stamp = String(v.created_at || '').slice(0, 16).replace(/[^0-9]/g, ''); }
+  return `inventario-apto-${apt}-${stamp}.${ext}`;
 };
 
 module.exports = function createUnitInventoryRouter(deps) {
@@ -481,28 +505,40 @@ module.exports = function createUnitInventoryRouter(deps) {
   const videoStorageUse = async () => {
     const { data, error } = await supabase.from('unit_inventory_videos').select('size_bytes').limit(20000);
     if (error) return null;
-    return { used: (data || []).reduce((n, r) => n + (Number(r.size_bytes) || 0), 0), limit: videoStorageLimit() };
+    const used = (data || []).reduce((n, r) => n + (Number(r.size_bytes) || 0), 0);
+    const limit = videoStorageLimit();
+    return { used, limit, over: used > limit, protectDays: VIDEO_PROTECT_DAYS };
   };
 
   // Makes room for `incoming` more bytes: when the videos would pass the
   // limit, the oldest videos of completed counts — any unit — are deleted
-  // until they fit. Videos of a visit still under way are never touched.
-  // Best effort: a failure here is logged and the upload goes ahead.
+  // until they fit. Never touched: videos of a visit still under way,
+  // videos under VIDEO_PROTECT_DAYS old, and videos kept as evidence. If
+  // those alone pass the limit, nothing more goes (the owner sees the
+  // storage is over). Best effort: a failure is logged, the upload goes ahead.
   const makeVideoRoom = async (incoming) => {
     try {
       const limit = videoStorageLimit();
-      const { data: rows, error } = await supabase.from('unit_inventory_videos')
-        .select('id, path, size_bytes, check_id, created_at').limit(20000);
+      let { data: rows, error } = await supabase.from('unit_inventory_videos')
+        .select('id, path, size_bytes, check_id, created_at, keep').limit(20000);
+      if (error) {
+        // No `keep` column yet (schema.sql not re-run): nothing is kept.
+        ({ data: rows, error } = await supabase.from('unit_inventory_videos')
+          .select('id, path, size_bytes, check_id, created_at').limit(20000));
+      }
       if (error || !rows) return;
       let used = rows.reduce((n, r) => n + (Number(r.size_bytes) || 0), 0);
       if (used + incoming <= limit) return;
-      const oldest = rows.filter(r => r.check_id).sort((a, b) => String(a.created_at).localeCompare(String(b.created_at)));
+      const protectSince = new Date(Date.now() - VIDEO_PROTECT_DAYS * 24 * 3600 * 1000).toISOString();
+      const oldest = rows.filter(r => r.check_id && !r.keep && String(r.created_at) < protectSince)
+        .sort((a, b) => String(a.created_at).localeCompare(String(b.created_at)));
       const drop = [];
       for (const r of oldest) {
         if (used + incoming <= limit) break;
         drop.push(r);
         used -= Number(r.size_bytes) || 0;
       }
+      if (used + incoming > limit) warn(`Inventory videos: over the ${Math.round(limit / 1048576)} MB limit; the rest are under ${VIDEO_PROTECT_DAYS} days old or kept as evidence.`);
       if (!drop.length) return;
       await dropVideos(drop);
       warn(`Inventory videos: deleted the ${drop.length} oldest to stay under ${Math.round(limit / 1048576)} MB.`);
@@ -1239,9 +1275,39 @@ module.exports = function createUnitInventoryRouter(deps) {
     const videos = [];
     for (const v of data || []) {
       const { data: link, error: lErr } = store ? await store.createSignedUrl(v.path, VIDEO_URL_SECONDS) : { error: true };
-      videos.push({ ...videoFromDb(v), url: lErr || !link ? '' : link.signedUrl });
+      // A second link that downloads the file, named with the unit and the
+      // time it was recorded — ready to attach to an Airbnb claim.
+      const name = videoFileName(listing, v);
+      const { data: dl, error: dErr } = store ? await store.createSignedUrl(v.path, VIDEO_URL_SECONDS, { download: name }) : { error: true };
+      videos.push({ ...videoFromDb(v), url: lErr || !link ? '' : link.signedUrl, downloadUrl: dErr || !dl ? '' : dl.signedUrl, fileName: name });
     }
     res.json({ videos });
+  });
+
+  // POST /units/:listingId/videos/:videoId/keep — body: { ownerUid,
+  // actorName, keep }. Marks a completed count's video as evidence (for a
+  // claim), so storage recycling never deletes it; `keep: false` releases it.
+  router.post('/units/:listingId/videos/:videoId/keep', async (req, res) => {
+    if (!requireSupabaseEnv(res)) return;
+    const { ownerUid, actorName, keep } = req.body || {};
+    const listing = await requireOwnedUnit(res, req.params.listingId, ownerUid);
+    if (!listing) return;
+    const { data: video, error: fErr } = await supabase.from('unit_inventory_videos')
+      .select('*').eq('id', req.params.videoId).eq('listing_id', listing.id).maybeSingle();
+    if (fErr) return sendSupabaseError(res, fErr);
+    if (!video || !video.check_id) return res.status(404).json({ error: 'Video not found.' });
+    const actor = text(actorName, MAX_ACTOR) || listing.owner || 'Owner';
+    const patch = keep === true ? { keep: true, kept_by: actor, kept_at: new Date().toISOString() } : { keep: false, kept_by: '', kept_at: null };
+    const { error } = await supabase.from('unit_inventory_videos').update(patch).eq('id', video.id);
+    if (error) {
+      if (/keep|kept_/.test(error.message || '')) return res.status(400).json({ error: 'Keeping videos needs the latest database update: run supabase/unit_inventory.sql.' });
+      return sendSupabaseError(res, error);
+    }
+    await auditLog({
+      entity: 'unit_inventory', entityId: listing.id, action: keep === true ? 'keep_video' : 'release_video',
+      actorUid: String(ownerUid), actorName: actor, after: { videoId: video.id, checkId: video.check_id },
+    });
+    res.json({ video: videoFromDb({ ...video, ...patch }) });
   });
 
   // GET /units/:listingId/damages/:damageId?ownerUid= — one damage report

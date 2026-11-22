@@ -730,6 +730,11 @@ create table if not exists public.unit_inventory_videos (
   taken_by text not null default '',
   created_at timestamptz not null default now()
 );
+-- Marked by the owner as evidence for an Airbnb damage claim: never
+-- deleted by storage recycling until released.
+alter table public.unit_inventory_videos add column if not exists keep boolean not null default false;
+alter table public.unit_inventory_videos add column if not exists kept_by text not null default '';
+alter table public.unit_inventory_videos add column if not exists kept_at timestamptz;
 create index if not exists idx_unit_inventory_videos_visit
   on public.unit_inventory_videos(listing_id, check_id, created_at);
 
