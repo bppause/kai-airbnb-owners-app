@@ -311,7 +311,8 @@ const STR = {
   reportVideo:      { es: '🎥 Video del apartamento', en: '🎥 Video of the apartment' },
   reportVideoWatch: { es: '▶ Ver video', en: '▶ Watch video' },
   reportVideoNone:  { es: 'Este inventario no tiene video.', en: 'This inventory has no video.' },
-  reportVideoGone:  { es: 'El video ya no se conserva (se guardan los de los 10 inventarios más recientes).', en: 'The video is no longer kept (those of the 10 most recent inventories are).' },
+  reportVideoGone:  { es: 'El video ya no se conserva: cuando se llena el espacio de videos, los más antiguos se borran solos.', en: 'The video is no longer kept: when video storage fills up, the oldest videos are deleted automatically.' },
+  videoStorageUse:  { es: '🎥 Espacio de videos: {used} MB de {limit} MB ({pct}%). Cuando se llena, los videos más antiguos se borran solos para dar espacio a los nuevos.', en: '🎥 Video storage: {used} MB of {limit} MB ({pct}%). When it fills up, the oldest videos are deleted automatically to make room for new ones.' },
   checkVideo:       { es: '🎥 video', en: '🎥 video' },
 
   // Item photos the cleaning service may take (optional).

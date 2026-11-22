@@ -128,8 +128,18 @@ unnoticed.
   `unit_inventory_videos` once it has arrived. Count complete is refused —
   in the page and by the server — until there is a video from this
   visit. The owner watches it from the checkout report through a link
-  that lasts an hour. Videos are kept for a unit's 10 most recent
-  completed counts. The owner's own count asks for none.
+  that lasts an hour. The owner's own count asks for none.
+- **Video storage is recycled.** Videos are kept until all of them
+  together (every unit) would pass a size limit — 800 MB by default,
+  under Supabase's free 1 GB; set `INVENTORY_VIDEO_STORAGE_MB` to
+  change it. When a new upload would pass it, the oldest videos of
+  completed counts are deleted (row and file), oldest first and only as
+  many as needed. Videos of a visit still under way are never touched,
+  and the upload always goes ahead. The report of a count whose video
+  was recycled still says it had one and explains why it's gone. The
+  checkout reports tab shows how much is used ("🎥 Video storage: 320 MB
+  of 800 MB (40%)…", highlighted from 90%). Uploads abandoned for a day
+  are dropped when a count is completed.
 - **Damage reports.** The cleaning service can report damage: what is
   damaged, where (an area, the item if it concerns one, a free-text
   spot) and up to 4 photos. Photos are shrunk in the browser and stored
@@ -252,7 +262,7 @@ is missing. That file is generated from the inventory section of
 | `unit_inventory_item_photos` | The owner's photos of an item (JPEG data URLs). Deleted with the item. A missing table leaves everything else working; only photos fail. |
 | `unit_inventory_events` | Append-only history: `created`, `edited`, `count`, `rebaseline`, `deleted`. An `edited` event stores the before/after of each descriptive field that changed in `changes`; an edit that changes nothing writes no event. |
 | `unit_inventory_checks` | One row per completed count: who, when, the unit's totals against baseline at that moment, the items that were off or noted (`results`) and how many damage reports came with it. If the newer columns are missing the count is still recorded without them. If this table is missing (schema not re-run since it was added) the screens still load and report no complete count; only marking one fails. |
-| `unit_inventory_videos` | The checkout video: where it is in the `inventory-videos` storage bucket, type, size, length, who, `uploading` / `ready`, and the completed count it belongs to. Pruned (row and file) to the 10 most recent counts per unit. A missing table means no video is asked for. The bucket is created by `schema.sql`, or by the server on first use. |
+| `unit_inventory_videos` | The checkout video: where it is in the `inventory-videos` storage bucket, type, size, length, who, `uploading` / `ready`, and the completed count it belongs to. Kept until all videos together pass the storage limit; then the oldest of completed counts are deleted (row and file) to make room. A missing table means no video is asked for. The bucket is created by `schema.sql`, or by the server on first use. |
 | `unit_inventory_count_photos` | Optional item photos at a checkout: unattached while the visit is under way, then tied to the completed count (`check_id`). Pruned to the 12 most recent counts per unit. A missing table means photos aren't asked for and counts complete as before. |
 | `unit_inventory_damages` | Damage reports: description, area / item / spot, photos (JPEG data URLs), who and when, the completed count they belong to (`check_id`), `open` or `resolved`. A missing table reads as no damage; only reporting fails. |
 | `unit_inventory_proposals` | Items proposed through the share link: `pending`, `approved` (with the `item_id` created) or `rejected`. Decided rows are kept. A missing table reads as no proposals; only proposing fails. |
@@ -357,8 +367,10 @@ Only one of the two name columns is required; a blank count means 1.
 - The video shows that a walk-through was recorded at that checkout;
   nothing checks what is in it.
 - Photos live in the database, as incident photos do; videos live in
-  Supabase Storage. Supabase's free plan has 1 GB of storage: at ~15 MB
-  per video and 10 kept per unit, that is room for about six units.
+  Supabase Storage. Supabase's free plan has 1 GB of storage; the
+  videos may use up to `INVENTORY_VIDEO_STORAGE_MB` (800 MB by default,
+  about 50 videos at ~15 MB) before the oldest are recycled. On a paid
+  plan, raise it to keep more history.
 - Counts are whole numbers; a consumable kept "assorted" is tracked as 1
   with a note.
 - No notification to the owner when a count drops below the baseline.

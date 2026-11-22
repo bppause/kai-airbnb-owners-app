@@ -38,3 +38,7 @@ services:
       # English and Spanish in the owner's item form. Unset = feature off.
       - key: ANTHROPIC_API_KEY
         sync: false
+      # Optional: how much the checkout videos may take up in Supabase
+      # Storage before the oldest are deleted to make room (MB, default 800).
+      - key: INVENTORY_VIDEO_STORAGE_MB
+        sync: false

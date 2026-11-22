@@ -9,7 +9,7 @@ import { api } from "../../../core/api";
 import { tr, primaryText, secondaryText, formatWhen, checkSummary, noteForViewer } from "../strings";
 import { DamageCard } from "./Damages";
 import { PhotoStrip } from "./Photos";
-import { ReportVideo } from "./Video";
+import { ReportVideo, formatMb } from "./Video";
 import { NoteTranslation } from "./ItemList";
 
 // One item's proof photos in a report: fetched when asked for. An empty
@@ -77,6 +77,8 @@ function ReportDetail({ lang, check, detail, loadPhotos, loadVideos }) {
 export default function CheckoutReports({ lang, unitBase, ownerUid, onError }) {
   const T = (k, v) => tr(lang, k, v);
   const [checks, setChecks] = useState(null);
+  // What the checkout videos take up, all units together: { used, limit }.
+  const [storage, setStorage] = useState(null);
   const [openId, setOpenId] = useState('');
   // Fetched report details by check id.
   const [details, setDetails] = useState({});
@@ -84,7 +86,7 @@ export default function CheckoutReports({ lang, unitBase, ownerUid, onError }) {
 
   useEffect(() => {
     api.get(`${unitBase}/checks?${q}`)
-      .then(d => setChecks(d.checks || []))
+      .then(d => { setChecks(d.checks || []); setStorage(d.videoStorage || null); })
       .catch(e => { setChecks([]); onError(e); });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [unitBase]);
@@ -103,6 +105,11 @@ export default function CheckoutReports({ lang, unitBase, ownerUid, onError }) {
   return (
     <div>
       <p className="uinv-help" style={{ marginTop: 0 }}>{T('reportsHelp')}</p>
+      {storage && storage.limit > 0 && (
+        <p className={`uinv-help uinv-storage${storage.used / storage.limit >= 0.9 ? ' uinv-storage-full' : ''}`}>
+          {T('videoStorageUse', { used: formatMb(storage.used), limit: formatMb(storage.limit), pct: Math.min(100, Math.round((storage.used / storage.limit) * 100)) })}
+        </p>
+      )}
       {checks.map(check => {
         const open = openId === check.id;
         return (
