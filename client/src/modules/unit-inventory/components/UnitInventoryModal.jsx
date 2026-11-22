@@ -400,6 +400,7 @@ export default function UnitInventoryModal({ listing, user, onClose }) {
   const itemPhotosUrl = (it) => `${unitBase}/items/${encodeURIComponent(it.id)}/photos`;
   const photoStore = {
     load: async (it) => (await api.get(`${itemPhotosUrl(it)}?ownerUid=${encodeURIComponent(user.uid)}`)).photos || [],
+    loadFirst: async (it) => (await api.get(`${itemPhotosUrl(it)}?ownerUid=${encodeURIComponent(user.uid)}&first=1`)).photos || [],
     add: (it, data) => api.post(itemPhotosUrl(it), { ...who, photo: data }),
     remove: (it, photo) => api.del(`${itemPhotosUrl(it)}/${encodeURIComponent(photo.id)}`, who),
   };

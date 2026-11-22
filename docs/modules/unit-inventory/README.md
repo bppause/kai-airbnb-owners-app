@@ -110,10 +110,16 @@ unnoticed.
   the camera or photo library and saves the photo to the item straight
   away ("Foto de ejemplo guardada."). The add-item form takes them
   before the item exists, and the edit form shows the item's photos to
-  add or delete there. The card shows "📷 Fotos de ejemplo (n)", which
-  opens them (to view full screen or delete); the 📷 button goes once an
-  item has 3. The cleaning service sees "📷 Fotos de ejemplo (n)" and
-  can only look. Photos are shrunk in the browser and stored as JPEG
+  add or delete there. The first photo added is the item's primary
+  photo: every card shows it as a 96px thumbnail under the name, even
+  folded on a phone, and a tap opens it full screen — so whoever counts
+  sees what the item looks like at a glance. Thumbnails are fetched one
+  photo at a time (`…/photos?first=1`) as cards come near the screen,
+  not for the whole list up front. "📷 Fotos de ejemplo (n)" opens them
+  all — for the owner always (to delete), for the cleaning service when
+  there is more than one, and they can only look. Deleting the primary
+  makes the next photo the thumbnail. The 📷 button goes once an item
+  has 3. Photos are shrunk in the browser and stored as JPEG
   data URLs.
 - **Camera or gallery.** On a phone every "add photo" button (example
   photos, the add-item form, damage reports) asks first: "📷 Tomar
@@ -306,6 +312,7 @@ Mounted at `/api/m/unit-inventory`.
 | `GET /units/:listingId?ownerUid=` | owner | Items, the share link, the last complete count and pending proposals |
 | `POST /units/:listingId/items` | owner | Add one or many items (CSV import sends the whole file) |
 | `POST /units/:listingId/videos/:videoId/keep` | owner | `{ keep: true\|false }`: keep a completed count's video as evidence (never recycled) or release it |
+| `GET …/items/:itemId/photos?first=1` | owner / share link | Only the item's primary (first) photo, for its thumbnail |
 | `PUT /items/:id` | owner | Edit an item's area, description, owner note |
 | `POST /units/:listingId/translate` | owner | `{ text, to: es\|en, field: area\|name\|note }` → `{ text }`. 503 when `ANTHROPIC_API_KEY` is not set |
 | `DELETE /items/:id` | owner | Delete an item (history kept) |

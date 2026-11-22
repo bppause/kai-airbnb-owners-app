@@ -1038,8 +1038,13 @@ module.exports = function createUnitInventoryRouter(deps) {
     if (!data) { res.status(404).json({ error: 'Item not found.' }); return null; }
     return data;
   };
-  const loadItemPhotos = async (itemId) => supabase.from('unit_inventory_item_photos')
-    .select('*').eq('item_id', itemId).order('created_at', { ascending: true });
+  // `first`: only the item's primary photo (the first one added), which
+  // the item's card shows as a thumbnail.
+  const loadItemPhotos = async (itemId, first = false) => {
+    const q = supabase.from('unit_inventory_item_photos')
+      .select('*').eq('item_id', itemId).order('created_at', { ascending: true });
+    return first ? q.limit(1) : q;
+  };
   // Sets the item's photo_count from what is actually stored.
   const recountItemPhotos = async (itemId) => {
     const { data, error } = await supabase.from('unit_inventory_item_photos').select('id').eq('item_id', itemId);
@@ -1048,14 +1053,15 @@ module.exports = function createUnitInventoryRouter(deps) {
     return { error: uErr, count: data.length };
   };
 
-  // GET /units/:listingId/items/:itemId/photos?ownerUid= — an item's photos.
+  // GET /units/:listingId/items/:itemId/photos?ownerUid= — an item's photos
+  // (`&first=1`: only the primary one).
   router.get('/units/:listingId/items/:itemId/photos', async (req, res) => {
     if (!requireSupabaseEnv(res)) return;
     const listing = await requireOwnedUnit(res, req.params.listingId, req.query.ownerUid);
     if (!listing) return;
     const item = await itemOfUnit(res, listing, req.params.itemId);
     if (!item) return;
-    const { data, error } = await loadItemPhotos(item.id);
+    const { data, error } = await loadItemPhotos(item.id, req.query.first === '1');
     if (error) return sendSupabaseError(res, error);
     res.json({ photos: (data || []).map(itemPhotoFromDb) });
   });
@@ -1495,7 +1501,8 @@ module.exports = function createUnitInventoryRouter(deps) {
     });
   });
 
-  // GET /shared/:token/items/:itemId/photos — an item's photos, so the
+  // GET /shared/:token/items/:itemId/photos — an item's photos (`?first=1`:
+  // only the primary one, for the card's thumbnail), so the
   // cleaning service can see what it is. View only.
   router.get('/shared/:token/items/:itemId/photos', async (req, res) => {
     if (!requireSupabaseEnv(res)) return;
@@ -1503,7 +1510,7 @@ module.exports = function createUnitInventoryRouter(deps) {
     if (!listing) return;
     const item = await itemOfUnit(res, listing, req.params.itemId);
     if (!item) return;
-    const { data, error } = await loadItemPhotos(item.id);
+    const { data, error } = await loadItemPhotos(item.id, req.query.first === '1');
     if (error) return sendSupabaseError(res, error);
     res.json({ photos: (data || []).map(itemPhotoFromDb) });
   });

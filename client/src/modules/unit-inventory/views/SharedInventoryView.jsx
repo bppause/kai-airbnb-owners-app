@@ -242,7 +242,11 @@ export default function SharedInventoryView({ token }) {
     } finally { setBusy(false); }
   };
   // The owner's photos of an item, to recognise it by. View only here.
-  const photoStore = { load: async (it) => (await api.get(`${base}/items/${encodeURIComponent(it.id)}/photos`)).photos || [] };
+  const photoStore = {
+    load: async (it) => (await api.get(`${base}/items/${encodeURIComponent(it.id)}/photos`)).photos || [],
+    // Just the primary photo, shown on the card.
+    loadFirst: async (it) => (await api.get(`${base}/items/${encodeURIComponent(it.id)}/photos?first=1`)).photos || [],
+  };
   const photosFor = (it) => (it.photoCount > 0
     ? <ItemPhotos lang={lang} item={it} store={photoStore} showLabel="photosShowRef" onCount={() => {}} onError={e => setMsg({ err: true, text: e?.message || String(e) })} />
     : null);
