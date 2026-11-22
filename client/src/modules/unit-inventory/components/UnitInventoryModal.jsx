@@ -523,7 +523,7 @@ export default function UnitInventoryModal({ listing, user, onClose }) {
           <button type="button" className={`uinv-tab${tab === 'history' ? ' uinv-tab-on' : ''}`} onClick={() => setTab('history')}>{T('tabHistory')}</button>
         </div>
 
-        {tab === 'reports' && <CheckoutReports lang={lang} unitBase={unitBase} ownerUid={user.uid} onError={e => setMsg({ err: true, text: e?.message || String(e) })} />}
+        {tab === 'reports' && <CheckoutReports lang={lang} unitBase={unitBase} ownerUid={user.uid} unitName={aptDisplay(listing.apt, lang)} onError={e => setMsg({ err: true, text: e?.message || String(e) })} />}
         {tab === 'history' && <HistoryList history={history} lang={lang} />}
 
         {tab === 'items' && items === null && <p className="uinv-sub">{T('loading')}</p>}

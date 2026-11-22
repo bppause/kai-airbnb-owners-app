@@ -132,6 +132,8 @@ const videoStorageLimit = () => {
 // Videos this recent are never recycled, whatever the storage: Airbnb
 // takes damage claims for 14 days after checkout; 30 leaves margin.
 const VIDEO_PROTECT_DAYS = 30;
+// How long a link sent with a video (e.g. over WhatsApp) keeps working.
+const VIDEO_SHARE_SECONDS = 7 * 24 * 60 * 60;
 // How long a link to watch a video works.
 const VIDEO_URL_SECONDS = 60 * 60;
 const MAX_LOCATION = 200;
@@ -1279,7 +1281,13 @@ module.exports = function createUnitInventoryRouter(deps) {
       // time it was recorded — ready to attach to an Airbnb claim.
       const name = videoFileName(listing, v);
       const { data: dl, error: dErr } = store ? await store.createSignedUrl(v.path, VIDEO_URL_SECONDS, { download: name }) : { error: true };
-      videos.push({ ...videoFromDb(v), url: lErr || !link ? '' : link.signedUrl, downloadUrl: dErr || !dl ? '' : dl.signedUrl, fileName: name });
+      // For sharing where a phone can't send the file itself: a download
+      // link that lasts a week.
+      const { data: sh, error: sErr } = store ? await store.createSignedUrl(v.path, VIDEO_SHARE_SECONDS, { download: name }) : { error: true };
+      videos.push({
+        ...videoFromDb(v), url: lErr || !link ? '' : link.signedUrl, downloadUrl: dErr || !dl ? '' : dl.signedUrl,
+        shareUrl: sErr || !sh ? '' : sh.signedUrl, shareDays: VIDEO_SHARE_SECONDS / 86400, fileName: name,
+      });
     }
     res.json({ videos });
   });

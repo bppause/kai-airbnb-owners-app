@@ -136,7 +136,12 @@ unnoticed.
   light, show furniture, walls, floors, doors and appliances. In the
   checkout report the owner sees when it was recorded, can **⬇ Download
   video** (a link that saves it as `inventario-apto-317-2026-11-22-1452.mp4`,
-  Colombia time) to attach in Airbnb's Resolution Center — claims are
+  Colombia time) or **📤 Share (WhatsApp…)** it, to attach in Airbnb's
+  Resolution Center or send to anyone. On a phone that can share files,
+  the first tap fetches the video and the second ("📤 Send video") opens
+  the share sheet with the file itself — phones only allow sharing right
+  after a tap. Elsewhere, or if fetching fails, WhatsApp opens with the
+  message and a download link that works for 7 days. Claims are
   filed within 14 days of the guest's checkout — and can mark it
   **📌 Keep as evidence** while a claim is open (`keep`, `kept_by`,
   `kept_at`; audited as keep_video / release_video).
