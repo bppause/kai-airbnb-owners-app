@@ -983,6 +983,42 @@ module.exports = function createUnitInventoryRouter(deps) {
     res.json({ item: itemFromDb(data) });
   });
 
+  // POST /units/:listingId/areas/rename — body: { ownerUid, actorName,
+  // fromEn, fromEs, toEn, toEs }. Renames an area: every item of the unit
+  // filed under exactly (fromEn, fromEs) moves to (toEn, toEs). Naming it
+  // like an area that already exists merges the two. Each item gets an
+  // `edited` history entry; the rename itself goes to the audit log.
+  router.post('/units/:listingId/areas/rename', async (req, res) => {
+    if (!requireSupabaseEnv(res)) return;
+    const { ownerUid, actorName } = req.body || {};
+    const listing = await requireOwnedUnit(res, req.params.listingId, ownerUid);
+    if (!listing) return;
+    const from = { area_en: text(req.body?.fromEn, MAX_AREA), area_es: text(req.body?.fromEs, MAX_AREA) };
+    const to = { area_en: text(req.body?.toEn, MAX_AREA), area_es: text(req.body?.toEs, MAX_AREA) };
+    if (!to.area_en && !to.area_es) return res.status(400).json({ error: 'The area needs a name in English or Spanish.' });
+    if (to.area_en === from.area_en && to.area_es === from.area_es) return res.json({ changed: 0 });
+    const { data: rows, error: lErr } = await supabase.from('unit_inventory_items').select('*')
+      .eq('listing_id', listing.id).eq('area_en', from.area_en).eq('area_es', from.area_es);
+    if (lErr) return sendSupabaseError(res, lErr);
+    if (!rows || !rows.length) return res.status(404).json({ error: 'That area has no items any more. Reload and try again.' });
+    const now = new Date().toISOString();
+    const { error } = await supabase.from('unit_inventory_items').update({ ...to, updated_at: now })
+      .eq('listing_id', listing.id).eq('area_en', from.area_en).eq('area_es', from.area_es);
+    if (error) return sendSupabaseError(res, error);
+    const actor = text(actorName, MAX_ACTOR) || listing.owner || 'Owner';
+    const evErr = await insertEvents(rows.map(r => eventRow({ ...r, ...to }, listing, {
+      event_type: 'edited', changes: describeEdit(r, { ...r, ...to }),
+      actor_type: 'owner', actor_name: actor, actor_uid: String(ownerUid), created_at: now,
+    })));
+    if (evErr) return sendSupabaseError(res, evErr);
+    await auditLog({
+      entity: 'unit_inventory', entityId: listing.id, action: 'rename_area',
+      actorUid: String(ownerUid), actorName: actor,
+      before: { areaEn: from.area_en, areaEs: from.area_es }, after: { areaEn: to.area_en, areaEs: to.area_es, items: rows.length },
+    });
+    res.json({ changed: rows.length });
+  });
+
   // DELETE /items/:id — body: { ownerUid, actorName }. The item's history
   // stays: events carry the item's names and are not tied to the row.
   router.delete('/items/:id', async (req, res) => {

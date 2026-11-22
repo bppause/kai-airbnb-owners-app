@@ -17,7 +17,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { useApp } from "../../../core/app-state";
 import { api } from "../../../core/api";
 import { aptDisplay } from "../../../core/i18n/app-text";
-import { tr, primaryText, secondaryText, formatWhen, parseCountInput, diffFromBaseline, tallyDiffs, checkSummary, noteForViewer, API_BASE } from "../strings";
+import { tr, primaryText, secondaryText, formatWhen, parseCountInput, diffFromBaseline, tallyDiffs, checkSummary, noteForViewer, groupByArea, API_BASE } from "../strings";
 import { DiffSummary } from "./DiffMarks";
 import { ItemList, Toast, ViewSwitch, FilterBar, useAreaFolding, areaKey } from "./ItemList";
 import { CountComplete, LastCheckLine } from "./CountComplete";
@@ -369,6 +369,91 @@ export default function UnitInventoryModal({ listing, user, onClose }) {
   const isReadOnly = (field) => canTranslate && field.endsWith(otherSuffix)
     && !(translator.status[field] && translator.status[field].state === 'failed');
 
+  // The unit's areas, for the item form's Area list and renaming.
+  const areaGroups = groupByArea(items || [], lang).filter(g => g.areaEn || g.areaEs);
+  const sameArea = (a, b) => (a.areaEn || '').trim().toLowerCase() === (b.areaEn || '').trim().toLowerCase()
+    && (a.areaEs || '').trim().toLowerCase() === (b.areaEs || '').trim().toLowerCase();
+
+  // Renaming an area (all its items at once): { key, fromEn, fromEs, count }
+  // while its form is open; the names being typed are in `areaForm`, with
+  // the other language translated as in the item form.
+  const [renaming, setRenaming] = useState(null);
+  const [areaForm, setAreaForm] = useState(null);
+  const areaTranslator = useAutoTranslate({
+    enabled: canTranslate,
+    translate: async (text, to, field) => (await api.post(`${unitBase}/translate`, { ...who, text, to, field })).text,
+    setField: (field, value) => setAreaForm(prev => (prev ? { ...prev, [field]: value } : prev)),
+    knownArea: (field, text) => {
+      const other = field === 'areaEn' ? 'areaEs' : 'areaEn';
+      const hit = (items || []).find(it => it[field].trim().toLowerCase() === text.toLowerCase() && it[other]);
+      return hit ? hit[other] : null;
+    },
+  });
+  const openRename = (group) => {
+    areaTranslator.reset();
+    setRenaming({ key: group.key, fromEn: group.areaEn, fromEs: group.areaEs, count: group.items.length });
+    setAreaForm({ areaEn: group.areaEn, areaEs: group.areaEs });
+  };
+  const closeRename = () => { areaTranslator.reset(); setRenaming(null); setAreaForm(null); };
+  const saveRename = async () => {
+    if (areaTranslator.waiting()) { setBusy(true); await areaTranslator.flush(); setBusy(false); }
+    const to = { ...areaForm, ...areaTranslator.applied() };
+    if (!String(to.areaEn || '').trim() && !String(to.areaEs || '').trim()) { setMsg({ err: true, text: T('areaNameNeeded') }); return; }
+    const from = renaming;
+    run(async () => {
+      const d = await api.post(`${unitBase}/areas/rename`, { ...who, fromEn: from.fromEn, fromEs: from.fromEs, toEn: to.areaEn, toEs: to.areaEs });
+      closeRename();
+      folding.open(areaKey(String(to.areaEn || '').trim(), String(to.areaEs || '').trim()));
+      await load();
+      setMsg({ text: T('areaRenamed', { n: d.changed || 0 }) });
+    });
+  };
+  const renameFor = (group) => {
+    if (!renaming || renaming.key !== group.key || !areaForm) return null;
+    const merging = areaGroups.find(g => g.key !== group.key && sameArea(g, areaForm));
+    return (
+      <div className="uinv-box uinv-area-rename">
+        <h3 style={{ margin: '0 0 6px' }}>{T('areaRenameTitle')}</h3>
+        <p className="uinv-help" style={{ marginTop: 0 }}>{T('areaRenameHelp', { n: group.items.length })}</p>
+        <div className="uinv-form">
+          {['area' + ownSuffix, 'area' + otherSuffix].map(field => {
+            const st = areaTranslator.status[field];
+            const ro = canTranslate && field.endsWith(otherSuffix) && !(st && st.state === 'failed');
+            const note = st && (st.state !== 'auto' || !ro)
+              ? { cls: st.state, text: T(`tr_${st.state}`, { why: st.why || '' }) }
+              : (ro ? { cls: 'ro', text: T('trReadonly', { from: T('lang' + ownSuffix) }) } : null);
+            return (
+              <label key={field} className="uinv-field">{T(field)}
+                <input value={areaForm[field] || ''} maxLength={FIELD_MAX.area} readOnly={ro} aria-readonly={ro || undefined}
+                  className={ro ? 'uinv-ro' : undefined} tabIndex={ro ? -1 : undefined}
+                  onChange={e => { if (ro) return; const v = e.target.value; setAreaForm(prev => ({ ...prev, [field]: v })); areaTranslator.onOwnerEdit(field, v); }} />
+                {note && <span className={`uinv-tr uinv-tr-${note.cls}`} role="status">{note.text}</span>}
+              </label>
+            );
+          })}
+        </div>
+        {merging && <div className="uinv-msg" style={{ marginTop: 8 }}>{T('areaRenameMerge', { name: merging.label, n: merging.items.length })}</div>}
+        <div className="uinv-row" style={{ marginTop: 10 }}>
+          <button type="button" className="uinv-btn uinv-btn-p" disabled={busy} onClick={saveRename}>{busy ? T('saving') : T('areaRenameSave', { n: group.items.length })}</button>
+          <button type="button" className="uinv-btn" disabled={busy} onClick={closeRename}>{T('cancel')}</button>
+        </div>
+      </div>
+    );
+  };
+
+  // The item form's Area list: an existing area, or a new one typed in.
+  const areaChoice = (f) => {
+    if (f.areaNew) return '__new';
+    const hit = areaGroups.find(g => sameArea(g, f));
+    if (hit) return hit.key;
+    return (f.areaEn || f.areaEs) ? '__new' : '';
+  };
+  const chooseArea = (value) => {
+    if (value === '__new') { setForm(prev => ({ ...prev, areaNew: true, areaEn: '', areaEs: '' })); return; }
+    const g = areaGroups.find(x => x.key === value);
+    setForm(prev => ({ ...prev, areaNew: false, areaEn: g ? g.areaEn : '', areaEs: g ? g.areaEs : '' }));
+  };
+
   const openForm = (next) => {
     setImportState(null); setFormPhotos([]); setReturnTo(null); translator.reset(); setForm(next);
     // An item that only has the other language (e.g. proposed by the
@@ -626,8 +711,18 @@ export default function UnitInventoryModal({ listing, user, onClose }) {
                 <div className="uinv-form">
                   <datalist id="uinv-areas-en">{areaOptions('areaEn').map(a => <option key={a} value={a} />)}</datalist>
                   <datalist id="uinv-areas-es">{areaOptions('areaEs').map(a => <option key={a} value={a} />)}</datalist>
-                  {/* Each pair asks for the owner's language first. */}
-                  {fieldOrder.map(field => {
+                  {areaGroups.length > 0 && (
+                    <label className="uinv-field uinv-full">{T('areaPick')}
+                      <select className="uinv-select" value={areaChoice(form)} onChange={e => chooseArea(e.target.value)}>
+                        {areaChoice(form) === '' && <option value="">{T('areaPickChoose')}</option>}
+                        {areaGroups.map(g => <option key={g.key} value={g.key}>{g.other ? `${g.label} · ${g.other}` : g.label}</option>)}
+                        <option value="__new">{T('areaPickNew')}</option>
+                      </select>
+                    </label>
+                  )}
+                  {/* Each pair asks for the owner's language first. The area
+                      is typed only for a new one (or when there are none). */}
+                  {fieldOrder.filter(field => !field.startsWith('area') || areaGroups.length === 0 || areaChoice(form) === '__new').map(field => {
                     const ro = isReadOnly(field);
                     const st = translator.status[field];
                     // A read-only translation says where it comes from unless
@@ -687,7 +782,8 @@ export default function UnitInventoryModal({ listing, user, onClose }) {
                 {shown.length === 0 && <p className="uinv-sub" style={{ marginTop: 12 }}>{T('noMatches')}</p>}
                 {/* A search or the changed-only filter opens every area it leaves. */}
                 <ItemList items={shown} lang={lang} folding={folding} forceOpen={!!needle || narrowing} busy={busy} expectedLabel={T('baseline')}
-                  valueOf={typed} diffOf={diffOf} isDirty={isDirty} onChange={setTyped} actionsFor={actionsFor} onRequired={setRequired} photosFor={photosFor} flashId={flash ? flash.id : null} headActionFor={photoButtonFor} />
+                  valueOf={typed} diffOf={diffOf} isDirty={isDirty} onChange={setTyped} actionsFor={actionsFor} onRequired={setRequired} photosFor={photosFor} flashId={flash ? flash.id : null} headActionFor={photoButtonFor}
+                  onRenameArea={openRename} areaExtra={renameFor} />
                 <CountComplete lang={lang} unsaved={dirtyItems.length} busy={busy} onComplete={completeCount} />
               </>
             )}
