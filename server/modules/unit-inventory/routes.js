@@ -70,7 +70,10 @@
 // straight to storage, and the server records it in unit_inventory_videos
 // once it is there. A count cannot be completed through the share link
 // without a video from this visit; completing attaches it to the count.
-// Videos are kept for the unit's latest VIDEO_KEEP_CHECKS counts.
+// Videos are kept until the bucket nears its size limit
+// (videoStorageLimit(), INVENTORY_VIDEO_STORAGE_MB, default 800 MB under
+// Supabase's free 1 GB): then the oldest videos of completed counts, of
+// any unit, are deleted to make room for the new one.
 //
 // Like the rest of this app the owner routes trust the ownerUid the
 // client sends (see server/platform/units/routes.js); there is no
@@ -116,7 +119,13 @@ const MAX_VIDEO_BYTES = 50 * 1024 * 1024;
 const MAX_VIDEO_SECONDS = 180;
 const VIDEO_TYPES = { 'video/mp4': 'mp4', 'video/webm': 'webm', 'video/quicktime': 'mov' };
 const MAX_VISIT_VIDEOS = 3;
-const VIDEO_KEEP_CHECKS = 10;
+// How much the inventory-videos bucket may hold. Default 800 MB: room
+// under the 1 GB of Supabase's free plan for the rest of storage.
+const DEFAULT_VIDEO_STORAGE_MB = 800;
+const videoStorageLimit = () => {
+  const mb = Number(process.env.INVENTORY_VIDEO_STORAGE_MB);
+  return Math.round((Number.isFinite(mb) && mb > 0 ? mb : DEFAULT_VIDEO_STORAGE_MB) * 1024 * 1024);
+};
 // How long a link to watch a video works.
 const VIDEO_URL_SECONDS = 60 * 60;
 const MAX_LOCATION = 200;
@@ -454,19 +463,51 @@ module.exports = function createUnitInventoryRouter(deps) {
     }
   };
 
-  // Keeps the videos of the unit's latest VIDEO_KEEP_CHECKS counts and
-  // drops older ones, uploads never finished, and videos of visits that
-  // were never completed. Best effort, after a count is completed.
+  // Abandoned uploads (never attached to a completed count, older than a
+  // day) are dropped. Best effort, after a cleaner completes a count.
   const pruneVideos = async (listingId) => {
     try {
-      const { data: checks } = await supabase.from('unit_inventory_checks').select('id').eq('listing_id', listingId)
-        .order('created_at', { ascending: false }).limit(VIDEO_KEEP_CHECKS + 500);
-      const old = new Set((checks || []).slice(VIDEO_KEEP_CHECKS).map(c => c.id));
-      const { data: rows } = await supabase.from('unit_inventory_videos').select('id, path, check_id, status, created_at').eq('listing_id', listingId);
       const stale = new Date(Date.now() - 2 * DAMAGE_VISIT_WINDOW_MS).toISOString();
-      await dropVideos((rows || []).filter(r => (r.check_id && old.has(r.check_id)) || (!r.check_id && r.created_at < stale)));
+      const { data: rows } = await supabase.from('unit_inventory_videos').select('id, path, check_id, created_at')
+        .eq('listing_id', listingId).is('check_id', null).lt('created_at', stale);
+      await dropVideos(rows || []);
     } catch (e) {
       warn('Inventory video clean-up failed: ' + (e?.message || e));
+    }
+  };
+
+  // What the videos take up, all units together: { used, limit } in bytes.
+  // `size_bytes` is the declared size while uploading, the real one after.
+  const videoStorageUse = async () => {
+    const { data, error } = await supabase.from('unit_inventory_videos').select('size_bytes').limit(20000);
+    if (error) return null;
+    return { used: (data || []).reduce((n, r) => n + (Number(r.size_bytes) || 0), 0), limit: videoStorageLimit() };
+  };
+
+  // Makes room for `incoming` more bytes: when the videos would pass the
+  // limit, the oldest videos of completed counts — any unit — are deleted
+  // until they fit. Videos of a visit still under way are never touched.
+  // Best effort: a failure here is logged and the upload goes ahead.
+  const makeVideoRoom = async (incoming) => {
+    try {
+      const limit = videoStorageLimit();
+      const { data: rows, error } = await supabase.from('unit_inventory_videos')
+        .select('id, path, size_bytes, check_id, created_at').limit(20000);
+      if (error || !rows) return;
+      let used = rows.reduce((n, r) => n + (Number(r.size_bytes) || 0), 0);
+      if (used + incoming <= limit) return;
+      const oldest = rows.filter(r => r.check_id).sort((a, b) => String(a.created_at).localeCompare(String(b.created_at)));
+      const drop = [];
+      for (const r of oldest) {
+        if (used + incoming <= limit) break;
+        drop.push(r);
+        used -= Number(r.size_bytes) || 0;
+      }
+      if (!drop.length) return;
+      await dropVideos(drop);
+      warn(`Inventory videos: deleted the ${drop.length} oldest to stay under ${Math.round(limit / 1048576)} MB.`);
+    } catch (e) {
+      warn('Inventory video recycling failed: ' + (e?.message || e));
     }
   };
 
@@ -1145,7 +1186,7 @@ module.exports = function createUnitInventoryRouter(deps) {
     if (!listing) return;
     const { data } = await supabase.from('unit_inventory_checks').select('*').eq('listing_id', listing.id)
       .order('created_at', { ascending: false }).limit(200);
-    res.json({ checks: (data || []).map(checkFromDb) });
+    res.json({ checks: (data || []).map(checkFromDb), videoStorage: await videoStorageUse() });
   });
 
   // GET /units/:listingId/checks/:checkId?ownerUid= — one checkout's
@@ -1430,6 +1471,8 @@ module.exports = function createUnitInventoryRouter(deps) {
       .select('id').eq('listing_id', listing.id).is('check_id', null).gte('created_at', visitSince()).limit(MAX_VISIT_VIDEOS * 3);
     if (vErr) return sendSupabaseError(res, vErr);
     if ((visit || []).length >= MAX_VISIT_VIDEOS * 3) return res.status(400).json({ error: 'Too many videos for this visit. Delete one first.' });
+    // Full? The oldest videos make way for this one.
+    await makeVideoRoom(Math.round(size));
     const id = 'uvd_' + uuidv4().slice(0, 12);
     const path = `${listing.id}/${id}.${ext}`;
     let signed = await store.createSignedUploadUrl(path);
@@ -1470,6 +1513,8 @@ module.exports = function createUnitInventoryRouter(deps) {
     }
     const { error: uErr } = await supabase.from('unit_inventory_videos').update({ status: 'ready', size_bytes: size }).eq('id', video.id);
     if (uErr) return sendSupabaseError(res, uErr);
+    // The real size can differ from the one declared: check the limit again.
+    if (size > video.size_bytes) setImmediate(() => makeVideoRoom(0));
     res.json({ video: videoFromDb({ ...video, status: 'ready', size_bytes: size }) });
   });
 
