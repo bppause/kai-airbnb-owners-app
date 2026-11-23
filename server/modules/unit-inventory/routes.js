@@ -78,6 +78,14 @@
 // make room — but never one under VIDEO_PROTECT_DAYS old, nor one the
 // owner marked "keep as evidence".
 //
+// The owner also keeps a list of working checks — things to test at
+// every visit, such as each burner of the stove, each TV and A/C with its
+// remote, the A/C switching off when a door is opened
+// (unit_inventory_function_checks). Through the share link each must be
+// answered "works" or "doesn't work" before the count can be completed;
+// the answers become part of the count's record. A "doesn't work" is
+// reported as damage by the page, so the owner is told.
+//
 // Like the rest of this app the owner routes trust the ownerUid the
 // client sends (see server/platform/units/routes.js); there is no
 // server-side session to check it against.
@@ -144,6 +152,11 @@ const MAX_LOCATION = 200;
 // visit and is attached to its record; older unattached reports stand
 // on their own.
 const DAMAGE_VISIT_WINDOW_MS = 12 * 60 * 60 * 1000;
+// Working checks: how many a unit may have, and their text sizes.
+const MAX_FUNCTION_CHECKS = 60;
+const MAX_FUNCTION_LABEL = 200;
+const MAX_FUNCTION_HOW = 300;
+const MAX_FUNCTION_NOTE = 500;
 // How many off-baseline / noted items a completed count keeps.
 const MAX_CHECK_RESULTS = 500;
 // Every damage column except the photos, for lists.
@@ -215,7 +228,19 @@ const checkFromDb = (r) => ({
   damagesCount: r.damages_count || 0,
   photosCount: r.photos_count || 0,
   videosCount: r.videos_count || 0,
+  // The working checks answered at this count: [{ id, labelEn, labelEs, status, note, by }].
+  functionResults: Array.isArray(r.function_results) ? r.function_results : [],
+  functionsFailed: r.functions_failed || 0,
   createdAt: r.created_at,
+});
+
+const functionFromDb = (r) => ({
+  id: r.id,
+  labelEn: r.label_en || '',
+  labelEs: r.label_es || '',
+  howEn: r.how_en || '',
+  howEs: r.how_es || '',
+  itemId: r.item_id || '',
 });
 
 const videoFromDb = (r) => ({
@@ -567,6 +592,24 @@ module.exports = function createUnitInventoryRouter(deps) {
     return error ? null : (data || []);
   };
 
+  // The unit's working checks in order, or null when the table isn't
+  // there yet (schema.sql not re-run): then none are asked for.
+  const loadFunctions = async (listingId) => {
+    const { data, error } = await supabase.from('unit_inventory_function_checks')
+      .select('*').eq('listing_id', listingId).order('position', { ascending: true }).limit(MAX_FUNCTION_CHECKS);
+    return error ? null : (data || []);
+  };
+  // This visit's answers, the latest for each check: { [checkId]: row }.
+  const visitFunctionAnswers = async (listingId) => {
+    const { data, error } = await supabase.from('unit_inventory_function_results')
+      .select('*').eq('listing_id', listingId).gte('created_at', visitSince())
+      .order('created_at', { ascending: true }).limit(1000);
+    const out = {};
+    for (const r of (error ? [] : data || [])) out[r.function_check_id] = r;
+    return out;
+  };
+  const answerFromDb = (r) => ({ status: r.status, note: r.note || '', by: r.answered_by || '', at: r.created_at });
+
   // Drops the proof photos of counts older than the unit's latest
   // PROOF_KEEP_CHECKS, and those of visits that were never completed.
   // Best effort, after a count is completed.
@@ -608,6 +651,18 @@ module.exports = function createUnitInventoryRouter(deps) {
         status: 400, videoMissing: true,
       };
     }
+    // Every working check needs an answer from this visit.
+    const functions = (await loadFunctions(listing.id)) || [];
+    const answers = functions.length ? await visitFunctionAnswers(listing.id) : {};
+    if (actorType === 'cleaner') {
+      const unanswered = functions.filter(f => !answers[f.id]);
+      if (unanswered.length) {
+        return {
+          error: `Answer the working checks first (${unanswered.length} left): does each one work?`,
+          status: 400, functionsMissing: unanswered.map(f => f.id),
+        };
+      }
+    }
     let changed = 0;
     if (Array.isArray(updates) && updates.length) {
       const result = await applyCountUpdates({ listing, updates, actorType, actorName, actorUid, lang });
@@ -647,10 +702,19 @@ module.exports = function createUnitInventoryRouter(deps) {
     // The result and the damage count are newer columns: if the database
     // doesn't have them yet, the count is still recorded without them.
     const filmed = videos || [];
-    const full = { ...row, results, damages_count: damages.length, photos_count: taken.length, videos_count: filmed.length };
+    // The working checks as answered, in the owner's order.
+    const functionResults = functions.filter(f => answers[f.id]).map(f => ({
+      id: f.id, labelEn: f.label_en || '', labelEs: f.label_es || '', itemId: f.item_id || '',
+      status: answers[f.id].status, note: answers[f.id].note || '', by: answers[f.id].answered_by || '',
+    }));
+    const functionsFailed = functionResults.filter(f => f.status === 'fail').length;
+    const full = {
+      ...row, results, damages_count: damages.length, photos_count: taken.length, videos_count: filmed.length,
+      ...(functionResults.length ? { function_results: functionResults, functions_failed: functionsFailed } : {}),
+    };
     let saved = full;
     let { error: cErr } = await supabase.from('unit_inventory_checks').insert(full);
-    if (cErr && (results.length || damages.length || taken.length || filmed.length)) {
+    if (cErr && (results.length || damages.length || taken.length || filmed.length || functionResults.length)) {
       saved = row;
       ({ error: cErr } = await supabase.from('unit_inventory_checks').insert(row));
     }
@@ -678,8 +742,13 @@ module.exports = function createUnitInventoryRouter(deps) {
         .update({ check_id: row.id }).eq('listing_id', listing.id).in('id', filmed.map(v => v.id));
       if (vErr) return { supabaseError: vErr };
     }
+    // The visit's answers are in the record now (and stale ones go too).
+    if (functions.length) {
+      const { error: fErr } = await supabase.from('unit_inventory_function_results').delete().eq('listing_id', listing.id);
+      if (fErr) warn('Inventory working-check clean-up failed: ' + fErr.message);
+    }
     if (actorType === 'cleaner') {
-      setImmediate(() => notifyOwnerOfCheck({ listing, check: saved, results, damages, req }));
+      setImmediate(() => notifyOwnerOfCheck({ listing, check: saved, results, damages, functionResults, req }));
       setImmediate(() => pruneProofPhotos(listing.id));
       setImmediate(() => pruneVideos(listing.id));
     }
@@ -764,13 +833,15 @@ module.exports = function createUnitInventoryRouter(deps) {
   };
 
   // The completed count, told to the owner as that checkout's result.
-  const notifyOwnerOfCheck = ({ listing, check, results, damages, req }) => {
+  const notifyOwnerOfCheck = ({ listing, check, results, damages, functionResults = [], req }) => {
+    const failed = functionResults.filter(f => f.status === 'fail');
     const parts = [
       check.items_required ? `${check.items_required} artículos de cada salida revisados` : `${check.items_total} artículos revisados`,
       check.items_missing ? `${check.items_missing} con faltantes` : '',
       check.items_extra ? `${check.items_extra} con sobrantes` : '',
       !check.items_missing && !check.items_extra ? 'todo coincide' : '',
       damages.length ? `${damages.length} daño(s) reportado(s)` : 'sin daños reportados',
+      functionResults.length ? (failed.length ? `${failed.length} de ${functionResults.length} pruebas de funcionamiento fallaron` : `${functionResults.length} pruebas de funcionamiento OK`) : '',
       check.photos_count ? `${check.photos_count} foto(s)` : '',
       check.videos_count ? `video del apartamento incluido` : '',
     ].filter(Boolean).join(' · ');
@@ -783,6 +854,7 @@ module.exports = function createUnitInventoryRouter(deps) {
         `${check.actor_name} (servicio de limpieza) completó el inventario de salida del apartamento ${listing.apt}.`,
         parts,
         ...(off.length ? ['Artículos con diferencia:', ...off.slice(0, 40).map(r => `• ${r.nameEs || r.nameEn}: esperado ${r.baseline}, contado ${r.count}${r.note ? ` — ${r.note}` : ''}`)] : []),
+        ...(failed.length ? ['No funciona:', ...failed.map(f => `• ${f.labelEs || f.labelEn}${f.note ? ` — ${f.note}` : ''}`)] : []),
         ...(damages.length ? ['Daños reportados:', ...damages.slice(0, 20).map(d => `• ${[damageWhere(d), d.description].filter(Boolean).join(': ')}${d.photo_count ? ` (${d.photo_count} foto(s))` : ''}`)] : []),
         'El reporte completo, con fotos y video, está en la aplicación: Mis unidades → Inventario → Reportes de salida.',
         '',
@@ -876,7 +948,60 @@ module.exports = function createUnitInventoryRouter(deps) {
       openDamages: (await loadDamages(listing.id, q => q.eq('status', 'open'))).map(r => damageFromDb(r)),
       // Whether the item form can translate between the two languages.
       translate: translateEnabled(),
+      // The working checks; null when the table isn't there yet.
+      functionChecks: ((fs) => (fs ? fs.map(functionFromDb) : null))(await loadFunctions(listing.id)),
     });
+  });
+
+  // PUT /units/:listingId/functions — body: { ownerUid, actorName,
+  // checks: [{ id?, labelEn, labelEs, howEn, howEs, itemId }] }. Replaces
+  // the unit's working checks with this list, in this order: checks
+  // without an id are added, ones left out are removed. → { checks }.
+  router.put('/units/:listingId/functions', async (req, res) => {
+    if (!requireSupabaseEnv(res)) return;
+    const { ownerUid, actorName } = req.body || {};
+    const listing = await requireOwnedUnit(res, req.params.listingId, ownerUid);
+    if (!listing) return;
+    const raw = req.body?.checks;
+    if (!Array.isArray(raw)) return res.status(400).json({ error: 'Send the list of checks.' });
+    if (raw.length > MAX_FUNCTION_CHECKS) return res.status(400).json({ error: `At most ${MAX_FUNCTION_CHECKS} working checks per unit.` });
+    const before = await loadFunctions(listing.id);
+    if (before === null) return res.status(503).json({ error: 'Working checks need the latest database update: run supabase/unit_inventory.sql in the Supabase SQL Editor.' });
+    const { data: itemRows, error: iErr } = await supabase.from('unit_inventory_items').select('id').eq('listing_id', listing.id);
+    if (iErr) return sendSupabaseError(res, iErr);
+    const itemIds = new Set((itemRows || []).map(r => r.id));
+    const known = new Set(before.map(f => f.id));
+    const now = new Date().toISOString();
+    const rows = [];
+    for (let i = 0; i < raw.length; i++) {
+      const c = raw[i] || {};
+      const row = {
+        id: known.has(c.id) ? c.id : 'uif_' + uuidv4().slice(0, 12),
+        listing_id: listing.id, community_id: listing.community_id || 'kai',
+        label_en: text(c.labelEn, MAX_FUNCTION_LABEL), label_es: text(c.labelEs, MAX_FUNCTION_LABEL),
+        how_en: text(c.howEn, MAX_FUNCTION_HOW), how_es: text(c.howEs, MAX_FUNCTION_HOW),
+        item_id: itemIds.has(c.itemId) ? c.itemId : null,
+        position: i, updated_at: now,
+      };
+      if (!row.label_en && !row.label_es) return res.status(400).json({ error: `Check ${i + 1} needs a name in English or Spanish.` });
+      rows.push(row);
+    }
+    const keep = new Set(rows.map(r => r.id));
+    const gone = before.filter(f => !keep.has(f.id)).map(f => f.id);
+    if (gone.length) {
+      const { error } = await supabase.from('unit_inventory_function_checks').delete().eq('listing_id', listing.id).in('id', gone);
+      if (error) return sendSupabaseError(res, error);
+    }
+    if (rows.length) {
+      const { error } = await supabase.from('unit_inventory_function_checks').upsert(rows.map(r => (known.has(r.id) ? r : { ...r, created_at: now })));
+      if (error) return sendSupabaseError(res, error);
+    }
+    await auditLog({
+      entity: 'unit_inventory', entityId: listing.id, action: 'set_function_checks',
+      actorUid: String(ownerUid), actorName: text(actorName, MAX_ACTOR) || listing.owner || 'Owner',
+      before: { checks: before.map(f => f.label_es || f.label_en) }, after: { checks: rows.map(r => r.label_es || r.label_en) },
+    });
+    res.json({ checks: ((await loadFunctions(listing.id)) || []).map(functionFromDb) });
   });
 
   // POST /units/:listingId/translate — body: { ownerUid, text, to: 'es' |
@@ -1580,6 +1705,15 @@ module.exports = function createUnitInventoryRouter(deps) {
       })()),
       // Whether a damage photo can suggest which item it shows.
       suggestEnabled: translateEnabled(),
+      // The working checks to answer, and this visit's answers so far.
+      ...(await (async () => {
+        const fs = (await loadFunctions(listing.id)) || [];
+        if (!fs.length) return { functionChecks: [], functionAnswers: {} };
+        const answers = await visitFunctionAnswers(listing.id);
+        const out = {};
+        for (const f of fs) if (answers[f.id]) out[f.id] = answerFromDb(answers[f.id]);
+        return { functionChecks: fs.map(functionFromDb), functionAnswers: out };
+      })()),
     });
   });
 
@@ -1785,8 +1919,39 @@ module.exports = function createUnitInventoryRouter(deps) {
     });
     if (result.supabaseError) return sendSupabaseError(res, result.supabaseError);
     // A refusal for missing proof photos says which items, so the page can take the person to them.
-    if (result.error) return res.status(result.status).json({ error: result.error, ...(result.videoMissing ? { videoMissing: true } : {}) });
+    if (result.error) {
+      return res.status(result.status).json({
+        error: result.error, ...(result.videoMissing ? { videoMissing: true } : {}),
+        ...(result.functionsMissing ? { functionsMissing: result.functionsMissing } : {}),
+      });
+    }
     res.json(result);
+  });
+
+  // POST /shared/:token/functions/:checkId — body: { name, status: 'ok' |
+  // 'fail', note? }. The cleaning service says whether a working check
+  // works at this visit; a new answer replaces the visit's earlier one.
+  router.post('/shared/:token/functions/:checkId', async (req, res) => {
+    if (!requireSupabaseEnv(res)) return;
+    const listing = await unitForToken(res, req.params.token);
+    if (!listing) return;
+    const status = req.body?.status;
+    if (!['ok', 'fail'].includes(status)) return res.status(400).json({ error: 'Say whether it works.' });
+    const { data: fc, error: fErr } = await supabase.from('unit_inventory_function_checks')
+      .select('id').eq('listing_id', listing.id).eq('id', req.params.checkId).maybeSingle();
+    if (fErr) return sendSupabaseError(res, fErr);
+    if (!fc) return res.status(404).json({ error: 'That check is no longer on the list. Reload the page.' });
+    const { error: dErr } = await supabase.from('unit_inventory_function_results').delete()
+      .eq('listing_id', listing.id).eq('function_check_id', fc.id);
+    if (dErr) return sendSupabaseError(res, dErr);
+    const row = {
+      id: 'uifr_' + uuidv4().slice(0, 12), listing_id: listing.id, community_id: listing.community_id || 'kai',
+      function_check_id: fc.id, status, note: text(req.body?.note, MAX_FUNCTION_NOTE),
+      answered_by: text(req.body?.name, MAX_ACTOR) || 'Cleaning service', created_at: new Date().toISOString(),
+    };
+    const { error } = await supabase.from('unit_inventory_function_results').insert(row);
+    if (error) return sendSupabaseError(res, error);
+    res.json({ answer: answerFromDb(row) });
   });
 
   // POST /shared/:token/proposals — body: { name, item: { areaEn, areaEs,

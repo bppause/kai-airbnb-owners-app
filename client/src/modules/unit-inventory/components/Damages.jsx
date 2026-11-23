@@ -71,7 +71,8 @@ export function matchDescription(description, allItems, max = MAX_DESC_HITS) {
 // The form the cleaning service fills in. `areas` come from groupByArea
 // (each with its items; the area list leaves out the unnamed group, but
 // its items can still be searched). `preset` is the item the form was opened from,
-// if any. `onSend(damage)` resolves true when the report was accepted.
+// if any, and `presetDescription` the text to start with (e.g. "No funciona: …").
+// `onSend(damage)` resolves true when the report was accepted.
 //
 // Finding the item is the hard part in a list of a couple of hundred, so
 // it can be searched by any word of its description or area (either
@@ -83,10 +84,10 @@ export function matchDescription(description, allItems, max = MAX_DESC_HITS) {
 // taken asks Claude which item it shows, and ✨ asks again (from the
 // latest photo and the description, or the description alone), offering
 // up to three to pick from; nothing is linked until the person taps one.
-export function DamageForm({ lang, areas, preset, busy, onSend, onCancel, loadFirst, suggest }) {
+export function DamageForm({ lang, areas, preset, presetDescription, busy, onSend, onCancel, loadFirst, suggest }) {
   const T = (k, v) => tr(lang, k, v);
   const presetArea = preset ? areas.find(a => a.items.some(it => it.id === preset.id)) : null;
-  const [description, setDescription] = useState('');
+  const [description, setDescription] = useState(presetDescription || '');
   const [areaKey, setAreaKey] = useState(presetArea ? presetArea.key : '');
   const [itemId, setItemId] = useState(preset ? preset.id : '');
   const [location, setLocation] = useState('');

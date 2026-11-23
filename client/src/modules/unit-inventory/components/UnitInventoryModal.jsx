@@ -27,6 +27,7 @@ import { ItemPhotos, PhotoPicker, PhotoButton, MAX_ITEM_PHOTOS } from "./Photos"
 import { useAutoTranslate } from "./autoTranslate";
 import { AreaNameForm, AreaOrganizer } from "./AreaOrganizer";
 import CheckoutReports from "./Reports";
+import { FunctionCheckEditor } from "./FunctionChecks";
 import { itemsFromCsv } from "../csv";
 import { UINV_CSS } from "../styles";
 
@@ -111,6 +112,10 @@ export default function UnitInventoryModal({ listing, user, onClose }) {
   const [proposals, setProposals] = useState([]);
   // Damage reports the owner hasn't marked resolved.
   const [openDamages, setOpenDamages] = useState([]);
+  // The working checks the cleaning service answers at each visit; null
+  // when the database doesn't have them yet. `fnEditing` shows the editor.
+  const [fnChecks, setFnChecks] = useState([]);
+  const [fnEditing, setFnEditing] = useState(false);
   // Counts and notes as typed, keyed by item id, until saved.
   const [draft, setDraft] = useState({});
   const [tab, setTab] = useState('items');
@@ -148,6 +153,7 @@ export default function UnitInventoryModal({ listing, user, onClose }) {
     setProposals(d.proposals || []);
     setOpenDamages(d.openDamages || []);
     setCanTranslate(!!d.translate);
+    setFnChecks(d.functionChecks === undefined ? [] : d.functionChecks);
     folding.decide((d.items || []).length);
   };
   useEffect(() => {
@@ -385,6 +391,15 @@ export default function UnitInventoryModal({ listing, user, onClose }) {
     const other = field === 'areaEn' ? 'areaEs' : 'areaEn';
     const hit = (items || []).find(it => it[field].trim().toLowerCase() === text.toLowerCase() && it[other]);
     return hit ? hit[other] : null;
+  };
+  const saveFunctions = async (checks) => {
+    setBusy(true); setMsg(null);
+    try {
+      const d = await api.put(`${unitBase}/functions`, { ...who, checks });
+      setFnChecks(d.checks || []);
+      setMsg({ text: T('fnSaved') });
+      return true;
+    } catch (e) { setMsg({ err: true, text: e?.message || String(e) }); return false; } finally { setBusy(false); }
   };
   // Both return true once saved (the forms then close).
   const renameArea = async (group, to) => {
@@ -652,6 +667,10 @@ export default function UnitInventoryModal({ listing, user, onClose }) {
               {areaGroups.length > 0 && (
                 <button type="button" className="uinv-btn" aria-pressed={organizing} disabled={busy} onClick={() => setOrganizing(v => !v)}>{T('orgOpen')}</button>
               )}
+              <button type="button" className="uinv-btn" aria-pressed={fnEditing} disabled={busy}
+                onClick={() => (fnChecks === null ? setMsg({ err: true, text: T('fnNeedsUpdate') }) : setFnEditing(v => !v))}>
+                {T('fnOpen', { n: (fnChecks || []).length })}
+              </button>
               <input ref={fileRef} type="file" accept=".csv,text/csv" style={{ display: 'none' }} onChange={onCsvChosen} />
               {drifted.length > 0 && (
                 <button type="button" className="uinv-btn uinv-btn-warn" disabled={busy} title={T('rebaselineHint')} onClick={() => rebaseline(null)}>
@@ -659,6 +678,11 @@ export default function UnitInventoryModal({ listing, user, onClose }) {
                 </button>
               )}
             </div>
+
+            {fnEditing && fnChecks !== null && (
+              <FunctionCheckEditor lang={lang} checks={fnChecks} items={list} busy={busy} canTranslate={canTranslate} translate={translateText}
+                onSave={saveFunctions} onClose={() => setFnEditing(false)} />
+            )}
 
             {organizing && (
               <AreaOrganizer lang={lang} items={list} busy={busy} canTranslate={canTranslate} translate={translateText} knownArea={knownAreaName}
