@@ -188,6 +188,18 @@ export const UINV_CSS = `
 .uinv-primary{flex:none;width:96px;height:96px;padding:0;border:1px solid rgba(47,79,58,.2);border-radius:12px;overflow:hidden;background:#eef3f1;cursor:zoom-in;display:flex;align-items:center;justify-content:center;font-size:1.6rem;color:#8a9aa0}
 .uinv-primary img{width:100%;height:100%;object-fit:cover;display:block}
 .uinv-primary:disabled{cursor:default}
+.uinv-primary-still{cursor:default}
+.uinv-primary-sm{width:52px;height:52px;border-radius:9px;font-size:1.2rem}
+/* inside a .uinv-field (whose label text is small capitals): normal text */
+.uinv-dmg-hits,.uinv-dmg-picked,.uinv-dmg-suggest,.uinv-damages .uinv-field .uinv-help{text-transform:none;letter-spacing:0;font-size:.95rem;font-weight:400;color:#102f3a}
+.uinv-dmg-hits{display:grid;gap:6px;margin-top:6px}
+.uinv-dmg-hit{display:flex;align-items:center;gap:10px;width:100%;min-height:60px;padding:4px 8px 4px 4px;text-align:left;background:#fff;border:1px solid rgba(47,79,58,.25);border-radius:12px;font:inherit;color:inherit;cursor:pointer}
+.uinv-dmg-hit:hover,.uinv-dmg-hit:focus-visible{border-color:#2f4f3a;background:#f4f8f5}
+.uinv-dmg-hit-text{display:grid;gap:2px;min-width:0;flex:1 1 auto;overflow-wrap:anywhere}
+.uinv-dmg-picked{display:flex;align-items:center;gap:10px;padding:4px 6px 4px 4px;background:#fff;border:2px solid #2f4f3a;border-radius:12px}
+.uinv-dmg-picked .uinv-btn{flex:none}
+.uinv-dmg-suggest{display:grid;gap:6px;margin-top:8px;padding:10px;border-radius:12px;background:#fff;border:1px dashed rgba(47,79,58,.4)}
+.uinv-dmg-suggest-ok{border-style:solid;border-color:#2f4f3a;color:#2f4f3a;font-weight:600}
 .uinv-proof{margin-top:8px;padding:8px 10px;border-radius:10px;border:1px dashed #e2b93b;background:#fffaf0;display:grid;gap:6px;justify-items:start}
 .uinv-proof-ok{border:1px solid #b7e2c8;background:#f1f8f4}
 .uinv-proof-opt{border:1px dashed rgba(47,79,58,.28);background:#fbfcfb}

@@ -88,6 +88,7 @@ const crypto = require('crypto');
 const express = require('express');
 const { v4: uuidv4 } = require('uuid');
 const { translate, translateEnabled, TranslateError } = require('./translate');
+const { suggestItems, SuggestError } = require('./suggest');
 
 const MAX_NAME = 300;
 const MAX_AREA = 120;
@@ -134,6 +135,8 @@ const videoStorageLimit = () => {
 const VIDEO_PROTECT_DAYS = 30;
 // How long a link sent with a video (e.g. over WhatsApp) keeps working.
 const VIDEO_SHARE_SECONDS = 7 * 24 * 60 * 60;
+// Damage-photo suggestions a unit's share link may ask for per hour.
+const SUGGEST_PER_HOUR = 30;
 // How long a link to watch a video works.
 const VIDEO_URL_SECONDS = 60 * 60;
 const MAX_LOCATION = 200;
@@ -320,6 +323,9 @@ const videoFileName = (listing, v) => {
 };
 
 module.exports = function createUnitInventoryRouter(deps) {
+  // Photo suggestions asked per unit in the last hour (timestamps), to cap
+  // what a share link can spend on the Claude API.
+  const suggestLog = new Map();
   const { supabase, requireSupabaseEnv, sendSupabaseError, auditLog } = deps;
   // Telling the owner about a proposed item. All optional: without them a
   // proposal is still saved and shows on the owner's inventory screen.
@@ -1572,6 +1578,8 @@ module.exports = function createUnitInventoryRouter(deps) {
         const videos = await visitVideos(listing.id);
         return { videoRequired: videos !== null, videos: (videos || []).map(videoFromDb) };
       })()),
+      // Whether a damage photo can suggest which item it shows.
+      suggestEnabled: translateEnabled(),
     });
   });
 
@@ -1829,6 +1837,37 @@ module.exports = function createUnitInventoryRouter(deps) {
   // areaEn, areaEs, location, itemId, photos } }. The cleaning service
   // reports damage. The owner is told once per visit; everything reported
   // is then part of that visit's completed count.
+  // POST /shared/:token/damages/suggest — body: { name, photo?,
+  // description? } (at least one). Which of the unit's items the damage
+  // report is most likely about: { seenEs, seenEn, matches: [{ itemId,
+  // confidence }] } (up to 3, best first; none when nothing fits;
+  // `seenEs`/`seenEn` say what it is about). Only a suggestion for the
+  // person to pick from. At most SUGGEST_PER_HOUR per unit; 503 without
+  // ANTHROPIC_API_KEY.
+  router.post('/shared/:token/damages/suggest', async (req, res) => {
+    if (!requireSupabaseEnv(res)) return;
+    const listing = await unitForToken(res, req.params.token);
+    if (!listing) return;
+    const rawPhoto = req.body?.photo;
+    const photo = rawPhoto ? cleanPhoto(rawPhoto) : '';
+    if (rawPhoto && !photo) return res.status(400).json({ error: 'That photo could not be used.' });
+    const description = text(req.body?.description, 1000);
+    if (!photo && !description) return res.status(400).json({ error: 'Take a photo or describe the damage first.' });
+    const now = Date.now();
+    const recent = (suggestLog.get(listing.id) || []).filter(t => now - t < 3600 * 1000);
+    if (recent.length >= SUGGEST_PER_HOUR) return res.status(429).json({ error: 'Too many suggestions for now. Find the item in the list instead.' });
+    suggestLog.set(listing.id, [...recent, now]);
+    const { data: rows, error } = await loadItems(listing.id);
+    if (error) return sendSupabaseError(res, error);
+    try {
+      res.json(await suggestItems({ photo, description, rows: rows || [] }));
+    } catch (e) {
+      if (e instanceof SuggestError) return res.status(e.status).json({ error: e.message });
+      warn('Inventory damage suggestion failed: ' + (e && e.message));
+      res.status(500).json({ error: 'The suggestion failed. Find the item in the list instead.' });
+    }
+  });
+
   router.post('/shared/:token/damages', async (req, res) => {
     if (!requireSupabaseEnv(res)) return;
     const listing = await unitForToken(res, req.params.token);

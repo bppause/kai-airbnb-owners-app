@@ -203,6 +203,36 @@ unnoticed.
   carry them. The owner is told (alert + email, once per visit), sees
   open reports at the top of the panel, and marks them resolved; reports
   are never deleted.
+- **Finding the item to report.** In a list of a couple of hundred
+  items, the damage form's "¿Qué artículo?" box searches every item by
+  any word of its description, area or owner note, in either language
+  and with or without accents ("lampara" finds "Lámpara colgante"; every
+  word typed must match). Each result shows the owner's example photo
+  and the area; one tap links the item and fills in its area, and
+  "Cambiar" undoes it. The area and item lists are still there for
+  damage that isn't an item (a wall, a door).
+- **Matching the description, no photo needed.** While the damage is
+  being described ("La toalla de playa está manchada"), up to three
+  items it most likely means are offered under "¿Qué artículo?" for one
+  tap. This runs in the browser with no API: words that say what
+  happened rather than what the thing is (roto, manchada, falta,
+  broken…) are left out; plural and gender endings don't matter;
+  a word matching the item's description counts more than one matching
+  its area or note, and only items scoring more than half the best are
+  offered (`matchDescription` in `components/Damages.jsx`).
+- **Suggesting the item with Claude.** When `ANTHROPIC_API_KEY` is set,
+  the first photo taken in the damage form is sent — with the
+  description, if any — and the unit's item list to Claude, which says
+  what it is ("La foto parece: Refractaria de vidrio con el borde roto")
+  and offers up to three items with how likely each is (muy probable /
+  probable / posible). With no photo, "✨ Sugerir artículo por la
+  descripción" asks from the description alone ("Parece ser: …").
+  Nothing is linked until the person taps one; "Ninguno de estos"
+  dismisses it, and "✨ Sugerir de nuevo" asks again with the latest
+  photo and description. Only ids on the unit's list are accepted. At
+  most 30 suggestions per unit an hour; each costs roughly US$0.01–0.04
+  (less without a photo). Without the key there is no Claude suggestion;
+  the search and the description matching work as above.
 - **The checkout report.** A completed count is the unit's inventory for
   that checkout. Its row in `unit_inventory_checks` is dated and keeps
   the result as it stood — every item that was off its baseline or
@@ -367,6 +397,7 @@ Mounted at `/api/m/unit-inventory`.
 | `POST /shared/:token/checks` | link holder | Mark the count complete (optionally saving `updates` first) |
 | `POST /shared/:token/proposals` | link holder | Propose an item for the owner to approve |
 | `POST /shared/:token/damages` | link holder | Report damage, with photos |
+| `POST /shared/:token/damages/suggest` | link holder | `{ photo?, description? }` (at least one) → `{ seenEs, seenEn, matches: [{ itemId, confidence: high\|medium\|low }] }` (up to 3). 503 without `ANTHROPIC_API_KEY`; 429 after 30 an hour per unit |
 
 ## UI
 

@@ -83,6 +83,8 @@ const guide = (lang, { required, videoRequired, proofEnabled }) => {
           'For something that isn’t on the list (wall, door, floor, furniture…): tap “⚠️ Report damage” further down the page.'),
         pick('Describe el daño, di dónde está y toma una o más fotos.',
           'Describe the damage, say where it is and take one or more photos.'),
+        pick('¿No ves el artículo? Al describir el daño, la app te muestra los artículos que coinciden; o escribe una palabra en “¿Qué artículo?” (toalla, vaso, lámpara…). Con la foto también puede sugerir cuál es. Toca el correcto, o “Ninguno de estos”.',
+          'Can’t see the item? As you describe the damage the app shows the items that match; or type a word under “Which item?” (towel, glass, lamp…). With the photo it may also suggest which item it is. Tap the right one, or “None of these”.'),
       ],
     },
     {

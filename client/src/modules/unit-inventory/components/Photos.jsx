@@ -139,8 +139,10 @@ const primaryCache = new Map();
 // An item's primary photo (the first the owner added) as a thumbnail on
 // its card, so whoever counts sees at a glance what the item looks like.
 // Fetched only once the card comes near the screen: a long list doesn't
-// load every picture up front. A tap opens it full screen.
-function PrimaryPhoto({ lang, item, load }) {
+// load every picture up front. A tap opens it full screen — or, `still`,
+// it is just a picture (inside something else that is tapped, like a
+// search result); `small` makes it 52px.
+export function ItemThumb({ lang, item, load, still = false, small = false }) {
   const T = (k, v) => tr(lang, k, v);
   const key = `${item.id}:${item.photoCount || 0}`;
   const ref = useRef(null);
@@ -151,6 +153,7 @@ function PrimaryPhoto({ lang, item, load }) {
     const cached = primaryCache.get(key);
     if (cached) { setPhoto(cached); return undefined; }
     setPhoto(null); setGone(false);
+    if (!item.photoCount) { setGone(true); return undefined; }   // nothing to fetch
     let done = false;
     const fetchIt = () => {
       if (done) return;
@@ -171,8 +174,15 @@ function PrimaryPhoto({ lang, item, load }) {
     return () => { done = true; watch.disconnect(); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key]);
-  if (gone) return null;
+  if (gone && !still) return null;
   const name = primaryText(lang, item.nameEn, item.nameEs);
+  if (still) {
+    return (
+      <span ref={ref} className={`uinv-primary uinv-primary-still${small ? ' uinv-primary-sm' : ''}`} aria-hidden="true">
+        {photo ? <img src={photo.data} alt="" /> : <span>📦</span>}
+      </span>
+    );
+  }
   return (
     <>
       <button type="button" ref={ref} className="uinv-primary" disabled={!photo} onClick={() => setBig(true)}
@@ -245,7 +255,7 @@ export function ItemPhotos({ lang, item, store, onCount, onError, showLabel = 'p
       const withPrimary = !!store.loadFirst;
       return (
         <div className={`uinv-photos${withPrimary ? ' uinv-photos-primary' : ''}`}>
-          {withPrimary && <PrimaryPhoto lang={lang} item={item} load={store.loadFirst} />}
+          {withPrimary && <ItemThumb lang={lang} item={item} load={store.loadFirst} />}
           {(!withPrimary || canEdit || count > 1) && (
             <button type="button" className="uinv-btn uinv-btn-sm" disabled={loading} onClick={open}>{loading ? T('loading') : T(showLabel, { n: count })}</button>
           )}
