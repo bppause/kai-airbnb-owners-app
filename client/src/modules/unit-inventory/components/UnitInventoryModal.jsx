@@ -25,6 +25,7 @@ import { PendingProposals } from "./Proposals";
 import { DamageList } from "./Damages";
 import { ItemPhotos, PhotoPicker, PhotoButton, MAX_ITEM_PHOTOS } from "./Photos";
 import { useAutoTranslate } from "./autoTranslate";
+import { AreaNameForm, AreaOrganizer } from "./AreaOrganizer";
 import CheckoutReports from "./Reports";
 import { itemsFromCsv } from "../csv";
 import { UINV_CSS } from "../styles";
@@ -374,72 +375,46 @@ export default function UnitInventoryModal({ listing, user, onClose }) {
   const sameArea = (a, b) => (a.areaEn || '').trim().toLowerCase() === (b.areaEn || '').trim().toLowerCase()
     && (a.areaEs || '').trim().toLowerCase() === (b.areaEs || '').trim().toLowerCase();
 
-  // Renaming an area (all its items at once): { key, fromEn, fromEs, count }
-  // while its form is open; the names being typed are in `areaForm`, with
-  // the other language translated as in the item form.
-  const [renaming, setRenaming] = useState(null);
-  const [areaForm, setAreaForm] = useState(null);
-  const areaTranslator = useAutoTranslate({
-    enabled: canTranslate,
-    translate: async (text, to, field) => (await api.post(`${unitBase}/translate`, { ...who, text, to, field })).text,
-    setField: (field, value) => setAreaForm(prev => (prev ? { ...prev, [field]: value } : prev)),
-    knownArea: (field, text) => {
-      const other = field === 'areaEn' ? 'areaEs' : 'areaEn';
-      const hit = (items || []).find(it => it[field].trim().toLowerCase() === text.toLowerCase() && it[other]);
-      return hit ? hit[other] : null;
-    },
-  });
-  const openRename = (group) => {
-    areaTranslator.reset();
-    setRenaming({ key: group.key, fromEn: group.areaEn, fromEs: group.areaEs, count: group.items.length });
-    setAreaForm({ areaEn: group.areaEn, areaEs: group.areaEs });
+  // Renaming / combining areas and moving items between them (see
+  // AreaOrganizer.jsx). `renamingKey` is the area whose own bar has its
+  // rename form open; `organizing` shows the "Organize areas" panel.
+  const [renamingKey, setRenamingKey] = useState(null);
+  const [organizing, setOrganizing] = useState(false);
+  const translateText = async (text, to, field) => (await api.post(`${unitBase}/translate`, { ...who, text, to, field })).text;
+  const knownAreaName = (field, text) => {
+    const other = field === 'areaEn' ? 'areaEs' : 'areaEn';
+    const hit = (items || []).find(it => it[field].trim().toLowerCase() === text.toLowerCase() && it[other]);
+    return hit ? hit[other] : null;
   };
-  const closeRename = () => { areaTranslator.reset(); setRenaming(null); setAreaForm(null); };
-  const saveRename = async () => {
-    if (areaTranslator.waiting()) { setBusy(true); await areaTranslator.flush(); setBusy(false); }
-    const to = { ...areaForm, ...areaTranslator.applied() };
-    if (!String(to.areaEn || '').trim() && !String(to.areaEs || '').trim()) { setMsg({ err: true, text: T('areaNameNeeded') }); return; }
-    const from = renaming;
-    run(async () => {
-      const d = await api.post(`${unitBase}/areas/rename`, { ...who, fromEn: from.fromEn, fromEs: from.fromEs, toEn: to.areaEn, toEs: to.areaEs });
-      closeRename();
-      folding.open(areaKey(String(to.areaEn || '').trim(), String(to.areaEs || '').trim()));
+  // Both return true once saved (the forms then close).
+  const renameArea = async (group, to) => {
+    setBusy(true); setMsg(null);
+    try {
+      const d = await api.post(`${unitBase}/areas/rename`, { ...who, fromEn: group.areaEn, fromEs: group.areaEs, toEn: to.areaEn, toEs: to.areaEs });
+      setRenamingKey(null);
+      folding.open(areaKey(to.areaEn, to.areaEs));
       await load();
       setMsg({ text: T('areaRenamed', { n: d.changed || 0 }) });
-    });
+      return true;
+    } catch (e) { setMsg({ err: true, text: e?.message || String(e) }); return false; } finally { setBusy(false); }
   };
-  const renameFor = (group) => {
-    if (!renaming || renaming.key !== group.key || !areaForm) return null;
-    const merging = areaGroups.find(g => g.key !== group.key && sameArea(g, areaForm));
-    return (
-      <div className="uinv-box uinv-area-rename">
-        <h3 style={{ margin: '0 0 6px' }}>{T('areaRenameTitle')}</h3>
-        <p className="uinv-help" style={{ marginTop: 0 }}>{T('areaRenameHelp', { n: group.items.length })}</p>
-        <div className="uinv-form">
-          {['area' + ownSuffix, 'area' + otherSuffix].map(field => {
-            const st = areaTranslator.status[field];
-            const ro = canTranslate && field.endsWith(otherSuffix) && !(st && st.state === 'failed');
-            const note = st && (st.state !== 'auto' || !ro)
-              ? { cls: st.state, text: T(`tr_${st.state}`, { why: st.why || '' }) }
-              : (ro ? { cls: 'ro', text: T('trReadonly', { from: T('lang' + ownSuffix) }) } : null);
-            return (
-              <label key={field} className="uinv-field">{T(field)}
-                <input value={areaForm[field] || ''} maxLength={FIELD_MAX.area} readOnly={ro} aria-readonly={ro || undefined}
-                  className={ro ? 'uinv-ro' : undefined} tabIndex={ro ? -1 : undefined}
-                  onChange={e => { if (ro) return; const v = e.target.value; setAreaForm(prev => ({ ...prev, [field]: v })); areaTranslator.onOwnerEdit(field, v); }} />
-                {note && <span className={`uinv-tr uinv-tr-${note.cls}`} role="status">{note.text}</span>}
-              </label>
-            );
-          })}
-        </div>
-        {merging && <div className="uinv-msg" style={{ marginTop: 8 }}>{T('areaRenameMerge', { name: merging.label, n: merging.items.length })}</div>}
-        <div className="uinv-row" style={{ marginTop: 10 }}>
-          <button type="button" className="uinv-btn uinv-btn-p" disabled={busy} onClick={saveRename}>{busy ? T('saving') : T('areaRenameSave', { n: group.items.length })}</button>
-          <button type="button" className="uinv-btn" disabled={busy} onClick={closeRename}>{T('cancel')}</button>
-        </div>
-      </div>
-    );
+  const moveItems = async (itemIds, to) => {
+    setBusy(true); setMsg(null);
+    try {
+      const d = await api.post(`${unitBase}/items/move`, { ...who, itemIds, toEn: to.areaEn, toEs: to.areaEs });
+      folding.open(areaKey(to.areaEn, to.areaEs));
+      await load();
+      setMsg({ text: T('itemsMoved', { n: d.changed || 0 }) });
+      return true;
+    } catch (e) { setMsg({ err: true, text: e?.message || String(e) }); return false; } finally { setBusy(false); }
   };
+  const openRename = (group) => setRenamingKey(k => (k === group.key ? null : group.key));
+  const renameFor = (group) => (renamingKey === group.key ? (
+    <AreaNameForm lang={lang} title={T('areaRenameTitle')} help={T('areaRenameHelp', { n: group.items.length })}
+      initial={group} areas={areaGroups} excludeKey={group.key} canTranslate={canTranslate} translate={translateText} knownArea={knownAreaName}
+      saveLabel={T('areaRenameSave', { n: group.items.length })} busy={busy}
+      onSave={(to) => renameArea(group, to)} onCancel={() => setRenamingKey(null)} />
+  ) : null);
 
   // The item form's Area list: an existing area, or a new one typed in.
   const areaChoice = (f) => {
@@ -674,6 +649,9 @@ export default function UnitInventoryModal({ listing, user, onClose }) {
             <div className="uinv-row" style={{ marginBottom: 10 }}>
               <button type="button" className="uinv-btn uinv-btn-p" disabled={busy} onClick={() => openForm({ ...EMPTY_FORM })}>{T('addItem')}</button>
               <button type="button" className="uinv-btn" disabled={busy} onClick={() => fileRef.current && fileRef.current.click()}>{T('importCsv')}</button>
+              {areaGroups.length > 0 && (
+                <button type="button" className="uinv-btn" aria-pressed={organizing} disabled={busy} onClick={() => setOrganizing(v => !v)}>{T('orgOpen')}</button>
+              )}
               <input ref={fileRef} type="file" accept=".csv,text/csv" style={{ display: 'none' }} onChange={onCsvChosen} />
               {drifted.length > 0 && (
                 <button type="button" className="uinv-btn uinv-btn-warn" disabled={busy} title={T('rebaselineHint')} onClick={() => rebaseline(null)}>
@@ -681,6 +659,11 @@ export default function UnitInventoryModal({ listing, user, onClose }) {
                 </button>
               )}
             </div>
+
+            {organizing && (
+              <AreaOrganizer lang={lang} items={list} busy={busy} canTranslate={canTranslate} translate={translateText} knownArea={knownAreaName}
+                onRename={renameArea} onMove={moveItems} onClose={() => setOrganizing(false)} />
+            )}
 
             {importState && (
               <div className="uinv-box" ref={importRef}>

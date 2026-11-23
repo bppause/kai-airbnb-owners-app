@@ -1019,6 +1019,44 @@ module.exports = function createUnitInventoryRouter(deps) {
     res.json({ changed: rows.length });
   });
 
+  // POST /units/:listingId/items/move — body: { ownerUid, actorName,
+  // itemIds, toEn, toEs }. Moves some of the unit's items to an area —
+  // an existing one or a new name — e.g. to split an area in two. Each
+  // moved item gets an `edited` history entry; the move goes to the audit log.
+  router.post('/units/:listingId/items/move', async (req, res) => {
+    if (!requireSupabaseEnv(res)) return;
+    const { ownerUid, actorName } = req.body || {};
+    const listing = await requireOwnedUnit(res, req.params.listingId, ownerUid);
+    if (!listing) return;
+    const ids = Array.isArray(req.body?.itemIds) ? [...new Set(req.body.itemIds.map(String))] : [];
+    if (!ids.length) return res.status(400).json({ error: 'Choose the items to move.' });
+    if (ids.length > MAX_BULK_ITEMS) return res.status(400).json({ error: 'Too many items at once.' });
+    const to = { area_en: text(req.body?.toEn, MAX_AREA), area_es: text(req.body?.toEs, MAX_AREA) };
+    if (!to.area_en && !to.area_es) return res.status(400).json({ error: 'The area needs a name in English or Spanish.' });
+    const { data: rows, error: lErr } = await supabase.from('unit_inventory_items').select('*')
+      .eq('listing_id', listing.id).in('id', ids);
+    if (lErr) return sendSupabaseError(res, lErr);
+    if (!rows || rows.length !== ids.length) return res.status(409).json({ error: 'One of the items no longer exists. Reload and try again.' });
+    const moving = rows.filter(r => (r.area_en || '') !== to.area_en || (r.area_es || '') !== to.area_es);
+    if (!moving.length) return res.json({ changed: 0 });
+    const now = new Date().toISOString();
+    const { error } = await supabase.from('unit_inventory_items').update({ ...to, updated_at: now })
+      .eq('listing_id', listing.id).in('id', moving.map(r => r.id));
+    if (error) return sendSupabaseError(res, error);
+    const actor = text(actorName, MAX_ACTOR) || listing.owner || 'Owner';
+    const evErr = await insertEvents(moving.map(r => eventRow({ ...r, ...to }, listing, {
+      event_type: 'edited', changes: describeEdit(r, { ...r, ...to }),
+      actor_type: 'owner', actor_name: actor, actor_uid: String(ownerUid), created_at: now,
+    })));
+    if (evErr) return sendSupabaseError(res, evErr);
+    await auditLog({
+      entity: 'unit_inventory', entityId: listing.id, action: 'move_items',
+      actorUid: String(ownerUid), actorName: actor,
+      after: { areaEn: to.area_en, areaEs: to.area_es, items: moving.map(r => r.id) },
+    });
+    res.json({ changed: moving.length });
+  });
+
   // DELETE /items/:id — body: { ownerUid, actorName }. The item's history
   // stays: events carry the item's names and are not tied to the row.
   router.delete('/items/:id', async (req, res) => {

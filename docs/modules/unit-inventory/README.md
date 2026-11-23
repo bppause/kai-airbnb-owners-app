@@ -46,6 +46,16 @@ unnoticed.
   areas — moving an item is picking another — with "＋ Nueva área…"
   showing the two name boxes for a new one; the area boxes only appear
   then, or when the unit has no areas yet.
+- **Organize areas: rename, combine, split.** "🗂️ Organizar áreas"
+  (next to Import CSV) opens a panel listing every area with its item
+  count and three actions (`components/AreaOrganizer.jsx`):
+  ✏️ Renombrar (as above); 🔀 Combinar con… — pick another area and all
+  of this one's items move into it (a rename onto that area's names);
+  ✂️ Dividir… — tick some of its items and move them to another area,
+  existing or new (`POST /units/:listingId/items/move`; an `edited`
+  history entry per item, `move_items` in the audit log). New names are
+  typed in the owner's language with the other translated. Counts,
+  photos and history stay with the items.
 - **Duplicate.** Next to Edit, an item's ⧉ Duplicate opens the add form
   filled in from it (area, description, owner note, baseline count, ★)
   so a similar item ("Bath towel" → "Hand towel") only needs what
@@ -325,6 +335,7 @@ Mounted at `/api/m/unit-inventory`.
 | `POST /units/:listingId/videos/:videoId/keep` | owner | `{ keep: true\|false }`: keep a completed count's video as evidence (never recycled) or release it |
 | `GET …/items/:itemId/photos?first=1` | owner / share link | Only the item's primary (first) photo, for its thumbnail |
 | `POST /units/:listingId/areas/rename` | owner | `{ fromEn, fromEs, toEn, toEs }`: every item in that area moves to the new name (merging with an area of that name) → `{ changed }` |
+| `POST /units/:listingId/items/move` | owner | `{ itemIds, toEn, toEs }`: moves those items to that area (existing or new) → `{ changed }` |
 | `PUT /items/:id` | owner | Edit an item's area, description, owner note |
 | `POST /units/:listingId/translate` | owner | `{ text, to: es\|en, field: area\|name\|note }` → `{ text }`. 503 when `ANTHROPIC_API_KEY` is not set |
 | `DELETE /items/:id` | owner | Delete an item (history kept) |
