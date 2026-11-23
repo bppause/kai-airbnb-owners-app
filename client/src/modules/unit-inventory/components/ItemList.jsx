@@ -27,6 +27,7 @@ export function useAreaFolding() {
     decide: (itemCount) => setFoldDefault(prev => (prev === null ? itemCount > FOLD_FROM : prev)),
     toggle: (key) => setFolded(f => ({ ...f, [key]: !isFolded(key) })),
     open: (key) => setFolded(f => ({ ...f, [key]: false })),
+    close: (key) => setFolded(f => ({ ...f, [key]: true })),
     setAll: (keys, value) => setFolded(Object.fromEntries(keys.map(k => [k, value]))),
   };
 }
@@ -53,7 +54,7 @@ export function NoteTranslation({ lang, view }) {
 // buttons shown with the note. `expectedLabel` names the baseline box.
 // `onRequired` (owner only) flips whether the item must be counted at
 // every checkout; without it the ★ is only shown.
-function ItemCard({ item, lang, value, diff, dirty, busy, expectedLabel, opened, onToggle, onChange, actions, onRequired, moreLabel, photos, proof, flash, headAction }) {
+function ItemCard({ item, lang, value, diff, dirty, busy, expectedLabel, opened, onToggle, onChange, actions, onRequired, moreLabel, photos, proof, flash, headAction, badge }) {
   const T = (k, v) => tr(lang, k, v);
   const noteView = noteForViewer(lang, item);
   const other = secondaryText(lang, item.nameEn, item.nameEs);
@@ -77,6 +78,7 @@ function ItemCard({ item, lang, value, diff, dirty, busy, expectedLabel, opened,
             {' '}<DiffBadge diff={diff} lang={lang} />
           </div>
           {other && <div className="uinv-other">{other}</div>}
+          {badge}
           {ownerNote && <div className="uinv-onote">{ownerNote}{ownerNoteOther && <span className="uinv-onote-other"> · {ownerNoteOther}</span>}</div>}
           {photos}
           {proof}
@@ -142,7 +144,7 @@ function ItemCard({ item, lang, value, diff, dirty, busy, expectedLabel, opened,
 // `headActionFor(item)` returns a button kept in view at the top right of
 // the item even when it is folded on a phone (the cleaning service's
 // ⚠️ Damage).
-export function ItemList({ items, lang, folding, forceOpen = false, busy, expectedLabel, valueOf, diffOf, isDirty, onChange, actionsFor, onRequired, moreLabel, photosFor, proofFor, flashId, headActionFor, onRenameArea, areaExtra }) {
+export function ItemList({ items, lang, folding, forceOpen = false, busy, expectedLabel, valueOf, diffOf, isDirty, onChange, actionsFor, onRequired, moreLabel, photosFor, proofFor, flashId, headActionFor, onRenameArea, areaExtra, areaBadge, areaFooter, badgeFor }) {
   const T = (k, v) => tr(lang, k, v);
   // Items opened by hand on a narrow screen, by id.
   const [openedItems, setOpenedItems] = useState({});
@@ -163,7 +165,7 @@ export function ItemList({ items, lang, folding, forceOpen = false, busy, expect
         const changed = tallyDiffs(group.items, diffOf).changed;
         const required = group.items.filter(it => it.countRequired).length;
         return (
-          <section key={group.key} className="uinv-group">
+          <section key={group.key} className="uinv-group" id={`uinv-area-${encodeURIComponent(group.key)}`}>
             <h2 className="uinv-area-h">
               <button type="button" className="uinv-area" aria-expanded={!folded} onClick={() => folding.toggle(group.key)}>
                 <span className="uinv-area-caret" aria-hidden="true">{folded ? '▸' : '▾'}</span>
@@ -173,6 +175,7 @@ export function ItemList({ items, lang, folding, forceOpen = false, busy, expect
                 </span>
                 {required > 0 && <span className="uinv-badge uinv-badge-req">{T('areaReqCount', { n: required })}</span>}
                 {changed > 0 && <span className="uinv-badge uinv-badge-chg">{T('areaChanged', { n: changed })}</span>}
+                {areaBadge && areaBadge(group)}
                 <span className="uinv-area-count" title={T('itemsInArea', { n: group.items.length })}>{group.items.length}</span>
               </button>
             </h2>
@@ -193,9 +196,10 @@ export function ItemList({ items, lang, folding, forceOpen = false, busy, expect
                 onChange={(field, value) => onChange(it, field, value)}
                 actions={actionsFor ? actionsFor(it) : null} moreLabel={moreLabel}
                 photos={photosFor ? photosFor(it) : null} proof={proofFor ? proofFor(it) : null} flash={flashId === it.id}
-                headAction={headActionFor ? headActionFor(it) : null}
+                headAction={headActionFor ? headActionFor(it) : null} badge={badgeFor ? badgeFor(it) : null}
                 onRequired={onRequired ? (required) => onRequired([it], required) : undefined} />
             ))}
+            {!folded && areaFooter && areaFooter(group)}
           </section>
         );
       })}

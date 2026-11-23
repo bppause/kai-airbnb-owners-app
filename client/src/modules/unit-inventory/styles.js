@@ -191,7 +191,7 @@ export const UINV_CSS = `
 .uinv-primary-still{cursor:default}
 .uinv-primary-sm{width:52px;height:52px;border-radius:9px;font-size:1.2rem}
 /* inside a .uinv-field (whose label text is small capitals): normal text */
-.uinv-dmg-hits,.uinv-dmg-picked,.uinv-dmg-suggest,.uinv-damages .uinv-field .uinv-help{text-transform:none;letter-spacing:0;font-size:.95rem;font-weight:400;color:#102f3a}
+.uinv-dmg-hits,.uinv-dmg-picked,.uinv-dmg-suggest,.uinv-damages .uinv-field .uinv-help,.uinv-damages .uinv-field .uinv-msg{text-transform:none;letter-spacing:0;font-size:.95rem;font-weight:400;color:#102f3a}
 .uinv-dmg-hits{display:grid;gap:6px;margin-top:6px}
 .uinv-dmg-hit{display:flex;align-items:center;gap:10px;width:100%;min-height:60px;padding:4px 8px 4px 4px;text-align:left;background:#fff;border:1px solid rgba(47,79,58,.25);border-radius:12px;font:inherit;color:inherit;cursor:pointer}
 .uinv-dmg-hit:hover,.uinv-dmg-hit:focus-visible{border-color:#2f4f3a;background:#f4f8f5}
@@ -217,6 +217,36 @@ export const UINV_CSS = `
 .uinv-proof-ok .uinv-proof-state{color:#0b5f3a}
 .uinv-progress{margin:8px 0 0;font-weight:700;color:#7a5200}
 .uinv-progress-done{color:#0b5f3a}
+.uinv-people{margin-top:12px;padding-top:10px;border-top:1px solid rgba(47,79,58,.14)}
+.uinv-people h3,.uinv-tasks h3,.uinv-owner-notes h3{margin:10px 0 6px;font-size:1rem}
+.uinv-person{display:grid;gap:6px;padding:8px 10px;margin-bottom:8px;border-radius:12px;background:#fff;border:1px solid rgba(47,79,58,.2)}
+.uinv-person-off{opacity:.7;background:#f5f5f2}
+.uinv-person-head{display:grid;gap:2px;overflow-wrap:anywhere}
+.uinv-person-form{display:grid;gap:4px;margin:6px 0 10px}
+a.uinv-btn{text-decoration:none;display:inline-flex;align-items:center;justify-content:center}
+.uinv-tasks{background:#fbf8ef;border-color:#e2cf94}
+.uinv-owner-notes{background:#fbf8ef;border-color:#e2b93b}
+.uinv-task-row{display:grid;gap:8px;padding:10px;margin-bottom:8px;border-radius:12px;background:#fff;border:1px solid rgba(47,79,58,.2)}
+.uinv-task-done{background:#f1f8f4;border-color:#b7e2c8}
+.uinv-task-text{display:grid;gap:2px;overflow-wrap:anywhere}
+.uinv-task-note{display:grid;gap:8px}
+.uinv-task-form{display:grid;gap:10px;margin-top:10px}
+.uinv-owner-reply{margin-top:4px;padding:6px 8px;border-radius:8px;background:#eef6f9;color:#102f3a}
+.uinv-resolve{display:grid;gap:10px;padding:10px;border-radius:12px;background:#fff;border:1px solid rgba(47,79,58,.2);width:100%}
+.uinv-btn.uinv-on{background:#2f4f3a;border-color:#2f4f3a;color:#fff}
+.uinv-inbox{background:#f4f7fb;border-color:#a9bfd8}
+.uinv-inbox-clear{background:#f1f8f4;border-color:#b7e2c8}
+.uinv-inbox h2{margin:0 0 8px}
+.uinv-inbox-rows{display:grid;gap:6px}
+.uinv-inbox-row{display:flex;align-items:center;gap:10px;width:100%;min-height:44px;padding:6px 10px;text-align:left;background:#fff;border:1px solid rgba(47,79,58,.2);border-radius:10px;font:inherit;color:inherit;cursor:pointer}
+.uinv-inbox-label{flex:1 1 auto;min-width:0}
+.uinv-dmg-already{display:inline-block;margin-top:2px;padding:2px 8px;border-radius:999px;background:#fff3f1;border:1px solid #e39a92;color:#b42318;font-size:.78rem;font-weight:700}
+.uinv-area-done{padding:2px 8px;border-radius:999px;background:#e6f4ec;color:#0b5f3a;font-size:.78rem;font-weight:700;white-space:nowrap}
+.uinv-area-foot{display:flex;flex-wrap:wrap;gap:8px;justify-content:flex-end;margin:4px 0 14px}
+.uinv-area-foot .uinv-btn{min-height:44px}
+.uinv-btn-ok{background:#e6f4ec;border-color:#7cc59b;color:#0b5f3a;font-weight:700}
+.uinv-hello{background:#f1f8f4;border-color:#b7e2c8}
+.uinv-areas-progress{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:6px}
 .uinv-fn{background:#f4f7fb;border-color:#a9bfd8;scroll-margin-top:calc(var(--uinv-top) + var(--uinv-filter) + 10px)}
 .uinv-fn .uinv-progress{margin:0}
 .uinv-fn-list,.uinv-fn-edit-list{list-style:none;margin:0;padding:0;display:grid;gap:8px}

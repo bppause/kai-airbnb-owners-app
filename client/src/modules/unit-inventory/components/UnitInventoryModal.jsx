@@ -28,6 +28,7 @@ import { useAutoTranslate } from "./autoTranslate";
 import { AreaNameForm, AreaOrganizer } from "./AreaOrganizer";
 import CheckoutReports from "./Reports";
 import { FunctionCheckEditor } from "./FunctionChecks";
+import { PeopleLinks, OwnerTasks, ResolveDamage, PendingInbox } from "./OwnerService";
 import { itemsFromCsv } from "../csv";
 import { UINV_CSS } from "../styles";
 
@@ -116,6 +117,10 @@ export default function UnitInventoryModal({ listing, user, onClose }) {
   // when the database doesn't have them yet. `fnEditing` shows the editor.
   const [fnChecks, setFnChecks] = useState([]);
   const [fnEditing, setFnEditing] = useState(false);
+  // The cleaning service's people with their own link, and the notes for
+  // the next visit; null when the database doesn't have them yet.
+  const [people, setPeople] = useState([]);
+  const [tasks, setTasks] = useState([]);
   // Counts and notes as typed, keyed by item id, until saved.
   const [draft, setDraft] = useState({});
   const [tab, setTab] = useState('items');
@@ -154,6 +159,8 @@ export default function UnitInventoryModal({ listing, user, onClose }) {
     setOpenDamages(d.openDamages || []);
     setCanTranslate(!!d.translate);
     setFnChecks(d.functionChecks === undefined ? [] : d.functionChecks);
+    setPeople(d.people === undefined ? [] : d.people);
+    setTasks(d.tasks === undefined ? [] : d.tasks);
     folding.decide((d.items || []).length);
   };
   useEffect(() => {
@@ -347,10 +354,40 @@ export default function UnitInventoryModal({ listing, user, onClose }) {
     const d = await api.get(`${unitBase}/damages/${encodeURIComponent(damage.id)}?ownerUid=${encodeURIComponent(user.uid)}`);
     return (d.damage && d.damage.photos) || [];
   };
-  const resolveDamage = (damage) => run(async () => {
-    await api.post(`${API_BASE}/damages/${encodeURIComponent(damage.id)}/status`, { ...who, status: 'resolved' });
-    await load();
-  }, T('damageResolvedMsg'));
+  // Closes a damage report: how it was solved, a reply for the cleaning
+  // service, and (replaced) the item's count back to expected. True when done.
+  const resolveDamage = async (damage, { resolution, reply, restoreCount }) => {
+    setBusy(true); setMsg(null);
+    try {
+      await api.post(`${API_BASE}/damages/${encodeURIComponent(damage.id)}/status`, { ...who, status: 'resolved', resolution, reply, restoreCount });
+      await load();
+      setMsg({ text: T('damageResolvedMsg') });
+      return true;
+    } catch (e) { setMsg({ err: true, text: e?.message || String(e) }); return false; } finally { setBusy(false); }
+  };
+  // People, notes: each returns true once saved.
+  const ownerCall = async (fn, okText) => {
+    setBusy(true); setMsg(null);
+    try { await fn(); if (okText) setMsg({ text: okText }); return true; }
+    catch (e) { setMsg({ err: true, text: e?.message || String(e) }); return false; }
+    finally { setBusy(false); }
+  };
+  const addPerson = ({ name, phone }) => ownerCall(async () => {
+    const d = await api.post(`${unitBase}/people`, { ...who, name, phone });
+    setPeople(prev => [...(prev || []), d.person]);
+  }, T('personSaved'));
+  const personAction = (person, action, fields = {}) => ownerCall(async () => {
+    const d = await api.post(`${API_BASE}/people/${encodeURIComponent(person.id)}`, { ...who, action, ...fields });
+    setPeople(prev => (prev || []).map(p => (p.id === person.id ? d.person : p)));
+  }, T('personSaved'));
+  const addTask = ({ text, itemId }) => ownerCall(async () => {
+    const d = await api.post(`${unitBase}/tasks`, { ...who, text, itemId, lang });
+    setTasks(prev => [...(prev || []), d.task]);
+  }, T('taskAdded'));
+  const taskAction = (task, action) => ownerCall(async () => {
+    const d = await api.post(`${API_BASE}/tasks/${encodeURIComponent(task.id)}`, { ...who, action });
+    setTasks(prev => (prev || []).flatMap(t => (t.id !== task.id ? [t] : (d.task && d.task.status !== 'archived' ? [d.task] : []))));
+  });
 
   // The owner types the area, description and note in their own language
   // (the app's language setting); the other language is translated from
@@ -571,6 +608,13 @@ export default function UnitInventoryModal({ listing, user, onClose }) {
     });
   };
   const linkUrl = link ? `${window.location.origin}/?inventory=${encodeURIComponent(link.token)}` : '';
+  // From the "Pendientes" box to where each thing is dealt with.
+  const jumpTo = (key) => {
+    if (key === 'fnFailed') { setTab('reports'); return; }
+    if (key === 'missing') setOnlyChanged(true);
+    const id = { proposals: 'uinv-proposals', damages: 'uinv-open-damages', tasksDone: 'uinv-tasks', missing: 'uinv-list-top' }[key];
+    setTimeout(() => { const el = document.getElementById(id); if (el) el.scrollIntoView({ block: 'start' }); }, 0);
+  };
   const copyLink = async () => {
     try { await navigator.clipboard.writeText(linkUrl); setCopied(true); setTimeout(() => setCopied(false), 1800); }
     catch (_e) { window.prompt(T('linkCopy'), linkUrl); }
@@ -619,9 +663,19 @@ export default function UnitInventoryModal({ listing, user, onClose }) {
         {tab === 'items' && items === null && <p className="uinv-sub">{T('loading')}</p>}
         {tab === 'items' && items !== null && (
           <>
-            <PendingProposals lang={lang} proposals={proposals} owner actionsFor={proposalActions} />
-            <DamageList lang={lang} title={T('damagesOpen', { n: openDamages.length })} damages={openDamages} loadPhotos={loadDamagePhotos}
-              actionsFor={d => <button type="button" className="uinv-btn" disabled={busy} onClick={() => resolveDamage(d)}>{T('damageResolve')}</button>} />
+            <PendingInbox lang={lang} onJump={jumpTo} rows={[
+              { key: 'proposals', icon: '＋', label: T('inboxProposals'), n: proposals.length },
+              { key: 'damages', icon: '⚠️', label: T('inboxDamages'), n: openDamages.length },
+              { key: 'fnFailed', icon: '🔌', label: T('inboxFnFailed'), n: lastCheck && lastCheck.functionsFailed ? lastCheck.functionsFailed : 0 },
+              { key: 'tasksDone', icon: '📝', label: T('inboxTasksDone'), n: (tasks || []).filter(t => t.status === 'done').length },
+              { key: 'missing', icon: '▼', label: T('inboxMissing'), n: list.filter(it => it.currentCount < it.baselineCount).length },
+            ]} />
+            <div id="uinv-proposals"><PendingProposals lang={lang} proposals={proposals} owner actionsFor={proposalActions} /></div>
+            <div id="uinv-open-damages">
+              <DamageList lang={lang} title={T('damagesOpen', { n: openDamages.length })} damages={openDamages} loadPhotos={loadDamagePhotos}
+                actionsFor={d => <ResolveDamage lang={lang} damage={d} item={list.find(it => it.id === d.itemId) || null} busy={busy} onResolve={opts => resolveDamage(d, opts)} />} />
+            </div>
+            {tasks !== null && <OwnerTasks lang={lang} tasks={tasks} items={list} busy={busy} onAdd={addTask} onAction={taskAction} />}
 
             <div className="uinv-box">
               <div className="uinv-row" style={{ justifyContent: 'space-between' }}>
@@ -659,6 +713,10 @@ export default function UnitInventoryModal({ listing, user, onClose }) {
                   )}
                 </>
               )}
+              {people === null
+                ? <p className="uinv-help" style={{ marginTop: 10 }}>{T('peopleNeedsUpdate')}</p>
+                : <PeopleLinks lang={lang} people={people} unitName={aptDisplay(listing.apt, 'es-CO')} busy={busy}
+                    urlFor={p => `${window.location.origin}/?inventory=${encodeURIComponent(p.token)}`} onAdd={addPerson} onAction={personAction} />}
             </div>
 
             <div className="uinv-row" style={{ marginBottom: 10 }}>
@@ -780,6 +838,7 @@ export default function UnitInventoryModal({ listing, user, onClose }) {
             {list.length === 0 && <div className="uinv-box"><strong>{T('empty')}</strong><p className="uinv-help">{T('emptyHint')}</p></div>}
             {list.length > 0 && (
               <>
+                <div id="uinv-list-top" />
                 <FilterBar lang={lang} search={search} onSearch={setSearch} required={requiredCount} view={showing} onView={setView} />
                 <DiffSummary lang={lang} total={list.length} tally={tally} onlyChanged={onlyChanged} onToggle={() => setOnlyChanged(v => !v)} />
                 <LastCheckLine lang={lang} lastCheck={lastCheck} />

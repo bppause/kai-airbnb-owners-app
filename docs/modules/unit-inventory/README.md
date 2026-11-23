@@ -196,6 +196,46 @@ unnoticed.
   explains why it's gone. The reports tab shows how much is used
   ("🎥 Video storage: 320 MB of 800 MB (40%)…", highlighted from 90%).
   Uploads abandoned for a day are dropped when a count is completed.
+- **A personal link for each person.** Under the cleaning-service link
+  the owner adds each person (name, optional WhatsApp number) and sends
+  them their own link — "💬 Enviar por WhatsApp" opens a chat with the
+  number and a ready message, or copy it. Opened through it, the page
+  greets them ("👋 Hola, Marta") instead of asking for a name, and
+  everything they do (counts, damage, notes ticked, the completed count)
+  carries their name whatever the page sends. The owner sees when each
+  last used their link, can rename them, switch one off ("Desactivar":
+  the link stops working, the name stays on what they did) and back on,
+  or give them a new link (the old one stops working). The unit's
+  general link keeps working beside these.
+- **Notes for the next visit.** "📝 Notas para la próxima visita" in the
+  owner's panel: a note, optionally about one item, written in the
+  owner's language and translated into the other (as count notes are).
+  It shows at the top of the cleaning-service page under "📝 Del
+  propietario"; they tick it "✓ Hecho" (or "✓ Hecho, con nota"), and can
+  undo it during the same visit. The owner sees who did it and when,
+  then files it away ("✓ Visto") or asks again; the completion email
+  lists the notes done and how many are left.
+- **Closing the loop on damage.** On the cleaning-service page an item
+  with an open damage report says "⚠️ Ya reportado", and the damage
+  form says so (when, what) if that item is picked, so it isn't
+  reported twice. The owner closes a report saying how ("🔧 Reparado",
+  "🆕 Reemplazado", "Otro"), optionally answering the cleaning service;
+  when the item is short of its expected count, "Ya está repuesto" puts
+  the count back (with a history entry) — ticked by itself for
+  "Reemplazado". For a week the cleaning service sees what the owner
+  did and their answer under "Daños que el propietario ya resolvió".
+- **"📥 Pendientes".** At the top of the owner's panel, one line per
+  kind of thing waiting — proposed items, open damage, checks that
+  failed at the last count, notes done to look at, items short of their
+  count — each taking the owner to where it's dealt with.
+- **"✓ Todo bien en esta área".** At the end of each area on the
+  cleaning-service page: everything expected is there. Items in the
+  area not already changed take their expected count (to be saved with
+  the rest), the area folds with "✓ Revisada", and the next area still
+  to check opens and comes into view. The task list shows "Áreas
+  revisadas: 3 de 18 · ▶ Seguir con: Cocina"; the ticks are kept on the
+  phone until the count is completed, so after closing the page they
+  pick up where they left off.
 - **Working checks.** Besides counting, the cleaning service tests
   that things work at every visit: each burner of the stove, each TV
   and A/C with its remote, the A/C switching itself off when a sliding
@@ -323,6 +363,9 @@ unnoticed.
 | Propose an item that isn't on the list | — | yes |
 | Report damage, with photos | — | yes |
 | Keep the list of working checks | yes | — |
+| Give each person their own link; switch one off | yes | — |
+| Leave notes for the next visit / tick them off | yes / — | — / yes |
+| Close damage saying how, with a reply | yes | sees it |
 | Answer the working checks (required to finish) | — | yes |
 | Take photos of items at checkout (optional) | — | yes |
 | Record the checkout video (required to finish) | — | yes |
@@ -375,9 +418,11 @@ is missing. That file is generated from the inventory section of
 | `unit_inventory_checks` | One row per completed count: who, when, the unit's totals against baseline at that moment, the items that were off or noted (`results`) and how many damage reports came with it. If the newer columns are missing the count is still recorded without them. If this table is missing (schema not re-run since it was added) the screens still load and report no complete count; only marking one fails. |
 | `unit_inventory_videos` | The checkout video: where it is in the `inventory-videos` storage bucket, type, size, length, who, `uploading` / `ready`, and the completed count it belongs to. `keep` / `kept_by` / `kept_at`: kept as evidence by the owner. Kept until all videos together pass the storage limit; then the oldest of completed counts are deleted (row and file) to make room — never one under 30 days old or kept as evidence. A missing table means no video is asked for. The bucket is created by `schema.sql`, or by the server on first use. |
 | `unit_inventory_count_photos` | Optional item photos at a checkout: unattached while the visit is under way, then tied to the completed count (`check_id`). Pruned to the 12 most recent counts per unit. A missing table means photos aren't asked for and counts complete as before. |
+| `unit_inventory_people` | The cleaning service's people with their own link: name, phone, `token`, `enabled`, `last_seen_at`. Switched off, never deleted. |
+| `unit_inventory_tasks` | The owner's notes for the next visit: text with its language and translation, optional `item_id`, `open` → `done` (who, when, note) → `archived`. |
 | `unit_inventory_function_checks` | The owner's working checks: names and how-to-test in both languages, optional `item_id`, `position`. |
 | `unit_inventory_function_results` | The answers of the visit under way (`ok` / `fail`, note, who). Completing a count copies them into `unit_inventory_checks.function_results` (with `functions_failed`) and clears them. |
-| `unit_inventory_damages` | Damage reports: description, area / item / spot, photos (JPEG data URLs), who and when, the completed count they belong to (`check_id`), `open` or `resolved`. A missing table reads as no damage; only reporting fails. |
+| `unit_inventory_damages` | Damage reports: description, area / item / spot, photos (JPEG data URLs), who and when, the completed count they belong to (`check_id`), `open` or `resolved`, and how the owner closed it (`resolution`, `owner_reply`; read without them on a database not yet updated). A missing table reads as no damage; only reporting fails. |
 | `unit_inventory_proposals` | Items proposed through the share link: `pending`, `approved` (with the `item_id` created) or `rejected`. Decided rows are kept. A missing table reads as no proposals; only proposing fails. |
 | `unit_inventory_links` | One share link per unit: token and whether it is enabled. Kept off `listings` because listing rows are returned to every signed-in user. |
 
@@ -394,6 +439,10 @@ Mounted at `/api/m/unit-inventory`.
 | `POST /units/:listingId/areas/rename` | owner | `{ fromEn, fromEs, toEn, toEs }`: every item in that area moves to the new name (merging with an area of that name) → `{ changed }` |
 | `POST /units/:listingId/items/move` | owner | `{ itemIds, toEn, toEs }`: moves those items to that area (existing or new) → `{ changed }` |
 | `PUT /items/:id` | owner | Edit an item's area, description, owner note |
+| `POST /units/:listingId/people` | owner | `{ name, phone? }`: a person with their own link → `{ person }` (with `token`). 503 without the table |
+| `POST /people/:id` | owner | `{ action: update\|disable\|enable\|regenerate, name?, phone? }` → `{ person }` |
+| `POST /units/:listingId/tasks` | owner | `{ text, itemId?, lang }`: a note for the next visit (translated) → `{ task }` |
+| `POST /tasks/:id` | owner | `{ action: archive\|reopen\|delete }` → `{ task }` (null when deleted) |
 | `PUT /units/:listingId/functions` | owner | `{ checks: [{ id?, labelEn, labelEs, howEn, howEs, itemId }] }`: replaces the working checks with this ordered list (no id = new; left out = removed) → `{ checks }`. 503 without the tables |
 | `POST /units/:listingId/translate` | owner | `{ text, to: es\|en, field: area\|name\|note }` → `{ text }`. 503 when `ANTHROPIC_API_KEY` is not set |
 | `DELETE /items/:id` | owner | Delete an item (history kept) |
@@ -410,10 +459,10 @@ Mounted at `/api/m/unit-inventory`.
 | `GET /units/:listingId/checks/:checkId/items/:itemId/photos?ownerUid=` | owner | One item's photos at one checkout |
 | `GET /units/:listingId/checks/:checkId/videos?ownerUid=` | owner | The checkout's video, with a link to watch it (1 hour) |
 | `GET /units/:listingId/damages/:damageId?ownerUid=` | owner | One damage report with its photos |
-| `POST /damages/:id/status` | owner | Mark a damage report `resolved` (or `open` again) |
+| `POST /damages/:id/status` | owner | Mark a damage report `resolved` (or `open` again); with `resolution` (repaired\|replaced\|other), `reply`, `restoreCount` (item's count back to expected) |
 | `POST /proposals/:id/decision` | owner | `approve` (creates the item) or `reject` a proposed item |
 | `POST /units/:listingId/link` | owner | `enable`, `disable` or `regenerate` the share link |
-| `GET /shared/:token` | link holder | The unit's label, items, last complete count, pending proposals, and the working checks with this visit's answers |
+| `GET /shared/:token` | link holder (general or personal) | The unit's label, items, last complete count, pending proposals, the working checks with this visit's answers, `person` (personal link), open damage, damage closed in the last week (`damageNews`) and the owner's notes |
 | `GET /shared/:token/items/:itemId/photos` | link holder | An item's photos (view only) |
 | `GET /shared/:token/items/:itemId/proof` | link holder | This visit's photos of an item |
 | `POST /shared/:token/items/:itemId/proof` | link holder | Add a photo (at most 3 per item per visit) |
@@ -425,6 +474,7 @@ Mounted at `/api/m/unit-inventory`.
 | `POST /shared/:token/checks` | link holder | Mark the count complete (optionally saving `updates` first) |
 | `POST /shared/:token/proposals` | link holder | Propose an item for the owner to approve |
 | `POST /shared/:token/damages` | link holder | Report damage, with photos |
+| `POST /shared/:token/tasks/:taskId` | link holder | `{ name, done: true\|false, note? }`: tick off one of the owner's notes (or untick one ticked this visit) |
 | `POST /shared/:token/functions/:checkId` | link holder | `{ name, status: ok\|fail, note? }`: answer a working check for this visit (replaces an earlier answer) |
 | `POST /shared/:token/damages/suggest` | link holder | `{ photo?, description? }` (at least one) → `{ seenEs, seenEn, matches: [{ itemId, confidence: high\|medium\|low }] }` (up to 3). 503 without `ANTHROPIC_API_KEY`; 429 after 30 an hour per unit |
 

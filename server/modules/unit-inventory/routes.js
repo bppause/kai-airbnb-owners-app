@@ -86,6 +86,14 @@
 // the answers become part of the count's record. A "doesn't work" is
 // reported as damage by the page, so the owner is told.
 //
+// Each person of the cleaning service can have a link of their own
+// (unit_inventory_people), which the owner sends them: what they do
+// through it carries their name, and the owner can switch one person off.
+// The unit's general link keeps working beside them. The owner can also
+// leave notes for the next visit (unit_inventory_tasks), which the
+// cleaning service ticks off, and answer a damage report when closing it
+// (how it was solved, a reply), which the cleaning service sees.
+//
 // Like the rest of this app the owner routes trust the ownerUid the
 // client sends (see server/platform/units/routes.js); there is no
 // server-side session to check it against.
@@ -152,6 +160,15 @@ const MAX_LOCATION = 200;
 // visit and is attached to its record; older unattached reports stand
 // on their own.
 const DAMAGE_VISIT_WINDOW_MS = 12 * 60 * 60 * 1000;
+// The cleaning service's people with their own link, and the owner's
+// notes for the next visit.
+const MAX_PEOPLE = 20;
+const MAX_PHONE = 40;
+const MAX_TASK_TEXT = 500;
+const MAX_OPEN_TASKS = 50;
+// How long the cleaning service sees how the owner closed a damage report.
+const DAMAGE_NEWS_DAYS = 7;
+const RESOLUTIONS = ['repaired', 'replaced', 'other'];
 // Working checks: how many a unit may have, and their text sizes.
 const MAX_FUNCTION_CHECKS = 60;
 const MAX_FUNCTION_LABEL = 200;
@@ -275,6 +292,32 @@ const damageFromDb = (r, withPhotos = false) => ({
   createdAt: r.created_at,
   resolvedAt: r.resolved_at || null,
   resolvedBy: r.resolved_by || '',
+  // How the owner closed it and what they answered (newer columns).
+  resolution: r.resolution || '',
+  ownerReply: r.owner_reply || '',
+});
+
+const personFromDb = (r) => ({
+  id: r.id,
+  name: r.name || '',
+  phone: r.phone || '',
+  token: r.token,
+  enabled: !!r.enabled,
+  lastSeenAt: r.last_seen_at || null,
+});
+
+const taskFromDb = (r) => ({
+  id: r.id,
+  text: r.text || '',
+  textLang: r.text_lang || '',
+  textTranslation: r.text_translation || '',
+  itemId: r.item_id || '',
+  status: r.status,
+  createdBy: r.created_by || '',
+  createdAt: r.created_at,
+  doneBy: r.done_by || '',
+  doneAt: r.done_at || null,
+  doneNote: r.done_note || '',
 });
 
 const proposalFromDb = (r) => ({
@@ -748,7 +791,10 @@ module.exports = function createUnitInventoryRouter(deps) {
       if (fErr) warn('Inventory working-check clean-up failed: ' + fErr.message);
     }
     if (actorType === 'cleaner') {
-      setImmediate(() => notifyOwnerOfCheck({ listing, check: saved, results, damages, functionResults, req }));
+      const tasks = (await loadTasks(listing.id, ['open', 'done'])) || [];
+      const tasksDone = tasks.filter(t => t.status === 'done' && t.done_at && t.done_at >= visitSince());
+      const tasksOpen = tasks.filter(t => t.status === 'open');
+      setImmediate(() => notifyOwnerOfCheck({ listing, check: saved, results, damages, functionResults, tasksDone, tasksOpen, req }));
       setImmediate(() => pruneProofPhotos(listing.id));
       setImmediate(() => pruneVideos(listing.id));
     }
@@ -833,7 +879,7 @@ module.exports = function createUnitInventoryRouter(deps) {
   };
 
   // The completed count, told to the owner as that checkout's result.
-  const notifyOwnerOfCheck = ({ listing, check, results, damages, functionResults = [], req }) => {
+  const notifyOwnerOfCheck = ({ listing, check, results, damages, functionResults = [], tasksDone = [], tasksOpen = [], req }) => {
     const failed = functionResults.filter(f => f.status === 'fail');
     const parts = [
       check.items_required ? `${check.items_required} artículos de cada salida revisados` : `${check.items_total} artículos revisados`,
@@ -854,6 +900,8 @@ module.exports = function createUnitInventoryRouter(deps) {
         `${check.actor_name} (servicio de limpieza) completó el inventario de salida del apartamento ${listing.apt}.`,
         parts,
         ...(off.length ? ['Artículos con diferencia:', ...off.slice(0, 40).map(r => `• ${r.nameEs || r.nameEn}: esperado ${r.baseline}, contado ${r.count}${r.note ? ` — ${r.note}` : ''}`)] : []),
+        ...(tasksDone.length ? ['Tus pendientes hechos:', ...tasksDone.map(t => `• ${t.text}${t.done_note ? ` — ${t.done_note}` : ''} (${t.done_by})`)] : []),
+        ...(tasksOpen.length ? [`Pendientes sin hacer: ${tasksOpen.length}`] : []),
         ...(failed.length ? ['No funciona:', ...failed.map(f => `• ${f.labelEs || f.labelEn}${f.note ? ` — ${f.note}` : ''}`)] : []),
         ...(damages.length ? ['Daños reportados:', ...damages.slice(0, 20).map(d => `• ${[damageWhere(d), d.description].filter(Boolean).join(': ')}${d.photo_count ? ` (${d.photo_count} foto(s))` : ''}`)] : []),
         'El reporte completo, con fotos y video, está en la aplicación: Mis unidades → Inventario → Reportes de salida.',
@@ -863,12 +911,22 @@ module.exports = function createUnitInventoryRouter(deps) {
     });
   };
 
+  // Whether the damages table has the owner's resolution / reply columns
+  // (schema.sql re-run); found out on the first read that lacks them.
+  let damageReplyColumns = true;
+  const damageColumns = () => DAMAGE_LIST_COLUMNS + (damageReplyColumns ? ', resolution, owner_reply' : '');
   // Damage reports without their photos, newest first, narrowed by
   // `narrow(query)`. A database without the table yet reads as none.
   const loadDamages = async (listingId, narrow) => {
-    const { data, error } = await narrow(supabase.from('unit_inventory_damages')
-      .select(DAMAGE_LIST_COLUMNS).eq('listing_id', listingId))
+    const run = (cols) => narrow(supabase.from('unit_inventory_damages')
+      .select(cols).eq('listing_id', listingId))
       .order('created_at', { ascending: false }).limit(MAX_OPEN_DAMAGES);
+    let { data, error } = await run(damageColumns());
+    // A database without the reply columns yet: read without them.
+    if (error && damageReplyColumns && /resolution|owner_reply/.test(error.message || '')) {
+      damageReplyColumns = false;
+      ({ data, error } = await run(damageColumns()));
+    }
     return error || !data ? [] : data;
   };
   // Reported during the current visit and not yet part of a completed count.
@@ -932,6 +990,23 @@ module.exports = function createUnitInventoryRouter(deps) {
     return data ? { token: data.token, enabled: !!data.enabled, updatedAt: data.updated_at } : null;
   };
 
+  // The unit's people with their own link, oldest first; null when the
+  // table isn't there yet (schema.sql not re-run).
+  const loadPeople = async (listingId) => {
+    const { data, error } = await supabase.from('unit_inventory_people')
+      .select('*').eq('listing_id', listingId).order('created_at', { ascending: true }).limit(MAX_PEOPLE + 50);
+    return error ? null : (data || []);
+  };
+  // The owner's notes for the next visit, oldest first. `statuses` picks
+  // which; null when the table isn't there yet.
+  const loadTasks = async (listingId, statuses) => {
+    const { data, error } = await supabase.from('unit_inventory_tasks')
+      .select('*').eq('listing_id', listingId).in('status', statuses)
+      .order('created_at', { ascending: true }).limit(200);
+    return error ? null : (data || []);
+  };
+  const newToken = () => crypto.randomBytes(24).toString('base64url');
+
   // ── Owner ────────────────────────────────────────────────────────────
 
   // GET /units/:listingId?ownerUid= — the unit's items, its share link,
@@ -950,7 +1025,114 @@ module.exports = function createUnitInventoryRouter(deps) {
       translate: translateEnabled(),
       // The working checks; null when the table isn't there yet.
       functionChecks: ((fs) => (fs ? fs.map(functionFromDb) : null))(await loadFunctions(listing.id)),
+      // The cleaning service's people and their links; null without the table.
+      people: ((ps) => (ps ? ps.map(personFromDb) : null))(await loadPeople(listing.id)),
+      // Notes for the next visit, open and done (not archived); null without the table.
+      tasks: ((ts) => (ts ? ts.map(taskFromDb) : null))(await loadTasks(listing.id, ['open', 'done'])),
     });
+  });
+
+  // POST /units/:listingId/people — body: { ownerUid, actorName, name,
+  // phone? }. Adds a person of the cleaning service with a link of their
+  // own. → { person }.
+  router.post('/units/:listingId/people', async (req, res) => {
+    if (!requireSupabaseEnv(res)) return;
+    const { ownerUid, actorName } = req.body || {};
+    const listing = await requireOwnedUnit(res, req.params.listingId, ownerUid);
+    if (!listing) return;
+    const name = text(req.body?.name, MAX_ACTOR);
+    if (!name) return res.status(400).json({ error: 'Write the person\'s name.' });
+    const people = await loadPeople(listing.id);
+    if (people === null) return res.status(503).json({ error: 'Personal links need the latest database update: run supabase/unit_inventory.sql in the Supabase SQL Editor.' });
+    if (people.length >= MAX_PEOPLE) return res.status(400).json({ error: `At most ${MAX_PEOPLE} people per unit.` });
+    const now = new Date().toISOString();
+    const row = {
+      id: 'uip_' + uuidv4().slice(0, 12), listing_id: listing.id, community_id: listing.community_id || 'kai',
+      name, phone: text(req.body?.phone, MAX_PHONE), token: newToken(), enabled: true, created_at: now, updated_at: now,
+    };
+    const { error } = await supabase.from('unit_inventory_people').insert(row);
+    if (error) return sendSupabaseError(res, error);
+    await auditLog({ entity: 'unit_inventory', entityId: listing.id, action: 'person_add', actorUid: String(ownerUid), actorName: text(actorName, MAX_ACTOR) || listing.owner || 'Owner', after: { name } });
+    res.json({ person: personFromDb(row) });
+  });
+
+  // POST /people/:id — body: { ownerUid, actorName, action: 'update' |
+  // 'disable' | 'enable' | 'regenerate', name?, phone? }. Renames a
+  // person, switches their link off or on, or gives them a new link (the
+  // old one stops working). → { person }.
+  router.post('/people/:id', async (req, res) => {
+    if (!requireSupabaseEnv(res)) return;
+    const { ownerUid, actorName, action } = req.body || {};
+    const { data: person, error: pErr } = await supabase.from('unit_inventory_people').select('*').eq('id', req.params.id).maybeSingle();
+    if (pErr) return sendSupabaseError(res, pErr);
+    if (!person) return res.status(404).json({ error: 'Person not found.' });
+    const listing = await requireOwnedUnit(res, person.listing_id, ownerUid);
+    if (!listing) return;
+    const patch = { updated_at: new Date().toISOString() };
+    if (action === 'update') {
+      const name = text(req.body?.name, MAX_ACTOR);
+      if (!name) return res.status(400).json({ error: 'Write the person\'s name.' });
+      patch.name = name; patch.phone = text(req.body?.phone, MAX_PHONE);
+    } else if (action === 'disable' || action === 'enable') patch.enabled = action === 'enable';
+    else if (action === 'regenerate') { patch.token = newToken(); patch.enabled = true; }
+    else return res.status(400).json({ error: 'Unknown action.' });
+    const { error } = await supabase.from('unit_inventory_people').update(patch).eq('id', person.id);
+    if (error) return sendSupabaseError(res, error);
+    await auditLog({ entity: 'unit_inventory', entityId: listing.id, action: 'person_' + action, actorUid: String(ownerUid), actorName: text(actorName, MAX_ACTOR) || listing.owner || 'Owner', before: { name: person.name }, after: { name: patch.name || person.name } });
+    res.json({ person: personFromDb({ ...person, ...patch }) });
+  });
+
+  // POST /units/:listingId/tasks — body: { ownerUid, actorName, text,
+  // itemId?, lang }. A note for the next visit, in the owner's language
+  // (`lang`), translated into the other when translation is on. → { task }.
+  router.post('/units/:listingId/tasks', async (req, res) => {
+    if (!requireSupabaseEnv(res)) return;
+    const { ownerUid, actorName } = req.body || {};
+    const listing = await requireOwnedUnit(res, req.params.listingId, ownerUid);
+    if (!listing) return;
+    const body = text(req.body?.text, MAX_TASK_TEXT);
+    if (!body) return res.status(400).json({ error: 'Write what to do.' });
+    const open = await loadTasks(listing.id, ['open']);
+    if (open === null) return res.status(503).json({ error: 'Notes for the next visit need the latest database update: run supabase/unit_inventory.sql in the Supabase SQL Editor.' });
+    if (open.length >= MAX_OPEN_TASKS) return res.status(400).json({ error: `At most ${MAX_OPEN_TASKS} open notes. Remove some first.` });
+    let itemId = null;
+    if (req.body?.itemId) {
+      const { data: it } = await supabase.from('unit_inventory_items').select('id').eq('listing_id', listing.id).eq('id', String(req.body.itemId)).maybeSingle();
+      itemId = it ? it.id : null;
+    }
+    const tr = await translateNote(body, req.body?.lang);
+    const row = {
+      id: 'uit_' + uuidv4().slice(0, 12), listing_id: listing.id, community_id: listing.community_id || 'kai',
+      text: body, text_lang: tr.lang, text_translation: tr.translation, item_id: itemId, status: 'open',
+      created_by: text(actorName, MAX_ACTOR) || listing.owner || 'Owner', created_at: new Date().toISOString(),
+    };
+    const { error } = await supabase.from('unit_inventory_tasks').insert(row);
+    if (error) return sendSupabaseError(res, error);
+    res.json({ task: taskFromDb(row) });
+  });
+
+  // POST /tasks/:id — body: { ownerUid, action: 'archive' | 'delete' |
+  // 'reopen' }. The owner files away a done note, deletes one, or puts a
+  // done one back on the list. → { task } (null when deleted).
+  router.post('/tasks/:id', async (req, res) => {
+    if (!requireSupabaseEnv(res)) return;
+    const { ownerUid, action } = req.body || {};
+    const { data: task, error: tErr } = await supabase.from('unit_inventory_tasks').select('*').eq('id', req.params.id).maybeSingle();
+    if (tErr) return sendSupabaseError(res, tErr);
+    if (!task) return res.status(404).json({ error: 'Note not found.' });
+    const listing = await requireOwnedUnit(res, task.listing_id, ownerUid);
+    if (!listing) return;
+    if (action === 'delete') {
+      const { error } = await supabase.from('unit_inventory_tasks').delete().eq('id', task.id);
+      if (error) return sendSupabaseError(res, error);
+      return res.json({ task: null });
+    }
+    const patch = action === 'archive' ? { status: 'archived' }
+      : action === 'reopen' ? { status: 'open', done_by: '', done_at: null, done_note: '' } : null;
+    if (!patch) return res.status(400).json({ error: 'Unknown action.' });
+    const { error } = await supabase.from('unit_inventory_tasks').update(patch).eq('id', task.id);
+    if (error) return sendSupabaseError(res, error);
+    res.json({ task: taskFromDb({ ...task, ...patch }) });
   });
 
   // PUT /units/:listingId/functions — body: { ownerUid, actorName,
@@ -1550,6 +1732,8 @@ module.exports = function createUnitInventoryRouter(deps) {
     const { ownerUid, actorName, status } = req.body || {};
     const { data: damage, error: dErr } = await supabase.from('unit_inventory_damages')
       .select(DAMAGE_LIST_COLUMNS).eq('id', req.params.id).maybeSingle();
+    const resolution = RESOLUTIONS.includes(req.body?.resolution) ? req.body.resolution : '';
+    const reply = text(req.body?.reply, MAX_NOTE);
     if (dErr) return sendSupabaseError(res, dErr);
     if (!damage) return res.status(404).json({ error: 'Damage report not found.' });
     const listing = await requireOwnedUnit(res, damage.listing_id, ownerUid);
@@ -1559,13 +1743,30 @@ module.exports = function createUnitInventoryRouter(deps) {
     const patch = status === 'resolved'
       ? { status, resolved_at: new Date().toISOString(), resolved_by: actor }
       : { status, resolved_at: null, resolved_by: '' };
-    const { error } = await supabase.from('unit_inventory_damages').update(patch).eq('id', damage.id);
+    // How it was solved and the owner's answer, where the columns exist.
+    const extra = status === 'resolved' ? { resolution, owner_reply: reply } : { resolution: '', owner_reply: '' };
+    let { error } = await supabase.from('unit_inventory_damages').update({ ...patch, ...extra }).eq('id', damage.id);
+    if (error && /resolution|owner_reply/.test(error.message || '')) {
+      if (resolution || reply) return res.status(503).json({ error: 'Replies need the latest database update: run supabase/unit_inventory.sql in the Supabase SQL Editor.' });
+      ({ error } = await supabase.from('unit_inventory_damages').update(patch).eq('id', damage.id));
+    }
     if (error) return sendSupabaseError(res, error);
+    // Replaced: the item is back, so its count returns to what is expected.
+    let restored = false;
+    if (status === 'resolved' && req.body?.restoreCount && damage.item_id) {
+      const { data: item } = await supabase.from('unit_inventory_items').select('id, baseline_count, current_count')
+        .eq('listing_id', listing.id).eq('id', damage.item_id).maybeSingle();
+      if (item && item.current_count !== item.baseline_count) {
+        const result = await applyCountUpdates({ listing, updates: [{ itemId: item.id, count: item.baseline_count }], actorType: 'owner', actorName: actor, actorUid: String(ownerUid) });
+        if (result.supabaseError) return sendSupabaseError(res, result.supabaseError);
+        restored = !result.error;
+      }
+    }
     await auditLog({
       entity: 'unit_inventory', entityId: listing.id, action: status === 'resolved' ? 'resolve_damage' : 'reopen_damage',
       actorUid: String(ownerUid), actorName: actor, after: { damageId: damage.id, description: damage.description },
     });
-    res.json({ damage: damageFromDb({ ...damage, ...patch }) });
+    res.json({ damage: damageFromDb({ ...damage, ...patch, ...extra }), restored });
   });
 
   // POST /proposals/:id/decision — body: { ownerUid, actorName, action:
@@ -1659,10 +1860,22 @@ module.exports = function createUnitInventoryRouter(deps) {
 
   // ── Cleaning service (share link, no login) ──────────────────────────
 
+  // The unit a link opens: the unit's general link, or a person's own
+  // link — then the listing carries `person` ({ id, name }, not
+  // enumerable, so it never ends up in a row), whose name is used for
+  // everything done through it.
   const unitForToken = async (res, token) => {
-    const { data: link, error } = await supabase.from('unit_inventory_links')
-      .select('listing_id, enabled').eq('token', String(token || '')).maybeSingle();
+    const t = String(token || '');
+    let { data: link, error } = await supabase.from('unit_inventory_links')
+      .select('listing_id, enabled').eq('token', t).maybeSingle();
     if (error) { sendSupabaseError(res, error); return null; }
+    let person = null;
+    if (!link && t) {
+      // A database without the people table reads as no such person.
+      const { data: p } = await supabase.from('unit_inventory_people')
+        .select('id, listing_id, name, enabled').eq('token', t).maybeSingle();
+      if (p) { person = { id: p.id, name: p.name || '' }; link = { listing_id: p.listing_id, enabled: p.enabled }; }
+    }
     // One answer for an unknown link and a switched-off one, so the
     // response doesn't confirm which tokens ever existed.
     if (!link || !link.enabled) { res.status(404).json({ error: 'This inventory link is not active. Ask the owner for a new one.' }); return null; }
@@ -1672,8 +1885,12 @@ module.exports = function createUnitInventoryRouter(deps) {
       .select('*').eq('id', link.listing_id).maybeSingle();
     if (lErr) { sendSupabaseError(res, lErr); return null; }
     if (!listing) { res.status(404).json({ error: 'This inventory link is not active. Ask the owner for a new one.' }); return null; }
+    if (person) Object.defineProperty(listing, 'person', { value: person, enumerable: false });
     return listing;
   };
+  // Who did something through a link: the person whose link it is, or
+  // the name typed on the page.
+  const cleanerName = (req, listing) => (listing.person && listing.person.name) || text(req.body?.name, MAX_ACTOR) || 'Cleaning service';
 
   // GET /shared/:token — what the cleaner's page shows: the unit's label,
   // its items, when it was last counted in full, and the items proposed
@@ -1683,6 +1900,11 @@ module.exports = function createUnitInventoryRouter(deps) {
     if (!requireSupabaseEnv(res)) return;
     const listing = await unitForToken(res, req.params.token);
     if (!listing) return;
+    // When the owner last saw this person use their link. Best effort.
+    if (listing.person) {
+      supabase.from('unit_inventory_people').update({ last_seen_at: new Date().toISOString() }).eq('id', listing.person.id)
+        .then(() => {}, () => {});
+    }
     const { data, error } = await loadItems(listing.id);
     if (error) return sendSupabaseError(res, error);
     res.json({
@@ -1705,6 +1927,16 @@ module.exports = function createUnitInventoryRouter(deps) {
       })()),
       // Whether a damage photo can suggest which item it shows.
       suggestEnabled: translateEnabled(),
+      // Whose link this is (their name is used for everything they do).
+      person: listing.person ? { name: listing.person.name } : null,
+      // Every open damage report (so nothing is reported twice) and those
+      // the owner closed in the last week, with how and their answer.
+      openDamages: (await loadDamages(listing.id, q => q.eq('status', 'open'))).map(r => damageFromDb(r)),
+      damageNews: (await loadDamages(listing.id, q => q.eq('status', 'resolved')
+        .gte('resolved_at', new Date(Date.now() - DAMAGE_NEWS_DAYS * 86400000).toISOString()))).map(r => damageFromDb(r)),
+      // The owner's notes: open ones, and those done during this visit.
+      tasks: (((await loadTasks(listing.id, ['open', 'done'])) || [])
+        .filter(t => t.status === 'open' || (t.done_at && t.done_at >= visitSince()))).map(taskFromDb),
       // The working checks to answer, and this visit's answers so far.
       ...(await (async () => {
         const fs = (await loadFunctions(listing.id)) || [];
@@ -1782,7 +2014,7 @@ module.exports = function createUnitInventoryRouter(deps) {
     const row = {
       id, listing_id: listing.id, community_id: listing.community_id || 'kai',
       check_id: null, path, content_type: contentType, size_bytes: Math.round(size), duration_seconds: duration,
-      status: 'uploading', taken_by: text(req.body?.name, MAX_ACTOR) || 'Cleaning service',
+      status: 'uploading', taken_by: cleanerName(req, listing),
       created_at: new Date().toISOString(),
     };
     const { error } = await supabase.from('unit_inventory_videos').insert(row);
@@ -1865,7 +2097,7 @@ module.exports = function createUnitInventoryRouter(deps) {
       id: 'ucp_' + uuidv4().slice(0, 12),
       listing_id: listing.id, community_id: listing.community_id || 'kai',
       item_id: item.id, check_id: null, data,
-      taken_by: text(req.body?.name, MAX_ACTOR) || 'Cleaning service',
+      taken_by: cleanerName(req, listing),
       created_at: new Date().toISOString(),
     };
     const { error } = await supabase.from('unit_inventory_count_photos').insert(row);
@@ -1899,7 +2131,7 @@ module.exports = function createUnitInventoryRouter(deps) {
     if (!listing) return;
     const result = await applyCountUpdates({
       listing, updates: req.body?.updates, actorType: 'cleaner', lang: req.body?.lang,
-      actorName: text(req.body?.name, MAX_ACTOR) || 'Cleaning service', actorUid: '',
+      actorName: cleanerName(req, listing), actorUid: '',
     });
     if (result.supabaseError) return sendSupabaseError(res, result.supabaseError);
     if (result.error) return res.status(result.status).json({ error: result.error });
@@ -1915,7 +2147,7 @@ module.exports = function createUnitInventoryRouter(deps) {
     if (!listing) return;
     const result = await completeCount({
       listing, updates: req.body?.updates, req, actorType: 'cleaner', lang: req.body?.lang,
-      actorName: text(req.body?.name, MAX_ACTOR) || 'Cleaning service', actorUid: '',
+      actorName: cleanerName(req, listing), actorUid: '',
     });
     if (result.supabaseError) return sendSupabaseError(res, result.supabaseError);
     // A refusal for missing proof photos says which items, so the page can take the person to them.
@@ -1926,6 +2158,29 @@ module.exports = function createUnitInventoryRouter(deps) {
       });
     }
     res.json(result);
+  });
+
+  // POST /shared/:token/tasks/:taskId — body: { name, done: true |
+  // false, note? }. The cleaning service ticks off one of the owner's notes
+  // (or unticks one it ticked during this visit). → { task }.
+  router.post('/shared/:token/tasks/:taskId', async (req, res) => {
+    if (!requireSupabaseEnv(res)) return;
+    const listing = await unitForToken(res, req.params.token);
+    if (!listing) return;
+    const { data: task, error: tErr } = await supabase.from('unit_inventory_tasks').select('*')
+      .eq('listing_id', listing.id).eq('id', req.params.taskId).maybeSingle();
+    if (tErr) return sendSupabaseError(res, tErr);
+    if (!task || task.status === 'archived') return res.status(404).json({ error: 'That note is no longer on the list. Reload the page.' });
+    let patch;
+    if (req.body?.done === false) {
+      if (task.status !== 'done' || !task.done_at || task.done_at < visitSince()) return res.status(400).json({ error: 'Only a note ticked during this visit can be unticked.' });
+      patch = { status: 'open', done_by: '', done_at: null, done_note: '' };
+    } else {
+      patch = { status: 'done', done_by: cleanerName(req, listing), done_at: new Date().toISOString(), done_note: text(req.body?.note, MAX_NOTE) };
+    }
+    const { error } = await supabase.from('unit_inventory_tasks').update(patch).eq('id', task.id);
+    if (error) return sendSupabaseError(res, error);
+    res.json({ task: taskFromDb({ ...task, ...patch }) });
   });
 
   // POST /shared/:token/functions/:checkId — body: { name, status: 'ok' |
@@ -1947,7 +2202,7 @@ module.exports = function createUnitInventoryRouter(deps) {
     const row = {
       id: 'uifr_' + uuidv4().slice(0, 12), listing_id: listing.id, community_id: listing.community_id || 'kai',
       function_check_id: fc.id, status, note: text(req.body?.note, MAX_FUNCTION_NOTE),
-      answered_by: text(req.body?.name, MAX_ACTOR) || 'Cleaning service', created_at: new Date().toISOString(),
+      answered_by: cleanerName(req, listing), created_at: new Date().toISOString(),
     };
     const { error } = await supabase.from('unit_inventory_function_results').insert(row);
     if (error) return sendSupabaseError(res, error);
@@ -1988,7 +2243,7 @@ module.exports = function createUnitInventoryRouter(deps) {
       note: text(raw.note, MAX_NOTE),
       count,
       status: 'pending',
-      proposed_by: text(req.body?.name, MAX_ACTOR) || 'Cleaning service',
+      proposed_by: cleanerName(req, listing),
       created_at: now.toISOString(),
     };
     const { error } = await supabase.from('unit_inventory_proposals').insert(row);
@@ -2042,7 +2297,7 @@ module.exports = function createUnitInventoryRouter(deps) {
       .order('created_at', { ascending: false }).limit(1).maybeSingle();
     const result = await saveDamage({
       listing, raw: req.body?.damage, actorType: 'cleaner',
-      actorName: text(req.body?.name, MAX_ACTOR) || 'Cleaning service',
+      actorName: cleanerName(req, listing),
     });
     if (result.supabaseError) return sendSupabaseError(res, result.supabaseError);
     if (result.error) return res.status(result.status).json({ error: result.error });

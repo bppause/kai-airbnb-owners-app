@@ -84,7 +84,7 @@ export function matchDescription(description, allItems, max = MAX_DESC_HITS) {
 // taken asks Claude which item it shows, and ✨ asks again (from the
 // latest photo and the description, or the description alone), offering
 // up to three to pick from; nothing is linked until the person taps one.
-export function DamageForm({ lang, areas, preset, presetDescription, busy, onSend, onCancel, loadFirst, suggest }) {
+export function DamageForm({ lang, areas, preset, presetDescription, openDamages = [], busy, onSend, onCancel, loadFirst, suggest }) {
   const T = (k, v) => tr(lang, k, v);
   const presetArea = preset ? areas.find(a => a.items.some(it => it.id === preset.id)) : null;
   const [description, setDescription] = useState(presetDescription || '');
@@ -215,7 +215,13 @@ export function DamageForm({ lang, areas, preset, presetDescription, busy, onSen
               </span>
               <button type="button" className="uinv-btn uinv-btn-sm" onClick={() => { setItemId(''); setHint(null); }}>{T('damageItemChange')}</button>
             </div>
-          ) : (
+          ) : null}
+          {found && (() => {
+            // Already reported and still open: say so, so it isn't sent twice.
+            const already = openDamages.find(d => d.itemId === found.it.id);
+            return already ? <p className="uinv-msg" role="note" style={{ margin: '6px 0 0' }}>{T('damageAlreadyForm', { when: formatWhen(already.createdAt, lang), desc: already.description })}</p> : null;
+          })()}
+          {!found && (
             <>
               <input type="search" value={query} enterKeyHint="search" placeholder={T('damageItemSearchPh')} aria-label={T('damageItemSearch')}
                 onChange={e => setQuery(e.target.value)} />
