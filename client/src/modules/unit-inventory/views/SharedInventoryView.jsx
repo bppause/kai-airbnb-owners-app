@@ -105,7 +105,7 @@ export default function SharedInventoryView({ token }) {
       proofEnabled: d.proofEnabled === true, proofCounts: d.proofCounts || {},
       // Whether a video of the apartment is required to finish, and this
       // visit's video(s).
-      videoRequired: d.videoRequired === true, videos: d.videos || [] });
+      videoRequired: d.videoRequired === true, videos: d.videos || [], suggestEnabled: d.suggestEnabled === true });
     folding.decide(items.length);
     return items;
   };
@@ -155,7 +155,7 @@ export default function SharedInventoryView({ token }) {
     return shell(<div className="uinv-msg uinv-msg-err">{state.notFound ? T('linkInactive') : state.text}</div>);
   }
 
-  const { unit, items, lastCheck, proposals, damages, proofEnabled, proofCounts, videoRequired, videos } = state;
+  const { unit, items, lastCheck, proposals, damages, proofEnabled, proofCounts, videoRequired, videos, suggestEnabled } = state;
   // The note box shows the note in this person's language (see
   // noteForViewer). Only a note they actually changed is sent back, so a
   // note merely shown in translation is never overwritten by it.
@@ -398,7 +398,9 @@ export default function SharedInventoryView({ token }) {
       <PendingProposals lang={lang} proposals={proposals} />
 
       {damaging
-        ? <DamageForm key={damaging.seq} lang={lang} areas={groupByArea(items, lang).filter(g => g.areaEn || g.areaEs)} preset={damaging.preset} busy={busy} onSend={reportDamage} onCancel={() => setDamaging(null)} />
+        ? <DamageForm key={damaging.seq} lang={lang} areas={groupByArea(items, lang)} preset={damaging.preset} busy={busy} onSend={reportDamage} onCancel={() => setDamaging(null)}
+            loadFirst={photoStore.loadFirst}
+            suggest={suggestEnabled ? (photo, description) => api.post(`${base}/damages/suggest`, { name: name.trim(), photo: photo || undefined, description }) : undefined} />
         : <div className="uinv-action"><button type="button" className="uinv-btn uinv-btn-danger uinv-propose-open" disabled={busy} onClick={() => openDamage(null)}>{T('damageBtn')}</button></div>}
       <DamageList lang={lang} title={T('damagesVisit', { n: damages.length })} damages={damages} />
 

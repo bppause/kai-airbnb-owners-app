@@ -28,9 +28,12 @@ const SYSTEM = [
 ].join(' ');
 
 let client = null;
+let clientFor = '';
 const enabled = () => !!process.env.ANTHROPIC_API_KEY;
+// One client, made again if the key (or API address) it was made with changes.
 const getClient = () => {
-  if (!client) client = new Anthropic();
+  const settings = `${process.env.ANTHROPIC_API_KEY || ''}|${process.env.ANTHROPIC_BASE_URL || ''}`;
+  if (!client || clientFor !== settings) { client = new Anthropic(); clientFor = settings; }
   return client;
 };
 
@@ -109,4 +112,4 @@ async function translate({ text, to, kind }) {
   return out;
 }
 
-module.exports = { translate, translateEnabled: enabled, TranslateError };
+module.exports = { translate, translateEnabled: enabled, TranslateError, getClient, MODEL };
