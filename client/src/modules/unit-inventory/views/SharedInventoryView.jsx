@@ -30,9 +30,12 @@ import { ItemPhotos, ProofPhotos } from "../components/Photos";
 import { VideoRecorder, formatDuration, formatMb, MAX_VIDEO_SECONDS } from "../components/Video";
 import { CleanerIntro, CleanerHelp } from "../components/CleanerHelp";
 import { FunctionCheckList } from "../components/FunctionChecks";
+import { CleanerTasks } from "../components/OwnerService";
 import { UINV_CSS } from "../styles";
 
 const NAME_KEY = 'kai_inventory_name';
+// The areas marked "✓ Todo bien" during the visit under way, per link.
+const REVIEWED_KEY = 'kai_inventory_reviewed_';
 // This page's own language choice. Deliberately not the app's `kai_lang`:
 // an owner who uses the app in English and opens the link on the same
 // phone must not turn the cleaning service's page English.
@@ -92,6 +95,11 @@ export default function SharedInventoryView({ token }) {
   // ones to count at every checkout, if the owner flagged any".
   const [view, setView] = useState(null);
   const folding = useAreaFolding();
+  // The areas marked "✓ Todo bien" in this visit: { visit, keys }, where
+  // `visit` is the last completed count's id (a new count starts afresh).
+  const [reviewed, setReviewed] = useState(() => {
+    try { return JSON.parse(readStored(REVIEWED_KEY + token) || 'null') || { visit: '', keys: [] }; } catch (_e) { return { visit: '', keys: [] }; }
+  });
   const nameRef = useRef(null);
   // Set once the first load has put any restored draft in place; until
   // then the empty starting draft must not overwrite the stored one.
@@ -108,7 +116,11 @@ export default function SharedInventoryView({ token }) {
       // visit's video(s).
       videoRequired: d.videoRequired === true, videos: d.videos || [], suggestEnabled: d.suggestEnabled === true,
       // The owner's working checks, and this visit's answers ({ [id]: { status, note, by } }).
-      functionChecks: d.functionChecks || [], functionAnswers: d.functionAnswers || {} });
+      functionChecks: d.functionChecks || [], functionAnswers: d.functionAnswers || {},
+      // A personal link's person ({ name }) or null; every open damage
+      // report; how the owner closed recent ones; the owner's notes.
+      person: d.person || null, openDamages: d.openDamages || [], damageNews: d.damageNews || [], tasks: d.tasks || [] });
+    if (d.person && d.person.name) setName(d.person.name);
     folding.decide(items.length);
     return items;
   };
@@ -158,7 +170,7 @@ export default function SharedInventoryView({ token }) {
     return shell(<div className="uinv-msg uinv-msg-err">{state.notFound ? T('linkInactive') : state.text}</div>);
   }
 
-  const { unit, items, lastCheck, proposals, damages, proofEnabled, proofCounts, videoRequired, videos, suggestEnabled, functionChecks, functionAnswers } = state;
+  const { unit, items, lastCheck, proposals, damages, proofEnabled, proofCounts, videoRequired, videos, suggestEnabled, functionChecks, functionAnswers, person, openDamages, damageNews, tasks } = state;
   // The note box shows the note in this person's language (see
   // noteForViewer). Only a note they actually changed is sent back, so a
   // note merely shown in translation is never overwritten by it.
@@ -297,6 +309,21 @@ export default function SharedInventoryView({ token }) {
     return false;
   };
   const openDamage = (preset, description) => setDamaging({ preset: preset || null, description: description || '', seq: Date.now() });
+  // The owner's notes: ticked done (with an optional word) or unticked.
+  const toggleTask = async (task, done, note) => {
+    if (!haveName()) return false;
+    setMsg(null);
+    try {
+      writeStored(NAME_KEY, name.trim());
+      const d = await api.post(`${base}/tasks/${encodeURIComponent(task.id)}`, { name: name.trim(), done, note });
+      setState(prev => ({ ...prev, tasks: prev.tasks.map(t => (t.id === task.id ? d.task : t)) }));
+      return true;
+    } catch (e) {
+      setMsg({ err: true, text: e?.message || String(e) });
+      return false;
+    }
+  };
+  const openDamageOf = (it) => openDamages.find(d => d.itemId === it.id) || damages.find(d => d.itemId === it.id && d.status !== 'resolved');
   // Working checks: each answered "works" / "doesn't work" (saved at once).
   const fnLeft = functionChecks.filter(c => !functionAnswers[c.id]);
   const answerFunction = async (check, status) => {
@@ -349,6 +376,37 @@ export default function SharedInventoryView({ token }) {
     ? items.filter(it => `${it.nameEn} ${it.nameEs} ${it.areaEn} ${it.areaEs}`.toLowerCase().includes(needle))
     : (showing === 'required' ? requiredItems : items);
 
+  // "✓ Todo bien en esta área": everything expected is there. Untouched
+  // items in the area take their expected count, the area folds with a
+  // ✓, and the next area still to check opens. Kept on the phone for
+  // this visit, so the person can pick up where they left off.
+  const visitKey = lastCheck ? lastCheck.id : 'none';
+  const listGroups = groupByArea(showing === 'required' ? requiredItems : items, lang);
+  const reviewedKeys = reviewed.visit === visitKey ? reviewed.keys : [];
+  const isReviewed = (key) => reviewedKeys.includes(key);
+  const nextArea = listGroups.find(g => !isReviewed(g.key));
+  const goToArea = (key) => {
+    folding.open(key);
+    setTimeout(() => { const el = document.getElementById('uinv-area-' + encodeURIComponent(key)); if (el) el.scrollIntoView({ block: 'start' }); }, 0);
+  };
+  const allGood = (group) => {
+    if (msg && msg.err) setMsg(null);
+    setDraft(prev => {
+      const next = { ...prev };
+      for (const it of group.items) {
+        if (isDirty(it) || it.currentCount === it.baselineCount) continue;
+        next[it.id] = { ...typed(it), count: String(it.baselineCount) };
+      }
+      return next;
+    });
+    const keys = [...new Set([...reviewedKeys, group.key])];
+    setReviewed({ visit: visitKey, keys });
+    writeStored(REVIEWED_KEY + token, JSON.stringify({ visit: visitKey, keys }));
+    folding.close(group.key);
+    const next = listGroups.find(g => !keys.includes(g.key));
+    if (next) goToArea(next.key);
+  };
+
   return shell(
     <>
       <div className="uinv-row" style={{ justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'nowrap' }}>
@@ -378,6 +436,16 @@ export default function SharedInventoryView({ token }) {
           <li>
             <strong>{requiredItems.length ? T('taskCountReq', { n: requiredItems.length }) : T('taskCountAll', { n: items.length })}</strong>
             <small>{T('taskCountHow')}{proofEnabled ? ` ${T('taskPhotoOptional')}` : ''}</small>
+            {listGroups.length > 1 && (
+              <div className="uinv-areas-progress">
+                <span className={`uinv-progress${nextArea ? '' : ' uinv-progress-done'}`} style={{ margin: 0 }}>
+                  {nextArea ? T('areasProgress', { done: listGroups.filter(g => isReviewed(g.key)).length, n: listGroups.length }) : T('areasAllDone')}
+                </span>
+                {nextArea && reviewedKeys.length > 0 && (
+                  <button type="button" className="uinv-btn uinv-btn-sm" onClick={() => goToArea(nextArea.key)}>{T('areasContinue', { area: nextArea.label })}</button>
+                )}
+              </div>
+            )}
           </li>
           <li>
             <strong>{T('taskDamage')}</strong>
@@ -399,13 +467,22 @@ export default function SharedInventoryView({ token }) {
         </ol>
       </div>
 
-      <div className="uinv-box">
-        <label className="uinv-field">{T('yourName')}
-          <input ref={nameRef} value={name} maxLength={120} autoComplete="name" autoCapitalize="words" enterKeyHint="done"
-            onChange={e => { setName(e.target.value); if (msg && msg.err) setMsg(null); }} />
-        </label>
-        <p className="uinv-help" style={{ marginBottom: 0 }}>{T('yourNameHint')}</p>
-      </div>
+      {person ? (
+        <div className="uinv-box uinv-hello">
+          <h2 style={{ margin: 0 }}>{T('sharedHello', { name: person.name })}</h2>
+          <p className="uinv-help" style={{ marginBottom: 0 }}>{T('sharedHelloHint')}</p>
+        </div>
+      ) : (
+        <div className="uinv-box">
+          <label className="uinv-field">{T('yourName')}
+            <input ref={nameRef} value={name} maxLength={120} autoComplete="name" autoCapitalize="words" enterKeyHint="done"
+              onChange={e => { setName(e.target.value); if (msg && msg.err) setMsg(null); }} />
+          </label>
+          <p className="uinv-help" style={{ marginBottom: 0 }}>{T('yourNameHint')}</p>
+        </div>
+      )}
+
+      <CleanerTasks lang={lang} tasks={tasks} damageNews={damageNews} items={items} busy={busy} onToggle={toggleTask} />
 
       {items.length === 0 && <p className="uinv-sub" style={{ marginTop: 12 }}>{T('empty')}</p>}
       {items.length > 0 && (
@@ -418,6 +495,14 @@ export default function SharedInventoryView({ token }) {
           {/* A search opens every area that has a match, whatever was folded. */}
           <ItemList items={visible} lang={lang} folding={folding} forceOpen={!!needle} busy={busy} expectedLabel={T('expected')}
             valueOf={typed} diffOf={diffOf} isDirty={isDirty} onChange={setTyped} moreLabel={T('addNote')} photosFor={photosFor} proofFor={proofFor}
+            badgeFor={it => (openDamageOf(it)
+              ? <span className="uinv-dmg-already" title={T('damageAlreadyAria')}>{T('damageAlready')}</span> : null)}
+            areaBadge={g => (isReviewed(g.key) ? <span className="uinv-area-done">{T('areaReviewed')}</span> : null)}
+            areaFooter={needle ? undefined : (g => (
+              <div className="uinv-area-foot">
+                <button type="button" className="uinv-btn uinv-btn-ok" title={T('areaAllGoodAria', { area: g.label })} onClick={() => allGood(g)}>{T('areaAllGood')}</button>
+              </div>
+            ))}
             headActionFor={it => (
               <button type="button" className="uinv-btn uinv-btn-sm uinv-btn-danger uinv-dmg-quick" disabled={busy}
                 aria-label={T('damageQuickAria', { name: primaryText(lang, it.nameEn, it.nameEs) })} onClick={() => openDamage(it)}>{T('damageQuick')}</button>
@@ -431,7 +516,7 @@ export default function SharedInventoryView({ token }) {
       <PendingProposals lang={lang} proposals={proposals} />
 
       {damaging
-        ? <DamageForm key={damaging.seq} lang={lang} areas={groupByArea(items, lang)} preset={damaging.preset} presetDescription={damaging.description} busy={busy} onSend={reportDamage} onCancel={() => setDamaging(null)}
+        ? <DamageForm key={damaging.seq} lang={lang} areas={groupByArea(items, lang)} preset={damaging.preset} presetDescription={damaging.description} openDamages={[...openDamages, ...damages.filter(d => !openDamages.some(o => o.id === d.id))]} busy={busy} onSend={reportDamage} onCancel={() => setDamaging(null)}
             loadFirst={photoStore.loadFirst}
             suggest={suggestEnabled ? (photo, description) => api.post(`${base}/damages/suggest`, { name: name.trim(), photo: photo || undefined, description }) : undefined} />
         : <div className="uinv-action"><button type="button" className="uinv-btn uinv-btn-danger uinv-propose-open" disabled={busy} onClick={() => openDamage(null)}>{T('damageBtn')}</button></div>}

@@ -256,6 +256,10 @@ create index if not exists idx_unit_inventory_damages_listing
   on public.unit_inventory_damages(listing_id, status, created_at desc);
 create index if not exists idx_unit_inventory_damages_check
   on public.unit_inventory_damages(check_id);
+-- How the owner closed a report ('repaired', 'replaced', 'other' or '')
+-- and what they answered; the cleaning service sees both for a week.
+alter table public.unit_inventory_damages add column if not exists resolution text not null default '';
+alter table public.unit_inventory_damages add column if not exists owner_reply text not null default '';
 
 -- Items the cleaning service proposed through the share link. A proposal
 -- is not part of the inventory: the owner approves it (it becomes a row
@@ -294,6 +298,49 @@ create table if not exists public.unit_inventory_links (
   updated_at timestamptz not null default now()
 );
 
+-- One link per person of the cleaning service: the owner adds each person
+-- and sends them their own link, so whatever is done through it carries
+-- their name. A person is switched off, not deleted, so their name stays
+-- on what they did. The unit's general link above keeps working beside
+-- these (the person then types a name).
+create table if not exists public.unit_inventory_people (
+  id text primary key,
+  listing_id text not null references public.listings(id) on delete cascade,
+  community_id text not null default 'kai',
+  name text not null default '',
+  phone text not null default '',
+  token text not null unique,
+  enabled boolean not null default true,
+  last_seen_at timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+create index if not exists idx_unit_inventory_people_listing
+  on public.unit_inventory_people(listing_id, created_at);
+
+-- The owner's notes for the next visit ("Cambié las pilas del control
+-- Niños, verifica"), optionally about one item. Written in the owner's
+-- language (text_lang) and translated into the other (text_translation)
+-- when translation is on. 'open' until the cleaning service ticks it
+-- 'done' (who, when, an optional note); the owner then archives it.
+create table if not exists public.unit_inventory_tasks (
+  id text primary key,
+  listing_id text not null references public.listings(id) on delete cascade,
+  community_id text not null default 'kai',
+  text text not null default '',
+  text_lang text not null default '',
+  text_translation text not null default '',
+  item_id text,
+  status text not null default 'open' check (status in ('open','done','archived')),
+  created_by text not null default '',
+  created_at timestamptz not null default now(),
+  done_by text not null default '',
+  done_at timestamptz,
+  done_note text not null default ''
+);
+create index if not exists idx_unit_inventory_tasks_listing
+  on public.unit_inventory_tasks(listing_id, status, created_at);
+
 -- Row level security is off: the server uses the service role key.
 alter table public.unit_inventory_items disable row level security;
 alter table public.unit_inventory_events disable row level security;
@@ -306,3 +353,5 @@ alter table public.unit_inventory_count_photos disable row level security;
 alter table public.unit_inventory_videos disable row level security;
 alter table public.unit_inventory_function_checks disable row level security;
 alter table public.unit_inventory_function_results disable row level security;
+alter table public.unit_inventory_people disable row level security;
+alter table public.unit_inventory_tasks disable row level security;
