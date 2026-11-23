@@ -137,10 +137,12 @@ function ItemCard({ item, lang, value, diff, dirty, busy, expectedLabel, opened,
 // `photosFor(item)` returns the item's photo control (see ItemPhotos);
 // `proofFor(item)` the cleaning service's proof-photo control for it.
 // `flashId` briefly highlights one item (the one just edited or added).
+// `onRenameArea(group)` (owner) adds "✏️ Rename area" to an open area's
+// bar; `areaExtra(group)` is shown under that bar (the rename form).
 // `headActionFor(item)` returns a button kept in view at the top right of
 // the item even when it is folded on a phone (the cleaning service's
 // ⚠️ Damage).
-export function ItemList({ items, lang, folding, forceOpen = false, busy, expectedLabel, valueOf, diffOf, isDirty, onChange, actionsFor, onRequired, moreLabel, photosFor, proofFor, flashId, headActionFor }) {
+export function ItemList({ items, lang, folding, forceOpen = false, busy, expectedLabel, valueOf, diffOf, isDirty, onChange, actionsFor, onRequired, moreLabel, photosFor, proofFor, flashId, headActionFor, onRenameArea, areaExtra }) {
   const T = (k, v) => tr(lang, k, v);
   // Items opened by hand on a narrow screen, by id.
   const [openedItems, setOpenedItems] = useState({});
@@ -178,8 +180,12 @@ export function ItemList({ items, lang, folding, forceOpen = false, busy, expect
               <div className="uinv-row uinv-areabar">
                 <button type="button" className="uinv-btn uinv-btn-sm" disabled={busy || required === group.items.length} onClick={() => onRequired(group.items, true)}>{T('areaReqAll')}</button>
                 <button type="button" className="uinv-btn uinv-btn-sm" disabled={busy || required === 0} onClick={() => onRequired(group.items, false)}>{T('areaReqNone')}</button>
+                {onRenameArea && (group.areaEn || group.areaEs) && (
+                  <button type="button" className="uinv-btn uinv-btn-sm" disabled={busy} onClick={() => onRenameArea(group)}>{T('areaRename')}</button>
+                )}
               </div>
             )}
+            {!folded && areaExtra && areaExtra(group)}
             {!folded && group.items.map(it => (
               <ItemCard key={it.id} item={it} lang={lang} value={valueOf(it)} diff={diffOf(it)} dirty={isDirty(it)} busy={busy}
                 expectedLabel={expectedLabel} opened={!!openedItems[it.id]}

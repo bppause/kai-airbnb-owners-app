@@ -17,7 +17,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { useApp } from "../../../core/app-state";
 import { api } from "../../../core/api";
 import { aptDisplay } from "../../../core/i18n/app-text";
-import { tr, primaryText, secondaryText, formatWhen, parseCountInput, diffFromBaseline, tallyDiffs, checkSummary, noteForViewer, API_BASE } from "../strings";
+import { tr, primaryText, secondaryText, formatWhen, parseCountInput, diffFromBaseline, tallyDiffs, checkSummary, noteForViewer, groupByArea, API_BASE } from "../strings";
 import { DiffSummary } from "./DiffMarks";
 import { ItemList, Toast, ViewSwitch, FilterBar, useAreaFolding, areaKey } from "./ItemList";
 import { CountComplete, LastCheckLine } from "./CountComplete";
@@ -25,6 +25,7 @@ import { PendingProposals } from "./Proposals";
 import { DamageList } from "./Damages";
 import { ItemPhotos, PhotoPicker, PhotoButton, MAX_ITEM_PHOTOS } from "./Photos";
 import { useAutoTranslate } from "./autoTranslate";
+import { AreaNameForm, AreaOrganizer } from "./AreaOrganizer";
 import CheckoutReports from "./Reports";
 import { itemsFromCsv } from "../csv";
 import { UINV_CSS } from "../styles";
@@ -369,6 +370,65 @@ export default function UnitInventoryModal({ listing, user, onClose }) {
   const isReadOnly = (field) => canTranslate && field.endsWith(otherSuffix)
     && !(translator.status[field] && translator.status[field].state === 'failed');
 
+  // The unit's areas, for the item form's Area list and renaming.
+  const areaGroups = groupByArea(items || [], lang).filter(g => g.areaEn || g.areaEs);
+  const sameArea = (a, b) => (a.areaEn || '').trim().toLowerCase() === (b.areaEn || '').trim().toLowerCase()
+    && (a.areaEs || '').trim().toLowerCase() === (b.areaEs || '').trim().toLowerCase();
+
+  // Renaming / combining areas and moving items between them (see
+  // AreaOrganizer.jsx). `renamingKey` is the area whose own bar has its
+  // rename form open; `organizing` shows the "Organize areas" panel.
+  const [renamingKey, setRenamingKey] = useState(null);
+  const [organizing, setOrganizing] = useState(false);
+  const translateText = async (text, to, field) => (await api.post(`${unitBase}/translate`, { ...who, text, to, field })).text;
+  const knownAreaName = (field, text) => {
+    const other = field === 'areaEn' ? 'areaEs' : 'areaEn';
+    const hit = (items || []).find(it => it[field].trim().toLowerCase() === text.toLowerCase() && it[other]);
+    return hit ? hit[other] : null;
+  };
+  // Both return true once saved (the forms then close).
+  const renameArea = async (group, to) => {
+    setBusy(true); setMsg(null);
+    try {
+      const d = await api.post(`${unitBase}/areas/rename`, { ...who, fromEn: group.areaEn, fromEs: group.areaEs, toEn: to.areaEn, toEs: to.areaEs });
+      setRenamingKey(null);
+      folding.open(areaKey(to.areaEn, to.areaEs));
+      await load();
+      setMsg({ text: T('areaRenamed', { n: d.changed || 0 }) });
+      return true;
+    } catch (e) { setMsg({ err: true, text: e?.message || String(e) }); return false; } finally { setBusy(false); }
+  };
+  const moveItems = async (itemIds, to) => {
+    setBusy(true); setMsg(null);
+    try {
+      const d = await api.post(`${unitBase}/items/move`, { ...who, itemIds, toEn: to.areaEn, toEs: to.areaEs });
+      folding.open(areaKey(to.areaEn, to.areaEs));
+      await load();
+      setMsg({ text: T('itemsMoved', { n: d.changed || 0 }) });
+      return true;
+    } catch (e) { setMsg({ err: true, text: e?.message || String(e) }); return false; } finally { setBusy(false); }
+  };
+  const openRename = (group) => setRenamingKey(k => (k === group.key ? null : group.key));
+  const renameFor = (group) => (renamingKey === group.key ? (
+    <AreaNameForm lang={lang} title={T('areaRenameTitle')} help={T('areaRenameHelp', { n: group.items.length })}
+      initial={group} areas={areaGroups} excludeKey={group.key} canTranslate={canTranslate} translate={translateText} knownArea={knownAreaName}
+      saveLabel={T('areaRenameSave', { n: group.items.length })} busy={busy}
+      onSave={(to) => renameArea(group, to)} onCancel={() => setRenamingKey(null)} />
+  ) : null);
+
+  // The item form's Area list: an existing area, or a new one typed in.
+  const areaChoice = (f) => {
+    if (f.areaNew) return '__new';
+    const hit = areaGroups.find(g => sameArea(g, f));
+    if (hit) return hit.key;
+    return (f.areaEn || f.areaEs) ? '__new' : '';
+  };
+  const chooseArea = (value) => {
+    if (value === '__new') { setForm(prev => ({ ...prev, areaNew: true, areaEn: '', areaEs: '' })); return; }
+    const g = areaGroups.find(x => x.key === value);
+    setForm(prev => ({ ...prev, areaNew: false, areaEn: g ? g.areaEn : '', areaEs: g ? g.areaEs : '' }));
+  };
+
   const openForm = (next) => {
     setImportState(null); setFormPhotos([]); setReturnTo(null); translator.reset(); setForm(next);
     // An item that only has the other language (e.g. proposed by the
@@ -589,6 +649,9 @@ export default function UnitInventoryModal({ listing, user, onClose }) {
             <div className="uinv-row" style={{ marginBottom: 10 }}>
               <button type="button" className="uinv-btn uinv-btn-p" disabled={busy} onClick={() => openForm({ ...EMPTY_FORM })}>{T('addItem')}</button>
               <button type="button" className="uinv-btn" disabled={busy} onClick={() => fileRef.current && fileRef.current.click()}>{T('importCsv')}</button>
+              {areaGroups.length > 0 && (
+                <button type="button" className="uinv-btn" aria-pressed={organizing} disabled={busy} onClick={() => setOrganizing(v => !v)}>{T('orgOpen')}</button>
+              )}
               <input ref={fileRef} type="file" accept=".csv,text/csv" style={{ display: 'none' }} onChange={onCsvChosen} />
               {drifted.length > 0 && (
                 <button type="button" className="uinv-btn uinv-btn-warn" disabled={busy} title={T('rebaselineHint')} onClick={() => rebaseline(null)}>
@@ -596,6 +659,11 @@ export default function UnitInventoryModal({ listing, user, onClose }) {
                 </button>
               )}
             </div>
+
+            {organizing && (
+              <AreaOrganizer lang={lang} items={list} busy={busy} canTranslate={canTranslate} translate={translateText} knownArea={knownAreaName}
+                onRename={renameArea} onMove={moveItems} onClose={() => setOrganizing(false)} />
+            )}
 
             {importState && (
               <div className="uinv-box" ref={importRef}>
@@ -626,8 +694,18 @@ export default function UnitInventoryModal({ listing, user, onClose }) {
                 <div className="uinv-form">
                   <datalist id="uinv-areas-en">{areaOptions('areaEn').map(a => <option key={a} value={a} />)}</datalist>
                   <datalist id="uinv-areas-es">{areaOptions('areaEs').map(a => <option key={a} value={a} />)}</datalist>
-                  {/* Each pair asks for the owner's language first. */}
-                  {fieldOrder.map(field => {
+                  {areaGroups.length > 0 && (
+                    <label className="uinv-field uinv-full">{T('areaPick')}
+                      <select className="uinv-select" value={areaChoice(form)} onChange={e => chooseArea(e.target.value)}>
+                        {areaChoice(form) === '' && <option value="">{T('areaPickChoose')}</option>}
+                        {areaGroups.map(g => <option key={g.key} value={g.key}>{g.other ? `${g.label} · ${g.other}` : g.label}</option>)}
+                        <option value="__new">{T('areaPickNew')}</option>
+                      </select>
+                    </label>
+                  )}
+                  {/* Each pair asks for the owner's language first. The area
+                      is typed only for a new one (or when there are none). */}
+                  {fieldOrder.filter(field => !field.startsWith('area') || areaGroups.length === 0 || areaChoice(form) === '__new').map(field => {
                     const ro = isReadOnly(field);
                     const st = translator.status[field];
                     // A read-only translation says where it comes from unless
@@ -687,7 +765,8 @@ export default function UnitInventoryModal({ listing, user, onClose }) {
                 {shown.length === 0 && <p className="uinv-sub" style={{ marginTop: 12 }}>{T('noMatches')}</p>}
                 {/* A search or the changed-only filter opens every area it leaves. */}
                 <ItemList items={shown} lang={lang} folding={folding} forceOpen={!!needle || narrowing} busy={busy} expectedLabel={T('baseline')}
-                  valueOf={typed} diffOf={diffOf} isDirty={isDirty} onChange={setTyped} actionsFor={actionsFor} onRequired={setRequired} photosFor={photosFor} flashId={flash ? flash.id : null} headActionFor={photoButtonFor} />
+                  valueOf={typed} diffOf={diffOf} isDirty={isDirty} onChange={setTyped} actionsFor={actionsFor} onRequired={setRequired} photosFor={photosFor} flashId={flash ? flash.id : null} headActionFor={photoButtonFor}
+                  onRenameArea={openRename} areaExtra={renameFor} />
                 <CountComplete lang={lang} unsaved={dirtyItems.length} busy={busy} onComplete={completeCount} />
               </>
             )}
