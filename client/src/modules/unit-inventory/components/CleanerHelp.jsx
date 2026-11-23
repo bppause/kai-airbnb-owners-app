@@ -17,7 +17,7 @@ const english = (lang) => String(lang || '').toLowerCase().startsWith('en');
 
 // Each section: { icon, title, points: [string] }. `opts` says which
 // parts apply to this unit.
-const guide = (lang, { required, videoRequired, proofEnabled }) => {
+const guide = (lang, { required, videoRequired, proofEnabled, functions }) => {
   const en = english(lang);
   const pick = (es, enText) => (en ? enText : es);
   const sections = [
@@ -106,10 +106,29 @@ const guide = (lang, { required, videoRequired, proofEnabled }) => {
       ],
     },
   ];
+  // The steps after "2. Report damage" are numbered by which apply.
+  let step = 3;
+  if (functions > 0) {
+    const n = step++;
+    sections.push({
+      icon: '🔌',
+      title: pick(`${n}. Prueba que todo funcione (obligatorio)`, `${n}. Test that everything works (required)`),
+      points: [
+        pick(`En “🔌 Revisa que funcione” hay ${functions} pruebas que pidió el propietario: la estufa, cada TV y aire con su control, las cortinas, la lavadora…`,
+          `Under “🔌 Check that it works” there are ${functions} tests the owner asked for: the stove, each TV and A/C with its remote, the curtains, the washer…`),
+        pick('Prueba cada una como dice debajo y toca “✓ Funciona” o “✗ No funciona”. Se guarda al instante.',
+          'Test each one as it says underneath and tap “✓ Works” or “✗ Doesn’t work”. It saves at once.'),
+        pick('Si tocas “✗ No funciona” se abre el reporte de daño ya escrito: agrega qué falla y una foto, y envíalo. Así el propietario se entera.',
+          'If you tap “✗ Doesn’t work” the damage report opens already filled in: add what is wrong and a photo, and send it. That way the owner finds out.'),
+        pick('No puedes terminar el conteo hasta responder todas.', 'You can’t finish the count until all are answered.'),
+      ],
+    });
+  }
   if (videoRequired) {
+    const n = step++;
     sections.push({
       icon: '🎥',
-      title: pick('3. Graba el video (obligatorio)', '3. Record the video (required)'),
+      title: pick(`${n}. Graba el video (obligatorio)`, `${n}. Record the video (required)`),
       points: [
         pick('Con el apartamento ya limpio, toca “🎥 Grabar video” y luego “● Empezar a grabar”.',
           'With the apartment clean, tap “🎥 Record video” and then “● Start recording”.'),
@@ -123,7 +142,7 @@ const guide = (lang, { required, videoRequired, proofEnabled }) => {
   sections.push(
     {
       icon: '✅',
-      title: videoRequired ? pick('4. Termina', '4. Finish') : pick('3. Termina', '3. Finish'),
+      title: pick(`${step}. Termina`, `${step}. Finish`),
       points: [
         pick('Al final de la página toca “✓ Conteo completo” (o “Guardar … y completar” si tienes cambios sin guardar).',
           'At the bottom of the page tap “✓ Count complete” (or “Save … and complete” if you have unsaved changes).'),
@@ -167,7 +186,7 @@ export function CleanerIntro({ lang, videoRequired, onDismiss, onHelp }) {
 
 // The full guide, over the page. Closes with ✕, the button at the end,
 // Escape, or a tap outside it.
-export function CleanerHelp({ lang, required, videoRequired, proofEnabled, onClose }) {
+export function CleanerHelp({ lang, required, videoRequired, proofEnabled, functions = 0, onClose }) {
   const T = (k, v) => tr(lang, k, v);
   const closeRef = useRef(null);
   useEffect(() => {
@@ -183,7 +202,7 @@ export function CleanerHelp({ lang, required, videoRequired, proofEnabled, onClo
       if (before && before.focus) before.focus();
     };
   }, [onClose]);
-  const sections = guide(lang, { required, videoRequired, proofEnabled });
+  const sections = guide(lang, { required, videoRequired, proofEnabled, functions });
   return (
     <div className="uinv-help-overlay" onClick={e => e.target === e.currentTarget && onClose()}>
       <div className="uinv-help-sheet" role="dialog" aria-modal="true" aria-labelledby="uinv-help-title">

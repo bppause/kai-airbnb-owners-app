@@ -29,6 +29,7 @@ import { DamageForm, DamageList } from "../components/Damages";
 import { ItemPhotos, ProofPhotos } from "../components/Photos";
 import { VideoRecorder, formatDuration, formatMb, MAX_VIDEO_SECONDS } from "../components/Video";
 import { CleanerIntro, CleanerHelp } from "../components/CleanerHelp";
+import { FunctionCheckList } from "../components/FunctionChecks";
 import { UINV_CSS } from "../styles";
 
 const NAME_KEY = 'kai_inventory_name';
@@ -105,7 +106,9 @@ export default function SharedInventoryView({ token }) {
       proofEnabled: d.proofEnabled === true, proofCounts: d.proofCounts || {},
       // Whether a video of the apartment is required to finish, and this
       // visit's video(s).
-      videoRequired: d.videoRequired === true, videos: d.videos || [], suggestEnabled: d.suggestEnabled === true });
+      videoRequired: d.videoRequired === true, videos: d.videos || [], suggestEnabled: d.suggestEnabled === true,
+      // The owner's working checks, and this visit's answers ({ [id]: { status, note, by } }).
+      functionChecks: d.functionChecks || [], functionAnswers: d.functionAnswers || {} });
     folding.decide(items.length);
     return items;
   };
@@ -155,7 +158,7 @@ export default function SharedInventoryView({ token }) {
     return shell(<div className="uinv-msg uinv-msg-err">{state.notFound ? T('linkInactive') : state.text}</div>);
   }
 
-  const { unit, items, lastCheck, proposals, damages, proofEnabled, proofCounts, videoRequired, videos, suggestEnabled } = state;
+  const { unit, items, lastCheck, proposals, damages, proofEnabled, proofCounts, videoRequired, videos, suggestEnabled, functionChecks, functionAnswers } = state;
   // The note box shows the note in this person's language (see
   // noteForViewer). Only a note they actually changed is sent back, so a
   // note merely shown in translation is never overwritten by it.
@@ -293,7 +296,31 @@ export default function SharedInventoryView({ token }) {
     if (el) el.scrollIntoView({ block: 'start' });
     return false;
   };
-  const openDamage = (preset) => setDamaging({ preset: preset || null, seq: Date.now() });
+  const openDamage = (preset, description) => setDamaging({ preset: preset || null, description: description || '', seq: Date.now() });
+  // Working checks: each answered "works" / "doesn't work" (saved at once).
+  const fnLeft = functionChecks.filter(c => !functionAnswers[c.id]);
+  const answerFunction = async (check, status) => {
+    if (!haveName()) return false;
+    setMsg(null);
+    try {
+      writeStored(NAME_KEY, name.trim());
+      const d = await api.post(`${base}/functions/${encodeURIComponent(check.id)}`, { name: name.trim(), status });
+      setState(prev => ({ ...prev, functionAnswers: { ...prev.functionAnswers, [check.id]: d.answer } }));
+      return true;
+    } catch (e) {
+      setMsg({ err: true, text: e?.message || String(e) });
+      return false;
+    }
+  };
+  // True when every working check has an answer. Otherwise says so and
+  // takes the person to the first one left.
+  const haveFunctions = () => {
+    if (!fnLeft.length) return true;
+    setMsg({ err: true, text: T('fnMissing', { n: fnLeft.length }) });
+    const el = document.getElementById('uinv-functions');
+    if (el) el.scrollIntoView({ block: 'start' });
+    return false;
+  };
   // Sends an item that isn't on the list to the owner for approval.
   // Unsaved counts are left as they are: this doesn't touch the list.
   const propose = async (item) => {
@@ -342,7 +369,7 @@ export default function SharedInventoryView({ token }) {
           onDismiss={dismissIntro} onHelp={() => { dismissIntro(); setHelpOpen(true); }} />
       )}
       {helpOpen && (
-        <CleanerHelp lang={lang} required={requiredItems.length} videoRequired={videoRequired} proofEnabled={proofEnabled}
+        <CleanerHelp lang={lang} required={requiredItems.length} videoRequired={videoRequired} proofEnabled={proofEnabled} functions={functionChecks.length}
           onClose={closeHelp} />
       )}
       <div className="uinv-box uinv-task">
@@ -356,6 +383,12 @@ export default function SharedInventoryView({ token }) {
             <strong>{T('taskDamage')}</strong>
             {requiredItems.length > 0 && <small>{T('taskDamageHow')}</small>}
           </li>
+          {functionChecks.length > 0 && (
+            <li>
+              <strong>{T('taskFunctions', { n: functionChecks.length })}</strong>
+              <div className={`uinv-progress${!fnLeft.length ? ' uinv-progress-done' : ''}`}>{T('fnProgress', { done: functionChecks.length - fnLeft.length, n: functionChecks.length })}</div>
+            </li>
+          )}
           {videoRequired && (
             <li>
               <strong>{T('taskVideo')}</strong>
@@ -398,11 +431,17 @@ export default function SharedInventoryView({ token }) {
       <PendingProposals lang={lang} proposals={proposals} />
 
       {damaging
-        ? <DamageForm key={damaging.seq} lang={lang} areas={groupByArea(items, lang)} preset={damaging.preset} busy={busy} onSend={reportDamage} onCancel={() => setDamaging(null)}
+        ? <DamageForm key={damaging.seq} lang={lang} areas={groupByArea(items, lang)} preset={damaging.preset} presetDescription={damaging.description} busy={busy} onSend={reportDamage} onCancel={() => setDamaging(null)}
             loadFirst={photoStore.loadFirst}
             suggest={suggestEnabled ? (photo, description) => api.post(`${base}/damages/suggest`, { name: name.trim(), photo: photo || undefined, description }) : undefined} />
         : <div className="uinv-action"><button type="button" className="uinv-btn uinv-btn-danger uinv-propose-open" disabled={busy} onClick={() => openDamage(null)}>{T('damageBtn')}</button></div>}
       <DamageList lang={lang} title={T('damagesVisit', { n: damages.length })} damages={damages} />
+
+      {functionChecks.length > 0 && (
+        <FunctionCheckList lang={lang} checks={functionChecks} answers={functionAnswers} items={items} busy={busy} loadFirst={photoStore.loadFirst}
+          onAnswer={answerFunction}
+          onBroken={(check, item) => openDamage(item, T('fnFailDesc', { label: primaryText(lang, check.labelEn, check.labelEs) }))} />
+      )}
 
       {videoRequired && (
         <div className="uinv-box uinv-video" id="uinv-video">
@@ -424,11 +463,11 @@ export default function SharedInventoryView({ token }) {
 
       {items.length > 0 && (
         <CountComplete lang={lang} unsaved={dirtyItems.length} busy={busy} onComplete={complete}
-          canStart={() => pendingUpdates() !== null && haveVideo()}
+          canStart={() => pendingUpdates() !== null && haveFunctions() && haveVideo()}
           damagePrompt={{
             covers: (requiredItems.length
               ? T('finishCoversReq', { n: requiredItems.length })
-              : T('finishCoversAll', { n: items.length })) + (videoRequired ? ` ${T('finishVideo')}` : '')
+              : T('finishCoversAll', { n: items.length })) + (functionChecks.length ? ` ${T('finishFunctions', { n: functionChecks.length })}` : '') + (videoRequired ? ` ${T('finishVideo')}` : '')
               + (requiredItems.length ? ` ${T('finishAlsoUnflagged')}` : ''),
             reported: damages.length,
             onReport: () => openDamage(null),

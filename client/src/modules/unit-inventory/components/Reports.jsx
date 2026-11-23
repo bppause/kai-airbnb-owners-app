@@ -8,6 +8,7 @@ import React, { useEffect, useState } from "react";
 import { api } from "../../../core/api";
 import { tr, primaryText, secondaryText, formatWhen, checkSummary, noteForViewer } from "../strings";
 import { DamageCard } from "./Damages";
+import { FunctionResults } from "./FunctionChecks";
 import { PhotoStrip } from "./Photos";
 import { ReportVideo, formatMb } from "./Video";
 import { NoteTranslation } from "./ItemList";
@@ -39,6 +40,7 @@ function ReportDetail({ lang, check, detail, loadPhotos, loadVideos, keepVideo, 
           <div style={{ marginTop: 6 }}><ReportVideo lang={lang} count={check.videosCount} load={loadVideos} onKeep={keepVideo} unitName={unitName} /></div>
         </div>
       )}
+      {check.functionResults && check.functionResults.length > 0 && <FunctionResults lang={lang} results={check.functionResults} />}
       <div>
         <h2>{T('reportDiffs', { n: results.length })}</h2>
         {results.length === 0 && <p className="uinv-help">{T('reportNoDiffs')}</p>}

@@ -687,6 +687,11 @@ alter table public.unit_inventory_checks add column if not exists damages_count 
 alter table public.unit_inventory_checks add column if not exists photos_count integer not null default 0;
 -- How many checkout videos came with this count.
 alter table public.unit_inventory_checks add column if not exists videos_count integer not null default 0;
+-- The working checks answered at this count, as they stood
+-- ([{ id, labelEn, labelEs, status: ok|fail, note, by }]), and how many
+-- did not work.
+alter table public.unit_inventory_checks add column if not exists function_results jsonb not null default '[]'::jsonb;
+alter table public.unit_inventory_checks add column if not exists functions_failed integer not null default 0;
 create index if not exists idx_unit_inventory_checks_listing
   on public.unit_inventory_checks(listing_id, created_at desc);
 
@@ -743,6 +748,45 @@ create index if not exists idx_unit_inventory_videos_visit
 insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
 values ('inventory-videos', 'inventory-videos', false, 52428800, array['video/mp4','video/webm','video/quicktime'])
 on conflict (id) do nothing;
+
+-- Working checks: the owner's list of things the cleaning service tests
+-- at every visit ("Estufa: los 4 puestos prenden", "Aire se apaga al
+-- abrir la puerta corrediza"…), in both languages, each optionally tied
+-- to an inventory item. `how_*` says how to test it. Ordered by position.
+create table if not exists public.unit_inventory_function_checks (
+  id text primary key,
+  listing_id text not null references public.listings(id) on delete cascade,
+  community_id text not null default 'kai',
+  label_en text not null default '',
+  label_es text not null default '',
+  how_en text not null default '',
+  how_es text not null default '',
+  item_id text,
+  position integer not null default 0,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+create index if not exists idx_unit_inventory_function_checks_listing
+  on public.unit_inventory_function_checks(listing_id, position);
+
+-- The answers of the visit under way: works ('ok') or not ('fail'),
+-- with an optional note. A count can't be completed through the share
+-- link until every working check has an answer from the visit (the 12
+-- hours before); completing copies them into the count's record
+-- (unit_inventory_checks.function_results) and clears them. A later
+-- answer replaces an earlier one.
+create table if not exists public.unit_inventory_function_results (
+  id text primary key,
+  listing_id text not null references public.listings(id) on delete cascade,
+  community_id text not null default 'kai',
+  function_check_id text not null,
+  status text not null check (status in ('ok','fail')),
+  note text not null default '',
+  answered_by text not null default '',
+  created_at timestamptz not null default now()
+);
+create index if not exists idx_unit_inventory_function_results_visit
+  on public.unit_inventory_function_results(listing_id, created_at);
 
 -- Damage reported by the cleaning service: what, where (an area, a
 -- free-text spot, and the item if it concerns one — its names copied so
@@ -838,4 +882,6 @@ alter table public.unit_inventory_damages disable row level security;
 alter table public.unit_inventory_item_photos disable row level security;
 alter table public.unit_inventory_count_photos disable row level security;
 alter table public.unit_inventory_videos disable row level security;
+alter table public.unit_inventory_function_checks disable row level security;
+alter table public.unit_inventory_function_results disable row level security;
 
