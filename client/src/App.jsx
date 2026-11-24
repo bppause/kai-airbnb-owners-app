@@ -212,6 +212,31 @@ export default function App() {
       setTimeout(() => openIncidentDetail(incId), 120);
     }
   }, [loading, incidents]);
+  // ── Email deep-link: ?unitInventory=<listingId>[&tab=reports|history][&check=<checkId>]
+  // opens that unit's inventory (from the "inventory completed" email) on
+  // the tab asked for, with that checkout's report open. Only for a unit
+  // the signed-in owner can see; the server checks ownership anyway. The
+  // parameters are then dropped from the address so a reload doesn't
+  // reopen it. ──
+  const _inventoryLinkApplied = useRef(false);
+  useEffect(() => {
+    if (_inventoryLinkApplied.current || loading || !user || !listings.length) return;
+    const params = new URLSearchParams(window.location.search);
+    const unitId = params.get('unitInventory');
+    if (!unitId) return;
+    _inventoryLinkApplied.current = true;
+    const listing = listings.find(l => l.id === unitId);
+    if (listing) {
+      const tab = ['reports', 'history'].includes(params.get('tab')) ? params.get('tab') : 'items';
+      setView('my');
+      setTimeout(() => setModal({ type: 'unitInventory', data: listing, tab, checkId: params.get('check') || '' }), 150);
+    }
+    try {
+      ['unitInventory', 'tab', 'check'].forEach(k => params.delete(k));
+      const q = params.toString();
+      window.history.replaceState(null, '', window.location.pathname + (q ? `?${q}` : '') + window.location.hash);
+    } catch (_e) { /* keep the address as it is */ }
+  }, [loading, user, listings]);
   // ── ?action=report deep-link: opens report modal after auth + data load ──
   const _reportLinkApplied = useRef(false);
   useEffect(() => {
@@ -1050,7 +1075,7 @@ export default function App() {
       {/* LoginModal removed — Google popup handles auth directly */}
       {modal?.type==="addListing" && <ListingModal title={appText(lang,"listings.add")} config={adminInfo.config} user={user} onSave={addListing} onClose={()=>setModal(null)} />}
       {modal?.type==="editListing" && <ListingModal title={appText(lang,"modal.listing.editTitle")} config={adminInfo.config} user={user} initial={modal.data} onSave={d=>editListing(modal.data.id, modal.data.ownerUid, d)} onClose={()=>setModal(null)} />}
-      {modal?.type==="unitInventory" && <UnitInventoryModal listing={modal.data} user={user} onClose={()=>setModal(null)} />}
+      {modal?.type==="unitInventory" && <UnitInventoryModal listing={modal.data} user={user} onClose={()=>setModal(null)} initialTab={modal.tab} openCheckId={modal.checkId} />}
       {modal?.type==="incident" && <IncidentModal config={adminInfo.config} listings={listings} user={user} presetApt={modal.data?.aptId} onSave={addIncident} onClose={()=>{setModal(null);loadAll(false);}} />}
       {modal?.type==="verifyIncident" && <VerifyIncidentModal config={adminInfo.config} incident={modal.data} onSave={payload=>verifyIncident(modal.data.id,payload)} onClose={()=>{setModal(null);loadAll(false);}} />}
       {modal?.type==="addResolution" && <AddResolutionModal incident={modal.data} onSave={text=>addResolution(modal.data.id,text)} onClose={()=>{setModal(null);loadAll(false);}} />}

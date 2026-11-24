@@ -860,9 +860,11 @@ module.exports = function createUnitInventoryRouter(deps) {
 
   // Tells the unit's owner something happened on their inventory: an
   // alert in the app, then an email if email is set up. `lines` are the
-  // email's paragraphs. Never throws — whatever it reports is already
-  // saved and shows on the owner's inventory screen either way.
-  const notifyOwner = async ({ listing, title, message, lines, req }) => {
+  // email's paragraphs; `links` ([{ label, path }], path from the app's
+  // root, e.g. '/?unitInventory=…') become links in it — without them it
+  // ends with a link to the app. Never throws — whatever it reports is
+  // already saved and shows on the owner's inventory screen either way.
+  const notifyOwner = async ({ listing, title, message, lines, links = [], req }) => {
     try {
       if (!listing.owner_uid || !notificationToDb) return;
       const note = {
@@ -877,10 +879,14 @@ module.exports = function createUnitInventoryRouter(deps) {
       if (!sendSpanishEmail || !recipients.length) return;
       const appUrl = publicAppUrl ? publicAppUrl(req) : '';
       const esc = escapeHtml || ((v) => String(v));
+      const full = appUrl ? links.map(l => ({ label: l.label, url: appUrl + l.path })) : [];
       const result = await sendSpanishEmail({
         to: recipients, subject: title,
-        text: lines.join('\n') + (appUrl ? `\n\n${appUrl}` : ''),
-        html: lines.map(l => (l ? `<p>${esc(l)}</p>` : '')).join('') + (appUrl ? `<p><a href="${esc(appUrl)}">${esc(appUrl)}</a></p>` : ''),
+        text: lines.join('\n') + (full.length ? `\n\n${full.map(l => `${l.label}: ${l.url}`).join('\n')}` : (appUrl ? `\n\n${appUrl}` : '')),
+        html: lines.map(l => (l ? `<p>${esc(l)}</p>` : '')).join('')
+          + (full.length
+            ? `<p>${full.map(l => `<a href="${esc(l.url)}" style="display:inline-block;margin:4px 8px 4px 0;padding:10px 14px;border-radius:8px;background:#0b5f3a;color:#ffffff;text-decoration:none;font-weight:bold">${esc(l.label)}</a>`).join('')}</p>`
+            : (appUrl ? `<p><a href="${esc(appUrl)}">${esc(appUrl)}</a></p>` : '')),
       });
       await supabase.from('notifications').update({ email_sent: !!result.sent, email_error: result.sent ? '' : (result.reason || '') }).eq('id', note.id);
     } catch (e) {
@@ -955,9 +961,15 @@ module.exports = function createUnitInventoryRouter(deps) {
         ...(batteries.length ? [`Pilas cambiadas (compra repuestos): ${batteries.length}`, ...batteries.map(f => `• ${f.labelEs || f.labelEn}`)] : []),
         ...(failed.length ? ['No funciona:', ...failed.map(f => `• ${f.labelEs || f.labelEn}${f.note ? ` — ${f.note}` : ''}`)] : []),
         ...(damages.length ? ['Daños reportados:', ...damages.slice(0, 20).map(d => `• ${[damageWhere(d), d.description].filter(Boolean).join(': ')}${d.photo_count ? ` (${d.photo_count} foto(s))` : ''}`)] : []),
-        'El reporte completo, con fotos y video, está en la aplicación: Mis unidades → Inventario → Reportes de salida.',
+        'El reporte completo, con fotos y video, y el historial del inventario están en la aplicación (enlaces abajo).',
         '',
-        `${check.actor_name} (cleaning service) completed the checkout inventory of apartment ${listing.apt}. The full report, with photos and video, is in the app: My Units → Inventory → Checkout reports.`,
+        `${check.actor_name} (cleaning service) completed the checkout inventory of apartment ${listing.apt}. The full report, with photos and video, and the inventory history are in the app (links below).`,
+      ],
+      // Straight to this checkout's report, the history, and the inventory.
+      links: [
+        { label: 'Ver el reporte de esta salida / View this report', path: `/?unitInventory=${encodeURIComponent(listing.id)}&tab=reports&check=${encodeURIComponent(check.id)}` },
+        { label: 'Ver el historial / View history', path: `/?unitInventory=${encodeURIComponent(listing.id)}&tab=history` },
+        { label: 'Abrir el inventario / Open inventory', path: `/?unitInventory=${encodeURIComponent(listing.id)}` },
       ],
     });
   };

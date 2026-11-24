@@ -4,7 +4,7 @@
 // its photos. The list is summaries; a report's detail is fetched when
 // it is opened, and stays as it was however the inventory changes later.
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { api } from "../../../core/api";
 import { tr, primaryText, secondaryText, formatWhen, checkSummary, noteForViewer } from "../strings";
 import { DamageCard } from "./Damages";
@@ -81,7 +81,8 @@ function ReportDetail({ lang, check, detail, loadPhotos, loadVideos, keepVideo, 
 // `unitBase` is the unit's API path (the owner's, or the cleaning
 // service's share link); `ownerUid` proves who is asking — without it the
 // reports are read-only (no "keep as evidence") and there's no storage line.
-export default function CheckoutReports({ lang, unitBase, ownerUid, unitName, onError }) {
+// `openFirst`: a report to open (and bring into view) once the list is in.
+export default function CheckoutReports({ lang, unitBase, ownerUid, unitName, onError, openFirst }) {
   const T = (k, v) => tr(lang, k, v);
   const [checks, setChecks] = useState(null);
   // What the checkout videos take up, all units together: { used, limit }.
@@ -107,6 +108,18 @@ export default function CheckoutReports({ lang, unitBase, ownerUid, unitName, on
       .catch(e => { setOpenId(''); onError(e); });
   };
 
+  // The report the email linked to: opened once, when the list arrives.
+  const openedFirst = useRef(false);
+  useEffect(() => {
+    if (openedFirst.current || !openFirst || !checks) return;
+    openedFirst.current = true;
+    const hit = checks.find(c => c.id === openFirst);
+    if (!hit) return;
+    toggle(hit);
+    setTimeout(() => { const el = document.getElementById(`uinv-report-${hit.id}`); if (el) el.scrollIntoView({ block: 'start' }); }, 50);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [checks]);
+
   if (checks === null) return <p className="uinv-sub">{T('loading')}</p>;
   if (!checks.length) return <p className="uinv-sub">{T('reportsEmpty')}</p>;
   return (
@@ -121,7 +134,7 @@ export default function CheckoutReports({ lang, unitBase, ownerUid, unitName, on
       {checks.map(check => {
         const open = openId === check.id;
         return (
-          <div key={check.id} className="uinv-report">
+          <div key={check.id} className="uinv-report" id={`uinv-report-${check.id}`}>
             <div className="uinv-report-when">{formatWhen(check.createdAt, lang)}</div>
             <div>{checkSummary(lang, check)}</div>
             <div className="uinv-meta">{T(check.actorType === 'cleaner' ? 'actorCleaner' : 'actorOwner')}{check.actorName ? ` · ${check.actorName}` : ''}</div>
