@@ -17,7 +17,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { useApp } from "../../../core/app-state";
 import { api } from "../../../core/api";
 import { aptDisplay } from "../../../core/i18n/app-text";
-import { tr, primaryText, secondaryText, formatWhen, parseCountInput, diffFromBaseline, tallyDiffs, checkSummary, noteForViewer, groupByArea, API_BASE } from "../strings";
+import { tr, primaryText, parseCountInput, diffFromBaseline, tallyDiffs, noteForViewer, groupByArea, API_BASE } from "../strings";
 import { DiffSummary } from "./DiffMarks";
 import { ItemList, Toast, ViewSwitch, FilterBar, useAreaFolding, areaKey } from "./ItemList";
 import { CountComplete, LastCheckLine } from "./CountComplete";
@@ -27,6 +27,7 @@ import { ItemPhotos, PhotoPicker, PhotoButton, MAX_ITEM_PHOTOS } from "./Photos"
 import { useAutoTranslate } from "./autoTranslate";
 import { AreaNameForm, AreaOrganizer } from "./AreaOrganizer";
 import CheckoutReports from "./Reports";
+import { HistoryList } from "./History";
 import { FunctionCheckEditor } from "./FunctionChecks";
 import { PeopleLinks, OwnerTasks, ResolveDamage, PendingInbox } from "./OwnerService";
 import { itemsFromCsv } from "../csv";
@@ -42,63 +43,6 @@ const editFields = (lang) => {
 };
 
 const EMPTY_FORM = { areaEn: '', areaEs: '', nameEn: '', nameEs: '', noteEn: '', noteEs: '', count: '1', countRequired: false };
-
-const actorLabel = (lang, type, name) => `${tr(lang, type === 'cleaner' ? 'actorCleaner' : 'actorOwner')}${name ? ` · ${name}` : ''}`;
-
-// `history` is { events, checks }: item changes and completed counts,
-// shown together in one timeline, newest first.
-function HistoryList({ history, lang }) {
-  if (history === null) return <p className="uinv-sub">{tr(lang, 'loading')}</p>;
-  const entries = [
-    ...history.events.map(ev => ({ at: ev.createdAt, ev })),
-    ...history.checks.map(check => ({ at: check.createdAt, check })),
-  ].sort((a, b) => String(b.at).localeCompare(String(a.at)));
-  if (!entries.length) return <p className="uinv-sub">{tr(lang, 'histEmpty')}</p>;
-  return (
-    <div>
-      {entries.map(({ ev, check }) => {
-        if (check) {
-          return (
-            <div key={check.id} className="uinv-hist uinv-hist-check">
-              <div className="uinv-name">{tr(lang, 'histCheck')}</div>
-              <div>{checkSummary(lang, check)}</div>
-              <div className="uinv-hist-when">{formatWhen(check.createdAt, lang)} · {actorLabel(lang, check.actorType, check.actorName)}</div>
-            </div>
-          );
-        }
-        const lines = [];
-        if (ev.type === 'created') {
-          // An item the cleaning service proposed names who asked for it.
-          const line = tr(lang, 'histCreated', { n: ev.countAfter });
-          const proposedBy = ev.changes && ev.changes.proposedBy;
-          lines.push(proposedBy ? tr(lang, 'histProposedBy', { line, who: proposedBy }) : line);
-        }
-        if (ev.type === 'deleted') lines.push(tr(lang, 'histDeleted', { n: ev.countBefore, b: ev.baselineBefore }));
-        if (ev.type === 'edited') {
-          // One line per field the edit changed, labelled as in the form.
-          const changed = editFields(lang).filter(f => ev.changes && ev.changes[f]);
-          if (!changed.length) lines.push(tr(lang, 'histEdited'));
-          for (const f of changed) lines.push(tr(lang, 'histField', { field: tr(lang, f), a: ev.changes[f].before, b: ev.changes[f].after }));
-        }
-        if (ev.type === 'rebaseline') lines.push(tr(lang, 'histRebaseline', { a: ev.baselineBefore, b: ev.baselineAfter }));
-        if (ev.type === 'count') {
-          if (ev.countBefore !== ev.countAfter) lines.push(tr(lang, 'histCount', { a: ev.countBefore, b: ev.countAfter }));
-          if (ev.noteBefore !== ev.noteAfter) lines.push(tr(lang, 'histNote', { a: ev.noteBefore, b: ev.noteAfter }));
-        }
-        const actor = actorLabel(lang, ev.actorType, ev.actorName);
-        const other = secondaryText(lang, ev.itemNameEn, ev.itemNameEs);
-        return (
-          <div key={ev.id} className="uinv-hist">
-            <div className="uinv-name">{primaryText(lang, ev.itemNameEn, ev.itemNameEs)}</div>
-            {other && <div className="uinv-other">{other}</div>}
-            {lines.map((l, i) => <div key={i}>{l}</div>)}
-            <div className="uinv-hist-when">{formatWhen(ev.createdAt, lang)} · {actor}</div>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
 
 export default function UnitInventoryModal({ listing, user, onClose }) {
   const { lang } = useApp();
@@ -429,6 +373,14 @@ export default function UnitInventoryModal({ listing, user, onClose }) {
     const hit = (items || []).find(it => it[field].trim().toLowerCase() === text.toLowerCase() && it[other]);
     return hit ? hit[other] : null;
   };
+  // A working check's example photos (subject.id is 'fn:<check id>').
+  const fnPhotoUrl = (s) => `${unitBase}/functions/${encodeURIComponent(s.id.slice(3))}/photos`;
+  const setFnPhotoCount = (s, n) => setFnChecks(prev => (prev || []).map(f => (`fn:${f.id}` === s.id ? { ...f, photoCount: n } : f)));
+  const fnPhotoStore = {
+    load: async (s) => (await api.get(`${fnPhotoUrl(s)}?ownerUid=${encodeURIComponent(user.uid)}`)).photos || [],
+    add: async (s, data) => { const d = await api.post(fnPhotoUrl(s), { ...who, photo: data }); setFnPhotoCount(s, d.photoCount); return d; },
+    remove: async (s, photo) => { const d = await api.del(`${fnPhotoUrl(s)}/${encodeURIComponent(photo.id)}`, { ownerUid: user.uid }); setFnPhotoCount(s, d.photoCount); return d; },
+  };
   const saveFunctions = async (checks) => {
     setBusy(true); setMsg(null);
     try {
@@ -740,7 +692,7 @@ export default function UnitInventoryModal({ listing, user, onClose }) {
 
             {fnEditing && fnChecks !== null && (
               <FunctionCheckEditor lang={lang} checks={fnChecks} items={list} busy={busy} canTranslate={canTranslate} translate={translateText}
-                onSave={saveFunctions} onClose={() => setFnEditing(false)} />
+                onSave={saveFunctions} onClose={() => setFnEditing(false)} photos={fnPhotoStore} onError={e => setMsg({ err: true, text: e?.message || String(e) })} />
             )}
 
             {organizing && (

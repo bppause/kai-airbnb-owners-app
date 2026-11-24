@@ -40,7 +40,10 @@ function ReportDetail({ lang, check, detail, loadPhotos, loadVideos, keepVideo, 
           <div style={{ marginTop: 6 }}><ReportVideo lang={lang} count={check.videosCount} load={loadVideos} onKeep={keepVideo} unitName={unitName} /></div>
         </div>
       )}
-      {check.functionResults && check.functionResults.length > 0 && <FunctionResults lang={lang} results={check.functionResults} />}
+      {check.functionResults && check.functionResults.length > 0 && (
+        <FunctionResults lang={lang} results={check.functionResults}
+          photosFor={r => <ReportPhotos lang={lang} count={r.photos} load={() => loadPhotos(`fn:${r.id}`)} />} />
+      )}
       <div>
         <h2>{T('reportDiffs', { n: results.length })}</h2>
         {results.length === 0 && <p className="uinv-help">{T('reportNoDiffs')}</p>}
@@ -75,7 +78,9 @@ function ReportDetail({ lang, check, detail, loadPhotos, loadVideos, keepVideo, 
   );
 }
 
-// `unitBase` is the unit's API path; `ownerUid` proves who is asking.
+// `unitBase` is the unit's API path (the owner's, or the cleaning
+// service's share link); `ownerUid` proves who is asking — without it the
+// reports are read-only (no "keep as evidence") and there's no storage line.
 export default function CheckoutReports({ lang, unitBase, ownerUid, unitName, onError }) {
   const T = (k, v) => tr(lang, k, v);
   const [checks, setChecks] = useState(null);
@@ -84,7 +89,7 @@ export default function CheckoutReports({ lang, unitBase, ownerUid, unitName, on
   const [openId, setOpenId] = useState('');
   // Fetched report details by check id.
   const [details, setDetails] = useState({});
-  const q = `ownerUid=${encodeURIComponent(ownerUid)}`;
+  const q = ownerUid ? `ownerUid=${encodeURIComponent(ownerUid)}` : '';
 
   useEffect(() => {
     api.get(`${unitBase}/checks?${q}`)
@@ -127,7 +132,7 @@ export default function CheckoutReports({ lang, unitBase, ownerUid, unitName, on
               ? <ReportDetail lang={lang} check={check} detail={details[check.id]} unitName={unitName}
                   loadPhotos={async (itemId) => (await api.get(`${unitBase}/checks/${encodeURIComponent(check.id)}/items/${encodeURIComponent(itemId)}/photos?${q}`)).photos || []}
                   loadVideos={async () => (await api.get(`${unitBase}/checks/${encodeURIComponent(check.id)}/videos?${q}`)).videos || []}
-                  keepVideo={async (video, keep) => (await api.post(`${unitBase}/videos/${encodeURIComponent(video.id)}/keep`, { ownerUid, keep })).video} />
+                  keepVideo={ownerUid ? async (video, keep) => (await api.post(`${unitBase}/videos/${encodeURIComponent(video.id)}/keep`, { ownerUid, keep })).video : undefined} />
               : <p className="uinv-sub" style={{ margin: '8px 0 0' }}>{T('loading')}</p>)}
           </div>
         );

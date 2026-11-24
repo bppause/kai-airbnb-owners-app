@@ -185,7 +185,7 @@ export function ItemThumb({ lang, item, load, still = false, small = false }) {
   }
   return (
     <>
-      <button type="button" ref={ref} className="uinv-primary" disabled={!photo} onClick={() => setBig(true)}
+      <button type="button" ref={ref} className={`uinv-primary${small ? ' uinv-primary-sm' : ''}`} disabled={!photo} onClick={() => setBig(true)}
         aria-label={T('photoPrimaryOpen', { name })}>
         {photo ? <img src={photo.data} alt={T('photoPrimaryAlt', { name })} /> : <span aria-hidden="true">📷</span>}
       </button>
@@ -291,7 +291,7 @@ export function ItemPhotos({ lang, item, store, onCount, onError, showLabel = 'p
 //
 // `store` is { load(item) → photos, add(item, dataUrl) → { photo,
 // proofCount }, remove(item, photo) → { proofCount } }.
-export function ProofPhotos({ lang, item, count, store, onCount, onError }) {
+export function ProofPhotos({ lang, item, count, store, onCount, onError, hint }) {
   const T = (k, v) => tr(lang, k, v);
   const [photos, setPhotos] = useState(null);   // null = not fetched
   const [loading, setLoading] = useState(false);
@@ -325,7 +325,7 @@ export function ProofPhotos({ lang, item, count, store, onCount, onError }) {
 
   return (
     <div className={`uinv-proof${n ? ' uinv-proof-ok' : ' uinv-proof-opt'}`}>
-      <div className="uinv-proof-state">{n ? T('proofHave', { n }) : <>{T('proofOptional')} <span className="uinv-meta">{T('proofOptionalHint')}</span></>}</div>
+      <div className="uinv-proof-state">{n ? T('proofHave', { n }) : <>{T('proofOptional')} <span className="uinv-meta">{hint || T('proofOptionalHint')}</span></>}</div>
       {photos && <PhotoStrip photos={photos} lang={lang} alt={T('photoAlt')} removeLabel={T('photoRemove')} onRemove={remove} />}
       <div className="uinv-row">
         {n < MAX_PROOF_PHOTOS && (

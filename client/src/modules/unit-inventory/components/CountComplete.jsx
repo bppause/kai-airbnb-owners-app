@@ -34,7 +34,11 @@ export function LastCheckLine({ lang, lastCheck }) {
 // finish. `canStart()` may veto opening that step (name missing, a count
 // that isn't a number). Without `damagePrompt`, the button completes at
 // once (the owner's panel confirms on its own).
-export function CountComplete({ lang, unsaved, busy, onComplete, damagePrompt, canStart }) {
+//
+// `missing` lists what still stands in the way — [{ key, text, action,
+// onAction }] (the video, unanswered checks) — shown above the button so
+// nobody reaches the end without knowing.
+export function CountComplete({ lang, unsaved, busy, onComplete, damagePrompt, canStart, missing = [] }) {
   const T = (k, v) => tr(lang, k, v);
   const [asking, setAsking] = useState(false);
   const boxRef = useRef(null);
@@ -66,6 +70,17 @@ export function CountComplete({ lang, unsaved, busy, onComplete, damagePrompt, c
     <div className="uinv-box uinv-done" ref={boxRef}>
       <h2>{T('countDoneTitle')}</h2>
       <p className="uinv-help">{T('countDoneHelp')}</p>
+      {missing.length > 0 && (
+        <div className="uinv-missing" role="note">
+          <strong>{T('finishMissingTitle')}</strong>
+          {missing.map(m => (
+            <div key={m.key} className="uinv-missing-row">
+              <span>{m.text}</span>
+              {m.onAction && <button type="button" className="uinv-btn uinv-btn-sm" onClick={m.onAction}>{m.action}</button>}
+            </div>
+          ))}
+        </div>
+      )}
       <button type="button" className="uinv-btn uinv-btn-p" disabled={busy} onClick={start}>
         {unsaved ? T('countDoneBtnSave', { n: unsaved }) : T('countDoneBtn')}
       </button>

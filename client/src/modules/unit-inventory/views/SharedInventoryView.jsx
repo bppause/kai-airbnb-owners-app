@@ -31,6 +31,8 @@ import { VideoRecorder, formatDuration, formatMb, MAX_VIDEO_SECONDS } from "../c
 import { CleanerIntro, CleanerHelp } from "../components/CleanerHelp";
 import { FunctionCheckList } from "../components/FunctionChecks";
 import { CleanerTasks } from "../components/OwnerService";
+import CheckoutReports from "../components/Reports";
+import { HistoryList } from "../components/History";
 import { UINV_CSS } from "../styles";
 
 const NAME_KEY = 'kai_inventory_name';
@@ -95,6 +97,22 @@ export default function SharedInventoryView({ token }) {
   // ones to count at every checkout, if the owner flagged any".
   const [view, setView] = useState(null);
   const folding = useAreaFolding();
+  // The history section: closed (''), 'reports' or 'changes'; and the
+  // changes once fetched.
+  const [histTab, setHistTab] = useState('');
+  const [history, setHistory] = useState(null);
+  // Fetched when "Todos los cambios" is open, and again after a count is
+  // completed (it adds to the history).
+  const lastCheckId = state.lastCheck ? state.lastCheck.id : '';
+  useEffect(() => { setHistory(null); }, [lastCheckId]);
+  useEffect(() => {
+    if (histTab !== 'changes' || history !== null) return undefined;
+    let live = true;
+    api.get(`${base}/history`).then(d => { if (live) setHistory({ events: d.events || [], checks: d.checks || [] }); })
+      .catch(e => { if (live) { setHistory({ events: [], checks: [] }); setMsg({ err: true, text: e?.message || String(e) }); } });
+    return () => { live = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [histTab, history]);
   // The areas marked "✓ Todo bien" in this visit: { visit, keys }, where
   // `visit` is the last completed count's id (a new count starts afresh).
   const [reviewed, setReviewed] = useState(() => {
@@ -116,7 +134,7 @@ export default function SharedInventoryView({ token }) {
       // visit's video(s).
       videoRequired: d.videoRequired === true, videos: d.videos || [], suggestEnabled: d.suggestEnabled === true,
       // The owner's working checks, and this visit's answers ({ [id]: { status, note, by } }).
-      functionChecks: d.functionChecks || [], functionAnswers: d.functionAnswers || {},
+      functionChecks: d.functionChecks || [], functionAnswers: d.functionAnswers || {}, functionProofCounts: d.functionProofCounts || {},
       // A personal link's person ({ name }) or null; every open damage
       // report; how the owner closed recent ones; the owner's notes.
       person: d.person || null, openDamages: d.openDamages || [], damageNews: d.damageNews || [], tasks: d.tasks || [] });
@@ -170,7 +188,7 @@ export default function SharedInventoryView({ token }) {
     return shell(<div className="uinv-msg uinv-msg-err">{state.notFound ? T('linkInactive') : state.text}</div>);
   }
 
-  const { unit, items, lastCheck, proposals, damages, proofEnabled, proofCounts, videoRequired, videos, suggestEnabled, functionChecks, functionAnswers, person, openDamages, damageNews, tasks } = state;
+  const { unit, items, lastCheck, proposals, damages, proofEnabled, proofCounts, videoRequired, videos, suggestEnabled, functionChecks, functionAnswers, person, openDamages, damageNews, tasks, functionProofCounts } = state;
   // The note box shows the note in this person's language (see
   // noteForViewer). Only a note they actually changed is sent back, so a
   // note merely shown in translation is never overwritten by it.
@@ -275,6 +293,15 @@ export default function SharedInventoryView({ token }) {
     add: (it, data) => api.post(proofUrl(it), { name: name.trim(), photo: data }),
     remove: (it, photo) => api.del(`${proofUrl(it)}/${encodeURIComponent(photo.id)}`, {}),
   };
+  // A working check's photos: the owner's examples, and the ones taken now.
+  const fnUrl = (s, part) => `${base}/functions/${encodeURIComponent(s.id.slice(3))}/${part}`;
+  const fnPhotos = {
+    load: async (s) => (await api.get(fnUrl(s, 'photos'))).photos || [],
+    loadFirst: async (s) => (await api.get(`${fnUrl(s, 'photos')}?first=1`)).photos || [],
+    proofLoad: async (s) => (await api.get(fnUrl(s, 'proof'))).photos || [],
+    proofAdd: (s, data) => { if (!haveName()) return Promise.reject(new Error(T('nameNeeded'))); writeStored(NAME_KEY, name.trim()); return api.post(fnUrl(s, 'proof'), { name: name.trim(), photo: data }); },
+    proofRemove: (s, photo) => api.del(`${fnUrl(s, 'proof')}/${encodeURIComponent(photo.id)}`, {}),
+  };
   const setProofCount = (it, n) => setState(prev => ({ ...prev, proofCounts: { ...prev.proofCounts, [it.id]: n } }));
   // Remounted after each completed count, so the next visit starts empty.
   const proofFor = (it) => (proofEnabled && (it.countRequired || diffOf(it) !== 0 || !!typed(it).note || (proofCounts[it.id] || 0) > 0)
@@ -309,13 +336,15 @@ export default function SharedInventoryView({ token }) {
     return false;
   };
   const openDamage = (preset, description) => setDamaging({ preset: preset || null, description: description || '', seq: Date.now() });
-  // The owner's notes: ticked done (with an optional word) or unticked.
-  const toggleTask = async (task, done, note) => {
+  // The owner's notes: answered done (with an optional word) or
+  // couldn't-do (with the reason), or the answer taken back.
+  const toggleTask = async (task, action, note) => {
     if (!haveName()) return false;
     setMsg(null);
     try {
       writeStored(NAME_KEY, name.trim());
-      const d = await api.post(`${base}/tasks/${encodeURIComponent(task.id)}`, { name: name.trim(), done, note });
+      const body = action === 'undo' ? { done: false } : action === 'blocked' ? { blocked: true, note } : { done: true, note };
+      const d = await api.post(`${base}/tasks/${encodeURIComponent(task.id)}`, { name: name.trim(), ...body });
       setState(prev => ({ ...prev, tasks: prev.tasks.map(t => (t.id === task.id ? d.task : t)) }));
       return true;
     } catch (e) {
@@ -338,6 +367,16 @@ export default function SharedInventoryView({ token }) {
       setMsg({ err: true, text: e?.message || String(e) });
       return false;
     }
+  };
+  // The owner's notes still to answer; true when there are none (otherwise
+  // says so and goes to them).
+  const tasksLeft = tasks.filter(t => t.status === 'open');
+  const haveTasks = () => {
+    if (!tasksLeft.length) return true;
+    setMsg({ err: true, text: T('tasksMissing', { n: tasksLeft.length }) });
+    const el = document.getElementById('uinv-owner-notes');
+    if (el) el.scrollIntoView({ block: 'start' });
+    return false;
   };
   // True when every working check has an answer. Otherwise says so and
   // takes the person to the first one left.
@@ -451,6 +490,12 @@ export default function SharedInventoryView({ token }) {
             <strong>{T('taskDamage')}</strong>
             {requiredItems.length > 0 && <small>{T('taskDamageHow')}</small>}
           </li>
+          {tasks.length > 0 && (
+            <li>
+              <strong>{T('taskStep', { n: tasks.length })}</strong>
+              <div className={`uinv-progress${!tasksLeft.length ? ' uinv-progress-done' : ''}`}>{T('taskStepProgress', { done: tasks.length - tasksLeft.length, n: tasks.length })}</div>
+            </li>
+          )}
           {functionChecks.length > 0 && (
             <li>
               <strong>{T('taskFunctions', { n: functionChecks.length })}</strong>
@@ -479,6 +524,14 @@ export default function SharedInventoryView({ token }) {
               onChange={e => { setName(e.target.value); if (msg && msg.err) setMsg(null); }} />
           </label>
           <p className="uinv-help" style={{ marginBottom: 0 }}>{T('yourNameHint')}</p>
+        </div>
+      )}
+
+      {videoRequired && !videoDone && (
+        <div className="uinv-box uinv-video-alert" role="note">
+          <h2>{T('videoAlertTitle')}</h2>
+          <p className="uinv-help" style={{ marginTop: 0 }}>{T('videoAlertBody')}</p>
+          <button type="button" className="uinv-btn" onClick={() => { const el = document.getElementById('uinv-video'); if (el) el.scrollIntoView({ block: 'start' }); }}>{T('videoAlertGo')}</button>
         </div>
       )}
 
@@ -524,6 +577,9 @@ export default function SharedInventoryView({ token }) {
 
       {functionChecks.length > 0 && (
         <FunctionCheckList lang={lang} checks={functionChecks} answers={functionAnswers} items={items} busy={busy} loadFirst={photoStore.loadFirst}
+          photos={fnPhotos} proofCounts={functionProofCounts} visitKey={lastCheck ? lastCheck.id : ''}
+          onProofCount={(id, n) => setState(prev => ({ ...prev, functionProofCounts: { ...prev.functionProofCounts, [id]: n } }))}
+          onError={e => setMsg({ err: true, text: e?.message || String(e) })}
           onAnswer={answerFunction}
           onBroken={(check, item) => openDamage(item, T('fnFailDesc', { label: primaryText(lang, check.labelEn, check.labelEs) }))} />
       )}
@@ -548,7 +604,12 @@ export default function SharedInventoryView({ token }) {
 
       {items.length > 0 && (
         <CountComplete lang={lang} unsaved={dirtyItems.length} busy={busy} onComplete={complete}
-          canStart={() => pendingUpdates() !== null && haveFunctions() && haveVideo()}
+          missing={[
+            ...(tasksLeft.length ? [{ key: 'tasks', text: T('tasksMissingShort', { n: tasksLeft.length }), action: T('tasksMissingGo'), onAction: () => { const el = document.getElementById('uinv-owner-notes'); if (el) el.scrollIntoView({ block: 'start' }); } }] : []),
+            ...(fnLeft.length ? [{ key: 'fn', text: T('fnMissingShort', { n: fnLeft.length }), action: T('fnMissingGo'), onAction: () => { const el = document.getElementById('uinv-functions'); if (el) el.scrollIntoView({ block: 'start' }); } }] : []),
+            ...(!videoDone ? [{ key: 'video', text: T('videoMissingShort'), action: T('videoAlertGo'), onAction: () => { const el = document.getElementById('uinv-video'); if (el) el.scrollIntoView({ block: 'start' }); } }] : []),
+          ]}
+          canStart={() => pendingUpdates() !== null && haveTasks() && haveFunctions() && haveVideo()}
           damagePrompt={{
             covers: (requiredItems.length
               ? T('finishCoversReq', { n: requiredItems.length })
@@ -558,6 +619,29 @@ export default function SharedInventoryView({ token }) {
             onReport: () => openDamage(null),
           }} />
       )}
+
+      {/* Looking back: every completed inventory and every change. */}
+      <div className="uinv-box uinv-history" id="uinv-history">
+        <h2>{T('histTitle')}</h2>
+        <p className="uinv-help" style={{ marginTop: 0 }}>{T('histHelpShared')}</p>
+        {!histTab ? (
+          <button type="button" className="uinv-btn" onClick={() => setHistTab('reports')}>{T('histOpen')}</button>
+        ) : (
+          <>
+            <div className="uinv-tabs">
+              <button type="button" className={`uinv-tab${histTab === 'reports' ? ' uinv-tab-on' : ''}`} onClick={() => setHistTab('reports')}>{T('histTabReports')}</button>
+              <button type="button" className={`uinv-tab${histTab === 'changes' ? ' uinv-tab-on' : ''}`}
+                onClick={() => setHistTab('changes')}>{T('histTabChanges')}</button>
+              <button type="button" className="uinv-tab" onClick={() => setHistTab('')}>{T('close')}</button>
+            </div>
+            {histTab === 'reports' && (
+              <CheckoutReports key={lastCheck ? lastCheck.id : 'none'} lang={lang} unitBase={base} unitName={`${T('apt')} ${unit.apt || ''}`.trim()}
+                onError={e => setMsg({ err: true, text: e?.message || String(e) })} />
+            )}
+            {histTab === 'changes' && <HistoryList history={history} lang={lang} />}
+          </>
+        )}
+      </div>
 
       <Toast msg={msg} raised={dirtyItems.length > 0} lang={lang} onDismiss={() => setMsg(null)} />
 

@@ -217,6 +217,12 @@ export const UINV_CSS = `
 .uinv-proof-ok .uinv-proof-state{color:#0b5f3a}
 .uinv-progress{margin:8px 0 0;font-weight:700;color:#7a5200}
 .uinv-progress-done{color:#0b5f3a}
+.uinv-missing{display:grid;gap:8px;margin:0 0 10px;padding:10px;border-radius:12px;background:#fffaf0;border:1px solid #e2b93b}
+.uinv-missing-row{display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:space-between}
+.uinv-missing-row span{flex:1 1 180px;font-weight:700;color:#7a5200}
+.uinv-video-alert{background:#fff4e5;border:2px solid #e2a53b}
+.uinv-video-alert h2{margin:0 0 4px}
+.uinv-history .uinv-tabs{margin:10px 0}
 .uinv-people{margin-top:12px;padding-top:10px;border-top:1px solid rgba(47,79,58,.14)}
 .uinv-people h3,.uinv-tasks h3,.uinv-owner-notes h3{margin:10px 0 6px;font-size:1rem}
 .uinv-person{display:grid;gap:6px;padding:8px 10px;margin-bottom:8px;border-radius:12px;background:#fff;border:1px solid rgba(47,79,58,.2)}
@@ -228,6 +234,8 @@ a.uinv-btn{text-decoration:none;display:inline-flex;align-items:center;justify-c
 .uinv-owner-notes{background:#fbf8ef;border-color:#e2b93b}
 .uinv-task-row{display:grid;gap:8px;padding:10px;margin-bottom:8px;border-radius:12px;background:#fff;border:1px solid rgba(47,79,58,.2)}
 .uinv-task-done{background:#f1f8f4;border-color:#b7e2c8}
+.uinv-task-blocked{background:#fff3f1;border-color:#e39a92}
+.uinv-task-why{color:#b42318;font-weight:600;overflow-wrap:anywhere}
 .uinv-task-text{display:grid;gap:2px;overflow-wrap:anywhere}
 .uinv-task-note{display:grid;gap:8px}
 .uinv-task-form{display:grid;gap:10px;margin-top:10px}
@@ -266,6 +274,7 @@ a.uinv-btn{text-decoration:none;display:inline-flex;align-items:center;justify-c
 .uinv-fn-edit-head{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px}
 .uinv-fn-edit-head .uinv-fn-text{flex:1 1 180px}
 .uinv-fn-edit-btns{gap:6px;flex-wrap:nowrap}
+.uinv-fn-edit-row .uinv-field .uinv-help,.uinv-fn-edit-row .uinv-field .uinv-meta,.uinv-fn-edit-row .uinv-field .uinv-msg{text-transform:none;letter-spacing:0;font-weight:400;font-size:.9rem}
 .uinv-fn-results{margin-top:10px}
 .uinv-fn-results h3{margin:0 0 6px;font-size:1rem}
 .uinv-fn-results ul{margin:0;padding-left:0;list-style:none;display:grid;gap:4px}

@@ -211,10 +211,16 @@ unnoticed.
   owner's panel: a note, optionally about one item, written in the
   owner's language and translated into the other (as count notes are).
   It shows at the top of the cleaning-service page under "📝 Del
-  propietario"; they tick it "✓ Hecho" (or "✓ Hecho, con nota"), and can
-  undo it during the same visit. The owner sees who did it and when,
-  then files it away ("✓ Visto") or asks again; the completion email
-  lists the notes done and how many are left.
+  propietario" and must be answered before the count can be finished:
+  "✓ Hecho" (or "✓ Hecho, con nota"), or "✗ No se pudo" with the reason
+  (required); an answer can be taken back during the same visit. The
+  task list shows "Responde lo que pidió el propietario (n, obligatorio)"
+  with progress, the finish box lists the notes left with a button to
+  them, and the server refuses the count while any is open
+  (`tasksMissing`). The owner sees each answer (who, when, the note or
+  the reason in red), then files it away ("✓ Visto") or asks again
+  ("Volver a pedir"); the completion email lists what was done and what
+  couldn't be, with the reasons.
 - **Closing the loop on damage.** On the cleaning-service page an item
   with an open damage report says "⚠️ Ya reportado", and the damage
   form says so (when, what) if that item is picked, so it isn't
@@ -260,7 +266,17 @@ unnoticed.
   the batteries first if it doesn't respond. Battery changes show in the
   checkout report ("🔋 2 cambio(s) de pilas"), in Pendientes ("Pilas
   cambiadas en el último conteo (compra repuestos)") and in the owner's
-  email. On the cleaning-service page they
+  email. Each check can carry photos: the owner's example photos (up to
+  3, added from the check's edit form with the camera or the gallery —
+  which remote is which, what the lock's keypad looks like), shown to
+  the cleaning service beside the check (tap for full size; they take
+  the place of the linked item's photo); and photos the cleaning service
+  takes when answering it ("📷 Foto (opcional)", up to 3 — a remote that
+  doesn't work, a low-battery warning), which join the count's record
+  like item photos and show under that check in the checkout report.
+  They are kept in the item photo tables under the key `fn:<check id>`
+  (no tables of their own); removing a check removes its example
+  photos. On the cleaning-service page they
   appear under "🔌 Revisa que funcione", with a step in the task list;
   each is answered "✓ Funciona" or "✗ No funciona" (saved at once, and
   changeable). "✗ No funciona" opens the damage form already written
@@ -271,6 +287,19 @@ unnoticed.
   3 funcionan", what failed first) and the owner's email. The owner's
   own count doesn't ask for them. Without the tables (schema not
   re-run) nothing is asked and the owner's button says to run the SQL.
+- **The required video, made plain.** Until this visit's video is up,
+  the cleaning-service page shows "🎥 El video es obligatorio" near the
+  top (with "🎥 Ir a grabar el video"), and the finish box lists what is
+  still needed ("Antes de terminar falta: 🎥 El video del apartamento
+  (obligatorio)", unanswered working checks) with a button to each. The
+  welcome and the guide say it too. Finishing without it is still
+  refused by the server.
+- **History for the cleaning service.** "📜 Historial del inventario"
+  at the end of their page: every completed inventory (the same report
+  the owner sees — counts, damage with photos, working checks with
+  photos, the video to watch or download) and "Todos los cambios", the
+  timeline of item changes and completed counts. Read-only: no "keep as
+  evidence", no storage summary, no week-long video share link.
 - **Damage reports.** The cleaning service can report damage: what is
   damaged, where (an area, the item if it concerns one, a free-text
   spot) and up to 4 photos. Photos are shrunk in the browser and stored
@@ -431,7 +460,7 @@ is missing. That file is generated from the inventory section of
 | `unit_inventory_videos` | The checkout video: where it is in the `inventory-videos` storage bucket, type, size, length, who, `uploading` / `ready`, and the completed count it belongs to. `keep` / `kept_by` / `kept_at`: kept as evidence by the owner. Kept until all videos together pass the storage limit; then the oldest of completed counts are deleted (row and file) to make room — never one under 30 days old or kept as evidence. A missing table means no video is asked for. The bucket is created by `schema.sql`, or by the server on first use. |
 | `unit_inventory_count_photos` | Optional item photos at a checkout: unattached while the visit is under way, then tied to the completed count (`check_id`). Pruned to the 12 most recent counts per unit. A missing table means photos aren't asked for and counts complete as before. |
 | `unit_inventory_people` | The cleaning service's people with their own link: name, phone, `token`, `enabled`, `last_seen_at`. Switched off, never deleted. |
-| `unit_inventory_tasks` | The owner's notes for the next visit: text with its language and translation, optional `item_id`, `open` → `done` (who, when, note) → `archived`. |
+| `unit_inventory_tasks` | The owner's notes for the next visit: text with its language and translation, optional `item_id`, `open` → `done` or `blocked` (who, when, note / reason) → `archived`. |
 | `unit_inventory_function_checks` | The owner's working checks: names and how-to-test in both languages, optional `item_id`, `position`, `uses_batteries`. |
 | `unit_inventory_function_results` | The answers of the visit under way (`ok` / `fail`, note, who, `batteries` changed). Completing a count copies them into `unit_inventory_checks.function_results` (with `functions_failed`) and clears them. |
 | `unit_inventory_damages` | Damage reports: description, area / item / spot, photos (JPEG data URLs), who and when, the completed count they belong to (`check_id`), `open` or `resolved`, and how the owner closed it (`resolution`, `owner_reply`; read without them on a database not yet updated). A missing table reads as no damage; only reporting fails. |
@@ -455,6 +484,7 @@ Mounted at `/api/m/unit-inventory`.
 | `POST /people/:id` | owner | `{ action: update\|disable\|enable\|regenerate, name?, phone? }` → `{ person }` |
 | `POST /units/:listingId/tasks` | owner | `{ text, itemId?, lang }`: a note for the next visit (translated) → `{ task }` |
 | `POST /tasks/:id` | owner | `{ action: archive\|reopen\|delete }` → `{ task }` (null when deleted) |
+| `GET/POST/DELETE /units/:listingId/functions/:checkId/photos[/:photoId]` | owner | A check's example photos (`?first=1`: the first only), at most 3 |
 | `PUT /units/:listingId/functions` | owner | `{ checks: [{ id?, labelEn, labelEs, howEn, howEs, itemId, usesBatteries }] }`: replaces the working checks with this ordered list (no id = new; left out = removed) → `{ checks }`. 503 without the tables |
 | `POST /units/:listingId/translate` | owner | `{ text, to: es\|en, field: area\|name\|note }` → `{ text }`. 503 when `ANTHROPIC_API_KEY` is not set |
 | `DELETE /items/:id` | owner | Delete an item (history kept) |
@@ -486,7 +516,10 @@ Mounted at `/api/m/unit-inventory`.
 | `POST /shared/:token/checks` | link holder | Mark the count complete (optionally saving `updates` first) |
 | `POST /shared/:token/proposals` | link holder | Propose an item for the owner to approve |
 | `POST /shared/:token/damages` | link holder | Report damage, with photos |
-| `POST /shared/:token/tasks/:taskId` | link holder | `{ name, done: true\|false, note? }`: tick off one of the owner's notes (or untick one ticked this visit) |
+| `POST /shared/:token/tasks/:taskId` | link holder | `{ name, done: true\|false, blocked?, note? }`: answer one of the owner's notes — done, or `blocked` (couldn't, `note` required) — or take back an answer given this visit |
+| `GET /shared/:token/history`, `/shared/:token/checks`, `/shared/:token/checks/:checkId[/items/:itemId/photos \| /videos]` | link holder | The history and every checkout report, read-only (videos without the week-long share link) |
+| `GET /shared/:token/functions/:checkId/photos` | link holder | The owner's example photos of a check (`?first=1`) |
+| `GET/POST/DELETE /shared/:token/functions/:checkId/proof[/:photoId]` | link holder | Photos taken of a check during this visit (at most 3); they join the completed count |
 | `POST /shared/:token/functions/:checkId` | link holder | `{ name, status: ok\|fail, note?, batteries? }`: answer a working check for this visit (replaces an earlier answer) |
 | `POST /shared/:token/damages/suggest` | link holder | `{ photo?, description? }` (at least one) → `{ seenEs, seenEn, matches: [{ itemId, confidence: high\|medium\|low }] }` (up to 3). 503 without `ANTHROPIC_API_KEY`; 429 after 30 an hour per unit |
 
