@@ -44,7 +44,9 @@ const editFields = (lang) => {
 
 const EMPTY_FORM = { areaEn: '', areaEs: '', nameEn: '', nameEs: '', noteEn: '', noteEs: '', count: '1', countRequired: false };
 
-export default function UnitInventoryModal({ listing, user, onClose }) {
+// `initialTab` ('items' | 'reports' | 'history') and `openCheckId` (a
+// checkout report to open) come from the link in the owner's email.
+export default function UnitInventoryModal({ listing, user, onClose, initialTab, openCheckId }) {
   const { lang } = useApp();
   const T = (k, v) => tr(lang, k, v);
   const who = { ownerUid: user.uid, actorName: user.name || user.email || '' };
@@ -67,7 +69,7 @@ export default function UnitInventoryModal({ listing, user, onClose }) {
   const [tasks, setTasks] = useState([]);
   // Counts and notes as typed, keyed by item id, until saved.
   const [draft, setDraft] = useState({});
-  const [tab, setTab] = useState('items');
+  const [tab, setTab] = useState(initialTab || 'items');
   const [form, setForm] = useState(null);
   // Whether the server can translate between the two languages.
   const [canTranslate, setCanTranslate] = useState(false);
@@ -609,7 +611,7 @@ export default function UnitInventoryModal({ listing, user, onClose }) {
           <button type="button" className={`uinv-tab${tab === 'history' ? ' uinv-tab-on' : ''}`} onClick={() => setTab('history')}>{T('tabHistory')}</button>
         </div>
 
-        {tab === 'reports' && <CheckoutReports lang={lang} unitBase={unitBase} ownerUid={user.uid} unitName={aptDisplay(listing.apt, lang)} onError={e => setMsg({ err: true, text: e?.message || String(e) })} />}
+        {tab === 'reports' && <CheckoutReports lang={lang} unitBase={unitBase} ownerUid={user.uid} unitName={aptDisplay(listing.apt, lang)} openFirst={openCheckId} onError={e => setMsg({ err: true, text: e?.message || String(e) })} />}
         {tab === 'history' && <HistoryList history={history} lang={lang} />}
 
         {tab === 'items' && items === null && <p className="uinv-sub">{T('loading')}</p>}

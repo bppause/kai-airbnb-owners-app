@@ -300,6 +300,14 @@ unnoticed.
   photos, the video to watch or download) and "Todos los cambios", the
   timeline of item changes and completed counts. Read-only: no "keep as
   evidence", no storage summary, no week-long video share link.
+- **The owner's email when an inventory is completed** (in-app alert as
+  well) sums it up — counts, damage, working checks, battery changes,
+  notes answered — and links straight into the app: "Ver el reporte de
+  esta salida" (`/?unitInventory=<unit>&tab=reports&check=<count>`:
+  the inventory opens on Reportes de salida with that report open),
+  "Ver el historial" (`&tab=history`) and "Abrir el inventario". The
+  owner signs in if needed; the link only opens a unit they can see, and
+  is dropped from the address once used.
 - **Damage reports.** The cleaning service can report damage: what is
   damaged, where (an area, the item if it concerns one, a free-text
   spot) and up to 4 photos. Photos are shrunk in the browser and stored
