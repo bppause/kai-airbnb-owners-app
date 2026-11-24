@@ -118,6 +118,8 @@ const guide = (lang, { required, videoRequired, proofEnabled, functions }) => {
           `Under “🔌 Check that it works” there are ${functions} tests the owner asked for: the stove, each TV and A/C with its remote, the curtains, the washer…`),
         pick('Prueba cada una como dice debajo y toca “✓ Funciona” o “✗ No funciona”. Se guarda al instante.',
           'Test each one as it says underneath and tap “✓ Works” or “✗ Doesn’t work”. It saves at once.'),
+        pick('Si un control o la cerradura no responde, cambia las pilas primero. Si así funciona, toca “🔋 Cambié las pilas y funciona”: el propietario sabrá que debe comprar más.',
+          'If a remote or the lock doesn’t respond, change the batteries first. If it then works, tap “🔋 Changed the batteries, it works”: the owner will know to buy more.'),
         pick('Si tocas “✗ No funciona” se abre el reporte de daño ya escrito: agrega qué falla y una foto, y envíalo. Así el propietario se entera.',
           'If you tap “✗ Doesn’t work” the damage report opens already filled in: add what is wrong and a photo, and send it. That way the owner finds out.'),
         pick('No puedes terminar el conteo hasta responder todas.', 'You can’t finish the count until all are answered.'),

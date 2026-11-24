@@ -19,7 +19,9 @@ const otherLabelOf = (lang, c) => {
 };
 
 // The cleaning service's list. `answers` is { [checkId]: { status, note,
-// by } } for this visit. `onAnswer(check, status)` saves an answer and
+// by, batteries } } for this visit. `onAnswer(check, status, batteries)`
+// saves an answer — batteries: it worked once the batteries were changed,
+// offered for checks that run on them — and
 // resolves true when it did; a "doesn't work" then calls
 // `onBroken(check, item)` so the damage can be reported.
 export function FunctionCheckList({ lang, checks, answers, items, busy, loadFirst, onAnswer, onBroken }) {
@@ -27,10 +29,10 @@ export function FunctionCheckList({ lang, checks, answers, items, busy, loadFirs
   const [saving, setSaving] = useState('');
   const done = checks.filter(c => answers[c.id]).length;
   const failed = checks.filter(c => answers[c.id] && answers[c.id].status === 'fail').length;
-  const answer = async (c, status) => {
-    setSaving(c.id + status);
+  const answer = async (c, status, batteries = false) => {
+    setSaving(c.id + status + (batteries ? 'bat' : ''));
     try {
-      const ok = await onAnswer(c, status);
+      const ok = await onAnswer(c, status, batteries);
       if (ok && status === 'fail') onBroken(c, items.find(it => it.id === c.itemId) || null);
     } finally { setSaving(''); }
   };
@@ -42,7 +44,7 @@ export function FunctionCheckList({ lang, checks, answers, items, busy, loadFirs
           {T('fnProgress', { done, n: checks.length })}{failed ? ` · ${T('fnFailedCount', { n: failed })}` : ''}
         </span>
       </div>
-      <p className="uinv-help">{T('fnHelp')}</p>
+      <p className="uinv-help">{T('fnHelp')}{checks.some(c => c.usesBatteries) ? ` ${T('fnBatteriesHelp')}` : ''}</p>
       <ol className="uinv-fn-list">
         {checks.map(c => {
           const a = answers[c.id];
@@ -50,7 +52,7 @@ export function FunctionCheckList({ lang, checks, answers, items, busy, loadFirs
           const how = primaryText(lang, c.howEn, c.howEs);
           const other = otherLabelOf(lang, c);
           return (
-            <li key={c.id} className={`uinv-fn-row${a ? ` uinv-fn-${a.status}` : ''}`}>
+            <li key={c.id} className={`uinv-fn-row${a ? ` uinv-fn-${a.status}` : ''}${a && a.batteries ? ' uinv-fn-bat-on' : ''}`}>
               <div className="uinv-fn-what">
                 {item && loadFirst && <ItemThumb lang={lang} item={item} load={loadFirst} still small />}
                 <div className="uinv-fn-text">
@@ -61,10 +63,14 @@ export function FunctionCheckList({ lang, checks, answers, items, busy, loadFirs
                 </div>
               </div>
               <div className="uinv-fn-btns" role="group" aria-label={labelOf(lang, c)}>
-                <button type="button" className={`uinv-btn uinv-fn-ok${a && a.status === 'ok' ? ' uinv-on' : ''}`} aria-pressed={!!a && a.status === 'ok'}
+                <button type="button" className={`uinv-btn uinv-fn-ok${a && a.status === 'ok' && !a.batteries ? ' uinv-on' : ''}`} aria-pressed={!!a && a.status === 'ok' && !a.batteries}
                   disabled={busy || !!saving} onClick={() => answer(c, 'ok')}>{saving === c.id + 'ok' ? '…' : T('fnWorks')}</button>
                 <button type="button" className={`uinv-btn uinv-fn-fail${a && a.status === 'fail' ? ' uinv-on' : ''}`} aria-pressed={!!a && a.status === 'fail'}
                   disabled={busy || !!saving} onClick={() => answer(c, 'fail')}>{saving === c.id + 'fail' ? '…' : T('fnBroken')}</button>
+                {c.usesBatteries && (
+                  <button type="button" className={`uinv-btn uinv-fn-bat${a && a.status === 'ok' && a.batteries ? ' uinv-on' : ''}`} aria-pressed={!!a && a.status === 'ok' && !!a.batteries}
+                    disabled={busy || !!saving} onClick={() => answer(c, 'ok', true)}>{saving === c.id + 'okbat' ? '…' : T('fnBatteries')}</button>
+                )}
               </div>
             </li>
           );
@@ -88,7 +94,7 @@ export function FunctionResults({ lang, results }) {
         {[...failed, ...ok].map(r => (
           <li key={r.id} className={r.status === 'fail' ? 'uinv-fn-res-fail' : 'uinv-fn-res-ok'}>
             <span aria-hidden="true">{r.status === 'fail' ? '✗' : '✓'}</span>{' '}
-            <span>{labelOf(lang, r)}{r.status === 'fail' ? ` — ${T('fnBrokenShort')}` : ''}{r.note ? ` · ${r.note}` : ''}</span>
+            <span>{labelOf(lang, r)}{r.status === 'fail' ? ` — ${T('fnBrokenShort')}` : ''}{r.batteries ? ` · ${T('fnBatteriesShort')}` : ''}{r.note ? ` · ${r.note}` : ''}</span>
           </li>
         ))}
       </ul>
@@ -120,53 +126,106 @@ const placeOf = (name) => {
   const p = m ? (m[1] || m[2]).trim().replace(/^(cortinas?|curtains?)\s+/i, '') : '';
   return p ? p[0].toUpperCase() + p.slice(1) : '';
 };
-const withPlace = (base, place) => (place ? `${base} "${place}"` : base);
 
-// A first list for the unit, from its inventory: the stove, each TV and
-// A/C with its remote, the A/C switching off with the doors open, each
-// curtain remote, the washer, dryer, microwave and oven. Bilingual, tied
-// to the item where there is one; the owner edits it before saving.
+// The rooms remotes are named after ("Sala", "Principal", "Cortina Niños",
+// "(alcoba principal)") as one key each, with their names in both languages.
+const plainText = (v) => String(v || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+const ROOMS = [
+  { key: 'ninos', re: /nin|child|kid/, es: 'Alcoba niños', en: 'Children’s bedroom' },
+  { key: 'sala', re: /sala|living/, es: 'Sala', en: 'Living room' },
+  { key: 'principal', re: /princ|main|master/, es: 'Alcoba principal', en: 'Master bedroom' },
+];
+const roomOf = (it) => {
+  const place = plainText(placeOf(it.nameEs) || placeOf(it.nameEn));
+  if (!place) return null;
+  return ROOMS.find(r => r.re.test(place)) || { key: place, es: placeOf(it.nameEs) || placeOf(it.nameEn), en: placeOf(it.nameEn) || placeOf(it.nameEs) };
+};
+const BATTERY_HINT_ES = ' Si no responde, cambia las pilas y prueba otra vez.';
+const BATTERY_HINT_EN = ' If it doesn’t respond, change the batteries and try again.';
+
+// A first list for the unit, from its inventory, room by room as the
+// cleaning service walks it: the stove's burners; in each room the A/C
+// with its remote and its automatic switch-off when a door opens, the
+// curtain remote on 0, 1 and 2, the TV with its remote; the front-door
+// lock; then the washer, dryer and microwave. Remotes and the lock are
+// marked as running on batteries. Bilingual, tied to the item where
+// there is one; the owner edits it before saving.
 export function suggestFunctionChecks(items) {
   const out = [];
-  const add = (labelEs, labelEn, howEs, howEn, item) => out.push({ labelEs, labelEn, howEs, howEn, itemId: item ? item.id : '' });
+  const add = (labelEs, labelEn, howEs, howEn, item, usesBatteries = false) =>
+    out.push({ labelEs, labelEn, howEs, howEn, itemId: item ? item.id : '', usesBatteries });
   const find = (re) => items.filter(it => (re.test(it.nameEs || '') || re.test(it.nameEn || '')) && !ACCESSORY.test(`${it.nameEs} ${it.nameEn}`));
+  const all = (it) => `${it.nameEs} ${it.nameEn}`;
+
   const stoves = find(ITEM_WORDS.stove);
   stoves.forEach(it => {
-    const n = /(\d+)\s*(puestos|burners)/i.exec(`${it.nameEs} ${it.nameEn}`);
+    const n = /(\d+)\s*(puestos|burners)/i.exec(all(it));
     add(n ? `Estufa: los ${n[1]} puestos prenden` : 'Estufa: todos los puestos prenden',
       n ? `Stove: all ${n[1]} burners light` : 'Stove: every burner lights',
       'Prende cada puesto uno por uno y apágalo.', 'Light each burner one at a time, then turn it off.', it);
   });
   if (!stoves.length) add('Estufa: todos los puestos prenden', 'Stove: every burner lights', 'Prende cada puesto uno por uno y apágalo.', 'Light each burner one at a time, then turn it off.', null);
-  find(ITEM_WORDS.oven).forEach(it => add('Horno calienta', 'Oven heats up', 'Préndelo unos minutos y apágalo.', 'Turn it on for a few minutes, then off.', it));
-  const tvRemotes = find(ITEM_WORDS.tvRemote);
-  tvRemotes.forEach(it => {
-    const fire = /fire|amazon|roku|apple/i.test(`${it.nameEs} ${it.nameEn}`);
-    add(fire ? 'Control del Amazon Fire TV funciona' : withPlace('TV', placeOf(it.nameEs)) + ' prende y responde a su control',
-      fire ? 'Amazon Fire TV remote works' : withPlace('TV', placeOf(it.nameEn)) + ' turns on and answers its remote',
-      'Prende, cambia de canal o app, sube y baja volumen, apaga.', 'Turn on, change channel or app, volume up and down, turn off.', it);
-  });
-  if (!tvRemotes.length) find(ITEM_WORDS.tv).forEach(it => add('TV prende y responde a su control', 'TV turns on and answers its remote', 'Prende, sube y baja volumen, apaga.', 'Turn on, volume up and down, turn off.', it));
+
   const acRemotes = find(ITEM_WORDS.acRemote);
-  acRemotes.forEach(it => add(withPlace('Aire', placeOf(it.nameEs)) + ' enfría y responde a su control',
-    withPlace('A/C', placeOf(it.nameEn)) + ' cools and answers its remote',
-    'Préndelo con el control, verifica que salga aire frío y apágalo.', 'Turn it on with the remote, check cold air comes out, turn it off.', it));
-  if (!acRemotes.length) find(ITEM_WORDS.ac).forEach(it => add('Aire enfría y responde a su control', 'A/C cools and answers its remote', 'Préndelo, verifica que salga aire frío y apágalo.', 'Turn it on, check cold air comes out, turn it off.', it));
-  if (acRemotes.length || find(ITEM_WORDS.ac).length) {
-    add('Aire se apaga solo al abrir las puertas corredizas y la puerta principal', 'A/C switches off by itself when the sliding doors or the front door open',
-      'Con el aire prendido abre cada puerta corrediza y la puerta principal: el aire debe apagarse.', 'With the A/C on, open each sliding door and the front door: the A/C should switch off.', null);
+  const curtainRemotes = find(ITEM_WORDS.curtainRemote);
+  const tvRemotes = find(ITEM_WORDS.tvRemote).filter(it => !/fire|amazon|roku|apple/i.test(all(it)));
+  const controllers = items.filter(it => /controlador(es)? de pared|wall a\/?c controllers?/i.test(all(it)));
+  const samsung = tvRemotes.some(it => /samsung/i.test(all(it)));
+  const gree = acRemotes.some(it => /gree/i.test(all(it)));
+  // The rooms, children's bedroom, living room, master bedroom first.
+  const rooms = [];
+  for (const it of [...acRemotes, ...curtainRemotes, ...tvRemotes]) {
+    const r = roomOf(it);
+    if (r && !rooms.some(x => x.key === r.key)) rooms.push(r);
   }
-  find(ITEM_WORDS.curtainRemote).forEach(it => add(withPlace('Cortinas', placeOf(it.nameEs)) + ': el control funciona en 0, 1 y 2',
-    withPlace('Curtains', placeOf(it.nameEn)) + ': remote works on 0, 1 and 2',
-    'En cada canal (0, 1 y 2) abre y cierra.', 'On each channel (0, 1 and 2) open and close.', it));
-  const washers = find(ITEM_WORDS.washer);
-  washers.forEach(it => add('Lavadora llena, lava y desagua', 'Washer fills, washes and drains', 'Un ciclo corto sin ropa, o revisa que arranque y llene.', 'A short cycle with no clothes, or check that it starts and fills.', it));
-  find(ITEM_WORDS.dryer).filter(it => !/pelo|hair/i.test(`${it.nameEs} ${it.nameEn}`)).forEach(it => add('Secadora calienta y gira', 'Dryer heats and turns', 'Préndela unos minutos.', 'Run it for a few minutes.', it));
+  const order = (r) => { const i = ROOMS.findIndex(x => x.key === r.key); return i < 0 ? 99 : i; };
+  rooms.sort((a, b) => order(a) - order(b));
+  const inRoom = (list, room) => list.find(it => { const r = roomOf(it); return r && r.key === room.key; }) || null;
+  for (const room of rooms) {
+    const ac = inRoom(acRemotes, room);
+    if (ac || acRemotes.length) {
+      add(`Aire ${room.es}: el control${gree ? ' Gree' : ''} lo prende y enfría`, `${room.en} A/C: the${gree ? ' Gree' : ''} remote turns it on and it cools`,
+        'Préndelo con el control, verifica que salga aire frío y apágalo.' + BATTERY_HINT_ES, 'Turn it on with the remote, check cold air comes out, turn it off.' + BATTERY_HINT_EN, ac, true);
+      const living = room.key === 'sala';
+      const ctl = controllers.find(c => (living ? /sala|living/ : /alcoba|bedroom/).test(plainText(`${c.areaEs} ${c.areaEn}`))) || null;
+      add(`Aire ${room.es}: se apaga solo al abrir la puerta (control automático)`, `${room.en} A/C: switches off by itself when the door opens (automatic control)`,
+        living ? 'Con el aire prendido abre la puerta corrediza y luego la puerta principal: con cada una el aire debe apagarse solo. Ciérralas.' : 'Con el aire prendido abre la puerta corrediza: el aire debe apagarse solo. Ciérrala.',
+        living ? 'With the A/C on, open the sliding door and then the front door: each should switch the A/C off by itself. Close them.' : 'With the A/C on, open the sliding door: the A/C should switch off by itself. Close it.', ctl);
+    }
+    const cur = inRoom(curtainRemotes, room);
+    if (cur || curtainRemotes.length) {
+      add(`Cortinas ${room.es}: el control funciona en 0, 1 y 2`, `${room.en} curtains: the remote works on 0, 1 and 2`,
+        'En cada canal (0, 1 y 2) abre y cierra.' + BATTERY_HINT_ES, 'On each channel (0, 1 and 2) open and close.' + BATTERY_HINT_EN, cur, true);
+    }
+    const tv = inRoom(tvRemotes, room);
+    if (tv || tvRemotes.length) {
+      add(`TV ${room.es}: el control${samsung ? ' Samsung' : ''} la prende y responde`, `${room.en} TV: the${samsung ? ' Samsung' : ''} remote turns it on and works`,
+        'Préndela, cambia de canal, sube y baja el volumen y apágala.' + BATTERY_HINT_ES, 'Turn it on, change channel, volume up and down, turn it off.' + BATTERY_HINT_EN, tv, true);
+    }
+  }
+  // Units without named remotes: one check per appliance instead.
+  if (!rooms.length) {
+    find(ITEM_WORDS.tv).forEach(it => add('TV prende y responde a su control', 'TV turns on and answers its remote', 'Prende, sube y baja volumen, apaga.' + BATTERY_HINT_ES, 'Turn on, volume up and down, turn off.' + BATTERY_HINT_EN, it, true));
+    find(ITEM_WORDS.ac).forEach(it => {
+      add('Aire enfría y responde a su control', 'A/C cools and answers its remote', 'Préndelo, verifica que salga aire frío y apágalo.' + BATTERY_HINT_ES, 'Turn it on, check cold air comes out, turn it off.' + BATTERY_HINT_EN, it, true);
+      add('Aire se apaga solo al abrir la puerta (control automático)', 'A/C switches off by itself when the door opens (automatic control)', 'Con el aire prendido abre la puerta: debe apagarse solo.', 'With the A/C on, open the door: it should switch off by itself.', null);
+    });
+  }
+  // The front-door lock (a keypad lock runs on batteries).
+  const lock = items.find(it => /cerradura|door lock|smart lock/i.test(all(it))) || null;
+  if (lock || items.some(it => /yale/i.test(all(it)))) {
+    const yale = /yale/i.test(lock ? all(lock) : 'yale');
+    add(`Cerradura${yale ? ' Yale' : ''} de la puerta principal: abre con el código y cierra`, `Front door${yale ? ' Yale' : ''} lock: opens with the code and locks`,
+      'Desde afuera ábrela con el código y verifica que vuelva a cerrar. Si el teclado no prende o avisa batería baja, cambia las pilas.',
+      'From outside open it with the code and check it locks again. If the keypad doesn’t light up or warns of low battery, change the batteries.', lock, true);
+  }
+  find(ITEM_WORDS.washer).forEach(it => add('Lavadora llena, lava y desagua', 'Washer fills, washes and drains', 'Un ciclo corto sin ropa, o revisa que arranque y llene.', 'A short cycle with no clothes, or check that it starts and fills.', it));
+  find(ITEM_WORDS.dryer).filter(it => !/pelo|hair/i.test(all(it))).forEach(it => add('Secadora calienta y gira', 'Dryer heats and turns', 'Préndela unos minutos.', 'Run it for a few minutes.', it));
   find(ITEM_WORDS.microwave).forEach(it => add('Microondas calienta', 'Microwave heats', 'Calienta un vaso de agua 30 segundos.', 'Heat a glass of water for 30 seconds.', it));
   return out;
 }
 
-const blank = () => ({ key: Math.random().toString(36).slice(2), labelEn: '', labelEs: '', howEn: '', howEs: '', itemId: '' });
+const blank = () => ({ key: Math.random().toString(36).slice(2), labelEn: '', labelEs: '', howEn: '', howEs: '', itemId: '', usesBatteries: false });
 
 // One check in the editor: name and how-to-test in the owner's language,
 // the other translated read-only when translation works (as in the item
@@ -211,6 +270,10 @@ function CheckFields({ lang, check, items, canTranslate, translate, onChange }) 
           {items.map(it => <option key={it.id} value={it.id}>{primaryText(lang, it.nameEn, it.nameEs)}</option>)}
         </select>
       </label>
+      <label className="uinv-check uinv-full">
+        <input type="checkbox" checked={!!check.usesBatteries} onChange={e => onChange({ usesBatteries: e.target.checked })} />
+        <span>{T('fnUsesBatteries')}</span>
+      </label>
     </div>
   );
 }
@@ -233,6 +296,13 @@ export function FunctionCheckEditor({ lang, checks, items, busy, canTranslate, t
     const have = new Set(list.map(c => `${c.labelEs}|${c.itemId}`));
     const add = suggestFunctionChecks(items).filter(c => !have.has(`${c.labelEs}|${c.itemId}`)).map(c => ({ ...blank(), ...c }));
     setList(l => [...l, ...add]);
+  };
+  // Start over from the suggested list (a list saved from an earlier
+  // suggestion would otherwise keep its old wording beside the new).
+  const replaceSuggested = () => {
+    if (!window.confirm(T('fnSuggestReplaceConfirm', { n: list.length }))) return;
+    setList(suggestFunctionChecks(items).map(c => ({ ...blank(), ...c })));
+    setOpen(null);
   };
   const save = async () => {
     setProblem('');
@@ -260,6 +330,7 @@ export function FunctionCheckEditor({ lang, checks, items, busy, canTranslate, t
                   <strong>{labelOf(lang, c) || T('fnUnnamed')}</strong>
                   {otherLabelOf(lang, c) && <span className="uinv-area-other">{otherLabelOf(lang, c)}</span>}
                   {item && <span className="uinv-meta">{T('fnItem', { name: primaryText(lang, item.nameEn, item.nameEs) })}</span>}
+                  {c.usesBatteries && <span className="uinv-meta">{T('fnUsesBatteriesShort')}</span>}
                 </div>
                 <div className="uinv-row uinv-fn-edit-btns">
                   <button type="button" className="uinv-btn uinv-btn-sm" aria-label={T('fnUp')} disabled={busy || i === 0} onClick={() => move(i, -1)}>↑</button>
@@ -277,6 +348,7 @@ export function FunctionCheckEditor({ lang, checks, items, busy, canTranslate, t
       <div className="uinv-row" style={{ marginTop: 8 }}>
         <button type="button" className="uinv-btn" disabled={busy} onClick={() => { const b = blank(); setList(l => [...l, b]); setOpen(b.key); }}>{T('fnAdd')}</button>
         <button type="button" className="uinv-btn" disabled={busy || !items.length} onClick={addSuggested}>{T('fnSuggest')}</button>
+        {list.length > 0 && <button type="button" className="uinv-btn" disabled={busy || !items.length} onClick={replaceSuggested}>{T('fnSuggestReplace')}</button>}
       </div>
       {problem && <div className="uinv-msg uinv-msg-err" role="alert" style={{ marginTop: 8 }}>{problem}</div>}
       <div className="uinv-row" style={{ marginTop: 10 }}>
