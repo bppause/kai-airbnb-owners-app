@@ -1281,7 +1281,11 @@ module.exports = function createUnitInventoryRouter(deps) {
       await supabase.from('unit_inventory_item_photos').delete().eq('listing_id', listing.id).in('item_id', gone.map(fnKey));
     }
     if (rows.length) {
-      const full = rows.map(r => (known.has(r.id) ? r : { ...r, created_at: now }));
+      // Every row carries the same columns: in a batch, PostgREST sets a
+      // column some rows leave out to NULL in the others — and created_at
+      // can't be NULL. Checks already saved keep their original date.
+      const createdOf = new Map(before.map(f => [f.id, f.created_at]));
+      const full = rows.map(r => ({ ...r, created_at: (known.has(r.id) && createdOf.get(r.id)) || now }));
       let { error } = await supabase.from('unit_inventory_function_checks').upsert(full);
       // A database without the batteries column yet: save without it,
       // unless a check needs it.
