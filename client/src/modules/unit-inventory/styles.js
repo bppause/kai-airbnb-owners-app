@@ -259,6 +259,9 @@ a.uinv-btn{text-decoration:none;display:inline-flex;align-items:center;justify-c
 .uinv-fn-btns .uinv-btn{min-height:44px;width:100%}
 .uinv-fn-ok.uinv-on{background:#0b5f3a;border-color:#0b5f3a;color:#fff}
 .uinv-fn-fail.uinv-on{background:#b42318;border-color:#b42318;color:#fff}
+.uinv-fn-bat{grid-column:1/-1}
+.uinv-fn-bat.uinv-on{background:#7a5200;border-color:#7a5200;color:#fff}
+.uinv-fn-row.uinv-fn-bat-on{border-color:#e2b93b;background:#fffaf0}
 .uinv-fn-edit-row{padding:8px;border-radius:12px;background:#fff;border:1px solid rgba(47,79,58,.2);display:grid;gap:8px}
 .uinv-fn-edit-head{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px}
 .uinv-fn-edit-head .uinv-fn-text{flex:1 1 180px}

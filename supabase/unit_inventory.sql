@@ -205,6 +205,10 @@ create table if not exists public.unit_inventory_function_checks (
 );
 create index if not exists idx_unit_inventory_function_checks_listing
   on public.unit_inventory_function_checks(listing_id, position);
+-- Whether the thing tested runs on batteries (a remote, the door lock):
+-- the cleaning service can then answer "worked after changing the
+-- batteries", so the owner knows to buy more.
+alter table public.unit_inventory_function_checks add column if not exists uses_batteries boolean not null default false;
 
 -- The answers of the visit under way: works ('ok') or not ('fail'),
 -- with an optional note. A count can't be completed through the share
@@ -224,6 +228,8 @@ create table if not exists public.unit_inventory_function_results (
 );
 create index if not exists idx_unit_inventory_function_results_visit
   on public.unit_inventory_function_results(listing_id, created_at);
+-- The batteries were changed to make it work (or to try to).
+alter table public.unit_inventory_function_results add column if not exists batteries boolean not null default false;
 
 -- Damage reported by the cleaning service: what, where (an area, a
 -- free-text spot, and the item if it concerns one — its names copied so

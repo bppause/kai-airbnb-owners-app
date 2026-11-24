@@ -610,7 +610,7 @@ export default function UnitInventoryModal({ listing, user, onClose }) {
   const linkUrl = link ? `${window.location.origin}/?inventory=${encodeURIComponent(link.token)}` : '';
   // From the "Pendientes" box to where each thing is dealt with.
   const jumpTo = (key) => {
-    if (key === 'fnFailed') { setTab('reports'); return; }
+    if (key === 'fnFailed' || key === 'batteries') { setTab('reports'); return; }
     if (key === 'missing') setOnlyChanged(true);
     const id = { proposals: 'uinv-proposals', damages: 'uinv-open-damages', tasksDone: 'uinv-tasks', missing: 'uinv-list-top' }[key];
     setTimeout(() => { const el = document.getElementById(id); if (el) el.scrollIntoView({ block: 'start' }); }, 0);
@@ -667,6 +667,7 @@ export default function UnitInventoryModal({ listing, user, onClose }) {
               { key: 'proposals', icon: '＋', label: T('inboxProposals'), n: proposals.length },
               { key: 'damages', icon: '⚠️', label: T('inboxDamages'), n: openDamages.length },
               { key: 'fnFailed', icon: '🔌', label: T('inboxFnFailed'), n: lastCheck && lastCheck.functionsFailed ? lastCheck.functionsFailed : 0 },
+              { key: 'batteries', icon: '🔋', label: T('inboxBatteries'), n: ((lastCheck && lastCheck.functionResults) || []).filter(f => f.batteries).length },
               { key: 'tasksDone', icon: '📝', label: T('inboxTasksDone'), n: (tasks || []).filter(t => t.status === 'done').length },
               { key: 'missing', icon: '▼', label: T('inboxMissing'), n: list.filter(it => it.currentCount < it.baselineCount).length },
             ]} />

@@ -326,12 +326,12 @@ export default function SharedInventoryView({ token }) {
   const openDamageOf = (it) => openDamages.find(d => d.itemId === it.id) || damages.find(d => d.itemId === it.id && d.status !== 'resolved');
   // Working checks: each answered "works" / "doesn't work" (saved at once).
   const fnLeft = functionChecks.filter(c => !functionAnswers[c.id]);
-  const answerFunction = async (check, status) => {
+  const answerFunction = async (check, status, batteries = false) => {
     if (!haveName()) return false;
     setMsg(null);
     try {
       writeStored(NAME_KEY, name.trim());
-      const d = await api.post(`${base}/functions/${encodeURIComponent(check.id)}`, { name: name.trim(), status });
+      const d = await api.post(`${base}/functions/${encodeURIComponent(check.id)}`, { name: name.trim(), status, ...(batteries ? { batteries: true } : {}) });
       setState(prev => ({ ...prev, functionAnswers: { ...prev.functionAnswers, [check.id]: d.answer } }));
       return true;
     } catch (e) {

@@ -438,6 +438,15 @@ const STR = {
   fnHelp:           { es: 'Prueba cada uno y marca si funciona. Si algo no funciona, toca “✗ No funciona” y envía el reporte de daño.', en: 'Test each one and mark whether it works. If something doesn’t work, tap “✗ Doesn’t work” and send the damage report.' },
   fnProgress:       { es: '{done} de {n} revisados', en: '{done} of {n} checked' },
   fnFailedCount:    { es: '{n} no funciona(n)', en: '{n} not working' },
+  fnBatteries:      { es: '🔋 Cambié las pilas y funciona', en: '🔋 Changed the batteries, it works' },
+  fnBatteriesShort: { es: '🔋 pilas cambiadas', en: '🔋 batteries changed' },
+  fnBatteriesHelp:  { es: 'Si un control o la cerradura no responde, cambia las pilas primero: si así funciona, toca “🔋 Cambié las pilas y funciona” para que el propietario compre más.', en: 'If a remote or the lock doesn’t respond, change the batteries first: if it then works, tap “🔋 Changed the batteries, it works” so the owner buys more.' },
+  fnUsesBatteries:  { es: '🔋 Usa pilas (control, cerradura…): el servicio puede marcar “Cambié las pilas y funciona”', en: '🔋 Runs on batteries (remote, lock…): the service can mark “Changed the batteries, it works”' },
+  fnUsesBatteriesShort:{ es: '🔋 Usa pilas', en: '🔋 Runs on batteries' },
+  fnSuggestReplace: { es: '✨ Reemplazar por la lista sugerida', en: '✨ Replace with the suggested list' },
+  fnSuggestReplaceConfirm:{ es: '¿Cambiar las {n} pruebas por la lista sugerida? Nada se guarda hasta que toques Guardar.', en: 'Replace the {n} checks with the suggested list? Nothing is saved until you tap Save.' },
+  checkFnBatteries: { es: '🔋 {n} cambio(s) de pilas', en: '🔋 {n} battery change(s)' },
+  inboxBatteries:   { es: 'Pilas cambiadas en el último conteo (compra repuestos)', en: 'Batteries changed at the last count (buy more)' },
   fnWorks:          { es: '✓ Funciona', en: '✓ Works' },
   fnBroken:         { es: '✗ No funciona', en: '✗ Doesn’t work' },
   fnBrokenShort:    { es: 'no funciona', en: 'doesn’t work' },
@@ -623,6 +632,8 @@ export const checkSummary = (lang, check) => [
   (check.functionResults || []).length
     ? (check.functionsFailed ? tr(lang, 'checkFnFailed', { n: check.functionsFailed }) : tr(lang, 'checkFnOk', { n: check.functionResults.length }))
     : '',
+  (check.functionResults || []).some(f => f.batteries)
+    ? tr(lang, 'checkFnBatteries', { n: check.functionResults.filter(f => f.batteries).length }) : '',
 ].filter(Boolean).join(' · ');
 
 export const API_BASE = '/api/m/unit-inventory';

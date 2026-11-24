@@ -258,6 +258,8 @@ const functionFromDb = (r) => ({
   howEn: r.how_en || '',
   howEs: r.how_es || '',
   itemId: r.item_id || '',
+  // Runs on batteries: the cleaning service may answer "worked after changing them".
+  usesBatteries: !!r.uses_batteries,
 });
 
 const videoFromDb = (r) => ({
@@ -651,7 +653,7 @@ module.exports = function createUnitInventoryRouter(deps) {
     for (const r of (error ? [] : data || [])) out[r.function_check_id] = r;
     return out;
   };
-  const answerFromDb = (r) => ({ status: r.status, note: r.note || '', by: r.answered_by || '', at: r.created_at });
+  const answerFromDb = (r) => ({ status: r.status, note: r.note || '', by: r.answered_by || '', at: r.created_at, batteries: !!r.batteries });
 
   // Drops the proof photos of counts older than the unit's latest
   // PROOF_KEEP_CHECKS, and those of visits that were never completed.
@@ -749,6 +751,7 @@ module.exports = function createUnitInventoryRouter(deps) {
     const functionResults = functions.filter(f => answers[f.id]).map(f => ({
       id: f.id, labelEn: f.label_en || '', labelEs: f.label_es || '', itemId: f.item_id || '',
       status: answers[f.id].status, note: answers[f.id].note || '', by: answers[f.id].answered_by || '',
+      ...(answers[f.id].batteries ? { batteries: true } : {}),
     }));
     const functionsFailed = functionResults.filter(f => f.status === 'fail').length;
     const full = {
@@ -881,6 +884,7 @@ module.exports = function createUnitInventoryRouter(deps) {
   // The completed count, told to the owner as that checkout's result.
   const notifyOwnerOfCheck = ({ listing, check, results, damages, functionResults = [], tasksDone = [], tasksOpen = [], req }) => {
     const failed = functionResults.filter(f => f.status === 'fail');
+    const batteries = functionResults.filter(f => f.batteries);
     const parts = [
       check.items_required ? `${check.items_required} artículos de cada salida revisados` : `${check.items_total} artículos revisados`,
       check.items_missing ? `${check.items_missing} con faltantes` : '',
@@ -902,6 +906,7 @@ module.exports = function createUnitInventoryRouter(deps) {
         ...(off.length ? ['Artículos con diferencia:', ...off.slice(0, 40).map(r => `• ${r.nameEs || r.nameEn}: esperado ${r.baseline}, contado ${r.count}${r.note ? ` — ${r.note}` : ''}`)] : []),
         ...(tasksDone.length ? ['Tus pendientes hechos:', ...tasksDone.map(t => `• ${t.text}${t.done_note ? ` — ${t.done_note}` : ''} (${t.done_by})`)] : []),
         ...(tasksOpen.length ? [`Pendientes sin hacer: ${tasksOpen.length}`] : []),
+        ...(batteries.length ? [`Pilas cambiadas (compra repuestos): ${batteries.length}`, ...batteries.map(f => `• ${f.labelEs || f.labelEn}`)] : []),
         ...(failed.length ? ['No funciona:', ...failed.map(f => `• ${f.labelEs || f.labelEn}${f.note ? ` — ${f.note}` : ''}`)] : []),
         ...(damages.length ? ['Daños reportados:', ...damages.slice(0, 20).map(d => `• ${[damageWhere(d), d.description].filter(Boolean).join(': ')}${d.photo_count ? ` (${d.photo_count} foto(s))` : ''}`)] : []),
         'El reporte completo, con fotos y video, está en la aplicación: Mis unidades → Inventario → Reportes de salida.',
@@ -1163,6 +1168,7 @@ module.exports = function createUnitInventoryRouter(deps) {
         label_en: text(c.labelEn, MAX_FUNCTION_LABEL), label_es: text(c.labelEs, MAX_FUNCTION_LABEL),
         how_en: text(c.howEn, MAX_FUNCTION_HOW), how_es: text(c.howEs, MAX_FUNCTION_HOW),
         item_id: itemIds.has(c.itemId) ? c.itemId : null,
+        uses_batteries: !!c.usesBatteries,
         position: i, updated_at: now,
       };
       if (!row.label_en && !row.label_es) return res.status(400).json({ error: `Check ${i + 1} needs a name in English or Spanish.` });
@@ -1175,7 +1181,14 @@ module.exports = function createUnitInventoryRouter(deps) {
       if (error) return sendSupabaseError(res, error);
     }
     if (rows.length) {
-      const { error } = await supabase.from('unit_inventory_function_checks').upsert(rows.map(r => (known.has(r.id) ? r : { ...r, created_at: now })));
+      const full = rows.map(r => (known.has(r.id) ? r : { ...r, created_at: now }));
+      let { error } = await supabase.from('unit_inventory_function_checks').upsert(full);
+      // A database without the batteries column yet: save without it,
+      // unless a check needs it.
+      if (error && /uses_batteries/.test(error.message || '')) {
+        if (rows.some(r => r.uses_batteries)) return res.status(503).json({ error: '“Uses batteries” needs the latest database update: run supabase/unit_inventory.sql in the Supabase SQL Editor.' });
+        ({ error } = await supabase.from('unit_inventory_function_checks').upsert(full.map(({ uses_batteries, ...r }) => r)));
+      }
       if (error) return sendSupabaseError(res, error);
     }
     await auditLog({
@@ -2184,7 +2197,7 @@ module.exports = function createUnitInventoryRouter(deps) {
   });
 
   // POST /shared/:token/functions/:checkId — body: { name, status: 'ok' |
-  // 'fail', note? }. The cleaning service says whether a working check
+  // 'fail', note?, batteries? } (batteries: changed to make it work). The cleaning service says whether a working check
   // works at this visit; a new answer replaces the visit's earlier one.
   router.post('/shared/:token/functions/:checkId', async (req, res) => {
     if (!requireSupabaseEnv(res)) return;
@@ -2203,8 +2216,15 @@ module.exports = function createUnitInventoryRouter(deps) {
       id: 'uifr_' + uuidv4().slice(0, 12), listing_id: listing.id, community_id: listing.community_id || 'kai',
       function_check_id: fc.id, status, note: text(req.body?.note, MAX_FUNCTION_NOTE),
       answered_by: cleanerName(req, listing), created_at: new Date().toISOString(),
+      batteries: !!req.body?.batteries,
     };
-    const { error } = await supabase.from('unit_inventory_function_results').insert(row);
+    let { error } = await supabase.from('unit_inventory_function_results').insert(row);
+    // Without the batteries column yet, say it in the note instead.
+    if (error && /batteries/.test(error.message || '')) {
+      const { batteries, ...bare } = row;
+      if (batteries) bare.note = ('🔋 Pilas cambiadas. ' + bare.note).trim();
+      ({ error } = await supabase.from('unit_inventory_function_results').insert(bare));
+    }
     if (error) return sendSupabaseError(res, error);
     res.json({ answer: answerFromDb(row) });
   });

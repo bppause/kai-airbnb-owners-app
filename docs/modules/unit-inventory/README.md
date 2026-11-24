@@ -245,10 +245,22 @@ unnoticed.
   both languages (the other one translated read-only, as in the item
   form), with an optional how-to-test line and an optional inventory
   item (whose photo the cleaning service then sees). "✨ Agregar las
-  sugeridas" builds a first list from the inventory — the stove (with
-  its number of burners), oven, each TV and A/C remote, the A/C/door
-  shut-off, each curtain remote, washer, dryer and microwave — for the
-  owner to edit, reorder and save. On the cleaning-service page they
+  sugeridas" builds a first list from the inventory, room by room as the
+  cleaning service walks it: the stove (with its number of burners);
+  then for each room the remotes are named after (Alcoba niños, Sala,
+  Alcoba principal) the A/C with its Gree remote, the A/C switching
+  itself off when the door opens (tied to the wall controller; in the
+  living room the sliding door and the front door), the curtain remote
+  on 0, 1 and 2, and the Samsung TV with its remote; the Yale front-door
+  lock; then the washer, dryer and microwave. "✨ Reemplazar por la
+  lista sugerida" swaps a list saved earlier for it. The owner edits,
+  reorders and saves. Each check can be marked "🔋 Usa pilas" (the
+  suggested remotes and the lock are): the cleaning service then also
+  has "🔋 Cambié las pilas y funciona", and the how-to says to change
+  the batteries first if it doesn't respond. Battery changes show in the
+  checkout report ("🔋 2 cambio(s) de pilas"), in Pendientes ("Pilas
+  cambiadas en el último conteo (compra repuestos)") and in the owner's
+  email. On the cleaning-service page they
   appear under "🔌 Revisa que funcione", with a step in the task list;
   each is answered "✓ Funciona" or "✗ No funciona" (saved at once, and
   changeable). "✗ No funciona" opens the damage form already written
@@ -420,8 +432,8 @@ is missing. That file is generated from the inventory section of
 | `unit_inventory_count_photos` | Optional item photos at a checkout: unattached while the visit is under way, then tied to the completed count (`check_id`). Pruned to the 12 most recent counts per unit. A missing table means photos aren't asked for and counts complete as before. |
 | `unit_inventory_people` | The cleaning service's people with their own link: name, phone, `token`, `enabled`, `last_seen_at`. Switched off, never deleted. |
 | `unit_inventory_tasks` | The owner's notes for the next visit: text with its language and translation, optional `item_id`, `open` → `done` (who, when, note) → `archived`. |
-| `unit_inventory_function_checks` | The owner's working checks: names and how-to-test in both languages, optional `item_id`, `position`. |
-| `unit_inventory_function_results` | The answers of the visit under way (`ok` / `fail`, note, who). Completing a count copies them into `unit_inventory_checks.function_results` (with `functions_failed`) and clears them. |
+| `unit_inventory_function_checks` | The owner's working checks: names and how-to-test in both languages, optional `item_id`, `position`, `uses_batteries`. |
+| `unit_inventory_function_results` | The answers of the visit under way (`ok` / `fail`, note, who, `batteries` changed). Completing a count copies them into `unit_inventory_checks.function_results` (with `functions_failed`) and clears them. |
 | `unit_inventory_damages` | Damage reports: description, area / item / spot, photos (JPEG data URLs), who and when, the completed count they belong to (`check_id`), `open` or `resolved`, and how the owner closed it (`resolution`, `owner_reply`; read without them on a database not yet updated). A missing table reads as no damage; only reporting fails. |
 | `unit_inventory_proposals` | Items proposed through the share link: `pending`, `approved` (with the `item_id` created) or `rejected`. Decided rows are kept. A missing table reads as no proposals; only proposing fails. |
 | `unit_inventory_links` | One share link per unit: token and whether it is enabled. Kept off `listings` because listing rows are returned to every signed-in user. |
@@ -443,7 +455,7 @@ Mounted at `/api/m/unit-inventory`.
 | `POST /people/:id` | owner | `{ action: update\|disable\|enable\|regenerate, name?, phone? }` → `{ person }` |
 | `POST /units/:listingId/tasks` | owner | `{ text, itemId?, lang }`: a note for the next visit (translated) → `{ task }` |
 | `POST /tasks/:id` | owner | `{ action: archive\|reopen\|delete }` → `{ task }` (null when deleted) |
-| `PUT /units/:listingId/functions` | owner | `{ checks: [{ id?, labelEn, labelEs, howEn, howEs, itemId }] }`: replaces the working checks with this ordered list (no id = new; left out = removed) → `{ checks }`. 503 without the tables |
+| `PUT /units/:listingId/functions` | owner | `{ checks: [{ id?, labelEn, labelEs, howEn, howEs, itemId, usesBatteries }] }`: replaces the working checks with this ordered list (no id = new; left out = removed) → `{ checks }`. 503 without the tables |
 | `POST /units/:listingId/translate` | owner | `{ text, to: es\|en, field: area\|name\|note }` → `{ text }`. 503 when `ANTHROPIC_API_KEY` is not set |
 | `DELETE /items/:id` | owner | Delete an item (history kept) |
 | `POST /units/:listingId/counts` | owner | Update counts and notes |
@@ -475,7 +487,7 @@ Mounted at `/api/m/unit-inventory`.
 | `POST /shared/:token/proposals` | link holder | Propose an item for the owner to approve |
 | `POST /shared/:token/damages` | link holder | Report damage, with photos |
 | `POST /shared/:token/tasks/:taskId` | link holder | `{ name, done: true\|false, note? }`: tick off one of the owner's notes (or untick one ticked this visit) |
-| `POST /shared/:token/functions/:checkId` | link holder | `{ name, status: ok\|fail, note? }`: answer a working check for this visit (replaces an earlier answer) |
+| `POST /shared/:token/functions/:checkId` | link holder | `{ name, status: ok\|fail, note?, batteries? }`: answer a working check for this visit (replaces an earlier answer) |
 | `POST /shared/:token/damages/suggest` | link holder | `{ photo?, description? }` (at least one) → `{ seenEs, seenEn, matches: [{ itemId, confidence: high\|medium\|low }] }` (up to 3). 503 without `ANTHROPIC_API_KEY`; 429 after 30 an hour per unit |
 
 ## UI
