@@ -730,6 +730,16 @@ module.exports = function createUnitInventoryRouter(deps) {
     // Every working check needs an answer from this visit.
     const functions = (await loadFunctions(listing.id)) || [];
     const answers = functions.length ? await visitFunctionAnswers(listing.id) : {};
+    // Every note the owner left needs an answer too: done, or why not.
+    if (actorType === 'cleaner') {
+      const openTasks = await loadTasks(listing.id, ['open']);
+      if (openTasks && openTasks.length) {
+        return {
+          error: `Answer the owner's notes first (${openTasks.length} left): done, or why it couldn't be done.`,
+          status: 400, tasksMissing: openTasks.map(t => t.id),
+        };
+      }
+    }
     if (actorType === 'cleaner') {
       const unanswered = functions.filter(f => !answers[f.id]);
       if (unanswered.length) {
@@ -827,10 +837,12 @@ module.exports = function createUnitInventoryRouter(deps) {
       if (fErr) warn('Inventory working-check clean-up failed: ' + fErr.message);
     }
     if (actorType === 'cleaner') {
-      const tasks = (await loadTasks(listing.id, ['open', 'done'])) || [];
-      const tasksDone = tasks.filter(t => t.status === 'done' && t.done_at && t.done_at >= visitSince());
+      const tasks = (await loadTasks(listing.id, ['open', 'done', 'blocked'])) || [];
+      const answeredNow = (t) => t.done_at && t.done_at >= visitSince();
+      const tasksDone = tasks.filter(t => t.status === 'done' && answeredNow(t));
+      const tasksBlocked = tasks.filter(t => t.status === 'blocked' && answeredNow(t));
       const tasksOpen = tasks.filter(t => t.status === 'open');
-      setImmediate(() => notifyOwnerOfCheck({ listing, check: saved, results, damages, functionResults, tasksDone, tasksOpen, req }));
+      setImmediate(() => notifyOwnerOfCheck({ listing, check: saved, results, damages, functionResults, tasksDone, tasksBlocked, tasksOpen, req }));
       setImmediate(() => pruneProofPhotos(listing.id));
       setImmediate(() => pruneVideos(listing.id));
     }
@@ -915,7 +927,7 @@ module.exports = function createUnitInventoryRouter(deps) {
   };
 
   // The completed count, told to the owner as that checkout's result.
-  const notifyOwnerOfCheck = ({ listing, check, results, damages, functionResults = [], tasksDone = [], tasksOpen = [], req }) => {
+  const notifyOwnerOfCheck = ({ listing, check, results, damages, functionResults = [], tasksDone = [], tasksBlocked = [], tasksOpen = [], req }) => {
     const failed = functionResults.filter(f => f.status === 'fail');
     const batteries = functionResults.filter(f => f.batteries);
     const parts = [
@@ -938,6 +950,7 @@ module.exports = function createUnitInventoryRouter(deps) {
         parts,
         ...(off.length ? ['Artículos con diferencia:', ...off.slice(0, 40).map(r => `• ${r.nameEs || r.nameEn}: esperado ${r.baseline}, contado ${r.count}${r.note ? ` — ${r.note}` : ''}`)] : []),
         ...(tasksDone.length ? ['Tus pendientes hechos:', ...tasksDone.map(t => `• ${t.text}${t.done_note ? ` — ${t.done_note}` : ''} (${t.done_by})`)] : []),
+        ...(tasksBlocked.length ? ['Tus pendientes que no se pudieron hacer:', ...tasksBlocked.map(t => `• ${t.text} — ${t.done_note} (${t.done_by})`)] : []),
         ...(tasksOpen.length ? [`Pendientes sin hacer: ${tasksOpen.length}`] : []),
         ...(batteries.length ? [`Pilas cambiadas (compra repuestos): ${batteries.length}`, ...batteries.map(f => `• ${f.labelEs || f.labelEn}`)] : []),
         ...(failed.length ? ['No funciona:', ...failed.map(f => `• ${f.labelEs || f.labelEn}${f.note ? ` — ${f.note}` : ''}`)] : []),
@@ -1065,8 +1078,8 @@ module.exports = function createUnitInventoryRouter(deps) {
       functionChecks: await (async (fs) => (fs ? functionsForScreen(listing.id, fs) : null))(await loadFunctions(listing.id)),
       // The cleaning service's people and their links; null without the table.
       people: ((ps) => (ps ? ps.map(personFromDb) : null))(await loadPeople(listing.id)),
-      // Notes for the next visit, open and done (not archived); null without the table.
-      tasks: ((ts) => (ts ? ts.map(taskFromDb) : null))(await loadTasks(listing.id, ['open', 'done'])),
+      // Notes for the next visit, open and answered (not archived); null without the table.
+      tasks: ((ts) => (ts ? ts.map(taskFromDb) : null))(await loadTasks(listing.id, ['open', 'done', 'blocked'])),
     });
   });
 
@@ -2050,8 +2063,8 @@ module.exports = function createUnitInventoryRouter(deps) {
       openDamages: (await loadDamages(listing.id, q => q.eq('status', 'open'))).map(r => damageFromDb(r)),
       damageNews: (await loadDamages(listing.id, q => q.eq('status', 'resolved')
         .gte('resolved_at', new Date(Date.now() - DAMAGE_NEWS_DAYS * 86400000).toISOString()))).map(r => damageFromDb(r)),
-      // The owner's notes: open ones, and those done during this visit.
-      tasks: (((await loadTasks(listing.id, ['open', 'done'])) || [])
+      // The owner's notes: open ones, and those answered during this visit.
+      tasks: (((await loadTasks(listing.id, ['open', 'done', 'blocked'])) || [])
         .filter(t => t.status === 'open' || (t.done_at && t.done_at >= visitSince()))).map(taskFromDb),
       // The working checks to answer, and this visit's answers so far.
       ...(await (async () => {
@@ -2275,6 +2288,7 @@ module.exports = function createUnitInventoryRouter(deps) {
       return res.status(result.status).json({
         error: result.error, ...(result.videoMissing ? { videoMissing: true } : {}),
         ...(result.functionsMissing ? { functionsMissing: result.functionsMissing } : {}),
+        ...(result.tasksMissing ? { tasksMissing: result.tasksMissing } : {}),
       });
     }
     res.json(result);
@@ -2319,8 +2333,10 @@ module.exports = function createUnitInventoryRouter(deps) {
   });
 
   // POST /shared/:token/tasks/:taskId — body: { name, done: true |
-  // false, note? }. The cleaning service ticks off one of the owner's notes
-  // (or unticks one it ticked during this visit). → { task }.
+  // false, blocked?, note? }. The cleaning service answers one of the
+  // owner's notes: done (an optional note), or `blocked` — couldn't be
+  // done, `note` saying why (required) — or takes back an answer given
+  // during this visit (done: false). → { task }.
   router.post('/shared/:token/tasks/:taskId', async (req, res) => {
     if (!requireSupabaseEnv(res)) return;
     const listing = await unitForToken(res, req.params.token);
@@ -2330,13 +2346,21 @@ module.exports = function createUnitInventoryRouter(deps) {
     if (tErr) return sendSupabaseError(res, tErr);
     if (!task || task.status === 'archived') return res.status(404).json({ error: 'That note is no longer on the list. Reload the page.' });
     let patch;
-    if (req.body?.done === false) {
-      if (task.status !== 'done' || !task.done_at || task.done_at < visitSince()) return res.status(400).json({ error: 'Only a note ticked during this visit can be unticked.' });
+    if (req.body?.done === false && !req.body?.blocked) {
+      if (!['done', 'blocked'].includes(task.status) || !task.done_at || task.done_at < visitSince()) return res.status(400).json({ error: 'Only a note answered during this visit can be undone.' });
       patch = { status: 'open', done_by: '', done_at: null, done_note: '' };
+    } else if (req.body?.blocked) {
+      const why = text(req.body?.note, MAX_NOTE);
+      if (!why) return res.status(400).json({ error: 'Say why it couldn’t be done.' });
+      patch = { status: 'blocked', done_by: cleanerName(req, listing), done_at: new Date().toISOString(), done_note: why };
     } else {
       patch = { status: 'done', done_by: cleanerName(req, listing), done_at: new Date().toISOString(), done_note: text(req.body?.note, MAX_NOTE) };
     }
     const { error } = await supabase.from('unit_inventory_tasks').update(patch).eq('id', task.id);
+    // A database whose check on status predates 'blocked'.
+    if (error && patch.status === 'blocked' && /check|constraint|status/i.test(error.message || '')) {
+      return res.status(503).json({ error: '“Couldn’t do it” needs the latest database update: ask the owner to run supabase/unit_inventory.sql.' });
+    }
     if (error) return sendSupabaseError(res, error);
     res.json({ task: taskFromDb({ ...task, ...patch }) });
   });

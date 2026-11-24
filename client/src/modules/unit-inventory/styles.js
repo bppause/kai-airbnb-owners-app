@@ -234,6 +234,8 @@ a.uinv-btn{text-decoration:none;display:inline-flex;align-items:center;justify-c
 .uinv-owner-notes{background:#fbf8ef;border-color:#e2b93b}
 .uinv-task-row{display:grid;gap:8px;padding:10px;margin-bottom:8px;border-radius:12px;background:#fff;border:1px solid rgba(47,79,58,.2)}
 .uinv-task-done{background:#f1f8f4;border-color:#b7e2c8}
+.uinv-task-blocked{background:#fff3f1;border-color:#e39a92}
+.uinv-task-why{color:#b42318;font-weight:600;overflow-wrap:anywhere}
 .uinv-task-text{display:grid;gap:2px;overflow-wrap:anywhere}
 .uinv-task-note{display:grid;gap:8px}
 .uinv-task-form{display:grid;gap:10px;margin-top:10px}

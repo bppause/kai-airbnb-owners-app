@@ -211,10 +211,16 @@ unnoticed.
   owner's panel: a note, optionally about one item, written in the
   owner's language and translated into the other (as count notes are).
   It shows at the top of the cleaning-service page under "📝 Del
-  propietario"; they tick it "✓ Hecho" (or "✓ Hecho, con nota"), and can
-  undo it during the same visit. The owner sees who did it and when,
-  then files it away ("✓ Visto") or asks again; the completion email
-  lists the notes done and how many are left.
+  propietario" and must be answered before the count can be finished:
+  "✓ Hecho" (or "✓ Hecho, con nota"), or "✗ No se pudo" with the reason
+  (required); an answer can be taken back during the same visit. The
+  task list shows "Responde lo que pidió el propietario (n, obligatorio)"
+  with progress, the finish box lists the notes left with a button to
+  them, and the server refuses the count while any is open
+  (`tasksMissing`). The owner sees each answer (who, when, the note or
+  the reason in red), then files it away ("✓ Visto") or asks again
+  ("Volver a pedir"); the completion email lists what was done and what
+  couldn't be, with the reasons.
 - **Closing the loop on damage.** On the cleaning-service page an item
   with an open damage report says "⚠️ Ya reportado", and the damage
   form says so (when, what) if that item is picked, so it isn't
@@ -454,7 +460,7 @@ is missing. That file is generated from the inventory section of
 | `unit_inventory_videos` | The checkout video: where it is in the `inventory-videos` storage bucket, type, size, length, who, `uploading` / `ready`, and the completed count it belongs to. `keep` / `kept_by` / `kept_at`: kept as evidence by the owner. Kept until all videos together pass the storage limit; then the oldest of completed counts are deleted (row and file) to make room — never one under 30 days old or kept as evidence. A missing table means no video is asked for. The bucket is created by `schema.sql`, or by the server on first use. |
 | `unit_inventory_count_photos` | Optional item photos at a checkout: unattached while the visit is under way, then tied to the completed count (`check_id`). Pruned to the 12 most recent counts per unit. A missing table means photos aren't asked for and counts complete as before. |
 | `unit_inventory_people` | The cleaning service's people with their own link: name, phone, `token`, `enabled`, `last_seen_at`. Switched off, never deleted. |
-| `unit_inventory_tasks` | The owner's notes for the next visit: text with its language and translation, optional `item_id`, `open` → `done` (who, when, note) → `archived`. |
+| `unit_inventory_tasks` | The owner's notes for the next visit: text with its language and translation, optional `item_id`, `open` → `done` or `blocked` (who, when, note / reason) → `archived`. |
 | `unit_inventory_function_checks` | The owner's working checks: names and how-to-test in both languages, optional `item_id`, `position`, `uses_batteries`. |
 | `unit_inventory_function_results` | The answers of the visit under way (`ok` / `fail`, note, who, `batteries` changed). Completing a count copies them into `unit_inventory_checks.function_results` (with `functions_failed`) and clears them. |
 | `unit_inventory_damages` | Damage reports: description, area / item / spot, photos (JPEG data URLs), who and when, the completed count they belong to (`check_id`), `open` or `resolved`, and how the owner closed it (`resolution`, `owner_reply`; read without them on a database not yet updated). A missing table reads as no damage; only reporting fails. |
@@ -510,7 +516,7 @@ Mounted at `/api/m/unit-inventory`.
 | `POST /shared/:token/checks` | link holder | Mark the count complete (optionally saving `updates` first) |
 | `POST /shared/:token/proposals` | link holder | Propose an item for the owner to approve |
 | `POST /shared/:token/damages` | link holder | Report damage, with photos |
-| `POST /shared/:token/tasks/:taskId` | link holder | `{ name, done: true\|false, note? }`: tick off one of the owner's notes (or untick one ticked this visit) |
+| `POST /shared/:token/tasks/:taskId` | link holder | `{ name, done: true\|false, blocked?, note? }`: answer one of the owner's notes — done, or `blocked` (couldn't, `note` required) — or take back an answer given this visit |
 | `GET /shared/:token/history`, `/shared/:token/checks`, `/shared/:token/checks/:checkId[/items/:itemId/photos \| /videos]` | link holder | The history and every checkout report, read-only (videos without the week-long share link) |
 | `GET /shared/:token/functions/:checkId/photos` | link holder | The owner's example photos of a check (`?first=1`) |
 | `GET/POST/DELETE /shared/:token/functions/:checkId/proof[/:photoId]` | link holder | Photos taken of a check during this visit (at most 3); they join the completed count |

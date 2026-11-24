@@ -103,7 +103,7 @@ export function OwnerTasks({ lang, tasks, items, busy, onAdd, onAction }) {
   const [text, setText] = useState('');
   const [itemId, setItemId] = useState('');
   const open = tasks.filter(t => t.status === 'open');
-  const done = tasks.filter(t => t.status === 'done');
+  const done = tasks.filter(t => t.status === 'done' || t.status === 'blocked');
   const sorted = [...items].sort((a, b) => primaryText(lang, a.nameEn, a.nameEs).localeCompare(primaryText(lang, b.nameEn, b.nameEs)));
   const add = async () => { if (await onAdd({ text: text.trim(), itemId })) { setText(''); setItemId(''); } };
   const line = (t) => {
@@ -124,9 +124,11 @@ export function OwnerTasks({ lang, tasks, items, busy, onAdd, onAction }) {
         <>
           <h3>{T('tasksDoneTitle', { n: done.length })}</h3>
           {done.map(t => (
-            <div key={t.id} className="uinv-task-row uinv-task-done">
+            <div key={t.id} className={`uinv-task-row ${t.status === 'blocked' ? 'uinv-task-blocked' : 'uinv-task-done'}`}>
               {line(t)}
-              <div className="uinv-meta">{T('taskDoneBy', { who: t.doneBy, when: formatWhen(t.doneAt, lang) })}{t.doneNote ? ` · “${t.doneNote}”` : ''}</div>
+              <div className={t.status === 'blocked' ? 'uinv-task-why' : 'uinv-meta'}>
+                {T(t.status === 'blocked' ? 'taskBlockedBy' : 'taskDoneBy', { who: t.doneBy, when: formatWhen(t.doneAt, lang) })}{t.doneNote ? ` · “${t.doneNote}”` : ''}
+              </div>
               <div className="uinv-row">
                 <button type="button" className="uinv-btn uinv-btn-sm uinv-btn-p" disabled={busy} onClick={() => onAction(t, 'archive')}>{T('taskArchive')}</button>
                 <button type="button" className="uinv-btn uinv-btn-sm" disabled={busy} onClick={() => onAction(t, 'reopen')}>{T('taskReopen')}</button>
@@ -163,19 +165,22 @@ export function OwnerTasks({ lang, tasks, items, busy, onAdd, onAction }) {
 
 const RESOLUTION_KEYS = { repaired: 'resRepaired', replaced: 'resReplaced', other: 'resOther' };
 
-// The cleaning service's side: the owner's notes, each ticked "✓ Hecho"
-// (with an optional word), and what the owner did about recent damage.
-// `onToggle(task, done, note)` resolves true when saved.
+// The cleaning service's side: the owner's notes, each answered — "✓
+// Hecho" (with an optional word) or "✗ No se pudo" (with the reason) —
+// before the count can be finished; and what the owner did about recent
+// damage. `onToggle(task, 'done' | 'blocked' | 'undo', note)` resolves
+// true when saved.
 export function CleanerTasks({ lang, tasks, damageNews, items, busy, onToggle }) {
   const T = (k, v) => tr(lang, k, v);
-  const [noting, setNoting] = useState('');
+  // The note being written: { id, mode: 'done' | 'blocked' }.
+  const [noting, setNoting] = useState(null);
   const [note, setNote] = useState('');
   const [saving, setSaving] = useState('');
   if (!tasks.length && !damageNews.length) return null;
   const open = tasks.filter(t => t.status === 'open');
-  const toggle = async (t, done, withNote) => {
+  const toggle = async (t, action, withNote) => {
     setSaving(t.id);
-    try { if (await onToggle(t, done, withNote || '')) { setNoting(''); setNote(''); } } finally { setSaving(''); }
+    try { if (await onToggle(t, action, withNote || '')) { setNoting(null); setNote(''); } } finally { setSaving(''); }
   };
   return (
     <div className="uinv-box uinv-owner-notes" id="uinv-owner-notes">
@@ -185,28 +190,39 @@ export function CleanerTasks({ lang, tasks, damageNews, items, busy, onToggle })
         const view = taskView(lang, t);
         const about = itemName(lang, items, t.itemId);
         const done = t.status === 'done';
+        const blocked = t.status === 'blocked';
+        const writing = noting && noting.id === t.id ? noting.mode : '';
         return (
-          <div key={t.id} className={`uinv-task-row${done ? ' uinv-task-done' : ''}`}>
+          <div key={t.id} className={`uinv-task-row${done ? ' uinv-task-done' : ''}${blocked ? ' uinv-task-blocked' : ''}`}>
             <div className="uinv-task-text">
-              <span>{done ? '✓ ' : '📝 '}{view.text}</span>
+              <span>{done ? '✓ ' : blocked ? '✗ ' : '📝 '}{view.text}</span>
               {view.other && <span className="uinv-area-other">{view.other}</span>}
               {about && <span className="uinv-meta">{T('fnItem', { name: about })}</span>}
-              {done && <span className="uinv-meta">{T('taskDoneBy', { who: t.doneBy, when: formatWhen(t.doneAt, lang) })}{t.doneNote ? ` · “${t.doneNote}”` : ''}</span>}
+              {(done || blocked) && (
+                <span className="uinv-meta">
+                  {T(blocked ? 'taskBlockedBy' : 'taskDoneBy', { who: t.doneBy, when: formatWhen(t.doneAt, lang) })}{t.doneNote ? ` · “${t.doneNote}”` : ''}
+                </span>
+              )}
             </div>
-            {done ? (
-              <button type="button" className="uinv-btn uinv-btn-sm" disabled={busy || !!saving} onClick={() => toggle(t, false)}>{T('taskUndo')}</button>
-            ) : noting === t.id ? (
+            {done || blocked ? (
+              <button type="button" className="uinv-btn uinv-btn-sm" disabled={busy || !!saving} onClick={() => toggle(t, 'undo')}>{T('taskUndo')}</button>
+            ) : writing ? (
               <div className="uinv-task-note">
-                <input className="uinv-input" value={note} maxLength={300} placeholder={T('taskNotePh')} aria-label={T('taskNotePh')} onChange={e => setNote(e.target.value)} />
+                <input className="uinv-input" value={note} maxLength={300} placeholder={T(writing === 'blocked' ? 'taskBlockedPh' : 'taskNotePh')}
+                  aria-label={T(writing === 'blocked' ? 'taskBlockedPh' : 'taskNotePh')} onChange={e => setNote(e.target.value)} />
                 <div className="uinv-row">
-                  <button type="button" className="uinv-btn uinv-btn-p" disabled={busy || !!saving} onClick={() => toggle(t, true, note.trim())}>{T('taskDone')}</button>
-                  <button type="button" className="uinv-btn" disabled={!!saving} onClick={() => { setNoting(''); setNote(''); }}>{T('cancel')}</button>
+                  <button type="button" className={`uinv-btn ${writing === 'blocked' ? 'uinv-btn-danger' : 'uinv-btn-p'}`}
+                    disabled={busy || !!saving || (writing === 'blocked' && !note.trim())} onClick={() => toggle(t, writing, note.trim())}>
+                    {T(writing === 'blocked' ? 'taskBlocked' : 'taskDone')}
+                  </button>
+                  <button type="button" className="uinv-btn" disabled={!!saving} onClick={() => { setNoting(null); setNote(''); }}>{T('cancel')}</button>
                 </div>
               </div>
             ) : (
               <div className="uinv-row">
-                <button type="button" className="uinv-btn uinv-btn-p" disabled={busy || !!saving} onClick={() => toggle(t, true)}>{saving === t.id ? '…' : T('taskDone')}</button>
-                <button type="button" className="uinv-btn" disabled={busy || !!saving} onClick={() => { setNoting(t.id); setNote(''); }}>{T('taskDoneWithNote')}</button>
+                <button type="button" className="uinv-btn uinv-btn-p" disabled={busy || !!saving} onClick={() => toggle(t, 'done')}>{saving === t.id ? '…' : T('taskDone')}</button>
+                <button type="button" className="uinv-btn" disabled={busy || !!saving} onClick={() => { setNoting({ id: t.id, mode: 'done' }); setNote(''); }}>{T('taskDoneWithNote')}</button>
+                <button type="button" className="uinv-btn uinv-btn-danger" disabled={busy || !!saving} onClick={() => { setNoting({ id: t.id, mode: 'blocked' }); setNote(''); }}>{T('taskBlocked')}</button>
               </div>
             )}
           </div>

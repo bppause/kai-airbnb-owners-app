@@ -336,13 +336,15 @@ export default function SharedInventoryView({ token }) {
     return false;
   };
   const openDamage = (preset, description) => setDamaging({ preset: preset || null, description: description || '', seq: Date.now() });
-  // The owner's notes: ticked done (with an optional word) or unticked.
-  const toggleTask = async (task, done, note) => {
+  // The owner's notes: answered done (with an optional word) or
+  // couldn't-do (with the reason), or the answer taken back.
+  const toggleTask = async (task, action, note) => {
     if (!haveName()) return false;
     setMsg(null);
     try {
       writeStored(NAME_KEY, name.trim());
-      const d = await api.post(`${base}/tasks/${encodeURIComponent(task.id)}`, { name: name.trim(), done, note });
+      const body = action === 'undo' ? { done: false } : action === 'blocked' ? { blocked: true, note } : { done: true, note };
+      const d = await api.post(`${base}/tasks/${encodeURIComponent(task.id)}`, { name: name.trim(), ...body });
       setState(prev => ({ ...prev, tasks: prev.tasks.map(t => (t.id === task.id ? d.task : t)) }));
       return true;
     } catch (e) {
@@ -365,6 +367,16 @@ export default function SharedInventoryView({ token }) {
       setMsg({ err: true, text: e?.message || String(e) });
       return false;
     }
+  };
+  // The owner's notes still to answer; true when there are none (otherwise
+  // says so and goes to them).
+  const tasksLeft = tasks.filter(t => t.status === 'open');
+  const haveTasks = () => {
+    if (!tasksLeft.length) return true;
+    setMsg({ err: true, text: T('tasksMissing', { n: tasksLeft.length }) });
+    const el = document.getElementById('uinv-owner-notes');
+    if (el) el.scrollIntoView({ block: 'start' });
+    return false;
   };
   // True when every working check has an answer. Otherwise says so and
   // takes the person to the first one left.
@@ -478,6 +490,12 @@ export default function SharedInventoryView({ token }) {
             <strong>{T('taskDamage')}</strong>
             {requiredItems.length > 0 && <small>{T('taskDamageHow')}</small>}
           </li>
+          {tasks.length > 0 && (
+            <li>
+              <strong>{T('taskStep', { n: tasks.length })}</strong>
+              <div className={`uinv-progress${!tasksLeft.length ? ' uinv-progress-done' : ''}`}>{T('taskStepProgress', { done: tasks.length - tasksLeft.length, n: tasks.length })}</div>
+            </li>
+          )}
           {functionChecks.length > 0 && (
             <li>
               <strong>{T('taskFunctions', { n: functionChecks.length })}</strong>
@@ -587,10 +605,11 @@ export default function SharedInventoryView({ token }) {
       {items.length > 0 && (
         <CountComplete lang={lang} unsaved={dirtyItems.length} busy={busy} onComplete={complete}
           missing={[
+            ...(tasksLeft.length ? [{ key: 'tasks', text: T('tasksMissingShort', { n: tasksLeft.length }), action: T('tasksMissingGo'), onAction: () => { const el = document.getElementById('uinv-owner-notes'); if (el) el.scrollIntoView({ block: 'start' }); } }] : []),
             ...(fnLeft.length ? [{ key: 'fn', text: T('fnMissingShort', { n: fnLeft.length }), action: T('fnMissingGo'), onAction: () => { const el = document.getElementById('uinv-functions'); if (el) el.scrollIntoView({ block: 'start' }); } }] : []),
             ...(!videoDone ? [{ key: 'video', text: T('videoMissingShort'), action: T('videoAlertGo'), onAction: () => { const el = document.getElementById('uinv-video'); if (el) el.scrollIntoView({ block: 'start' }); } }] : []),
           ]}
-          canStart={() => pendingUpdates() !== null && haveFunctions() && haveVideo()}
+          canStart={() => pendingUpdates() !== null && haveTasks() && haveFunctions() && haveVideo()}
           damagePrompt={{
             covers: (requiredItems.length
               ? T('finishCoversReq', { n: requiredItems.length })

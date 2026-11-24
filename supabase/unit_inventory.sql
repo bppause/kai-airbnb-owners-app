@@ -327,8 +327,10 @@ create index if not exists idx_unit_inventory_people_listing
 -- The owner's notes for the next visit ("Cambié las pilas del control
 -- Niños, verifica"), optionally about one item. Written in the owner's
 -- language (text_lang) and translated into the other (text_translation)
--- when translation is on. 'open' until the cleaning service ticks it
--- 'done' (who, when, an optional note); the owner then archives it.
+-- when translation is on. 'open' until the cleaning service answers it —
+-- 'done', or 'blocked' (couldn't be done; done_note says why) — which
+-- they must do for every open note before finishing a count; the owner
+-- then archives it.
 create table if not exists public.unit_inventory_tasks (
   id text primary key,
   listing_id text not null references public.listings(id) on delete cascade,
@@ -337,7 +339,7 @@ create table if not exists public.unit_inventory_tasks (
   text_lang text not null default '',
   text_translation text not null default '',
   item_id text,
-  status text not null default 'open' check (status in ('open','done','archived')),
+  status text not null default 'open' check (status in ('open','done','blocked','archived')),
   created_by text not null default '',
   created_at timestamptz not null default now(),
   done_by text not null default '',
@@ -346,6 +348,10 @@ create table if not exists public.unit_inventory_tasks (
 );
 create index if not exists idx_unit_inventory_tasks_listing
   on public.unit_inventory_tasks(listing_id, status, created_at);
+-- 'blocked' came later: widen the check on a table made before it.
+alter table public.unit_inventory_tasks drop constraint if exists unit_inventory_tasks_status_check;
+alter table public.unit_inventory_tasks add constraint unit_inventory_tasks_status_check
+  check (status in ('open','done','blocked','archived'));
 
 -- Row level security is off: the server uses the service role key.
 alter table public.unit_inventory_items disable row level security;
