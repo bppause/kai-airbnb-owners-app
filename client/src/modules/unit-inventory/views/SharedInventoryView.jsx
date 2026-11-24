@@ -31,6 +31,8 @@ import { VideoRecorder, formatDuration, formatMb, MAX_VIDEO_SECONDS } from "../c
 import { CleanerIntro, CleanerHelp } from "../components/CleanerHelp";
 import { FunctionCheckList } from "../components/FunctionChecks";
 import { CleanerTasks } from "../components/OwnerService";
+import CheckoutReports from "../components/Reports";
+import { HistoryList } from "../components/History";
 import { UINV_CSS } from "../styles";
 
 const NAME_KEY = 'kai_inventory_name';
@@ -95,6 +97,22 @@ export default function SharedInventoryView({ token }) {
   // ones to count at every checkout, if the owner flagged any".
   const [view, setView] = useState(null);
   const folding = useAreaFolding();
+  // The history section: closed (''), 'reports' or 'changes'; and the
+  // changes once fetched.
+  const [histTab, setHistTab] = useState('');
+  const [history, setHistory] = useState(null);
+  // Fetched when "Todos los cambios" is open, and again after a count is
+  // completed (it adds to the history).
+  const lastCheckId = state.lastCheck ? state.lastCheck.id : '';
+  useEffect(() => { setHistory(null); }, [lastCheckId]);
+  useEffect(() => {
+    if (histTab !== 'changes' || history !== null) return undefined;
+    let live = true;
+    api.get(`${base}/history`).then(d => { if (live) setHistory({ events: d.events || [], checks: d.checks || [] }); })
+      .catch(e => { if (live) { setHistory({ events: [], checks: [] }); setMsg({ err: true, text: e?.message || String(e) }); } });
+    return () => { live = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [histTab, history]);
   // The areas marked "✓ Todo bien" in this visit: { visit, keys }, where
   // `visit` is the last completed count's id (a new count starts afresh).
   const [reviewed, setReviewed] = useState(() => {
@@ -491,6 +509,14 @@ export default function SharedInventoryView({ token }) {
         </div>
       )}
 
+      {videoRequired && !videoDone && (
+        <div className="uinv-box uinv-video-alert" role="note">
+          <h2>{T('videoAlertTitle')}</h2>
+          <p className="uinv-help" style={{ marginTop: 0 }}>{T('videoAlertBody')}</p>
+          <button type="button" className="uinv-btn" onClick={() => { const el = document.getElementById('uinv-video'); if (el) el.scrollIntoView({ block: 'start' }); }}>{T('videoAlertGo')}</button>
+        </div>
+      )}
+
       <CleanerTasks lang={lang} tasks={tasks} damageNews={damageNews} items={items} busy={busy} onToggle={toggleTask} />
 
       {items.length === 0 && <p className="uinv-sub" style={{ marginTop: 12 }}>{T('empty')}</p>}
@@ -560,6 +586,10 @@ export default function SharedInventoryView({ token }) {
 
       {items.length > 0 && (
         <CountComplete lang={lang} unsaved={dirtyItems.length} busy={busy} onComplete={complete}
+          missing={[
+            ...(fnLeft.length ? [{ key: 'fn', text: T('fnMissingShort', { n: fnLeft.length }), action: T('fnMissingGo'), onAction: () => { const el = document.getElementById('uinv-functions'); if (el) el.scrollIntoView({ block: 'start' }); } }] : []),
+            ...(!videoDone ? [{ key: 'video', text: T('videoMissingShort'), action: T('videoAlertGo'), onAction: () => { const el = document.getElementById('uinv-video'); if (el) el.scrollIntoView({ block: 'start' }); } }] : []),
+          ]}
           canStart={() => pendingUpdates() !== null && haveFunctions() && haveVideo()}
           damagePrompt={{
             covers: (requiredItems.length
@@ -570,6 +600,29 @@ export default function SharedInventoryView({ token }) {
             onReport: () => openDamage(null),
           }} />
       )}
+
+      {/* Looking back: every completed inventory and every change. */}
+      <div className="uinv-box uinv-history" id="uinv-history">
+        <h2>{T('histTitle')}</h2>
+        <p className="uinv-help" style={{ marginTop: 0 }}>{T('histHelpShared')}</p>
+        {!histTab ? (
+          <button type="button" className="uinv-btn" onClick={() => setHistTab('reports')}>{T('histOpen')}</button>
+        ) : (
+          <>
+            <div className="uinv-tabs">
+              <button type="button" className={`uinv-tab${histTab === 'reports' ? ' uinv-tab-on' : ''}`} onClick={() => setHistTab('reports')}>{T('histTabReports')}</button>
+              <button type="button" className={`uinv-tab${histTab === 'changes' ? ' uinv-tab-on' : ''}`}
+                onClick={() => setHistTab('changes')}>{T('histTabChanges')}</button>
+              <button type="button" className="uinv-tab" onClick={() => setHistTab('')}>{T('close')}</button>
+            </div>
+            {histTab === 'reports' && (
+              <CheckoutReports key={lastCheck ? lastCheck.id : 'none'} lang={lang} unitBase={base} unitName={`${T('apt')} ${unit.apt || ''}`.trim()}
+                onError={e => setMsg({ err: true, text: e?.message || String(e) })} />
+            )}
+            {histTab === 'changes' && <HistoryList history={history} lang={lang} />}
+          </>
+        )}
+      </div>
 
       <Toast msg={msg} raised={dirtyItems.length > 0} lang={lang} onDismiss={() => setMsg(null)} />
 

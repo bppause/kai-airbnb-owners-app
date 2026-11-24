@@ -1671,10 +1671,9 @@ module.exports = function createUnitInventoryRouter(deps) {
   });
 
   // GET /units/:listingId/history?ownerUid=&itemId= — most recent first.
-  router.get('/units/:listingId/history', async (req, res) => {
-    if (!requireSupabaseEnv(res)) return;
-    const listing = await requireOwnedUnit(res, req.params.listingId, req.query.ownerUid);
-    if (!listing) return;
+  // The unit's history, for the owner and (read-only) the cleaning
+  // service: item changes newest first and the completed counts.
+  const sendHistory = async (req, res, listing) => {
     let q = supabase.from('unit_inventory_events').select('*').eq('listing_id', listing.id)
       .order('created_at', { ascending: false }).order('id', { ascending: false }).limit(500);
     const itemId = text(req.query.itemId, 60);
@@ -1691,6 +1690,12 @@ module.exports = function createUnitInventoryRouter(deps) {
       checks = (checkRows || []).map(checkFromDb);
     }
     res.json({ events: (data || []).map(eventFromDb), checks });
+  };
+  router.get('/units/:listingId/history', async (req, res) => {
+    if (!requireSupabaseEnv(res)) return;
+    const listing = await requireOwnedUnit(res, req.params.listingId, req.query.ownerUid);
+    if (!listing) return;
+    await sendHistory(req, res, listing);
   });
 
   // POST /units/:listingId/checks — body: { ownerUid, actorName,
@@ -1723,10 +1728,7 @@ module.exports = function createUnitInventoryRouter(deps) {
   // GET /units/:listingId/checks/:checkId?ownerUid= — one checkout's
   // report: the count as it stood and the damage reported with it, photos
   // included.
-  router.get('/units/:listingId/checks/:checkId', async (req, res) => {
-    if (!requireSupabaseEnv(res)) return;
-    const listing = await requireOwnedUnit(res, req.params.listingId, req.query.ownerUid);
-    if (!listing) return;
+  const sendReport = async (req, res, listing) => {
     const { data: check, error } = await supabase.from('unit_inventory_checks')
       .select('*').eq('id', req.params.checkId).eq('listing_id', listing.id).maybeSingle();
     if (error) return sendSupabaseError(res, error);
@@ -1738,30 +1740,38 @@ module.exports = function createUnitInventoryRouter(deps) {
       results: Array.isArray(check.results) ? check.results : [],
       damages: (damages || []).map(r => damageFromDb(r, true)),
     });
+  };
+  router.get('/units/:listingId/checks/:checkId', async (req, res) => {
+    if (!requireSupabaseEnv(res)) return;
+    const listing = await requireOwnedUnit(res, req.params.listingId, req.query.ownerUid);
+    if (!listing) return;
+    await sendReport(req, res, listing);
   });
 
   // GET /units/:listingId/checks/:checkId/items/:itemId/photos?ownerUid=
   // — the proof photos of one item at one checkout. Empty once that
   // checkout is older than the ones photos are kept for.
-  router.get('/units/:listingId/checks/:checkId/items/:itemId/photos', async (req, res) => {
-    if (!requireSupabaseEnv(res)) return;
-    const listing = await requireOwnedUnit(res, req.params.listingId, req.query.ownerUid);
-    if (!listing) return;
+  const sendCheckPhotos = async (req, res, listing) => {
     const { data, error } = await supabase.from('unit_inventory_count_photos')
       .select('*').eq('listing_id', listing.id).eq('check_id', req.params.checkId).eq('item_id', req.params.itemId)
       .order('created_at', { ascending: true });
     if (error) return sendSupabaseError(res, error);
     res.json({ photos: (data || []).map(itemPhotoFromDb) });
+  };
+  router.get('/units/:listingId/checks/:checkId/items/:itemId/photos', async (req, res) => {
+    if (!requireSupabaseEnv(res)) return;
+    const listing = await requireOwnedUnit(res, req.params.listingId, req.query.ownerUid);
+    if (!listing) return;
+    await sendCheckPhotos(req, res, listing);
   });
 
   // GET /units/:listingId/checks/:checkId/videos?ownerUid= — the
   // checkout's video(s), each with a link to watch it that works for an
   // hour. Empty once the checkout is older than the ones videos are kept
   // for.
-  router.get('/units/:listingId/checks/:checkId/videos', async (req, res) => {
-    if (!requireSupabaseEnv(res)) return;
-    const listing = await requireOwnedUnit(res, req.params.listingId, req.query.ownerUid);
-    if (!listing) return;
+  // `forOwner` adds the week-long share link; the cleaning service can
+  // watch and download.
+  const sendCheckVideos = async (req, res, listing, forOwner) => {
     const { data, error } = await supabase.from('unit_inventory_videos')
       .select('*').eq('listing_id', listing.id).eq('check_id', req.params.checkId).eq('status', 'ready')
       .order('created_at', { ascending: true });
@@ -1776,13 +1786,19 @@ module.exports = function createUnitInventoryRouter(deps) {
       const { data: dl, error: dErr } = store ? await store.createSignedUrl(v.path, VIDEO_URL_SECONDS, { download: name }) : { error: true };
       // For sharing where a phone can't send the file itself: a download
       // link that lasts a week.
-      const { data: sh, error: sErr } = store ? await store.createSignedUrl(v.path, VIDEO_SHARE_SECONDS, { download: name }) : { error: true };
+      const { data: sh, error: sErr } = store && forOwner ? await store.createSignedUrl(v.path, VIDEO_SHARE_SECONDS, { download: name }) : { error: true };
       videos.push({
         ...videoFromDb(v), url: lErr || !link ? '' : link.signedUrl, downloadUrl: dErr || !dl ? '' : dl.signedUrl,
         shareUrl: sErr || !sh ? '' : sh.signedUrl, shareDays: VIDEO_SHARE_SECONDS / 86400, fileName: name,
       });
     }
     res.json({ videos });
+  };
+  router.get('/units/:listingId/checks/:checkId/videos', async (req, res) => {
+    if (!requireSupabaseEnv(res)) return;
+    const listing = await requireOwnedUnit(res, req.params.listingId, req.query.ownerUid);
+    if (!listing) return;
+    await sendCheckVideos(req, res, listing, true);
   });
 
   // POST /units/:listingId/videos/:videoId/keep — body: { ownerUid,
@@ -2262,6 +2278,44 @@ module.exports = function createUnitInventoryRouter(deps) {
       });
     }
     res.json(result);
+  });
+
+  // GET /shared/:token/history, /shared/:token/checks,
+  // /shared/:token/checks/:checkId[/items/:itemId/photos | /videos] — the
+  // unit's history and every checkout report, for the cleaning service
+  // to look back at (read-only: the same as the owner sees, without the
+  // video storage summary or a week-long video share link).
+  router.get('/shared/:token/history', async (req, res) => {
+    if (!requireSupabaseEnv(res)) return;
+    const listing = await unitForToken(res, req.params.token);
+    if (!listing) return;
+    await sendHistory(req, res, listing);
+  });
+  router.get('/shared/:token/checks', async (req, res) => {
+    if (!requireSupabaseEnv(res)) return;
+    const listing = await unitForToken(res, req.params.token);
+    if (!listing) return;
+    const { data } = await supabase.from('unit_inventory_checks').select('*').eq('listing_id', listing.id)
+      .order('created_at', { ascending: false }).limit(200);
+    res.json({ checks: (data || []).map(checkFromDb) });
+  });
+  router.get('/shared/:token/checks/:checkId', async (req, res) => {
+    if (!requireSupabaseEnv(res)) return;
+    const listing = await unitForToken(res, req.params.token);
+    if (!listing) return;
+    await sendReport(req, res, listing);
+  });
+  router.get('/shared/:token/checks/:checkId/items/:itemId/photos', async (req, res) => {
+    if (!requireSupabaseEnv(res)) return;
+    const listing = await unitForToken(res, req.params.token);
+    if (!listing) return;
+    await sendCheckPhotos(req, res, listing);
+  });
+  router.get('/shared/:token/checks/:checkId/videos', async (req, res) => {
+    if (!requireSupabaseEnv(res)) return;
+    const listing = await unitForToken(res, req.params.token);
+    if (!listing) return;
+    await sendCheckVideos(req, res, listing, false);
   });
 
   // POST /shared/:token/tasks/:taskId — body: { name, done: true |

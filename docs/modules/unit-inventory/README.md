@@ -281,6 +281,19 @@ unnoticed.
   3 funcionan", what failed first) and the owner's email. The owner's
   own count doesn't ask for them. Without the tables (schema not
   re-run) nothing is asked and the owner's button says to run the SQL.
+- **The required video, made plain.** Until this visit's video is up,
+  the cleaning-service page shows "🎥 El video es obligatorio" near the
+  top (with "🎥 Ir a grabar el video"), and the finish box lists what is
+  still needed ("Antes de terminar falta: 🎥 El video del apartamento
+  (obligatorio)", unanswered working checks) with a button to each. The
+  welcome and the guide say it too. Finishing without it is still
+  refused by the server.
+- **History for the cleaning service.** "📜 Historial del inventario"
+  at the end of their page: every completed inventory (the same report
+  the owner sees — counts, damage with photos, working checks with
+  photos, the video to watch or download) and "Todos los cambios", the
+  timeline of item changes and completed counts. Read-only: no "keep as
+  evidence", no storage summary, no week-long video share link.
 - **Damage reports.** The cleaning service can report damage: what is
   damaged, where (an area, the item if it concerns one, a free-text
   spot) and up to 4 photos. Photos are shrunk in the browser and stored
@@ -498,6 +511,7 @@ Mounted at `/api/m/unit-inventory`.
 | `POST /shared/:token/proposals` | link holder | Propose an item for the owner to approve |
 | `POST /shared/:token/damages` | link holder | Report damage, with photos |
 | `POST /shared/:token/tasks/:taskId` | link holder | `{ name, done: true\|false, note? }`: tick off one of the owner's notes (or untick one ticked this visit) |
+| `GET /shared/:token/history`, `/shared/:token/checks`, `/shared/:token/checks/:checkId[/items/:itemId/photos \| /videos]` | link holder | The history and every checkout report, read-only (videos without the week-long share link) |
 | `GET /shared/:token/functions/:checkId/photos` | link holder | The owner's example photos of a check (`?first=1`) |
 | `GET/POST/DELETE /shared/:token/functions/:checkId/proof[/:photoId]` | link holder | Photos taken of a check during this visit (at most 3); they join the completed count |
 | `POST /shared/:token/functions/:checkId` | link holder | `{ name, status: ok\|fail, note?, batteries? }`: answer a working check for this visit (replaces an earlier answer) |

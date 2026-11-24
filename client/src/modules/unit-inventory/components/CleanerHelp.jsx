@@ -132,6 +132,8 @@ const guide = (lang, { required, videoRequired, proofEnabled, functions }) => {
       icon: '🎥',
       title: pick(`${n}. Graba el video (obligatorio)`, `${n}. Record the video (required)`),
       points: [
+        pick('Sin el video no puedes terminar el inventario: el botón “✓ Conteo completo” te lo pedirá.',
+          'Without the video you can’t finish the inventory: the “✓ Count complete” button will ask for it.'),
         pick('Con el apartamento ya limpio, toca “🎥 Grabar video” y luego “● Empezar a grabar”.',
           'With the apartment clean, tap “🎥 Record video” and then “● Start recording”.'),
         pick('Este video es la evidencia ante Airbnb si un huésped causa daños. Por eso: camina despacio, con buena luz, por cada habitación, baños, cocina y balcones, y muestra muebles, paredes, pisos, puertas y electrodomésticos. Máximo 3 minutos.',
@@ -152,6 +154,8 @@ const guide = (lang, { required, videoRequired, proofEnabled, functions }) => {
           'It asks whether there is damage to report. Answer and you’re done: the owner gets the report with the date and time.'),
         pick('Hazlo aunque nada haya cambiado: así queda registrado quién revisó y cuándo.',
           'Do it even if nothing changed: it records who checked and when.'),
+        pick('Al final de la página, “📜 Historial del inventario” muestra cada inventario completado (con daños, fotos, pruebas y video) y cada cambio.',
+          'At the bottom of the page, “📜 Inventory history” shows every completed inventory (with damage, photos, checks and video) and every change.'),
       ],
     },
     {

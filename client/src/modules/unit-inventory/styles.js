@@ -217,6 +217,12 @@ export const UINV_CSS = `
 .uinv-proof-ok .uinv-proof-state{color:#0b5f3a}
 .uinv-progress{margin:8px 0 0;font-weight:700;color:#7a5200}
 .uinv-progress-done{color:#0b5f3a}
+.uinv-missing{display:grid;gap:8px;margin:0 0 10px;padding:10px;border-radius:12px;background:#fffaf0;border:1px solid #e2b93b}
+.uinv-missing-row{display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:space-between}
+.uinv-missing-row span{flex:1 1 180px;font-weight:700;color:#7a5200}
+.uinv-video-alert{background:#fff4e5;border:2px solid #e2a53b}
+.uinv-video-alert h2{margin:0 0 4px}
+.uinv-history .uinv-tabs{margin:10px 0}
 .uinv-people{margin-top:12px;padding-top:10px;border-top:1px solid rgba(47,79,58,.14)}
 .uinv-people h3,.uinv-tasks h3,.uinv-owner-notes h3{margin:10px 0 6px;font-size:1rem}
 .uinv-person{display:grid;gap:6px;padding:8px 10px;margin-bottom:8px;border-radius:12px;background:#fff;border:1px solid rgba(47,79,58,.2)}
