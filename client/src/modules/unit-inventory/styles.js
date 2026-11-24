@@ -266,6 +266,7 @@ a.uinv-btn{text-decoration:none;display:inline-flex;align-items:center;justify-c
 .uinv-fn-edit-head{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px}
 .uinv-fn-edit-head .uinv-fn-text{flex:1 1 180px}
 .uinv-fn-edit-btns{gap:6px;flex-wrap:nowrap}
+.uinv-fn-edit-row .uinv-field .uinv-help,.uinv-fn-edit-row .uinv-field .uinv-meta,.uinv-fn-edit-row .uinv-field .uinv-msg{text-transform:none;letter-spacing:0;font-weight:400;font-size:.9rem}
 .uinv-fn-results{margin-top:10px}
 .uinv-fn-results h3{margin:0 0 6px;font-size:1rem}
 .uinv-fn-results ul{margin:0;padding-left:0;list-style:none;display:grid;gap:4px}

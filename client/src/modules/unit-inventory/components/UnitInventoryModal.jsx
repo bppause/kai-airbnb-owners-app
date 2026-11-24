@@ -429,6 +429,14 @@ export default function UnitInventoryModal({ listing, user, onClose }) {
     const hit = (items || []).find(it => it[field].trim().toLowerCase() === text.toLowerCase() && it[other]);
     return hit ? hit[other] : null;
   };
+  // A working check's example photos (subject.id is 'fn:<check id>').
+  const fnPhotoUrl = (s) => `${unitBase}/functions/${encodeURIComponent(s.id.slice(3))}/photos`;
+  const setFnPhotoCount = (s, n) => setFnChecks(prev => (prev || []).map(f => (`fn:${f.id}` === s.id ? { ...f, photoCount: n } : f)));
+  const fnPhotoStore = {
+    load: async (s) => (await api.get(`${fnPhotoUrl(s)}?ownerUid=${encodeURIComponent(user.uid)}`)).photos || [],
+    add: async (s, data) => { const d = await api.post(fnPhotoUrl(s), { ...who, photo: data }); setFnPhotoCount(s, d.photoCount); return d; },
+    remove: async (s, photo) => { const d = await api.del(`${fnPhotoUrl(s)}/${encodeURIComponent(photo.id)}`, { ownerUid: user.uid }); setFnPhotoCount(s, d.photoCount); return d; },
+  };
   const saveFunctions = async (checks) => {
     setBusy(true); setMsg(null);
     try {
@@ -740,7 +748,7 @@ export default function UnitInventoryModal({ listing, user, onClose }) {
 
             {fnEditing && fnChecks !== null && (
               <FunctionCheckEditor lang={lang} checks={fnChecks} items={list} busy={busy} canTranslate={canTranslate} translate={translateText}
-                onSave={saveFunctions} onClose={() => setFnEditing(false)} />
+                onSave={saveFunctions} onClose={() => setFnEditing(false)} photos={fnPhotoStore} onError={e => setMsg({ err: true, text: e?.message || String(e) })} />
             )}
 
             {organizing && (

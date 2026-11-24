@@ -116,7 +116,7 @@ export default function SharedInventoryView({ token }) {
       // visit's video(s).
       videoRequired: d.videoRequired === true, videos: d.videos || [], suggestEnabled: d.suggestEnabled === true,
       // The owner's working checks, and this visit's answers ({ [id]: { status, note, by } }).
-      functionChecks: d.functionChecks || [], functionAnswers: d.functionAnswers || {},
+      functionChecks: d.functionChecks || [], functionAnswers: d.functionAnswers || {}, functionProofCounts: d.functionProofCounts || {},
       // A personal link's person ({ name }) or null; every open damage
       // report; how the owner closed recent ones; the owner's notes.
       person: d.person || null, openDamages: d.openDamages || [], damageNews: d.damageNews || [], tasks: d.tasks || [] });
@@ -170,7 +170,7 @@ export default function SharedInventoryView({ token }) {
     return shell(<div className="uinv-msg uinv-msg-err">{state.notFound ? T('linkInactive') : state.text}</div>);
   }
 
-  const { unit, items, lastCheck, proposals, damages, proofEnabled, proofCounts, videoRequired, videos, suggestEnabled, functionChecks, functionAnswers, person, openDamages, damageNews, tasks } = state;
+  const { unit, items, lastCheck, proposals, damages, proofEnabled, proofCounts, videoRequired, videos, suggestEnabled, functionChecks, functionAnswers, person, openDamages, damageNews, tasks, functionProofCounts } = state;
   // The note box shows the note in this person's language (see
   // noteForViewer). Only a note they actually changed is sent back, so a
   // note merely shown in translation is never overwritten by it.
@@ -274,6 +274,15 @@ export default function SharedInventoryView({ token }) {
     load: async (it) => (await api.get(proofUrl(it))).photos || [],
     add: (it, data) => api.post(proofUrl(it), { name: name.trim(), photo: data }),
     remove: (it, photo) => api.del(`${proofUrl(it)}/${encodeURIComponent(photo.id)}`, {}),
+  };
+  // A working check's photos: the owner's examples, and the ones taken now.
+  const fnUrl = (s, part) => `${base}/functions/${encodeURIComponent(s.id.slice(3))}/${part}`;
+  const fnPhotos = {
+    load: async (s) => (await api.get(fnUrl(s, 'photos'))).photos || [],
+    loadFirst: async (s) => (await api.get(`${fnUrl(s, 'photos')}?first=1`)).photos || [],
+    proofLoad: async (s) => (await api.get(fnUrl(s, 'proof'))).photos || [],
+    proofAdd: (s, data) => { if (!haveName()) return Promise.reject(new Error(T('nameNeeded'))); writeStored(NAME_KEY, name.trim()); return api.post(fnUrl(s, 'proof'), { name: name.trim(), photo: data }); },
+    proofRemove: (s, photo) => api.del(`${fnUrl(s, 'proof')}/${encodeURIComponent(photo.id)}`, {}),
   };
   const setProofCount = (it, n) => setState(prev => ({ ...prev, proofCounts: { ...prev.proofCounts, [it.id]: n } }));
   // Remounted after each completed count, so the next visit starts empty.
@@ -524,6 +533,9 @@ export default function SharedInventoryView({ token }) {
 
       {functionChecks.length > 0 && (
         <FunctionCheckList lang={lang} checks={functionChecks} answers={functionAnswers} items={items} busy={busy} loadFirst={photoStore.loadFirst}
+          photos={fnPhotos} proofCounts={functionProofCounts} visitKey={lastCheck ? lastCheck.id : ''}
+          onProofCount={(id, n) => setState(prev => ({ ...prev, functionProofCounts: { ...prev.functionProofCounts, [id]: n } }))}
+          onError={e => setMsg({ err: true, text: e?.message || String(e) })}
           onAnswer={answerFunction}
           onBroken={(check, item) => openDamage(item, T('fnFailDesc', { label: primaryText(lang, check.labelEn, check.labelEs) }))} />
       )}

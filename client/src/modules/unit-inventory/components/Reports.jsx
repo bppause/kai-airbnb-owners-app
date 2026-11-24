@@ -40,7 +40,10 @@ function ReportDetail({ lang, check, detail, loadPhotos, loadVideos, keepVideo, 
           <div style={{ marginTop: 6 }}><ReportVideo lang={lang} count={check.videosCount} load={loadVideos} onKeep={keepVideo} unitName={unitName} /></div>
         </div>
       )}
-      {check.functionResults && check.functionResults.length > 0 && <FunctionResults lang={lang} results={check.functionResults} />}
+      {check.functionResults && check.functionResults.length > 0 && (
+        <FunctionResults lang={lang} results={check.functionResults}
+          photosFor={r => <ReportPhotos lang={lang} count={r.photos} load={() => loadPhotos(`fn:${r.id}`)} />} />
+      )}
       <div>
         <h2>{T('reportDiffs', { n: results.length })}</h2>
         {results.length === 0 && <p className="uinv-help">{T('reportNoDiffs')}</p>}

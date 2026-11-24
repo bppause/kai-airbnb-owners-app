@@ -5,11 +5,14 @@
 // "doesn't work" (FunctionCheckList) before the count can be completed,
 // and the answers go into the checkout report (FunctionResults).
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { tr, primaryText } from "../strings";
-import { ItemThumb } from "./Photos";
+import { ItemThumb, ItemPhotos, ProofPhotos } from "./Photos";
 import { useAutoTranslate } from "./autoTranslate";
 
+// A check without what the editor adds (its key) or what is saved apart
+// (its photo count): what decides whether the list has unsaved changes.
+const bare = (c) => { const { key, photoCount, ...rest } = c; return rest; };
 const isEn = (lang) => String(lang || '').toLowerCase().startsWith('en');
 const labelOf = (lang, c) => primaryText(lang, c.labelEn, c.labelEs);
 const otherLabelOf = (lang, c) => {
@@ -24,7 +27,17 @@ const otherLabelOf = (lang, c) => {
 // offered for checks that run on them — and
 // resolves true when it did; a "doesn't work" then calls
 // `onBroken(check, item)` so the damage can be reported.
-export function FunctionCheckList({ lang, checks, answers, items, busy, loadFirst, onAnswer, onBroken }) {
+// A check as the photo components take it: its own key, so it never
+// shares a cached picture with an item.
+const photoSubject = (c, n) => ({ id: 'fn:' + c.id, photoCount: n || 0, nameEn: c.labelEn, nameEs: c.labelEs });
+
+// `photos` (optional) is { load(subject), loadFirst(subject) } for the
+// owner's example photos and { proofLoad, proofAdd, proofRemove } for the
+// ones taken now (subject.id is 'fn:<check id>'); `proofCounts` how many
+// each check has this visit; `onProofCount(checkId, n)`; `onError`.
+// `visitKey` changes when a count is completed, so the next visit's photo
+// boxes start empty.
+export function FunctionCheckList({ lang, checks, answers, items, busy, loadFirst, onAnswer, onBroken, photos, proofCounts = {}, onProofCount, onError, visitKey = '' }) {
   const T = (k, v) => tr(lang, k, v);
   const [saving, setSaving] = useState('');
   const done = checks.filter(c => answers[c.id]).length;
@@ -54,7 +67,9 @@ export function FunctionCheckList({ lang, checks, answers, items, busy, loadFirs
           return (
             <li key={c.id} className={`uinv-fn-row${a ? ` uinv-fn-${a.status}` : ''}${a && a.batteries ? ' uinv-fn-bat-on' : ''}`}>
               <div className="uinv-fn-what">
-                {item && loadFirst && <ItemThumb lang={lang} item={item} load={loadFirst} still small />}
+                {photos && c.photoCount > 0
+                  ? <ItemThumb lang={lang} item={photoSubject(c, c.photoCount)} load={photos.loadFirst} small />
+                  : item && loadFirst && <ItemThumb lang={lang} item={item} load={loadFirst} still small />}
                 <div className="uinv-fn-text">
                   <strong>{labelOf(lang, c)}</strong>
                   {other && <span className="uinv-area-other">{other}</span>}
@@ -72,6 +87,14 @@ export function FunctionCheckList({ lang, checks, answers, items, busy, loadFirs
                     disabled={busy || !!saving} onClick={() => answer(c, 'ok', true)}>{saving === c.id + 'okbat' ? '…' : T('fnBatteries')}</button>
                 )}
               </div>
+              {photos && c.photoCount > 1 && (
+                <ItemPhotos lang={lang} item={photoSubject(c, c.photoCount)} store={{ load: photos.load }} onCount={() => {}} onError={onError} showLabel="fnPhotosShow" />
+              )}
+              {photos && (
+                <ProofPhotos key={`${c.id}:${visitKey}`} lang={lang} item={photoSubject(c)} count={proofCounts[c.id] || 0} hint={T('fnProofHint')} onError={onError}
+                  store={{ load: photos.proofLoad, add: photos.proofAdd, remove: photos.proofRemove }}
+                  onCount={(_s, n) => onProofCount && onProofCount(c.id, n)} />
+              )}
             </li>
           );
         })}
@@ -82,7 +105,8 @@ export function FunctionCheckList({ lang, checks, answers, items, busy, loadFirs
 
 // A completed count's answers, for the checkout report: what didn't work
 // first, then what did.
-export function FunctionResults({ lang, results }) {
+// `photosFor(result)` renders the photos taken of it, if any.
+export function FunctionResults({ lang, results, photosFor }) {
   const T = (k, v) => tr(lang, k, v);
   if (!results || !results.length) return null;
   const failed = results.filter(r => r.status === 'fail');
@@ -95,6 +119,7 @@ export function FunctionResults({ lang, results }) {
           <li key={r.id} className={r.status === 'fail' ? 'uinv-fn-res-fail' : 'uinv-fn-res-ok'}>
             <span aria-hidden="true">{r.status === 'fail' ? '✗' : '✓'}</span>{' '}
             <span>{labelOf(lang, r)}{r.status === 'fail' ? ` — ${T('fnBrokenShort')}` : ''}{r.batteries ? ` · ${T('fnBatteriesShort')}` : ''}{r.note ? ` · ${r.note}` : ''}</span>
+            {photosFor && r.photos > 0 && photosFor(r)}
           </li>
         ))}
       </ul>
@@ -230,7 +255,9 @@ const blank = () => ({ key: Math.random().toString(36).slice(2), labelEn: '', la
 // One check in the editor: name and how-to-test in the owner's language,
 // the other translated read-only when translation works (as in the item
 // form), and the item it is about.
-function CheckFields({ lang, check, items, canTranslate, translate, onChange }) {
+// `photos` is { load, add, remove } for the check's example photos
+// (subject.id 'fn:<check id>'); a check not saved yet has none.
+function CheckFields({ lang, check, items, canTranslate, translate, onChange, photos, onError }) {
   const T = (k, v) => tr(lang, k, v);
   const own = isEn(lang) ? 'En' : 'Es';
   const other = own === 'En' ? 'Es' : 'En';
@@ -274,6 +301,14 @@ function CheckFields({ lang, check, items, canTranslate, translate, onChange }) 
         <input type="checkbox" checked={!!check.usesBatteries} onChange={e => onChange({ usesBatteries: e.target.checked })} />
         <span>{T('fnUsesBatteries')}</span>
       </label>
+      {photos && (
+        <div className="uinv-field uinv-full">{T('fnPhotosTitle')}
+          {check.id
+            ? <ItemPhotos lang={lang} item={photoSubject(check, check.photoCount)} store={photos} alwaysOpen onError={onError}
+                onCount={(_s, n) => onChange({ photoCount: n })} />
+            : <span className="uinv-help" style={{ margin: 0 }}>{T('fnPhotosSaveFirst')}</span>}
+        </div>
+      )}
     </div>
   );
 }
@@ -281,14 +316,20 @@ function CheckFields({ lang, check, items, canTranslate, translate, onChange }) 
 // The owner's list: add, edit, reorder, remove, or start from the list
 // suggested by the inventory; saved as a whole. `onSave(checks)` → true
 // when saved.
-export function FunctionCheckEditor({ lang, checks, items, busy, canTranslate, translate, onSave, onClose }) {
+export function FunctionCheckEditor({ lang, checks, items, busy, canTranslate, translate, onSave, onClose, photos, onError }) {
   const T = (k, v) => tr(lang, k, v);
   const [list, setList] = useState(() => checks.map(c => ({ ...c, key: c.id })));
   const [open, setOpen] = useState(null);
   const [problem, setProblem] = useState('');
   // Saved: start again from what the server now has (new checks got ids).
-  useEffect(() => { setList(checks.map(c => ({ ...c, key: c.id }))); }, [checks]);
-  const dirty = JSON.stringify(list.map(({ key, ...c }) => c)) !== JSON.stringify(checks);
+  // A photo count changing (photos are saved as they are added) is not
+  // a reason to drop what is being edited.
+  const savedKey = useRef(JSON.stringify(checks.map(bare)));
+  useEffect(() => {
+    const k = JSON.stringify(checks.map(bare));
+    if (k !== savedKey.current) { savedKey.current = k; setList(checks.map(c => ({ ...c, key: c.id }))); }
+  }, [checks]);
+  const dirty = JSON.stringify(list.map(bare)) !== JSON.stringify(checks.map(bare));
   const sortedItems = [...items].sort((a, b) => primaryText(lang, a.nameEn, a.nameEs).localeCompare(primaryText(lang, b.nameEn, b.nameEs)));
   const change = (key, patch) => setList(l => l.map(c => (c.key === key ? { ...c, ...patch } : c)));
   const move = (i, d) => setList(l => { const n = [...l]; const [c] = n.splice(i, 1); n.splice(i + d, 0, c); return n; });
@@ -331,6 +372,7 @@ export function FunctionCheckEditor({ lang, checks, items, busy, canTranslate, t
                   {otherLabelOf(lang, c) && <span className="uinv-area-other">{otherLabelOf(lang, c)}</span>}
                   {item && <span className="uinv-meta">{T('fnItem', { name: primaryText(lang, item.nameEn, item.nameEs) })}</span>}
                   {c.usesBatteries && <span className="uinv-meta">{T('fnUsesBatteriesShort')}</span>}
+                  {c.photoCount > 0 && <span className="uinv-meta">{T('fnPhotosCount', { n: c.photoCount })}</span>}
                 </div>
                 <div className="uinv-row uinv-fn-edit-btns">
                   <button type="button" className="uinv-btn uinv-btn-sm" aria-label={T('fnUp')} disabled={busy || i === 0} onClick={() => move(i, -1)}>↑</button>
@@ -340,7 +382,7 @@ export function FunctionCheckEditor({ lang, checks, items, busy, canTranslate, t
                     onClick={() => setList(l => l.filter(x => x.key !== c.key))}>✕</button>
                 </div>
               </div>
-              {isOpen && <CheckFields lang={lang} check={c} items={sortedItems} canTranslate={canTranslate} translate={translate} onChange={p => change(c.key, p)} />}
+              {isOpen && <CheckFields lang={lang} check={c} items={sortedItems} canTranslate={canTranslate} translate={translate} onChange={p => change(c.key, p)} photos={photos} onError={onError} />}
             </li>
           );
         })}

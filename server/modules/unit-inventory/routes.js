@@ -78,6 +78,13 @@
 // make room — but never one under VIDEO_PROTECT_DAYS old, nor one the
 // owner marked "keep as evidence".
 //
+// A working check can carry photos too, kept in the same tables as an
+// item's under the key `fn:<check id>`: the owner's example photos
+// (unit_inventory_item_photos — what to test, which remote is which) and
+// the ones the cleaning service takes when answering it
+// (unit_inventory_count_photos, joining the count's record like any
+// visit photo).
+//
 // The owner also keeps a list of working checks — things to test at
 // every visit, such as each burner of the stove, each TV and A/C with its
 // remote, the A/C switching off when a door is opened
@@ -653,6 +660,30 @@ module.exports = function createUnitInventoryRouter(deps) {
     for (const r of (error ? [] : data || [])) out[r.function_check_id] = r;
     return out;
   };
+  // A check's key in the photo tables.
+  const fnKey = (id) => 'fn:' + id;
+  // How many example photos each check has: { [checkId]: n }.
+  const functionPhotoCounts = async (listingId, ids) => {
+    if (!ids.length) return {};
+    const { data, error } = await supabase.from('unit_inventory_item_photos').select('id, item_id')
+      .eq('listing_id', listingId).in('item_id', ids.map(fnKey));
+    const out = {};
+    for (const r of (error ? [] : data || [])) { const id = r.item_id.slice(3); out[id] = (out[id] || 0) + 1; }
+    return out;
+  };
+  // Checks for the screens, each with its example-photo count.
+  const functionsForScreen = async (listingId, rows) => {
+    const counts = await functionPhotoCounts(listingId, rows.map(r => r.id));
+    return rows.map(r => ({ ...functionFromDb(r), photoCount: counts[r.id] || 0 }));
+  };
+  // The check, if it is one of this unit's; otherwise answers 404.
+  const functionOfUnit = async (res, listing, checkId) => {
+    const { data, error } = await supabase.from('unit_inventory_function_checks')
+      .select('*').eq('listing_id', listing.id).eq('id', String(checkId || '')).maybeSingle();
+    if (error) { sendSupabaseError(res, error); return null; }
+    if (!data) { res.status(404).json({ error: 'That check is no longer on the list. Reload the page.' }); return null; }
+    return data;
+  };
   const answerFromDb = (r) => ({ status: r.status, note: r.note || '', by: r.answered_by || '', at: r.created_at, batteries: !!r.batteries });
 
   // Drops the proof photos of counts older than the unit's latest
@@ -752,6 +783,8 @@ module.exports = function createUnitInventoryRouter(deps) {
       id: f.id, labelEn: f.label_en || '', labelEs: f.label_es || '', itemId: f.item_id || '',
       status: answers[f.id].status, note: answers[f.id].note || '', by: answers[f.id].answered_by || '',
       ...(answers[f.id].batteries ? { batteries: true } : {}),
+      // Photos the cleaning service took of it (see the check's record photos).
+      photos: (proofs || []).filter(ph => ph.item_id === 'fn:' + f.id).length,
     }));
     const functionsFailed = functionResults.filter(f => f.status === 'fail').length;
     const full = {
@@ -1029,7 +1062,7 @@ module.exports = function createUnitInventoryRouter(deps) {
       // Whether the item form can translate between the two languages.
       translate: translateEnabled(),
       // The working checks; null when the table isn't there yet.
-      functionChecks: ((fs) => (fs ? fs.map(functionFromDb) : null))(await loadFunctions(listing.id)),
+      functionChecks: await (async (fs) => (fs ? functionsForScreen(listing.id, fs) : null))(await loadFunctions(listing.id)),
       // The cleaning service's people and their links; null without the table.
       people: ((ps) => (ps ? ps.map(personFromDb) : null))(await loadPeople(listing.id)),
       // Notes for the next visit, open and done (not archived); null without the table.
@@ -1085,6 +1118,58 @@ module.exports = function createUnitInventoryRouter(deps) {
     if (error) return sendSupabaseError(res, error);
     await auditLog({ entity: 'unit_inventory', entityId: listing.id, action: 'person_' + action, actorUid: String(ownerUid), actorName: text(actorName, MAX_ACTOR) || listing.owner || 'Owner', before: { name: person.name }, after: { name: patch.name || person.name } });
     res.json({ person: personFromDb({ ...person, ...patch }) });
+  });
+
+  // GET /units/:listingId/functions/:checkId/photos?ownerUid=&first= — a
+  // working check's example photos (`first=1`: only the first).
+  router.get('/units/:listingId/functions/:checkId/photos', async (req, res) => {
+    if (!requireSupabaseEnv(res)) return;
+    const listing = await requireOwnedUnit(res, req.params.listingId, req.query.ownerUid);
+    if (!listing) return;
+    const fc = await functionOfUnit(res, listing, req.params.checkId);
+    if (!fc) return;
+    const { data, error } = await loadItemPhotos(fnKey(fc.id), req.query.first === '1');
+    if (error) return sendSupabaseError(res, error);
+    res.json({ photos: (data || []).map(itemPhotoFromDb) });
+  });
+
+  // POST /units/:listingId/functions/:checkId/photos — body: { ownerUid,
+  // actorName, photo }. An example photo for a check (what to test,
+  // which remote): the cleaning service sees it beside the check.
+  router.post('/units/:listingId/functions/:checkId/photos', async (req, res) => {
+    if (!requireSupabaseEnv(res)) return;
+    const { ownerUid, actorName, photo } = req.body || {};
+    const listing = await requireOwnedUnit(res, req.params.listingId, ownerUid);
+    if (!listing) return;
+    const fc = await functionOfUnit(res, listing, req.params.checkId);
+    if (!fc) return;
+    const data = cleanPhoto(photo);
+    if (!data) return res.status(400).json({ error: 'The photo must be an image of at most 2 MB.' });
+    const { data: existing, error: eErr } = await supabase.from('unit_inventory_item_photos').select('id').eq('item_id', fnKey(fc.id));
+    if (eErr) return sendSupabaseError(res, eErr);
+    if ((existing || []).length >= MAX_ITEM_PHOTOS) return res.status(400).json({ error: `A check can have at most ${MAX_ITEM_PHOTOS} photos. Delete one first.` });
+    const row = {
+      id: 'uph_' + uuidv4().slice(0, 12), listing_id: listing.id, community_id: listing.community_id || 'kai',
+      item_id: fnKey(fc.id), data, created_by: text(actorName, MAX_ACTOR) || listing.owner || 'Owner', created_at: new Date().toISOString(),
+    };
+    const { error } = await supabase.from('unit_inventory_item_photos').insert(row);
+    if (error) return sendSupabaseError(res, error);
+    res.json({ photo: itemPhotoFromDb(row), photoCount: (existing || []).length + 1 });
+  });
+
+  // DELETE /units/:listingId/functions/:checkId/photos/:photoId — body: { ownerUid }.
+  router.delete('/units/:listingId/functions/:checkId/photos/:photoId', async (req, res) => {
+    if (!requireSupabaseEnv(res)) return;
+    const listing = await requireOwnedUnit(res, req.params.listingId, req.body?.ownerUid);
+    if (!listing) return;
+    const fc = await functionOfUnit(res, listing, req.params.checkId);
+    if (!fc) return;
+    const { data: gone, error } = await supabase.from('unit_inventory_item_photos')
+      .delete().eq('id', req.params.photoId).eq('item_id', fnKey(fc.id)).select('id');
+    if (error) return sendSupabaseError(res, error);
+    if (!gone || !gone.length) return res.status(404).json({ error: 'Photo not found.' });
+    const { data: left } = await supabase.from('unit_inventory_item_photos').select('id').eq('item_id', fnKey(fc.id));
+    res.json({ photoCount: (left || []).length });
   });
 
   // POST /units/:listingId/tasks — body: { ownerUid, actorName, text,
@@ -1179,6 +1264,8 @@ module.exports = function createUnitInventoryRouter(deps) {
     if (gone.length) {
       const { error } = await supabase.from('unit_inventory_function_checks').delete().eq('listing_id', listing.id).in('id', gone);
       if (error) return sendSupabaseError(res, error);
+      // and their example photos
+      await supabase.from('unit_inventory_item_photos').delete().eq('listing_id', listing.id).in('item_id', gone.map(fnKey));
     }
     if (rows.length) {
       const full = rows.map(r => (known.has(r.id) ? r : { ...r, created_at: now }));
@@ -1196,7 +1283,7 @@ module.exports = function createUnitInventoryRouter(deps) {
       actorUid: String(ownerUid), actorName: text(actorName, MAX_ACTOR) || listing.owner || 'Owner',
       before: { checks: before.map(f => f.label_es || f.label_en) }, after: { checks: rows.map(r => r.label_es || r.label_en) },
     });
-    res.json({ checks: ((await loadFunctions(listing.id)) || []).map(functionFromDb) });
+    res.json({ checks: await functionsForScreen(listing.id, (await loadFunctions(listing.id)) || []) });
   });
 
   // POST /units/:listingId/translate — body: { ownerUid, text, to: 'es' |
@@ -1953,11 +2040,15 @@ module.exports = function createUnitInventoryRouter(deps) {
       // The working checks to answer, and this visit's answers so far.
       ...(await (async () => {
         const fs = (await loadFunctions(listing.id)) || [];
-        if (!fs.length) return { functionChecks: [], functionAnswers: {} };
+        if (!fs.length) return { functionChecks: [], functionAnswers: {}, functionProofCounts: {} };
         const answers = await visitFunctionAnswers(listing.id);
         const out = {};
         for (const f of fs) if (answers[f.id]) out[f.id] = answerFromDb(answers[f.id]);
-        return { functionChecks: fs.map(functionFromDb), functionAnswers: out };
+        // Photos taken of each check this visit.
+        const proofs = (await visitProofs(listing.id)) || [];
+        const proofCounts = {};
+        for (const ph of proofs) if (String(ph.item_id).startsWith('fn:')) proofCounts[ph.item_id.slice(3)] = (proofCounts[ph.item_id.slice(3)] || 0) + 1;
+        return { functionChecks: await functionsForScreen(listing.id, fs), functionAnswers: out, functionProofCounts: proofCounts };
       })()),
     });
   });
@@ -2194,6 +2285,66 @@ module.exports = function createUnitInventoryRouter(deps) {
     const { error } = await supabase.from('unit_inventory_tasks').update(patch).eq('id', task.id);
     if (error) return sendSupabaseError(res, error);
     res.json({ task: taskFromDb({ ...task, ...patch }) });
+  });
+
+  // GET /shared/:token/functions/:checkId/photos?first= — the owner's
+  // example photos of a check. View only.
+  router.get('/shared/:token/functions/:checkId/photos', async (req, res) => {
+    if (!requireSupabaseEnv(res)) return;
+    const listing = await unitForToken(res, req.params.token);
+    if (!listing) return;
+    const fc = await functionOfUnit(res, listing, req.params.checkId);
+    if (!fc) return;
+    const { data, error } = await loadItemPhotos(fnKey(fc.id), req.query.first === '1');
+    if (error) return sendSupabaseError(res, error);
+    res.json({ photos: (data || []).map(itemPhotoFromDb) });
+  });
+
+  // GET / POST / DELETE /shared/:token/functions/:checkId/proof[/:photoId]
+  // — photos the cleaning service takes of a check during this visit
+  // (a remote that doesn't work, a low-battery warning…), at most
+  // MAX_PROOF_PHOTOS. Like an item's, they join the count's record.
+  router.get('/shared/:token/functions/:checkId/proof', async (req, res) => {
+    if (!requireSupabaseEnv(res)) return;
+    const listing = await unitForToken(res, req.params.token);
+    if (!listing) return;
+    const fc = await functionOfUnit(res, listing, req.params.checkId);
+    if (!fc) return;
+    const { data, error } = await itemVisitProofs(listing, fnKey(fc.id));
+    if (error) return sendSupabaseError(res, error);
+    res.json({ photos: (data || []).map(itemPhotoFromDb) });
+  });
+  router.post('/shared/:token/functions/:checkId/proof', async (req, res) => {
+    if (!requireSupabaseEnv(res)) return;
+    const listing = await unitForToken(res, req.params.token);
+    if (!listing) return;
+    const fc = await functionOfUnit(res, listing, req.params.checkId);
+    if (!fc) return;
+    const data = cleanPhoto(req.body?.photo);
+    if (!data) return res.status(400).json({ error: 'The photo must be an image of at most 2 MB.' });
+    const { data: existing, error: eErr } = await itemVisitProofs(listing, fnKey(fc.id));
+    if (eErr) return sendSupabaseError(res, eErr);
+    if ((existing || []).length >= MAX_PROOF_PHOTOS) return res.status(400).json({ error: `At most ${MAX_PROOF_PHOTOS} photos per check. Delete one first.` });
+    const row = {
+      id: 'ucp_' + uuidv4().slice(0, 12), listing_id: listing.id, community_id: listing.community_id || 'kai',
+      item_id: fnKey(fc.id), check_id: null, data, taken_by: cleanerName(req, listing), created_at: new Date().toISOString(),
+    };
+    const { error } = await supabase.from('unit_inventory_count_photos').insert(row);
+    if (error) return sendSupabaseError(res, error);
+    res.json({ photo: itemPhotoFromDb(row), proofCount: (existing || []).length + 1 });
+  });
+  router.delete('/shared/:token/functions/:checkId/proof/:photoId', async (req, res) => {
+    if (!requireSupabaseEnv(res)) return;
+    const listing = await unitForToken(res, req.params.token);
+    if (!listing) return;
+    const fc = await functionOfUnit(res, listing, req.params.checkId);
+    if (!fc) return;
+    const { data: gone, error } = await supabase.from('unit_inventory_count_photos')
+      .delete().eq('id', req.params.photoId).eq('listing_id', listing.id).eq('item_id', fnKey(fc.id)).is('check_id', null).select('id');
+    if (error) return sendSupabaseError(res, error);
+    if (!gone || !gone.length) return res.status(404).json({ error: 'Photo not found.' });
+    const { data: left } = await itemVisitProofs(listing, fnKey(fc.id));
+    res.json({ proofCount: (left || []).length });
   });
 
   // POST /shared/:token/functions/:checkId — body: { name, status: 'ok' |

@@ -260,7 +260,17 @@ unnoticed.
   the batteries first if it doesn't respond. Battery changes show in the
   checkout report ("🔋 2 cambio(s) de pilas"), in Pendientes ("Pilas
   cambiadas en el último conteo (compra repuestos)") and in the owner's
-  email. On the cleaning-service page they
+  email. Each check can carry photos: the owner's example photos (up to
+  3, added from the check's edit form with the camera or the gallery —
+  which remote is which, what the lock's keypad looks like), shown to
+  the cleaning service beside the check (tap for full size; they take
+  the place of the linked item's photo); and photos the cleaning service
+  takes when answering it ("📷 Foto (opcional)", up to 3 — a remote that
+  doesn't work, a low-battery warning), which join the count's record
+  like item photos and show under that check in the checkout report.
+  They are kept in the item photo tables under the key `fn:<check id>`
+  (no tables of their own); removing a check removes its example
+  photos. On the cleaning-service page they
   appear under "🔌 Revisa que funcione", with a step in the task list;
   each is answered "✓ Funciona" or "✗ No funciona" (saved at once, and
   changeable). "✗ No funciona" opens the damage form already written
@@ -455,6 +465,7 @@ Mounted at `/api/m/unit-inventory`.
 | `POST /people/:id` | owner | `{ action: update\|disable\|enable\|regenerate, name?, phone? }` → `{ person }` |
 | `POST /units/:listingId/tasks` | owner | `{ text, itemId?, lang }`: a note for the next visit (translated) → `{ task }` |
 | `POST /tasks/:id` | owner | `{ action: archive\|reopen\|delete }` → `{ task }` (null when deleted) |
+| `GET/POST/DELETE /units/:listingId/functions/:checkId/photos[/:photoId]` | owner | A check's example photos (`?first=1`: the first only), at most 3 |
 | `PUT /units/:listingId/functions` | owner | `{ checks: [{ id?, labelEn, labelEs, howEn, howEs, itemId, usesBatteries }] }`: replaces the working checks with this ordered list (no id = new; left out = removed) → `{ checks }`. 503 without the tables |
 | `POST /units/:listingId/translate` | owner | `{ text, to: es\|en, field: area\|name\|note }` → `{ text }`. 503 when `ANTHROPIC_API_KEY` is not set |
 | `DELETE /items/:id` | owner | Delete an item (history kept) |
@@ -487,6 +498,8 @@ Mounted at `/api/m/unit-inventory`.
 | `POST /shared/:token/proposals` | link holder | Propose an item for the owner to approve |
 | `POST /shared/:token/damages` | link holder | Report damage, with photos |
 | `POST /shared/:token/tasks/:taskId` | link holder | `{ name, done: true\|false, note? }`: tick off one of the owner's notes (or untick one ticked this visit) |
+| `GET /shared/:token/functions/:checkId/photos` | link holder | The owner's example photos of a check (`?first=1`) |
+| `GET/POST/DELETE /shared/:token/functions/:checkId/proof[/:photoId]` | link holder | Photos taken of a check during this visit (at most 3); they join the completed count |
 | `POST /shared/:token/functions/:checkId` | link holder | `{ name, status: ok\|fail, note?, batteries? }`: answer a working check for this visit (replaces an earlier answer) |
 | `POST /shared/:token/damages/suggest` | link holder | `{ photo?, description? }` (at least one) → `{ seenEs, seenEn, matches: [{ itemId, confidence: high\|medium\|low }] }` (up to 3). 503 without `ANTHROPIC_API_KEY`; 429 after 30 an hour per unit |
 
