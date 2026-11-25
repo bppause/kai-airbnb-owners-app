@@ -67,6 +67,9 @@ export default function UnitInventoryModal({ listing, user, onClose, initialTab,
   // the next visit; null when the database doesn't have them yet.
   const [people, setPeople] = useState([]);
   const [tasks, setTasks] = useState([]);
+  // Areas let off being confirmed at every visit (every other one must
+  // be); null when the database doesn't have the choice yet.
+  const [areasExempt, setAreasExempt] = useState([]);
   // Counts and notes as typed, keyed by item id, until saved.
   const [draft, setDraft] = useState({});
   const [tab, setTab] = useState(initialTab || 'items');
@@ -107,6 +110,7 @@ export default function UnitInventoryModal({ listing, user, onClose, initialTab,
     setFnChecks(d.functionChecks === undefined ? [] : d.functionChecks);
     setPeople(d.people === undefined ? [] : d.people);
     setTasks(d.tasks === undefined ? [] : d.tasks);
+    setAreasExempt(d.areasExempt === undefined ? [] : d.areasExempt);
     folding.decide((d.items || []).length);
   };
   useEffect(() => {
@@ -383,6 +387,11 @@ export default function UnitInventoryModal({ listing, user, onClose, initialTab,
     add: async (s, data) => { const d = await api.post(fnPhotoUrl(s), { ...who, photo: data }); setFnPhotoCount(s, d.photoCount); return d; },
     remove: async (s, photo) => { const d = await api.del(`${fnPhotoUrl(s)}/${encodeURIComponent(photo.id)}`, { ownerUid: user.uid }); setFnPhotoCount(s, d.photoCount); return d; },
   };
+  // Whether the cleaning service must confirm an area at every visit.
+  const setAreaConfirm = (group, required) => ownerCall(async () => {
+    const d = await api.post(`${unitBase}/areas/confirm`, { ...who, areaEn: group.areaEn, areaEs: group.areaEs, required });
+    setAreasExempt(d.areasExempt || []);
+  }, T('areaConfirmSaved', { area: group.label }));
   const saveFunctions = async (checks) => {
     setBusy(true); setMsg(null);
     try {
@@ -803,6 +812,13 @@ export default function UnitInventoryModal({ listing, user, onClose, initialTab,
                 {shown.length === 0 && <p className="uinv-sub" style={{ marginTop: 12 }}>{T('noMatches')}</p>}
                 {/* A search or the changed-only filter opens every area it leaves. */}
                 <ItemList items={shown} lang={lang} folding={folding} forceOpen={!!needle || narrowing} busy={busy} expectedLabel={T('baseline')}
+                  areaBarExtra={areasExempt === null ? undefined : (g => {
+                    const off = areasExempt.some(x => (x.areaEn || '') === (g.areaEn || '') && (x.areaEs || '') === (g.areaEs || ''));
+                    return (
+                      <button type="button" className={`uinv-btn uinv-btn-sm${off ? '' : ' uinv-on'}`} aria-pressed={!off} title={T('areaConfirmHelp')} disabled={busy}
+                        onClick={() => setAreaConfirm(g, off)}>{T(off ? 'areaConfirmOff' : 'areaConfirmOn')}</button>
+                    );
+                  })}
                   valueOf={typed} diffOf={diffOf} isDirty={isDirty} onChange={setTyped} actionsFor={actionsFor} onRequired={setRequired} photosFor={photosFor} flashId={flash ? flash.id : null} headActionFor={photoButtonFor}
                   onRenameArea={openRename} areaExtra={renameFor} />
                 <CountComplete lang={lang} unsaved={dirtyItems.length} busy={busy} onComplete={completeCount} />

@@ -36,8 +36,6 @@ import { HistoryList } from "../components/History";
 import { UINV_CSS } from "../styles";
 
 const NAME_KEY = 'kai_inventory_name';
-// The areas marked "✓ Todo bien" during the visit under way, per link.
-const REVIEWED_KEY = 'kai_inventory_reviewed_';
 // This page's own language choice. Deliberately not the app's `kai_lang`:
 // an owner who uses the app in English and opens the link on the same
 // phone must not turn the cleaning service's page English.
@@ -113,11 +111,6 @@ export default function SharedInventoryView({ token }) {
     return () => { live = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [histTab, history]);
-  // The areas marked "✓ Todo bien" in this visit: { visit, keys }, where
-  // `visit` is the last completed count's id (a new count starts afresh).
-  const [reviewed, setReviewed] = useState(() => {
-    try { return JSON.parse(readStored(REVIEWED_KEY + token) || 'null') || { visit: '', keys: [] }; } catch (_e) { return { visit: '', keys: [] }; }
-  });
   const nameRef = useRef(null);
   // Set once the first load has put any restored draft in place; until
   // then the empty starting draft must not overwrite the stored one.
@@ -139,7 +132,9 @@ export default function SharedInventoryView({ token }) {
       // report; how the owner closed recent ones; the owner's notes.
       person: d.person || null, openDamages: d.openDamages || [], damageNews: d.damageNews || [], tasks: d.tasks || [],
       // Confirmations of ★ items made since then belong to this visit.
-      ackSince: d.ackSince || '' });
+      ackSince: d.ackSince || '',
+      // Areas the owner let off confirming; every other must be.
+      areasExempt: d.areasExempt || [] });
     if (d.person && d.person.name) setName(d.person.name);
     folding.decide(items.length);
     return items;
@@ -190,7 +185,7 @@ export default function SharedInventoryView({ token }) {
     return shell(<div className="uinv-msg uinv-msg-err">{state.notFound ? T('linkInactive') : state.text}</div>);
   }
 
-  const { unit, items, lastCheck, proposals, damages, proofEnabled, proofCounts, videoRequired, videos, suggestEnabled, functionChecks, functionAnswers, person, openDamages, damageNews, tasks, functionProofCounts, ackSince } = state;
+  const { unit, items, lastCheck, proposals, damages, proofEnabled, proofCounts, videoRequired, videos, suggestEnabled, functionChecks, functionAnswers, person, openDamages, damageNews, tasks, functionProofCounts, ackSince, areasExempt } = state;
   // The note box shows the note in this person's language (see
   // noteForViewer). Only a note they actually changed is sent back, so a
   // note merely shown in translation is never overwritten by it.
@@ -380,9 +375,10 @@ export default function SharedInventoryView({ token }) {
     const payload = [];
     for (const { it, count } of list) {
       if (undo) { payload.push({ itemId: it.id }); continue; }
-      const n = parseCountInput(count);
-      if (n == null) { setMsg({ err: true, text: T('countInvalid') }); return false; }
-      payload.push({ itemId: it.id, count: n, ...(noteChanged(it) ? { note: draft[it.id].note } : {}) });
+      // No count given: confirmed as it stands (nothing changed on it).
+      const n = count === undefined ? undefined : parseCountInput(count);
+      if (count !== undefined && n == null) { setMsg({ err: true, text: T('countInvalid') }); return false; }
+      payload.push({ itemId: it.id, ...(n !== undefined ? { count: n } : {}), ...(noteChanged(it) ? { note: draft[it.id].note } : {}) });
     }
     setBusy(true); setMsg(null);
     try {
@@ -470,47 +466,57 @@ export default function SharedInventoryView({ token }) {
 
   const requiredItems = items.filter(it => it.countRequired);
   const showing = requiredItems.length ? (view || 'required') : 'all';
+  // Every area must be confirmed at each visit ("✓ Todo bien en esta
+  // área"), unless the owner let it off; confirming an area confirms all
+  // its items. The ★ view still shows such an area when it has no ★
+  // items, so it can be confirmed.
+  const allGroups = groupByArea(items, lang);
+  const groupByKey = new Map(allGroups.map(g => [g.key, g]));
+  const isExempt = (g) => areasExempt.some(x => (x.areaEn || '') === (g.areaEn || '') && (x.areaEs || '') === (g.areaEs || ''));
+  const areaConfirmed = (key) => { const g = groupByKey.get(key); return !!g && g.items.every(isAcked); };
+  const listGroups = allGroups.filter(g => !isExempt(g));
+  const plainAreaKeys = new Set(listGroups.filter(g => !g.items.some(it => it.countRequired)).map(g => g.key));
   // A search looks through everything in the unit, whichever view is on.
   const needle = search.trim().toLowerCase();
   const visible = needle
     ? items.filter(it => `${it.nameEn} ${it.nameEs} ${it.areaEn} ${it.areaEs}`.toLowerCase().includes(needle))
-    : (showing === 'required' ? requiredItems : items);
+    : (showing === 'required' ? items.filter(it => it.countRequired || plainAreaKeys.has(areaKey(it.areaEn, it.areaEs))) : items);
 
-  // "✓ Todo bien en esta área": everything expected is there. Untouched
-  // items in the area take their expected count, the area folds with a
-  // ✓, and the next area still to check opens. Kept on the phone for
-  // this visit, so the person can pick up where they left off.
-  const visitKey = lastCheck ? lastCheck.id : 'none';
-  const listGroups = groupByArea(showing === 'required' ? requiredItems : items, lang);
-  const reviewedKeys = reviewed.visit === visitKey ? reviewed.keys : [];
-  const isReviewed = (key) => reviewedKeys.includes(key);
-  const nextArea = listGroups.find(g => !isReviewed(g.key));
+  const isReviewed = (key) => areaConfirmed(key);
+  const nextArea = listGroups.find(g => !areaConfirmed(g.key));
+  const areasLeft = listGroups.filter(g => !areaConfirmed(g.key));
+  const haveAreas = () => {
+    if (!areasLeft.length) return true;
+    setMsg({ err: true, text: T('areasMissing', { n: areasLeft.length }) });
+    goToArea(areasLeft[0].key);
+    return false;
+  };
   const goToArea = (key) => {
     folding.open(key);
     setTimeout(() => { const el = document.getElementById('uinv-area-' + encodeURIComponent(key)); if (el) el.scrollIntoView({ block: 'start' }); }, 0);
   };
-  const allGood = async (group) => {
+  // Whether something in the area is off: a number typed that isn't the
+  // expected one, or an open damage report.
+  const areaHasIssue = (g) => g.items.some(it => (isDirty(it) && diffOf(it) !== 0) || !!openDamageOf(it)
+    || (isAcked(it) && !isDirty(it) && it.checkedStatus && it.checkedStatus !== 'ok'));
+  // "✓ Todo bien en esta área": everything there and undamaged — items
+  // not changed take their expected count; or, when something is off,
+  // "Área revisada": confirmed as typed. All the area's items (★ or not)
+  // are confirmed and saved at once; the area folds with ✓ and the next
+  // one to confirm opens.
+  const allGood = async (shown) => {
     if (msg && msg.err) setMsg(null);
-    // The ★ items are confirmed as they are (counted, nothing wrong),
-    // saved now; the rest take their expected count as unsaved changes.
-    const stars = group.items.filter(it => it.countRequired && !isAcked(it));
-    if (stars.length) {
-      const ok = await confirmItems(stars.map(it => ({ it, count: isDirty(it) ? typed(it).count : String(it.baselineCount) })));
-      if (!ok) return;
-    }
-    setDraft(prev => {
-      const next = { ...prev };
-      for (const it of group.items) {
-        if (it.countRequired || isDirty(it) || it.currentCount === it.baselineCount) continue;
-        next[it.id] = { ...typed(it), count: String(it.baselineCount) };
-      }
-      return next;
-    });
-    const keys = [...new Set([...reviewedKeys, group.key])];
-    setReviewed({ visit: visitKey, keys });
-    writeStored(REVIEWED_KEY + token, JSON.stringify({ visit: visitKey, keys }));
-    folding.close(group.key);
-    const next = listGroups.find(g => !keys.includes(g.key));
+    const g = groupByKey.get(shown.key) || shown;
+    const issue = areaHasIssue(g);
+    // items already confirmed this visit keep their confirmation (and count)
+    const todo = g.items.filter(it => isDirty(it) || !isAcked(it));
+    if (!todo.length) { folding.close(g.key); return; }
+    const ok = await confirmItems(todo.map(it => ({
+      it, count: isDirty(it) ? typed(it).count : (issue || it.currentCount === it.baselineCount ? undefined : String(it.baselineCount)),
+    })));
+    if (!ok) return;
+    folding.close(g.key);
+    const next = listGroups.find(x => x.key !== g.key && !areaConfirmed(x.key));
     if (next) goToArea(next.key);
   };
 
@@ -546,12 +552,12 @@ export default function SharedInventoryView({ token }) {
             {requiredItems.length > 0 && (
               <div className={`uinv-progress${unacked.length ? '' : ' uinv-progress-done'}`}>{T('ackProgress', { done: requiredItems.length - unacked.length, n: requiredItems.length })}</div>
             )}
-            {listGroups.length > 1 && (
+            {listGroups.length > 0 && (
               <div className="uinv-areas-progress">
                 <span className={`uinv-progress${nextArea ? '' : ' uinv-progress-done'}`} style={{ margin: 0 }}>
                   {nextArea ? T('areasProgress', { done: listGroups.filter(g => isReviewed(g.key)).length, n: listGroups.length }) : T('areasAllDone')}
                 </span>
-                {nextArea && reviewedKeys.length > 0 && (
+                {nextArea && listGroups.some(g => areaConfirmed(g.key)) && (
                   <button type="button" className="uinv-btn uinv-btn-sm" onClick={() => goToArea(nextArea.key)}>{T('areasContinue', { area: nextArea.label })}</button>
                 )}
               </div>
@@ -623,11 +629,26 @@ export default function SharedInventoryView({ token }) {
             badgeFor={it => (openDamageOf(it)
               ? <span className="uinv-dmg-already" title={T('damageAlreadyAria')}>{T('damageAlready')}</span> : null)}
             areaBadge={g => (isReviewed(g.key) ? <span className="uinv-area-done">{T('areaReviewed')}</span> : null)}
-            areaFooter={needle ? undefined : (g => (
-              <div className="uinv-area-foot">
-                <button type="button" className="uinv-btn uinv-btn-ok" title={T('areaAllGoodAria', { area: g.label })} onClick={() => allGood(g)}>{T('areaAllGood')}</button>
-              </div>
-            ))}
+            areaFooter={needle ? undefined : (g => {
+              const full = groupByKey.get(g.key) || g;
+              if (areaConfirmed(g.key)) {
+                const who = (full.items.find(it => it.checkedBy) || {}).checkedBy || '';
+                return (
+                  <div className="uinv-area-foot uinv-ack uinv-ack-ok">
+                    <span>{T('areaDone', { who })}</span>
+                    <button type="button" className="uinv-btn uinv-btn-sm" disabled={busy} onClick={() => confirmItems(full.items.map(it => ({ it })), true)}>{T('taskUndo')}</button>
+                  </div>
+                );
+              }
+              const issue = areaHasIssue(full);
+              return (
+                <div className="uinv-area-foot">
+                  {plainAreaKeys.has(g.key) && showing === 'required' && <span className="uinv-meta" style={{ flex: '1 1 100%' }}>{T('areaNoStarsHint')}</span>}
+                  <button type="button" className={`uinv-btn ${issue ? 'uinv-btn-warn' : 'uinv-btn-ok'}`} disabled={busy} title={T('areaAllGoodAria', { area: g.label })}
+                    onClick={() => allGood(g)}>{T(issue ? 'areaIssueBtn' : 'areaAllGood')}</button>
+                </div>
+              );
+            })}
             headActionFor={it => (
               <button type="button" className="uinv-btn uinv-btn-sm uinv-btn-danger uinv-dmg-quick" disabled={busy}
                 aria-label={T('damageQuickAria', { name: primaryText(lang, it.nameEn, it.nameEs) })} onClick={() => openDamage(it)}>{T('damageQuick')}</button>
@@ -677,12 +698,13 @@ export default function SharedInventoryView({ token }) {
       {items.length > 0 && (
         <CountComplete lang={lang} unsaved={dirtyItems.length} busy={busy} onComplete={complete}
           missing={[
+            ...(areasLeft.length ? [{ key: 'areas', text: T('areasMissingShort', { n: areasLeft.length }), action: T('areasMissingGo'), onAction: () => goToArea(areasLeft[0].key) }] : []),
             ...(unacked.length ? [{ key: 'acks', text: T('ackMissingShort', { n: unacked.length }), action: T('ackMissingGo'), onAction: () => goToItem(unacked[0]) }] : []),
             ...(tasksLeft.length ? [{ key: 'tasks', text: T('tasksMissingShort', { n: tasksLeft.length }), action: T('tasksMissingGo'), onAction: () => { const el = document.getElementById('uinv-owner-notes'); if (el) el.scrollIntoView({ block: 'start' }); } }] : []),
             ...(fnLeft.length ? [{ key: 'fn', text: T('fnMissingShort', { n: fnLeft.length }), action: T('fnMissingGo'), onAction: () => { const el = document.getElementById('uinv-functions'); if (el) el.scrollIntoView({ block: 'start' }); } }] : []),
             ...(!videoDone ? [{ key: 'video', text: T('videoMissingShort'), action: T('videoAlertGo'), onAction: () => { const el = document.getElementById('uinv-video'); if (el) el.scrollIntoView({ block: 'start' }); } }] : []),
           ]}
-          canStart={() => pendingUpdates() !== null && haveAcks() && haveTasks() && haveFunctions() && haveVideo()}
+          canStart={() => pendingUpdates() !== null && haveAcks() && haveAreas() && haveTasks() && haveFunctions() && haveVideo()}
           damagePrompt={{
             covers: (requiredItems.length
               ? T('finishCoversReq', { n: requiredItems.length })

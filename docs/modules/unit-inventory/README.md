@@ -307,8 +307,7 @@ unnoticed.
   opening the item. Tapping it saves the count (and note) as typed and
   records who confirmed it and how (`checked_status` 'ok' / 'issue' on
   the item, via `POST /shared/:token/acks`); "Deshacer" takes it back,
-  and changing the number afterwards asks to confirm again. "✓ Todo bien
-  en esta área" confirms the area's ★ items at their expected count. The
+  and changing the number afterwards asks to confirm again. The
   task list shows "★ Revisados: 3 de 11", the finish box lists those
   left with "★ Ir al siguiente", and the server refuses the count until
   all are confirmed during the visit (`itemsUnchecked`). The checkout
@@ -316,6 +315,22 @@ unnoticed.
   Completing clears the confirmations, so each visit starts afresh; the
   owner's own count asks for none, nor does a database without the
   columns.
+- **Every area confirmed.** Each area is checked at every visit, even
+  one with no ★ items — all areas by default. At the end of an area the
+  cleaner taps "✓ Todo bien en esta área" (items not changed take their
+  expected count) or, when something there is short or damaged, "✓ Área
+  revisada (con faltantes o daños)" (counts as typed). Either confirms
+  every item of the area at once (items already confirmed keep their
+  count); an area counts as checked when all its items are. In the ★
+  view, areas to check that have no ★ items are listed too, with a note
+  saying so. Progress reads "Áreas revisadas: 2 de 7", the finish box
+  lists "🧾 N área(s) sin revisar" with a button to the next, and the
+  server refuses the count while any is left (`areasUnchecked`). On each
+  area's bar the owner switches "🧾 Revisar en cada visita: Sí / No"
+  (`POST /units/:listingId/areas/confirm`); an area let off is stored in
+  `unit_inventory_area_rules`, needs no confirmation and isn't counted
+  in the progress. Renaming an area keeps its setting. Without the table
+  every area is required and the switch is hidden.
 - **The owner's email when an inventory is completed** (in-app alert as
   well) sums it up — counts, damage, working checks, battery changes,
   notes answered — and links straight into the app: "Ver el reporte de
@@ -489,6 +504,7 @@ is missing. That file is generated from the inventory section of
 | `unit_inventory_function_results` | The answers of the visit under way (`ok` / `fail`, note, who, `batteries` changed). Completing a count copies them into `unit_inventory_checks.function_results` (with `functions_failed`) and clears them. |
 | `unit_inventory_damages` | Damage reports: description, area / item / spot, photos (JPEG data URLs), who and when, the completed count they belong to (`check_id`), `open` or `resolved`, and how the owner closed it (`resolution`, `owner_reply`; read without them on a database not yet updated). A missing table reads as no damage; only reporting fails. |
 | `unit_inventory_proposals` | Items proposed through the share link: `pending`, `approved` (with the `item_id` created) or `rejected`. Decided rows are kept. A missing table reads as no proposals; only proposing fails. |
+| `unit_inventory_area_rules` | Areas the owner let off confirming at each visit (`confirm_required` false), by listing and bilingual area name. No row means required. A missing table means every area is required. |
 | `unit_inventory_links` | One share link per unit: token and whether it is enabled. Kept off `listings` because listing rows are returned to every signed-in user. |
 
 ## API
@@ -502,6 +518,7 @@ Mounted at `/api/m/unit-inventory`.
 | `POST /units/:listingId/videos/:videoId/keep` | owner | `{ keep: true\|false }`: keep a completed count's video as evidence (never recycled) or release it |
 | `GET …/items/:itemId/photos?first=1` | owner / share link | Only the item's primary (first) photo, for its thumbnail |
 | `POST /units/:listingId/areas/rename` | owner | `{ fromEn, fromEs, toEn, toEs }`: every item in that area moves to the new name (merging with an area of that name) → `{ changed }` |
+| `POST /units/:listingId/areas/confirm` | owner | `{ areaEn, areaEs, required }`: whether that area must be confirmed at every visit → `{ areasExempt }` (503 without the table) |
 | `POST /units/:listingId/items/move` | owner | `{ itemIds, toEn, toEs }`: moves those items to that area (existing or new) → `{ changed }` |
 | `PUT /items/:id` | owner | Edit an item's area, description, owner note |
 | `POST /units/:listingId/people` | owner | `{ name, phone? }`: a person with their own link → `{ person }` (with `token`). 503 without the table |
@@ -540,7 +557,7 @@ Mounted at `/api/m/unit-inventory`.
 | `POST /shared/:token/checks` | link holder | Mark the count complete (optionally saving `updates` first) |
 | `POST /shared/:token/proposals` | link holder | Propose an item for the owner to approve |
 | `POST /shared/:token/damages` | link holder | Report damage, with photos |
-| `POST /shared/:token/acks` | link holder | `{ name, lang, items: [{ itemId, count?, note? }], undo? }`: confirm ★ items were counted and checked (saving the count with it), or take confirmations back → `{ items }` |
+| `POST /shared/:token/acks` | link holder | `{ name, lang, items: [{ itemId, count?, note? }], undo? }`: confirm items (★, or a whole area) were counted and checked (saving the count with it, when given), or take confirmations back → `{ items }` |
 | `POST /shared/:token/tasks/:taskId` | link holder | `{ name, done: true\|false, blocked?, note? }`: answer one of the owner's notes — done, or `blocked` (couldn't, `note` required) — or take back an answer given this visit |
 | `GET /shared/:token/history`, `/shared/:token/checks`, `/shared/:token/checks/:checkId[/items/:itemId/photos \| /videos]` | link holder | The history and every checkout report, read-only (videos without the week-long share link) |
 | `GET /shared/:token/functions/:checkId/photos` | link holder | The owner's example photos of a check (`?first=1`) |
