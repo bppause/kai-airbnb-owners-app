@@ -85,6 +85,10 @@ export default function SharedInventoryView({ token }) {
   const [draft, setDraft] = useState({});
   const [name, setName] = useState(() => readStored(NAME_KEY));
   const [search, setSearch] = useState('');
+  // Areas whose every item is shown in the ★ view ("Ver todos los
+  // artículos" by the area's button), by key. Off by default.
+  const [shownAreas, setShownAreas] = useState(() => new Set());
+  const toggleShownArea = (key) => setShownAreas(prev => { const next = new Set(prev); if (next.has(key)) next.delete(key); else next.add(key); return next; });
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState(null);
   const [proposing, setProposing] = useState(false);
@@ -481,7 +485,7 @@ export default function SharedInventoryView({ token }) {
   const needle = search.trim().toLowerCase();
   const visible = needle
     ? items.filter(it => `${it.nameEn} ${it.nameEs} ${it.areaEn} ${it.areaEs}`.toLowerCase().includes(needle))
-    : (showing === 'required' ? requiredItems : items);
+    : (showing === 'required' ? items.filter(it => it.countRequired || shownAreas.has(areaKey(it.areaEn, it.areaEs))) : items);
 
   const isReviewed = (key) => areaConfirmed(key);
   const nextArea = listGroups.find(g => !areaConfirmed(g.key));
@@ -644,9 +648,17 @@ export default function SharedInventoryView({ token }) {
                 );
               }
               const issue = areaHasIssue(full);
+              // In the ★ view: a switch to see everything that should be in
+              // the area before saying it is all good (off by default).
+              const canShowAll = showing === 'required' && full.items.some(it => !it.countRequired);
+              const showAll = shownAreas.has(g.key);
               return (
                 <div className="uinv-area-foot">
                   {plainAreaKeys.has(g.key) && showing === 'required' && <span className="uinv-meta" style={{ flex: '1 1 100%' }}>{T('areaNoStarsHint')}</span>}
+                  {canShowAll && (
+                    <button type="button" role="switch" aria-checked={showAll} className={`uinv-btn uinv-btn-sm uinv-area-showall${showAll ? ' uinv-on' : ''}`}
+                      onClick={() => toggleShownArea(g.key)}>{T(showAll ? 'areaShowAllOn' : 'areaShowAllOff', { n: full.items.length })}</button>
+                  )}
                   <button type="button" className={`uinv-btn ${issue ? 'uinv-btn-warn' : 'uinv-btn-ok'}`} disabled={busy} title={T('areaAllGoodAria', { area: g.label })}
                     onClick={() => allGood(g)}>{T(issue ? 'areaIssueBtn' : 'areaAllGood')}</button>
                 </div>
