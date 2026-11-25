@@ -101,6 +101,11 @@
 // cleaning service ticks off, and answer a damage report when closing it
 // (how it was solved, a reply), which the cleaning service sees.
 //
+// At every visit the cleaning service also confirms each area was
+// checked ("✓ Todo bien en esta área"), which stamps the area's items
+// like a ★ confirmation; every area must be confirmed unless the owner
+// let it off (unit_inventory_area_rules).
+//
 // Like the rest of this app the owner routes trust the ownerUid the
 // client sends (see server/platform/units/routes.js); there is no
 // server-side session to check it against.
@@ -746,14 +751,30 @@ module.exports = function createUnitInventoryRouter(deps) {
     // (counted and checked for damage) during this visit. A database
     // without the confirmation columns asks for none.
     if (actorType === 'cleaner') {
-      const { data: reqRows } = await supabase.from('unit_inventory_items').select('*').eq('listing_id', listing.id).eq('count_required', true);
-      if (reqRows && reqRows.length && 'checked_at' in reqRows[0]) {
+      const { data: allRows } = await supabase.from('unit_inventory_items').select('*').eq('listing_id', listing.id);
+      if (allRows && allRows.length && 'checked_at' in allRows[0]) {
         const since = ackSince(await loadLastCheck(listing.id));
-        const unchecked = reqRows.filter(r => !r.checked_at || r.checked_at < since);
+        const confirmed = (r) => r.checked_at && r.checked_at >= since;
+        const unchecked = allRows.filter(r => r.count_required && !confirmed(r));
         if (unchecked.length) {
           return {
             error: `Confirm every ★ item first (${unchecked.length} left): counted and checked for damage or missing.`,
             status: 400, itemsUnchecked: unchecked.map(r => r.id),
+          };
+        }
+        // And every area the owner hasn't let off: all its items confirmed.
+        const exemptions = await loadAreaExemptions(listing.id);
+        const areas = new Map();
+        for (const r of allRows) {
+          const k = `${r.area_en || ''}\u0001${r.area_es || ''}`;
+          if (!areas.has(k)) areas.set(k, { areaEn: r.area_en || '', areaEs: r.area_es || '', rows: [] });
+          areas.get(k).rows.push(r);
+        }
+        const open = [...areas.values()].filter(a => !exempt(exemptions, { area_en: a.areaEn, area_es: a.areaEs }) && a.rows.some(r => !confirmed(r)));
+        if (open.length) {
+          return {
+            error: `Confirm every area first (${open.length} left): "✓ Todo bien en esta área" at the end of each.`,
+            status: 400, areasUnchecked: open.map(a => ({ areaEn: a.areaEn, areaEs: a.areaEs })),
           };
         }
       }
@@ -870,7 +891,7 @@ module.exports = function createUnitInventoryRouter(deps) {
     // without them. (Not on a database without the columns.)
     if (actorType === 'cleaner' && rows.length && 'checked_at' in rows[0]) {
       const { error: cErr2 } = await supabase.from('unit_inventory_items').update({ checked_at: null, checked_by: '', checked_status: '' })
-        .eq('listing_id', listing.id).eq('count_required', true);
+        .eq('listing_id', listing.id);
       if (cErr2) warn('Inventory confirmation reset failed: ' + cErr2.message);
     }
     if (actorType === 'cleaner') {
@@ -1090,6 +1111,15 @@ module.exports = function createUnitInventoryRouter(deps) {
     return data ? { token: data.token, enabled: !!data.enabled, updatedAt: data.updated_at } : null;
   };
 
+  // The areas the owner let off confirming: [{ area_en, area_es }]; null
+  // when the table isn't there yet (then every area is asked for).
+  const loadAreaExemptions = async (listingId) => {
+    const { data, error } = await supabase.from('unit_inventory_area_rules')
+      .select('area_en, area_es, confirm_required').eq('listing_id', listingId);
+    return error ? null : (data || []).filter(r => r.confirm_required === false);
+  };
+  const exempt = (list, r) => (list || []).some(x => (x.area_en || '') === (r.area_en || '') && (x.area_es || '') === (r.area_es || ''));
+
   // The unit's people with their own link, oldest first; null when the
   // table isn't there yet (schema.sql not re-run).
   const loadPeople = async (listingId) => {
@@ -1127,6 +1157,8 @@ module.exports = function createUnitInventoryRouter(deps) {
       functionChecks: await (async (fs) => (fs ? functionsForScreen(listing.id, fs) : null))(await loadFunctions(listing.id)),
       // The cleaning service's people and their links; null without the table.
       people: ((ps) => (ps ? ps.map(personFromDb) : null))(await loadPeople(listing.id)),
+      // Areas let off confirming at every visit; null without the table.
+      areasExempt: ((xs) => (xs ? xs.map(x => ({ areaEn: x.area_en || '', areaEs: x.area_es || '' })) : null))(await loadAreaExemptions(listing.id)),
       // Notes for the next visit, open and answered (not archived); null without the table.
       tasks: ((ts) => (ts ? ts.map(taskFromDb) : null))(await loadTasks(listing.id, ['open', 'done', 'blocked'])),
     });
@@ -1232,6 +1264,34 @@ module.exports = function createUnitInventoryRouter(deps) {
     if (!gone || !gone.length) return res.status(404).json({ error: 'Photo not found.' });
     const { data: left } = await supabase.from('unit_inventory_item_photos').select('id').eq('item_id', fnKey(fc.id));
     res.json({ photoCount: (left || []).length });
+  });
+
+  // POST /units/:listingId/areas/confirm — body: { ownerUid, actorName,
+  // areaEn, areaEs, required }. Whether the cleaning service must confirm
+  // this area at every visit (by default every area must). → { areasExempt }.
+  router.post('/units/:listingId/areas/confirm', async (req, res) => {
+    if (!requireSupabaseEnv(res)) return;
+    const { ownerUid, actorName } = req.body || {};
+    const listing = await requireOwnedUnit(res, req.params.listingId, ownerUid);
+    if (!listing) return;
+    const area = { area_en: text(req.body?.areaEn, MAX_AREA), area_es: text(req.body?.areaEs, MAX_AREA) };
+    const required = req.body?.required !== false;
+    if ((await loadAreaExemptions(listing.id)) === null) return res.status(503).json({ error: 'Choosing areas needs the latest database update: run supabase/unit_inventory.sql in the Supabase SQL Editor.' });
+    const { error: dErr } = await supabase.from('unit_inventory_area_rules').delete()
+      .eq('listing_id', listing.id).eq('area_en', area.area_en).eq('area_es', area.area_es);
+    if (dErr) return sendSupabaseError(res, dErr);
+    if (!required) {
+      const { error } = await supabase.from('unit_inventory_area_rules').insert({
+        listing_id: listing.id, community_id: listing.community_id || 'kai', ...area, confirm_required: false, updated_at: new Date().toISOString(),
+      });
+      if (error) return sendSupabaseError(res, error);
+    }
+    await auditLog({
+      entity: 'unit_inventory', entityId: listing.id, action: required ? 'area_confirm_on' : 'area_confirm_off',
+      actorUid: String(ownerUid), actorName: text(actorName, MAX_ACTOR) || listing.owner || 'Owner', after: { areaEn: area.area_en, areaEs: area.area_es },
+    });
+    const xs = (await loadAreaExemptions(listing.id)) || [];
+    res.json({ areasExempt: xs.map(x => ({ areaEn: x.area_en || '', areaEs: x.area_es || '' })) });
   });
 
   // POST /units/:listingId/tasks — body: { ownerUid, actorName, text,
@@ -1490,6 +1550,19 @@ module.exports = function createUnitInventoryRouter(deps) {
       actor_type: 'owner', actor_name: actor, actor_uid: String(ownerUid), created_at: now,
     })));
     if (evErr) return sendSupabaseError(res, evErr);
+    // An area let off confirming keeps that under its new name (merging
+    // into an existing area takes that area's choice).
+    const exemptions = await loadAreaExemptions(listing.id);
+    if (exemptions && exempt(exemptions, from)) {
+      await supabase.from('unit_inventory_area_rules').delete().eq('listing_id', listing.id).eq('area_en', from.area_en).eq('area_es', from.area_es);
+      const { data: existing } = await supabase.from('unit_inventory_items').select('id').eq('listing_id', listing.id)
+        .eq('area_en', to.area_en).eq('area_es', to.area_es).limit(rows.length + 1);
+      const merged = (existing || []).length > rows.length;
+      if (!merged) {
+        await supabase.from('unit_inventory_area_rules').delete().eq('listing_id', listing.id).eq('area_en', to.area_en).eq('area_es', to.area_es);
+        await supabase.from('unit_inventory_area_rules').insert({ listing_id: listing.id, community_id: listing.community_id || 'kai', ...to, confirm_required: false, updated_at: now });
+      }
+    }
     await auditLog({
       entity: 'unit_inventory', entityId: listing.id, action: 'rename_area',
       actorUid: String(ownerUid), actorName: actor,
@@ -2111,6 +2184,8 @@ module.exports = function createUnitInventoryRouter(deps) {
       suggestEnabled: translateEnabled(),
       // Confirmations of ★ items made since then belong to this visit.
       ackSince: ackSince(await loadLastCheck(listing.id)),
+      // Areas that don't have to be confirmed (every other one does).
+      areasExempt: ((await loadAreaExemptions(listing.id)) || []).map(x => ({ areaEn: x.area_en || '', areaEs: x.area_es || '' })),
       // Whose link this is (their name is used for everything they do).
       person: listing.person ? { name: listing.person.name } : null,
       // Every open damage report (so nothing is reported twice) and those
@@ -2345,6 +2420,7 @@ module.exports = function createUnitInventoryRouter(deps) {
         ...(result.functionsMissing ? { functionsMissing: result.functionsMissing } : {}),
         ...(result.tasksMissing ? { tasksMissing: result.tasksMissing } : {}),
         ...(result.itemsUnchecked ? { itemsUnchecked: result.itemsUnchecked } : {}),
+        ...(result.areasUnchecked ? { areasUnchecked: result.areasUnchecked } : {}),
       });
     }
     res.json(result);

@@ -361,6 +361,20 @@ alter table public.unit_inventory_tasks drop constraint if exists unit_inventory
 alter table public.unit_inventory_tasks add constraint unit_inventory_tasks_status_check
   check (status in ('open','done','blocked','archived'));
 
+-- Which areas the cleaning service must confirm at every visit ("✓ Todo
+-- bien en esta área" / "Área revisada"). Every area must be, by default:
+-- a row with confirm_required = false lets one off. Areas are named by
+-- their two names, as on the items.
+create table if not exists public.unit_inventory_area_rules (
+  listing_id text not null references public.listings(id) on delete cascade,
+  community_id text not null default 'kai',
+  area_en text not null default '',
+  area_es text not null default '',
+  confirm_required boolean not null default true,
+  updated_at timestamptz not null default now(),
+  primary key (listing_id, area_en, area_es)
+);
+
 -- Row level security is off: the server uses the service role key.
 alter table public.unit_inventory_items disable row level security;
 alter table public.unit_inventory_events disable row level security;
@@ -375,3 +389,4 @@ alter table public.unit_inventory_function_checks disable row level security;
 alter table public.unit_inventory_function_results disable row level security;
 alter table public.unit_inventory_people disable row level security;
 alter table public.unit_inventory_tasks disable row level security;
+alter table public.unit_inventory_area_rules disable row level security;

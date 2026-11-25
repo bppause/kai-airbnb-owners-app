@@ -145,7 +145,7 @@ function ItemCard({ item, lang, value, diff, dirty, busy, expectedLabel, opened,
 // `headActionFor(item)` returns a button kept in view at the top right of
 // the item even when it is folded on a phone (the cleaning service's
 // ⚠️ Damage).
-export function ItemList({ items, lang, folding, forceOpen = false, busy, expectedLabel, valueOf, diffOf, isDirty, onChange, actionsFor, onRequired, moreLabel, photosFor, proofFor, flashId, headActionFor, onRenameArea, areaExtra, areaBadge, areaFooter, badgeFor, ackFor }) {
+export function ItemList({ items, lang, folding, forceOpen = false, busy, expectedLabel, valueOf, diffOf, isDirty, onChange, actionsFor, onRequired, moreLabel, photosFor, proofFor, flashId, headActionFor, onRenameArea, areaExtra, areaBadge, areaFooter, badgeFor, ackFor, areaBarExtra }) {
   const T = (k, v) => tr(lang, k, v);
   // Items opened by hand on a narrow screen, by id.
   const [openedItems, setOpenedItems] = useState({});
@@ -187,6 +187,7 @@ export function ItemList({ items, lang, folding, forceOpen = false, busy, expect
                 {onRenameArea && (group.areaEn || group.areaEs) && (
                   <button type="button" className="uinv-btn uinv-btn-sm" disabled={busy} onClick={() => onRenameArea(group)}>{T('areaRename')}</button>
                 )}
+                {areaBarExtra && areaBarExtra(group)}
               </div>
             )}
             {!folded && areaExtra && areaExtra(group)}
