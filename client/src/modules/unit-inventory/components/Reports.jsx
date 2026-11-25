@@ -63,6 +63,7 @@ function ReportDetail({ lang, check, detail, loadPhotos, loadVideos, keepVideo, 
                 const view = noteForViewer(lang, { currentNote: r.note, currentNoteLang: r.noteLang, currentNoteTranslation: r.noteTranslation });
                 return <><div className="uinv-onote">{view.text}</div><NoteTranslation lang={lang} view={view} /></>;
               })()}
+              {r.checked && <div className={r.checked === 'ok' ? 'uinv-report-ok' : 'uinv-report-miss'}>{T(r.checked === 'ok' ? 'reportChecked' : 'reportCheckedIssue', { who: r.checkedBy })}</div>}
               {r.photos > 0 && <ReportPhotos lang={lang} count={r.photos} load={() => loadPhotos(r.itemId)} />}
               <div className="uinv-meta">{primaryText(lang, r.areaEn, r.areaEs)}</div>
             </div>
@@ -110,15 +111,23 @@ export default function CheckoutReports({ lang, unitBase, ownerUid, unitName, on
 
   // The report the email linked to: opened once, when the list arrives.
   const openedFirst = useRef(false);
+  const [scrollTo, setScrollTo] = useState('');
   useEffect(() => {
     if (openedFirst.current || !openFirst || !checks) return;
     openedFirst.current = true;
     const hit = checks.find(c => c.id === openFirst);
     if (!hit) return;
     toggle(hit);
-    setTimeout(() => { const el = document.getElementById(`uinv-report-${hit.id}`); if (el) el.scrollIntoView({ block: 'start' }); }, 50);
+    setScrollTo(hit.id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [checks]);
+  // Brought into view once its details are in (they change the page's height).
+  useEffect(() => {
+    if (!scrollTo || !details[scrollTo]) return;
+    const id = scrollTo;
+    setScrollTo('');
+    requestAnimationFrame(() => { const el = document.getElementById(`uinv-report-${id}`); if (el) el.scrollIntoView({ block: 'start' }); });
+  }, [details, scrollTo]);
 
   if (checks === null) return <p className="uinv-sub">{T('loading')}</p>;
   if (!checks.length) return <p className="uinv-sub">{T('reportsEmpty')}</p>;

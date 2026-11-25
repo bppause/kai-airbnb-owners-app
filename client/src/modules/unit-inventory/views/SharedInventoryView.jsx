@@ -22,7 +22,7 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "../../../core/api";
 import { tr, primaryText, parseCountInput, diffFromBaseline, tallyDiffs, groupByArea, noteForViewer, API_BASE } from "../strings";
 import { DiffSummary } from "../components/DiffMarks";
-import { ItemList, Toast, ViewSwitch, FilterBar, useAreaFolding } from "../components/ItemList";
+import { ItemList, Toast, ViewSwitch, FilterBar, useAreaFolding, areaKey } from "../components/ItemList";
 import { CountComplete, LastCheckLine } from "../components/CountComplete";
 import { ProposeItemForm, PendingProposals } from "../components/Proposals";
 import { DamageForm, DamageList } from "../components/Damages";
@@ -137,7 +137,9 @@ export default function SharedInventoryView({ token }) {
       functionChecks: d.functionChecks || [], functionAnswers: d.functionAnswers || {}, functionProofCounts: d.functionProofCounts || {},
       // A personal link's person ({ name }) or null; every open damage
       // report; how the owner closed recent ones; the owner's notes.
-      person: d.person || null, openDamages: d.openDamages || [], damageNews: d.damageNews || [], tasks: d.tasks || [] });
+      person: d.person || null, openDamages: d.openDamages || [], damageNews: d.damageNews || [], tasks: d.tasks || [],
+      // Confirmations of ★ items made since then belong to this visit.
+      ackSince: d.ackSince || '' });
     if (d.person && d.person.name) setName(d.person.name);
     folding.decide(items.length);
     return items;
@@ -188,7 +190,7 @@ export default function SharedInventoryView({ token }) {
     return shell(<div className="uinv-msg uinv-msg-err">{state.notFound ? T('linkInactive') : state.text}</div>);
   }
 
-  const { unit, items, lastCheck, proposals, damages, proofEnabled, proofCounts, videoRequired, videos, suggestEnabled, functionChecks, functionAnswers, person, openDamages, damageNews, tasks, functionProofCounts } = state;
+  const { unit, items, lastCheck, proposals, damages, proofEnabled, proofCounts, videoRequired, videos, suggestEnabled, functionChecks, functionAnswers, person, openDamages, damageNews, tasks, functionProofCounts, ackSince } = state;
   // The note box shows the note in this person's language (see
   // noteForViewer). Only a note they actually changed is sent back, so a
   // note merely shown in translation is never overwritten by it.
@@ -368,6 +370,65 @@ export default function SharedInventoryView({ token }) {
       return false;
     }
   };
+  // ★ items: each must be confirmed this visit — counted and checked for
+  // damage or missing — before the count can be finished. Confirming
+  // saves the count (and note) as typed with it.
+  const isAcked = (it) => !!it.checkedAt && (!ackSince || it.checkedAt >= ackSince);
+  const unacked = items.filter(it => it.countRequired && !isAcked(it));
+  const confirmItems = async (list, undo = false) => {
+    if (!haveName()) return false;
+    const payload = [];
+    for (const { it, count } of list) {
+      if (undo) { payload.push({ itemId: it.id }); continue; }
+      const n = parseCountInput(count);
+      if (n == null) { setMsg({ err: true, text: T('countInvalid') }); return false; }
+      payload.push({ itemId: it.id, count: n, ...(noteChanged(it) ? { note: draft[it.id].note } : {}) });
+    }
+    setBusy(true); setMsg(null);
+    try {
+      writeStored(NAME_KEY, name.trim());
+      const d = await api.post(`${base}/acks`, { name: name.trim(), lang, items: payload, ...(undo ? { undo: true } : {}) });
+      const fresh = new Map((d.items || []).map(r => [r.id, r]));
+      setState(prev => ({ ...prev, items: prev.items.map(r => fresh.get(r.id) || r) }));
+      if (!undo) setDraft(prev => { const next = { ...prev }; for (const { it } of list) delete next[it.id]; return next; });
+      return true;
+    } catch (e) {
+      setMsg({ err: true, text: e?.message || String(e) });
+      return false;
+    } finally { setBusy(false); }
+  };
+  const goToItem = (it) => {
+    const k = areaKey(it.areaEn, it.areaEs);
+    folding.open(k);
+    setTimeout(() => { const el = document.getElementById(`uinv-item-${it.id}`); if (el) el.scrollIntoView({ block: 'center' }); }, 50);
+  };
+  const haveAcks = () => {
+    if (!unacked.length) return true;
+    setMsg({ err: true, text: T('ackMissing', { n: unacked.length }) });
+    goToItem(unacked[0]);
+    return false;
+  };
+  const ackFor = (it) => {
+    if (!it.countRequired) return null;
+    // Confirmed — unless the number or note was changed since: then the
+    // button comes back to confirm the new one.
+    if (isAcked(it) && !isDirty(it)) {
+      const ok = it.checkedStatus === 'ok';
+      return (
+        <div className={`uinv-ack ${ok ? 'uinv-ack-ok' : 'uinv-ack-issue'}`}>
+          <span>{T(ok ? 'ackDoneOk' : 'ackDoneIssue', { who: it.checkedBy })}</span>
+          <button type="button" className="uinv-btn uinv-btn-sm" disabled={busy} onClick={() => confirmItems([{ it }], true)}>{T('taskUndo')}</button>
+        </div>
+      );
+    }
+    const allThere = diffOf(it) === 0 && !openDamageOf(it);
+    return (
+      <div className="uinv-ack">
+        <button type="button" className={`uinv-btn uinv-ack-btn${allThere ? ' uinv-btn-ok' : ' uinv-btn-warn'}`} disabled={busy}
+          onClick={() => confirmItems([{ it, count: typed(it).count }])}>{T(allThere ? 'ackBtnOk' : 'ackBtnIssue')}</button>
+      </div>
+    );
+  };
   // The owner's notes still to answer; true when there are none (otherwise
   // says so and goes to them).
   const tasksLeft = tasks.filter(t => t.status === 'open');
@@ -428,12 +489,19 @@ export default function SharedInventoryView({ token }) {
     folding.open(key);
     setTimeout(() => { const el = document.getElementById('uinv-area-' + encodeURIComponent(key)); if (el) el.scrollIntoView({ block: 'start' }); }, 0);
   };
-  const allGood = (group) => {
+  const allGood = async (group) => {
     if (msg && msg.err) setMsg(null);
+    // The ★ items are confirmed as they are (counted, nothing wrong),
+    // saved now; the rest take their expected count as unsaved changes.
+    const stars = group.items.filter(it => it.countRequired && !isAcked(it));
+    if (stars.length) {
+      const ok = await confirmItems(stars.map(it => ({ it, count: isDirty(it) ? typed(it).count : String(it.baselineCount) })));
+      if (!ok) return;
+    }
     setDraft(prev => {
       const next = { ...prev };
       for (const it of group.items) {
-        if (isDirty(it) || it.currentCount === it.baselineCount) continue;
+        if (it.countRequired || isDirty(it) || it.currentCount === it.baselineCount) continue;
         next[it.id] = { ...typed(it), count: String(it.baselineCount) };
       }
       return next;
@@ -475,6 +543,9 @@ export default function SharedInventoryView({ token }) {
           <li>
             <strong>{requiredItems.length ? T('taskCountReq', { n: requiredItems.length }) : T('taskCountAll', { n: items.length })}</strong>
             <small>{T('taskCountHow')}{proofEnabled ? ` ${T('taskPhotoOptional')}` : ''}</small>
+            {requiredItems.length > 0 && (
+              <div className={`uinv-progress${unacked.length ? '' : ' uinv-progress-done'}`}>{T('ackProgress', { done: requiredItems.length - unacked.length, n: requiredItems.length })}</div>
+            )}
             {listGroups.length > 1 && (
               <div className="uinv-areas-progress">
                 <span className={`uinv-progress${nextArea ? '' : ' uinv-progress-done'}`} style={{ margin: 0 }}>
@@ -548,6 +619,7 @@ export default function SharedInventoryView({ token }) {
           {/* A search opens every area that has a match, whatever was folded. */}
           <ItemList items={visible} lang={lang} folding={folding} forceOpen={!!needle} busy={busy} expectedLabel={T('expected')}
             valueOf={typed} diffOf={diffOf} isDirty={isDirty} onChange={setTyped} moreLabel={T('addNote')} photosFor={photosFor} proofFor={proofFor}
+            ackFor={ackFor}
             badgeFor={it => (openDamageOf(it)
               ? <span className="uinv-dmg-already" title={T('damageAlreadyAria')}>{T('damageAlready')}</span> : null)}
             areaBadge={g => (isReviewed(g.key) ? <span className="uinv-area-done">{T('areaReviewed')}</span> : null)}
@@ -605,11 +677,12 @@ export default function SharedInventoryView({ token }) {
       {items.length > 0 && (
         <CountComplete lang={lang} unsaved={dirtyItems.length} busy={busy} onComplete={complete}
           missing={[
+            ...(unacked.length ? [{ key: 'acks', text: T('ackMissingShort', { n: unacked.length }), action: T('ackMissingGo'), onAction: () => goToItem(unacked[0]) }] : []),
             ...(tasksLeft.length ? [{ key: 'tasks', text: T('tasksMissingShort', { n: tasksLeft.length }), action: T('tasksMissingGo'), onAction: () => { const el = document.getElementById('uinv-owner-notes'); if (el) el.scrollIntoView({ block: 'start' }); } }] : []),
             ...(fnLeft.length ? [{ key: 'fn', text: T('fnMissingShort', { n: fnLeft.length }), action: T('fnMissingGo'), onAction: () => { const el = document.getElementById('uinv-functions'); if (el) el.scrollIntoView({ block: 'start' }); } }] : []),
             ...(!videoDone ? [{ key: 'video', text: T('videoMissingShort'), action: T('videoAlertGo'), onAction: () => { const el = document.getElementById('uinv-video'); if (el) el.scrollIntoView({ block: 'start' }); } }] : []),
           ]}
-          canStart={() => pendingUpdates() !== null && haveTasks() && haveFunctions() && haveVideo()}
+          canStart={() => pendingUpdates() !== null && haveAcks() && haveTasks() && haveFunctions() && haveVideo()}
           damagePrompt={{
             covers: (requiredItems.length
               ? T('finishCoversReq', { n: requiredItems.length })

@@ -51,6 +51,8 @@ const guide = (lang, { required, videoRequired, proofEnabled, functions }) => {
           : pick('Revisa todos los artículos de la lista.', 'Check every item on the list.'),
         ...(required > 0 ? [pick('⚠️ Importante: aunque un artículo no tenga ★, si notas que falta o está dañado, repórtalo igual. Búscalo con el buscador, corrige el número y deja una nota, o toca “⚠️ Daño” en el artículo.',
           '⚠️ Important: even if an item has no ★, if you notice it is missing or damaged, report it anyway. Find it with the search box, correct the number and leave a note, or tap “⚠️ Damage” on the item.')] : []),
+        ...(required > 0 ? [pick('Cada artículo ★ hay que confirmarlo: cuéntalo, revisa que no esté dañado ni falte nada y toca “✓ Completo y sin daño” (o “✓ Revisado (con faltante o daño)” si algo no está bien). No puedes terminar sin confirmarlos todos. “✓ Todo bien en esta área” confirma de una vez los ★ de esa área.',
+          'Each ★ item must be confirmed: count it, check it isn’t damaged or missing anything and tap “✓ All there, no damage” (or “✓ Checked (something missing or damaged)” if something isn’t right). You can’t finish until all are confirmed. “✓ All good in this area” confirms that area’s ★ items at once.')] : []),
         pick('Toca el nombre de un área (Cocina, Baño…) para abrirla o cerrarla. Usa el buscador para encontrar un artículo rápido.',
           'Tap an area’s name (Kitchen, Bathroom…) to open or close it. Use the search box to find an item quickly.'),
         pick('“Esperado” es lo que debería haber. Usa − y + o escribe el número que encontraste.',

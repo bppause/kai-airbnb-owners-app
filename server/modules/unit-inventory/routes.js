@@ -218,6 +218,10 @@ const itemFromDb = (r) => ({
   countUpdatedAt: r.count_updated_at,
   countUpdatedBy: r.count_updated_by || '',
   countRequired: !!r.count_required,
+  // The cleaning service's confirmation that it was checked (see /acks).
+  checkedAt: r.checked_at || null,
+  checkedBy: r.checked_by || '',
+  checkedStatus: r.checked_status || '',
   photoCount: r.photo_count || 0,
   sortOrder: r.sort_order,
   createdAt: r.created_at,
@@ -531,6 +535,14 @@ module.exports = function createUnitInventoryRouter(deps) {
     return { changed: plans.length };
   };
 
+  // Since when a confirmation of a ★ item counts for this visit: the
+  // visit window, or the last completed count if more recent (a new
+  // visit starts unconfirmed).
+  const ackSince = (lastCheck) => {
+    const v = visitSince();
+    return lastCheck && lastCheck.createdAt > v ? lastCheck.createdAt : v;
+  };
+
   // The most recent completed count, or null. A database that doesn't have
   // unit_inventory_checks yet (schema.sql not re-run since the table was
   // added) reads as "never completed" instead of failing the whole screen.
@@ -730,6 +742,22 @@ module.exports = function createUnitInventoryRouter(deps) {
     // Every working check needs an answer from this visit.
     const functions = (await loadFunctions(listing.id)) || [];
     const answers = functions.length ? await visitFunctionAnswers(listing.id) : {};
+    // Every item to count at each checkout must have been confirmed
+    // (counted and checked for damage) during this visit. A database
+    // without the confirmation columns asks for none.
+    if (actorType === 'cleaner') {
+      const { data: reqRows } = await supabase.from('unit_inventory_items').select('*').eq('listing_id', listing.id).eq('count_required', true);
+      if (reqRows && reqRows.length && 'checked_at' in reqRows[0]) {
+        const since = ackSince(await loadLastCheck(listing.id));
+        const unchecked = reqRows.filter(r => !r.checked_at || r.checked_at < since);
+        if (unchecked.length) {
+          return {
+            error: `Confirm every ★ item first (${unchecked.length} left): counted and checked for damage or missing.`,
+            status: 400, itemsUnchecked: unchecked.map(r => r.id),
+          };
+        }
+      }
+    }
     // Every note the owner left needs an answer too: done, or why not.
     if (actorType === 'cleaner') {
       const openTasks = await loadTasks(listing.id, ['open']);
@@ -783,6 +811,8 @@ module.exports = function createUnitInventoryRouter(deps) {
         baseline: r.baseline_count, count: r.current_count, note: r.current_note || '', required: !!r.count_required,
         ...(r.current_note && r.current_note_translation ? { noteLang: r.current_note_lang || '', noteTranslation: r.current_note_translation } : {}),
         photos: photosOf(r.id),
+        // Who confirmed it, and how it was (★ items).
+        ...(r.count_required && r.checked_status ? { checked: r.checked_status, checkedBy: r.checked_by || '' } : {}),
       }));
     const damages = await visitDamages(listing.id);
     // The result and the damage count are newer columns: if the database
@@ -835,6 +865,13 @@ module.exports = function createUnitInventoryRouter(deps) {
     if (functions.length) {
       const { error: fErr } = await supabase.from('unit_inventory_function_results').delete().eq('listing_id', listing.id);
       if (fErr) warn('Inventory working-check clean-up failed: ' + fErr.message);
+    }
+    // The ★ confirmations are in the record now; the next visit starts
+    // without them. (Not on a database without the columns.)
+    if (actorType === 'cleaner' && rows.length && 'checked_at' in rows[0]) {
+      const { error: cErr2 } = await supabase.from('unit_inventory_items').update({ checked_at: null, checked_by: '', checked_status: '' })
+        .eq('listing_id', listing.id).eq('count_required', true);
+      if (cErr2) warn('Inventory confirmation reset failed: ' + cErr2.message);
     }
     if (actorType === 'cleaner') {
       const tasks = (await loadTasks(listing.id, ['open', 'done', 'blocked'])) || [];
@@ -2072,6 +2109,8 @@ module.exports = function createUnitInventoryRouter(deps) {
       })()),
       // Whether a damage photo can suggest which item it shows.
       suggestEnabled: translateEnabled(),
+      // Confirmations of ★ items made since then belong to this visit.
+      ackSince: ackSince(await loadLastCheck(listing.id)),
       // Whose link this is (their name is used for everything they do).
       person: listing.person ? { name: listing.person.name } : null,
       // Every open damage report (so nothing is reported twice) and those
@@ -2305,6 +2344,7 @@ module.exports = function createUnitInventoryRouter(deps) {
         error: result.error, ...(result.videoMissing ? { videoMissing: true } : {}),
         ...(result.functionsMissing ? { functionsMissing: result.functionsMissing } : {}),
         ...(result.tasksMissing ? { tasksMissing: result.tasksMissing } : {}),
+        ...(result.itemsUnchecked ? { itemsUnchecked: result.itemsUnchecked } : {}),
       });
     }
     res.json(result);
@@ -2346,6 +2386,53 @@ module.exports = function createUnitInventoryRouter(deps) {
     const listing = await unitForToken(res, req.params.token);
     if (!listing) return;
     await sendCheckVideos(req, res, listing, false);
+  });
+
+  // POST /shared/:token/acks — body: { name, lang, items: [{ itemId,
+  // count?, note? }], undo? }. The cleaning service confirms items it
+  // must count were checked — counted and looked at for damage or
+  // missing — saving the count (and note) as typed with it. Each is
+  // marked 'ok' (all there, no open damage report) or 'issue'. `undo`
+  // takes confirmations of this visit back. → { items } (the rows).
+  router.post('/shared/:token/acks', async (req, res) => {
+    if (!requireSupabaseEnv(res)) return;
+    const listing = await unitForToken(res, req.params.token);
+    if (!listing) return;
+    const list = Array.isArray(req.body?.items) ? req.body.items.slice(0, MAX_COUNT_UPDATES) : [];
+    if (!list.length) return res.status(400).json({ error: 'Nothing to confirm.' });
+    const ids = list.map(x => String(x?.itemId || ''));
+    const { data: rows, error } = await supabase.from('unit_inventory_items').select('*').eq('listing_id', listing.id).in('id', ids);
+    if (error) return sendSupabaseError(res, error);
+    if ((rows || []).length !== new Set(ids).size) return res.status(409).json({ error: 'One of the items no longer exists. Reload and try again.' });
+    if (rows.length && !('checked_at' in rows[0])) return res.status(503).json({ error: 'Confirming items needs the latest database update: ask the owner to run supabase/unit_inventory.sql.' });
+    const name = cleanerName(req, listing);
+    if (req.body?.undo) {
+      const { error: uErr } = await supabase.from('unit_inventory_items').update({ checked_at: null, checked_by: '', checked_status: '' })
+        .eq('listing_id', listing.id).in('id', ids);
+      if (uErr) return sendSupabaseError(res, uErr);
+    } else {
+      // The counts as typed first, so the confirmation describes them.
+      const updates = list.filter(x => x.count !== undefined || x.note !== undefined)
+        .map(x => ({ itemId: String(x.itemId), ...(x.count !== undefined ? { count: x.count } : {}), ...(x.note !== undefined ? { note: x.note } : {}) }));
+      if (updates.length) {
+        const result = await applyCountUpdates({ listing, updates, actorType: 'cleaner', actorName: name, actorUid: '', lang: req.body?.lang });
+        if (result.supabaseError) return sendSupabaseError(res, result.supabaseError);
+        if (result.error && result.error !== 'No changes to save.') return res.status(result.status).json({ error: result.error });
+      }
+      const { data: fresh, error: fErr } = await supabase.from('unit_inventory_items').select('*').eq('listing_id', listing.id).in('id', ids);
+      if (fErr) return sendSupabaseError(res, fErr);
+      const open = await loadDamages(listing.id, q => q.eq('status', 'open'));
+      const now = new Date().toISOString();
+      for (const r of fresh || []) {
+        const status = r.current_count >= r.baseline_count && !open.some(d => d.item_id === r.id) ? 'ok' : 'issue';
+        const { error: aErr } = await supabase.from('unit_inventory_items').update({ checked_at: now, checked_by: name, checked_status: status })
+          .eq('id', r.id).eq('listing_id', listing.id);
+        if (aErr) return sendSupabaseError(res, aErr);
+      }
+    }
+    const { data: after, error: rErr } = await supabase.from('unit_inventory_items').select('*').eq('listing_id', listing.id).in('id', ids);
+    if (rErr) return sendSupabaseError(res, rErr);
+    res.json({ items: (after || []).map(itemFromDb) });
   });
 
   // POST /shared/:token/tasks/:taskId — body: { name, done: true |

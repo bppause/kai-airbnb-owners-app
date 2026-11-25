@@ -174,6 +174,7 @@ export const UINV_CSS = `
 .uinv-report-body{border-top:1px solid #e6eeeb;margin-top:8px;padding-top:8px;display:grid;gap:10px}
 .uinv-report-row{display:grid;gap:1px;padding:6px 0;border-bottom:1px solid #eef3f1}
 .uinv-report-miss{color:#9d1f16;font-weight:700}
+.uinv-report-ok{color:#0b5f3a;font-weight:700}
 .uinv-report-extra{color:#1c4f8a;font-weight:700}
 .uinv-finish{display:grid;gap:10px}
 .uinv-finish .uinv-btn{width:100%;min-height:48px;font-size:1rem}
@@ -217,6 +218,12 @@ export const UINV_CSS = `
 .uinv-proof-ok .uinv-proof-state{color:#0b5f3a}
 .uinv-progress{margin:8px 0 0;font-weight:700;color:#7a5200}
 .uinv-progress-done{color:#0b5f3a}
+.uinv-ack{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:8px}
+.uinv-ack-btn{flex:1 1 220px;min-height:44px}
+.uinv-ack-ok,.uinv-ack-issue{padding:6px 10px;border-radius:10px;font-weight:700;justify-content:space-between}
+.uinv-ack-ok{background:#e6f4ec;color:#0b5f3a}
+.uinv-ack-issue{background:#fff4e5;color:#7a5200}
+.uinv-ack-ok span,.uinv-ack-issue span{flex:1 1 180px}
 .uinv-missing{display:grid;gap:8px;margin:0 0 10px;padding:10px;border-radius:12px;background:#fffaf0;border:1px solid #e2b93b}
 .uinv-missing-row{display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:space-between}
 .uinv-missing-row span{flex:1 1 180px;font-weight:700;color:#7a5200}
