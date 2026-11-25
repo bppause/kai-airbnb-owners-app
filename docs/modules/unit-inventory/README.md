@@ -321,9 +321,11 @@ unnoticed.
   expected count) or, when something there is short or damaged, "✓ Área
   revisada (con faltantes o daños)" (counts as typed). Either confirms
   every item of the area at once (items already confirmed keep their
-  count); an area counts as checked when all its items are. In the ★
-  view, areas to check that have no ★ items are listed too, with a note
-  saying so. Progress reads "Áreas revisadas: 2 de 7", the finish box
+  count); an area counts as checked when all its items are. The ★ view
+  (the default when the owner has flagged items) shows only ★ items; an
+  area to check that has none is still listed — its heading, a note
+  saying so and the button, no items ("Todos" shows them). Areas the
+  owner let off have no button. Progress reads "Áreas revisadas: 2 de 7", the finish box
   lists "🧾 N área(s) sin revisar" with a button to the next, and the
   server refuses the count while any is left (`areasUnchecked`). On each
   area's bar the owner switches "🧾 Revisar en cada visita: Sí / No"

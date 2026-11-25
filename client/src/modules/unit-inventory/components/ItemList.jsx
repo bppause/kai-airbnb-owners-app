@@ -145,11 +145,17 @@ function ItemCard({ item, lang, value, diff, dirty, busy, expectedLabel, opened,
 // `headActionFor(item)` returns a button kept in view at the top right of
 // the item even when it is folded on a phone (the cleaning service's
 // ⚠️ Damage).
-export function ItemList({ items, lang, folding, forceOpen = false, busy, expectedLabel, valueOf, diffOf, isDirty, onChange, actionsFor, onRequired, moreLabel, photosFor, proofFor, flashId, headActionFor, onRenameArea, areaExtra, areaBadge, areaFooter, badgeFor, ackFor, areaBarExtra }) {
+// `keepAreas` (a Set of area keys, with `allItems`) lists those areas even
+// when none of their items is shown — the cleaning service's ★ view keeps
+// the areas still to confirm that have no ★ items — in the full list's order.
+export function ItemList({ items, lang, folding, forceOpen = false, busy, expectedLabel, valueOf, diffOf, isDirty, onChange, actionsFor, onRequired, moreLabel, photosFor, proofFor, flashId, headActionFor, onRenameArea, areaExtra, areaBadge, areaFooter, badgeFor, ackFor, areaBarExtra, keepAreas, allItems }) {
   const T = (k, v) => tr(lang, k, v);
   // Items opened by hand on a narrow screen, by id.
   const [openedItems, setOpenedItems] = useState({});
-  const groups = groupByArea(items, lang);
+  const shownIds = keepAreas && allItems ? new Set(items.map(it => it.id)) : null;
+  const groups = shownIds
+    ? groupByArea(allItems, lang).map(g => ({ ...g, items: g.items.filter(it => shownIds.has(it.id)) })).filter(g => g.items.length || keepAreas.has(g.key))
+    : groupByArea(items, lang);
   const keys = groups.map(g => g.key);
   const anyFolded = !forceOpen && keys.some(k => folding.isFolded(k));
   return (
@@ -177,7 +183,7 @@ export function ItemList({ items, lang, folding, forceOpen = false, busy, expect
                 {required > 0 && <span className="uinv-badge uinv-badge-req">{T('areaReqCount', { n: required })}</span>}
                 {changed > 0 && <span className="uinv-badge uinv-badge-chg">{T('areaChanged', { n: changed })}</span>}
                 {areaBadge && areaBadge(group)}
-                <span className="uinv-area-count" title={T('itemsInArea', { n: group.items.length })}>{group.items.length}</span>
+                {group.items.length > 0 && <span className="uinv-area-count" title={T('itemsInArea', { n: group.items.length })}>{group.items.length}</span>}
               </button>
             </h2>
             {!folded && onRequired && (
