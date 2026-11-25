@@ -259,6 +259,7 @@ a.uinv-btn{text-decoration:none;display:inline-flex;align-items:center;justify-c
 .uinv-area-done{padding:2px 8px;border-radius:999px;background:#e6f4ec;color:#0b5f3a;font-size:.78rem;font-weight:700;white-space:nowrap}
 .uinv-area-foot{display:flex;flex-wrap:wrap;gap:8px;justify-content:flex-end;margin:4px 0 14px}
 .uinv-area-foot .uinv-btn{min-height:44px}
+.uinv-area-foot .uinv-area-showall{margin-right:auto}
 .uinv-btn-ok{background:#e6f4ec;border-color:#7cc59b;color:#0b5f3a;font-weight:700}
 .uinv-hello{background:#f1f8f4;border-color:#b7e2c8}
 .uinv-areas-progress{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:6px}

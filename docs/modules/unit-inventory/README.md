@@ -324,8 +324,11 @@ unnoticed.
   count); an area counts as checked when all its items are. The ★ view
   (the default when the owner has flagged items) shows only ★ items; an
   area to check that has none is still listed — its heading, a note
-  saying so and the button, no items ("Todos" shows them). Areas the
-  owner let off have no button. Progress reads "Áreas revisadas: 2 de 7", the finish box
+  saying so and the button, no items. Beside the button, a switch "☐ Ver
+  todos los artículos (n)" — off by default, per area, not remembered —
+  lists every item of that area in the ★ view, so the cleaner can see
+  everything that should be there before confirming. Areas the owner let
+  off have no button. Progress reads "Áreas revisadas: 2 de 7", the finish box
   lists "🧾 N área(s) sin revisar" with a button to the next, and the
   server refuses the count while any is left (`areasUnchecked`). On each
   area's bar the owner switches "🧾 Revisar en cada visita: Sí / No"
