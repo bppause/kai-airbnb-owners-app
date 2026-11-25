@@ -300,6 +300,22 @@ unnoticed.
   photos, the video to watch or download) and "Todos los cambios", the
   timeline of item changes and completed counts. Read-only: no "keep as
   evidence", no storage summary, no week-long video share link.
+- **Every ★ item confirmed.** On the cleaning-service page each item to
+  count at every checkout carries "✓ Completo y sin daño" — or, when the
+  number typed differs from the expected one or the item has an open
+  damage report, "✓ Revisado (con faltante o daño)" — visible without
+  opening the item. Tapping it saves the count (and note) as typed and
+  records who confirmed it and how (`checked_status` 'ok' / 'issue' on
+  the item, via `POST /shared/:token/acks`); "Deshacer" takes it back,
+  and changing the number afterwards asks to confirm again. "✓ Todo bien
+  en esta área" confirms the area's ★ items at their expected count. The
+  task list shows "★ Revisados: 3 de 11", the finish box lists those
+  left with "★ Ir al siguiente", and the server refuses the count until
+  all are confirmed during the visit (`itemsUnchecked`). The checkout
+  report says who checked each ★ item, in red when there was a problem.
+  Completing clears the confirmations, so each visit starts afresh; the
+  owner's own count asks for none, nor does a database without the
+  columns.
 - **The owner's email when an inventory is completed** (in-app alert as
   well) sums it up — counts, damage, working checks, battery changes,
   notes answered — and links straight into the app: "Ver el reporte de
@@ -524,6 +540,7 @@ Mounted at `/api/m/unit-inventory`.
 | `POST /shared/:token/checks` | link holder | Mark the count complete (optionally saving `updates` first) |
 | `POST /shared/:token/proposals` | link holder | Propose an item for the owner to approve |
 | `POST /shared/:token/damages` | link holder | Report damage, with photos |
+| `POST /shared/:token/acks` | link holder | `{ name, lang, items: [{ itemId, count?, note? }], undo? }`: confirm ★ items were counted and checked (saving the count with it), or take confirmations back → `{ items }` |
 | `POST /shared/:token/tasks/:taskId` | link holder | `{ name, done: true\|false, blocked?, note? }`: answer one of the owner's notes — done, or `blocked` (couldn't, `note` required) — or take back an answer given this visit |
 | `GET /shared/:token/history`, `/shared/:token/checks`, `/shared/:token/checks/:checkId[/items/:itemId/photos \| /videos]` | link holder | The history and every checkout report, read-only (videos without the week-long share link) |
 | `GET /shared/:token/functions/:checkId/photos` | link holder | The owner's example photos of a check (`?first=1`) |

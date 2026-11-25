@@ -596,6 +596,14 @@ create table if not exists public.unit_inventory_items (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+-- The cleaning service's confirmation, during a visit, that an item it
+-- must count (count_required) was checked: counted and looked at for
+-- damage. checked_status is 'ok' (all there, no open damage) or 'issue'.
+-- A count can't be completed through the share link until every such
+-- item was confirmed since the visit began.
+alter table public.unit_inventory_items add column if not exists checked_at timestamptz;
+alter table public.unit_inventory_items add column if not exists checked_by text not null default '';
+alter table public.unit_inventory_items add column if not exists checked_status text not null default '';
 -- Whether the item must be counted at every checkout. Off by default: the
 -- list is the owner's record of everything in the unit, and the owner
 -- flags the items the cleaning service has to count each time.
