@@ -468,8 +468,9 @@ export default function SharedInventoryView({ token }) {
   const showing = requiredItems.length ? (view || 'required') : 'all';
   // Every area must be confirmed at each visit ("✓ Todo bien en esta
   // área"), unless the owner let it off; confirming an area confirms all
-  // its items. The ★ view still shows such an area when it has no ★
-  // items, so it can be confirmed.
+  // its items. The ★ view shows only ★ items, but still lists such an
+  // area when it has none (its heading and the button), so it can be
+  // confirmed. Areas let off have no button.
   const allGroups = groupByArea(items, lang);
   const groupByKey = new Map(allGroups.map(g => [g.key, g]));
   const isExempt = (g) => areasExempt.some(x => (x.areaEn || '') === (g.areaEn || '') && (x.areaEs || '') === (g.areaEs || ''));
@@ -480,7 +481,7 @@ export default function SharedInventoryView({ token }) {
   const needle = search.trim().toLowerCase();
   const visible = needle
     ? items.filter(it => `${it.nameEn} ${it.nameEs} ${it.areaEn} ${it.areaEs}`.toLowerCase().includes(needle))
-    : (showing === 'required' ? items.filter(it => it.countRequired || plainAreaKeys.has(areaKey(it.areaEn, it.areaEs))) : items);
+    : (showing === 'required' ? requiredItems : items);
 
   const isReviewed = (key) => areaConfirmed(key);
   const nextArea = listGroups.find(g => !areaConfirmed(g.key));
@@ -629,8 +630,10 @@ export default function SharedInventoryView({ token }) {
             badgeFor={it => (openDamageOf(it)
               ? <span className="uinv-dmg-already" title={T('damageAlreadyAria')}>{T('damageAlready')}</span> : null)}
             areaBadge={g => (isReviewed(g.key) ? <span className="uinv-area-done">{T('areaReviewed')}</span> : null)}
+            keepAreas={showing === 'required' && !needle ? plainAreaKeys : undefined} allItems={items}
             areaFooter={needle ? undefined : (g => {
               const full = groupByKey.get(g.key) || g;
+              if (isExempt(full)) return null;
               if (areaConfirmed(g.key)) {
                 const who = (full.items.find(it => it.checkedBy) || {}).checkedBy || '';
                 return (
